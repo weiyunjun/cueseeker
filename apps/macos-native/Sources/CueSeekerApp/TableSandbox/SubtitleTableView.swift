@@ -1877,6 +1877,7 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
+        let updateStart = TableRenderingPerformanceLogger.now()
         context.coordinator.isRedesign = isRedesign
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
@@ -1909,6 +1910,14 @@ struct SubtitleTableView: NSViewRepresentable {
             onShowContext: onShowContext,
             rowActionMenuStyle: rowActionMenuStyle,
             onRemoveShiori: onRemoveShiori
+        )
+        TableRenderingPerformanceLogger.record(
+            event: "nsview_updated",
+            table: tableName,
+            reason: rowsUpdate.reason,
+            elapsedMilliseconds: TableRenderingPerformanceLogger.elapsedMilliseconds(since: updateStart),
+            rowCount: rowCount,
+            changed: rowsUpdate != .none
         )
     }
 

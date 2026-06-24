@@ -40,3 +40,26 @@
 ## Follow-ups
 
 - Later UX work may add row highlighting, temporary focus, or another arrival affordance after the technical path is accepted.
+
+## 2026-06-25 Performance Instrumentation Follow-up
+
+### Requirement
+
+- Human-owned requirement: `docs/human/requirements/20260624-Feature-Cue Context Search.md`
+
+### Steps
+
+- Added a gated Cue Context performance logger for the technical validation path.
+- Recorded Context request creation, Search panel selection, Search view request application, Context page DB return, first-page load return, row-store commit, first hydration scheduling, and visible-row callbacks under a shared Context request ID.
+- Added a generic table `updateNSView` timing event to the existing table-rendering performance log so the Context timeline can be aligned with table update cost.
+- Kept the instrumentation disabled unless `CUESEEKER_PERF_CONTEXT`, `CUESEEKER_PERF_SEARCH`, or `CUESEEKER_PERF` is enabled.
+
+### Verification
+
+- Ran `swift build` from `apps/macos-native`.
+- Ran `swift test --filter 'cueContextSearchPage|SearchStore|SubtitleTableVirtualRow|TableSandboxRowModelStore'` from `apps/macos-native`; 39 Swift Testing tests passed.
+
+### Outcome
+
+- Cue Context now has a focused performance timeline written to `logs/cue-context/` when enabled, while table update timings continue to be written to `logs/table-rendering/` through the existing table logger.
+- No product behavior change is intended by this follow-up.

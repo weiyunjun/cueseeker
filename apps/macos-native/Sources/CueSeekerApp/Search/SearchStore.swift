@@ -6,17 +6,20 @@ struct CueContextSearchRequest: Equatable, Identifiable {
     let displayTitle: String
     let subtitlePath: String
     let targetEntryID: Int64
+    let requestedAt: UInt64
 
     init(
         id: UUID = UUID(),
         displayTitle: String,
         subtitlePath: String,
-        targetEntryID: Int64
+        targetEntryID: Int64,
+        requestedAt: UInt64 = CueContextPerformanceLogger.now()
     ) {
         self.id = id
         self.displayTitle = displayTitle
         self.subtitlePath = subtitlePath
         self.targetEntryID = targetEntryID
+        self.requestedAt = requestedAt
     }
 }
 

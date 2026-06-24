@@ -89,6 +89,15 @@ struct WorkbenchTestSearchView: View {
         .onAppear {
             if let request = search.cueContextSearchRequest,
                applyCueContextSearchRequest(request) {
+                CueContextPerformanceLogger.record(
+                    event: "context_search_view_on_appear_applied",
+                    contextID: request.id,
+                    startedAt: request.requestedAt,
+                    displayTitle: request.displayTitle,
+                    subtitlePath: request.subtitlePath,
+                    targetEntryID: request.targetEntryID,
+                    status: "applied"
+                )
                 return
             }
 
@@ -174,12 +183,32 @@ struct WorkbenchTestSearchView: View {
 
     @discardableResult
     private func applyCueContextSearchRequest(_ request: CueContextSearchRequest) -> Bool {
+        let applyStart = CueContextPerformanceLogger.now()
         guard lastHandledCueContextRequestID != request.id else {
+            CueContextPerformanceLogger.record(
+                event: "context_request_ignored_duplicate",
+                contextID: request.id,
+                startedAt: request.requestedAt,
+                phaseStart: applyStart,
+                displayTitle: request.displayTitle,
+                subtitlePath: request.subtitlePath,
+                targetEntryID: request.targetEntryID,
+                status: "duplicate"
+            )
             return false
         }
 
         let displayTitle = request.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !displayTitle.isEmpty else {
+            CueContextPerformanceLogger.record(
+                event: "context_request_ignored_empty_title",
+                contextID: request.id,
+                startedAt: request.requestedAt,
+                phaseStart: applyStart,
+                subtitlePath: request.subtitlePath,
+                targetEntryID: request.targetEntryID,
+                status: "ignored"
+            )
             return false
         }
 
@@ -214,6 +243,17 @@ struct WorkbenchTestSearchView: View {
         appState.updateSearchFilterSet(filterSet)
         tableScrollResetToken += 1
         clearTableRows(resetScroll: false)
+        CueContextPerformanceLogger.record(
+            event: "context_request_applied",
+            contextID: request.id,
+            startedAt: request.requestedAt,
+            phaseStart: applyStart,
+            displayTitle: displayTitle,
+            subtitlePath: request.subtitlePath,
+            targetEntryID: request.targetEntryID,
+            generation: generation,
+            status: "applied"
+        )
         loadCueContextRows(
             request: request,
             filterSignature: filterSignature,
@@ -347,6 +387,19 @@ struct WorkbenchTestSearchView: View {
 
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
         lastVisibleRows = visibleRows
+        if let activeCueContextRequest {
+            CueContextPerformanceLogger.record(
+                event: "context_visible_rows_changed",
+                contextID: activeCueContextRequest.id,
+                startedAt: activeCueContextRequest.requestedAt,
+                displayTitle: activeCueContextRequest.displayTitle,
+                subtitlePath: activeCueContextRequest.subtitlePath,
+                targetEntryID: activeCueContextRequest.targetEntryID,
+                range: visibleRows,
+                tableRows: rowStore.snapshot.totalRowCount,
+                status: "visibleRows"
+            )
+        }
         visibleHydrator.schedule(
             visibleRows: visibleRows,
             totalRowCount: rowStore.snapshot.totalRowCount,
@@ -398,30 +451,109 @@ struct WorkbenchTestSearchView: View {
         generation: Int
     ) {
         Task { @MainActor in
+            let loadStart = CueContextPerformanceLogger.now()
+            CueContextPerformanceLogger.record(
+                event: "context_initial_load_started",
+                contextID: request.id,
+                startedAt: request.requestedAt,
+                displayTitle: request.displayTitle,
+                subtitlePath: request.subtitlePath,
+                targetEntryID: request.targetEntryID,
+                range: 0..<TableSandboxHydrationPaging.pageSize,
+                generation: generation,
+                status: "loading"
+            )
             guard let page = await appState.loadCueContextSearchPage(
                 request: request,
                 range: 0..<TableSandboxHydrationPaging.pageSize
             ) else {
                 guard generation == cueContextLoadGeneration else { return }
+                CueContextPerformanceLogger.record(
+                    event: "context_initial_load_empty",
+                    contextID: request.id,
+                    startedAt: request.requestedAt,
+                    phaseStart: loadStart,
+                    displayTitle: request.displayTitle,
+                    subtitlePath: request.subtitlePath,
+                    targetEntryID: request.targetEntryID,
+                    range: 0..<TableSandboxHydrationPaging.pageSize,
+                    generation: generation,
+                    status: "empty"
+                )
                 rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
                 return
             }
+            CueContextPerformanceLogger.record(
+                event: "context_initial_load_returned",
+                contextID: request.id,
+                startedAt: request.requestedAt,
+                phaseStart: loadStart,
+                displayTitle: request.displayTitle,
+                subtitlePath: request.subtitlePath,
+                targetEntryID: request.targetEntryID,
+                range: page.range,
+                returnedRows: page.results.count,
+                totalRows: page.totalRowCount,
+                generation: generation,
+                status: "loaded"
+            )
 
             guard generation == cueContextLoadGeneration,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   search.activeFilterSetSignature == filterSignature
             else {
+                CueContextPerformanceLogger.record(
+                    event: "context_initial_load_discarded",
+                    contextID: request.id,
+                    startedAt: request.requestedAt,
+                    displayTitle: request.displayTitle,
+                    subtitlePath: request.subtitlePath,
+                    targetEntryID: request.targetEntryID,
+                    range: page.range,
+                    returnedRows: page.results.count,
+                    totalRows: page.totalRowCount,
+                    generation: generation,
+                    status: "discarded"
+                )
                 return
             }
 
             appState.applyTableSandboxAllCueSearchContext(page)
+            let rowStoreStart = CueContextPerformanceLogger.now()
             rowStore.updateSearchRows(
                 page.results,
                 totalRowCount: page.totalRowCount,
                 tableName: "test-search"
             )
+            CueContextPerformanceLogger.record(
+                event: "context_initial_rows_committed",
+                contextID: request.id,
+                startedAt: request.requestedAt,
+                phaseStart: rowStoreStart,
+                displayTitle: request.displayTitle,
+                subtitlePath: request.subtitlePath,
+                targetEntryID: request.targetEntryID,
+                range: page.range,
+                returnedRows: page.results.count,
+                totalRows: page.totalRowCount,
+                tableRows: rowStore.snapshot.totalRowCount,
+                generation: generation,
+                status: "committed"
+            )
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
             hydrateLastVisibleRowsIfNeeded()
+            CueContextPerformanceLogger.record(
+                event: "context_initial_hydration_requested",
+                contextID: request.id,
+                startedAt: request.requestedAt,
+                displayTitle: request.displayTitle,
+                subtitlePath: request.subtitlePath,
+                targetEntryID: request.targetEntryID,
+                range: lastVisibleRows,
+                tableRows: rowStore.snapshot.totalRowCount,
+                generation: generation,
+                status: "scheduled"
+            )
         }
     }
 
