@@ -23,6 +23,10 @@ human-owned subtitle screenshot export requirement.
   and single collage PNG export.
 - Added filename and collage eligibility tests for the exported screenshot
   naming rules and same-video limit.
+- Follow-up: removed an extra CoreGraphics image flip during screenshot
+  composition so video frames and ASS overlays preserve source orientation.
+- Follow-up: changed filename cue timestamps to dot-separated `hh.mm.ss` /
+  `mm.ss` formatting after the human requirement was refined.
 
 ## Verification
 

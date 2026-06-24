@@ -346,7 +346,7 @@ public enum SubtitleScreenshotExporter {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
 
-        drawImage(frameImage, in: context, rect: CGRect(x: 0, y: 0, width: width, height: height), canvasHeight: height)
+        drawImage(frameImage, in: context, rect: CGRect(x: 0, y: 0, width: width, height: height))
 
         let fontSize = min(42, max(24, CGFloat(height) * 0.032))
         let paragraph = NSMutableParagraphStyle()
@@ -547,8 +547,8 @@ public enum SubtitleScreenshotExporter {
         }
 
         let fullRect = CGRect(x: 0, y: 0, width: width, height: height)
-        drawImage(baseImage, in: context, rect: fullRect, canvasHeight: height)
-        drawImage(overlayImage, in: context, rect: fullRect, canvasHeight: height)
+        drawImage(baseImage, in: context, rect: fullRect)
+        drawImage(overlayImage, in: context, rect: fullRect)
         return context.makeImage()
     }
 
@@ -570,8 +570,7 @@ public enum SubtitleScreenshotExporter {
             drawImage(
                 image,
                 in: context,
-                rect: CGRect(x: 0, y: y, width: image.width, height: image.height),
-                canvasHeight: height
+                rect: CGRect(x: 0, y: height - y - image.height, width: image.width, height: image.height)
             )
             y += image.height
         }
@@ -582,14 +581,9 @@ public enum SubtitleScreenshotExporter {
     private static func drawImage(
         _ image: CGImage,
         in context: CGContext,
-        rect: CGRect,
-        canvasHeight: Int
+        rect: CGRect
     ) {
-        context.saveGState()
-        context.translateBy(x: 0, y: CGFloat(canvasHeight))
-        context.scaleBy(x: 1, y: -1)
         context.draw(image, in: rect)
-        context.restoreGState()
     }
 
     private static func rgbaImage(data: Data, width: Int, height: Int, stride: Int) -> CGImage? {
@@ -675,9 +669,9 @@ public enum SubtitleScreenshotExporter {
         let seconds = totalSeconds % 60
 
         if hours > 0 {
-            return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+            return String(format: "%02d.%02d.%02d", hours, minutes, seconds)
         }
-        return String(format: "%02d:%02d", minutes, seconds)
+        return String(format: "%02d.%02d", minutes, seconds)
     }
 
     private static func ffmpegExecutableURL() -> URL? {

@@ -15,7 +15,7 @@ func subtitleScreenshotDefaultFilenameUsesDisplayTitleAndCueTimeRange() {
         textLines: ["大丈夫"]
     )
 
-    #expect(SubtitleScreenshotExporter.defaultScreenshotFileName(for: item) == "Ave Mujica - 01-00:30-00:34.png")
+    #expect(SubtitleScreenshotExporter.defaultScreenshotFileName(for: item) == "Ave Mujica - 01-00.30-00.34.png")
 }
 
 @Test
@@ -30,7 +30,7 @@ func subtitleScreenshotDefaultFilenameIncludesHourWhenPresent() {
         textLines: ["Hello"]
     )
 
-    #expect(SubtitleScreenshotExporter.defaultScreenshotFileName(for: item) == "Long Show - 12-01:15:32-01:15:38.png")
+    #expect(SubtitleScreenshotExporter.defaultScreenshotFileName(for: item) == "Long Show - 12-01.15.32-01.15.38.png")
 }
 
 @Test
@@ -54,7 +54,7 @@ func subtitleScreenshotCollageFilenameUsesTimelineBoundsAndCount() {
         textLines: ["Second"]
     )
 
-    #expect(SubtitleScreenshotExporter.defaultCollageFileName(for: [first, second]) == "Show - 01-00:05-00:12-2.png")
+    #expect(SubtitleScreenshotExporter.defaultCollageFileName(for: [first, second]) == "Show - 01-00.05-00.12-2.png")
 }
 
 @Test
