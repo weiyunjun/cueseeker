@@ -430,7 +430,10 @@ struct WorkbenchTestSearchView: View {
                 totalRowCount: page.totalRowCount,
                 tableName: "test-search"
             )
-            tableScrollTargetRow = page.range.lowerBound
+            tableScrollTargetRow = cueContextInitialScrollTargetRow(
+                in: page,
+                targetEntryID: request.targetEntryID
+            )
             tableScrollResetToken += 1
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
             hydrateLastVisibleRowsIfNeeded()
@@ -631,4 +634,11 @@ struct WorkbenchTestSearchView: View {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
         refreshSelectedCollageAvailability()
     }
+}
+
+func cueContextInitialScrollTargetRow(
+    in page: TableSandboxSearchHydrationPage,
+    targetEntryID: Int64
+) -> Int {
+    page.results.first { $0.entryID == targetEntryID }?.searchRank ?? page.range.lowerBound
 }

@@ -42,6 +42,49 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     #expect(app.nextGlobalSearchCursor?.offset == 11)
 }
 
+@Test
+func cueContextInitialScrollTargetUsesTargetSearchRankNearTail() {
+    let target = makeTableSandboxSearchResult(
+        id: 1520171,
+        content: "target cue",
+        speakers: [],
+        searchRank: 2717
+    )
+    let page = TableSandboxSearchHydrationPage(
+        range: 2688..<2738,
+        results: [
+            makeTableSandboxSearchResult(
+                id: 1520169,
+                content: "preceding cue",
+                speakers: [],
+                searchRank: 2715
+            ),
+            target
+        ],
+        totalRowCount: 2738
+    )
+
+    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: target.entryID) == 2717)
+}
+
+@Test
+func cueContextInitialScrollTargetFallsBackToLoadedRangeStartWhenTargetIsMissing() {
+    let page = TableSandboxSearchHydrationPage(
+        range: 2688..<2738,
+        results: [
+            makeTableSandboxSearchResult(
+                id: 1520169,
+                content: "preceding cue",
+                speakers: [],
+                searchRank: 2715
+            )
+        ],
+        totalRowCount: 2738
+    )
+
+    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: 1520171) == 2688)
+}
+
 @MainActor
 @Test
 func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async throws {

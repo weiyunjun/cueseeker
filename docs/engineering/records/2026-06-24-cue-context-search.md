@@ -112,3 +112,24 @@
 
 - Context no longer writes temporary `logs/cue-context/` or `logs/table-rendering/` diagnostics.
 - The previous `requestedRange` versus applied range diagnostic ambiguity is gone with the removed Context-specific log stream.
+
+## 2026-06-25 Tail Context Scroll Target Follow-up
+
+### Requirement
+
+- Human-owned requirement: `docs/human/requirements/20260624-Feature-Cue Context Search.md`
+
+### Steps
+
+- Split the initial Context loading window from the table scroll target.
+- Kept the first loaded page anchored as a tail-filled window when the target cue is near the end of the subtitle file.
+- Changed the Search table reset target to the target cue's real `searchRank` when that cue is present in the initial Context page, falling back to the loaded range start only if the target cannot be found.
+
+### Verification
+
+- Ran `swift build` from `apps/macos-native`.
+- Ran `swift test --filter 'cueContextInitialScrollTarget|cueContextSearchPage|SubtitleTableVirtualRow|TableSandboxRowModelStore|SearchStore|TableSandboxVisibleSearchHydrator'` from `apps/macos-native`; 47 Swift Testing tests passed.
+
+### Outcome
+
+- A near-tail Context request can keep enough rows hydrated for the first screen while still asking the table to place the target cue as early as the scroll view allows.
