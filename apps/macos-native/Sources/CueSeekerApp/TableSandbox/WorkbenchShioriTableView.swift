@@ -149,8 +149,21 @@ private struct WorkbenchShioriTableContent: View {
                     action: exportSelectedRowsAsCollage
                 )
                 .disabled(!canExportSelectedRowsAsCollage)
+                WorkbenchButton(
+                    title: "Copy Table",
+                    systemImage: "doc.on.doc",
+                    isRedesign: true,
+                    action: copySelectedRowsAsTable
+                )
             }
         )
+    }
+
+    private var visibleColumnsForCopy: [WorkbenchTableColumn] {
+        SchemaWorkbenchSearchDefaults.shioriColumns.filter {
+            shioriStore.tableVisibleColumnIDs.contains($0.id) ||
+                SchemaWorkbenchColumnVisibilityMenu.isLocked($0.id)
+        }
     }
 
     private func isColumnVisible(_ id: String, in visibleColumns: [WorkbenchTableColumn]) -> Bool {
@@ -310,6 +323,20 @@ private struct WorkbenchShioriTableContent: View {
                 return
             }
             appState.exportSubtitleCollage(items)
+        }
+    }
+
+    private func copySelectedRowsAsTable() {
+        let selectedRows = rowSelection.selectedRows(rowCount: rowStore.snapshot.totalRowCount)
+        guard !selectedRows.isEmpty else {
+            return
+        }
+
+        let columns = SubtitleTableClipboard.columns(from: visibleColumnsForCopy)
+        Task { @MainActor in
+            await hydrateRowsForExport(selectedRows)
+            let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
+            SubtitleTableClipboard.copy(rows: rows, columns: columns)
         }
     }
 

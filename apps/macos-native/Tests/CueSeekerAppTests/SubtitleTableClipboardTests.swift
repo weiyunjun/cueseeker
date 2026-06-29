@@ -1,0 +1,114 @@
+import Testing
+@testable import CueSeekerApp
+
+@Test
+func subtitleTableClipboardCopiesHeadersAndExpandsCueLines() {
+    let columns = SubtitleTableClipboard.columns(from: [
+        WorkbenchTableColumn(id: "rowNumber", title: "#", kind: .rowNumber, width: .fixed(84)),
+        WorkbenchTableColumn(id: "display", title: "Display Title", kind: .text, width: .fixed(300)),
+        WorkbenchTableColumn(id: "startTime", title: "Start Time", kind: .text, width: .fixed(130)),
+        WorkbenchTableColumn(id: "cues", title: "Cues", kind: .text, width: .flexible(min: 580)),
+    ])
+    let rows = [
+        SubtitleTableRow(
+            id: 1,
+            displayTitle: "Episode 01",
+            startTime: "00:01",
+            cues: "line one\nline two"
+        ),
+        SubtitleTableRow(
+            id: 2,
+            displayTitle: "Episode 02",
+            startTime: "00:04",
+            cues: "single line"
+        ),
+    ]
+
+    let text = SubtitleTableClipboard.tsv(rows: rows, columns: columns)
+    let expected = [
+        "Display Title\tStart Time\tCues",
+        "Episode 01\t00:01\tline one",
+        "\t\tline two",
+        "Episode 02\t00:04\tsingle line",
+    ].joined(separator: "\n")
+
+    #expect(text == expected)
+}
+
+@Test
+func subtitleTableClipboardExpandsMultilineNonCueColumns() {
+    let columns = SubtitleTableClipboard.columns(from: [
+        WorkbenchTableColumn(id: "dateAdded", title: "Date Added", kind: .text, width: .fixed(190)),
+        WorkbenchTableColumn(id: "display", title: "Display Title", kind: .text, width: .fixed(300)),
+        WorkbenchTableColumn(id: "cues", title: "Cues", kind: .text, width: .flexible(min: 580)),
+    ])
+    let rows = [
+        SubtitleTableRow(
+            id: 1,
+            dateAdded: "2026-06-29",
+            displayTitle: "Main Title\nAlias Title",
+            cues: "cue"
+        ),
+    ]
+
+    let text = SubtitleTableClipboard.tsv(rows: rows, columns: columns)
+    let expected = [
+        "Date Added\tDisplay Title\tCues",
+        "2026-06-29\tMain Title\tcue",
+        "\tAlias Title\t",
+    ].joined(separator: "\n")
+
+    #expect(text == expected)
+}
+
+@Test
+func subtitleTableClipboardCopiesVisibleTagColumnsAsText() {
+    let columns = SubtitleTableClipboard.columns(from: [
+        WorkbenchTableColumn(id: "speaker", title: "Speaker", kind: .text, width: .fixed(180)),
+        WorkbenchTableColumn(id: "language", title: "Language", kind: .text, width: .fixed(160)),
+    ])
+    let row = SubtitleTableRow(
+        id: 1,
+        displayTitle: "Episode",
+        cues: "cue",
+        tags: [
+            WorkbenchTag(key: "ja", label: "Japanese"),
+            WorkbenchTag(key: "zh-Hans", label: "Simplified Chinese"),
+        ],
+        speakerTags: [
+            WorkbenchTag(key: "Tomori"),
+            WorkbenchTag(key: "Anon"),
+        ]
+    )
+
+    let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
+    let expected = [
+        "Speaker\tLanguage",
+        "Tomori, Anon\tJapanese, Simplified Chinese",
+    ].joined(separator: "\n")
+
+    #expect(text == expected)
+}
+
+@Test
+func subtitleTableClipboardSanitizesTabsAndCarriageReturns() {
+    let columns = SubtitleTableClipboard.columns(from: [
+        WorkbenchTableColumn(id: "display", title: "Display\tTitle", kind: .text, width: .fixed(300)),
+        WorkbenchTableColumn(id: "cues", title: "Cues", kind: .text, width: .flexible(min: 580)),
+    ])
+    let row = SubtitleTableRow(
+        id: 1,
+        displayTitle: "Episode\t01",
+        cues: "first\r\nsecond\rthird"
+    )
+
+    let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
+    let expected = [
+        "Display Title\tCues",
+        "Episode 01\tfirst",
+        "\tsecond",
+        "\tthird",
+    ].joined(separator: "\n")
+
+    #expect(text == expected)
+}
