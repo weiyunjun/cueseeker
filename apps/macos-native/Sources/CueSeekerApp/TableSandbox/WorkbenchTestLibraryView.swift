@@ -41,7 +41,9 @@ struct WorkbenchTestRecentWatchingView: View {
             RecentWatchingGrid(
                 items: library.testRecentWatchingItems,
                 onOpen: { item in
-                    appState.openLibraryVideo(item.libraryVideo)
+                    Task {
+                        await appState.openRecentLibraryWatching(item)
+                    }
                 }
             )
         }

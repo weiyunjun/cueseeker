@@ -313,6 +313,26 @@ extension AppCoordinator {
         library.libraryPlaybackNavigationVideos = videos.map(\.libraryVideo)
     }
 
+    func prepareRecentLibraryNavigation(for item: RecentLibraryWatchingPresentation) async {
+        do {
+            if let folderDetail = try await loadCompleteLibraryFolderDetail(folderPath: item.folderPath) {
+                prepareLibraryNavigationVideos(folderDetail.videos)
+                return
+            }
+        } catch {
+            print("Failed to load Recent Library navigation detail: \(error)")
+        }
+
+        if !library.libraryPlaybackNavigationVideos.contains(where: { $0.videoPath == item.videoPath }) {
+            library.libraryPlaybackNavigationVideos = library.libraryVideos
+        }
+    }
+
+    func openRecentLibraryWatching(_ item: RecentLibraryWatchingPresentation) async {
+        await prepareRecentLibraryNavigation(for: item)
+        openLibraryVideo(item.libraryVideo)
+    }
+
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
         let groups = Self.makeLibraryFolderGroups(from: snapshot)
         library.libraryFolderGroups = groups
@@ -523,6 +543,8 @@ extension AppCoordinator {
 
         if saveCurrentLibraryPlaybackHistory(waitUntilFinished: true) {
             library.libraryPlaybackHistoryRevision += 1
+            refreshRecentWatching()
+            refreshLoadedTestRecentWatching()
         }
     }
 
