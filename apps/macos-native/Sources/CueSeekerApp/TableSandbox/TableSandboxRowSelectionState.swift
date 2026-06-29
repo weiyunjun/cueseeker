@@ -53,6 +53,23 @@ struct TableSandboxRowSelectionState: Equatable {
         }
     }
 
+    func selectedRows(in range: Range<Int>, rowCount: Int) -> [Int] {
+        let safeRowCount = max(0, rowCount)
+        let lowerBound = min(max(0, range.lowerBound), safeRowCount)
+        let upperBound = min(max(lowerBound, range.upperBound), safeRowCount)
+        guard lowerBound < upperBound else { return [] }
+
+        switch storage {
+        case .explicit(let selectedRows):
+            return selectedRows
+                .filter { $0 >= lowerBound && $0 < upperBound }
+                .sorted()
+        case .allExcept(let deselectedRows):
+            let excluded = Set(deselectedRows.filter { $0 >= lowerBound && $0 < upperBound })
+            return (lowerBound..<upperBound).filter { !excluded.contains($0) }
+        }
+    }
+
     func headerState(rowCount: Int) -> WorkbenchCheckboxState {
         let safeRowCount = max(0, rowCount)
         guard safeRowCount > 0 else { return .unchecked }

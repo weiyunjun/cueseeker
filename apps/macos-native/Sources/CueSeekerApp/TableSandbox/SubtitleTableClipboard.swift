@@ -33,6 +33,40 @@ struct SubtitleTableClipboardColumn {
 }
 
 enum SubtitleTableClipboard {
+    struct TSVBuilder {
+        private let columns: [SubtitleTableClipboardColumn]
+        private(set) var text: String
+
+        init(columns: [SubtitleTableClipboardColumn]) {
+            self.columns = columns
+            text = columns.isEmpty
+                ? ""
+                : columns.map { SubtitleTableClipboard.tsvCell($0.title) }.joined(separator: "\t")
+        }
+
+        mutating func append(rows: [SubtitleTableRow]) {
+            for row in rows {
+                append(row: row)
+            }
+        }
+
+        private mutating func append(row: SubtitleTableRow) {
+            guard !columns.isEmpty else {
+                return
+            }
+
+            let columnLines = columns.map { SubtitleTableClipboard.normalizedLines($0.value(row)) }
+            let expandedRowCount = max(1, columnLines.map(\.count).max() ?? 1)
+            for lineIndex in 0..<expandedRowCount {
+                let outputCells = columnLines.map { lines in
+                    lineIndex < lines.count ? lines[lineIndex] : ""
+                }
+                text.append("\n")
+                text.append(outputCells.joined(separator: "\t"))
+            }
+        }
+    }
+
     static func columns(from visibleColumns: [WorkbenchTableColumn]) -> [SubtitleTableClipboardColumn] {
         visibleColumns.compactMap(SubtitleTableClipboardColumn.make)
     }
@@ -41,27 +75,9 @@ enum SubtitleTableClipboard {
         rows: [SubtitleTableRow],
         columns: [SubtitleTableClipboardColumn]
     ) -> String {
-        guard !columns.isEmpty else {
-            return ""
-        }
-
-        var outputRows: [String] = [
-            columns.map { tsvCell($0.title) }.joined(separator: "\t"),
-        ]
-        outputRows.reserveCapacity(rows.count + 1)
-
-        for row in rows {
-            let columnLines = columns.map { normalizedLines($0.value(row)) }
-            let expandedRowCount = max(1, columnLines.map(\.count).max() ?? 1)
-            for lineIndex in 0..<expandedRowCount {
-                let outputCells = columnLines.map { lines in
-                    lineIndex < lines.count ? lines[lineIndex] : ""
-                }
-                outputRows.append(outputCells.joined(separator: "\t"))
-            }
-        }
-
-        return outputRows.joined(separator: "\n")
+        var builder = TSVBuilder(columns: columns)
+        builder.append(rows: rows)
+        return builder.text
     }
 
     @discardableResult
@@ -70,6 +86,17 @@ enum SubtitleTableClipboard {
         columns: [SubtitleTableClipboardColumn]
     ) -> Bool {
         let text = tsv(rows: rows, columns: columns)
+        guard !text.isEmpty else {
+            return false
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+    }
+
+    @discardableResult
+    static func copy(text: String) -> Bool {
         guard !text.isEmpty else {
             return false
         }

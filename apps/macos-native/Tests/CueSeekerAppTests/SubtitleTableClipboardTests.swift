@@ -36,6 +36,39 @@ func subtitleTableClipboardCopiesHeadersAndExpandsCueLines() {
 }
 
 @Test
+func subtitleTableClipboardBuilderAppendsRows() {
+    let columns = SubtitleTableClipboard.columns(from: [
+        WorkbenchTableColumn(id: "display", title: "Display Title", kind: .text, width: .fixed(300)),
+        WorkbenchTableColumn(id: "cues", title: "Cues", kind: .text, width: .flexible(min: 580)),
+    ])
+    let rows = [
+        SubtitleTableRow(
+            id: 1,
+            displayTitle: "Episode 01",
+            cues: "first\nsecond"
+        ),
+        SubtitleTableRow(
+            id: 2,
+            displayTitle: "Episode 02",
+            cues: "third"
+        ),
+    ]
+
+    var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
+    builder.append(rows: [rows[0]])
+    builder.append(rows: [rows[1]])
+
+    let expected = [
+        "Display Title\tCues",
+        "Episode 01\tfirst",
+        "\tsecond",
+        "Episode 02\tthird",
+    ].joined(separator: "\n")
+
+    #expect(builder.text == expected)
+}
+
+@Test
 func subtitleTableClipboardExpandsMultilineNonCueColumns() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "dateAdded", title: "Date Added", kind: .text, width: .fixed(190)),

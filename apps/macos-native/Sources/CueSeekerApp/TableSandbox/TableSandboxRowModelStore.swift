@@ -553,6 +553,39 @@ final class TableSandboxRowModelStore: ObservableObject {
     }
 }
 
+func tableSandboxSearchRow(for result: SubtitleSearchResult) -> SubtitleTableRow {
+    let displayTitle = result.displayTitle.isEmpty
+        ? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
+        : result.displayTitle
+    return SubtitleTableRow(
+        id: Int(result.entryID),
+        displayTitle: displayTitle,
+        startTime: tableSandboxCueTimeText(milliseconds: result.startMilliseconds),
+        endTime: tableSandboxCueTimeText(milliseconds: result.endMilliseconds),
+        cues: tableSandboxDisplayText(
+            content: result.content,
+            cueLines: result.cueLines
+        ),
+        tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages),
+        speakerTags: tableSandboxSpeakerTags(for: result.speakers)
+    )
+}
+
+func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTableRow {
+    SubtitleTableRow(
+        id: Int(item.shiori.id),
+        dateAdded: item.dateAddedText,
+        displayTitle: item.displayTitle,
+        startTime: tableSandboxCueTimeText(milliseconds: item.shiori.startMilliseconds),
+        endTime: tableSandboxCueTimeText(milliseconds: item.shiori.endMilliseconds),
+        cues: tableSandboxDisplayText(
+            content: item.shiori.content,
+            cueLines: item.shiori.cueLines
+        ),
+        tags: SubtitleLanguageWorkbenchTags.tags(for: item.languages)
+    )
+}
+
 private struct RowCacheKey: Hashable {
     let id: Int
     let subtitlePath: String

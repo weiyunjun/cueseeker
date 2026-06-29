@@ -2,7 +2,7 @@
 
 ## Human-Owned Source
 
-- `docs/human/requirements/20260629-Feature-xx.md`
+- `docs/human/requirements/20260629-Feature-Copy Table.md`
 
 ## Scope
 
@@ -14,8 +14,9 @@ Add a selected-row table copy action to the Search and Shiori table surfaces.
   presentation data.
 - Platform UI/UX: Search and Shiori selected-row action bars add `Copy Table`
   beside `Collage`.
-- Platform integration: selected virtual rows are hydrated before clipboard
-  generation, then written to the macOS pasteboard as TSV text.
+- Platform integration: selected rows are loaded from the active Search/Shiori
+  data source for the current result set, mapped to table presentation rows, and
+  written to the macOS pasteboard as TSV text.
 - Playback execution: unchanged.
 
 ## Changes
@@ -25,18 +26,27 @@ Add a selected-row table copy action to the Search and Shiori table surfaces.
 - Expanded multiline cell values into multiple spreadsheet rows, leaving
   shorter columns blank after their first populated line.
 - Added `Copy Table` actions to Search and Shiori selected-row action bars.
+- Updated `Copy Table` to load the current result set directly from the active
+  Search/Shiori data source instead of copying from the virtualized table row
+  cache.
+- Added a row-selection range helper so full-table selection can be projected
+  onto the loaded result range.
+- Added an incremental TSV builder used by the direct data-source copy path.
 - Added tests for headers, multiline cue expansion, multiline non-cue columns,
-  tag text, and tab / carriage-return sanitization.
+  builder appending, tag text, tab / carriage-return sanitization, and ranged
+  row selection.
 
 ## Verification
 
 - `git diff --check` passed.
 - `swift test` passed. XCTest reported 7 passing CASS rendering tests, and
-  Swift Testing reported 354 passing tests.
+  Swift Testing reported 357 passing tests.
 
 ## Outcome
 
 Search and Shiori selected-row action bars now provide `Copy Table`. The copied
 TSV includes visible data-column headers and expands multiline cell content so
 spreadsheet paste keeps each cue line in its own cell while shorter columns are
-left blank after their first populated line.
+left blank after their first populated line. Copy Table now loads rows from the
+active table data source for the current result set, so virtualized row pruning
+does not remove selected rows before clipboard generation.

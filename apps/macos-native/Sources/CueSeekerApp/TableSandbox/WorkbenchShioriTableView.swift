@@ -327,16 +327,33 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func copySelectedRowsAsTable() {
-        let selectedRows = rowSelection.selectedRows(rowCount: rowStore.snapshot.totalRowCount)
-        guard !selectedRows.isEmpty else {
+        let rowCount = rowStore.snapshot.totalRowCount
+        let selection = rowSelection
+        guard selection.selectedCount(rowCount: rowCount) > 0 else {
             return
         }
 
         let columns = SubtitleTableClipboard.columns(from: visibleColumnsForCopy)
         Task { @MainActor in
-            await hydrateRowsForExport(selectedRows)
-            let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
-            SubtitleTableClipboard.copy(rows: rows, columns: columns)
+            guard let page = await loadRows(range: 0..<rowCount) else {
+                return
+            }
+
+            let selectedRows = selection.selectedRows(in: page.range, rowCount: rowCount)
+            guard !selectedRows.isEmpty else {
+                return
+            }
+
+            var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
+            let rows = selectedRows.compactMap { row -> SubtitleTableRow? in
+                let offset = row - page.range.lowerBound
+                guard offset >= 0, offset < page.rows.count else {
+                    return nil
+                }
+                return tableSandboxShioriRow(for: page.rows[offset])
+            }
+            builder.append(rows: rows)
+            SubtitleTableClipboard.copy(text: builder.text)
         }
     }
 

@@ -50,6 +50,28 @@ func tableSandboxRowSelectionSelectsAllWithoutMaterializingEveryRow() {
 }
 
 @Test
+func tableSandboxRowSelectionReturnsExplicitRowsInsideRange() {
+    var selection = TableSandboxRowSelectionState()
+    selection.toggle(row: 2, rowCount: 12)
+    selection.toggle(row: 7, rowCount: 12)
+    selection.toggle(row: 11, rowCount: 12)
+
+    #expect(selection.selectedRows(in: 0..<5, rowCount: 12) == [2])
+    #expect(selection.selectedRows(in: 5..<10, rowCount: 12) == [7])
+    #expect(selection.selectedRows(in: 10..<20, rowCount: 12) == [11])
+}
+
+@Test
+func tableSandboxRowSelectionReturnsAllExceptRowsInsideRange() {
+    var selection = TableSandboxRowSelectionState()
+    selection.toggleAll(rowCount: 12)
+    selection.toggle(row: 6, rowCount: 12)
+
+    #expect(selection.selectedRows(in: 5..<10, rowCount: 12) == [5, 7, 8, 9])
+    #expect(selection.trackedIndexCountForTesting == 1)
+}
+
+@Test
 func tableSandboxRowSelectionClampsWhenRowCountShrinks() {
     var selection = TableSandboxRowSelectionState()
     selection.toggle(row: 2, rowCount: 10)
