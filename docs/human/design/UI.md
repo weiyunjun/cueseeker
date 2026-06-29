@@ -207,6 +207,65 @@
   Light: #E5E7EB
   Dark: #27272A
 
+#### Player Chrome
+--color-player-stage-bg:
+  Light: #000000
+  Dark: #000000
+--color-player-control-bg:
+  Light: rgba(0,0,0,0.30)
+  Dark: rgba(0,0,0,0.30)
+--color-player-control-bg-hover:
+  Light: rgba(255,255,255,0.16)
+  Dark: rgba(255,255,255,0.16)
+--color-player-menu-bg:
+  Light: rgba(0,0,0,0.55)
+  Dark: rgba(0,0,0,0.55)
+--color-player-menu-item-hover-bg:
+  Light: rgba(255,255,255,0.12)
+  Dark: rgba(255,255,255,0.12)
+--color-player-text-primary:
+  Light: rgba(255,255,255,0.94)
+  Dark: rgba(255,255,255,0.94)
+--color-player-text-secondary:
+  Light: rgba(255,255,255,0.62)
+  Dark: rgba(255,255,255,0.62)
+--color-player-text-tertiary:
+  Light: rgba(255,255,255,0.34)
+  Dark: rgba(255,255,255,0.34)
+--color-player-icon-selected:
+  Light: #1A1A1F
+  Dark: #1A1A1F
+--color-player-progress-fill:
+  Light: #FF0000
+  Dark: #FF0000
+--color-player-progress-track:
+  Light: rgba(0,0,0,0.60)
+  Dark: rgba(0,0,0,0.60)
+--color-player-progress-hover-track:
+  Light: rgba(255,255,255,0.35)
+  Dark: rgba(255,255,255,0.35)
+--color-player-window-close:
+  Light: #FF5F57
+  Dark: #FF5F57
+--color-player-window-minimize:
+  Light: #FEBC2E
+  Dark: #FEBC2E
+--color-player-window-zoom:
+  Light: #28C840
+  Dark: #28C840
+--color-player-window-control-border:
+  Light: rgba(0,0,0,0.18)
+  Dark: rgba(0,0,0,0.18)
+--color-player-window-control-glyph:
+  Light: rgba(0,0,0,0.55)
+  Dark: rgba(0,0,0,0.55)
+--color-player-topbar-gradient-start:
+  Light: rgba(18,18,24,0.66)
+  Dark: rgba(18,18,24,0.66)
+--color-player-topbar-gradient-end:
+  Light: rgba(18,18,24,0)
+  Dark: rgba(18,18,24,0)
+
 ### 1.2 尺寸、圆角、间距
 
 #### Height
@@ -220,6 +279,16 @@
 --height-select-menu-item: 40px
 --height-app-sidebar-item: 32px
 --height-app-topbar: 45px
+--height-player-topbar: 46px
+--height-player-bottom-control-bar: 98px
+--height-player-bottom-controls-row: 52px
+--height-player-capsule-button: 40px
+--height-player-speed-menu: 234px
+--height-player-speed-menu-item: 30px
+--height-player-progress-hit-area: 18px
+--height-player-progress-track: 3px
+--height-player-progress-track-hover: 6px
+--height-player-progress-time-capsule: 22px
 
 #### Size
 --size-checkbox: 16px
@@ -234,6 +303,14 @@
 --scrollbar-size: 8px
 --width-app-sidebar: 240px
 --size-app-sidebar-item-icon: 18px
+--size-player-circle-button: 40px
+--size-player-circle-button-icon: 18px
+--width-player-speed-button: 54px
+--width-player-speed-menu: 172px
+--size-player-progress-thumb: 12px
+--size-player-window-control-button: 13px
+--size-player-window-control-glyph: 7px
+--width-player-topbar-title-max: 520px
 
 #### Text Decoration
 --width-interactive-text-underline: 1px
@@ -253,6 +330,10 @@
 --scrollbar-radius: 9999px
 --radius-app-sidebar-item: 8px
 
+--radius-player-capsule: 9999px
+--radius-player-speed-menu: 14px
+--radius-player-speed-menu-item: 8px
+
 #### Spacing
 --spacing-1: 4px
 --spacing-2: 8px
@@ -261,6 +342,12 @@
 --spacing-6: 24px
 --spacing-8: 32px
 --gap-app-topbar-title-after-toggle: 12px
+
+--gap-player-bottom-left-controls: 8px
+--gap-player-bottom-right-controls: 6px
+--gap-player-time-label: 4px
+--gap-player-window-controls: 8px
+--gap-player-speed-menu-from-button: 8px
 
 #### Padding
 --padding-control-x: 16px
@@ -274,6 +361,15 @@
 --padding-app-sidebar-item-x: 10px
 --padding-app-topbar-title-x: 24px
 
+--padding-player-chrome-x: 24px
+--padding-player-chrome-bottom: 12px
+--padding-player-progress-top: 16px
+--padding-player-capsule-button-x: 16px
+--padding-player-speed-menu: 6px
+--padding-player-speed-menu-item-x: 8px
+--padding-player-progress-time-capsule-x: 8px
+--padding-player-topbar-x: 16px
+
 #### Typography
 --font-family-base: system-ui, sans-serif
 --font-size-body: 14px
@@ -282,10 +378,23 @@
 --font-size-caption: 12px
 --font-size-app-sidebar-item: 13px
 
+--font-size-player-time: 12px
+--font-size-player-progress-time: 10px
+--font-size-player-speed-menu-check: 11px
+--font-size-player-speed-menu-item: 13px
+--font-size-player-topbar-title: 13px
+
 #### Shadow
 --shadow-popover:
   Light: 0 12px 24px rgba(15,23,42,0.12)
   Dark: 0 12px 24px rgba(0,0,0,0.36)
+
+--shadow-player-overlay:
+  Light: 0 12px 24px rgba(0,0,0,0.42)
+  Dark: 0 12px 24px rgba(0,0,0,0.42)
+--shadow-player-topbar-title:
+  Light: 0 1px 2px rgba(0,0,0,0.50)
+  Dark: 0 1px 2px rgba(0,0,0,0.50)
 
 #### Library Size
 --aspect-library-cover: 16 / 9
@@ -1252,6 +1361,215 @@ Disabled
 Enabled: pointer
 Disabled: not-allowed
 
+### 2.33 Player Circle Button
+
+#### Container
+Size: --size-player-circle-button
+Radius: --radius-player-capsule
+Background Default: transparent
+Background Hover: --color-player-control-bg-hover
+Background Selected: --color-player-text-primary
+Background Disabled: transparent
+
+#### Content
+Icon Size: --size-player-circle-button-icon
+Icon Color Default: --color-player-text-primary
+Icon Color Selected: --color-player-icon-selected
+Icon Color Disabled: --color-player-text-tertiary
+
+#### Status
+Default
+Hover
+Pressed
+Selected
+Disabled
+Interaction Suppressed
+
+#### Cursor
+Enabled: pointer
+Disabled: not-allowed
+Interaction Suppressed: default
+
+### 2.34 Player Capsule Button
+
+#### Container
+Height: --height-player-capsule-button
+Radius: --radius-player-capsule
+Padding X: --padding-player-capsule-button-x
+Background Default: --color-player-control-bg
+Background Hover: --color-player-control-bg-hover
+Background Disabled: --color-player-control-bg
+
+#### Content
+Text Color Default: --color-player-text-primary
+Text Color Disabled: --color-player-text-tertiary
+Text Size: --font-size-player-time
+Font Variant: monospaced digits
+
+#### Status
+Default
+Hover
+Pressed
+Menu Open
+Disabled
+Interaction Suppressed
+
+#### Cursor
+Enabled: pointer
+Disabled: not-allowed
+Interaction Suppressed: default
+
+### 2.35 Player Circle Button Group
+
+#### Container
+Height: --height-player-capsule-button
+Radius: --radius-player-capsule
+Background Default: --color-player-control-bg
+Orientation: horizontal
+Inner Gap: 0
+
+#### Content
+Items: Player Circle Button
+Item Background Default: transparent
+Item Background Hover: --color-player-control-bg-hover
+
+#### Status
+Default
+Child Hover
+Child Pressed
+Child Disabled
+Interaction Suppressed
+
+#### Cursor
+Container: default
+Child Button: pointer
+
+### 2.36 Player Speed Menu
+
+#### Container
+Width: --width-player-speed-menu
+Height: --height-player-speed-menu
+Radius: --radius-player-speed-menu
+Padding: --padding-player-speed-menu
+Background: --color-player-menu-bg
+Border: --color-player-text-tertiary
+Shadow: --shadow-player-overlay
+
+#### Content
+Item Height: --height-player-speed-menu-item
+Item Radius: --radius-player-speed-menu-item
+Item Padding X: --padding-player-speed-menu-item-x
+Item Background Hover / Selected: --color-player-menu-item-hover-bg
+Check Icon Size: --font-size-player-speed-menu-check
+Text Size: --font-size-player-speed-menu-item
+Text Color: --color-player-text-primary
+Selected Indicator: checkmark
+
+#### Status
+Closed
+Open
+Item Default
+Item Hover
+Item Selected
+Interaction Suppressed
+
+#### Cursor
+Menu Item: pointer
+Menu Background: default
+
+### 2.37 Player Progress Scrubber
+
+#### Container
+Height: --height-player-progress-hit-area
+Background: transparent
+
+#### Content
+Base Track Height: --height-player-progress-track
+Interactive Track Height: --height-player-progress-track-hover
+Track Radius: --radius-player-capsule
+Base Track Color: --color-player-progress-track
+Hover Preview Track Color: --color-player-progress-hover-track
+Played Track Color: --color-player-progress-fill
+Thumb Size: --size-player-progress-thumb
+Thumb Color: --color-player-progress-fill
+Tooltip: Player Progress Time Capsule
+
+#### Status
+Default
+Hover
+Dragging
+Disabled / No Duration
+
+#### Cursor
+Track: pointer
+Disabled / No Duration: default
+
+### 2.38 Player Progress Time Capsule
+
+#### Container
+Height: --height-player-progress-time-capsule
+Radius: --radius-player-capsule
+Padding X: --padding-player-progress-time-capsule-x
+Background: --color-player-control-bg
+
+#### Content
+Text Color: --color-player-text-primary
+Text Size: --font-size-player-progress-time
+Font Variant: monospaced digits
+
+#### Status
+Hidden
+Visible On Progress Hover
+Visible On Progress Drag
+
+#### Cursor
+No hit testing
+
+### 2.39 Player Window Control Button
+
+#### Container
+Size: --size-player-window-control-button
+Radius: --radius-player-capsule
+Border: --color-player-window-control-border
+
+#### Content
+Close Background: --color-player-window-close
+Minimize Background: --color-player-window-minimize
+Zoom Background: --color-player-window-zoom
+Glyph Color: --color-player-window-control-glyph
+Glyph Size: --size-player-window-control-glyph
+
+#### Status
+Default
+Cluster Hover / Glyph Visible
+Pressed
+
+#### Cursor
+Enabled: pointer
+
+### 2.40 Player Topbar Title
+
+#### Container
+Max Width: --width-player-topbar-title-max
+Alignment: center
+
+#### Content
+Text: current playback display title
+Text Color: --color-player-text-primary
+Text Size: --font-size-player-topbar-title
+Line Limit: 1
+Truncation: tail
+Shadow: --shadow-player-topbar-title
+
+#### Status
+Default
+Truncated
+
+#### Cursor
+Default
+
+## 3. Layout
+
 ### 3.1 Recent Watching Card Layout
 
 #### Structure
@@ -1651,3 +1969,267 @@ Remove Action: remove the Shiori row, close dialog, refresh Shiori table and sel
 Escape Key: same as Cancel
 Return Key: activate default focused action
 Click Outside: no action, dialog remains open
+
+### 3.11 Player Topbar Layout
+
+#### Structure
+Container: player windowed topbar
+Position: playback page top edge
+Width: full window width
+Height: --height-player-topbar
+Background: --color-player-topbar-gradient-start -> --color-player-topbar-gradient-end
+Orientation: horizontal
+Visibility: follows player UI visible / hidden state
+Fullscreen: hidden; native macOS fullscreen titlebar owns fullscreen top chrome
+
+#### Regions
+Window Control Cluster:
+  Position: leading
+  Contains: Player Window Control Button
+  Items:
+    Close
+    Minimize
+    Zoom
+  Gap: --gap-player-window-controls
+
+Title Slot:
+  Position: centered in topbar
+  Contains: Player Topbar Title
+  Max Width: --width-player-topbar-title-max
+  Alignment: center
+
+Empty Titlebar Area:
+  Purpose: native window drag and titlebar double-click behavior
+  Hit Testing: does not block window control buttons
+
+#### Content
+Player Window Control Button:
+  Close: return from playback page to originating page
+  Minimize: minimize app window
+  Zoom: enter fullscreen
+  Glyph: visible on control cluster hover
+
+Player Topbar Title:
+  Text: current playback display title
+  Font Size: --font-size-player-topbar-title
+  Text Color: --color-player-text-primary
+  Line Limit: 1
+  Truncation: tail
+  Shadow: --shadow-player-topbar-title
+
+#### Interaction
+Pointer Enters Window Control Cluster:
+  Show button glyphs
+
+Pointer Exits Window Control Cluster:
+  Hide button glyphs
+
+Close Click:
+  End / close current playback page according to playback close lifecycle
+
+Minimize Click:
+  Minimize native app window
+
+Zoom Click:
+  Enter fullscreen
+
+Empty Area Drag:
+  Move native window
+
+Empty Area Double Click:
+  Follow macOS titlebar double-click behavior
+
+#### Cursor
+Window Control Button: pointer
+Title: default
+Empty Titlebar Area: default
+
+### 3.12 Player Bottom Control Bar Layout
+
+#### Structure
+Container: player bottom control bar
+Position: playback page bottom edge
+Width: full playback stage width
+Height: --height-player-bottom-control-bar
+Background: transparent
+Orientation: vertical
+Visibility: follows player UI visible / hidden state
+
+#### Regions
+Progress Region:
+  Position: top of bottom control bar
+  Contains: Player Progress Scrubber
+  Padding X: --padding-player-chrome-x
+
+Control Region:
+  Position: below Progress Region
+  Orientation: horizontal
+  Height: --height-player-bottom-controls-row
+  Padding X: --padding-player-chrome-x
+  Padding Bottom: --padding-player-chrome-bottom
+
+Left Control Group:
+  Alignment: leading
+  Gap: --gap-player-bottom-left-controls
+  Contains:
+    Player Circle Button: play / pause
+    Player Circle Button Group: previous / next
+    Existing Playback Volume Control
+    Player Capsule Button: playback time display
+
+Right Control Group:
+  Alignment: trailing
+  Gap: --gap-player-bottom-right-controls
+  Contains:
+    Player Circle Button Group: Shiori / copy / subtitles
+    Player Capsule Button: speed
+    Player Circle Button: fullscreen
+
+Spacer:
+  Behavior: fills space between Left Control Group and Right Control Group
+
+#### Content
+Player Circle Button:
+  Size: --size-player-circle-button
+  Icon Size: --size-player-circle-button-icon
+  Default Background: transparent or --color-player-control-bg when persistent base is needed
+  Hover Background: --color-player-control-bg-hover
+
+Player Capsule Button:
+  Height: --height-player-capsule-button
+  Radius: --radius-player-capsule
+  Background: --color-player-control-bg
+  Hover Background: --color-player-control-bg-hover
+  Text Color: --color-player-text-primary
+
+Player Circle Button Group:
+  Height: --height-player-capsule-button
+  Radius: --radius-player-capsule
+  Background: --color-player-control-bg
+  Contains: multiple Player Circle Button instances
+  Inner Gap: 0 unless the component specifies otherwise
+
+Speed Button:
+  Component: Player Capsule Button
+  Width: --width-player-speed-button
+  Text: current playback speed
+  Text Alignment: center
+  Opens: Player Speed Menu
+  Menu Gap: --gap-player-speed-menu-from-button
+
+#### Interaction
+Player Circle Button Click:
+  Run the button command
+
+Player Capsule Button Click:
+  Run the button command or open related menu
+
+Speed Button Click:
+  Toggle Player Speed Menu
+
+Timeline Scrubbing Active:
+  Suppress unrelated hover and menu interaction until scrubbing ends
+
+Pressed State:
+  Apply shared player button press motion
+
+Hover State:
+  Apply shared player button hover motion
+
+#### Cursor
+Player Circle Button: pointer
+Player Capsule Button: pointer
+Player Circle Button Group Background: default
+
+### 3.13 Player Progress Scrubber Layout
+
+#### Structure
+Container: player progress scrubber
+Position: top region of Player Bottom Control Bar
+Width: full available width
+Height: --height-player-progress-hit-area
+Background: transparent
+Orientation: horizontal
+
+#### Regions
+Track Region:
+  Position: vertically centered in hit area
+  Contains:
+    Base Track
+    Hover Preview Track
+    Played Track
+    Thumb
+
+Progress Time Capsule Region:
+  Position: above hovered or dragged progress position
+  Contains: Player Progress Time Capsule
+  Visibility: visible on hover or drag when media duration is available
+
+#### Content
+Base Track:
+  Height: --height-player-progress-track
+  Hover / Drag Height: --height-player-progress-track-hover
+  Radius: --radius-player-capsule
+  Color: --color-player-progress-track
+
+Hover Preview Track:
+  Visible: hover only, hidden during drag if scrub time owns preview
+  Width: from track start to pointer position
+  Height: matches current track height
+  Color: --color-player-progress-hover-track
+
+Played Track:
+  Width: current playback progress
+  Height: matches current track height
+  Color: --color-player-progress-fill
+
+Thumb:
+  Size: --size-player-progress-thumb
+  Color: --color-player-progress-fill
+  Visibility: visible on hover or drag
+
+Player Progress Time Capsule:
+  Height: --height-player-progress-time-capsule
+  Radius: --radius-player-capsule
+  Padding X: --padding-player-progress-time-capsule-x
+  Background: --color-player-control-bg
+  Text Color: --color-player-text-primary
+  Font Size: --font-size-player-progress-time
+  Font Variant: monospaced digits
+  Placement: horizontally centered on hover / drag position, clamped within scrubber bounds
+
+#### Interaction
+Pointer Hover:
+  Increase track height
+  Show Hover Preview Track
+  Show Thumb
+  Show Player Progress Time Capsule
+
+Pointer Move:
+  Update Hover Preview Track width
+  Update Player Progress Time Capsule text and position
+
+Drag Start:
+  Begin timeline scrubbing
+  Show Thumb
+  Show Player Progress Time Capsule
+  Suppress unrelated player chrome hover interactions
+
+Drag Move:
+  Update scrub target time
+  Update Played Track preview
+  Update Player Progress Time Capsule text and position
+
+Drag End:
+  Seek to final target time
+  End timeline scrubbing
+  Restore normal player chrome interaction
+
+Pointer Exit:
+  Hide Hover Preview Track
+  Hide Thumb unless dragging
+  Hide Player Progress Time Capsule unless dragging
+
+#### Cursor
+Track Region: pointer
+Progress Time Capsule: default, no hit testing
