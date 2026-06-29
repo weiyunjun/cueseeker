@@ -18,6 +18,7 @@
 #include <libswresample/swresample.h>
 
 #include <errno.h>
+#include <float.h>
 #include <limits.h>
 #include <mach/mach.h>
 #include <math.h>
@@ -35,6 +36,7 @@ typedef struct {
     AVFormatContext *formatContext;
     int videoStreamIndex;
     int audioStreamIndex;
+    double timelineOriginSeconds;
     int requestedAudioStreamIndex;
     int audioOutputSampleRate;
     int audioOutputChannels;
@@ -400,15 +402,6 @@ static bool run_duration_limit_reached(RunDurationLimit *limit) {
     return false;
 }
 
-static CMTime cm_time_from_frame(const AVFrame *frame, AVStream *videoStream) {
-    if (frame->best_effort_timestamp == AV_NOPTS_VALUE) {
-        return CMTimeMake(0, 1);
-    }
-
-    int64_t value = frame->best_effort_timestamp * videoStream->time_base.num;
-    return CMTimeMake(value, videoStream->time_base.den);
-}
-
 static double seconds_from_frame(const AVFrame *frame, AVStream *stream) {
     if (frame->best_effort_timestamp == AV_NOPTS_VALUE) {
         return -1;
@@ -425,30 +418,66 @@ static double stream_start_seconds(AVStream *stream) {
     return av_q2d(stream->time_base) * stream->start_time;
 }
 
-static double playback_seconds_from_frame(const AVFrame *frame, AVStream *stream) {
+static bool stream_participates_in_media_timeline(AVStream *stream) {
+    enum AVMediaType mediaType = stream->codecpar->codec_type;
+    return mediaType == AVMEDIA_TYPE_VIDEO
+        || mediaType == AVMEDIA_TYPE_AUDIO
+        || mediaType == AVMEDIA_TYPE_SUBTITLE;
+}
+
+static double media_timeline_origin_seconds(AVFormatContext *formatContext) {
+    if (formatContext == NULL) {
+        return 0;
+    }
+
+    if (formatContext->start_time != AV_NOPTS_VALUE) {
+        return (double)formatContext->start_time / AV_TIME_BASE;
+    }
+
+    double originSeconds = DBL_MAX;
+    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
+        AVStream *stream = formatContext->streams[index];
+        if (stream == NULL
+            || stream->start_time == AV_NOPTS_VALUE
+            || !stream_participates_in_media_timeline(stream)) {
+            continue;
+        }
+        originSeconds = fmin(originSeconds, stream_start_seconds(stream));
+    }
+
+    return originSeconds < DBL_MAX ? originSeconds : 0;
+}
+
+static double playback_seconds_from_frame(const AVFrame *frame, AVStream *stream, double timelineOriginSeconds) {
     double seconds = seconds_from_frame(frame, stream);
     if (seconds < 0) {
         return -1;
     }
 
-    return seconds - stream_start_seconds(stream);
+    return seconds - timelineOriginSeconds;
 }
 
-static int64_t timestamp_for_seek_seconds(double seconds, AVStream *stream) {
-    int64_t relativeTimestamp = (int64_t)llround(seconds / av_q2d(stream->time_base));
-    if (stream->start_time == AV_NOPTS_VALUE) {
-        return relativeTimestamp;
+static CMTime cm_time_from_frame(const AVFrame *frame, AVStream *videoStream, double timelineOriginSeconds) {
+    double mediaSeconds = playback_seconds_from_frame(frame, videoStream, timelineOriginSeconds);
+    if (!isfinite(mediaSeconds)) {
+        return CMTimeMake(0, 1);
     }
 
-    return stream->start_time + relativeTimestamp;
+    return CMTimeMakeWithSeconds(mediaSeconds, 1000000);
+}
+
+static int64_t timestamp_for_seek_seconds(double seconds, AVStream *stream, double timelineOriginSeconds) {
+    double timestampSeconds = seconds + timelineOriginSeconds;
+    return (int64_t)llround(timestampSeconds / av_q2d(stream->time_base));
 }
 
 static bool frame_is_before_seek_target(
     const AVFrame *frame,
     AVStream *stream,
-    double seekSeconds
+    double seekSeconds,
+    double timelineOriginSeconds
 ) {
-    double frameSeconds = playback_seconds_from_frame(frame, stream);
+    double frameSeconds = playback_seconds_from_frame(frame, stream, timelineOriginSeconds);
     if (frameSeconds < 0) {
         return false;
     }
@@ -530,9 +559,10 @@ static const AVCodec *find_videotoolbox_decoder(
 static int print_frame(
     const AVFrame *frame,
     AVStream *videoStream,
-    int decodedFrames
+    int decodedFrames,
+    double timelineOriginSeconds
 ) {
-    double seconds = seconds_from_frame(frame, videoStream);
+    double seconds = playback_seconds_from_frame(frame, videoStream, timelineOriginSeconds);
     const char *formatName = av_get_pix_fmt_name((enum AVPixelFormat)frame->format);
 
     if (frame->format == hardwarePixelFormat) {
@@ -565,9 +595,10 @@ static int print_frame(
 static void print_audio_frame(
     const AVFrame *frame,
     AVStream *audioStream,
-    int decodedFrames
+    int decodedFrames,
+    double timelineOriginSeconds
 ) {
-    double seconds = seconds_from_frame(frame, audioStream);
+    double seconds = playback_seconds_from_frame(frame, audioStream, timelineOriginSeconds);
     const char *formatName = av_get_sample_fmt_name((enum AVSampleFormat)frame->format);
 
     printf(
@@ -584,13 +615,14 @@ static void pace_video_frame(
     VideoPacer *pacer,
     AudioClock *audioClock,
     const AVFrame *frame,
-    AVStream *videoStream
+    AVStream *videoStream,
+    double timelineOriginSeconds
 ) {
     if (pacer == NULL) {
         return;
     }
 
-    double mediaSeconds = playback_seconds_from_frame(frame, videoStream);
+    double mediaSeconds = playback_seconds_from_frame(frame, videoStream, timelineOriginSeconds);
     if (mediaSeconds < 0) {
         return;
     }
@@ -1026,13 +1058,14 @@ static int receive_available_audio_frames(
     AudioClock *audioClock,
     bool hasSeek,
     double seekSeconds,
+    double timelineOriginSeconds,
     bool quietOutput
 ) {
     int result = 0;
     while ((result = avcodec_receive_frame(audio->codecContext, audio->frame)) >= 0) {
         audio->decodedFrames++;
 
-        if (hasSeek && frame_is_before_seek_target(audio->frame, audioStream, seekSeconds)) {
+        if (hasSeek && frame_is_before_seek_target(audio->frame, audioStream, seekSeconds, timelineOriginSeconds)) {
             audio->skippedBeforeSeek++;
             av_frame_unref(audio->frame);
             continue;
@@ -1040,10 +1073,10 @@ static int receive_available_audio_frames(
 
         int outputFrames = audio->decodedFrames - audio->skippedBeforeSeek;
         if (!quietOutput && (outputFrames <= 5 || audio->decodedFrames % 50 == 0)) {
-            print_audio_frame(audio->frame, audioStream, audio->decodedFrames);
+            print_audio_frame(audio->frame, audioStream, audio->decodedFrames, timelineOriginSeconds);
         }
 
-        double mediaSeconds = playback_seconds_from_frame(audio->frame, audioStream);
+        double mediaSeconds = playback_seconds_from_frame(audio->frame, audioStream, timelineOriginSeconds);
         const AVFrame *outputFrame = audio_output_frame_for_schedule(audio, audio->frame);
         if (outputFrame != NULL
             && schedule_audio_frame(outputFrame, audioPlayer, audioFormat, mediaSeconds, audioClock)) {
@@ -1150,7 +1183,7 @@ static int seek_input_to_seconds(
     double seekSeconds
 ) {
     AVStream *videoStream = context.formatContext->streams[context.videoStreamIndex];
-    int64_t seekTimestamp = timestamp_for_seek_seconds(seekSeconds, videoStream);
+    int64_t seekTimestamp = timestamp_for_seek_seconds(seekSeconds, videoStream, context.timelineOriginSeconds);
 
     printf(
         "Seek target: %.3fs, video stream timestamp=%lld\n",
@@ -1296,6 +1329,7 @@ static int receive_available_frames(
     MemoryProbe *memoryProbe,
     bool hasSeek,
     double seekSeconds,
+    double timelineOriginSeconds,
     int *skippedVideoFrames,
     int *outputVideoFrames,
     int maxOutputFrames,
@@ -1311,7 +1345,7 @@ static int receive_available_frames(
             (*softwareFrames)++;
         }
 
-        if (hasSeek && frame_is_before_seek_target(frame, videoStream, seekSeconds)) {
+        if (hasSeek && frame_is_before_seek_target(frame, videoStream, seekSeconds, timelineOriginSeconds)) {
             if (skippedVideoFrames != NULL) {
                 (*skippedVideoFrames)++;
             }
@@ -1330,12 +1364,12 @@ static int receive_available_frames(
         bool shouldPrint = !quietOutput && (outputFrames <= 5 || *decodedFrames % 60 == 0);
         if (frame->format == hardwarePixelFormat) {
             if (displayFrames) {
-                pace_video_frame(videoPacer, audioClock, frame, videoStream);
+                pace_video_frame(videoPacer, audioClock, frame, videoStream, timelineOriginSeconds);
                 CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)frame->data[3];
                 enqueue_pixel_buffer_for_display(
                     displayLayer,
                     pixelBuffer,
-                    cm_time_from_frame(frame, videoStream)
+                    cm_time_from_frame(frame, videoStream, timelineOriginSeconds)
                 );
                 if (pauseProbe != NULL
                     && pauseProbe->enabled
@@ -1351,11 +1385,11 @@ static int receive_available_frames(
             }
 
             if (shouldPrint) {
-                print_frame(frame, videoStream, *decodedFrames);
+                print_frame(frame, videoStream, *decodedFrames, timelineOriginSeconds);
             }
         } else {
             if (shouldPrint) {
-                print_frame(frame, videoStream, *decodedFrames);
+                print_frame(frame, videoStream, *decodedFrames, timelineOriginSeconds);
             }
         }
 
@@ -1610,6 +1644,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                     &audioClock,
                     segmentHasSeek,
                     segmentSeekSeconds,
+                    context.timelineOriginSeconds,
                     context.quietOutput
                 );
                 continue;
@@ -1649,6 +1684,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
                 &memoryProbe,
                 segmentHasSeek,
                 segmentSeekSeconds,
+                context.timelineOriginSeconds,
                 &skippedVideoFrames,
                 &outputVideoFrames,
                 segmentOutputLimit,
@@ -1714,6 +1750,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             &memoryProbe,
             activeHasSeek,
             activeSeekSeconds,
+            context.timelineOriginSeconds,
             &skippedVideoFrames,
             &outputVideoFrames,
             activeOutputLimit,
@@ -1731,6 +1768,7 @@ static int run_videotoolbox_decode_probe(ProbeRunContext context) {
             &audioClock,
             activeHasSeek,
             activeSeekSeconds,
+            context.timelineOriginSeconds,
             context.quietOutput
         );
     }
@@ -1877,6 +1915,7 @@ static int open_input(
 
     printf("Input: %s\n", path);
     printf("Container: %s\n", (*formatContext)->iformat ? (*formatContext)->iformat->name : "unknown");
+    printf("Media timeline origin: %.3fs\n", media_timeline_origin_seconds(*formatContext));
     printf(
         "Video stream: #%d %s %dx%d, time_base=%d/%d, extradata=%d bytes\n",
         *videoStreamIndex,
@@ -2322,6 +2361,7 @@ static int run_console_probe(
         .formatContext = formatContext,
         .videoStreamIndex = videoStreamIndex,
         .audioStreamIndex = -1,
+        .timelineOriginSeconds = media_timeline_origin_seconds(formatContext),
         .requestedAudioStreamIndex = requestedAudioStreamIndex,
         .audioOutputSampleRate = 0,
         .audioOutputChannels = 0,
@@ -2440,6 +2480,7 @@ static int run_display_probe(
             .formatContext = formatContext,
             .videoStreamIndex = videoStreamIndex,
             .audioStreamIndex = audioStreamIndex,
+            .timelineOriginSeconds = media_timeline_origin_seconds(formatContext),
             .requestedAudioStreamIndex = requestedAudioStreamIndex,
             .audioOutputSampleRate = audioOutputSampleRate,
             .audioOutputChannels = audioOutputChannels,

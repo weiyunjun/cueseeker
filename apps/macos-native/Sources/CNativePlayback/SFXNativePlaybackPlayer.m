@@ -263,45 +263,69 @@ static double SFXStreamStartSeconds(AVStream *stream) {
     return av_q2d(stream->time_base) * stream->start_time;
 }
 
-static double SFXFramePlaybackSeconds(const AVFrame *frame, AVStream *stream) {
+static BOOL SFXStreamParticipatesInMediaTimeline(AVStream *stream) {
+    enum AVMediaType mediaType = stream->codecpar->codec_type;
+    return mediaType == AVMEDIA_TYPE_VIDEO
+        || mediaType == AVMEDIA_TYPE_AUDIO
+        || mediaType == AVMEDIA_TYPE_SUBTITLE;
+}
+
+static double SFXMediaTimelineOriginSeconds(AVFormatContext *formatContext) {
+    if (formatContext == NULL) {
+        return 0;
+    }
+
+    if (formatContext->start_time != AV_NOPTS_VALUE) {
+        return (double)formatContext->start_time / AV_TIME_BASE;
+    }
+
+    double originSeconds = DBL_MAX;
+    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
+        AVStream *stream = formatContext->streams[index];
+        if (stream == NULL
+            || stream->start_time == AV_NOPTS_VALUE
+            || !SFXStreamParticipatesInMediaTimeline(stream)) {
+            continue;
+        }
+        originSeconds = fmin(originSeconds, SFXStreamStartSeconds(stream));
+    }
+
+    return originSeconds < DBL_MAX ? originSeconds : 0;
+}
+
+static double SFXFramePlaybackSeconds(const AVFrame *frame, AVStream *stream, double timelineOriginSeconds) {
     if (frame->best_effort_timestamp == AV_NOPTS_VALUE) {
         return -1;
     }
-    return av_q2d(stream->time_base) * frame->best_effort_timestamp - SFXStreamStartSeconds(stream);
+    return av_q2d(stream->time_base) * frame->best_effort_timestamp - timelineOriginSeconds;
 }
 
-static double SFXPacketPlaybackSeconds(const AVPacket *packet, AVStream *stream) {
+static double SFXPacketPlaybackSeconds(const AVPacket *packet, AVStream *stream, double timelineOriginSeconds) {
     int64_t timestamp = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
     if (timestamp == AV_NOPTS_VALUE) {
         return -1;
     }
-    return av_q2d(stream->time_base) * timestamp - SFXStreamStartSeconds(stream);
+    return av_q2d(stream->time_base) * timestamp - timelineOriginSeconds;
 }
 
-static int64_t SFXSeekTimestamp(double seconds, AVStream *stream) {
-    int64_t relativeTimestamp = (int64_t)llround(seconds / av_q2d(stream->time_base));
-    if (stream->start_time == AV_NOPTS_VALUE) {
-        return relativeTimestamp;
-    }
-    return stream->start_time + relativeTimestamp;
+static int64_t SFXSeekTimestamp(double seconds, AVStream *stream, double timelineOriginSeconds) {
+    double timestampSeconds = seconds + timelineOriginSeconds;
+    return (int64_t)llround(timestampSeconds / av_q2d(stream->time_base));
 }
 
-static int64_t SFXGlobalSeekTimestamp(double seconds, AVFormatContext *formatContext) {
-    int64_t timestamp = (int64_t)llround(seconds * AV_TIME_BASE);
-    if (formatContext->start_time != AV_NOPTS_VALUE) {
-        timestamp += formatContext->start_time;
-    }
-    return timestamp;
+static int64_t SFXGlobalSeekTimestamp(double seconds, double timelineOriginSeconds) {
+    return (int64_t)llround((seconds + timelineOriginSeconds) * AV_TIME_BASE);
 }
 
 static BOOL SFXSeekToStartPosition(
     AVFormatContext *formatContext,
     int videoStreamIndex,
     double seconds,
+    double timelineOriginSeconds,
     NSError **error
 ) {
     AVStream *videoStream = formatContext->streams[videoStreamIndex];
-    int64_t streamTimestamp = SFXSeekTimestamp(seconds, videoStream);
+    int64_t streamTimestamp = SFXSeekTimestamp(seconds, videoStream, timelineOriginSeconds);
     int streamResult = av_seek_frame(
         formatContext,
         videoStreamIndex,
@@ -312,7 +336,7 @@ static BOOL SFXSeekToStartPosition(
         return YES;
     }
 
-    int64_t globalTimestamp = SFXGlobalSeekTimestamp(seconds, formatContext);
+    int64_t globalTimestamp = SFXGlobalSeekTimestamp(seconds, timelineOriginSeconds);
     int globalResult = av_seek_frame(
         formatContext,
         -1,
@@ -340,20 +364,25 @@ static BOOL SFXSeekToStartPosition(
     return NO;
 }
 
-static BOOL SFXFrameBeforeSeekTarget(const AVFrame *frame, AVStream *stream, double seekSeconds) {
-    double frameSeconds = SFXFramePlaybackSeconds(frame, stream);
+static BOOL SFXFrameBeforeSeekTarget(
+    const AVFrame *frame,
+    AVStream *stream,
+    double seekSeconds,
+    double timelineOriginSeconds
+) {
+    double frameSeconds = SFXFramePlaybackSeconds(frame, stream, timelineOriginSeconds);
     if (frameSeconds < 0) {
         return NO;
     }
     return frameSeconds + 0.002 < seekSeconds;
 }
 
-static CMTime SFXFramePresentationTime(const AVFrame *frame, AVStream *stream) {
-    if (frame->best_effort_timestamp == AV_NOPTS_VALUE) {
+static CMTime SFXFramePresentationTime(const AVFrame *frame, AVStream *stream, double timelineOriginSeconds) {
+    double mediaSeconds = SFXFramePlaybackSeconds(frame, stream, timelineOriginSeconds);
+    if (!isfinite(mediaSeconds)) {
         return CMTimeMake(0, 1);
     }
-    int64_t value = frame->best_effort_timestamp * stream->time_base.num;
-    return CMTimeMake(value, stream->time_base.den);
+    return CMTimeMakeWithSeconds(mediaSeconds, 1000000);
 }
 
 static CMSampleBufferRef SFXSampleBufferForPixelBuffer(
@@ -439,6 +468,7 @@ static CVPixelBufferRef SFXCopyBGRAKeyframePreviewPixelBuffer(
     }
 
     AVStream *videoStream = formatContext->streams[videoStreamIndex];
+    double timelineOriginSeconds = SFXMediaTimelineOriginSeconds(formatContext);
     AVCodecParameters *parameters = videoStream->codecpar;
     const AVCodec *decoder = SFXFindSoftwareVideoDecoder(parameters->codec_id);
     if (decoder == NULL) {
@@ -464,7 +494,7 @@ static CVPixelBufferRef SFXCopyBGRAKeyframePreviewPixelBuffer(
     }
 
     double seconds = fmax(0, (double)milliseconds / 1000.0);
-    if (!SFXSeekToStartPosition(formatContext, videoStreamIndex, seconds, &seekError)) {
+    if (!SFXSeekToStartPosition(formatContext, videoStreamIndex, seconds, timelineOriginSeconds, &seekError)) {
         goto cleanup;
     }
     avcodec_flush_buffers(codecContext);
@@ -624,10 +654,10 @@ static CVPixelBufferRef SFXCopyBGRAKeyframePreviewPixelBuffer(
             }
 
             if (presentationTimeOut != NULL) {
-                *presentationTimeOut = SFXFramePresentationTime(frame, videoStream);
+                *presentationTimeOut = SFXFramePresentationTime(frame, videoStream, timelineOriginSeconds);
             }
             if (frameMillisecondsOut != NULL) {
-                double frameSeconds = SFXFramePlaybackSeconds(frame, videoStream);
+                double frameSeconds = SFXFramePlaybackSeconds(frame, videoStream, timelineOriginSeconds);
                 *frameMillisecondsOut = isfinite(frameSeconds) && frameSeconds >= 0
                     ? (NSInteger)llround(frameSeconds * 1000.0)
                     : milliseconds;
@@ -810,6 +840,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    double _seekSeconds;
 	    double _segmentEndSeconds;
 	    double _duration;
+    double _timelineOriginSeconds;
     double _currentTime;
     double _audioFirstMediaSeconds;
     double _audioStartHostSeconds;
@@ -1238,6 +1269,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     if (_formatContext->duration != AV_NOPTS_VALUE) {
         _duration = (double)_formatContext->duration / AV_TIME_BASE;
     }
+    _timelineOriginSeconds = SFXMediaTimelineOriginSeconds(_formatContext);
 
     for (unsigned int index = 0; index < _formatContext->nb_streams; index++) {
         AVStream *stream = _formatContext->streams[index];
@@ -1272,7 +1304,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         return NO;
     }
 
-    if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, error)) {
+    if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, _timelineOriginSeconds, error)) {
         return NO;
     }
 
@@ -1888,7 +1920,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         AVStream *stream = _formatContext->streams[packetCopy->stream_index];
         queuedPacket->packet = packetCopy;
         queuedPacket->bytes = [self packetMemoryBytes:packetCopy];
-        queuedPacket->mediaSeconds = SFXPacketPlaybackSeconds(packetCopy, stream);
+        queuedPacket->mediaSeconds = SFXPacketPlaybackSeconds(packetCopy, stream, _timelineOriginSeconds);
 
         [_packetQueueCondition lock];
 	        if (atomic_load(&_cancelled)
@@ -2035,7 +2067,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     [self stopPacketReadAheadForSeekAndClear];
 
-    if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, seekSeconds, error)) {
+    if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, seekSeconds, _timelineOriginSeconds, error)) {
         [self startPacketReadAhead];
         return NO;
     }
@@ -2518,19 +2550,19 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     while ((result = avcodec_receive_frame(_videoCodecContext, _videoFrame)) >= 0) {
-        if (SFXFrameBeforeSeekTarget(_videoFrame, videoStream, _seekSeconds)) {
+        if (SFXFrameBeforeSeekTarget(_videoFrame, videoStream, _seekSeconds, _timelineOriginSeconds)) {
             av_frame_unref(_videoFrame);
             continue;
         }
 
-        double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream);
+        double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream, _timelineOriginSeconds);
         if ([self mediaSecondsReachedSegmentEnd:mediaSeconds]) {
             [self markSegmentVideoBoundaryReached];
             av_frame_unref(_videoFrame);
             break;
         }
 
-        CMTime presentationTime = SFXFramePresentationTime(_videoFrame, videoStream);
+        CMTime presentationTime = SFXFramePresentationTime(_videoFrame, videoStream, _timelineOriginSeconds);
         NSInteger automaticRecycleMilliseconds = -1;
         BOOL submittedVideoFrame = NO;
         if (_videoFrame->format == SFXHardwarePixelFormat) {
@@ -2588,12 +2620,12 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     AVStream *audioStream = _formatContext->streams[_audioStreamIndex];
     while ((result = avcodec_receive_frame(_audioCodecContext, _audioFrame)) >= 0) {
-        if (SFXFrameBeforeSeekTarget(_audioFrame, audioStream, _seekSeconds)) {
+        if (SFXFrameBeforeSeekTarget(_audioFrame, audioStream, _seekSeconds, _timelineOriginSeconds)) {
             av_frame_unref(_audioFrame);
             continue;
         }
 
-	        double mediaSeconds = SFXFramePlaybackSeconds(_audioFrame, audioStream);
+	        double mediaSeconds = SFXFramePlaybackSeconds(_audioFrame, audioStream, _timelineOriginSeconds);
 	        const AVFrame *outputFrame = [self outputAudioFrameForFrame:_audioFrame];
 	        if (outputFrame != NULL) {
 	            SFXAudioScheduleResult scheduleResult = [self scheduleAudioFrame:outputFrame mediaSeconds:mediaSeconds];
@@ -2609,7 +2641,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 }
 
 - (void)paceVideoFrame:(AVFrame *)frame stream:(AVStream *)stream {
-    double mediaSeconds = SFXFramePlaybackSeconds(frame, stream);
+    double mediaSeconds = SFXFramePlaybackSeconds(frame, stream, _timelineOriginSeconds);
     if (mediaSeconds < 0) {
         return;
     }

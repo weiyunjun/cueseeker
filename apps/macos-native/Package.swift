@@ -186,7 +186,10 @@ let package = Package(
         ),
         .testTarget(
             name: "CueSeekerPlaybackTests",
-            dependencies: ["CueSeekerPlayback"],
+            dependencies: [
+                "CueSeekerPlayback",
+                "CNativePlayback"
+            ],
             path: "Tests/CueSeekerPlaybackTests"
         ),
         .testTarget(
