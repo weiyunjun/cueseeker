@@ -14,9 +14,12 @@ struct PlaybackVolumeControl: View {
                 viewModel.toggleMute()
             } label: {
                 Image(systemName: volumeIcon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.96))
-                    .frame(width: 40, height: 40)
+                    .font(.system(size: PlaybackChromeMetrics.circleButtonIconSize, weight: .semibold))
+                    .foregroundStyle(PlaybackTheme.textPrimary)
+                    .frame(
+                        width: PlaybackChromeMetrics.circleButtonSize,
+                        height: PlaybackChromeMetrics.capsuleButtonHeight
+                    )
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -28,7 +31,7 @@ struct PlaybackVolumeControl: View {
                         get: { viewModel.volume },
                         set: { viewModel.setVolume($0, showsFeedback: false) }
                     ))
-                    .frame(width: 72, height: 40)
+                    .frame(width: 72, height: PlaybackChromeMetrics.capsuleButtonHeight)
 
                     Text("\(Int(viewModel.volume.rounded()))%")
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
@@ -40,10 +43,14 @@ struct PlaybackVolumeControl: View {
                 .transition(.opacity)
             }
         }
-        .frame(width: isHovered ? 160 : 40, height: 40, alignment: .leading)
+        .frame(
+            width: isHovered ? 160 : PlaybackChromeMetrics.circleButtonSize,
+            height: PlaybackChromeMetrics.capsuleButtonHeight,
+            alignment: .leading
+        )
         .background(
             PlaybackCinematicBacking(
-                shape: RoundedRectangle(cornerRadius: 20),
+                shape: RoundedRectangle(cornerRadius: PlaybackChromeMetrics.capsuleButtonHeight / 2),
                 isHovered: !suppressesInteraction && isHovered,
                 scaleX: isHovered ? 0.96 : 0.85,
                 scaleY: 0.85
@@ -91,7 +98,7 @@ private struct PlaybackVolumeSlider: View {
                     .frame(width: thumbSize, height: thumbSize)
                     .offset(x: max(0, (width - thumbSize) * progress))
             }
-            .frame(height: 40, alignment: .center)
+            .frame(height: PlaybackChromeMetrics.capsuleButtonHeight, alignment: .center)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)

@@ -6,7 +6,7 @@ struct PlaybackChromeSpeedMenu: View {
     let onSelect: (Double) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: PlaybackChromeMetrics.speedMenuItemVerticalGap) {
             ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
                 Button {
                     guard !suppressesInteraction else {
@@ -14,22 +14,28 @@ struct PlaybackChromeSpeedMenu: View {
                     }
                     onSelect(speed)
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: PlaybackChromeMetrics.speedMenuItemContentGap) {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: PlaybackChromeMetrics.speedMenuCheckFontSize, weight: .bold))
                             .opacity(abs(selectedSpeed - speed) < 0.01 ? 1 : 0)
-                            .frame(width: 14)
+                            .frame(width: PlaybackChromeMetrics.speedMenuCheckColumnWidth)
 
                         Text(PlaybackViewModel.formatSpeed(speed))
-                            .font(.system(size: 13, weight: abs(selectedSpeed - speed) < 0.01 ? .bold : .medium))
+                            .font(.system(
+                                size: PlaybackChromeMetrics.speedMenuItemFontSize,
+                                weight: abs(selectedSpeed - speed) < 0.01 ? .bold : .medium
+                            ))
                             .monospacedDigit()
 
                         Spacer(minLength: 0)
                     }
-                    .foregroundStyle(.white.opacity(0.94))
-                    .padding(.horizontal, 8)
-                    .frame(width: 160, height: 30)
-                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(PlaybackTheme.textPrimary)
+                    .padding(.horizontal, PlaybackChromeMetrics.speedMenuItemHorizontalPadding)
+                    .frame(
+                        width: PlaybackChromeMetrics.speedMenuItemWidth,
+                        height: PlaybackChromeMetrics.speedMenuItemHeight
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: PlaybackChromeMetrics.speedMenuItemRadius))
                 }
                 .buttonStyle(
                     PlaybackChromeMenuButtonStyle(
@@ -39,16 +45,20 @@ struct PlaybackChromeSpeedMenu: View {
                 )
             }
         }
-        .padding(6)
+        .padding(PlaybackChromeMetrics.speedMenuPadding)
         .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(PlaybackTheme.cinematicBacking)
+            RoundedRectangle(cornerRadius: PlaybackChromeMetrics.speedMenuRadius)
+                .fill(PlaybackTheme.menuBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: PlaybackChromeMetrics.speedMenuRadius)
                 .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
+        .shadow(
+            color: PlaybackTheme.overlayShadowColor,
+            radius: PlaybackTheme.overlayShadowRadius,
+            y: PlaybackTheme.overlayShadowYOffset
+        )
     }
 }
 
@@ -60,7 +70,7 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: PlaybackChromeMetrics.speedMenuItemRadius)
                     .fill(backgroundColor(isPressed: configuration.isPressed))
             )
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
@@ -75,7 +85,7 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
 
     private func backgroundColor(isPressed: Bool) -> Color {
         if !suppressesInteraction && (isPressed || isHovered || isSelected) {
-            return PlaybackTheme.menuItemHighlight
+            return PlaybackTheme.menuItemHoverBackground
         }
         return .clear
     }

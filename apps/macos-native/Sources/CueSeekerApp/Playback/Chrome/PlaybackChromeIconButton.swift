@@ -8,9 +8,9 @@ enum PlaybackChromeButtonKind {
     var size: CGFloat {
         switch self {
         case .circle:
-            return 32
+            return PlaybackChromeMetrics.circleButtonSize
         case .transport:
-            return 40
+            return PlaybackChromeMetrics.circleButtonSize
         case .primaryTransport:
             return 44
         }
@@ -19,9 +19,9 @@ enum PlaybackChromeButtonKind {
     var symbolSize: CGFloat {
         switch self {
         case .circle:
-            return 15
+            return PlaybackChromeMetrics.circleButtonIconSize
         case .transport:
-            return 18
+            return PlaybackChromeMetrics.circleButtonIconSize
         case .primaryTransport:
             return 20
         }
@@ -103,7 +103,6 @@ struct PlaybackChromeIconButton: View {
             )
         )
         .disabled(isDisabled)
-        .opacity(isDisabled ? 0.34 : 1)
         .accessibilityLabel(accessibilityLabel)
     }
 }
@@ -140,17 +139,17 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                     // Outer persistent base
                     if hasPersistentBase {
                         Circle()
-                            .fill(isSelected ? Color.white : PlaybackTheme.capsuleFill)
+                            .fill(isSelected ? PlaybackTheme.textPrimary : PlaybackTheme.controlBackground)
                     } else if isSelected {
                         // Grouped buttons inside capsule: draw active white circle base
                         Circle()
-                            .fill(Color.white)
+                            .fill(PlaybackTheme.textPrimary)
                     }
 
                     // Concentric inner hover circle
                     if isInteractive && !isSelected && (isHovered || configuration.isPressed) {
                         Circle()
-                            .fill(PlaybackTheme.capsuleHoverFill)
+                            .fill(PlaybackTheme.controlHoverBackground)
                             .scaleEffect(0.85)
                     }
                 }
@@ -168,9 +167,9 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
 
     private var foregroundColor: Color {
         guard isEnabled else {
-            return .white.opacity(0.34)
+            return PlaybackTheme.textTertiary
         }
-        return isSelected ? Color(red: 0.10, green: 0.10, blue: 0.12) : .white.opacity(0.96)
+        return isSelected ? PlaybackTheme.iconSelected : PlaybackTheme.textPrimary
     }
 
     private var isInteractive: Bool {

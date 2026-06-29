@@ -93,7 +93,7 @@ struct PlaybackChromeView: View {
     private var chromeSurface: some View {
         VStack(spacing: 0) {
             scrubberRow
-                .padding(.top, 16)
+                .padding(.top, PlaybackChromeMetrics.progressTopPadding)
 
             HStack(spacing: 0) {
                 leftGroup
@@ -102,9 +102,9 @@ struct PlaybackChromeView: View {
 
                 rightGroup
             }
-            .padding(.horizontal, 24)
-            .frame(height: 52)
-            .padding(.bottom, 12)
+            .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
+            .frame(height: PlaybackChromeMetrics.bottomControlsRowHeight)
+            .padding(.bottom, PlaybackChromeMetrics.chromeBottomPadding)
         }
         .contentShape(Rectangle())
     }
@@ -122,10 +122,8 @@ struct PlaybackChromeView: View {
                     proxy.size.width - menuWidth / 2
                 )
                 let calculatedY = buttonFrame.minY - PlaybackChromeMetrics.speedMenuGap - menuHeight / 2
-                // Lock the bottom of the popover card tightly above the scrubber timeline (starts at height - 98 + 16)
-                // with a clean 2pt gap when hovered to completely prevent any visual overlap or anti-aliasing artifacts.
                 let maxMenuCenterY = proxy.size.width > 0
-                    ? proxy.size.height - PlaybackChromeMetrics.height + 20 - menuHeight / 2
+                    ? proxy.size.height - PlaybackChromeMetrics.height + PlaybackChromeMetrics.speedMenuOverlapClearance - menuHeight / 2
                     : calculatedY
                 let y = max(
                     menuHeight / 2,
@@ -156,11 +154,11 @@ struct PlaybackChromeView: View {
             ),
             onScrubbingChanged: { playback.isTimelineScrubbing = $0 }
         )
-            .padding(.horizontal, 24)
+            .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
     }
 
     private var leftGroup: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: PlaybackChromeMetrics.leftControlsGap) {
             PlaybackChromeIconButton(
                 systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
                 kind: .transport,
@@ -190,15 +188,15 @@ struct PlaybackChromeView: View {
                     action: controls.goNext
                 )
             }
-            .frame(height: 40)
-            .background(Capsule().fill(PlaybackTheme.capsuleFill))
+            .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
+            .background(Capsule().fill(PlaybackTheme.controlBackground))
 
             PlaybackVolumeControl(
                 viewModel: viewModel,
                 suppressesInteraction: playback.isTimelineScrubbing
             )
 
-            HStack(spacing: 4) {
+            HStack(spacing: PlaybackChromeMetrics.timeLabelGap) {
                 Text(formatPlaybackTime(playback.timelineScrubTime ?? viewModel.displayedCurrentTime))
                     .foregroundStyle(PlaybackTheme.textPrimary)
                 Text("/")
@@ -206,10 +204,10 @@ struct PlaybackChromeView: View {
                 Text(formatPlaybackTime(viewModel.duration))
                     .foregroundStyle(PlaybackTheme.textPrimary)
             }
-            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .font(.system(size: PlaybackChromeMetrics.timeFontSize, weight: .semibold, design: .monospaced))
             .monospacedDigit()
-            .padding(.horizontal, 16)
-            .frame(height: 40)
+            .padding(.horizontal, PlaybackChromeMetrics.capsuleButtonHorizontalPadding)
+            .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
             .background(
                 PlaybackCinematicBacking(
                     shape: Capsule(),
@@ -227,7 +225,7 @@ struct PlaybackChromeView: View {
     }
 
     private var rightGroup: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: PlaybackChromeMetrics.rightControlsGap) {
             HStack(spacing: 0) {
                 PlaybackChromeIconButton(
                     systemName: "bookmark",
@@ -257,8 +255,8 @@ struct PlaybackChromeView: View {
                     action: viewModel.toggleSubtitles
                 )
             }
-            .frame(height: 40)
-            .background(Capsule().fill(PlaybackTheme.capsuleFill))
+            .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
+            .background(Capsule().fill(PlaybackTheme.controlBackground))
 
             speedControl
 
@@ -283,9 +281,9 @@ struct PlaybackChromeView: View {
             isSpeedMenuVisible.toggle()
         } label: {
             Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: PlaybackChromeMetrics.timeFontSize, weight: .semibold))
                 .monospacedDigit()
-                .frame(width: 54, height: 40)
+                .frame(width: PlaybackChromeMetrics.speedButtonWidth, height: PlaybackChromeMetrics.capsuleButtonHeight)
                 .contentShape(Capsule())
         }
         .buttonStyle(
@@ -294,7 +292,11 @@ struct PlaybackChromeView: View {
             )
         )
         .accessibilityLabel("Playback speed")
-        .frame(width: 54, height: 40, alignment: .center)
+        .frame(
+            width: PlaybackChromeMetrics.speedButtonWidth,
+            height: PlaybackChromeMetrics.capsuleButtonHeight,
+            alignment: .center
+        )
         .background(
             GeometryReader { geo in
                 Color.clear
@@ -354,19 +356,6 @@ struct PlaybackChromeView: View {
     }
 }
 
-enum PlaybackChromeMetrics {
-    static let horizontalInset: CGFloat = 0
-    static let bottomInset: CGFloat = 0
-    static let height: CGFloat = 98
-    static let timeLabelWidth: CGFloat = 70
-    static let videoTopBarHeight: CGFloat = 46
-    static let speedMenuWidth: CGFloat = 172
-    static let speedMenuHeight: CGFloat = 234
-    static let speedMenuGap: CGFloat = 8
-    static let interactiveHeight: CGFloat = height + speedMenuHeight + speedMenuGap + 24
-    static let hiddenOffset: CGFloat = interactiveHeight + 28
-}
-
 private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
     var suppressesInteraction = false
     @State private var isHovered = false
@@ -396,7 +385,7 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
     }
 
     private var foregroundColor: Color {
-        isEnabled ? Color.white.opacity(0.96) : Color.white.opacity(0.34)
+        isEnabled ? PlaybackTheme.textPrimary : PlaybackTheme.textTertiary
     }
 
     private var isInteractive: Bool {

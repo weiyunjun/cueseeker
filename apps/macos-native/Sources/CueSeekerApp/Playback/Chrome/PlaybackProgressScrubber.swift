@@ -8,7 +8,7 @@ struct PlaybackProgressScrubber: View {
     @State private var isDragging = false
     @State private var hoverX: CGFloat? = nil
     @State private var isHoveringScrubber = false
-    @State private var tooltipWidth: CGFloat = 44
+    @State private var tooltipWidth: CGFloat = PlaybackChromeMetrics.progressTimeCapsuleMinWidth
 
     var body: some View {
         GeometryReader { geometry in
@@ -20,7 +20,9 @@ struct PlaybackProgressScrubber: View {
                 : 0
             let width = max(0, geometry.size.width)
             let filledWidth = width * progress
-            let trackHeight: CGFloat = (isHovered || isScrubbing) ? 6 : 3
+            let trackHeight: CGFloat = (isHovered || isScrubbing)
+                ? PlaybackChromeMetrics.progressTrackHoverHeight
+                : PlaybackChromeMetrics.progressTrackHeight
 
             let targetX = isScrubbing ? filledWidth : hoverX
             let tooltipTime: Double = {
@@ -34,31 +36,30 @@ struct PlaybackProgressScrubber: View {
             }()
 
             ZStack(alignment: .leading) {
-                // 1. Base track (Persistent 0.60 Capsule Fill)
                 Capsule()
-                    .fill(PlaybackTheme.scrubberTrackBackground)
+                    .fill(PlaybackTheme.progressTrack)
                     .frame(height: trackHeight)
 
-                // 2. Hover highlight track (Only active between 0 and cursor position)
                 if !isScrubbing, isHoveringScrubber, let hoverX = hoverX {
                     Capsule()
-                        .fill(PlaybackTheme.scrubberHoverTrack)
+                        .fill(PlaybackTheme.progressHoverTrack)
                         .frame(width: max(0, hoverX), height: trackHeight)
                 }
 
-                // 3. Active progress track (YouTube signature red)
                 Capsule()
-                    .fill(PlaybackTheme.progressRed)
+                    .fill(PlaybackTheme.progressFill)
                     .frame(width: filledWidth, height: trackHeight)
 
-                // 4. Scrubber Thumb (YouTube signature red)
                 Circle()
-                    .fill(PlaybackTheme.progressRed)
-                    .frame(width: 12, height: 12)
-                    .offset(x: filledWidth - 6)
+                    .fill(PlaybackTheme.progressFill)
+                    .frame(
+                        width: PlaybackChromeMetrics.progressThumbSize,
+                        height: PlaybackChromeMetrics.progressThumbSize
+                    )
+                    .offset(x: filledWidth - PlaybackChromeMetrics.progressThumbSize / 2)
                     .opacity(isHovered || isScrubbing ? 1 : 0)
             }
-            .frame(height: 18, alignment: .center)
+            .frame(height: PlaybackChromeMetrics.progressHitAreaHeight, alignment: .center)
             .contentShape(Rectangle())
             .onHover { isHovered = $0 }
             .onContinuousHover { phase in
@@ -100,11 +101,15 @@ struct PlaybackProgressScrubber: View {
                         let clampedX = min(max(targetX - tooltipWidth / 2, 0), width - tooltipWidth)
 
                         Text(formatPlaybackTime(tooltipTime))
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .font(.system(
+                                size: PlaybackChromeMetrics.progressTimeFontSize,
+                                weight: .semibold,
+                                design: .monospaced
+                            ))
                             .foregroundStyle(PlaybackTheme.textPrimary)
                             .monospacedDigit()
-                            .padding(.horizontal, 8)
-                            .frame(height: 22)
+                            .padding(.horizontal, PlaybackChromeMetrics.progressTimeCapsuleHorizontalPadding)
+                            .frame(height: PlaybackChromeMetrics.progressTimeCapsuleHeight)
                             .background(
                                 GeometryReader { geo in
                                     Color.clear
@@ -118,14 +123,14 @@ struct PlaybackProgressScrubber: View {
                                     isHovered: false
                                 )
                             )
-                            .offset(x: clampedX, y: -24)
+                            .offset(x: clampedX, y: PlaybackChromeMetrics.progressTimeCapsuleYOffset)
                             .allowsHitTesting(false)
                     }
                 },
                 alignment: .topLeading
             )
         }
-        .frame(height: 18)
+        .frame(height: PlaybackChromeMetrics.progressHitAreaHeight)
         .onDisappear {
             if isDragging {
                 viewModel.cancelTimelineScrubbing()
