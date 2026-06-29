@@ -28,8 +28,8 @@ struct LiquidGlassVideoTopBar: View {
         .overlay {
             LinearGradient(
                 colors: [
-                    Color(red: 18 / 255, green: 18 / 255, blue: 24 / 255).opacity(0.66),
-                    Color(red: 18 / 255, green: 18 / 255, blue: 24 / 255).opacity(0)
+                    PlaybackTheme.topbarGradientStart,
+                    PlaybackTheme.topbarGradientEnd
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -39,7 +39,7 @@ struct LiquidGlassVideoTopBar: View {
         .overlay {
             ZStack {
                 HStack(spacing: 0) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: PlaybackChromeMetrics.windowControlsGap) {
                         LiquidGlassWindowControlButton(
                             kind: .close,
                             glyphVisible: isClusterActive,
@@ -62,16 +62,19 @@ struct LiquidGlassVideoTopBar: View {
                 }
 
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .tracking(0.13)
-                    .foregroundStyle(Color.white.opacity(0.92))
+                    .font(.system(size: PlaybackChromeMetrics.topbarTitleFontSize, weight: .semibold))
+                    .foregroundStyle(PlaybackTheme.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
-                    .frame(maxWidth: 520)
+                    .shadow(
+                        color: PlaybackTheme.topbarTitleShadowColor,
+                        radius: PlaybackTheme.topbarTitleShadowRadius,
+                        y: PlaybackTheme.topbarTitleShadowYOffset
+                    )
+                    .frame(maxWidth: PlaybackChromeMetrics.topbarTitleMaxWidth)
                     .allowsHitTesting(false)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, PlaybackChromeMetrics.topbarHorizontalPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

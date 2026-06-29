@@ -2,7 +2,7 @@
 
 ## Human-Owned Source
 
-- `docs/human/design/UI.md`
+- `docs/human/requirements/20260630-Feature-Player Chrome Tokens.md`
 
 ## Scope
 
@@ -22,8 +22,8 @@ against the player chrome design tokens and component/layout definitions.
 ## Changes
 
 - Added player chrome color, shadow, size, spacing, padding, typography, and
-  progress metrics in the playback theme layer, matching
-  `docs/human/design/UI.md`.
+  progress metrics in the playback theme layer, matching the player chrome
+  token requirement.
 - Kept existing playback theme names as compatibility aliases for Quick Search
   and other playback overlays outside this implementation scope.
 - Replaced hard-coded bottom control bar layout values with

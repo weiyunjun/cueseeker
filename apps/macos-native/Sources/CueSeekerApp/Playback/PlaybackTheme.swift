@@ -66,6 +66,41 @@ public enum PlaybackTheme {
         Color.white.opacity(0.35)
     }
 
+    /// --color-player-window-close
+    public static var windowClose: Color {
+        Color(red: 1.0, green: 95 / 255, blue: 87 / 255)
+    }
+
+    /// --color-player-window-minimize
+    public static var windowMinimize: Color {
+        Color(red: 254 / 255, green: 188 / 255, blue: 46 / 255)
+    }
+
+    /// --color-player-window-zoom
+    public static var windowZoom: Color {
+        Color(red: 40 / 255, green: 200 / 255, blue: 64 / 255)
+    }
+
+    /// --color-player-window-control-border
+    public static var windowControlBorder: Color {
+        Color.black.opacity(0.18)
+    }
+
+    /// --color-player-window-control-glyph
+    public static var windowControlGlyph: Color {
+        Color.black.opacity(0.55)
+    }
+
+    /// --color-player-topbar-gradient-start
+    public static var topbarGradientStart: Color {
+        Color(red: 18 / 255, green: 18 / 255, blue: 24 / 255).opacity(0.66)
+    }
+
+    /// --color-player-topbar-gradient-end
+    public static var topbarGradientEnd: Color {
+        Color(red: 18 / 255, green: 18 / 255, blue: 24 / 255).opacity(0)
+    }
+
     /// --shadow-player-overlay
     public static var overlayShadowColor: Color {
         Color.black.opacity(0.42)
@@ -73,6 +108,14 @@ public enum PlaybackTheme {
 
     public static let overlayShadowRadius: CGFloat = 24
     public static let overlayShadowYOffset: CGFloat = 12
+
+    /// --shadow-player-topbar-title
+    public static var topbarTitleShadowColor: Color {
+        Color.black.opacity(0.50)
+    }
+
+    public static let topbarTitleShadowRadius: CGFloat = 2
+    public static let topbarTitleShadowYOffset: CGFloat = 1
 
     /// Premium cinematic semi-translucent pure black surface backing.
     public static var cinematicBacking: Color {
@@ -129,6 +172,9 @@ enum PlaybackChromeMetrics {
     static let progressTrackHoverHeight: CGFloat = 6
     static let progressTimeCapsuleHeight: CGFloat = 22
     static let progressThumbSize: CGFloat = 12
+    static let windowControlButtonSize: CGFloat = 13
+    static let windowControlGlyphSize: CGFloat = 7
+    static let topbarTitleMaxWidth: CGFloat = 520
 
     static let chromeHorizontalPadding: CGFloat = 24
     static let chromeBottomPadding: CGFloat = 12
@@ -137,10 +183,12 @@ enum PlaybackChromeMetrics {
     static let speedMenuPadding: CGFloat = 6
     static let speedMenuItemHorizontalPadding: CGFloat = 8
     static let progressTimeCapsuleHorizontalPadding: CGFloat = 8
+    static let topbarHorizontalPadding: CGFloat = 16
 
     static let leftControlsGap: CGFloat = 8
     static let rightControlsGap: CGFloat = 6
     static let timeLabelGap: CGFloat = 4
+    static let windowControlsGap: CGFloat = 8
     static let speedMenuGap: CGFloat = 8
 
     static let capsuleRadius: CGFloat = 9999
@@ -151,6 +199,7 @@ enum PlaybackChromeMetrics {
     static let progressTimeFontSize: CGFloat = 10
     static let speedMenuCheckFontSize: CGFloat = 11
     static let speedMenuItemFontSize: CGFloat = 13
+    static let topbarTitleFontSize: CGFloat = 13
 
     static let speedMenuItemVerticalGap: CGFloat = 2
     static let speedMenuItemContentGap: CGFloat = 10
@@ -162,6 +211,8 @@ enum PlaybackChromeMetrics {
     static let progressTimeCapsuleMinWidth: CGFloat = 44
     static let progressTimeCapsuleGap: CGFloat = 2
     static let progressTimeCapsuleYOffset: CGFloat = -(progressTimeCapsuleHeight + progressTimeCapsuleGap)
+    static let windowControlBorderWidth: CGFloat = 0.5
+    static let windowControlZoomGlyphSize: CGFloat = windowControlGlyphSize - 2
 
     static let interactiveHeight: CGFloat = height + speedMenuHeight + speedMenuGap + speedMenuOverlayTopPadding
     static let hiddenOffset: CGFloat = interactiveHeight + hiddenOffsetPadding
