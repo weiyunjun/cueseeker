@@ -28,8 +28,7 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
         },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
-        showsStartTimeColumn: true,
-        showsEndTimeColumn: true,
+        showsTimeColumn: true,
         showsLanguageColumn: true,
         showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
@@ -38,22 +37,19 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
 
     #expect(coordinator.numberOfRowsForTesting() == 2_000_000)
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
-    #expect(coordinator.cellFullText(row: -1, column: 2) == "Start Time")
-    #expect(coordinator.cellFullText(row: -1, column: 3) == "End Time")
-    #expect(coordinator.cellFullText(row: -1, column: 5) == "Speaker")
-    #expect(coordinator.cellFullText(row: -1, column: 6) == "Language")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Time")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "Speaker")
+    #expect(coordinator.cellFullText(row: -1, column: 5) == "Language")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
-    #expect(coordinator.cellFullText(row: 0, column: 2) == "01:15:32")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "01:16:04")
-    #expect(coordinator.cellFullText(row: 0, column: 4) == "loaded cue")
-    #expect(coordinator.cellFullText(row: 0, column: 5) == "高松灯")
-    #expect(coordinator.cellFullText(row: 0, column: 6) == "zh-hans, jp")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "01:15:32 - 01:16:04")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "高松灯")
+    #expect(coordinator.cellFullText(row: 0, column: 5) == "zh-hans, jp")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 0) == "1000001")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 2) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 3) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 4) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 5) == "")
-    #expect(coordinator.cellFullText(row: 1_000_000, column: 6) == "")
 }
 
 @MainActor
@@ -80,8 +76,7 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsDisplayTitleColumn: false,
-        showsStartTimeColumn: true,
-        showsEndTimeColumn: true,
+        showsTimeColumn: true,
         showsLanguageColumn: true,
         showsSpeakerColumn: false,
         onVisibleRowsChange: { _ in },
@@ -89,16 +84,14 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
     )
     coordinator.isRedesign = true
 
-    #expect(coordinator.cellFullText(row: -1, column: 1) == "Start Time")
-    #expect(coordinator.cellFullText(row: -1, column: 2) == "End Time")
-    #expect(coordinator.cellFullText(row: -1, column: 3) == "Cues")
-    #expect(coordinator.cellFullText(row: -1, column: 4) == "Language")
-    #expect(coordinator.cellFullText(row: -1, column: 5) == "")
-    #expect(coordinator.cellFullText(row: 0, column: 1) == "15:18")
-    #expect(coordinator.cellFullText(row: 0, column: 2) == "15:20")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "loaded cue")
-    #expect(coordinator.cellFullText(row: 0, column: 4) == "zh-hans, jp")
-    #expect(coordinator.cellFullText(row: 0, column: 5) == "")
+    #expect(coordinator.cellFullText(row: -1, column: 1) == "Time")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "Language")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "")
+    #expect(coordinator.cellFullText(row: 0, column: 1) == "15:18 - 15:20")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "zh-hans, jp")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "")
 }
 
 @MainActor
@@ -370,6 +363,23 @@ func subtitleTableViewExpandsRedesignDocumentWidthForHorizontalScrolling() {
     #expect(fixture.documentView.frame.width == fixture.coordinator.tableContentWidthForTesting(viewportWidth: 500))
     #expect(fixture.documentView.frame.width > fixture.scrollView.contentView.bounds.width)
     #expect(metrics.isVisible(.horizontal) == true)
+}
+
+@MainActor
+@Test
+func subtitleTableViewKeepsRowActionButtonFixedDuringHorizontalScroll() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 500)
+    let beforeScrollFrame = fixture.coordinator.rowActionButtonFrameForTesting(row: 0)
+
+    fixture.scrollView.contentView.scroll(to: CGPoint(x: 120, y: 0))
+    fixture.scrollView.reflectScrolledClipView(fixture.scrollView.contentView)
+    fixture.coordinator.scrollContentDidChange()
+
+    let afterScrollFrame = fixture.coordinator.rowActionButtonFrameForTesting(row: 0)
+
+    #expect(beforeScrollFrame != nil)
+    #expect(afterScrollFrame != nil)
+    #expect(beforeScrollFrame?.minX == afterScrollFrame?.minX)
 }
 
 @MainActor

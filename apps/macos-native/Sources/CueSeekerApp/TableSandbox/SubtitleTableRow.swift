@@ -9,6 +9,9 @@ struct SubtitleTableRow: Identifiable, Equatable {
     let displayTitle: String
     let startTime: String
     let endTime: String
+    var timeRange: String {
+        SubtitleTableTimeRange.text(startTime: startTime, endTime: endTime)
+    }
     /// Merged subtitle text for one timestamp. Bilingual entries keep one line
     /// per language, joined with "\n", so the cell wraps to multiple lines.
     let cues: String
@@ -33,6 +36,68 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.cues = cues
         self.tags = tags
         self.speakerTags = speakerTags
+    }
+}
+
+enum SubtitleTableTimeRange {
+    static func text(startTime: String, endTime: String) -> String {
+        let trimmedStart = startTime.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEnd = endTime.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedStart.isEmpty else {
+            return trimmedEnd
+        }
+        guard !trimmedEnd.isEmpty else {
+            return trimmedStart
+        }
+
+        guard let start = TimeParts(trimmedStart),
+              let end = TimeParts(trimmedEnd)
+        else {
+            return "\(trimmedStart) - \(trimmedEnd)"
+        }
+
+        if start.hours == 0, end.hours == 0 {
+            return "\(start.shortText) - \(end.shortText)"
+        }
+        return "\(start.fullText) - \(end.fullText)"
+    }
+
+    private struct TimeParts {
+        let hours: Int
+        let minutes: Int
+        let seconds: Int
+
+        init?(_ value: String) {
+            let parts = value.split(separator: ":").map(String.init)
+            guard parts.count == 2 || parts.count == 3,
+                  let last = parts.last,
+                  let seconds = Int(last),
+                  let minutes = Int(parts[parts.count - 2])
+            else {
+                return nil
+            }
+
+            let hours: Int
+            if parts.count == 3 {
+                guard let parsedHours = Int(parts[0]) else { return nil }
+                hours = parsedHours
+            } else {
+                hours = 0
+            }
+
+            self.hours = max(0, hours)
+            self.minutes = max(0, minutes)
+            self.seconds = max(0, seconds)
+        }
+
+        var shortText: String {
+            String(format: "%02d:%02d", minutes, seconds)
+        }
+
+        var fullText: String {
+            String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        }
     }
 }
 

@@ -12,10 +12,8 @@ struct SubtitleTableClipboardColumn {
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.dateAdded }
         case "display":
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.displayTitle }
-        case "startTime":
-            return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.startTime }
-        case "endTime":
-            return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.endTime }
+        case "time":
+            return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.timeRange }
         case "cues":
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.cues }
         case "speaker":

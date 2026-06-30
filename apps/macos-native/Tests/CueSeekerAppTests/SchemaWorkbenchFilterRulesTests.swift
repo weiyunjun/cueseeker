@@ -14,19 +14,19 @@ func schemaWorkbenchStartsWithoutPresetFilterSets() {
 func schemaWorkbenchColumnVisibilityMenuLocksCuesAndSkipsCheckboxColumn() {
     let items = SchemaWorkbenchColumnVisibilityMenu.items(
         columns: SchemaWorkbenchSearchDefaults.columns,
-        visibleColumnIDs: ["display", "startTime"]
+        visibleColumnIDs: ["display", "time"]
     )
 
-    #expect(items.map(\.id) == ["display", "startTime", "endTime", "cues"])
-    #expect(items.map(\.title) == ["Display Title", "Start Time", "End Time", "Cues"])
+    #expect(items.map(\.id) == ["display", "time", "cues"])
+    #expect(items.map(\.title) == ["Display Title", "Time", "Cues"])
 
     let cues = items.first { $0.id == "cues" }
     #expect(cues?.isSelected == true)
     #expect(cues?.isEnabled == false)
 
-    let endTime = items.first { $0.id == "endTime" }
-    #expect(endTime?.isSelected == false)
-    #expect(endTime?.isEnabled == true)
+    let time = items.first { $0.id == "time" }
+    #expect(time?.isSelected == true)
+    #expect(time?.isEnabled == true)
 }
 
 @Test

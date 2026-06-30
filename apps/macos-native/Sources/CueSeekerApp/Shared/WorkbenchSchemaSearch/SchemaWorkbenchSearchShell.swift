@@ -217,16 +217,10 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(300)
         ),
         WorkbenchTableColumn(
-            id: "startTime",
-            title: "Start Time",
+            id: "time",
+            title: "Time",
             kind: .text,
-            width: .fixed(130)
-        ),
-        WorkbenchTableColumn(
-            id: "endTime",
-            title: "End Time",
-            kind: .text,
-            width: .fixed(130)
+            width: .fixed(190)
         ),
         WorkbenchTableColumn(
             id: "cues",
@@ -256,16 +250,10 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(300)
         ),
         WorkbenchTableColumn(
-            id: "startTime",
-            title: "Start Time",
+            id: "time",
+            title: "Time",
             kind: .text,
-            width: .fixed(130)
-        ),
-        WorkbenchTableColumn(
-            id: "endTime",
-            title: "End Time",
-            kind: .text,
-            width: .fixed(130)
+            width: .fixed(190)
         ),
         WorkbenchTableColumn(
             id: "cues",
