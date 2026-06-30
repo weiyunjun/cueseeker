@@ -66,6 +66,9 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   a separate filtered-result total for background loading, exposes only loaded
   rows to the table, and appends later pages from the current end instead of
   using scroll-position hydration.
+- Removed the shared visible-row hydrator class and its tests after Search and
+  Shiori stopped using scroll-position range hydration for normal table
+  rendering.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
 - Updated row model store tests to assert the continuous-row invariant: sparse
   Search and Shiori hydrations are ignored, while contiguous append hydration
@@ -80,6 +83,8 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   7 tests.
 - `swift test --filter Shiori` passed from `apps/macos-native` with 6 tests.
 - `swift build` passed from `apps/macos-native`.
+- `swift test` passed from `apps/macos-native` with 357 tests after removing
+  the obsolete visible hydrator test file.
 
 ## Outcome
 
@@ -134,6 +139,11 @@ count for empty-state messaging, but tracks the current filtered result total
 separately so table row count remains the number of loaded renderable rows.
 Copy/export actions read from the current snapshot instead of issuing old
 hydrate-on-export range loads.
+
+The old scroll-position hydrator has been removed from production code. Result
+table paging is now represented by explicit page result value types and
+view-owned continuous append loops, not by a shared component that treats
+viewport movement as a data availability request.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.
