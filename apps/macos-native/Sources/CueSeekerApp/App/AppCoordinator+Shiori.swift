@@ -136,7 +136,7 @@ extension AppCoordinator {
                 endMilliseconds: item.endMilliseconds
             )
             if reloadPresentation {
-                applyShioris(try database.shioris())
+                try refreshShioriPresentationAfterMutation(database: database)
             } else {
                 shiori.invalidateTableRows()
                 shiori.shioris.removeAll { $0.id == item.id }
@@ -288,7 +288,7 @@ extension AppCoordinator {
                     startMilliseconds: selection.startMilliseconds,
                     endMilliseconds: selection.endMilliseconds
                 )
-                applyShioris(try database.shioris())
+                try refreshShioriPresentationAfterMutation(database: database)
                 playbackViewModel.showShioriFeedback(.removed)
                 return true
             }
@@ -300,7 +300,7 @@ extension AppCoordinator {
                 videoName: videoName,
                 selection: selection
             )
-            applyShioris(try database.shioris())
+            try refreshShioriPresentationAfterMutation(database: database)
             playbackViewModel.showShioriFeedback(.saved)
             return true
         } catch {
@@ -308,6 +308,15 @@ extension AppCoordinator {
             playbackViewModel.showShioriFeedback(.unavailable)
             return false
         }
+    }
+
+    func refreshShioriPresentationAfterMutation(database: SubtitleDatabase) throws {
+        let hasLegacyPresentation = !shiori.shioris.isEmpty || !shiori.shioriFileGroups.isEmpty
+        shiori.invalidateTableRows()
+        guard hasLegacyPresentation else {
+            return
+        }
+        applyShioris(try database.shioris())
     }
 
 

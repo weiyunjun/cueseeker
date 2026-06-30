@@ -1,0 +1,69 @@
+import AppKit
+import Foundation
+import Testing
+import CueSeekerCore
+@testable import CueSeekerApp
+
+@MainActor
+@Test
+func removeShioriDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
+    let suiteName = "CueSeekerShioriPresentationTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerShioriPresentationTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot
+        .appendingPathComponent("CueSeekerShioriPresentationTests.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let database = try #require(app.subtitleDatabase)
+    let first = try makeShiori(
+        in: database,
+        id: 1,
+        content: "first saved cue"
+    )
+    _ = try makeShiori(
+        in: database,
+        id: 2,
+        content: "second saved cue"
+    )
+
+    #expect(try database.shioriCount() == 2)
+    #expect(app.shiori.shioris.isEmpty)
+    #expect(app.shiori.shioriFileGroups.isEmpty)
+
+    #expect(app.removeShiori(first, reloadPresentation: true))
+
+    #expect(try database.shioriCount() == 1)
+    #expect(app.shiori.shioris.isEmpty)
+    #expect(app.shiori.shioriFileGroups.isEmpty)
+    #expect(!app.shiori.tableHasLoadedInitialPage)
+}
+
+private func makeShiori(
+    in database: SubtitleDatabase,
+    id: Int,
+    content: String
+) throws -> Shiori {
+    try database.upsertShiori(
+        subtitleFile: URL(fileURLWithPath: "/Media/Shiori-\(id).srt"),
+        subtitleFormat: .srt,
+        videoFile: URL(fileURLWithPath: "/Media/Shiori-\(id).mkv"),
+        videoName: "Shiori-\(id).mkv",
+        selection: SubtitleCueTextSelection(
+            cueGroupID: Int64(id),
+            startMilliseconds: id * 1_000,
+            endMilliseconds: id * 1_000 + 500,
+            lines: [content]
+        )
+    )
+}

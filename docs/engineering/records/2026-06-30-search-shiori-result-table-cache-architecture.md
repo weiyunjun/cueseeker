@@ -43,11 +43,14 @@ cap that could make virtualized table rows unavailable after broad scrolling.
 - Changed legacy Search result groups to summary-first storage. Group rebuilds
   no longer regroup and duplicate every current Search result; rows are retained
   in a group only after that specific group is explicitly expanded or loaded.
+- Changed Shiori save/remove presentation refreshes so the table is invalidated
+  without unconditionally loading every saved Shiori into the legacy card-list
+  arrays. The legacy arrays are refreshed only if they were already loaded.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
 
 ## Verification
 
-- `swift test` passed from `apps/macos-native` with 361 tests.
+- `swift test` passed from `apps/macos-native` with 362 tests.
 
 ## Outcome
 
@@ -73,6 +76,11 @@ Legacy Search result grouping now keeps file summary metadata without building
 per-file result arrays for the whole current Search result set. This removes
 another full-result-array multiplier from broad searches while preserving
 explicit group expansion behavior.
+
+Shiori mutation paths now keep the table-first paging model intact. Saving or
+removing a Shiori invalidates the table page cache without forcing the old
+card-list presentation to hydrate all saved Shioris when that legacy
+presentation was not already resident.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.
