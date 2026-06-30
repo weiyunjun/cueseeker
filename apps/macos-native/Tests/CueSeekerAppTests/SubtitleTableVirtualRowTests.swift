@@ -384,6 +384,18 @@ func subtitleTableViewKeepsRowActionButtonFixedDuringHorizontalScroll() {
 
 @MainActor
 @Test
+func subtitleTableViewCreatesFixedRowActionsDuringContainerLayout() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 500)
+
+    #expect(fixture.coordinator.visibleRowActionHostCountForTesting() == 0)
+
+    fixture.container.layout()
+
+    #expect(fixture.coordinator.visibleRowActionHostCountForTesting() > 0)
+}
+
+@MainActor
+@Test
 func subtitleTableViewHidesHorizontalScrollbarWhenContentFitsViewport() {
     let fixture = makeAttachedVirtualTableCoordinator(width: 1_400)
     let metrics = SubtitleTableScrollbarMetrics(

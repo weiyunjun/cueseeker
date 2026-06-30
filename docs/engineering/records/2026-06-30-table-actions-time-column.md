@@ -35,11 +35,19 @@ single user-facing `Time` column.
 - Updated table column visibility and virtual table tests for the merged time
   column and fixed row action placement.
 
+## Regression Fix
+
+- Ensured fixed redesign row action buttons are laid out when the table is
+  first created and whenever the table container lays out, so returning from
+  Shiori playback does not require a mouse hover before the buttons appear.
+- Added a regression test that confirms container layout creates visible fixed
+  row action hosts without relying on hover.
+
 ## Verification
 
 - `git diff --check` passed.
 - `swift test` passed. XCTest reported 7 passing CASS rendering tests, and
-  Swift Testing reported 364 passing tests.
+  Swift Testing reported 365 passing tests.
 
 ## Outcome
 

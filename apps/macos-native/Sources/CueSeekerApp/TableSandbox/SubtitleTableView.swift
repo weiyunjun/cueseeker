@@ -1832,6 +1832,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         context.coordinator.resizeDocument()
         context.coordinator.notifyVisibleRowsChanged()
+        context.coordinator.refreshRowActionButtonsForRendering()
         return container
     }
 
@@ -2108,6 +2109,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             container.onLayout = { [weak self] in
                 self?.resizeDocument()
+                self?.layoutHoverButtons()
                 self?.repositionOpenMenu()
             }
             installKeyboardFocusEventMonitor()
@@ -2341,6 +2343,16 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func rowActionButtonFrameForTesting(row: Int) -> CGRect? {
             rowActionButtonFrameInContainer(for: row)
+        }
+
+        func visibleRowActionHostCountForTesting() -> Int {
+            rowActionHosts.values.reduce(0) { count, host in
+                count + (host.isHidden ? 0 : 1)
+            }
+        }
+
+        func refreshRowActionButtonsForRendering() {
+            layoutHoverButtons()
         }
 
         func documentViewForKeyboardFocusBridge() -> NSView? {
