@@ -40,11 +40,14 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   references now only retain sparse hydrated rows, and Search action-result
   caching now stores only explicitly hydrated rows instead of duplicating every
   currently rendered Search result.
+- Changed legacy Search result groups to summary-first storage. Group rebuilds
+  no longer regroup and duplicate every current Search result; rows are retained
+  in a group only after that specific group is explicitly expanded or loaded.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
 
 ## Verification
 
-- `swift test` passed from `apps/macos-native` with 360 tests.
+- `swift test` passed from `apps/macos-native` with 361 tests.
 
 ## Outcome
 
@@ -65,6 +68,11 @@ The table row store no longer keeps parallel dictionaries and references for
 every contiguous Search row. This removes one major multiplier from the
 rendered-row memory footprint while preserving sparse hydration for table
 actions and export.
+
+Legacy Search result grouping now keeps file summary metadata without building
+per-file result arrays for the whole current Search result set. This removes
+another full-result-array multiplier from broad searches while preserving
+explicit group expansion behavior.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.

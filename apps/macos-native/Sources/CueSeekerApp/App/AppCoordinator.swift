@@ -70,9 +70,11 @@ final class AppCoordinator: ObservableObject {
         collapsedGroupPaths: Set<String>,
         includesSummaryOnlyGroups: Bool
     ) -> [SearchResultFileGroup] {
-        let resultsByPath = Dictionary(grouping: searchResults, by: \.subtitlePath)
         let nonEmptyExpandedRowsByPath = expandedRowsByPath.filter { !$0.value.isEmpty }
-        let loadedPaths = Set(resultsByPath.keys).union(nonEmptyExpandedRowsByPath.keys)
+        let loadedCountsByPath = searchResults.reduce(into: [String: Int]()) { counts, result in
+            counts[result.subtitlePath, default: 0] += 1
+        }
+        let loadedPaths = Set(loadedCountsByPath.keys).union(nonEmptyExpandedRowsByPath.keys)
         guard !searchFileSummaries.isEmpty || !loadedPaths.isEmpty else {
             return []
         }
@@ -81,20 +83,20 @@ final class AppCoordinator: ObservableObject {
         let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
         let orderedPaths = searchFileSummaries
             .map(\.subtitlePath)
-            .filter { includesSummaryOnlyGroups || loadedPaths.contains($0) }
+            .filter { includesSummaryOnlyGroups || loadedPaths.contains($0) || summaryByPath[$0] != nil }
         let extraPaths = loadedPaths
             .filter { !summaryPaths.contains($0) }
             .sorted(by: Self.searchResultGroupPathSort)
 
         return (orderedPaths + extraPaths).map { path in
             let summary = summaryByPath[path]
-            let groupRows = nonEmptyExpandedRowsByPath[path] ?? resultsByPath[path] ?? []
+            let groupRows = nonEmptyExpandedRowsByPath[path] ?? []
             let results = groupRows.sorted(by: Self.searchResultSort)
             return SearchResultFileGroup(
                 subtitlePath: path,
                 subtitleDisplayTitle: summary?.subtitleDisplayTitle
                     ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path),
-                totalCount: summary?.matchCount ?? results.count,
+                totalCount: summary?.matchCount ?? loadedCountsByPath[path] ?? results.count,
                 results: results,
                 isCollapsed: collapsedGroupPaths.contains(path)
             )

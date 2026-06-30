@@ -124,6 +124,49 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
 
 @MainActor
 @Test
+func searchResultGroupsKeepSummaryOnlyRowsUntilGroupExpansion() {
+    let path = "/Media/Episode.srt"
+    let results = (0..<3).map { index in
+        makeTableSandboxSearchResult(
+            id: Int64(index + 1),
+            content: "Grouped result \(index)",
+            speakers: [],
+            searchRank: index
+        )
+    }
+    let summary = SubtitleSearchFileSummary(
+        subtitlePath: path,
+        subtitleFileName: "Episode.srt",
+        subtitleDisplayTitle: "Episode",
+        matchCount: results.count
+    )
+
+    let summaryOnlyGroups = AppCoordinator.makeSearchResultGroups(
+        results: results,
+        fileSummaries: [summary],
+        expandedRowsByPath: [:],
+        collapsedGroupPaths: [],
+        includesSummaryOnlyGroups: false
+    )
+
+    #expect(summaryOnlyGroups.count == 1)
+    #expect(summaryOnlyGroups[0].totalCount == 3)
+    #expect(summaryOnlyGroups[0].results.isEmpty)
+
+    let expandedGroups = AppCoordinator.makeSearchResultGroups(
+        results: results,
+        fileSummaries: [summary],
+        expandedRowsByPath: [path: [results[1]]],
+        collapsedGroupPaths: [],
+        includesSummaryOnlyGroups: false
+    )
+
+    #expect(expandedGroups.count == 1)
+    #expect(expandedGroups[0].results.map(\.entryID) == [2])
+}
+
+@MainActor
+@Test
 func tableSandboxSearchRowsUseCurrentCueGroupIDsForDistantRanges() async throws {
     let suiteName = "CueSeekerTableSandboxSearchIDTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
