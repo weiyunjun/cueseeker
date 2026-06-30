@@ -169,6 +169,59 @@ extension AppCoordinator {
         let upperBound = min(max(lowerBound, range.upperBound), totalCount)
         guard lowerBound < upperBound else { return nil }
 
+        let resultCueGroupIDs = search.searchResultCueGroupIDs
+        if resultCueGroupIDs.count >= upperBound {
+            let cueGroupIDs = Array(resultCueGroupIDs[lowerBound..<upperBound])
+            let fileSummaries = search.searchFileSummaries
+            do {
+                let page = try await Task.detached(priority: .userInitiated) {
+                    let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
+                    let indexWindow = SubtitleSearchResultIDIndexWindow(
+                        cueGroupIDs: cueGroupIDs,
+                        offset: lowerBound,
+                        totalCount: totalCount,
+                        fileSummaries: fileSummaries,
+                        countSnapshot: .exact(
+                            totalCount: totalCount,
+                            fileSummaryCount: fileSummaries.count
+                        ),
+                        appliedCursor: SubtitleSearchCursor(offset: lowerBound),
+                        nextCursor: upperBound < totalCount
+                            ? SubtitleSearchCursor(offset: upperBound)
+                            : nil
+                    )
+                    return try pageDatabase.searchIndexedVisiblePage(from: indexWindow)
+                }.value
+
+                guard !Task.isCancelled,
+                      let page,
+                      search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                      indexing.selectedFolders.map(\.path) == folders.map(\.path),
+                      settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
+                      search.activeFilterSetSignature == filterSignature,
+                      search.searchResultCueGroupIDs.count >= upperBound
+                else {
+                    return nil
+                }
+
+                return TableSandboxSearchHydrationPage(
+                    range: lowerBound..<(lowerBound + page.results.count),
+                    results: page.results,
+                    totalRowCount: totalCount
+                )
+            } catch {
+                return nil
+            }
+        }
+
+        let fallbackUpperBound = max(
+            loadedGlobalSearchResultCount + Self.searchPageSize,
+            Self.searchPageSize
+        )
+        guard upperBound <= fallbackUpperBound else {
+            return nil
+        }
+
         do {
             let page = try await Task.detached(priority: .userInitiated) {
                 let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
@@ -298,6 +351,7 @@ extension AppCoordinator {
     func applyTableSandboxAllCueSearchContext(_ page: TableSandboxSearchHydrationPage) {
         search.searchStatus = .completed
         search.searchResults = page.results
+        search.searchResultCueGroupIDs = page.results.map(\.entryID)
         search.searchResultTotalCount = page.totalRowCount
         search.searchCountState = .exact
         search.searchKnownResultCount = page.totalRowCount
@@ -567,6 +621,7 @@ extension AppCoordinator {
                     )
                 } else {
                     search.searchResults = page.results
+                    search.searchResultCueGroupIDs = []
                     loadedGlobalSearchResultCount = page.results.count
                 }
                 let shouldPreserveExactMetadata = appending && search.searchCountState == .exact
@@ -871,6 +926,7 @@ extension AppCoordinator {
                 }
 
                 let stateAssignStart = SearchPerformanceLogger.now()
+                search.searchResultCueGroupIDs = page.cueGroupIDs
                 search.searchResultTotalCount = page.totalCount
                 search.searchFileSummaries = page.fileSummaries
                 search.searchCountState = page.countState
@@ -1033,6 +1089,7 @@ extension AppCoordinator {
 
         if clearExistingResults {
             search.searchResults = []
+            search.searchResultCueGroupIDs = []
             search.searchResultTotalCount = 0
             search.searchFileSummaries = []
             search.expandedSearchResultGroupRowsByPath = [:]
@@ -1516,6 +1573,7 @@ extension AppCoordinator {
         searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
         search.searchResults = []
+        search.searchResultCueGroupIDs = []
         search.searchResultTotalCount = 0
         search.searchFileSummaries = []
         search.searchCountState = .exact

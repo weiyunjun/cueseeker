@@ -717,6 +717,7 @@ public enum ShioriNavigationDirection: Equatable, Sendable {
 
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
+    public let cueGroupIDs: [Int64]
     public let totalCount: Int
     public let fileSummaries: [SubtitleSearchFileSummary]
     public let countSnapshot: SubtitleSearchCountSnapshot
@@ -752,6 +753,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
 
     public init(
         results: [SubtitleSearchResult],
+        cueGroupIDs: [Int64]? = nil,
         totalCount: Int,
         fileSummaries: [SubtitleSearchFileSummary],
         countSnapshot: SubtitleSearchCountSnapshot? = nil,
@@ -762,6 +764,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         materializedOrderRows: Int? = nil
     ) {
         self.results = results
+        self.cueGroupIDs = cueGroupIDs ?? results.map(\.entryID)
         self.totalCount = totalCount
         self.fileSummaries = fileSummaries
         self.countSnapshot = countSnapshot ?? .exact(
@@ -4383,6 +4386,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             let page = SubtitleSearchPage(
                 results: pageResults,
+                cueGroupIDs: exactCueGroupIDs,
                 totalCount: totalExactResultCount,
                 fileSummaries: fileSummaries,
                 countSnapshot: countSnapshot,

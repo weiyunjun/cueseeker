@@ -1230,6 +1230,39 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
 }
 
 @Test
+func searchExactPageCanReturnOnlyCueGroupIDsForCompletion() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/IDCompletion.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/IDCompletion.mkv"),
+        entries: (0..<3).map { index in
+            SubtitleEntry(
+                sequenceNumber: index + 1,
+                startTimecode: String(format: "00:00:%02d,000", index),
+                endTimecode: String(format: "00:00:%02d,500", index),
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 500,
+                text: "Shared id completion \(index)"
+            )
+        }
+    )
+
+    let page = try database.searchPage("shared", limit: 0)
+
+    #expect(page.results.isEmpty)
+    #expect(page.totalCount == 3)
+    #expect(page.cueGroupIDs.count == 3)
+    #expect(page.nextCursor == nil)
+}
+
+@Test
 func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -7,6 +7,7 @@ struct PlaybackQuickSearchSearchContextSnapshot {
     let searchQuery: String
     let searchStatus: SearchStatus
     let searchResults: [SubtitleSearchResult]
+    let searchResultCueGroupIDs: [Int64]
     let searchResultTotalCount: Int
     let searchFileSummaries: [SubtitleSearchFileSummary]
     let searchCountState: SubtitleSearchCountState
@@ -31,6 +32,7 @@ struct PlaybackQuickSearchSearchContextSnapshot {
         searchQuery = appState.search.searchQuery
         searchStatus = appState.search.searchStatus
         searchResults = appState.search.searchResults
+        searchResultCueGroupIDs = appState.search.searchResultCueGroupIDs
         searchResultTotalCount = appState.search.searchResultTotalCount
         searchFileSummaries = appState.search.searchFileSummaries
         searchCountState = appState.search.searchCountState
@@ -56,6 +58,7 @@ struct PlaybackQuickSearchSearchContextSnapshot {
         appState.search.searchQuery = searchQuery
         appState.search.searchStatus = searchStatus
         appState.search.searchResults = searchResults
+        appState.search.searchResultCueGroupIDs = searchResultCueGroupIDs
         appState.search.searchResultTotalCount = searchResultTotalCount
         appState.search.searchFileSummaries = searchFileSummaries
         appState.search.searchCountState = searchCountState

@@ -42,6 +42,73 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     #expect(app.nextGlobalSearchCursor?.offset == 11)
 }
 
+@MainActor
+@Test
+func tableSandboxSearchRowsUseCurrentCueGroupIDsForDistantRanges() async throws {
+    let suiteName = "CueSeekerTableSandboxSearchIDTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerTableSandboxSearchIDTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot
+        .appendingPathComponent("CueSeekerTableSandboxSearchIDTests.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let database = try #require(app.subtitleDatabase)
+    let subtitleFile = fixtureRoot.appendingPathComponent("Episode.srt")
+    let videoFile = fixtureRoot.appendingPathComponent("Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: (0..<120).map { index in
+            SubtitleEntry(
+                sequenceNumber: index + 1,
+                startTimecode: String(format: "00:%02d:%02d,000", index / 60, index % 60),
+                endTimecode: String(format: "00:%02d:%02d,500", index / 60, index % 60),
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 500,
+                text: "Shared distant row \(index)"
+            )
+        }
+    )
+
+    app.indexing.selectedFolders = [fixtureRoot]
+    app.search.searchQuery = "shared"
+    app.search.searchResultTotalCount = 120
+
+    let missingIDPage = await app.loadTableSandboxSearchRows(range: 110..<112)
+    #expect(missingIDPage == nil)
+
+    let exactPage = try database.searchPage(
+        "shared",
+        limit: 0,
+        under: [fixtureRoot]
+    )
+    app.search.searchResultCueGroupIDs = exactPage.cueGroupIDs
+    app.search.searchResultTotalCount = exactPage.totalCount
+    app.search.searchFileSummaries = exactPage.fileSummaries
+    app.search.searchCountState = exactPage.countState
+
+    let page = try #require(await app.loadTableSandboxSearchRows(range: 110..<112))
+
+    #expect(page.range == 110..<112)
+    #expect(page.totalRowCount == 120)
+    #expect(page.results.map(\.content) == [
+        "Shared distant row 110",
+        "Shared distant row 111"
+    ])
+    #expect(page.results.map(\.searchRank) == [110, 111])
+}
+
 @Test
 func cueContextInitialScrollTargetUsesTargetSearchRankNearTail() {
     let target = makeTableSandboxSearchResult(
