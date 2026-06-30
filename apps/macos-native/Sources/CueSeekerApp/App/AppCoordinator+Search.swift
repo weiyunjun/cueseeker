@@ -1096,6 +1096,12 @@ extension AppCoordinator {
         }
 
         if clearExistingResults {
+            let releasedRows = max(
+                search.searchResults.count,
+                search.searchResultCueGroupIDs.count,
+                search.searchResultTotalCount,
+                search.renderedSearchResultCount
+            )
             search.searchResults = []
             search.searchResultCueGroupIDs = []
             search.searchResultTotalCount = 0
@@ -1109,6 +1115,7 @@ extension AppCoordinator {
             lastSearchCountProgressUpdate = 0
             nextGlobalSearchCursor = nil
             rebuildSearchResultGroups()
+            AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
         }
 
         updateSearchQuery(search.searchQuery)
@@ -1580,6 +1587,12 @@ extension AppCoordinator {
         searchExactCompletionTask?.cancel()
         searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
+        let releasedRows = max(
+            search.searchResults.count,
+            search.searchResultCueGroupIDs.count,
+            search.searchResultTotalCount,
+            search.renderedSearchResultCount
+        )
         search.searchResults = []
         search.searchResultCueGroupIDs = []
         search.searchResultTotalCount = 0
@@ -1596,6 +1609,7 @@ extension AppCoordinator {
         nextGlobalSearchCursor = nil
         search.searchNavigationSnapshot = nil
         rebuildSearchResultGroups()
+        AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
     }
 
     func rebuildSearchResultGroups() {

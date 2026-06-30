@@ -307,6 +307,13 @@ struct WorkbenchTestSearchView: View {
         activeCueContextRequest = nil
         tableScrollTargetRow = nil
         cueContextLoadGeneration += 1
+        let releasedRows = max(
+            search.searchResults.count,
+            search.searchResultCueGroupIDs.count,
+            search.searchResultTotalCount,
+            rowStore.snapshot.loadedReferenceCount,
+            rowStore.snapshot.totalRowCount
+        )
         search.searchQuery = ""
         search.searchResults = []
         search.searchResultCueGroupIDs = []
@@ -318,6 +325,7 @@ struct WorkbenchTestSearchView: View {
         } else {
             loadAllCueRows(resetScroll: true)
         }
+        AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
@@ -333,6 +341,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func clearTableRows(resetScroll: Bool) {
+        let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
         visibleHydrator.reset()
         lastVisibleRows = nil
         rowSelection.reset()
@@ -342,6 +351,7 @@ struct WorkbenchTestSearchView: View {
             tableScrollTargetRow = nil
             tableScrollResetToken += 1
         }
+        AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
     }
 
     private func play(_ row: SubtitleTableRow) {

@@ -46,6 +46,10 @@ cap that could make virtualized table rows unavailable after broad scrolling.
 - Changed Shiori save/remove presentation refreshes so the table is invalidated
   without unconditionally loading every saved Shiori into the legacy card-list
   arrays. The legacy arrays are refreshed only if they were already loaded.
+- Added a macOS malloc pressure-relief hook after large Search/table result
+  releases. This does not replace data-structure reductions, but it gives the
+  allocator a chance to return freed pages sooner after broad searches are
+  cleared.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
 
 ## Verification
@@ -81,6 +85,11 @@ Shiori mutation paths now keep the table-first paging model intact. Saving or
 removing a Shiori invalidates the table page cache without forcing the old
 card-list presentation to hydrate all saved Shioris when that legacy
 presentation was not already resident.
+
+Large Search reset paths now ask the system allocator to relieve memory pressure
+after releasing result arrays and table rows. This is intended to improve the
+observable post-clear memory drop in macOS Activity Monitor, while keeping the
+call behind a row-count threshold so small interactions are unaffected.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.
