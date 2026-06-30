@@ -49,22 +49,17 @@ struct TableSandboxShioriRowSource: Equatable, Sendable {
 
 @MainActor
 final class TableSandboxRowModelStore: ObservableObject {
-    static let defaultMaximumHydratedSearchRows = 2_000
-
     @Published private(set) var snapshot = TableSandboxRowsSnapshot()
 
     private var rowsByKey: [RowCacheKey: SubtitleTableRow] = [:]
     private var displayTitlesBySubtitlePath: [String: String] = [:]
     private let displayTitleResolver: (String) -> String
-    private let maximumHydratedSearchRows: Int
 
     init(
-        maximumHydratedSearchRows: Int = defaultMaximumHydratedSearchRows,
         displayTitleResolver: @escaping (String) -> String = {
             SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: $0)
         }
     ) {
-        self.maximumHydratedSearchRows = max(1, maximumHydratedSearchRows)
         self.displayTitleResolver = displayTitleResolver
     }
 
@@ -173,14 +168,6 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
 
         guard let lowerChangedIndex, let upperChangedIndex else { return }
-
-        let hydratedRange = startIndex..<(startIndex + results.count)
-        pruneHydratedSearchRowsIfNeeded(
-            keepingPriorityRange: hydratedRange,
-            rowsBySourceIndex: &nextRowsBySourceIndex,
-            searchResultsByEntryID: &nextSearchResultsByEntryID,
-            referencesBySourceIndex: &referencesBySourceIndex
-        )
 
         let references = referencesBySourceIndex.values.sorted { lhs, rhs in
             lhs.sourceIndex < rhs.sourceIndex
@@ -317,14 +304,6 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
 
         guard let lowerChangedIndex, let upperChangedIndex else { return }
-
-        let hydratedRange = startIndex..<(startIndex + shioris.count)
-        pruneHydratedShioriRowsIfNeeded(
-            keepingPriorityRange: hydratedRange,
-            rowsBySourceIndex: &nextRowsBySourceIndex,
-            shiorisByEntryID: &nextShiorisByEntryID,
-            referencesBySourceIndex: &referencesBySourceIndex
-        )
 
         let references = referencesBySourceIndex.values.sorted { lhs, rhs in
             lhs.sourceIndex < rhs.sourceIndex
@@ -464,72 +443,6 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
 
         return result.displayTitle
-    }
-
-    private func pruneHydratedSearchRowsIfNeeded(
-        keepingPriorityRange priorityRange: Range<Int>,
-        rowsBySourceIndex: inout [Int: SubtitleTableRow],
-        searchResultsByEntryID: inout [Int: SubtitleSearchResult],
-        referencesBySourceIndex: inout [Int: TableSandboxRowReference]
-    ) {
-        guard rowsBySourceIndex.count > maximumHydratedSearchRows else {
-            return
-        }
-
-        let center = priorityRange.lowerBound + max(0, priorityRange.count / 2)
-        let keptIndexes = Set(rowsBySourceIndex.keys.sorted { lhs, rhs in
-            let lhsPriority = priorityRange.contains(lhs)
-            let rhsPriority = priorityRange.contains(rhs)
-            if lhsPriority != rhsPriority {
-                return lhsPriority
-            }
-
-            let lhsDistance = abs(lhs - center)
-            let rhsDistance = abs(rhs - center)
-            if lhsDistance != rhsDistance {
-                return lhsDistance < rhsDistance
-            }
-
-            return lhs < rhs
-        }.prefix(maximumHydratedSearchRows))
-
-        rowsBySourceIndex = rowsBySourceIndex.filter { keptIndexes.contains($0.key) }
-        referencesBySourceIndex = referencesBySourceIndex.filter { keptIndexes.contains($0.key) }
-        let keptEntryIDs = Set(referencesBySourceIndex.values.map(\.id))
-        searchResultsByEntryID = searchResultsByEntryID.filter { keptEntryIDs.contains($0.key) }
-    }
-
-    private func pruneHydratedShioriRowsIfNeeded(
-        keepingPriorityRange priorityRange: Range<Int>,
-        rowsBySourceIndex: inout [Int: SubtitleTableRow],
-        shiorisByEntryID: inout [Int: Shiori],
-        referencesBySourceIndex: inout [Int: TableSandboxRowReference]
-    ) {
-        guard rowsBySourceIndex.count > maximumHydratedSearchRows else {
-            return
-        }
-
-        let center = priorityRange.lowerBound + max(0, priorityRange.count / 2)
-        let keptIndexes = Set(rowsBySourceIndex.keys.sorted { lhs, rhs in
-            let lhsPriority = priorityRange.contains(lhs)
-            let rhsPriority = priorityRange.contains(rhs)
-            if lhsPriority != rhsPriority {
-                return lhsPriority
-            }
-
-            let lhsDistance = abs(lhs - center)
-            let rhsDistance = abs(rhs - center)
-            if lhsDistance != rhsDistance {
-                return lhsDistance < rhsDistance
-            }
-
-            return lhs < rhs
-        }.prefix(maximumHydratedSearchRows))
-
-        rowsBySourceIndex = rowsBySourceIndex.filter { keptIndexes.contains($0.key) }
-        referencesBySourceIndex = referencesBySourceIndex.filter { keptIndexes.contains($0.key) }
-        let keptEntryIDs = Set(referencesBySourceIndex.values.map(\.id))
-        shiorisByEntryID = shiorisByEntryID.filter { keptEntryIDs.contains($0.key) }
     }
 
     private func contiguousPrefixRows(from rowsBySourceIndex: [Int: SubtitleTableRow]) -> [SubtitleTableRow] {

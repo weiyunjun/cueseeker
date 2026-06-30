@@ -1230,7 +1230,7 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
 }
 
 @Test
-func searchFilterSetAppliesToExactPagesAndIndexedWindows() throws {
+func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1283,19 +1283,24 @@ func searchFilterSetAppliesToExactPagesAndIndexedWindows() throws {
         minimumKnownResultCount: 4
     ) == nil)
 
-    let window = try #require(database.searchResultIDIndexWindow(
+    #expect(database.searchResultIDIndexWindow(
         "shared",
         limit: 1,
         cursor: SubtitleSearchCursor(offset: 2),
         filterSet: filterSet,
         minimumKnownResultCount: 3
-    ))
-    let indexedPage = try #require(try database.searchIndexedVisiblePage(from: window))
+    ) == nil)
+    let visiblePage = try database.searchVisiblePage(
+        "shared",
+        limit: 1,
+        cursor: SubtitleSearchCursor(offset: 2),
+        filterSet: filterSet
+    )
 
-    #expect(indexedPage.totalCount == 3)
-    #expect(indexedPage.nextCursor == nil)
-    #expect(indexedPage.results.map(\.content) == ["Shared filtered keep 4"])
-    #expect(indexedPage.results.map(\.searchRank) == [2])
+    #expect(visiblePage.totalCount == 3)
+    #expect(visiblePage.nextCursor == nil)
+    #expect(visiblePage.results.map(\.content) == ["Shared filtered keep 4"])
+    #expect(visiblePage.results.map(\.searchRank) == [2])
 }
 
 @Test
@@ -1350,7 +1355,7 @@ func searchFilterSetMatchesLanguageCollectionValues() throws {
 }
 
 @Test
-func searchExactPageCachesResultIDIndexForVisibleWindows() throws {
+func searchExactPageLeavesResultIDIndexWindowUnavailable() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1388,29 +1393,34 @@ func searchExactPageCachesResultIDIndexForVisibleWindows() throws {
     let exactPage = try database.searchPage("shared", limit: 2)
     #expect(exactPage.totalCount == 8)
 
-    let window = try #require(database.searchResultIDIndexWindow(
+    #expect(database.searchResultIDIndexWindow(
         "shared",
         limit: 2,
         cursor: SubtitleSearchCursor(offset: 4),
         minimumKnownResultCount: 6
-    ))
-    let indexedPage = try #require(try database.searchIndexedVisiblePage(from: window))
+    ) == nil)
 
-    #expect(indexedPage.pageMode == .visibleWindow)
-    #expect(indexedPage.countState == .exact)
-    #expect(indexedPage.totalCount == 8)
-    #expect(indexedPage.nextCursor?.offset == 6)
-    #expect(indexedPage.orderSource == "resultIDIndex")
-    #expect(indexedPage.materializedOrderRows == 2)
-    #expect(indexedPage.results.map(\.content) == [
+    let visiblePage = try database.searchVisiblePage(
+        "shared",
+        limit: 2,
+        cursor: SubtitleSearchCursor(offset: 4)
+    )
+
+    #expect(visiblePage.pageMode == .visibleWindow)
+    #expect(visiblePage.countState == .exactProgress)
+    #expect(visiblePage.totalCount == 6)
+    #expect(visiblePage.nextCursor?.offset == 6)
+    #expect(visiblePage.orderSource == "ftsRowid")
+    #expect(visiblePage.materializedOrderRows == 6)
+    #expect(visiblePage.results.map(\.content) == [
         "Shared indexed window 4",
         "Shared indexed window 5",
     ])
-    #expect(indexedPage.results.map(\.searchRank) == [4, 5])
+    #expect(visiblePage.results.map(\.searchRank) == [4, 5])
 }
 
 @Test
-func searchNavigationSnapshotUsesCachedResultIDIndexWindow() throws {
+func searchNavigationSnapshotFromResultIDIndexStaysUnavailableWhenCacheDisabled() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1452,57 +1462,36 @@ func searchNavigationSnapshotUsesCachedResultIDIndexWindow() throws {
     #expect(missingSnapshot == nil)
 
     _ = try database.searchPage("shared", limit: 2)
-    let window = try #require(database.searchResultIDIndexWindow(
-        "shared",
-        limit: 1,
-        cursor: SubtitleSearchCursor(offset: 4)
-    ))
-    let indexedPage = try #require(try database.searchIndexedVisiblePage(from: window))
-    let selected = try #require(indexedPage.results.first)
-
-    let snapshot = try #require(try database.searchNavigationSnapshotFromResultIDIndex(
+    let stillMissingSnapshot = try database.searchNavigationSnapshotFromResultIDIndex(
         "shared",
         anchor: SearchNavigationAnchor(
-            selectedEntryID: selected.entryID,
-            selectedSearchRank: selected.searchRank,
-            videoPath: selected.videoPath,
-            subtitlePath: selected.subtitlePath,
-            currentMilliseconds: selected.startMilliseconds
+            selectedEntryID: 5,
+            selectedSearchRank: 4,
+            videoPath: videoFile.path,
+            subtitlePath: subtitleFile.path,
+            currentMilliseconds: 4_000
         ),
         radius: 1
-    ))
+    )
+    #expect(stillMissingSnapshot == nil)
 
-    #expect(snapshot.totalCount == 8)
+    let snapshot = try database.searchNavigationSnapshot(
+        "shared",
+        under: nil,
+        anchor: SearchNavigationAnchor(
+            selectedEntryID: 2,
+            selectedSearchRank: 1,
+            videoPath: videoFile.path,
+            subtitlePath: subtitleFile.path,
+            currentMilliseconds: 4_100
+        ),
+        radius: 1
+    )
+
     #expect(snapshot.currentIndex == 4)
     #expect(snapshot.previous?.content == "Shared indexed navigation 3")
     #expect(snapshot.current?.content == "Shared indexed navigation 4")
     #expect(snapshot.next?.content == "Shared indexed navigation 5")
-    #expect(snapshot.neighborhood.map(\.searchRank) == [3, 4, 5])
-
-    let earlierWindow = try #require(database.searchResultIDIndexWindow(
-        "shared",
-        limit: 1,
-        cursor: SubtitleSearchCursor(offset: 1)
-    ))
-    let earlierPage = try #require(try database.searchIndexedVisiblePage(from: earlierWindow))
-    let earlierSelected = try #require(earlierPage.results.first)
-
-    let timeAnchoredSnapshot = try #require(try database.searchNavigationSnapshotFromResultIDIndex(
-        "shared",
-        anchor: SearchNavigationAnchor(
-            selectedEntryID: earlierSelected.entryID,
-            selectedSearchRank: earlierSelected.searchRank,
-            videoPath: earlierSelected.videoPath,
-            subtitlePath: earlierSelected.subtitlePath,
-            currentMilliseconds: 4_100
-        ),
-        radius: 1
-    ))
-
-    #expect(timeAnchoredSnapshot.currentIndex == 4)
-    #expect(timeAnchoredSnapshot.previous?.content == "Shared indexed navigation 3")
-    #expect(timeAnchoredSnapshot.current?.content == "Shared indexed navigation 4")
-    #expect(timeAnchoredSnapshot.next?.content == "Shared indexed navigation 5")
 }
 
 @Test
@@ -1558,7 +1547,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
 }
 
 @Test
-func searchPageUsesResultCacheForRepeatedQueries() throws {
+func searchPageDoesNotCacheRepeatedQueries() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1585,18 +1574,19 @@ func searchPageUsesResultCacheForRepeatedQueries() throws {
     let stats = database.searchResultCacheStats()
 
     #expect(firstPage == secondPage)
-    #expect(firstDiagnostics.events.contains { $0.name == "search_cache_miss" })
-    #expect(firstDiagnostics.events.contains { $0.name == "search_cache_store" })
-    #expect(secondDiagnostics.events.contains { $0.name == "search_cache_hit" })
-    #expect(!secondDiagnostics.events.contains { $0.name == "fts_batch" })
-    #expect(stats.entries == 1)
-    #expect(stats.hits == 1)
-    #expect(stats.misses == 1)
-    #expect(stats.stores == 1)
+    #expect(!firstDiagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
+    #expect(!secondDiagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
+    #expect(firstDiagnostics.events.contains { $0.name == "fts_batch" })
+    #expect(secondDiagnostics.events.contains { $0.name == "fts_batch" })
+    #expect(stats.entries == 0)
+    #expect(stats.hits == 0)
+    #expect(stats.misses == 0)
+    #expect(stats.stores == 0)
+    #expect(stats.invalidations == 0)
 }
 
 @Test
-func searchResultCacheInvalidatesWhenIndexedContentChanges() throws {
+func searchPageSeesIndexedContentChangesWithoutCacheInvalidationState() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1617,7 +1607,7 @@ func searchResultCacheInvalidatesWhenIndexedContentChanges() throws {
 
     _ = try database.searchPage("cache", limit: 10)
     _ = try database.searchPage("cache", limit: 10)
-    #expect(database.searchResultCacheStats().hits == 1)
+    #expect(database.searchResultCacheStats().hits == 0)
 
     try database.replaceEntries(
         subtitleFile: subtitleFile,
@@ -1637,10 +1627,12 @@ func searchResultCacheInvalidatesWhenIndexedContentChanges() throws {
         "Cache invalidation first",
         "Cache invalidation second"
     ])
-    #expect(diagnostics.events.contains { $0.name == "search_cache_miss" })
-    #expect(stats.invalidations >= 1)
-    #expect(stats.misses == 2)
-    #expect(stats.stores == 2)
+    #expect(!diagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
+    #expect(stats.entries == 0)
+    #expect(stats.hits == 0)
+    #expect(stats.misses == 0)
+    #expect(stats.stores == 0)
+    #expect(stats.invalidations == 0)
 }
 
 @Test

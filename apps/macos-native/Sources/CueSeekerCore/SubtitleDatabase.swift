@@ -804,156 +804,10 @@ public struct SubtitleSearchResultIDIndexWindow: Equatable, Sendable {
     }
 }
 
-private struct SearchResultCacheKey: Hashable, Sendable {
-    let query: String
-    let limit: Int
-    let offset: Int
-    let mode: SubtitleSearchPageMode
-    let pathPrefixes: [String]?
-    let subtitlePath: String?
-    let languageFilter: SubtitleSearchLanguageFilter
-    let filterSignature: String
-}
-
-private struct SearchResultIDIndexCacheKey: Hashable, Sendable {
-    let query: String
-    let pathPrefixes: [String]?
-    let subtitlePath: String?
-    let languageFilter: SubtitleSearchLanguageFilter
-    let filterSignature: String
-}
-
 private struct SearchResultIDIndex: Sendable {
     let cueGroupIDs: [Int64]
     let fileSummaries: [SubtitleSearchFileSummary]
     let countSnapshot: SubtitleSearchCountSnapshot
-}
-
-private final class SearchResultPageCache: @unchecked Sendable {
-    private let maxEntries: Int
-    private let lock = NSLock()
-    private var pages: [SearchResultCacheKey: SubtitleSearchPage] = [:]
-    private var keys: [SearchResultCacheKey] = []
-    private var hits = 0
-    private var misses = 0
-    private var stores = 0
-    private var invalidations = 0
-
-    init(maxEntries: Int) {
-        self.maxEntries = max(1, maxEntries)
-    }
-
-    func page(for key: SearchResultCacheKey) -> SubtitleSearchPage? {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard let page = pages[key] else {
-            misses += 1
-            return nil
-        }
-
-        hits += 1
-        if let index = keys.firstIndex(of: key) {
-            keys.remove(at: index)
-        }
-        keys.append(key)
-        return page
-    }
-
-    func store(_ page: SubtitleSearchPage, for key: SearchResultCacheKey) {
-        lock.lock()
-        defer { lock.unlock() }
-
-        if pages[key] == nil {
-            keys.append(key)
-        } else if let index = keys.firstIndex(of: key) {
-            keys.remove(at: index)
-            keys.append(key)
-        }
-
-        pages[key] = page
-        stores += 1
-
-        while keys.count > maxEntries, let first = keys.first {
-            keys.removeFirst()
-            pages.removeValue(forKey: first)
-        }
-    }
-
-    func removeAll() {
-        lock.lock()
-        defer { lock.unlock() }
-
-        if !pages.isEmpty {
-            invalidations += 1
-        }
-        pages.removeAll()
-        keys.removeAll()
-    }
-
-    func stats() -> SubtitleSearchResultCacheStats {
-        lock.lock()
-        defer { lock.unlock() }
-
-        return SubtitleSearchResultCacheStats(
-            entries: pages.count,
-            hits: hits,
-            misses: misses,
-            stores: stores,
-            invalidations: invalidations
-        )
-    }
-}
-
-private final class SearchResultIDIndexCache: @unchecked Sendable {
-    private let maxEntries: Int
-    private let lock = NSLock()
-    private var indexes: [SearchResultIDIndexCacheKey: SearchResultIDIndex] = [:]
-    private var keys: [SearchResultIDIndexCacheKey] = []
-
-    init(maxEntries: Int) {
-        self.maxEntries = max(1, maxEntries)
-    }
-
-    func index(for key: SearchResultIDIndexCacheKey) -> SearchResultIDIndex? {
-        lock.lock()
-        defer { lock.unlock() }
-
-        guard let index = indexes[key] else {
-            return nil
-        }
-        if let keyIndex = keys.firstIndex(of: key) {
-            keys.remove(at: keyIndex)
-        }
-        keys.append(key)
-        return index
-    }
-
-    func store(_ index: SearchResultIDIndex, for key: SearchResultIDIndexCacheKey) {
-        lock.lock()
-        defer { lock.unlock() }
-
-        if indexes[key] == nil {
-            keys.append(key)
-        } else if let keyIndex = keys.firstIndex(of: key) {
-            keys.remove(at: keyIndex)
-            keys.append(key)
-        }
-
-        indexes[key] = index
-        while keys.count > maxEntries, let first = keys.first {
-            keys.removeFirst()
-            indexes.removeValue(forKey: first)
-        }
-    }
-
-    func removeAll() {
-        lock.lock()
-        defer { lock.unlock() }
-
-        indexes.removeAll()
-        keys.removeAll()
-    }
 }
 
 public struct SearchNavigationAnchor: Equatable, Sendable {
@@ -1176,16 +1030,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
     private static let exactSearchCandidateBatchMinimum = 5_000
     private static let searchNavigationPlaybackAnchorBatchLimit = 64
-    private static let maxSearchResultCacheEntries = 64
-    private static let maxSearchResultIDIndexCacheEntries = 2
-    private static let maxCachedSearchPageLimit = 500
 
     private let path: URL
     private let database: SQLiteDatabase
-    private let searchResultCache = SearchResultPageCache(maxEntries: maxSearchResultCacheEntries)
-    private let searchResultIDIndexCache = SearchResultIDIndexCache(
-        maxEntries: maxSearchResultIDIndexCacheEntries
-    )
 
     public init(path: URL) throws {
         self.path = path
@@ -1210,13 +1057,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
         ).totalCount
     }
 
-    public func clearSearchResultCache() {
-        searchResultCache.removeAll()
-        searchResultIDIndexCache.removeAll()
-    }
+    public func clearSearchResultCache() {}
 
     public func searchResultCacheStats() -> SubtitleSearchResultCacheStats {
-        searchResultCache.stats()
+        SubtitleSearchResultCacheStats(
+            entries: 0,
+            hits: 0,
+            misses: 0,
+            stores: 0,
+            invalidations: 0
+        )
     }
 
     public func migrate() throws {
@@ -3524,30 +3374,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         languageFilter: SubtitleSearchLanguageFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet()
     ) -> SearchResultIDIndex? {
-        let subtitlePathFilter = subtitlePath
-        guard subtitlePathFilter?.isEmpty != true else {
-            return nil
-        }
-
-        let pathPrefixes: [String]?
-        if let folders {
-            let prefixes = Self.folderPathPrefixes(for: folders)
-            guard !prefixes.isEmpty else {
-                return nil
-            }
-            pathPrefixes = prefixes
-        } else {
-            pathPrefixes = nil
-        }
-
-        let indexKey = SearchResultIDIndexCacheKey(
-            query: query,
-            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
-            subtitlePath: subtitlePathFilter,
-            languageFilter: languageFilter,
-            filterSignature: filterSet.cacheSignature
-        )
-        return searchResultIDIndexCache.index(for: indexKey)
+        _ = query
+        _ = folders
+        _ = subtitlePath
+        _ = languageFilter
+        _ = filterSet
+        return nil
     }
 
     public func searchResultIDIndexWindow(
@@ -3799,10 +3631,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     ) throws -> Int? {
         guard let videoPath = anchor.videoPath,
               let subtitlePath = anchor.subtitlePath,
-              let plan = Self.searchQueryPlan(
-                  for: query,
-                  limit: Self.searchNavigationPlaybackAnchorBatchLimit
-              )
+              let plan = Self.searchQueryPlan(for: query)
         else {
             return nil
         }
@@ -4029,7 +3858,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         let planStart = Self.diagnosticNow()
-        guard let plan = Self.searchQueryPlan(for: query, limit: limit) else {
+        guard let plan = Self.searchQueryPlan(for: query) else {
             emit("query_plan_empty", since: planStart)
             return SubtitleSearchPage(
                 results: [],
@@ -4091,55 +3920,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
             ]
         )
 
-        let filterSignature = filterSet.cacheSignature
-        let cacheKey = SearchResultCacheKey(
-            query: query,
-            limit: limit,
-            offset: offset,
-            mode: mode,
-            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
-            subtitlePath: subtitlePathFilter,
-            languageFilter: languageFilter,
-            filterSignature: filterSignature
-        )
-        let indexKey = SearchResultIDIndexCacheKey(
-            query: query,
-            pathPrefixes: pathPrefixes.map { Array(Set($0)).sorted() },
-            subtitlePath: subtitlePathFilter,
-            languageFilter: languageFilter,
-            filterSignature: filterSignature
-        )
-        let cacheStart = Self.diagnosticNow()
-        if let cachedPage = searchResultCache.page(for: cacheKey) {
-            emit(
-                "search_cache_hit",
-                since: cacheStart,
-                fields: [
-                    .init("metadataMode", mode.rawValue),
-                    .init("limit", limit),
-                    .init("offset", offset),
-                    .init("results", cachedPage.results.count),
-                    .init("totalCount", cachedPage.totalCount),
-                    .init("summaries", cachedPage.fileSummaries.count)
-                ]
-            )
-            return cachedPage
-        }
-        emit(
-            "search_cache_miss",
-            since: cacheStart,
-            fields: [
-                .init("metadataMode", mode.rawValue),
-                .init("limit", limit),
-                .init("offset", offset)
-            ]
-        )
-
         do {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
             var candidateOffset = 0
-            var results: [OrderedSearchResult] = []
+            var exactCueGroupIDs: [Int64] = []
+            var exactPageResults: [OrderedSearchResult] = []
             var visiblePrefixResults: [OrderedSearchResult] = []
             var visibleWindowResults: [OrderedSearchResult] = []
             var progressFileSummaries = SearchFileSummaryAccumulator()
@@ -4352,7 +4138,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     } else {
                         languageDetections = nil
                     }
-                    if let result = searchResult(
+                    if let match = searchMatch(
                         for: candidate,
                         lines: lines,
                         fallbackLineContents: lineContents,
@@ -4366,9 +4152,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     ) {
                         switch mode {
                         case .exact:
-                            results.append(result)
-                            progressFileSummaries.add(result)
+                            exactCueGroupIDs.append(candidate.cueGroupID)
+                            progressFileSummaries.add(candidate: candidate)
+                            if acceptedSearchResultCount >= offset && exactPageResults.count < limit {
+                                exactPageResults.append(
+                                    orderedSearchResult(for: candidate, match: match)
+                                )
+                            }
                         case .visibleWindow:
+                            let result = orderedSearchResult(for: candidate, match: match)
                             if acceptedSearchResultCount < offset + limit {
                                 visiblePrefixResults.append(result)
                             }
@@ -4512,32 +4304,31 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     orderSource: orderSource,
                     materializedOrderRows: materializedOrderRows
                 )
-                storeSearchResultPageIfCacheable(page, for: cacheKey, requestedLimit: limit, emit: emit)
                 return page
             }
 
             let sortStart = Self.diagnosticNow()
-            let sortedOrderedResults = results
-            let sortedResults = sortedOrderedResults.map(\.result)
-            let orderSource = Self.searchOrderSource(for: sortedOrderedResults)
-            let materializedOrderRows = sortedOrderedResults.count
+            let totalExactResultCount = exactCueGroupIDs.count
+            let orderSource = totalExactResultCount > 0 ? "ftsRowid" : "none"
+            let materializedOrderRows = exactPageResults.count
             emit(
                 "sort_results",
                 since: sortStart,
                 fields: [
-                    .init("results", sortedResults.count),
-                    .init("uniqueSubtitlePaths", Set(sortedResults.map(\.subtitlePath)).count),
+                    .init("results", totalExactResultCount),
+                    .init("materializedResults", exactPageResults.count),
+                    .init("resultIDs", exactCueGroupIDs.count),
                     .init("orderSource", orderSource),
                     .init("materializedOrderRows", materializedOrderRows)
                 ]
             )
 
             let pageStart = Self.diagnosticNow()
-            var pageResults = Array(sortedResults.dropFirst(offset).prefix(limit))
+            var pageResults = exactPageResults.map(\.result)
             for i in 0..<pageResults.count {
                 pageResults[i].searchRank = offset + i
             }
-            let nextCursor = offset + pageResults.count < sortedResults.count
+            let nextCursor = limit > 0 && offset + pageResults.count < totalExactResultCount
                 ? SubtitleSearchCursor(offset: offset + pageResults.count)
                 : nil
             emit(
@@ -4553,25 +4344,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let summariesStart = Self.diagnosticNow()
-            let fileSummaries = Self.fileSummaries(for: sortedOrderedResults)
+            let fileSummaries = progressFileSummaries.fileSummaries()
             let countSnapshot = SubtitleSearchCountSnapshot.exact(
-                totalCount: sortedResults.count,
+                totalCount: totalExactResultCount,
                 fileSummaryCount: fileSummaries.count
-            )
-            searchResultIDIndexCache.store(
-                SearchResultIDIndex(
-                    cueGroupIDs: sortedOrderedResults.map { $0.result.entryID },
-                    fileSummaries: fileSummaries,
-                    countSnapshot: countSnapshot
-                ),
-                for: indexKey
             )
             emit(
                 "file_summaries",
                 since: summariesStart,
                 fields: [
                     .init("summaries", fileSummaries.count),
-                    .init("results", sortedResults.count),
+                    .init("results", totalExactResultCount),
                     .init("countState", countSnapshot.state.rawValue),
                     .init("knownResultCount", countSnapshot.knownResultCount),
                     .init("knownFileCount", countSnapshot.knownFileCount)
@@ -4588,10 +4371,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("totalCandidates", totalCandidates),
                     .init("multiLineCandidates", totalMultiLineCandidates),
                     .init("cueLineRows", totalCueLineRows),
-                    .init("accepted", sortedResults.count),
+                    .init("accepted", totalExactResultCount),
                     .init("pageResults", pageResults.count),
                     .init("summaries", fileSummaries.count),
                     .init("orderSource", orderSource),
+                    .init("materializedOrderRows", materializedOrderRows),
                     .init("countState", countSnapshot.state.rawValue),
                     .init("knownResultCount", countSnapshot.knownResultCount),
                     .init("knownFileCount", countSnapshot.knownFileCount)
@@ -4599,7 +4383,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             let page = SubtitleSearchPage(
                 results: pageResults,
-                totalCount: sortedResults.count,
+                totalCount: totalExactResultCount,
                 fileSummaries: fileSummaries,
                 countSnapshot: countSnapshot,
                 appliedCursor: appliedCursor,
@@ -4608,7 +4392,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 orderSource: orderSource,
                 materializedOrderRows: materializedOrderRows
             )
-            storeSearchResultPageIfCacheable(page, for: cacheKey, requestedLimit: limit, emit: emit)
             return page
         } catch {
             emit(
@@ -6124,6 +5907,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let order: SearchResultOrder
     }
 
+    private struct SearchResultMatch {
+        let lineContents: [String]
+        let displayLanguages: Set<SubtitleLanguageCode>
+        let displaySpeakers: Set<String>
+    }
+
     private struct ShioriTableCandidate {
         let shiori: Shiori
         let displayTitle: String
@@ -6147,12 +5936,29 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         mutating func add(_ orderedResult: OrderedSearchResult) {
             let result = orderedResult.result
-            if countsByPath[result.subtitlePath] == nil {
-                pathsInOrder.append(result.subtitlePath)
+            add(
+                subtitlePath: result.subtitlePath,
+                order: orderedResult.order
+            )
+        }
+
+        mutating func add(candidate: SearchCandidate) {
+            add(
+                subtitlePath: candidate.subtitlePath,
+                order: candidate.order
+            )
+        }
+
+        private mutating func add(
+            subtitlePath: String,
+            order: SearchResultOrder
+        ) {
+            if countsByPath[subtitlePath] == nil {
+                pathsInOrder.append(subtitlePath)
             }
-            countsByPath[result.subtitlePath, default: 0] += 1
-            fileNamesByPath[result.subtitlePath] = orderedResult.order.subtitleFileName
-            displayTitlesByPath[result.subtitlePath] = orderedResult.order.displayTitle
+            countsByPath[subtitlePath, default: 0] += 1
+            fileNamesByPath[subtitlePath] = order.subtitleFileName
+            displayTitlesByPath[subtitlePath] = order.displayTitle
         }
 
         func fileSummaries() -> [SubtitleSearchFileSummary] {
@@ -6277,6 +6083,35 @@ public final class SubtitleDatabase: @unchecked Sendable {
         displaySpeakers: Set<String>,
         filterSet: SubtitleSearchFilterSet
     ) -> OrderedSearchResult? {
+        guard let match = searchMatch(
+            for: candidate,
+            lines: lines,
+            fallbackLineContents: fallbackLineContents,
+            matching: plan,
+            languageFilterCodes: languageFilterCodes,
+            languageDetections: languageDetections,
+            cueGroupLanguages: cueGroupLanguages,
+            displayLanguages: displayLanguages,
+            displaySpeakers: displaySpeakers,
+            filterSet: filterSet
+        ) else {
+            return nil
+        }
+        return orderedSearchResult(for: candidate, match: match)
+    }
+
+    private func searchMatch(
+        for candidate: SearchCandidate,
+        lines: [SubtitleCueLine],
+        fallbackLineContents: [String],
+        matching plan: SearchQueryPlan,
+        languageFilterCodes: Set<SubtitleLanguageCode>,
+        languageDetections: SearchLanguageDetections?,
+        cueGroupLanguages: Set<SubtitleLanguageCode>,
+        displayLanguages: Set<SubtitleLanguageCode>,
+        displaySpeakers: Set<String>,
+        filterSet: SubtitleSearchFilterSet
+    ) -> SearchResultMatch? {
         let lineContents = lines.isEmpty ? fallbackLineContents : lines.map(\.content)
         let matchingLineIndexes = lineContents.indices.filter {
             Self.line(lineContents[$0], matches: plan.lineMatchRule)
@@ -6319,6 +6154,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
         }
 
+        return SearchResultMatch(
+            lineContents: lineContents,
+            displayLanguages: displayLanguages,
+            displaySpeakers: displaySpeakers
+        )
+    }
+
+    private func orderedSearchResult(
+        for candidate: SearchCandidate,
+        match: SearchResultMatch
+    ) -> OrderedSearchResult {
         return OrderedSearchResult(
             result: SubtitleSearchResult(
                 entryID: candidate.cueGroupID,
@@ -6330,9 +6176,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 startMilliseconds: candidate.startMilliseconds,
                 endMilliseconds: candidate.endMilliseconds,
                 content: candidate.searchContent,
-                cueLines: lineContents,
-                languages: displayLanguages,
-                speakers: displaySpeakers
+                cueLines: match.lineContents,
+                languages: match.displayLanguages,
+                speakers: match.displaySpeakers
             ),
             order: candidate.order
         )
@@ -6597,9 +6443,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
     }
 
-    private static func searchQueryPlan(for query: String, limit: Int) -> SearchQueryPlan? {
+    private static func searchQueryPlan(for query: String) -> SearchQueryPlan? {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, limit > 0 else {
+        guard !trimmed.isEmpty else {
             return nil
         }
 
@@ -6860,34 +6706,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         case .visibleWindow:
             max(expandedSQLLimit(for: limit), 100)
         }
-    }
-
-    private func storeSearchResultPageIfCacheable(
-        _ page: SubtitleSearchPage,
-        for key: SearchResultCacheKey,
-        requestedLimit: Int,
-        emit: (String, UInt64, [SubtitleSearchDiagnosticField]) -> Void
-    ) {
-        guard requestedLimit <= Self.maxCachedSearchPageLimit,
-              page.results.count <= Self.maxCachedSearchPageLimit
-        else {
-            return
-        }
-
-        let storeStart = Self.diagnosticNow()
-        searchResultCache.store(page, for: key)
-        emit(
-            "search_cache_store",
-            storeStart,
-            [
-                .init("metadataMode", page.pageMode.rawValue),
-                .init("limit", requestedLimit),
-                .init("offset", key.offset),
-                .init("results", page.results.count),
-                .init("totalCount", page.totalCount),
-                .init("summaries", page.fileSummaries.count)
-            ]
-        )
     }
 
     private static func isASCIIWordCharacter(_ character: Character) -> Bool {

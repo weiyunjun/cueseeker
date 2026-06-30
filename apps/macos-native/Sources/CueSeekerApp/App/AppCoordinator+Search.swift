@@ -156,7 +156,7 @@ extension AppCoordinator {
 
         guard !trimmedQuery.isEmpty,
               !folders.isEmpty,
-              let database = subtitleDatabase
+              subtitleDatabase != nil
         else {
             return nil
         }
@@ -170,25 +170,19 @@ extension AppCoordinator {
         guard lowerBound < upperBound else { return nil }
 
         do {
-            guard let indexWindow = database.searchResultIDIndexWindow(
-                trimmedQuery,
-                limit: upperBound - lowerBound,
-                cursor: SubtitleSearchCursor(offset: lowerBound),
-                under: folders,
-                languageFilter: languageFilter,
-                filterSet: filterSet,
-                minimumKnownResultCount: upperBound
-            ) else {
-                return nil
-            }
-
             let page = try await Task.detached(priority: .userInitiated) {
                 let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
-                return try pageDatabase.searchIndexedVisiblePage(from: indexWindow)
+                return try pageDatabase.searchVisiblePage(
+                    trimmedQuery,
+                    limit: upperBound - lowerBound,
+                    cursor: SubtitleSearchCursor(offset: lowerBound),
+                    under: folders,
+                    languageFilter: languageFilter,
+                    filterSet: filterSet
+                )
             }.value
 
             guard !Task.isCancelled,
-                  let page,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                   indexing.selectedFolders.map(\.path) == folders.map(\.path),
                   settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
@@ -200,7 +194,7 @@ extension AppCoordinator {
             return TableSandboxSearchHydrationPage(
                 range: lowerBound..<(lowerBound + page.results.count),
                 results: page.results,
-                totalRowCount: page.totalCount
+                totalRowCount: max(totalCount, page.totalCount)
             )
         } catch {
             return nil
@@ -807,7 +801,7 @@ extension AppCoordinator {
             return
         }
 
-        let pageSize = Self.searchPageSize
+        let completionResultLimit = 0
         let folderPaths = folders.map(\.path)
         let filterSignature = filterSet.cacheSignature
         let progressSink: SubtitleSearchProgressSink = { [weak self] snapshot in
@@ -830,7 +824,7 @@ extension AppCoordinator {
                     let databaseSearchStart = SearchPerformanceLogger.now()
                     let page = try database.searchPage(
                         trimmedQuery,
-                        limit: pageSize,
+                        limit: completionResultLimit,
                         cursor: .start,
                         under: folders,
                         languageFilter: languageFilter,

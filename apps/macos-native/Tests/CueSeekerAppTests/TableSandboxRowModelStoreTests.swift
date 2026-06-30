@@ -286,8 +286,8 @@ func tableSandboxRowModelStoreHydratesSparseShioriRowsForVirtualTableActions() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStorePrunesHydratedShioriRowsAroundVisibleWindow() {
-    let store = TableSandboxRowModelStore(maximumHydratedSearchRows: 3) { _ in "Resolved" }
+func tableSandboxRowModelStoreRetainsHydratedShioriRowsAcrossVisibleWindows() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
 
     store.hydrateShioriRows(
         [
@@ -310,17 +310,20 @@ func tableSandboxRowModelStorePrunesHydratedShioriRowsAroundVisibleWindow() {
     )
 
     #expect(store.snapshot.totalRowCount == 100)
-    #expect(store.snapshot.loadedReferenceCount == 3)
+    #expect(store.snapshot.loadedReferenceCount == 5)
+    #expect(store.snapshot.row(at: 0)?.cues == "prefix one")
+    #expect(store.snapshot.row(at: 1)?.cues == "prefix two")
+    #expect(store.snapshot.row(at: 2)?.cues == "prefix three")
     #expect(store.snapshot.row(at: 50)?.cues == "visible one")
     #expect(store.snapshot.row(at: 51)?.cues == "visible two")
-    #expect(store.snapshot.shiori(entryID: 1) == nil)
+    #expect(store.snapshot.shiori(entryID: 1)?.content == "prefix one")
     #expect(store.snapshot.shiori(entryID: 51)?.content == "visible one")
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStorePrunesHydratedSearchRowsAroundVisibleWindow() {
-    let store = TableSandboxRowModelStore(maximumHydratedSearchRows: 4) { _ in "Resolved" }
+func tableSandboxRowModelStoreRetainsHydratedSearchRowsAcrossVisibleWindows() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     store.updateSearchRows(
@@ -346,7 +349,11 @@ func tableSandboxRowModelStorePrunesHydratedSearchRowsAroundVisibleWindow() {
     )
 
     #expect(store.snapshot.totalRowCount == 1_000)
-    #expect(store.snapshot.loadedReferenceCount == 4)
+    #expect(store.snapshot.loadedReferenceCount == 6)
+    #expect(store.snapshot.row(at: 0)?.cues == "prefix row 0")
+    #expect(store.snapshot.row(at: 1)?.cues == "prefix row 1")
+    #expect(store.snapshot.row(at: 2)?.cues == "prefix row 2")
+    #expect(store.snapshot.row(at: 3)?.cues == "prefix row 3")
     #expect(store.snapshot.row(at: 500)?.cues == "visible one")
     #expect(store.snapshot.row(at: 501)?.cues == "visible two")
 }
