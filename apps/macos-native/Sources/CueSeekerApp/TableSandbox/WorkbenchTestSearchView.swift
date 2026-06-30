@@ -3,8 +3,6 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 struct WorkbenchTestSearchView: View {
-    private static let searchDisplayCachePageSize = 500
-
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -30,9 +28,6 @@ struct WorkbenchTestSearchView: View {
     @State private var cueContextLoadGeneration = 0
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
-    @State private var searchDisplayCacheTask: Task<Void, Never>?
-    @State private var searchDisplayCacheGeneration = 0
-    @State private var searchDisplayCacheSignature = ""
 
     init() {
         _searchDraft = State(initialValue: "")
@@ -123,7 +118,6 @@ struct WorkbenchTestSearchView: View {
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
             visibleHydrator.reset()
-            cancelSearchDisplayCacheHydration()
             rowSelection.reset()
             lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -147,19 +141,16 @@ struct WorkbenchTestSearchView: View {
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
-            startSearchDisplayCacheHydrationIfNeeded()
         }
         .onChange(of: search.searchCountState) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
-            startSearchDisplayCacheHydrationIfNeeded()
         }
         .onChange(of: search.searchResultCueGroupIDs) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
             hydrateLastVisibleRowsIfNeeded()
-            startSearchDisplayCacheHydrationIfNeeded()
         }
         .onChange(of: search.cueContextSearchRequest) { request in
             guard let request else {
@@ -169,7 +160,6 @@ struct WorkbenchTestSearchView: View {
         }
         .onDisappear {
             visibleHydrator.cancel()
-            cancelSearchDisplayCacheHydration()
         }
     }
 
@@ -255,7 +245,7 @@ struct WorkbenchTestSearchView: View {
         if showsSearchEmptyHint {
             return 0
         }
-        return isFilterOnlyMode ? rowStore.snapshot.totalRowCount : search.searchResultTotalCount
+        return rowStore.snapshot.totalRowCount
     }
 
     private var tableSummaryLeadingInset: CGFloat {
@@ -331,9 +321,10 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
+        let totalRowCount = isFilterOnlyMode ? search.searchResultTotalCount : results.count
         rowStore.updateSearchRows(
             results,
-            totalRowCount: search.searchResultTotalCount,
+            totalRowCount: totalRowCount,
             tableName: "test-search"
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
@@ -343,7 +334,6 @@ struct WorkbenchTestSearchView: View {
 
     private func clearTableRows(resetScroll: Bool) {
         visibleHydrator.reset()
-        cancelSearchDisplayCacheHydration()
         lastVisibleRows = nil
         rowSelection.reset()
         resetSelectedCollageAvailability()
@@ -493,98 +483,21 @@ struct WorkbenchTestSearchView: View {
         hydrateVisibleRows(lastVisibleRows)
     }
 
-    private func startSearchDisplayCacheHydrationIfNeeded() {
-        guard !isFilterOnlyMode,
-              !showsSearchEmptyHint,
-              search.searchCountState == .exact,
-              search.searchResultTotalCount > 0,
-              search.searchResultCueGroupIDs.count >= search.searchResultTotalCount
-        else {
-            return
-        }
-
-        let totalRowCount = search.searchResultTotalCount
-        guard hasMissingSearchRows(in: 0..<totalRowCount) else {
-            return
-        }
-
-        let signature = [
-            search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines),
-            search.activeFilterSetSignature,
-            "\(search.searchResultCueGroupIDs.count)",
-            "\(search.searchResultCueGroupIDs.first ?? -1)",
-            "\(search.searchResultCueGroupIDs.last ?? -1)"
-        ].joined(separator: "\u{1f}")
-
-        if searchDisplayCacheSignature == signature,
-           searchDisplayCacheTask != nil {
-            return
-        }
-
-        cancelSearchDisplayCacheHydration()
-        searchDisplayCacheSignature = signature
-        searchDisplayCacheGeneration += 1
-        let generation = searchDisplayCacheGeneration
-        searchDisplayCacheTask = Task { @MainActor in
-            defer {
-                if generation == searchDisplayCacheGeneration {
-                    searchDisplayCacheTask = nil
-                }
-            }
-
-            var lowerBound = 0
-            while lowerBound < totalRowCount {
-                guard !Task.isCancelled,
-                      generation == searchDisplayCacheGeneration,
-                      searchDisplayCacheSignature == signature
-                else {
-                    return
-                }
-
-                let upperBound = min(
-                    totalRowCount,
-                    lowerBound + Self.searchDisplayCachePageSize
-                )
-                let range = lowerBound..<upperBound
-                if hasMissingSearchRows(in: range),
-                   let page = await loadRows(range: range) {
-                    guard !Task.isCancelled,
-                          generation == searchDisplayCacheGeneration,
-                          searchDisplayCacheSignature == signature
-                    else {
-                        return
-                    }
-                    applyHydrationPage(page)
-                }
-
-                lowerBound = upperBound
-                await Task.yield()
-            }
-        }
-    }
-
-    private func cancelSearchDisplayCacheHydration() {
-        searchDisplayCacheGeneration += 1
-        searchDisplayCacheTask?.cancel()
-        searchDisplayCacheTask = nil
-        searchDisplayCacheSignature = ""
-    }
-
-    private func hasMissingSearchRows(in range: Range<Int>) -> Bool {
-        guard range.lowerBound < range.upperBound else {
-            return false
-        }
-        return range.contains(where: { rowStore.snapshot.row(at: $0) == nil })
-    }
-
     private func applyHydrationPage(_ page: TableSandboxSearchHydrationPage) {
         if isFilterOnlyMode {
             appState.applyTableSandboxAllCueSearchContext(page)
         }
+        if !isFilterOnlyMode,
+           page.range.lowerBound > rowStore.snapshot.totalRowCount {
+            return
+        }
+        let totalRowCount = isFilterOnlyMode
+            ? max(page.totalRowCount, rowStore.snapshot.totalRowCount)
+            : max(page.range.upperBound, rowStore.snapshot.totalRowCount)
         rowStore.hydrateSearchRows(
             page.results,
             startIndex: page.range.lowerBound,
-            totalRowCount: max(page.totalRowCount, rowStore.snapshot.totalRowCount),
+            totalRowCount: totalRowCount,
             tableName: "test-search"
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)

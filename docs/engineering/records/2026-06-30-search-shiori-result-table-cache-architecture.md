@@ -25,9 +25,10 @@ cap that could make virtualized table rows unavailable after broad scrolling.
 - Changed Search table range hydration to prefer the current Search ID slice and
   fetch display rows by cue group ID. Far-away rows no longer fall back to a
   slow offset scan while the exact ID list is not ready.
-- Added a Search-view display cache warmup task that hydrates the current Search
-  result set in ID batches and cancels stale warmups when the query/filter
-  context changes.
+- Removed the Search-view display cache warmup task. Until the compact result
+  store is implemented, the Search table only exposes rows that already have
+  synchronous display models, keeping the table summary count, scrollbar row
+  range, and renderable rows aligned.
 - Removed `maximumHydratedSearchRows = 2000` and the Search/Shiori hydrated-row
   pruning paths from `TableSandboxRowModelStore`.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
@@ -46,8 +47,9 @@ fixed 2,000-row budget.
 
 Search exact completion now keeps the current result ID list in app state, and
 table hydration can use that list for random-access display row loading. The
-Search view also starts a current-query display row warmup so loaded display
-content belongs to the active result set and is released on the next search.
+Search view no longer publishes non-renderable exact/progress counts to the
+table, so the rows label and scrollbar only cover rows whose display data can be
+returned synchronously.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.
