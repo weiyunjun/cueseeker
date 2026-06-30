@@ -1752,12 +1752,13 @@ Rows: Table Row
 Selection: Row Selection Checkbox
 Text Cell: Interactive Text Cell
 Tags: Chip / Tag
-Row Actions: Row Action Button / Row Action Menu
+Row Actions: fixed trailing action column with Row Action Button / Row Action Menu
 Scrollbar: Table Scrollbar
 Empty State: Empty Hint
 
 Search Columns:
   Display Title
+  Time
   Cues
   Speaker
   Language
@@ -1765,8 +1766,16 @@ Search Columns:
 Shiori Columns:
   Date Added
   Display Title
+  Time
   Cues
   Language
+
+Time Column:
+  Label: Time
+  Source: cue start time and cue end time
+  Format: hh:mm:ss - hh:mm:ss
+  Short Format: mm:ss - mm:ss when both start and end hour values are 00
+  Sort: by cue start time
 
 Search Empty Hint:
   Text: Enter a search term or add filters to show cues.
@@ -1778,9 +1787,10 @@ Shiori Empty Hint:
 
 #### Interaction
 Header: sort / column menu
-Rows: hover / select / open row actions
+Rows: hover / select
+Row Actions: always visible in each row; fixed at the trailing edge of the table region, left of the vertical scrollbar
 Text Cell: click cue text
-View Menu: Cues is checked + disabled; other data columns can be hidden
+View Menu: Cues is checked + disabled; row actions cannot be hidden; other data columns can be hidden
 Search Row Action Menu: Copy Cue Text
 Shiori Row Action Menu: Copy Cue Text / Remove Shiori
 Remove Shiori Icon: bookmark.slash
