@@ -62,6 +62,10 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   loaded page into table row index 0. The initial scroll target is now the
   target cue's index inside the loaded window, not the cue's original file
   offset/search rank.
+- Changed the Shiori table view to use the same continuous-row model. It keeps
+  a separate filtered-result total for background loading, exposes only loaded
+  rows to the table, and appends later pages from the current end instead of
+  using scroll-position hydration.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
 - Updated row model store tests to assert the continuous-row invariant: sparse
   Search and Shiori hydrations are ignored, while contiguous append hydration
@@ -74,6 +78,7 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   `apps/macos-native` with 17 tests.
 - `swift test --filter SearchStoreTests` passed from `apps/macos-native` with
   7 tests.
+- `swift test --filter Shiori` passed from `apps/macos-native` with 6 tests.
 - `swift build` passed from `apps/macos-native`.
 
 ## Outcome
@@ -123,6 +128,12 @@ already renderable rows. The real result total remains in Search state, but the
 table grows only as additional pages are appended. Cue Context keeps its
 target-centered first screen, but the table no longer exposes the original file
 offset as empty space before that window.
+
+Shiori now follows the same table invariant. The view keeps the persisted saved
+count for empty-state messaging, but tracks the current filtered result total
+separately so table row count remains the number of loaded renderable rows.
+Copy/export actions read from the current snapshot instead of issuing old
+hydrate-on-export range loads.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.

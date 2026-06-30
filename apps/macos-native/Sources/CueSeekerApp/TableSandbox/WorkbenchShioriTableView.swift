@@ -15,18 +15,18 @@ private struct WorkbenchShioriTableContent: View {
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @ObservedObject var rowStore: TableSandboxRowModelStore
-    @StateObject private var visibleHydrator = TableSandboxVisibleShioriHydrator(
-        debounceNanoseconds: 16_000_000,
-        prefetchPageCount: 0,
-        smallResultEagerLoadThreshold: 0
-    )
     @State private var tableScrollResetToken = 0
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var lastVisibleRows: Range<Int>?
     @State private var reloadGeneration = 0
+    @State private var continuousLoadGeneration = 0
+    @State private var isLoadingContinuousRows = false
+    @State private var continuousTotalRowCount = 0
     @State private var pendingRemoval: Shiori?
     @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
+
+    private static let continuousPageSize = 1_000
 
     var body: some View {
         SchemaWorkbenchSearchShell(
@@ -110,7 +110,7 @@ private struct WorkbenchShioriTableContent: View {
         .onChange(of: shioriStore.tableFilterRules) { _ in
             reloadRows(resetScroll: true)
         }
-        .onDisappear { visibleHydrator.cancel() }
+        .onDisappear { resetContinuousRowLoading() }
     }
 
     private var tableSummary: SchemaWorkbenchTableSummary {
@@ -176,7 +176,7 @@ private struct WorkbenchShioriTableContent: View {
 
     private func loadInitialRowsIfNeeded() {
         guard !shioriStore.tableHasLoadedInitialPage else {
-            hydrateLastVisibleRowsIfNeeded()
+            loadNextContinuousRowsIfNeeded(generation: continuousLoadGeneration)
             return
         }
         reloadRows(resetScroll: false)
@@ -191,7 +191,8 @@ private struct WorkbenchShioriTableContent: View {
     private func reloadRows(resetScroll: Bool) {
         reloadGeneration += 1
         let generation = reloadGeneration
-        visibleHydrator.reset()
+        resetContinuousRowLoading()
+        let continuousGeneration = continuousLoadGeneration
         lastVisibleRows = nil
         rowSelection.reset()
         resetSelectedCollageAvailability()
@@ -212,21 +213,16 @@ private struct WorkbenchShioriTableContent: View {
             }
             applyHydrationPage(page)
             shioriStore.markTableRowsLoaded(totalSavedRowCount: page.totalSavedRowCount)
-            hydrateLastVisibleRowsIfNeeded()
+            loadNextContinuousRowsIfNeeded(generation: continuousGeneration)
         }
     }
 
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
         lastVisibleRows = visibleRows
-        visibleHydrator.schedule(
-            visibleRows: visibleRows,
-            totalRowCount: rowStore.snapshot.totalRowCount,
-            isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
-            load: { range in
-                await loadRows(range: range)
-            },
-            apply: applyHydrationPage
-        )
+        guard visibleRows.upperBound >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize else {
+            return
+        }
+        loadNextContinuousRowsIfNeeded(generation: continuousLoadGeneration)
     }
 
     private func loadRows(range: Range<Int>) async -> TableSandboxShioriHydrationPage? {
@@ -237,19 +233,63 @@ private struct WorkbenchShioriTableContent: View {
         )
     }
 
-    private func hydrateLastVisibleRowsIfNeeded() {
-        guard let lastVisibleRows else {
+    private func resetContinuousRowLoading() {
+        continuousLoadGeneration += 1
+        isLoadingContinuousRows = false
+        continuousTotalRowCount = 0
+    }
+
+    private func loadNextContinuousRowsIfNeeded(generation: Int) {
+        guard generation == continuousLoadGeneration,
+              !isLoadingContinuousRows
+        else {
             return
         }
-        hydrateVisibleRows(lastVisibleRows)
+
+        let loadedRowCount = rowStore.snapshot.totalRowCount
+        guard loadedRowCount < continuousTotalRowCount else { return }
+
+        isLoadingContinuousRows = true
+        let upperBound = min(continuousTotalRowCount, loadedRowCount + Self.continuousPageSize)
+        let range = loadedRowCount..<upperBound
+
+        Task { @MainActor in
+            guard let page = await loadRows(range: range),
+                  generation == continuousLoadGeneration
+            else {
+                if generation == continuousLoadGeneration {
+                    isLoadingContinuousRows = false
+                }
+                return
+            }
+
+            let appended = appendContinuousRows(page, expectedStartIndex: loadedRowCount)
+            isLoadingContinuousRows = false
+            if appended {
+                loadNextContinuousRowsIfNeeded(generation: generation)
+            }
+        }
+    }
+
+    @discardableResult
+    private func appendContinuousRows(
+        _ page: TableSandboxShioriHydrationPage,
+        expectedStartIndex: Int
+    ) -> Bool {
+        guard page.range.lowerBound == expectedStartIndex, !page.rows.isEmpty else {
+            return false
+        }
+        applyHydrationPage(page)
+        return rowStore.snapshot.totalRowCount > expectedStartIndex
     }
 
     private func applyHydrationPage(_ page: TableSandboxShioriHydrationPage) {
         shioriStore.tableTotalSavedRowCount = page.totalSavedRowCount
+        continuousTotalRowCount = page.totalRowCount
         rowStore.hydrateShioriRows(
             page.rows,
             startIndex: page.range.lowerBound,
-            totalRowCount: page.totalRowCount,
+            totalRowCount: page.range.lowerBound + page.rows.count,
             tableName: "shiori"
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
@@ -334,27 +374,14 @@ private struct WorkbenchShioriTableContent: View {
         }
 
         let columns = SubtitleTableClipboard.columns(from: visibleColumnsForCopy)
-        Task { @MainActor in
-            guard let page = await loadRows(range: 0..<rowCount) else {
-                return
-            }
-
-            let selectedRows = selection.selectedRows(in: page.range, rowCount: rowCount)
-            guard !selectedRows.isEmpty else {
-                return
-            }
-
-            var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
-            let rows = selectedRows.compactMap { row -> SubtitleTableRow? in
-                let offset = row - page.range.lowerBound
-                guard offset >= 0, offset < page.rows.count else {
-                    return nil
-                }
-                return tableSandboxShioriRow(for: page.rows[offset])
-            }
-            builder.append(rows: rows)
-            SubtitleTableClipboard.copy(text: builder.text)
+        let selectedRows = selection.selectedRows(rowCount: rowCount)
+        guard !selectedRows.isEmpty else {
+            return
         }
+
+        var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
+        builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
+        SubtitleTableClipboard.copy(text: builder.text)
     }
 
     private func selectedShioris(for selectedRows: [Int]) async -> [Shiori] {
@@ -410,39 +437,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func hydrateRowsForExport(_ selectedRows: [Int]) async {
-        let missingRows = selectedRows.filter { row in
-            guard let tableRow = rowStore.snapshot.row(at: row) else {
-                return true
-            }
-            return rowStore.snapshot.shiori(entryID: tableRow.id) == nil
-        }
-        guard !missingRows.isEmpty else {
-            return
-        }
-
-        let pageSize = TableSandboxHydrationPaging.pageSize
-        let rowCount = rowStore.snapshot.totalRowCount
-        var requestedStarts: Set<Int> = []
-        let ranges = missingRows
-            .map { row -> Range<Int> in
-                let start = max(0, (row / pageSize) * pageSize)
-                let end = min(rowCount, start + pageSize)
-                return start..<end
-            }
-            .filter { range in
-                guard !requestedStarts.contains(range.lowerBound), !range.isEmpty else {
-                    return false
-                }
-                requestedStarts.insert(range.lowerBound)
-                return true
-            }
-
-        for range in ranges {
-            guard let page = await loadRows(range: range) else {
-                continue
-            }
-            applyHydrationPage(page)
-        }
+        _ = selectedRows
     }
 
     private func toggleRowSelection(_ row: Int) {
