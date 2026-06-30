@@ -812,16 +812,20 @@ extension AppCoordinator {
         }
         lastSearchCountProgressUpdate = now
 
+        if !progress.results.isEmpty {
+            search.searchResults = progress.results
+            search.searchResultCueGroupIDs = progress.cueGroupIDs
+            loadedGlobalSearchResultCount = progress.results.count
+        }
         search.searchResultTotalCount = progress.knownResultCount
         search.searchFileSummaries = progress.fileSummaries
         search.searchCountState = progress.countState
         search.searchKnownResultCount = progress.knownResultCount
         search.searchKnownFileCount = progress.knownFileCount
-        if loadedGlobalSearchResultCount < search.searchResultTotalCount {
-            search.hasMoreSearchResults = true
-            nextGlobalSearchCursor = nextGlobalSearchCursor
-                ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
-        }
+        search.hasMoreSearchResults = loadedGlobalSearchResultCount < search.searchResultTotalCount
+        nextGlobalSearchCursor = search.hasMoreSearchResults
+            ? (nextGlobalSearchCursor ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount))
+            : nil
         rebuildSearchResultGroups()
 
         SearchPerformanceLogger.mark(
@@ -926,6 +930,10 @@ extension AppCoordinator {
                 }
 
                 let stateAssignStart = SearchPerformanceLogger.now()
+                if !page.renderableResults.isEmpty {
+                    search.searchResults = page.renderableResults
+                    loadedGlobalSearchResultCount = page.renderableResults.count
+                }
                 search.searchResultCueGroupIDs = page.cueGroupIDs
                 search.searchResultTotalCount = page.totalCount
                 search.searchFileSummaries = page.fileSummaries

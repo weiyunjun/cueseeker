@@ -1257,6 +1257,7 @@ func searchExactPageCanReturnOnlyCueGroupIDsForCompletion() throws {
     let page = try database.searchPage("shared", limit: 0)
 
     #expect(page.results.isEmpty)
+    #expect(page.renderableResults.isEmpty)
     #expect(page.totalCount == 3)
     #expect(page.cueGroupIDs.count == 3)
     #expect(page.nextCursor == nil)
@@ -1570,13 +1571,22 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     #expect(!progress.isEmpty)
     #expect(progress.allSatisfy { $0.countState == .exactProgress })
     #expect(progress.map(\.knownResultCount) == progress.map(\.knownResultCount).sorted())
+    #expect(progress.allSatisfy { $0.results.count == $0.knownResultCount })
+    #expect(progress.allSatisfy { $0.cueGroupIDs.count == $0.knownResultCount })
     #expect(progress.last?.knownResultCount == 5_000)
     #expect(progress.last?.knownFileCount == 1)
     #expect(progress.last?.fileSummaries.map(\.matchCount) == [5_000])
+    #expect(progress.last?.results.first?.content == "Progress count stream line 0")
+    #expect(progress.last?.results.last?.content == "Progress count stream line 4999")
+    #expect(Array(progress.last?.results.suffix(3).map(\.searchRank) ?? []) == [4_997, 4_998, 4_999])
     #expect(page.countState == .exact)
+    #expect(page.results.count == 50)
+    #expect(page.renderableResults.count == 5_100)
+    #expect(page.renderableResults.count == page.cueGroupIDs.count)
     #expect(page.totalCount == 5_100)
     #expect(page.knownResultCount == 5_100)
     #expect(page.fileSummaries.map(\.matchCount) == [5_100])
+    #expect(page.renderableResults.last?.content == "Progress count stream line 5099")
 }
 
 @Test

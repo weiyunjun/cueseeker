@@ -44,6 +44,86 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
 
 @MainActor
 @Test
+func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
+    let suiteName = "CueSeekerSearchCountProgressRowsTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSearchCountProgressRowsTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot
+        .appendingPathComponent("CueSeekerSearchCountProgressRowsTests.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let existingResult = makeTableSandboxSearchResult(
+        id: 41,
+        content: "Existing visible result",
+        speakers: [],
+        searchRank: 0
+    )
+    let progressResults = (0..<3).map { index in
+        makeTableSandboxSearchResult(
+            id: Int64(100 + index),
+            content: "Renderable progress result \(index)",
+            speakers: [],
+            searchRank: index
+        )
+    }
+    let progressSummary = SubtitleSearchFileSummary(
+        subtitlePath: "/Media/Episode.srt",
+        subtitleFileName: "Episode.srt",
+        subtitleDisplayTitle: "Episode",
+        matchCount: progressResults.count
+    )
+
+    app.indexing.selectedFolders = [fixtureRoot]
+    app.search.searchQuery = "shared"
+    app.search.searchStatus = .searching
+    app.search.searchResults = [existingResult]
+    app.search.searchResultCueGroupIDs = [existingResult.entryID]
+    app.search.searchResultTotalCount = 100
+    app.search.searchCountState = .exactProgress
+    app.search.searchKnownResultCount = 1
+    app.search.hasMoreSearchResults = true
+    app.loadedGlobalSearchResultCount = 1
+    app.nextGlobalSearchCursor = SubtitleSearchCursor(offset: 1)
+
+    app.applySearchCountProgress(
+        SubtitleSearchProgressSnapshot(
+            countSnapshot: .exactProgress(
+                knownResultCount: progressResults.count,
+                knownFileCount: 1
+            ),
+            fileSummaries: [progressSummary],
+            results: progressResults,
+            cueGroupIDs: progressResults.map(\.entryID)
+        ),
+        query: "shared",
+        folderPaths: [fixtureRoot.path],
+        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
+        filterSignature: app.search.activeFilterSetSignature,
+        run: nil
+    )
+
+    #expect(app.search.searchResults == progressResults)
+    #expect(app.search.searchResultCueGroupIDs == progressResults.map(\.entryID))
+    #expect(app.search.searchResultTotalCount == progressResults.count)
+    #expect(app.search.searchKnownResultCount == progressResults.count)
+    #expect(app.loadedGlobalSearchResultCount == progressResults.count)
+    #expect(!app.search.hasMoreSearchResults)
+    #expect(app.nextGlobalSearchCursor == nil)
+}
+
+@MainActor
+@Test
 func tableSandboxSearchRowsUseCurrentCueGroupIDsForDistantRanges() async throws {
     let suiteName = "CueSeekerTableSandboxSearchIDTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))

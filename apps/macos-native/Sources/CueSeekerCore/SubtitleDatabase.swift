@@ -139,6 +139,8 @@ public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
 public struct SubtitleSearchProgressSnapshot: Equatable, Sendable {
     public let countSnapshot: SubtitleSearchCountSnapshot
     public let fileSummaries: [SubtitleSearchFileSummary]
+    public let results: [SubtitleSearchResult]
+    public let cueGroupIDs: [Int64]
 
     public var countState: SubtitleSearchCountState {
         countSnapshot.state
@@ -154,10 +156,14 @@ public struct SubtitleSearchProgressSnapshot: Equatable, Sendable {
 
     public init(
         countSnapshot: SubtitleSearchCountSnapshot,
-        fileSummaries: [SubtitleSearchFileSummary]
+        fileSummaries: [SubtitleSearchFileSummary],
+        results: [SubtitleSearchResult] = [],
+        cueGroupIDs: [Int64] = []
     ) {
         self.countSnapshot = countSnapshot
         self.fileSummaries = fileSummaries
+        self.results = results
+        self.cueGroupIDs = cueGroupIDs
     }
 }
 
@@ -717,6 +723,7 @@ public enum ShioriNavigationDirection: Equatable, Sendable {
 
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
+    public let renderableResults: [SubtitleSearchResult]
     public let cueGroupIDs: [Int64]
     public let totalCount: Int
     public let fileSummaries: [SubtitleSearchFileSummary]
@@ -753,6 +760,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
 
     public init(
         results: [SubtitleSearchResult],
+        renderableResults: [SubtitleSearchResult]? = nil,
         cueGroupIDs: [Int64]? = nil,
         totalCount: Int,
         fileSummaries: [SubtitleSearchFileSummary],
@@ -764,6 +772,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         materializedOrderRows: Int? = nil
     ) {
         self.results = results
+        self.renderableResults = renderableResults ?? results
         self.cueGroupIDs = cueGroupIDs ?? results.map(\.entryID)
         self.totalCount = totalCount
         self.fileSummaries = fileSummaries
@@ -3929,6 +3938,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             var candidateOffset = 0
             var exactCueGroupIDs: [Int64] = []
             var exactPageResults: [OrderedSearchResult] = []
+            var exactRenderableResults: [OrderedSearchResult] = []
             var visiblePrefixResults: [OrderedSearchResult] = []
             var visibleWindowResults: [OrderedSearchResult] = []
             var progressFileSummaries = SearchFileSummaryAccumulator()
@@ -3939,6 +3949,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
             var totalMultiLineCandidates = 0
             var totalCueLineRows = 0
             var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
+            func rankedResults(
+                from orderedResults: [OrderedSearchResult],
+                startingAt startIndex: Int = 0
+            ) -> [SubtitleSearchResult] {
+                var results = orderedResults.map(\.result)
+                for index in results.indices {
+                    results[index].searchRank = startIndex + index
+                }
+                return results
+            }
             let scopeCondition = pathPrefixes.map {
                 let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
                     .joined(separator: " OR ")
@@ -4157,6 +4177,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         case .exact:
                             exactCueGroupIDs.append(candidate.cueGroupID)
                             progressFileSummaries.add(candidate: candidate)
+                            if progress != nil {
+                                exactRenderableResults.append(
+                                    orderedSearchResult(for: candidate, match: match)
+                                )
+                            }
                             if acceptedSearchResultCount >= offset && exactPageResults.count < limit {
                                 exactPageResults.append(
                                     orderedSearchResult(for: candidate, match: match)
@@ -4200,7 +4225,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     progress?(
                         SubtitleSearchProgressSnapshot(
                             countSnapshot: countSnapshot,
-                            fileSummaries: progressSummaries
+                            fileSummaries: progressSummaries,
+                            results: rankedResults(from: exactRenderableResults),
+                            cueGroupIDs: exactCueGroupIDs
                         )
                     )
                     emit(
@@ -4327,10 +4354,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let pageStart = Self.diagnosticNow()
-            var pageResults = exactPageResults.map(\.result)
-            for i in 0..<pageResults.count {
-                pageResults[i].searchRank = offset + i
-            }
+            let pageResults = rankedResults(from: exactPageResults, startingAt: offset)
+            let renderableResults = progress == nil
+                ? pageResults
+                : rankedResults(from: exactRenderableResults)
             let nextCursor = limit > 0 && offset + pageResults.count < totalExactResultCount
                 ? SubtitleSearchCursor(offset: offset + pageResults.count)
                 : nil
@@ -4386,6 +4413,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             let page = SubtitleSearchPage(
                 results: pageResults,
+                renderableResults: renderableResults,
                 cueGroupIDs: exactCueGroupIDs,
                 totalCount: totalExactResultCount,
                 fileSummaries: fileSummaries,

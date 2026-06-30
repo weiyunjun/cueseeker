@@ -14,14 +14,18 @@ cap that could make virtualized table rows unavailable after broad scrolling.
 - Disabled Core Search result caching by removing the page cache and ID-index
   cache storage paths. `clearSearchResultCache()` remains a compatibility no-op,
   and `searchResultCacheStats()` now reports zero cached entries and activity.
-- Changed exact Search completion so it no longer materializes every matching
-  `SubtitleSearchResult`. Exact search now accumulates all matching cue group
-  IDs and file summaries, while only materializing the requested result page.
+- Kept the ID-only exact Search completion path available for callers without a
+  progress sink: `limit: 0` still returns cue group IDs and file summaries
+  without filling the normal page results.
 - Changed Search exact completion in the app to request a zero-result exact
   completion page, preserving the existing first visible page while using the
   background pass only for exact count and summary metadata.
 - Added the exact completion cue group ID list to `SubtitleSearchPage` and
   stored the current Search result IDs in `SearchStore`.
+- Added renderable Search rows to exact progress snapshots and to the final
+  exact completion page when a progress sink is supplied. The Search UI now
+  grows its current result range from these renderable rows, so the rows label,
+  scrollbar row range, and synchronously available rows advance together.
 - Changed Search table range hydration to prefer the current Search ID slice and
   fetch display rows by cue group ID. Far-away rows no longer fall back to a
   slow offset scan while the exact ID list is not ready.
@@ -35,15 +39,16 @@ cap that could make virtualized table rows unavailable after broad scrolling.
 
 ## Verification
 
-- `swift test` passed from `apps/macos-native` with 359 tests.
+- `swift test` passed from `apps/macos-native` with 360 tests.
 
 ## Outcome
 
-Search no longer keeps Core-level page or ID-index caches across searches, and
-exact completion no longer builds a full in-memory `SubtitleSearchResult` array
-for every match. The table row model store now treats hydrated Search/Shiori rows
-as available data for the current result set instead of pruning them around a
-fixed 2,000-row budget.
+Search no longer keeps Core-level page or ID-index caches across searches. The
+ID-only Core completion path can avoid normal page result materialization, while
+the app-facing progress path currently materializes cumulative renderable Search
+rows as an interim step to keep table row counts and available display data
+strictly aligned. The compact display row store remains the follow-up memory
+optimization.
 
 Search exact completion now keeps the current result ID list in app state, and
 table hydration can use that list for random-access display row loading. The
