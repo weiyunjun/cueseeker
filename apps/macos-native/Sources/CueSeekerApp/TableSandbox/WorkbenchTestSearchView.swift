@@ -7,11 +7,6 @@ struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @StateObject private var rowStore = TableSandboxRowModelStore()
-    @StateObject private var visibleHydrator = TableSandboxVisibleSearchHydrator(
-        debounceNanoseconds: 16_000_000,
-        prefetchPageCount: 0,
-        smallResultEagerLoadThreshold: 0
-    )
     @State private var searchDraft: String
     @State private var visibleColumnIDs: Set<String>
     @State private var activeFilterSetID: String?
@@ -26,8 +21,12 @@ struct WorkbenchTestSearchView: View {
     @State private var lastHandledCueContextRequestID: UUID?
     @State private var activeCueContextRequest: CueContextSearchRequest?
     @State private var cueContextLoadGeneration = 0
+    @State private var continuousLoadGeneration = 0
+    @State private var isLoadingContinuousRows = false
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
+
+    private static let continuousPageSize = 1_000
 
     init() {
         _searchDraft = State(initialValue: "")
@@ -117,7 +116,7 @@ struct WorkbenchTestSearchView: View {
         }
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
-            visibleHydrator.reset()
+            resetContinuousRowLoading()
             rowSelection.reset()
             lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -140,17 +139,14 @@ struct WorkbenchTestSearchView: View {
         .onChange(of: search.searchResultTotalCount) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
-            hydrateLastVisibleRowsIfNeeded()
         }
         .onChange(of: search.searchCountState) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
-            hydrateLastVisibleRowsIfNeeded()
         }
         .onChange(of: search.searchResultCueGroupIDs) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
-            hydrateLastVisibleRowsIfNeeded()
         }
         .onChange(of: search.cueContextSearchRequest) { request in
             guard let request else {
@@ -159,7 +155,7 @@ struct WorkbenchTestSearchView: View {
             _ = applyCueContextSearchRequest(request)
         }
         .onDisappear {
-            visibleHydrator.cancel()
+            resetContinuousRowLoading()
         }
     }
 
@@ -329,20 +325,18 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
-        let totalRowCount = isFilterOnlyMode ? search.searchResultTotalCount : results.count
         rowStore.updateSearchRows(
             results,
-            totalRowCount: totalRowCount,
+            totalRowCount: results.count,
             tableName: "test-search"
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         refreshSelectedCollageAvailability()
-        hydrateInitialRowsIfNeeded()
     }
 
     private func clearTableRows(resetScroll: Bool) {
         let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
-        visibleHydrator.reset()
+        resetContinuousRowLoading()
         lastVisibleRows = nil
         rowSelection.reset()
         resetSelectedCollageAvailability()
@@ -373,34 +367,83 @@ struct WorkbenchTestSearchView: View {
         appState.openSearchResultContext(result)
     }
 
-    private func hydrateInitialRowsIfNeeded() {
-        visibleHydrator.scheduleInitialCompletion(
-            totalRowCount: rowStore.snapshot.totalRowCount,
-            isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
-            load: { range in
-                await loadRows(range: range)
-            },
-            apply: applyHydrationPage
-        )
-    }
-
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
         lastVisibleRows = visibleRows
-        visibleHydrator.schedule(
-            visibleRows: visibleRows,
-            totalRowCount: rowStore.snapshot.totalRowCount,
-            isRowLoaded: { rowStore.snapshot.row(at: $0) != nil },
-            load: { range in
-                await loadRows(range: range)
-            },
-            apply: applyHydrationPage
+        guard isFilterOnlyMode,
+              activeCueContextRequest == nil,
+              visibleRows.upperBound >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize
+        else {
+            return
+        }
+        loadNextContinuousRowsIfNeeded(generation: continuousLoadGeneration)
+    }
+
+    private func resetContinuousRowLoading() {
+        continuousLoadGeneration += 1
+        isLoadingContinuousRows = false
+    }
+
+    private func loadNextContinuousRowsIfNeeded(generation: Int) {
+        guard generation == continuousLoadGeneration,
+              !isLoadingContinuousRows,
+              isFilterOnlyMode,
+              activeCueContextRequest == nil
+        else {
+            return
+        }
+
+        let loadedRowCount = rowStore.snapshot.totalRowCount
+        let totalRowCount = search.searchResultTotalCount
+        guard loadedRowCount < totalRowCount else { return }
+
+        isLoadingContinuousRows = true
+        let upperBound = min(totalRowCount, loadedRowCount + Self.continuousPageSize)
+        let range = loadedRowCount..<upperBound
+
+        Task { @MainActor in
+            guard let page = await appState.loadTableSandboxAllCueRows(range: range),
+                  generation == continuousLoadGeneration,
+                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  activeCueContextRequest == nil,
+                  search.activeFilterSetSignature == appliedFilterSignature
+            else {
+                if generation == continuousLoadGeneration {
+                    isLoadingContinuousRows = false
+                }
+                return
+            }
+
+            let appended = appendContinuousRows(page, expectedStartIndex: loadedRowCount)
+            isLoadingContinuousRows = false
+            if appended {
+                loadNextContinuousRowsIfNeeded(generation: generation)
+            }
+        }
+    }
+
+    @discardableResult
+    private func appendContinuousRows(
+        _ page: TableSandboxSearchHydrationPage,
+        expectedStartIndex: Int
+    ) -> Bool {
+        guard page.range.lowerBound == expectedStartIndex, !page.results.isEmpty else {
+            return false
+        }
+        rowStore.hydrateSearchRows(
+            page.results,
+            startIndex: expectedStartIndex,
+            totalRowCount: expectedStartIndex + page.results.count,
+            tableName: "test-search"
         )
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+        return rowStore.snapshot.totalRowCount > expectedStartIndex
     }
 
     private func loadAllCueRows(resetScroll: Bool) {
         activeCueContextRequest = nil
         tableScrollTargetRow = nil
-        visibleHydrator.reset()
+        resetContinuousRowLoading()
+        let generation = continuousLoadGeneration
         lastVisibleRows = nil
         if resetScroll {
             rowSelection.reset()
@@ -424,11 +467,11 @@ struct WorkbenchTestSearchView: View {
             appState.applyTableSandboxAllCueSearchContext(page)
             rowStore.updateSearchRows(
                 page.results,
-                totalRowCount: page.totalRowCount,
+                totalRowCount: page.results.count,
                 tableName: "test-search"
             )
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-            hydrateLastVisibleRowsIfNeeded()
+            loadNextContinuousRowsIfNeeded(generation: generation)
         }
     }
 
@@ -456,10 +499,9 @@ struct WorkbenchTestSearchView: View {
             }
 
             appState.applyTableSandboxAllCueSearchContext(page)
-            rowStore.hydrateSearchRows(
+            rowStore.updateSearchRows(
                 page.results,
-                startIndex: page.range.lowerBound,
-                totalRowCount: page.totalRowCount,
+                totalRowCount: page.results.count,
                 tableName: "test-search"
             )
             tableScrollTargetRow = cueContextInitialScrollTargetRow(
@@ -468,49 +510,7 @@ struct WorkbenchTestSearchView: View {
             )
             tableScrollResetToken += 1
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-            hydrateLastVisibleRowsIfNeeded()
         }
-    }
-
-    private func loadRows(range: Range<Int>) async -> TableSandboxSearchHydrationPage? {
-        if isFilterOnlyMode {
-            if let activeCueContextRequest {
-                return await appState.loadCueContextSearchPage(
-                    request: activeCueContextRequest,
-                    range: range
-                )
-            }
-            return await appState.loadTableSandboxAllCueRows(range: range)
-        }
-        guard !showsSearchEmptyHint else { return nil }
-        return await appState.loadTableSandboxSearchRows(range: range)
-    }
-
-    private func hydrateLastVisibleRowsIfNeeded() {
-        guard let lastVisibleRows else {
-            return
-        }
-        hydrateVisibleRows(lastVisibleRows)
-    }
-
-    private func applyHydrationPage(_ page: TableSandboxSearchHydrationPage) {
-        if isFilterOnlyMode {
-            appState.applyTableSandboxAllCueSearchContext(page)
-        }
-        if !isFilterOnlyMode,
-           page.range.lowerBound > rowStore.snapshot.totalRowCount {
-            return
-        }
-        let totalRowCount = isFilterOnlyMode
-            ? max(page.totalRowCount, rowStore.snapshot.totalRowCount)
-            : max(page.range.upperBound, rowStore.snapshot.totalRowCount)
-        rowStore.hydrateSearchRows(
-            page.results,
-            startIndex: page.range.lowerBound,
-            totalRowCount: totalRowCount,
-            tableName: "test-search"
-        )
-        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
 
     private func applyFilterRules(_ rules: [SchemaWorkbenchFilterRule], force: Bool = false) {
@@ -524,7 +524,7 @@ struct WorkbenchTestSearchView: View {
         tableScrollTargetRow = nil
         cueContextLoadGeneration += 1
         appliedFilterSignature = nextSignature
-        visibleHydrator.reset()
+        resetContinuousRowLoading()
         rowSelection.reset()
         resetSelectedCollageAvailability()
         lastVisibleRows = nil
@@ -589,27 +589,14 @@ struct WorkbenchTestSearchView: View {
         }
 
         let columns = SubtitleTableClipboard.columns(from: visibleColumnsForCopy)
-        Task { @MainActor in
-            guard let page = await loadRows(range: 0..<rowCount) else {
-                return
-            }
-
-            let selectedRows = selection.selectedRows(in: page.range, rowCount: rowCount)
-            guard !selectedRows.isEmpty else {
-                return
-            }
-
-            var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
-            let rows = selectedRows.compactMap { row -> SubtitleTableRow? in
-                let offset = row - page.range.lowerBound
-                guard offset >= 0, offset < page.results.count else {
-                    return nil
-                }
-                return tableSandboxSearchRow(for: page.results[offset])
-            }
-            builder.append(rows: rows)
-            SubtitleTableClipboard.copy(text: builder.text)
+        let selectedRows = selection.selectedRows(rowCount: rowCount)
+        guard !selectedRows.isEmpty else {
+            return
         }
+
+        var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
+        builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
+        SubtitleTableClipboard.copy(text: builder.text)
     }
 
     private func selectedSearchResults(for selectedRows: [Int]) async -> [SubtitleSearchResult] {
@@ -660,39 +647,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func hydrateRowsForExport(_ selectedRows: [Int]) async {
-        let missingRows = selectedRows.filter { row in
-            guard let tableRow = rowStore.snapshot.row(at: row) else {
-                return true
-            }
-            return rowStore.snapshot.searchResult(entryID: tableRow.id) == nil
-        }
-        guard !missingRows.isEmpty else {
-            return
-        }
-
-        let pageSize = TableSandboxHydrationPaging.pageSize
-        let rowCount = tableSummaryTotalRowCount
-        var requestedStarts: Set<Int> = []
-        let ranges = missingRows
-            .map { row -> Range<Int> in
-                let start = max(0, (row / pageSize) * pageSize)
-                let end = min(rowCount, start + pageSize)
-                return start..<end
-            }
-            .filter { range in
-                guard !requestedStarts.contains(range.lowerBound), !range.isEmpty else {
-                    return false
-                }
-                requestedStarts.insert(range.lowerBound)
-                return true
-            }
-
-        for range in ranges {
-            guard let page = await loadRows(range: range) else {
-                continue
-            }
-            applyHydrationPage(page)
-        }
+        _ = selectedRows
     }
 
     private func toggleRowSelection(_ row: Int) {
@@ -710,5 +665,5 @@ func cueContextInitialScrollTargetRow(
     in page: TableSandboxSearchHydrationPage,
     targetEntryID: Int64
 ) -> Int {
-    page.results.first { $0.entryID == targetEntryID }?.searchRank ?? page.range.lowerBound
+    page.results.firstIndex { $0.entryID == targetEntryID } ?? 0
 }

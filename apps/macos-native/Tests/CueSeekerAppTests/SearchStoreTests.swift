@@ -233,7 +233,7 @@ func tableSandboxSearchRowsUseCurrentCueGroupIDsForDistantRanges() async throws 
 }
 
 @Test
-func cueContextInitialScrollTargetUsesTargetSearchRankNearTail() {
+func cueContextInitialScrollTargetUsesLoadedWindowIndexNearTail() {
     let target = makeTableSandboxSearchResult(
         id: 1520171,
         content: "target cue",
@@ -254,11 +254,11 @@ func cueContextInitialScrollTargetUsesTargetSearchRankNearTail() {
         totalRowCount: 2738
     )
 
-    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: target.entryID) == 2717)
+    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: target.entryID) == 1)
 }
 
 @Test
-func cueContextInitialScrollTargetFallsBackToLoadedRangeStartWhenTargetIsMissing() {
+func cueContextInitialScrollTargetFallsBackToLoadedWindowStartWhenTargetIsMissing() {
     let page = TableSandboxSearchHydrationPage(
         range: 2688..<2738,
         results: [
@@ -272,7 +272,7 @@ func cueContextInitialScrollTargetFallsBackToLoadedRangeStartWhenTargetIsMissing
         totalRowCount: 2738
     )
 
-    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: 1520171) == 2688)
+    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: 1520171) == 0)
 }
 
 @MainActor

@@ -54,6 +54,14 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   `totalRowCount` as the count of continuous, synchronously renderable rows,
   ignores supplied virtual totals, and rejects non-contiguous hydration pages
   instead of caching them as far-away rows.
+- Changed the Search table view so empty-query filter-only results no longer
+  use scroll-position hydration. The first page publishes only its renderable
+  rows, then a continuous background loader appends later pages from the current
+  end of the table.
+- Preserved Cue Context's target-first initial window while normalizing the
+  loaded page into table row index 0. The initial scroll target is now the
+  target cue's index inside the loaded window, not the cue's original file
+  offset/search rank.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
 - Updated row model store tests to assert the continuous-row invariant: sparse
   Search and Shiori hydrations are ignored, while contiguous append hydration
@@ -64,6 +72,9 @@ cap that could make virtualized table rows unavailable after broad scrolling.
 - `swift test` passed from `apps/macos-native` with 362 tests.
 - `swift test --filter TableSandboxRowModelStoreTests` passed from
   `apps/macos-native` with 17 tests.
+- `swift test --filter SearchStoreTests` passed from `apps/macos-native` with
+  7 tests.
+- `swift build` passed from `apps/macos-native`.
 
 ## Outcome
 
@@ -106,6 +117,12 @@ totals, and hydration can only replace existing continuous rows or append
 directly after the current end. This removes the shared sparse cache behavior
 that allowed Search, Shiori, and Cue Context tables to expose scrollable empty
 regions.
+
+Search filter-only mode now keeps the visible row count tied to continuous,
+already renderable rows. The real result total remains in Search state, but the
+table grows only as additional pages are appended. Cue Context keeps its
+target-centered first screen, but the table no longer exposes the original file
+offset as empty space before that window.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.
