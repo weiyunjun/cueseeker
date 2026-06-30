@@ -234,6 +234,66 @@ func tableSandboxRowModelStoreAppendsContiguousSearchRowsWithRenderableTotal() {
 
 @MainActor
 @Test
+func tableSandboxRowModelStorePrependsSearchRowsForCueContextWindow() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(id: 3, path: path, content: "target cue", cueLines: ["target cue"]),
+            searchResult(id: 4, path: path, content: "following cue", cueLines: ["following cue"]),
+        ],
+        totalRowCount: 6,
+        tableName: "test-search"
+    )
+    let prependedCount = store.prependSearchRows(
+        [
+            searchResult(id: 1, path: path, content: "earlier cue one", cueLines: ["earlier cue one"]),
+            searchResult(id: 2, path: path, content: "earlier cue two", cueLines: ["earlier cue two"]),
+        ],
+        tableName: "test-search"
+    )
+
+    #expect(prependedCount == 2)
+    #expect(store.snapshot.totalRowCount == 4)
+    #expect(store.snapshot.update == .reload)
+    #expect(store.snapshot.rows.map(\.id) == [1, 2, 3, 4])
+    #expect(store.snapshot.row(at: 0)?.cues == "earlier cue one")
+    #expect(store.snapshot.row(at: 2)?.cues == "target cue")
+    #expect(store.snapshot.searchResult(entryID: 1)?.content == "earlier cue one")
+    #expect(store.snapshot.searchResult(entryID: 3) == nil)
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreAppendsSearchRowsInDisplayOrderForCueContextWindow() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(id: 3, path: path, content: "target cue", cueLines: ["target cue"]),
+        ],
+        totalRowCount: 6,
+        tableName: "test-search"
+    )
+    let appendedCount = store.appendSearchRows(
+        [
+            searchResult(id: 4, path: path, content: "following cue", cueLines: ["following cue"]),
+            searchResult(id: 5, path: path, content: "next cue", cueLines: ["next cue"]),
+        ],
+        tableName: "test-search"
+    )
+
+    #expect(appendedCount == 2)
+    #expect(store.snapshot.totalRowCount == 3)
+    #expect(store.snapshot.update == .append(1..<3))
+    #expect(store.snapshot.rows.map(\.id) == [3, 4, 5])
+    #expect(store.snapshot.searchResult(entryID: 4)?.content == "following cue")
+}
+
+@MainActor
+@Test
 func tableSandboxRowModelStoreCachesOnlyContiguouslyHydratedSearchResultsForActions() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"

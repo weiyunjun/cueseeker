@@ -23,10 +23,18 @@ struct WorkbenchTestSearchView: View {
     @State private var cueContextLoadGeneration = 0
     @State private var continuousLoadGeneration = 0
     @State private var isLoadingContinuousRows = false
+    @State private var cueContextLoadedSourceRange: Range<Int>?
+    @State private var cueContextTotalRowCount = 0
+    @State private var isLoadingCueContextRows = false
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
 
     private static let continuousPageSize = 1_000
+
+    private enum CueContextLoadDirection {
+        case previous
+        case next
+    }
 
     init() {
         _searchDraft = State(initialValue: "")
@@ -123,6 +131,7 @@ struct WorkbenchTestSearchView: View {
                 activeCueContextRequest = nil
                 tableScrollTargetRow = nil
                 cueContextLoadGeneration += 1
+                resetCueContextWindow()
             }
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 if suppressNextEmptySearchQueryReload {
@@ -192,6 +201,7 @@ struct WorkbenchTestSearchView: View {
         lastHandledCueContextRequestID = request.id
         activeCueContextRequest = request
         cueContextLoadGeneration += 1
+        resetCueContextWindow()
         let generation = cueContextLoadGeneration
         let rules = [
             SchemaWorkbenchSearchDefaults.makeFilterRule(
@@ -296,6 +306,7 @@ struct WorkbenchTestSearchView: View {
             activeCueContextRequest = nil
             tableScrollTargetRow = nil
             cueContextLoadGeneration += 1
+            resetCueContextWindow()
             appState.submitSearch(searchDraft)
             return
         }
@@ -303,6 +314,7 @@ struct WorkbenchTestSearchView: View {
         activeCueContextRequest = nil
         tableScrollTargetRow = nil
         cueContextLoadGeneration += 1
+        resetCueContextWindow()
         let releasedRows = max(
             search.searchResults.count,
             search.searchResultCueGroupIDs.count,
@@ -337,6 +349,7 @@ struct WorkbenchTestSearchView: View {
     private func clearTableRows(resetScroll: Bool) {
         let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
         resetContinuousRowLoading()
+        resetCueContextWindow()
         lastVisibleRows = nil
         rowSelection.reset()
         resetSelectedCollageAvailability()
@@ -369,6 +382,10 @@ struct WorkbenchTestSearchView: View {
 
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
         lastVisibleRows = visibleRows
+        if activeCueContextRequest != nil {
+            loadCueContextAdjacentRowsIfNeeded(generation: cueContextLoadGeneration)
+            return
+        }
         guard isFilterOnlyMode,
               activeCueContextRequest == nil,
               visibleRows.upperBound >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize
@@ -381,6 +398,12 @@ struct WorkbenchTestSearchView: View {
     private func resetContinuousRowLoading() {
         continuousLoadGeneration += 1
         isLoadingContinuousRows = false
+    }
+
+    private func resetCueContextWindow() {
+        cueContextLoadedSourceRange = nil
+        cueContextTotalRowCount = 0
+        isLoadingCueContextRows = false
     }
 
     private func loadNextContinuousRowsIfNeeded(generation: Int) {
@@ -442,6 +465,7 @@ struct WorkbenchTestSearchView: View {
     private func loadAllCueRows(resetScroll: Bool) {
         activeCueContextRequest = nil
         tableScrollTargetRow = nil
+        resetCueContextWindow()
         resetContinuousRowLoading()
         let generation = continuousLoadGeneration
         lastVisibleRows = nil
@@ -504,12 +528,132 @@ struct WorkbenchTestSearchView: View {
                 totalRowCount: page.results.count,
                 tableName: "test-search"
             )
+            cueContextLoadedSourceRange = page.range
+            cueContextTotalRowCount = page.totalRowCount
             tableScrollTargetRow = cueContextInitialScrollTargetRow(
                 in: page,
                 targetEntryID: request.targetEntryID
             )
             tableScrollResetToken += 1
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+            loadCueContextAdjacentRowsIfNeeded(
+                generation: generation,
+                preferredDirection: .previous
+            )
+        }
+    }
+
+    private func loadCueContextAdjacentRowsIfNeeded(
+        generation: Int,
+        preferredDirection: CueContextLoadDirection? = nil
+    ) {
+        guard generation == cueContextLoadGeneration,
+              activeCueContextRequest != nil,
+              let sourceRange = cueContextLoadedSourceRange,
+              cueContextTotalRowCount > 0,
+              !isLoadingCueContextRows
+        else {
+            return
+        }
+
+        if preferredDirection == .previous, sourceRange.lowerBound > 0 {
+            loadCueContextRows(direction: .previous, generation: generation)
+            return
+        }
+
+        let visibleRows = lastVisibleRows
+        let isNearLoadedStart = (visibleRows?.lowerBound ?? 0) <= TableSandboxHydrationPaging.pageSize
+        let isNearLoadedEnd = (visibleRows?.upperBound ?? rowStore.snapshot.totalRowCount)
+            >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize
+
+        if sourceRange.lowerBound > 0, isNearLoadedStart {
+            loadCueContextRows(direction: .previous, generation: generation)
+            return
+        }
+
+        if sourceRange.upperBound < cueContextTotalRowCount, isNearLoadedEnd {
+            loadCueContextRows(direction: .next, generation: generation)
+        }
+    }
+
+    private func loadCueContextRows(
+        direction: CueContextLoadDirection,
+        generation: Int
+    ) {
+        guard generation == cueContextLoadGeneration,
+              let request = activeCueContextRequest,
+              let sourceRange = cueContextLoadedSourceRange,
+              !isLoadingCueContextRows
+        else {
+            return
+        }
+
+        let range: Range<Int>
+        switch direction {
+        case .previous:
+            let lowerBound = max(0, sourceRange.lowerBound - Self.continuousPageSize)
+            range = lowerBound..<sourceRange.lowerBound
+        case .next:
+            let upperBound = min(cueContextTotalRowCount, sourceRange.upperBound + Self.continuousPageSize)
+            range = sourceRange.upperBound..<upperBound
+        }
+        guard range.lowerBound < range.upperBound else { return }
+
+        let filterSignature = search.activeFilterSetSignature
+        let preservedTopRow = lastVisibleRows?.lowerBound ?? 0
+        isLoadingCueContextRows = true
+
+        Task { @MainActor in
+            guard let page = await appState.loadCueContextSearchPage(
+                request: request,
+                range: range,
+                anchorsInitialPage: false
+            ),
+                generation == cueContextLoadGeneration,
+                activeCueContextRequest?.id == request.id,
+                search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                search.activeFilterSetSignature == filterSignature
+            else {
+                if generation == cueContextLoadGeneration {
+                    isLoadingCueContextRows = false
+                }
+                return
+            }
+
+            switch direction {
+            case .previous:
+                guard page.range.upperBound == sourceRange.lowerBound else {
+                    isLoadingCueContextRows = false
+                    return
+                }
+                let prependedCount = rowStore.prependSearchRows(
+                    page.results,
+                    tableName: "test-search"
+                )
+                if prependedCount > 0 {
+                    cueContextLoadedSourceRange = page.range.lowerBound..<sourceRange.upperBound
+                    rowSelection.shiftRows(by: prependedCount)
+                    rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+                    tableScrollTargetRow = preservedTopRow + prependedCount
+                    tableScrollResetToken += 1
+                }
+            case .next:
+                guard page.range.lowerBound == sourceRange.upperBound else {
+                    isLoadingCueContextRows = false
+                    return
+                }
+                let appendedCount = rowStore.appendSearchRows(
+                    page.results,
+                    tableName: "test-search"
+                )
+                if appendedCount > 0 {
+                    cueContextLoadedSourceRange = sourceRange.lowerBound..<page.range.upperBound
+                    rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+                }
+            }
+
+            isLoadingCueContextRows = false
+            loadCueContextAdjacentRowsIfNeeded(generation: generation)
         }
     }
 

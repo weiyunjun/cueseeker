@@ -120,6 +120,16 @@ struct TableSandboxRowSelectionState: Equatable {
         storage = .explicit([])
     }
 
+    mutating func shiftRows(by offset: Int) {
+        guard offset != 0 else { return }
+        switch storage {
+        case .explicit(let selectedRows):
+            storage = .explicit(Set(selectedRows.map { $0 + offset }))
+        case .allExcept(let deselectedRows):
+            storage = .allExcept(Set(deselectedRows.map { $0 + offset }))
+        }
+    }
+
     mutating func clamp(rowCount: Int) {
         let safeRowCount = max(0, rowCount)
         switch storage {

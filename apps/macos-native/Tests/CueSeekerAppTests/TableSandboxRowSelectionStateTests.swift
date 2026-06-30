@@ -83,3 +83,31 @@ func tableSandboxRowSelectionClampsWhenRowCountShrinks() {
     #expect(!selection.isSelected(9, rowCount: 5))
     #expect(selection.selectedCount(rowCount: 5) == 1)
 }
+
+@Test
+func tableSandboxRowSelectionShiftsExplicitRowsWhenRowsArePrepended() {
+    var selection = TableSandboxRowSelectionState()
+    selection.toggle(row: 0, rowCount: 3)
+    selection.toggle(row: 2, rowCount: 3)
+
+    selection.shiftRows(by: 4)
+
+    #expect(!selection.isSelected(0, rowCount: 7))
+    #expect(selection.isSelected(4, rowCount: 7))
+    #expect(selection.isSelected(6, rowCount: 7))
+    #expect(selection.selectedRows(rowCount: 7) == [4, 6])
+}
+
+@Test
+func tableSandboxRowSelectionShiftsAllExceptRowsWhenRowsArePrepended() {
+    var selection = TableSandboxRowSelectionState()
+    selection.toggleAll(rowCount: 5)
+    selection.toggle(row: 1, rowCount: 5)
+
+    selection.shiftRows(by: 3)
+
+    #expect(selection.isSelected(0, rowCount: 8))
+    #expect(selection.isSelected(3, rowCount: 8))
+    #expect(!selection.isSelected(4, rowCount: 8))
+    #expect(selection.selectedCount(rowCount: 8) == 7)
+}

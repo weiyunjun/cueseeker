@@ -131,6 +131,52 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
     }
 
+    @discardableResult
+    func prependSearchRows(_ results: [SubtitleSearchResult], tableName _: String) -> Int {
+        let existingEntryIDs = Set(snapshot.rows.map(\.id))
+        let prependedResults = results.filter { !existingEntryIDs.contains(Int($0.entryID)) }
+        guard !prependedResults.isEmpty else { return 0 }
+
+        var nextSearchResultsByEntryID = snapshot.searchResultsByEntryID
+        prependedResults.forEach { result in
+            nextSearchResultsByEntryID[Int(result.entryID)] = result
+        }
+
+        snapshot = TableSandboxRowsSnapshot(
+            rows: prependedResults.map { searchRow(for: $0) } + snapshot.rows,
+            searchResultsByEntryID: nextSearchResultsByEntryID,
+            shiorisByEntryID: snapshot.shiorisByEntryID,
+            version: snapshot.version + 1,
+            update: .reload,
+            totalRowCount: snapshot.rows.count + prependedResults.count
+        )
+        return prependedResults.count
+    }
+
+    @discardableResult
+    func appendSearchRows(_ results: [SubtitleSearchResult], tableName _: String) -> Int {
+        let existingEntryIDs = Set(snapshot.rows.map(\.id))
+        let appendedResults = results.filter { !existingEntryIDs.contains(Int($0.entryID)) }
+        guard !appendedResults.isEmpty else { return 0 }
+
+        var nextSearchResultsByEntryID = snapshot.searchResultsByEntryID
+        appendedResults.forEach { result in
+            nextSearchResultsByEntryID[Int(result.entryID)] = result
+        }
+
+        let oldRowCount = snapshot.rows.count
+        let nextRows = snapshot.rows + appendedResults.map { searchRow(for: $0) }
+        snapshot = TableSandboxRowsSnapshot(
+            rows: nextRows,
+            searchResultsByEntryID: nextSearchResultsByEntryID,
+            shiorisByEntryID: snapshot.shiorisByEntryID,
+            version: snapshot.version + 1,
+            update: .append(oldRowCount..<nextRows.count),
+            totalRowCount: nextRows.count
+        )
+        return appendedResults.count
+    }
+
     func updateShioriRows(_ shioris: [TableSandboxShioriRowSource], tableName _: String) {
         var prefixUnchanged = shioris.count >= snapshot.rows.count
         let rows = shioris.enumerated().map { index, item in

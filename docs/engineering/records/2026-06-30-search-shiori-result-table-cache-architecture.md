@@ -145,5 +145,12 @@ table paging is now represented by explicit page result value types and
 view-owned continuous append loops, not by a shared component that treats
 viewport movement as a data availability request.
 
+Cue Context now keeps the no-hole table invariant without losing the surrounding
+context. It first renders the target-first window, tracks that window's source
+range in the original subtitle file, then prepends earlier rows and appends
+later rows in display order. Prepending adjusts the selection and scroll target
+so the currently visible row stays stable while the user gains access to the
+previous context.
+
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.
