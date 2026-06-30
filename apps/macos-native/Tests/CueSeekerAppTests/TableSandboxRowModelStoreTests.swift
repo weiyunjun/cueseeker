@@ -157,8 +157,9 @@ func tableSandboxRowModelStoreTracksVirtualSearchTotalWithoutMaterializingUnload
     #expect(store.snapshot.totalRowCount == 2_000_000)
     #expect(store.snapshot.loadedReferenceCount == 100)
     #expect(store.snapshot.rows.count == 100)
-    #expect(store.snapshot.references.first == TableSandboxRowReference(source: .search, sourceIndex: 0, id: 1))
-    #expect(store.snapshot.references.last == TableSandboxRowReference(source: .search, sourceIndex: 99, id: 100))
+    #expect(store.snapshot.references.isEmpty)
+    #expect(store.snapshot.row(at: 0)?.cues == "loaded row 0")
+    #expect(store.snapshot.row(at: 99)?.cues == "loaded row 99")
 }
 
 @MainActor
@@ -233,7 +234,7 @@ func tableSandboxRowModelStoreDoesNotShrinkAuthoritativeTotalDuringHydration() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreCachesHydratedSearchResultsForActions() {
+func tableSandboxRowModelStoreCachesOnlyHydratedSearchResultsForActions() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
@@ -253,7 +254,7 @@ func tableSandboxRowModelStoreCachesHydratedSearchResultsForActions() {
         tableName: "test-search"
     )
 
-    #expect(store.snapshot.searchResult(entryID: 1)?.content == "loaded row")
+    #expect(store.snapshot.searchResult(entryID: 1) == nil)
     #expect(store.snapshot.searchResult(entryID: 301)?.content == "hydrated row")
 }
 

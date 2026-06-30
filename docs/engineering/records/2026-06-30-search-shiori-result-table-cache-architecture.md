@@ -35,6 +35,11 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   range, and renderable rows aligned.
 - Removed `maximumHydratedSearchRows = 2000` and the Search/Shiori hydrated-row
   pruning paths from `TableSandboxRowModelStore`.
+- Reduced table row store duplication by treating the contiguous loaded row
+  prefix as the primary random-access store. `rowsBySourceIndex` and row
+  references now only retain sparse hydrated rows, and Search action-result
+  caching now stores only explicitly hydrated rows instead of duplicating every
+  currently rendered Search result.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
 
 ## Verification
@@ -55,6 +60,11 @@ table hydration can use that list for random-access display row loading. The
 Search view no longer publishes non-renderable exact/progress counts to the
 table, so the rows label and scrollbar only cover rows whose display data can be
 returned synchronously.
+
+The table row store no longer keeps parallel dictionaries and references for
+every contiguous Search row. This removes one major multiplier from the
+rendered-row memory footprint while preserving sparse hydration for table
+actions and export.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.
