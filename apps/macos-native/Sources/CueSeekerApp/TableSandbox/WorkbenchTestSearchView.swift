@@ -25,6 +25,7 @@ struct WorkbenchTestSearchView: View {
     @State private var isLoadingContinuousRows = false
     @State private var cueContextLoadedSourceRange: Range<Int>?
     @State private var cueContextTotalRowCount = 0
+    @State private var cueContextTargetSourceIndex: Int?
     @State private var isLoadingCueContextRows = false
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
@@ -34,6 +35,12 @@ struct WorkbenchTestSearchView: View {
     private enum CueContextLoadDirection {
         case previous
         case next
+    }
+
+    private enum CueContextScrollAnchor {
+        case target
+        case visibleTop
+        case none
     }
 
     init() {
@@ -403,6 +410,7 @@ struct WorkbenchTestSearchView: View {
     private func resetCueContextWindow() {
         cueContextLoadedSourceRange = nil
         cueContextTotalRowCount = 0
+        cueContextTargetSourceIndex = nil
         isLoadingCueContextRows = false
     }
 
@@ -530,9 +538,15 @@ struct WorkbenchTestSearchView: View {
             )
             cueContextLoadedSourceRange = page.range
             cueContextTotalRowCount = page.totalRowCount
-            tableScrollTargetRow = cueContextInitialScrollTargetRow(
+            let targetSourceIndex = resolvedCueContextTargetSourceIndex(
                 in: page,
                 targetEntryID: request.targetEntryID
+            )
+            cueContextTargetSourceIndex = targetSourceIndex
+            tableScrollTargetRow = cueContextDisplayRow(
+                forSourceIndex: targetSourceIndex,
+                loadedSourceRange: page.range,
+                loadedRowCount: rowStore.snapshot.totalRowCount
             )
             tableScrollResetToken += 1
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
@@ -557,7 +571,11 @@ struct WorkbenchTestSearchView: View {
         }
 
         if preferredDirection == .previous, sourceRange.lowerBound > 0 {
-            loadCueContextRows(direction: .previous, generation: generation)
+            loadCueContextRows(
+                direction: .previous,
+                generation: generation,
+                scrollAnchor: .target
+            )
             return
         }
 
@@ -567,18 +585,27 @@ struct WorkbenchTestSearchView: View {
             >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize
 
         if sourceRange.lowerBound > 0, isNearLoadedStart {
-            loadCueContextRows(direction: .previous, generation: generation)
+            loadCueContextRows(
+                direction: .previous,
+                generation: generation,
+                scrollAnchor: .visibleTop
+            )
             return
         }
 
         if sourceRange.upperBound < cueContextTotalRowCount, isNearLoadedEnd {
-            loadCueContextRows(direction: .next, generation: generation)
+            loadCueContextRows(
+                direction: .next,
+                generation: generation,
+                scrollAnchor: .none
+            )
         }
     }
 
     private func loadCueContextRows(
         direction: CueContextLoadDirection,
-        generation: Int
+        generation: Int,
+        scrollAnchor: CueContextScrollAnchor
     ) {
         guard generation == cueContextLoadGeneration,
               let request = activeCueContextRequest,
@@ -600,7 +627,10 @@ struct WorkbenchTestSearchView: View {
         guard range.lowerBound < range.upperBound else { return }
 
         let filterSignature = search.activeFilterSetSignature
-        let preservedTopRow = lastVisibleRows?.lowerBound ?? 0
+        let anchorSourceIndex = cueContextAnchorSourceIndex(
+            scrollAnchor,
+            loadedSourceRange: sourceRange
+        )
         isLoadingCueContextRows = true
 
         Task { @MainActor in
@@ -631,11 +661,18 @@ struct WorkbenchTestSearchView: View {
                     tableName: "test-search"
                 )
                 if prependedCount > 0 {
-                    cueContextLoadedSourceRange = page.range.lowerBound..<sourceRange.upperBound
+                    let nextSourceRange = page.range.lowerBound..<sourceRange.upperBound
+                    cueContextLoadedSourceRange = nextSourceRange
                     rowSelection.shiftRows(by: prependedCount)
                     rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-                    tableScrollTargetRow = preservedTopRow + prependedCount
-                    tableScrollResetToken += 1
+                    if let anchorSourceIndex {
+                        tableScrollTargetRow = cueContextDisplayRow(
+                            forSourceIndex: anchorSourceIndex,
+                            loadedSourceRange: nextSourceRange,
+                            loadedRowCount: rowStore.snapshot.totalRowCount
+                        )
+                        tableScrollResetToken += 1
+                    }
                 }
             case .next:
                 guard page.range.lowerBound == sourceRange.upperBound else {
@@ -653,7 +690,20 @@ struct WorkbenchTestSearchView: View {
             }
 
             isLoadingCueContextRows = false
-            loadCueContextAdjacentRowsIfNeeded(generation: generation)
+        }
+    }
+
+    private func cueContextAnchorSourceIndex(
+        _ anchor: CueContextScrollAnchor,
+        loadedSourceRange: Range<Int>
+    ) -> Int? {
+        switch anchor {
+        case .target:
+            return cueContextTargetSourceIndex
+        case .visibleTop:
+            return loadedSourceRange.lowerBound + max(0, lastVisibleRows?.lowerBound ?? 0)
+        case .none:
+            return nil
         }
     }
 
@@ -805,9 +855,21 @@ struct WorkbenchTestSearchView: View {
     }
 }
 
-func cueContextInitialScrollTargetRow(
+func resolvedCueContextTargetSourceIndex(
     in page: TableSandboxSearchHydrationPage,
     targetEntryID: Int64
 ) -> Int {
-    page.results.firstIndex { $0.entryID == targetEntryID } ?? 0
+    page.results.first { $0.entryID == targetEntryID }?.searchRank ?? page.range.lowerBound
+}
+
+func cueContextDisplayRow(
+    forSourceIndex sourceIndex: Int,
+    loadedSourceRange: Range<Int>,
+    loadedRowCount: Int
+) -> Int {
+    guard loadedRowCount > 0 else { return 0 }
+    return min(
+        max(0, sourceIndex - loadedSourceRange.lowerBound),
+        max(0, loadedRowCount - 1)
+    )
 }

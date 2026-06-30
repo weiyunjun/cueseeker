@@ -152,5 +152,12 @@ later rows in display order. Prepending adjusts the selection and scroll target
 so the currently visible row stays stable while the user gains access to the
 previous context.
 
+Cue Context target positioning now uses the target cue's stable source index
+instead of the temporary display index inside the currently loaded window. The
+table still renders only contiguous loaded rows, but every scroll target after
+initial load or prepending previous context is computed from
+`targetSourceIndex - loadedSourceRange.lowerBound`, matching the older context
+navigation semantics without reintroducing sparse empty table rows.
+
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.

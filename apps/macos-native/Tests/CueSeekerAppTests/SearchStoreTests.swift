@@ -233,7 +233,7 @@ func tableSandboxSearchRowsUseCurrentCueGroupIDsForDistantRanges() async throws 
 }
 
 @Test
-func cueContextInitialScrollTargetUsesLoadedWindowIndexNearTail() {
+func cueContextTargetSourceIndexUsesStableSearchRankNearTail() {
     let target = makeTableSandboxSearchResult(
         id: 1520171,
         content: "target cue",
@@ -254,11 +254,11 @@ func cueContextInitialScrollTargetUsesLoadedWindowIndexNearTail() {
         totalRowCount: 2738
     )
 
-    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: target.entryID) == 1)
+    #expect(resolvedCueContextTargetSourceIndex(in: page, targetEntryID: target.entryID) == 2717)
 }
 
 @Test
-func cueContextInitialScrollTargetFallsBackToLoadedWindowStartWhenTargetIsMissing() {
+func cueContextTargetSourceIndexFallsBackToLoadedRangeStartWhenTargetIsMissing() {
     let page = TableSandboxSearchHydrationPage(
         range: 2688..<2738,
         results: [
@@ -272,7 +272,27 @@ func cueContextInitialScrollTargetFallsBackToLoadedWindowStartWhenTargetIsMissin
         totalRowCount: 2738
     )
 
-    #expect(cueContextInitialScrollTargetRow(in: page, targetEntryID: 1520171) == 0)
+    #expect(resolvedCueContextTargetSourceIndex(in: page, targetEntryID: 1520171) == 2688)
+}
+
+@Test
+func cueContextDisplayRowTracksPrependedSourceRows() {
+    let targetSourceIndex = 117
+
+    #expect(
+        cueContextDisplayRow(
+            forSourceIndex: targetSourceIndex,
+            loadedSourceRange: 117..<167,
+            loadedRowCount: 50
+        ) == 0
+    )
+    #expect(
+        cueContextDisplayRow(
+            forSourceIndex: targetSourceIndex,
+            loadedSourceRange: 67..<167,
+            loadedRowCount: 100
+        ) == 50
+    )
 }
 
 @MainActor
