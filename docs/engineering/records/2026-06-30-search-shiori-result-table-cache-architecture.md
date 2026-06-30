@@ -50,11 +50,20 @@ cap that could make virtualized table rows unavailable after broad scrolling.
   releases. This does not replace data-structure reductions, but it gives the
   allocator a chance to return freed pages sooner after broad searches are
   cleared.
+- Removed the table row store's sparse virtual row model. The store now treats
+  `totalRowCount` as the count of continuous, synchronously renderable rows,
+  ignores supplied virtual totals, and rejects non-contiguous hydration pages
+  instead of caching them as far-away rows.
 - Updated tests to assert the new no-cache semantics and retained hydrated rows.
+- Updated row model store tests to assert the continuous-row invariant: sparse
+  Search and Shiori hydrations are ignored, while contiguous append hydration
+  grows the renderable row count.
 
 ## Verification
 
 - `swift test` passed from `apps/macos-native` with 362 tests.
+- `swift test --filter TableSandboxRowModelStoreTests` passed from
+  `apps/macos-native` with 17 tests.
 
 ## Outcome
 
@@ -90,6 +99,13 @@ Large Search reset paths now ask the system allocator to relieve memory pressure
 after releasing result arrays and table rows. This is intended to improve the
 observable post-clear memory drop in macOS Activity Monitor, while keeping the
 call behind a row-count threshold so small interactions are unaffected.
+
+The table row store now enforces the renderable-row invariant at the shared data
+source boundary. It no longer accepts row holes: initial updates ignore virtual
+totals, and hydration can only replace existing continuous rows or append
+directly after the current end. This removes the shared sparse cache behavior
+that allowed Search, Shiori, and Cue Context tables to expose scrollable empty
+regions.
 
 The broader unified Search/Shiori result core remains a follow-up architecture
 step from the human-owned requirement.

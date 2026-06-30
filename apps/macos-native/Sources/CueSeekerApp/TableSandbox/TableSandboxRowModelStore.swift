@@ -4,23 +4,19 @@ import CueSeekerCore
 
 struct TableSandboxRowsSnapshot {
     var rows: [SubtitleTableRow] = []
-    var rowsBySourceIndex: [Int: SubtitleTableRow] = [:]
     var searchResultsByEntryID: [Int: SubtitleSearchResult] = [:]
     var shiorisByEntryID: [Int: Shiori] = [:]
     var version = 0
     var update = TableSandboxRowsUpdate.none
-    var references: [TableSandboxRowReference] = []
     var totalRowCount = 0
 
     var loadedReferenceCount: Int {
-        rows.count + references.count
+        rows.count
     }
 
     func row(at index: Int) -> SubtitleTableRow? {
-        if index >= 0, index < rows.count {
-            return rows[index]
-        }
-        return rowsBySourceIndex[index]
+        guard index >= 0, index < rows.count else { return nil }
+        return rows[index]
     }
 
     func searchResult(entryID: Int) -> SubtitleSearchResult? {
@@ -30,17 +26,6 @@ struct TableSandboxRowsSnapshot {
     func shiori(entryID: Int) -> Shiori? {
         shiorisByEntryID[entryID]
     }
-}
-
-struct TableSandboxRowReference: Equatable {
-    enum Source: Equatable {
-        case search
-        case shiori
-    }
-
-    let source: Source
-    let sourceIndex: Int
-    let id: Int
 }
 
 struct TableSandboxShioriRowSource: Equatable, Sendable {
@@ -81,11 +66,9 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         apply(
             rows,
-            rowsBySourceIndex: [:],
             searchResultsByEntryID: [:],
             shiorisByEntryID: [:],
-            references: [],
-            totalRowCount: max(totalRowCount ?? results.count, results.count),
+            totalRowCount: rows.count,
             prefixUnchanged: prefixUnchanged
         )
     }
@@ -96,14 +79,13 @@ final class TableSandboxRowModelStore: ObservableObject {
         totalRowCount: Int,
         tableName _: String
     ) {
+        _ = totalRowCount
         guard startIndex >= 0, !results.isEmpty else { return }
+        guard startIndex <= snapshot.rows.count else { return }
 
         var nextRows = snapshot.rows
-        var nextRowsBySourceIndex = snapshot.rowsBySourceIndex
         var nextSearchResultsByEntryID = snapshot.searchResultsByEntryID
-        var referencesBySourceIndex = Dictionary(uniqueKeysWithValues: snapshot.references.map { reference in
-            (reference.sourceIndex, reference)
-        })
+        let oldRowCount = nextRows.count
         var lowerChangedIndex: Int?
         var upperChangedIndex: Int?
         var actionCacheChanged = false
@@ -117,17 +99,10 @@ final class TableSandboxRowModelStore: ObservableObject {
                     upperChangedIndex = max(upperChangedIndex ?? sourceIndex + 1, sourceIndex + 1)
                 }
                 nextRows[sourceIndex] = row
-                nextRowsBySourceIndex.removeValue(forKey: sourceIndex)
-                referencesBySourceIndex.removeValue(forKey: sourceIndex)
-            } else if nextRowsBySourceIndex[sourceIndex] != row {
+            } else {
                 lowerChangedIndex = min(lowerChangedIndex ?? sourceIndex, sourceIndex)
                 upperChangedIndex = max(upperChangedIndex ?? sourceIndex + 1, sourceIndex + 1)
-                nextRowsBySourceIndex[sourceIndex] = row
-                referencesBySourceIndex[sourceIndex] = TableSandboxRowReference(
-                    source: .search,
-                    sourceIndex: sourceIndex,
-                    id: Int(result.entryID)
-                )
+                nextRows.append(row)
             }
             if nextSearchResultsByEntryID[Int(result.entryID)] != result {
                 actionCacheChanged = true
@@ -137,31 +112,22 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         guard lowerChangedIndex != nil || actionCacheChanged else { return }
 
-        let references = referencesBySourceIndex.values.sorted { lhs, rhs in
-            lhs.sourceIndex < rhs.sourceIndex
-        }
-        let resolvedTotalRowCount = max(
-            snapshot.totalRowCount,
-            totalRowCount,
-            nextRows.count,
-            (references.last?.sourceIndex ?? -1) + 1
-        )
         let update: TableSandboxRowsUpdate
-        if let lowerChangedIndex, let upperChangedIndex {
-            update = .append(lowerChangedIndex..<upperChangedIndex)
+        if oldRowCount == startIndex, nextRows.count > oldRowCount {
+            update = .append(oldRowCount..<nextRows.count)
+        } else if lowerChangedIndex != nil {
+            update = .reload
         } else {
             update = .none
         }
 
         snapshot = TableSandboxRowsSnapshot(
             rows: nextRows,
-            rowsBySourceIndex: nextRowsBySourceIndex,
             searchResultsByEntryID: nextSearchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
-            references: references,
-            totalRowCount: resolvedTotalRowCount
+            totalRowCount: nextRows.count
         )
     }
 
@@ -180,10 +146,8 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         apply(
             rows,
-            rowsBySourceIndex: [:],
             searchResultsByEntryID: [:],
             shiorisByEntryID: shiorisByEntryID,
-            references: [],
             totalRowCount: shioris.count,
             prefixUnchanged: prefixUnchanged
         )
@@ -195,31 +159,19 @@ final class TableSandboxRowModelStore: ObservableObject {
         totalRowCount: Int,
         tableName _: String
     ) {
+        _ = totalRowCount
         guard startIndex >= 0 else { return }
+        guard startIndex <= snapshot.rows.count else { return }
 
         if shioris.isEmpty {
-            guard totalRowCount == 0 || snapshot.totalRowCount != totalRowCount || !snapshot.rowsBySourceIndex.isEmpty else {
-                return
-            }
-            snapshot = TableSandboxRowsSnapshot(
-                rows: [],
-                rowsBySourceIndex: [:],
-                searchResultsByEntryID: [:],
-                shiorisByEntryID: [:],
-                version: snapshot.version + 1,
-                update: .reload,
-                references: [],
-                totalRowCount: max(0, totalRowCount)
-            )
+            guard totalRowCount == 0 else { return }
+            updateShioriRows([], tableName: "shiori")
             return
         }
 
         var nextRows = snapshot.rows
-        var nextRowsBySourceIndex = snapshot.rowsBySourceIndex
         var nextShiorisByEntryID = snapshot.shiorisByEntryID
-        var referencesBySourceIndex = Dictionary(uniqueKeysWithValues: snapshot.references.map { reference in
-            (reference.sourceIndex, reference)
-        })
+        let oldRowCount = nextRows.count
         var lowerChangedIndex: Int?
         var upperChangedIndex: Int?
         var actionCacheChanged = false
@@ -233,17 +185,10 @@ final class TableSandboxRowModelStore: ObservableObject {
                     upperChangedIndex = max(upperChangedIndex ?? sourceIndex + 1, sourceIndex + 1)
                 }
                 nextRows[sourceIndex] = row
-                nextRowsBySourceIndex.removeValue(forKey: sourceIndex)
-                referencesBySourceIndex.removeValue(forKey: sourceIndex)
-            } else if nextRowsBySourceIndex[sourceIndex] != row {
+            } else {
                 lowerChangedIndex = min(lowerChangedIndex ?? sourceIndex, sourceIndex)
                 upperChangedIndex = max(upperChangedIndex ?? sourceIndex + 1, sourceIndex + 1)
-                nextRowsBySourceIndex[sourceIndex] = row
-                referencesBySourceIndex[sourceIndex] = TableSandboxRowReference(
-                    source: .shiori,
-                    sourceIndex: sourceIndex,
-                    id: Int(item.shiori.id)
-                )
+                nextRows.append(row)
             }
             if nextShiorisByEntryID[Int(item.shiori.id)] != item.shiori {
                 actionCacheChanged = true
@@ -253,41 +198,34 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         guard lowerChangedIndex != nil || actionCacheChanged else { return }
 
-        let references = referencesBySourceIndex.values.sorted { lhs, rhs in
-            lhs.sourceIndex < rhs.sourceIndex
-        }
-        let resolvedTotalRowCount = max(totalRowCount, nextRows.count, (references.last?.sourceIndex ?? -1) + 1)
         let update: TableSandboxRowsUpdate
-        if let lowerChangedIndex, let upperChangedIndex {
-            update = .append(lowerChangedIndex..<upperChangedIndex)
+        if oldRowCount == startIndex, nextRows.count > oldRowCount {
+            update = .append(oldRowCount..<nextRows.count)
+        } else if lowerChangedIndex != nil {
+            update = .reload
         } else {
             update = .none
         }
 
         snapshot = TableSandboxRowsSnapshot(
             rows: nextRows,
-            rowsBySourceIndex: nextRowsBySourceIndex,
             searchResultsByEntryID: [:],
             shiorisByEntryID: nextShiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
-            references: references,
-            totalRowCount: resolvedTotalRowCount
+            totalRowCount: nextRows.count
         )
     }
 
     private func apply(
         _ rows: [SubtitleTableRow],
-        rowsBySourceIndex: [Int: SubtitleTableRow],
         searchResultsByEntryID: [Int: SubtitleSearchResult],
         shiorisByEntryID: [Int: Shiori],
-        references: [TableSandboxRowReference],
         totalRowCount: Int,
         prefixUnchanged: Bool
     ) {
         let rowsUpdate = rowsUpdate(for: rows, prefixUnchanged: prefixUnchanged)
-        let metadataChanged = references != snapshot.references
-            || totalRowCount != snapshot.totalRowCount
+        let metadataChanged = totalRowCount != snapshot.totalRowCount
         let actionCacheChanged = searchResultsByEntryID != snapshot.searchResultsByEntryID
             || shiorisByEntryID != snapshot.shiorisByEntryID
         let update = rowsUpdate == .none && metadataChanged ? .reload : rowsUpdate
@@ -299,12 +237,10 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         snapshot = TableSandboxRowsSnapshot(
             rows: rows,
-            rowsBySourceIndex: rowsBySourceIndex,
             searchResultsByEntryID: searchResultsByEntryID,
             shiorisByEntryID: shiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
-            references: references,
             totalRowCount: totalRowCount
         )
     }

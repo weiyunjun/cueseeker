@@ -136,7 +136,7 @@ func tableSandboxRowModelStoreMarksAppendedSearchRows() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreTracksVirtualSearchTotalWithoutMaterializingUnloadedRows() {
+func tableSandboxRowModelStoreIgnoresVirtualSearchTotalForRenderedRows() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     let loadedResults = (0..<100).map { index in
@@ -154,17 +154,16 @@ func tableSandboxRowModelStoreTracksVirtualSearchTotalWithoutMaterializingUnload
         tableName: "test-search"
     )
 
-    #expect(store.snapshot.totalRowCount == 2_000_000)
+    #expect(store.snapshot.totalRowCount == 100)
     #expect(store.snapshot.loadedReferenceCount == 100)
     #expect(store.snapshot.rows.count == 100)
-    #expect(store.snapshot.references.isEmpty)
     #expect(store.snapshot.row(at: 0)?.cues == "loaded row 0")
     #expect(store.snapshot.row(at: 99)?.cues == "loaded row 99")
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreHydratesSparseVisibleSearchRows() {
+func tableSandboxRowModelStoreRejectsSparseVisibleSearchRows() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     let loadedResults = (0..<100).map { index in
@@ -191,18 +190,19 @@ func tableSandboxRowModelStoreHydratesSparseVisibleSearchRows() {
         tableName: "test-search"
     )
 
-    #expect(store.snapshot.totalRowCount == 2_000_000)
-    #expect(store.snapshot.loadedReferenceCount == 102)
+    #expect(store.snapshot.totalRowCount == 100)
+    #expect(store.snapshot.loadedReferenceCount == 100)
     #expect(store.snapshot.rows.count == 100)
     #expect(store.snapshot.row(at: 99)?.cues == "loaded row 99")
     #expect(store.snapshot.row(at: 100) == nil)
-    #expect(store.snapshot.row(at: 1_000_000)?.cues == "jumped row one")
-    #expect(store.snapshot.update == .append(1_000_000..<1_000_002))
+    #expect(store.snapshot.row(at: 1_000_000) == nil)
+    #expect(store.snapshot.searchResult(entryID: 1_000_001) == nil)
+    #expect(store.snapshot.update == .append(0..<100))
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreDoesNotShrinkAuthoritativeTotalDuringHydration() {
+func tableSandboxRowModelStoreAppendsContiguousSearchRowsWithRenderableTotal() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     let loadedResults = (0..<111).map { index in
@@ -228,13 +228,13 @@ func tableSandboxRowModelStoreDoesNotShrinkAuthoritativeTotalDuringHydration() {
         tableName: "test-search"
     )
 
-    #expect(store.snapshot.totalRowCount == 1_335)
+    #expect(store.snapshot.totalRowCount == 112)
     #expect(store.snapshot.row(at: 111)?.cues == "visible row")
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreCachesOnlyHydratedSearchResultsForActions() {
+func tableSandboxRowModelStoreCachesOnlyContiguouslyHydratedSearchResultsForActions() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
@@ -247,20 +247,20 @@ func tableSandboxRowModelStoreCachesOnlyHydratedSearchResultsForActions() {
     )
     store.hydrateSearchRows(
         [
-            searchResult(id: 301, path: path, content: "hydrated row", cueLines: ["hydrated row"]),
+            searchResult(id: 2, path: path, content: "hydrated row", cueLines: ["hydrated row"]),
         ],
-        startIndex: 300,
+        startIndex: 1,
         totalRowCount: 500,
         tableName: "test-search"
     )
 
     #expect(store.snapshot.searchResult(entryID: 1) == nil)
-    #expect(store.snapshot.searchResult(entryID: 301)?.content == "hydrated row")
+    #expect(store.snapshot.searchResult(entryID: 2)?.content == "hydrated row")
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreHydratesSparseShioriRowsForVirtualTableActions() {
+func tableSandboxRowModelStoreRejectsSparseShioriRowsForVirtualTableActions() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
 
     store.hydrateShioriRows(
@@ -273,21 +273,18 @@ func tableSandboxRowModelStoreHydratesSparseShioriRowsForVirtualTableActions() {
         tableName: "shiori"
     )
 
-    #expect(store.snapshot.totalRowCount == 1_000)
-    #expect(store.snapshot.loadedReferenceCount == 2)
+    #expect(store.snapshot.totalRowCount == 0)
+    #expect(store.snapshot.loadedReferenceCount == 0)
     #expect(store.snapshot.rows.isEmpty)
     #expect(store.snapshot.row(at: 299) == nil)
-    #expect(store.snapshot.row(at: 300)?.cues == "visible shiori one")
-    #expect(store.snapshot.row(at: 300)?.startTime == "00:01")
-    #expect(store.snapshot.row(at: 300)?.endTime == "00:02")
-    #expect(store.snapshot.row(at: 301)?.tags.map(\.label) == ["zh-hans"])
-    #expect(store.snapshot.shiori(entryID: 301)?.content == "visible shiori one")
-    #expect(store.snapshot.update == .append(300..<302))
+    #expect(store.snapshot.row(at: 300) == nil)
+    #expect(store.snapshot.shiori(entryID: 301) == nil)
+    #expect(store.snapshot.update == .none)
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreRetainsHydratedShioriRowsAcrossVisibleWindows() {
+func tableSandboxRowModelStoreAppendsContiguousShioriRows() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
 
     store.hydrateShioriRows(
@@ -302,28 +299,28 @@ func tableSandboxRowModelStoreRetainsHydratedShioriRowsAcrossVisibleWindows() {
     )
     store.hydrateShioriRows(
         [
-            shioriSource(id: 51, content: "visible one", languages: [.japanese]),
-            shioriSource(id: 52, content: "visible two", languages: [.japanese]),
+            shioriSource(id: 4, content: "visible one", languages: [.japanese]),
+            shioriSource(id: 5, content: "visible two", languages: [.japanese]),
         ],
-        startIndex: 50,
+        startIndex: 3,
         totalRowCount: 100,
         tableName: "shiori"
     )
 
-    #expect(store.snapshot.totalRowCount == 100)
+    #expect(store.snapshot.totalRowCount == 5)
     #expect(store.snapshot.loadedReferenceCount == 5)
     #expect(store.snapshot.row(at: 0)?.cues == "prefix one")
     #expect(store.snapshot.row(at: 1)?.cues == "prefix two")
     #expect(store.snapshot.row(at: 2)?.cues == "prefix three")
-    #expect(store.snapshot.row(at: 50)?.cues == "visible one")
-    #expect(store.snapshot.row(at: 51)?.cues == "visible two")
+    #expect(store.snapshot.row(at: 3)?.cues == "visible one")
+    #expect(store.snapshot.row(at: 4)?.cues == "visible two")
     #expect(store.snapshot.shiori(entryID: 1)?.content == "prefix one")
-    #expect(store.snapshot.shiori(entryID: 51)?.content == "visible one")
+    #expect(store.snapshot.shiori(entryID: 4)?.content == "visible one")
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreRetainsHydratedSearchRowsAcrossVisibleWindows() {
+func tableSandboxRowModelStoreRejectsNonContiguousSearchRows() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
@@ -349,14 +346,14 @@ func tableSandboxRowModelStoreRetainsHydratedSearchRowsAcrossVisibleWindows() {
         tableName: "test-search"
     )
 
-    #expect(store.snapshot.totalRowCount == 1_000)
-    #expect(store.snapshot.loadedReferenceCount == 6)
+    #expect(store.snapshot.totalRowCount == 4)
+    #expect(store.snapshot.loadedReferenceCount == 4)
     #expect(store.snapshot.row(at: 0)?.cues == "prefix row 0")
     #expect(store.snapshot.row(at: 1)?.cues == "prefix row 1")
     #expect(store.snapshot.row(at: 2)?.cues == "prefix row 2")
     #expect(store.snapshot.row(at: 3)?.cues == "prefix row 3")
-    #expect(store.snapshot.row(at: 500)?.cues == "visible one")
-    #expect(store.snapshot.row(at: 501)?.cues == "visible two")
+    #expect(store.snapshot.row(at: 500) == nil)
+    #expect(store.snapshot.searchResult(entryID: 501) == nil)
 }
 
 @MainActor
