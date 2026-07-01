@@ -345,9 +345,17 @@ func subtitleTableViewCueTextHitTestingUsesTextFragmentsOnly() {
         x: 898,
         y: fixture.coordinator.currentRowHeight / 2
     )
+    let rowActionFrame = fixture.coordinator.rowActionButtonDocumentFrameForTesting(row: row)
+    let rowActionPoint = CGPoint(
+        x: rowActionFrame?.midX ?? trailingPoint.x,
+        y: rowActionFrame?.midY ?? trailingPoint.y
+    )
 
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: textPoint) == true)
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: trailingPoint) == false)
+    #expect(rowActionFrame != nil)
+    #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: rowActionPoint) == false)
+    #expect(fixture.coordinator.rowActionButtonHitTestForTesting(row: row, point: rowActionPoint) == true)
 }
 
 @MainActor
@@ -367,8 +375,8 @@ func subtitleTableViewExpandsRedesignDocumentWidthForHorizontalScrolling() {
 
 @MainActor
 @Test
-func subtitleTableViewKeepsRowActionButtonFixedDuringHorizontalScroll() {
-    let fixture = makeAttachedVirtualTableCoordinator(width: 500)
+func subtitleTableViewMovesRowActionButtonWithCuesColumnDuringHorizontalScroll() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 900)
     let beforeScrollFrame = fixture.coordinator.rowActionButtonFrameForTesting(row: 0)
 
     fixture.scrollView.contentView.scroll(to: CGPoint(x: 120, y: 0))
@@ -379,19 +387,20 @@ func subtitleTableViewKeepsRowActionButtonFixedDuringHorizontalScroll() {
 
     #expect(beforeScrollFrame != nil)
     #expect(afterScrollFrame != nil)
-    #expect(beforeScrollFrame?.minX == afterScrollFrame?.minX)
+    if let beforeScrollFrame, let afterScrollFrame {
+        #expect(abs((beforeScrollFrame.minX - afterScrollFrame.minX) - 120) < 0.5)
+    }
 }
 
 @MainActor
 @Test
-func subtitleTableViewCreatesFixedRowActionsDuringContainerLayout() {
+func subtitleTableViewDoesNotCreateRowActionHostsDuringContainerLayout() {
     let fixture = makeAttachedVirtualTableCoordinator(width: 500)
-
-    #expect(fixture.coordinator.visibleRowActionHostCountForTesting() == 0)
+    let initialSubviewCount = fixture.container.subviews.count
 
     fixture.container.layout()
 
-    #expect(fixture.coordinator.visibleRowActionHostCountForTesting() > 0)
+    #expect(fixture.container.subviews.count == initialSubviewCount)
 }
 
 @MainActor
@@ -570,6 +579,9 @@ private func makeAttachedVirtualTableCoordinator(width: CGFloat) -> (
     let overlay = SubtitleTableScrollbarOverlayView(frame: scrollView.frame)
     let documentView = SubtitleVirtualTableDocumentView(frame: CGRect(x: 0, y: 0, width: width, height: 1))
 
+    container.addSubview(header)
+    container.addSubview(scrollView)
+    container.addSubview(overlay)
     documentView.coordinator = coordinator
     scrollView.documentView = documentView
     overlay.scrollView = scrollView
