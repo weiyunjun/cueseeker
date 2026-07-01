@@ -7,3 +7,4 @@ main
 
 # 优化方案
 1. Search和Shiori界面的Time列，在index时计算，而非在渲染时计算。
+2. 滚动时只绘制改变的部分。
