@@ -1752,7 +1752,7 @@ Rows: Table Row
 Selection: Row Selection Checkbox
 Text Cell: Interactive Text Cell
 Tags: Chip / Tag
-Row Actions: fixed trailing action column with Row Action Button / Row Action Menu
+Row Actions: Cues column trailing action area with Row Action Button / Row Action Menu
 Scrollbar: Table Scrollbar
 Empty State: Empty Hint
 
@@ -1777,6 +1777,11 @@ Time Column:
   Short Format: mm:ss - mm:ss when both start and end hour values are 00
   Sort: by cue start time
 
+Cues Column:
+  Contains: cue text and row action trigger
+  Row Action Placement: trailing area of the Cues cell
+  Row Action Behavior: follows the row during vertical scrolling and follows the Cues column during horizontal scrolling
+
 Search Empty Hint:
   Text: Enter a search term or add filters to show cues.
   Condition: no search term and no effective filter condition
@@ -1788,7 +1793,7 @@ Shiori Empty Hint:
 #### Interaction
 Header: sort / column menu
 Rows: hover / select
-Row Actions: always visible in each row; fixed at the trailing edge of the table region, left of the vertical scrollbar
+Row Actions: always visible in each row; placed inside the trailing area of the Cues column
 Text Cell: click cue text
 View Menu: Cues is checked + disabled; row actions cannot be hidden; other data columns can be hidden
 Search Row Action Menu: Copy Cue Text
