@@ -58,6 +58,33 @@ func tableSandboxRowModelStoreFormatsCueTimeColumns() {
 
     #expect(store.snapshot.rows[0].startTime == "15:18")
     #expect(store.snapshot.rows[0].endTime == "01:16:32")
+    #expect(store.snapshot.rows[0].timeRange == "00:15:18 - 01:16:32")
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreUsesPrecomputedSearchTimeRange() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 1,
+                path: path,
+                content: "short cue",
+                cueLines: ["short cue"],
+                timeRange: "01:02:03 - 01:02:04",
+                startMilliseconds: 918_000,
+                endMilliseconds: 4_592_000
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.rows[0].startTime == "15:18")
+    #expect(store.snapshot.rows[0].endTime == "01:16:32")
+    #expect(store.snapshot.rows[0].timeRange == "01:02:03 - 01:02:04")
 }
 
 @MainActor
@@ -562,6 +589,7 @@ private func searchResult(
     cueLines: [String],
     languages: Set<SubtitleLanguageCode> = [.unknown],
     speakers: Set<String> = [],
+    timeRange: String = "",
     startMilliseconds: Int = 1_000,
     endMilliseconds: Int = 2_000
 ) -> SubtitleSearchResult {
@@ -572,6 +600,7 @@ private func searchResult(
         videoPath: path.replacingOccurrences(of: ".ass", with: ".mkv"),
         videoName: "episode.mkv",
         displayTitle: displayTitle,
+        timeRange: timeRange,
         startMilliseconds: startMilliseconds,
         endMilliseconds: endMilliseconds,
         content: content,

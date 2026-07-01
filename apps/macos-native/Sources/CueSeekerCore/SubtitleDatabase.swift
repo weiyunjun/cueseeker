@@ -33,6 +33,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let videoPath: String
     public let videoName: String
     public let displayTitle: String
+    public let timeRange: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
     public let content: String
@@ -48,6 +49,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         videoPath: String,
         videoName: String,
         displayTitle: String = "",
+        timeRange: String = "",
         startMilliseconds: Int,
         endMilliseconds: Int,
         content: String,
@@ -62,6 +64,12 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         self.videoPath = videoPath
         self.videoName = videoName
         self.displayTitle = displayTitle
+        self.timeRange = timeRange.isEmpty
+            ? SubtitleCueTimeRangeDisplay.text(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds
+            )
+            : timeRange
         self.startMilliseconds = startMilliseconds
         self.endMilliseconds = endMilliseconds
         self.content = content
@@ -69,6 +77,38 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         self.languages = languages.isEmpty ? [.unknown] : languages
         self.speakers = speakers
         self.searchRank = searchRank
+    }
+}
+
+public enum SubtitleCueTimeRangeDisplay {
+    public static func text(startMilliseconds: Int, endMilliseconds: Int) -> String {
+        let start = TimeParts(milliseconds: startMilliseconds)
+        let end = TimeParts(milliseconds: max(startMilliseconds, endMilliseconds))
+        if start.hours == 0, end.hours == 0 {
+            return "\(start.shortText) - \(end.shortText)"
+        }
+        return "\(start.fullText) - \(end.fullText)"
+    }
+
+    private struct TimeParts {
+        let hours: Int
+        let minutes: Int
+        let seconds: Int
+
+        init(milliseconds: Int) {
+            let totalSeconds = max(0, milliseconds) / 1_000
+            hours = totalSeconds / 3_600
+            minutes = (totalSeconds % 3_600) / 60
+            seconds = totalSeconds % 60
+        }
+
+        var shortText: String {
+            String(format: "%02d:%02d", minutes, seconds)
+        }
+
+        var fullText: String {
+            String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        }
     }
 }
 
@@ -683,11 +723,43 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     public let subtitleFormat: SubtitleFormat
     public let videoPath: String
     public let videoName: String
+    public let timeRange: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
     public let content: String
     public let isValid: Bool
     public let createdAt: String
+
+    public init(
+        id: Int64,
+        subtitlePath: String,
+        subtitleFormat: SubtitleFormat,
+        videoPath: String,
+        videoName: String,
+        timeRange: String = "",
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        content: String,
+        isValid: Bool,
+        createdAt: String
+    ) {
+        self.id = id
+        self.subtitlePath = subtitlePath
+        self.subtitleFormat = subtitleFormat
+        self.videoPath = videoPath
+        self.videoName = videoName
+        self.timeRange = timeRange.isEmpty
+            ? SubtitleCueTimeRangeDisplay.text(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds
+            )
+            : timeRange
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+        self.content = content
+        self.isValid = isValid
+        self.createdAt = createdAt
+    }
 
     public var cueLines: [String] {
         content
@@ -1036,7 +1108,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 21
+    public static let currentSchemaVersion: Int = 22
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1148,6 +1220,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 end_time TEXT NOT NULL,
                 start_ms INTEGER NOT NULL,
                 end_ms INTEGER NOT NULL,
+                time_range TEXT NOT NULL DEFAULT '',
                 search_content TEXT NOT NULL,
                 line_count INTEGER NOT NULL DEFAULT 1,
                 FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
@@ -1540,7 +1613,62 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
+        if previousVersion < 22,
+           try !columnExists(table: "subtitle_cue_groups", column: "time_range") {
+            try database.execute(
+                """
+                ALTER TABLE subtitle_cue_groups
+                ADD COLUMN time_range TEXT NOT NULL DEFAULT '';
+                """
+            )
+            try backfillCueGroupTimeRanges()
+        }
+
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
+    }
+
+    private func backfillCueGroupTimeRanges() throws {
+        let selectStatement = try database.prepare(
+            """
+            SELECT id, start_ms, end_ms
+            FROM subtitle_cue_groups
+            WHERE time_range = '';
+            """
+        )
+        var updates: [(cueGroupID: Int64, timeRange: String)] = []
+        while try selectStatement.step() {
+            updates.append(
+                (
+                    cueGroupID: selectStatement.int64Column(0),
+                    timeRange: Self.cueTimeRange(
+                        startMilliseconds: selectStatement.intColumn(1),
+                        endMilliseconds: selectStatement.intColumn(2)
+                    )
+                )
+            )
+        }
+
+        let updateStatement = try database.prepare(
+            """
+            UPDATE subtitle_cue_groups
+            SET time_range = ?
+            WHERE id = ?;
+            """
+        )
+        for update in updates {
+            try updateStatement.bind(update.timeRange, at: 1)
+            try updateStatement.bind(update.cueGroupID, at: 2)
+            try updateStatement.run()
+            try updateStatement.reset()
+            try updateStatement.clearBindings()
+        }
+    }
+
+    private static func cueTimeRange(startMilliseconds: Int, endMilliseconds: Int) -> String {
+        SubtitleCueTimeRangeDisplay.text(
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
     }
 
     private func columnExists(table: String, column: String) throws -> Bool {
@@ -3056,7 +3184,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.start_ms, g.end_ms, g.search_content, g.line_count,
+                   g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
                    sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
                    (
                        SELECT GROUP_CONCAT(cgl.language_code)
@@ -3090,8 +3218,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var acceptedCount = 0
         while try statement.step() {
             let candidate = searchCandidate(from: statement)
-            let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(14))
-            let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(15))
+            let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(15))
+            let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(16))
             guard filterSet.isEffectivelyEmpty || filterSet.matches(
                 display: candidate.order.displayTitle,
                 cues: candidate.searchContent,
@@ -3109,6 +3237,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     videoPath: candidate.videoPath,
                     videoName: candidate.videoName,
                     displayTitle: candidate.order.displayTitle,
+                    timeRange: candidate.timeRange,
                     startMilliseconds: candidate.startMilliseconds,
                     endMilliseconds: candidate.endMilliseconds,
                     content: candidate.searchContent,
@@ -3130,6 +3259,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         videoPath: candidate.videoPath,
                         videoName: candidate.videoName,
                         displayTitle: candidate.order.displayTitle,
+                        timeRange: candidate.timeRange,
                         startMilliseconds: candidate.startMilliseconds,
                         endMilliseconds: candidate.endMilliseconds,
                         content: candidate.searchContent,
@@ -3260,7 +3390,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.start_ms, g.end_ms, g.search_content, g.line_count,
+                   g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
                    sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
                    (
                        SELECT GROUP_CONCAT(cgl.language_code)
@@ -3301,8 +3431,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var fileSummary: SubtitleSearchFileSummary?
         while try statement.step() {
             let candidate = searchCandidate(from: statement)
-            let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(14))
-            let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(15))
+            let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(15))
+            let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(16))
             if fileSummary == nil {
                 fileSummary = SubtitleSearchFileSummary(
                     subtitlePath: candidate.subtitlePath,
@@ -3322,6 +3452,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     videoPath: candidate.videoPath,
                     videoName: candidate.videoName,
                     displayTitle: candidate.order.displayTitle,
+                    timeRange: candidate.timeRange,
                     startMilliseconds: candidate.startMilliseconds,
                     endMilliseconds: candidate.endMilliseconds,
                     content: candidate.searchContent,
@@ -3368,13 +3499,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
             videoName: statement.stringColumn(5),
             startMilliseconds: statement.intColumn(6),
             endMilliseconds: statement.intColumn(7),
-            searchContent: statement.stringColumn(8),
-            lineCount: statement.intColumn(9),
+            timeRange: statement.stringColumn(8),
+            searchContent: statement.stringColumn(9),
+            lineCount: statement.intColumn(10),
             order: SearchResultOrder(
-                subtitleFileName: statement.stringColumn(10),
-                displayTitle: statement.stringColumn(11),
-                folderOrder: statement.intColumn(12),
-                fileOrder: statement.intColumn(13)
+                subtitleFileName: statement.stringColumn(11),
+                displayTitle: statement.stringColumn(12),
+                folderOrder: statement.intColumn(13),
+                fileOrder: statement.intColumn(14)
             )
         )
     }
@@ -3522,6 +3654,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 videoPath: candidate.videoPath,
                 videoName: candidate.videoName,
                 displayTitle: candidate.order.displayTitle,
+                timeRange: candidate.timeRange,
                 startMilliseconds: candidate.startMilliseconds,
                 endMilliseconds: candidate.endMilliseconds,
                 content: candidate.searchContent,
@@ -3699,7 +3832,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.start_ms, g.end_ms, g.search_content, g.line_count,
+                   g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
                    sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
             FROM subtitle_cue_groups_fts f
             JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
@@ -3762,13 +3895,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         videoName: statement.stringColumn(5),
                         startMilliseconds: statement.intColumn(6),
                         endMilliseconds: statement.intColumn(7),
-                        searchContent: statement.stringColumn(8),
-                        lineCount: statement.intColumn(9),
+                        timeRange: statement.stringColumn(8),
+                        searchContent: statement.stringColumn(9),
+                        lineCount: statement.intColumn(10),
                         order: SearchResultOrder(
-                            subtitleFileName: statement.stringColumn(10),
-                            displayTitle: statement.stringColumn(11),
-                            folderOrder: statement.intColumn(12),
-                            fileOrder: statement.intColumn(13)
+                            subtitleFileName: statement.stringColumn(11),
+                            displayTitle: statement.stringColumn(12),
+                            folderOrder: statement.intColumn(13),
+                            fileOrder: statement.intColumn(14)
                         )
                     )
                 )
@@ -4015,7 +4149,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let statement = try database.prepare(
                 """
                 SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.search_content, g.line_count,
+                       g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
                        sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
                 FROM subtitle_cue_groups_fts f
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
@@ -4073,13 +4207,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
                             videoName: statement.stringColumn(5),
                             startMilliseconds: statement.intColumn(6),
                             endMilliseconds: statement.intColumn(7),
-                            searchContent: statement.stringColumn(8),
-                            lineCount: statement.intColumn(9),
+                            timeRange: statement.stringColumn(8),
+                            searchContent: statement.stringColumn(9),
+                            lineCount: statement.intColumn(10),
                             order: SearchResultOrder(
-                                subtitleFileName: statement.stringColumn(10),
-                                displayTitle: statement.stringColumn(11),
-                                folderOrder: statement.intColumn(12),
-                                fileOrder: statement.intColumn(13)
+                                subtitleFileName: statement.stringColumn(11),
+                                displayTitle: statement.stringColumn(12),
+                                folderOrder: statement.intColumn(13),
+                                fileOrder: statement.intColumn(14)
                             )
                         )
                     )
@@ -5801,7 +5936,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         AND g.end_ms = s.end_ms
                        JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
                        WHERE sf.subtitle_path = s.subtitle_path
-                   ) AS language_values
+                   ) AS language_values,
+                   (
+                       SELECT g.time_range
+                       FROM subtitle_files sf
+                       JOIN subtitle_cue_groups g
+                         ON g.subtitle_file_id = sf.id
+                        AND g.start_ms = s.start_ms
+                        AND g.end_ms = s.end_ms
+                       WHERE sf.subtitle_path = s.subtitle_path
+                       ORDER BY g.id ASC
+                       LIMIT 1
+                   ) AS time_range
             FROM shioris s
             LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
             ORDER BY s.created_at DESC, s.id DESC
@@ -5816,7 +5962,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var candidates: [ShioriTableCandidate] = []
         while try statement.step() {
-            let shiori = shiori(from: statement)
+            let shiori = shiori(
+                from: statement,
+                timeRange: statement.nullableStringColumn(12)
+            )
             candidates.append(
                 ShioriTableCandidate(
                     shiori: shiori,
@@ -5922,6 +6071,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let videoName: String
         let startMilliseconds: Int
         let endMilliseconds: Int
+        let timeRange: String
         let searchContent: String
         let lineCount: Int
         let order: SearchResultOrder
@@ -6205,6 +6355,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 videoPath: candidate.videoPath,
                 videoName: candidate.videoName,
                 displayTitle: candidate.order.displayTitle,
+                timeRange: candidate.timeRange,
                 startMilliseconds: candidate.startMilliseconds,
                 endMilliseconds: candidate.endMilliseconds,
                 content: candidate.searchContent,
@@ -7104,10 +7255,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 end_time,
                 start_ms,
                 end_ms,
+                time_range,
                 search_content,
                 line_count
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
@@ -7122,8 +7274,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.bind(group.endTimecode, at: 5)
         try statement.bind(group.startMilliseconds, at: 6)
         try statement.bind(group.endMilliseconds, at: 7)
-        try statement.bind(group.searchContent, at: 8)
-        try statement.bind(max(1, group.cueLines.count), at: 9)
+        try statement.bind(
+            Self.cueTimeRange(
+                startMilliseconds: group.startMilliseconds,
+                endMilliseconds: group.endMilliseconds
+            ),
+            at: 8
+        )
+        try statement.bind(group.searchContent, at: 9)
+        try statement.bind(max(1, group.cueLines.count), at: 10)
         try statement.run()
 
         return database.lastInsertRowID()
@@ -7732,7 +7891,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.start_ms, g.end_ms, g.search_content, g.line_count,
+                   g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
                    sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
             FROM subtitle_cue_groups g
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
@@ -7760,13 +7919,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 videoName: statement.stringColumn(5),
                 startMilliseconds: statement.intColumn(6),
                 endMilliseconds: statement.intColumn(7),
-                searchContent: statement.stringColumn(8),
-                lineCount: statement.intColumn(9),
+                timeRange: statement.stringColumn(8),
+                searchContent: statement.stringColumn(9),
+                lineCount: statement.intColumn(10),
                 order: SearchResultOrder(
-                    subtitleFileName: statement.stringColumn(10),
-                    displayTitle: statement.stringColumn(11),
-                    folderOrder: statement.intColumn(12),
-                    fileOrder: statement.intColumn(13)
+                    subtitleFileName: statement.stringColumn(11),
+                    displayTitle: statement.stringColumn(12),
+                    folderOrder: statement.intColumn(13),
+                    fileOrder: statement.intColumn(14)
                 )
             )
         }
@@ -8117,13 +8277,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    private func shiori(from statement: SQLiteStatement) -> Shiori {
+    private func shiori(from statement: SQLiteStatement, timeRange: String? = nil) -> Shiori {
         Shiori(
             id: statement.int64Column(0),
             subtitlePath: statement.stringColumn(1),
             subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
             videoPath: statement.stringColumn(3),
             videoName: statement.stringColumn(4),
+            timeRange: timeRange ?? "",
             startMilliseconds: statement.intColumn(5),
             endMilliseconds: statement.intColumn(6),
             content: statement.stringColumn(7),

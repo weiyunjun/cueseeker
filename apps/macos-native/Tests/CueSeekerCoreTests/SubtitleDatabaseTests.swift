@@ -101,6 +101,7 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
 
     #expect(page.totalCount == 2)
     #expect(page.results.map(\.content) == ["first cue", "second cue"])
+    #expect(page.results.map(\.timeRange) == ["00:01 - 00:01", "00:02 - 00:02"])
     #expect(page.results[0].speakers == [])
     #expect(page.results[1].speakers == ["高松灯"])
 

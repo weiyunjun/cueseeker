@@ -310,6 +310,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             displayTitle: displayTitle,
             startTime: tableSandboxCueTimeText(milliseconds: result.startMilliseconds),
             endTime: tableSandboxCueTimeText(milliseconds: result.endMilliseconds),
+            timeRange: result.timeRange,
             cues: tableSandboxDisplayText(
                 content: result.content,
                 cueLines: result.cueLines
@@ -326,6 +327,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             displayTitle: item.displayTitle,
             startTime: tableSandboxCueTimeText(milliseconds: item.shiori.startMilliseconds),
             endTime: tableSandboxCueTimeText(milliseconds: item.shiori.endMilliseconds),
+            timeRange: item.shiori.timeRange,
             cues: tableSandboxDisplayText(
                 content: item.shiori.content,
                 cueLines: item.shiori.cueLines
@@ -362,6 +364,7 @@ func tableSandboxSearchRow(for result: SubtitleSearchResult) -> SubtitleTableRow
         displayTitle: displayTitle,
         startTime: tableSandboxCueTimeText(milliseconds: result.startMilliseconds),
         endTime: tableSandboxCueTimeText(milliseconds: result.endMilliseconds),
+        timeRange: result.timeRange,
         cues: tableSandboxDisplayText(
             content: result.content,
             cueLines: result.cueLines
@@ -378,6 +381,7 @@ func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTab
         displayTitle: item.displayTitle,
         startTime: tableSandboxCueTimeText(milliseconds: item.shiori.startMilliseconds),
         endTime: tableSandboxCueTimeText(milliseconds: item.shiori.endMilliseconds),
+        timeRange: item.shiori.timeRange,
         cues: tableSandboxDisplayText(
             content: item.shiori.content,
             cueLines: item.shiori.cueLines

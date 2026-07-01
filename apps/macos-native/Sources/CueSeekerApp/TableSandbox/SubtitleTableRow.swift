@@ -9,9 +9,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
     let displayTitle: String
     let startTime: String
     let endTime: String
-    var timeRange: String {
-        SubtitleTableTimeRange.text(startTime: startTime, endTime: endTime)
-    }
+    let timeRange: String
     /// Merged subtitle text for one timestamp. Bilingual entries keep one line
     /// per language, joined with "\n", so the cell wraps to multiple lines.
     let cues: String
@@ -24,6 +22,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
         displayTitle: String,
         startTime: String = "",
         endTime: String = "",
+        timeRange: String? = nil,
         cues: String,
         tags: [WorkbenchTag] = [],
         speakerTags: [WorkbenchTag] = []
@@ -33,6 +32,10 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.displayTitle = displayTitle
         self.startTime = startTime
         self.endTime = endTime
+        self.timeRange = timeRange ?? SubtitleTableTimeRange.text(
+            startTime: startTime,
+            endTime: endTime
+        )
         self.cues = cues
         self.tags = tags
         self.speakerTags = speakerTags
