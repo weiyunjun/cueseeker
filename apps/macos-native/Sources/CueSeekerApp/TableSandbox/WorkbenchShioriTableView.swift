@@ -58,6 +58,7 @@ private struct WorkbenchShioriTableContent: View {
                     timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time"),
                     cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
                     languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
+                    columnOrder: visibleColumns.map(\.id),
                     showsDateAddedColumn: isColumnVisible("dateAdded", in: visibleColumns),
                     showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
                     showsTimeColumn: isColumnVisible("time", in: visibleColumns),

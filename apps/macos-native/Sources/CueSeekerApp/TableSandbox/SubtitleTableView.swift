@@ -54,6 +54,15 @@ struct SubtitleTableColumnLayout {
     var languageRect: CGRect?
     var contentWidth: CGFloat
 
+    private static let defaultTextColumnOrder = [
+        "dateAdded",
+        "display",
+        "time",
+        "cues",
+        "speaker",
+        "language",
+    ]
+
     static func minimumContentWidth(
         showsDateAddedColumn: Bool = false,
         showsDisplayTitleColumn: Bool = true,
@@ -80,6 +89,7 @@ struct SubtitleTableColumnLayout {
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool,
         cuesMinimumWidth: CGFloat,
+        columnOrder: [String] = [],
         expandsToMinimumContentWidth: Bool = true
     ) -> SubtitleTableColumnLayout {
         let M = SubtitleTableMetrics.self
@@ -107,38 +117,43 @@ struct SubtitleTableColumnLayout {
         var x: CGFloat = 0
         let indexRect = CGRect(x: x, y: 0, width: M.indexColumnWidth, height: height)
         x += M.indexColumnWidth
-        let dateAddedRect: CGRect?
-        if showsDateAddedColumn {
-            dateAddedRect = CGRect(x: x, y: 0, width: M.dateAddedColumnWidth, height: height)
-            x += M.dateAddedColumnWidth
-        } else {
-            dateAddedRect = nil
-        }
-        let nameRect = CGRect(x: x, y: 0, width: displayTitleWidth, height: height)
-        x += displayTitleWidth
-        let timeRect: CGRect?
-        if showsTimeColumn {
-            timeRect = CGRect(x: x, y: 0, width: M.timeColumnWidth, height: height)
-            x += M.timeColumnWidth
-        } else {
-            timeRect = nil
-        }
-        let cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
-        x += cuesWidth
+        var dateAddedRect: CGRect?
+        var nameRect = CGRect(x: x, y: 0, width: 0, height: height)
+        var timeRect: CGRect?
+        var cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
+        var speakerRect: CGRect?
+        var languageRect: CGRect?
 
-        let speakerRect: CGRect?
-        if showsSpeakerColumn {
-            speakerRect = CGRect(x: x, y: 0, width: M.speakerColumnWidth, height: height)
-            x += M.speakerColumnWidth
-        } else {
-            speakerRect = nil
-        }
-
-        let languageRect: CGRect?
-        if showsLanguageColumn {
-            languageRect = CGRect(x: x, y: 0, width: M.languageColumnWidth, height: height)
-        } else {
-            languageRect = nil
+        for columnID in resolvedTextColumnOrder(
+            columnOrder,
+            showsDateAddedColumn: showsDateAddedColumn,
+            showsDisplayTitleColumn: showsDisplayTitleColumn,
+            showsTimeColumn: showsTimeColumn,
+            showsSpeakerColumn: showsSpeakerColumn,
+            showsLanguageColumn: showsLanguageColumn
+        ) {
+            switch columnID {
+            case "dateAdded":
+                dateAddedRect = CGRect(x: x, y: 0, width: M.dateAddedColumnWidth, height: height)
+                x += M.dateAddedColumnWidth
+            case "display":
+                nameRect = CGRect(x: x, y: 0, width: displayTitleWidth, height: height)
+                x += displayTitleWidth
+            case "time":
+                timeRect = CGRect(x: x, y: 0, width: M.timeColumnWidth, height: height)
+                x += M.timeColumnWidth
+            case "cues":
+                cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
+                x += cuesWidth
+            case "speaker":
+                speakerRect = CGRect(x: x, y: 0, width: M.speakerColumnWidth, height: height)
+                x += M.speakerColumnWidth
+            case "language":
+                languageRect = CGRect(x: x, y: 0, width: M.languageColumnWidth, height: height)
+                x += M.languageColumnWidth
+            default:
+                break
+            }
         }
 
         return SubtitleTableColumnLayout(
@@ -151,6 +166,55 @@ struct SubtitleTableColumnLayout {
             languageRect: languageRect,
             contentWidth: resolvedContentWidth
         )
+    }
+
+    static func resolvedTextColumnOrder(
+        _ columnOrder: [String],
+        showsDateAddedColumn: Bool = false,
+        showsDisplayTitleColumn: Bool = true,
+        showsTimeColumn: Bool = false,
+        showsSpeakerColumn: Bool,
+        showsLanguageColumn: Bool
+    ) -> [String] {
+        var result: [String] = []
+        for columnID in columnOrder + defaultTextColumnOrder
+        where !result.contains(columnID) && isTextColumnVisible(
+            columnID,
+            showsDateAddedColumn: showsDateAddedColumn,
+            showsDisplayTitleColumn: showsDisplayTitleColumn,
+            showsTimeColumn: showsTimeColumn,
+            showsSpeakerColumn: showsSpeakerColumn,
+            showsLanguageColumn: showsLanguageColumn
+        ) {
+            result.append(columnID)
+        }
+        return result
+    }
+
+    private static func isTextColumnVisible(
+        _ columnID: String,
+        showsDateAddedColumn: Bool,
+        showsDisplayTitleColumn: Bool,
+        showsTimeColumn: Bool,
+        showsSpeakerColumn: Bool,
+        showsLanguageColumn: Bool
+    ) -> Bool {
+        switch columnID {
+        case "dateAdded":
+            return showsDateAddedColumn
+        case "display":
+            return showsDisplayTitleColumn
+        case "time":
+            return showsTimeColumn
+        case "cues":
+            return true
+        case "speaker":
+            return showsSpeakerColumn
+        case "language":
+            return showsLanguageColumn
+        default:
+            return false
+        }
     }
 
     static func legacy(
@@ -1724,6 +1788,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var cuesHeader = "Cues"
     var speakerHeader = "Speaker"
     var languageHeader = "Language"
+    var columnOrder: [String] = []
     var showsDateAddedColumn = false
     var showsDisplayTitleColumn = true
     var showsTimeColumn = false
@@ -1754,6 +1819,7 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
+            columnOrder: columnOrder,
             showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsTimeColumn: showsTimeColumn,
@@ -1864,6 +1930,7 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
+            columnOrder: columnOrder,
             showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsTimeColumn: showsTimeColumn,
@@ -1897,6 +1964,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var cuesHeader: String
         private var speakerHeader: String
         private var languageHeader: String
+        private var columnOrder: [String]
         private var showsDateAddedColumn: Bool
         private var showsDisplayTitleColumn: Bool
         private var showsTimeColumn: Bool
@@ -2032,6 +2100,7 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
+            columnOrder: [String] = [],
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
             showsTimeColumn: Bool = false,
@@ -2059,6 +2128,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.cuesHeader = cuesHeader
             self.speakerHeader = speakerHeader
             self.languageHeader = languageHeader
+            self.columnOrder = columnOrder
             self.showsDateAddedColumn = showsDateAddedColumn
             self.showsDisplayTitleColumn = showsDisplayTitleColumn
             self.showsTimeColumn = showsTimeColumn
@@ -2138,6 +2208,7 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
+            columnOrder: [String] = [],
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
             showsTimeColumn: Bool = false,
@@ -2169,6 +2240,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.speakerHeader = speakerHeader
             let languageHeaderChanged = languageHeader != self.languageHeader
             self.languageHeader = languageHeader
+            let columnOrderChanged = columnOrder != self.columnOrder
+            self.columnOrder = columnOrder
             let dateAddedColumnChanged = showsDateAddedColumn != self.showsDateAddedColumn
             self.showsDateAddedColumn = showsDateAddedColumn
             let displayTitleColumnChanged = showsDisplayTitleColumn != self.showsDisplayTitleColumn
@@ -2208,7 +2281,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 rowProvider(row) != nil
             }
 
-            let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || timeColumnChanged || languageColumnChanged || speakerColumnChanged
+            let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || timeColumnChanged || languageColumnChanged || speakerColumnChanged || columnOrderChanged
             let headerTitleChanged = dateAddedChanged || displayTitleChanged || timeChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged
 
             resizeDocument()
@@ -2397,60 +2470,18 @@ struct SubtitleTableView: NSViewRepresentable {
         func cellFullText(row: Int, column: Int) -> String {
             if row == -1 {
                 var headers = ["#"]
-                if showsDateAddedColumn {
-                    headers.append(dateAddedHeader)
-                }
-                if showsDisplayTitleColumn {
-                    headers.append(displayTitleHeader)
-                }
-                if showsTimeColumn {
-                    headers.append(timeHeader)
-                }
-                headers.append(cuesHeader)
-                if showsSpeakerColumn {
-                    headers.append(speakerHeader)
-                }
-                if showsLanguageColumn {
-                    headers.append(languageHeader)
+                for columnID in visibleTextColumnOrder() {
+                    headers.append(headerTitle(for: columnID))
                 }
                 return headers.indices.contains(column) ? headers[column] : ""
             }
             guard row >= 0, row < rowCount else { return "" }
             guard column != 0 else { return "\(row + 1)" }
             guard let model = rowProvider(row) else { return "" }
-            var nextColumn = 1
-            if showsDateAddedColumn {
-                if column == nextColumn {
-                    return model.dateAdded
-                }
-                nextColumn += 1
-            }
-            if showsDisplayTitleColumn {
-                if column == nextColumn {
-                    return model.displayTitle
-                }
-                nextColumn += 1
-            }
-            if showsTimeColumn {
-                if column == nextColumn {
-                    return model.timeRange
-                }
-                nextColumn += 1
-            }
-            if column == nextColumn {
-                return model.cues
-            }
-            nextColumn += 1
-            if showsSpeakerColumn {
-                if column == nextColumn {
-                    return model.speakerTags.map(\.label).joined(separator: ", ")
-                }
-                nextColumn += 1
-            }
-            if showsLanguageColumn, column == nextColumn {
-                return model.tags.map(\.label).joined(separator: ", ")
-            }
-            return ""
+            let textColumns = visibleTextColumnOrder()
+            let textColumnIndex = column - 1
+            guard textColumns.indices.contains(textColumnIndex) else { return "" }
+            return text(for: textColumns[textColumnIndex], model: model)
         }
 
         func resizeDocument() {
@@ -2570,8 +2601,58 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsTimeColumn: showsTimeColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
                 showsLanguageColumn: showsLanguageColumn,
-                cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
+                cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
+                columnOrder: columnOrder
             )
+        }
+
+        private func visibleTextColumnOrder() -> [String] {
+            SubtitleTableColumnLayout.resolvedTextColumnOrder(
+                columnOrder,
+                showsDateAddedColumn: showsDateAddedColumn,
+                showsDisplayTitleColumn: showsDisplayTitleColumn,
+                showsTimeColumn: showsTimeColumn,
+                showsSpeakerColumn: showsSpeakerColumn,
+                showsLanguageColumn: showsLanguageColumn
+            )
+        }
+
+        private func headerTitle(for columnID: String) -> String {
+            switch columnID {
+            case "dateAdded":
+                return dateAddedHeader
+            case "display":
+                return displayTitleHeader
+            case "time":
+                return timeHeader
+            case "cues":
+                return cuesHeader
+            case "speaker":
+                return speakerHeader
+            case "language":
+                return languageHeader
+            default:
+                return ""
+            }
+        }
+
+        private func text(for columnID: String, model: SubtitleTableRow) -> String {
+            switch columnID {
+            case "dateAdded":
+                return model.dateAdded
+            case "display":
+                return model.displayTitle
+            case "time":
+                return model.timeRange
+            case "cues":
+                return model.cues
+            case "speaker":
+                return model.speakerTags.map(\.label).joined(separator: ", ")
+            case "language":
+                return model.tags.map(\.label).joined(separator: ", ")
+            default:
+                return ""
+            }
         }
 
         private func refreshHeaderForHorizontalScrollIfNeeded(force: Bool = false) {

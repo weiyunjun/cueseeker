@@ -217,16 +217,16 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(300)
         ),
         WorkbenchTableColumn(
-            id: "time",
-            title: "Time",
-            kind: .text,
-            width: .fixed(190)
-        ),
-        WorkbenchTableColumn(
             id: "cues",
             title: "Cues",
             kind: .text,
             width: .flexible(min: 580)
+        ),
+        WorkbenchTableColumn(
+            id: "time",
+            title: "Time",
+            kind: .text,
+            width: .fixed(190)
         ),
     ]
 
@@ -238,16 +238,16 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(84)
         ),
         WorkbenchTableColumn(
-            id: "dateAdded",
-            title: "Date Added",
-            kind: .text,
-            width: .fixed(190)
-        ),
-        WorkbenchTableColumn(
             id: "display",
             title: "Display Title",
             kind: .text,
             width: .fixed(300)
+        ),
+        WorkbenchTableColumn(
+            id: "cues",
+            title: "Cues",
+            kind: .text,
+            width: .flexible(min: 580)
         ),
         WorkbenchTableColumn(
             id: "time",
@@ -256,10 +256,10 @@ enum SchemaWorkbenchSearchDefaults {
             width: .fixed(190)
         ),
         WorkbenchTableColumn(
-            id: "cues",
-            title: "Cues",
+            id: "dateAdded",
+            title: "Date Added",
             kind: .text,
-            width: .flexible(min: 580)
+            width: .fixed(190)
         ),
     ]
 

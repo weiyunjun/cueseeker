@@ -96,6 +96,43 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
 
 @MainActor
 @Test
+func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
+    let loadedRow = SubtitleTableRow(
+        id: 1,
+        dateAdded: "26-07-02 14:30",
+        displayTitle: "Episode 01",
+        startTime: "15:18",
+        endTime: "15:20",
+        cues: "loaded cue"
+    )
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "shiori",
+        rowCount: 1,
+        rowProvider: { _ in loadedRow },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        columnOrder: ["display", "cues", "time", "dateAdded"],
+        showsDateAddedColumn: true,
+        showsTimeColumn: true,
+        showsLanguageColumn: false,
+        showsSpeakerColumn: false,
+        onVisibleRowsChange: { _ in },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "Time")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "Date Added")
+    #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "15:18 - 15:20")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "26-07-02 14:30")
+}
+
+@MainActor
+@Test
 func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "test-search",

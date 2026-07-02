@@ -79,6 +79,7 @@ struct WorkbenchTestSearchView: View {
                     cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
                     speakerHeader: columnTitle("speaker", in: visibleColumns, fallback: "Speaker"),
                     languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
+                    columnOrder: visibleColumns.map(\.id),
                     showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
                     showsTimeColumn: isColumnVisible("time", in: visibleColumns),
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
