@@ -2,7 +2,9 @@
 main
 
 # 需求描述
-调整Search界面和Shiori界面的表格界面。详见# UI文档改动。
+1. 调整Search界面和Shiori界面的表格界面。详见# UI文档改动。
+2. Search列的顺序调整：Display Title，Cues，Time。要同步调整View的弹出菜单中的顺序。
+3. Shiori列的顺序调整：Display Title，Cues，Time，Date Added。要同步调整View的弹出菜单中的顺序。
 
 # UI文档改动
 
