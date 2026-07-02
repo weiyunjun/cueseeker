@@ -10,7 +10,8 @@
 Adjust the Search and Shiori table typography hierarchy so `Cues` reads as the
 primary row content while display titles, dates, times, and headers step back
 as context or metadata. Follow-up requirement updates also align Search and
-Shiori table column order with the View menu order.
+Shiori table column order with the View menu order and refine the text hierarchy
+with a secondary text token.
 
 ## Classification
 
@@ -27,9 +28,12 @@ Shiori table column order with the View menu order.
 - Added the redesign table-header font-size token used by table headers.
 - Added table text roles for primary content, secondary context, and metadata.
 - Rendered `Cues` as primary text, `Display Title` as secondary context, and
-  `Date Added` / `Time` as muted metadata with monospaced digits.
-- Updated sortable table headers to use the smaller medium muted header style.
+  `Date Added` / `Time` as secondary metadata with monospaced digits.
+- Updated sortable table headers to use the medium primary header style.
 - Added a focused typography test for redesign table text roles.
+- Added `textSecondary` redesign tokens for secondary and metadata table text.
+- Restored table header font size to match body table text while keeping medium
+  weight.
 - Updated Search defaults to order text columns as `Display Title`, `Cues`,
   `Time`.
 - Updated Shiori defaults to order text columns as `Display Title`, `Cues`,
@@ -51,7 +55,8 @@ Shiori table column order with the View menu order.
 ## Outcome
 
 Search and Shiori table rows now present `Cues` as the visual focal point,
-while display titles, dates, times, and headers use quieter visual treatment.
+while display titles, dates, and times use secondary text treatment and headers
+use primary medium treatment.
 Search text columns render as `Display Title`, `Cues`, `Time`, while Shiori
 text columns render as `Display Title`, `Cues`, `Time`, `Date Added`. The
 implementation keeps column visibility, selection, sorting, row actions, and

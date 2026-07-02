@@ -368,7 +368,7 @@ enum SubtitleTableText {
     static func header(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
             .font: isRedesign ? redesignHeaderFont : headerFont,
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textMuted : NSColor.labelColor,
+            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textPrimary : NSColor.labelColor,
         ])
     }
 
@@ -406,7 +406,7 @@ enum SubtitleTableText {
         case .primaryContent:
             return WorkbenchRedesignColors.NS.textPrimary
         case .secondaryContext, .metadata:
-            return WorkbenchRedesignColors.NS.textMuted
+            return WorkbenchRedesignColors.NS.textSecondary
         }
     }
 
@@ -3801,7 +3801,7 @@ struct SubtitleTableHeaderCellView: View {
         HStack(spacing: 0) {
             Text(title)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textMuted : WorkbenchRedesignColors.textDisabled)
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
@@ -3810,7 +3810,7 @@ struct SubtitleTableHeaderCellView: View {
 
     private var textColor: Color {
         guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
-        return WorkbenchRedesignColors.textMuted
+        return WorkbenchRedesignColors.textPrimary
     }
 
     private var iconColor: Color {

@@ -65,8 +65,8 @@ enum WorkbenchControlMetrics {
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
     /// --font-size-table: 14px
     static let redesignFontSizeTable: CGFloat = 14
-    /// --font-size-table-header: 12px
-    static let redesignFontSizeTableHeader: CGFloat = 12
+    /// --font-size-table-header: 14px
+    static let redesignFontSizeTableHeader: CGFloat = 14
     /// --font-size-body: 14px
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
