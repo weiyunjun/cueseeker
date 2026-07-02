@@ -8,6 +8,9 @@
 --color-text-primary:
   Light: #0F172A
   Dark: #F4F4F5
+--color-text-secondary:
+  Light: #475569
+  Dark: #D4D4D8
 --color-text-muted:
   Light: #667085
   Dark: #A1A1AA
@@ -375,7 +378,7 @@
 --font-size-body: 14px
 --font-size-control: 16px
 --font-size-table: 14px
---font-size-table-header: 12px
+--font-size-table-header: 14px
 --font-size-caption: 12px
 --font-size-app-sidebar-item: 13px
 
@@ -980,14 +983,14 @@ Trigger Surface Bg: --color-bg-hover
 Divider Horizontal: --color-border-divider
 
 #### Content
-Header Text Color: --color-text-muted
+Header Text Color: --color-text-primary
 Header Font Size: --font-size-table-header
 Header Font Weight: 500
 Primary Text Color: --color-text-primary
 Primary Text Font Weight: 500
-Secondary Text Color: --color-text-muted
+Secondary Text Color: --color-text-secondary
 Secondary Text Font Weight: 400
-Metadata Text Color: --color-text-muted
+Metadata Text Color: --color-text-secondary
 Metadata Text Font Weight: 400
 Metadata Numeric Variant: tabular-nums
 Interactive Text Color: --color-text-primary
@@ -1017,7 +1020,7 @@ Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
 #### Content
 Text Size: --font-size-table-header
 Text Weight: 500
-Text Color Default: --color-text-muted
+Text Color Default: --color-text-primary
 Text Color Disabled: --color-text-disabled
 Icon Default: --color-icon-default
 Icon Disabled: --color-icon-disabled
@@ -1769,17 +1772,14 @@ Empty State: Empty Hint
 
 Search Columns:
   Display Title
-  Time
   Cues
-  Speaker
-  Language
+  Time
 
 Shiori Columns:
-  Date Added
   Display Title
-  Time
   Cues
-  Language
+  Time
+  Date Added
 
 Column Visual Priority:
   Cues:
@@ -1791,20 +1791,20 @@ Column Visual Priority:
   Display Title:
     Role: secondary context
     Applies To: Search / Shiori
-    Text Color: --color-text-muted
+    Text Color: --color-text-secondary
     Font Weight: 400
 
   Date Added:
     Role: metadata
     Applies To: Shiori
-    Text Color: --color-text-muted
+    Text Color: --color-text-secondary
     Font Weight: 400
     Numeric Variant: tabular-nums
 
   Time:
     Role: metadata
     Applies To: Search / Shiori
-    Text Color: --color-text-muted
+    Text Color: --color-text-secondary
     Font Weight: 400
     Numeric Variant: tabular-nums
 
