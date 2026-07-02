@@ -81,7 +81,7 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
         weight: .medium
     ).fontDescriptor)
 
-    #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textPrimary)
+    #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textPrimary)

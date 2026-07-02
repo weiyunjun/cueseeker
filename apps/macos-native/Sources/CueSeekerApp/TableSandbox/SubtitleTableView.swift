@@ -403,9 +403,7 @@ enum SubtitleTableText {
     private static func bodyColor(role: SubtitleTableTextRole, isRedesign: Bool) -> NSColor {
         guard isRedesign else { return NSColor.labelColor }
         switch role {
-        case .primaryContent:
-            return WorkbenchRedesignColors.NS.textPrimary
-        case .secondaryContext, .metadata:
+        case .primaryContent, .secondaryContext, .metadata:
             return WorkbenchRedesignColors.NS.textSecondary
         }
     }
@@ -2820,7 +2818,7 @@ struct SubtitleTableView: NSViewRepresentable {
             if underline {
                 textLayout.drawUnderline(
                     at: origin,
-                    color: WorkbenchRedesignColors.NS.textPrimary,
+                    color: WorkbenchRedesignColors.NS.textSecondary,
                     thickness: M.interactiveTextUnderlineThickness,
                     offset: M.interactiveTextUnderlineOffset,
                     backingScaleFactor: backingScaleFactor()

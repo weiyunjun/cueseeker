@@ -46,6 +46,8 @@ with a secondary text token.
   text to remove the blue cast from the table typography.
 - Tried medium weight for secondary and metadata table text to compare clarity
   against the primary Cues column.
+- Tried `textSecondary` for Cues body text and hover underline to compare a
+  lower-contrast table body against primary headers.
 
 ## Verification
 
