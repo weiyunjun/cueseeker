@@ -14,8 +14,8 @@ main
   Light: #0F172A
   Dark: #F4F4F5
 --color-text-secondary:
-  Light: #475569
-  Dark: #D4D4D8
+  Light: #404040
+  Dark: #D4D4D4
 --color-text-muted:
   Light: #667085
   Dark: #A1A1AA
@@ -50,12 +50,13 @@ main
 Header Text Color: --color-text-primary
 Header Font Size: --font-size-table-header
 Header Font Weight: 500
-Primary Text Color: --color-text-primary
+Primary Text Color: --color-text-secondary
 Primary Text Font Weight: 500
+Primary Text Hover Color: --color-text-primary
 Secondary Text Color: --color-text-secondary
-Secondary Text Font Weight: 400
+Secondary Text Font Weight: 500
 Metadata Text Color: --color-text-secondary
-Metadata Text Font Weight: 400
+Metadata Text Font Weight: 500
 Metadata Numeric Variant: tabular-nums
 Interactive Text Color: --color-text-primary
 Interactive Text Font Weight: 500
@@ -100,27 +101,28 @@ Column Visual Priority:
   Cues:
     Role: primary content
     Applies To: Search / Shiori
-    Text Color: --color-text-primary
+    Text Color: --color-text-secondary
+    Hover Text Color: --color-text-primary
     Font Weight: 500
 
   Display Title:
     Role: secondary context
     Applies To: Search / Shiori
     Text Color: --color-text-secondary
-    Font Weight: 400
+    Font Weight: 500
 
   Date Added:
     Role: metadata
     Applies To: Shiori
     Text Color: --color-text-secondary
-    Font Weight: 400
+    Font Weight: 500
     Numeric Variant: tabular-nums
 
   Time:
     Role: metadata
     Applies To: Search / Shiori
     Text Color: --color-text-secondary
-    Font Weight: 400
+    Font Weight: 500
     Numeric Variant: tabular-nums
 
 Time Column:
