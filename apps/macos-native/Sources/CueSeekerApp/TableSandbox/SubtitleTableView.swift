@@ -349,12 +349,13 @@ enum SubtitleTableText {
     static func body(
         _ text: String,
         role: SubtitleTableTextRole = .primaryContent,
-        isRedesign: Bool = false
+        isRedesign: Bool = false,
+        foregroundColor: NSColor? = nil
     ) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
             .font: bodyFont(role: role, isRedesign: isRedesign),
             .paragraphStyle: bodyParagraphStyle(),
-            .foregroundColor: bodyColor(role: role, isRedesign: isRedesign),
+            .foregroundColor: foregroundColor ?? bodyColor(role: role, isRedesign: isRedesign),
         ])
     }
 
@@ -2810,7 +2811,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 attributedString: SubtitleTableText.body(
                     text,
                     role: role,
-                    isRedesign: isRedesign
+                    isRedesign: isRedesign,
+                    foregroundColor: underline ? WorkbenchRedesignColors.NS.textPrimary : nil
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
@@ -2818,7 +2820,7 @@ struct SubtitleTableView: NSViewRepresentable {
             if underline {
                 textLayout.drawUnderline(
                     at: origin,
-                    color: WorkbenchRedesignColors.NS.textSecondary,
+                    color: WorkbenchRedesignColors.NS.textPrimary,
                     thickness: M.interactiveTextUnderlineThickness,
                     offset: M.interactiveTextUnderlineOffset,
                     backingScaleFactor: backingScaleFactor()

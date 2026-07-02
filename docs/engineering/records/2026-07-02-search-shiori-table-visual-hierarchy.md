@@ -48,6 +48,8 @@ with a secondary text token.
   against the primary Cues column.
 - Tried `textSecondary` for Cues body text and hover underline to compare a
   lower-contrast table body against primary headers.
+- Tried switching Cues body text and underline to `textPrimary` only while
+  hovering cue text.
 
 ## Verification
 

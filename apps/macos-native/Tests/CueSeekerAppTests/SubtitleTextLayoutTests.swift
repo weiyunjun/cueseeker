@@ -53,6 +53,12 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
         role: .primaryContent,
         isRedesign: true
     )
+    let hoveredPrimary = SubtitleTableText.body(
+        "cue",
+        role: .primaryContent,
+        isRedesign: true,
+        foregroundColor: WorkbenchRedesignColors.NS.textPrimary
+    )
     let secondary = SubtitleTableText.body(
         "title",
         role: .secondaryContext,
@@ -82,6 +88,7 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     ).fontDescriptor)
 
     #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textSecondary)
+    #expect(try attributedForeground(hoveredPrimary) === WorkbenchRedesignColors.NS.textPrimary)
     #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textPrimary)
