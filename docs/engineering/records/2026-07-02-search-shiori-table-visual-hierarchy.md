@@ -44,6 +44,8 @@ with a secondary text token.
   table text-column ordering.
 - Tried a neutral gray `textSecondary` value for secondary and metadata table
   text to remove the blue cast from the table typography.
+- Tried medium weight for secondary and metadata table text to compare clarity
+  against the primary Cues column.
 
 ## Verification
 

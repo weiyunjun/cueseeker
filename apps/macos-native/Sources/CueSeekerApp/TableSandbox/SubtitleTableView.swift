@@ -390,12 +390,12 @@ enum SubtitleTableText {
         case .secondaryContext:
             return NSFont.systemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-                weight: .regular
+                weight: .medium
             )
         case .metadata:
             return NSFont.monospacedDigitSystemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-                weight: .regular
+                weight: .medium
             )
         }
     }

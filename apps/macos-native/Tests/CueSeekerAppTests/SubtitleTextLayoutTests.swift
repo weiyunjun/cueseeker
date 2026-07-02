@@ -74,11 +74,11 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     #expect(secondaryFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTable)
     #expect(metadataFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTable)
     #expect(headerFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTableHeader)
-    #expect(fontWeight(primaryFont) > fontWeight(secondaryFont))
+    #expect(fontWeight(primaryFont) == fontWeight(secondaryFont))
     #expect(fontWeight(secondaryFont) == fontWeight(metadataFont))
     #expect(metadataFont.fontDescriptor == NSFont.monospacedDigitSystemFont(
         ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-        weight: .regular
+        weight: .medium
     ).fontDescriptor)
 
     #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textPrimary)
