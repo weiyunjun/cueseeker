@@ -375,6 +375,7 @@
 --font-size-body: 14px
 --font-size-control: 16px
 --font-size-table: 14px
+--font-size-table-header: 12px
 --font-size-caption: 12px
 --font-size-app-sidebar-item: 13px
 
@@ -979,10 +980,18 @@ Trigger Surface Bg: --color-bg-hover
 Divider Horizontal: --color-border-divider
 
 #### Content
-Header Text Color: --color-text-primary
+Header Text Color: --color-text-muted
+Header Font Size: --font-size-table-header
+Header Font Weight: 500
 Primary Text Color: --color-text-primary
+Primary Text Font Weight: 500
 Secondary Text Color: --color-text-muted
+Secondary Text Font Weight: 400
+Metadata Text Color: --color-text-muted
+Metadata Text Font Weight: 400
+Metadata Numeric Variant: tabular-nums
 Interactive Text Color: --color-text-primary
+Interactive Text Font Weight: 500
 Columns: defined by each table layout
 Tags: Chip / Tag
 
@@ -1006,7 +1015,9 @@ Row Bg Hover: --color-row-hover
 Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
 
 #### Content
-Text Color Default: --color-text-primary
+Text Size: --font-size-table-header
+Text Weight: 500
+Text Color Default: --color-text-muted
 Text Color Disabled: --color-text-disabled
 Icon Default: --color-icon-default
 Icon Disabled: --color-icon-disabled
@@ -1769,6 +1780,33 @@ Shiori Columns:
   Time
   Cues
   Language
+
+Column Visual Priority:
+  Cues:
+    Role: primary content
+    Applies To: Search / Shiori
+    Text Color: --color-text-primary
+    Font Weight: 500
+
+  Display Title:
+    Role: secondary context
+    Applies To: Search / Shiori
+    Text Color: --color-text-muted
+    Font Weight: 400
+
+  Date Added:
+    Role: metadata
+    Applies To: Shiori
+    Text Color: --color-text-muted
+    Font Weight: 400
+    Numeric Variant: tabular-nums
+
+  Time:
+    Role: metadata
+    Applies To: Search / Shiori
+    Text Color: --color-text-muted
+    Font Weight: 400
+    Numeric Variant: tabular-nums
 
 Time Column:
   Label: Time
