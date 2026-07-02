@@ -42,6 +42,8 @@ with a secondary text token.
   body, header, and View menu share the same user-facing order.
 - Added focused tests for Search/Shiori View menu order and explicit subtitle
   table text-column ordering.
+- Tried a neutral gray `textSecondary` value for secondary and metadata table
+  text to remove the blue cast from the table typography.
 
 ## Verification
 

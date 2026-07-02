@@ -39,7 +39,7 @@ enum WorkbenchRedesignColors {
     enum NS {
         // Text
         static let textPrimary = NSColor.dynamic(lightHex: "#0F172A", darkHex: "#F4F4F5")
-        static let textSecondary = NSColor.dynamic(lightHex: "#475569", darkHex: "#D4D4D8")
+        static let textSecondary = NSColor.dynamic(lightHex: "#404040", darkHex: "#D4D4D4")
         static let textMuted = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
         static let textPlaceholder = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
         static let textDisabled = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
