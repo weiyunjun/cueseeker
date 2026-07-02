@@ -261,9 +261,15 @@ struct SubtitleTableTagStyle {
 
 // MARK: - Typography
 
+enum SubtitleTableTextRole {
+    case primaryContent
+    case secondaryContext
+    case metadata
+}
+
 @MainActor
 enum SubtitleTableText {
-    static let bodyFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
+    static let legacyBodyFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
     static let indexFont = NSFont.systemFont(ofSize: 12, weight: .regular)
     static let headerFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
     static let tagFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
@@ -276,11 +282,15 @@ enum SubtitleTableText {
         return style
     }
 
-    static func body(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
+    static func body(
+        _ text: String,
+        role: SubtitleTableTextRole = .primaryContent,
+        isRedesign: Bool = false
+    ) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
-            .font: bodyFont,
+            .font: bodyFont(role: role, isRedesign: isRedesign),
             .paragraphStyle: bodyParagraphStyle(),
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textPrimary : NSColor.labelColor,
+            .foregroundColor: bodyColor(role: role, isRedesign: isRedesign),
         ])
     }
 
@@ -293,9 +303,47 @@ enum SubtitleTableText {
 
     static func header(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
-            .font: headerFont,
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textPrimary : NSColor.labelColor,
+            .font: isRedesign ? redesignHeaderFont : headerFont,
+            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textMuted : NSColor.labelColor,
         ])
+    }
+
+    private static var redesignHeaderFont: NSFont {
+        NSFont.systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeTableHeader,
+            weight: .medium
+        )
+    }
+
+    private static func bodyFont(role: SubtitleTableTextRole, isRedesign: Bool) -> NSFont {
+        guard isRedesign else { return legacyBodyFont }
+        switch role {
+        case .primaryContent:
+            return NSFont.systemFont(
+                ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
+                weight: .medium
+            )
+        case .secondaryContext:
+            return NSFont.systemFont(
+                ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
+                weight: .regular
+            )
+        case .metadata:
+            return NSFont.monospacedDigitSystemFont(
+                ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
+                weight: .regular
+            )
+        }
+    }
+
+    private static func bodyColor(role: SubtitleTableTextRole, isRedesign: Bool) -> NSColor {
+        guard isRedesign else { return NSColor.labelColor }
+        switch role {
+        case .primaryContent:
+            return WorkbenchRedesignColors.NS.textPrimary
+        case .secondaryContext, .metadata:
+            return WorkbenchRedesignColors.NS.textMuted
+        }
     }
 
     static func tag(_ tag: WorkbenchTag, isRedesign: Bool = false, isEnabled: Bool = true) -> NSAttributedString {
@@ -2603,21 +2651,24 @@ struct SubtitleTableView: NSViewRepresentable {
                 drawBody(
                     model?.dateAdded ?? "",
                     in: rowColumnRect(dateAddedRect, rowRect: rowRect),
-                    trailing: M.trailingInset
+                    trailing: M.trailingInset,
+                    role: .metadata
                 )
             }
             if showsDisplayTitleColumn {
                 drawBody(
                     model?.displayTitle ?? "",
                     in: rowColumnRect(layout.nameRect, rowRect: rowRect),
-                    trailing: M.trailingInset
+                    trailing: M.trailingInset,
+                    role: .secondaryContext
                 )
             }
             if let timeRect = layout.timeRect {
                 drawBody(
                     model?.timeRange ?? "",
                     in: rowColumnRect(timeRect, rowRect: rowRect),
-                    trailing: M.trailingInset
+                    trailing: M.trailingInset,
+                    role: .metadata
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
@@ -2665,13 +2716,23 @@ struct SubtitleTableView: NSViewRepresentable {
             textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: yOffset))
         }
 
-        private func drawBody(_ text: String, in rect: CGRect, trailing: CGFloat, underline: Bool = false) {
+        private func drawBody(
+            _ text: String,
+            in rect: CGRect,
+            trailing: CGFloat,
+            role: SubtitleTableTextRole = .primaryContent,
+            underline: Bool = false
+        ) {
             let M = SubtitleTableMetrics.self
             guard !text.isEmpty else { return }
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath.clip(rect)
             textLayout.update(
-                attributedString: SubtitleTableText.body(text, isRedesign: isRedesign),
+                attributedString: SubtitleTableText.body(
+                    text,
+                    role: role,
+                    isRedesign: isRedesign
+                ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
             let origin = bodyTextOrigin(in: rect)
@@ -2932,7 +2993,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let M = SubtitleTableMetrics.self
             textLayout.update(
-                attributedString: SubtitleTableText.body(model.cues, isRedesign: isRedesign),
+                attributedString: SubtitleTableText.body(
+                    model.cues,
+                    role: .primaryContent,
+                    isRedesign: isRedesign
+                ),
                 width: max(0, cuesRect.width - M.cellLeading - cuesTextTrailingInset(forRowRect: rowRect))
             )
             return textLayout.containsText(at: point, origin: bodyTextOrigin(in: cuesRect))
@@ -3632,7 +3697,7 @@ struct SubtitleTableHeaderCellView: View {
     private var buttonContent: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             Text(title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .semibold))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
                 .foregroundStyle(textColor)
                 .lineLimit(1)
             
@@ -3654,8 +3719,8 @@ struct SubtitleTableHeaderCellView: View {
     private var staticContent: some View {
         HStack(spacing: 0) {
             Text(title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .semibold))
-                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textMuted : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
@@ -3664,14 +3729,11 @@ struct SubtitleTableHeaderCellView: View {
 
     private var textColor: Color {
         guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
-        return WorkbenchRedesignColors.textPrimary
+        return WorkbenchRedesignColors.textMuted
     }
 
     private var iconColor: Color {
         guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
-        if isHovered || isMenuOpen {
-            return WorkbenchRedesignColors.textPrimary
-        }
         return WorkbenchRedesignColors.iconDefault
     }
 
