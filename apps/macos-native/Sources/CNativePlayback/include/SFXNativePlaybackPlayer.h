@@ -4,6 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class SFXNativePlaybackPlayer;
+@class SFXMediaMetadata;
 
 typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
     SFXNativePlaybackDecodeModeHardware = 0,
@@ -77,6 +78,21 @@ startMilliseconds:(NSInteger)startMilliseconds
 + (nullable NSNumber *)durationSecondsAtMediaPath:(NSString *)mediaPath
                                            error:(NSError **)error
     NS_SWIFT_NAME(durationSeconds(atMediaPath:));
++ (nullable SFXMediaMetadata *)metadataAtMediaPath:(NSString *)mediaPath
+                                            error:(NSError **)error
+    NS_SWIFT_NAME(metadata(atMediaPath:));
+
+@end
+
+@interface SFXMediaMetadata : NSObject
+
+@property (nonatomic, strong, readonly, nullable) NSNumber *durationSeconds;
+@property (nonatomic, strong, readonly, nullable) NSNumber *videoWidth;
+@property (nonatomic, strong, readonly, nullable) NSNumber *videoHeight;
+@property (nonatomic, strong, readonly, nullable) NSNumber *frameRate;
+@property (nonatomic, copy, readonly, nullable) NSString *videoCodec;
+
+- (instancetype)init NS_UNAVAILABLE;
 
 @end
 

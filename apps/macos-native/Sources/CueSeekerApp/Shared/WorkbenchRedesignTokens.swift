@@ -78,6 +78,13 @@ enum WorkbenchRedesignColors {
         static let bgActive = NSColor.dynamic(lightHex: "#EBF5FF", darkHex: "#14275A")
         static let bgActiveHover = NSColor.dynamic(lightHex: "#E1EBFF", darkHex: "#1B3470")
         static let bgActiveClearHover = NSColor.dynamic(lightHex: "#D8E8FD", darkHex: "#243F7F")
+
+        // Primary Button
+        static let primaryButtonBg = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#0066FF")
+        static let primaryButtonBgHover = NSColor.dynamic(lightHex: "#0033CC", darkHex: "#3B82F6")
+        static let primaryButtonText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
+
+        // Focus
         static let borderFocus = NSColor.dynamic(lightHex: "#3B82F6", darkHex: "#60A5FA")
         static let focusRing = NSColor.dynamic(lightHex: "#3B82F6", lightAlpha: 0.22, darkHex: "#60A5FA", darkAlpha: 0.30)
 
@@ -167,6 +174,13 @@ enum WorkbenchRedesignColors {
     static let bgActive = Color(nsColor: NS.bgActive)
     static let bgActiveHover = Color(nsColor: NS.bgActiveHover)
     static let bgActiveClearHover = Color(nsColor: NS.bgActiveClearHover)
+
+    // Primary Button
+    static let primaryButtonBg = Color(nsColor: NS.primaryButtonBg)
+    static let primaryButtonBgHover = Color(nsColor: NS.primaryButtonBgHover)
+    static let primaryButtonText = Color(nsColor: NS.primaryButtonText)
+
+    // Focus
     static let borderFocus = Color(nsColor: NS.borderFocus)
     static let focusRing = Color(nsColor: NS.focusRing)
 

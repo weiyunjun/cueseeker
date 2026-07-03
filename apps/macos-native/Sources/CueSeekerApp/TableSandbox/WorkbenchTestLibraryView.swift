@@ -216,9 +216,16 @@ private enum WorkbenchTestLibraryMetrics {
     static let folderCardGap = WorkbenchControlMetrics.redesignSpacing2
     static let detailHeaderGap = WorkbenchControlMetrics.redesignSpacing2
     static let episodeGridTopPadding = WorkbenchControlMetrics.redesignSpacing2
-    static let episodeCardWidth = WorkbenchControlMetrics.redesignLibraryEpisodeCardWidth
-    static let episodeCardGap = WorkbenchControlMetrics.redesignSpacing2
-    static let episodeGridCardGap = WorkbenchControlMetrics.redesignLibraryEpisodeGridCardGap
+    static let episodeCardMinWidth = WorkbenchControlMetrics.redesignLibraryEpisodeCardMinWidth
+    static let episodeGridGap = WorkbenchControlMetrics.redesignLibraryEpisodeGridGap
+    static let episodeListItemGap = WorkbenchControlMetrics.redesignLibraryListItemGap
+    static let episodeListInfoVerticalGap = WorkbenchControlMetrics.redesignLibraryListInfoVerticalGap
+    static let episodeListCardRadius = WorkbenchControlMetrics.redesignLibraryListCardRadius
+    static let episodeListCardVerticalPadding = WorkbenchControlMetrics.redesignLibraryListCardVerticalPadding
+    static let episodeListCardHorizontalPadding = WorkbenchControlMetrics.redesignLibraryListCardHorizontalPadding
+    static let episodeListCoverWidth = WorkbenchControlMetrics.redesignLibraryListCoverWidth
+    static let episodeListCoverHeight = WorkbenchControlMetrics.redesignLibraryListCoverHeight
+    static let episodeListButtonHeight = WorkbenchControlMetrics.redesignLibraryListButtonHeight
 
     static let coverAspectRatio = WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
     static let coverRadius = WorkbenchControlMetrics.redesignLibraryCoverRadius
@@ -231,6 +238,9 @@ private enum WorkbenchTestLibraryMetrics {
     static let titleSize = WorkbenchControlMetrics.redesignFontSizeLibraryTitle
     static let metaSize = WorkbenchControlMetrics.redesignFontSizeLibraryMeta
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
+    static let episodeListTitleSize = WorkbenchControlMetrics.redesignFontSizeLibraryListTitle
+    static let episodeListSubtitleSize = WorkbenchControlMetrics.redesignFontSizeLibraryListSubtitle
+    static let episodeListMetaSize = WorkbenchControlMetrics.redesignFontSizeLibraryListMeta
 }
 
 struct LibrarySectionTitle: View {
@@ -299,7 +309,8 @@ private struct RecentWatchingCard: View {
                 LibraryCoverWithProgress(
                     coverPath: item.coverPath,
                     positionMilliseconds: item.positionMilliseconds,
-                    duration: item.playbackDuration ?? item.duration
+                    duration: item.playbackDuration ?? item.duration,
+                    watchState: item.watchState
                 )
 
                 Text(item.folderTitle)
@@ -526,10 +537,9 @@ private struct CompleteLibraryEpisodeGrid: View {
         [
             GridItem(
                 .adaptive(
-                    minimum: WorkbenchTestLibraryMetrics.episodeCardWidth,
-                    maximum: WorkbenchTestLibraryMetrics.episodeCardWidth
+                    minimum: WorkbenchTestLibraryMetrics.episodeCardMinWidth
                 ),
-                spacing: WorkbenchTestLibraryMetrics.episodeGridCardGap,
+                spacing: WorkbenchTestLibraryMetrics.episodeGridGap,
                 alignment: .topLeading
             )
         ]
@@ -542,7 +552,7 @@ private struct CompleteLibraryEpisodeGrid: View {
             LazyVGrid(
                 columns: columns,
                 alignment: .leading,
-                spacing: WorkbenchTestLibraryMetrics.episodeGridCardGap
+                spacing: WorkbenchTestLibraryMetrics.episodeGridGap
             ) {
                 ForEach(videos) { video in
                     LibraryEpisodeCard(video: video) {
@@ -559,7 +569,6 @@ private struct CompleteLibraryEpisodeGrid: View {
 private struct LibraryEpisodeCard: View {
     let video: CompleteLibraryVideoPresentation
     let onOpen: () -> Void
-    @State private var isHovered = false
     @State private var hasPushedCursor = false
 
     private var isAvailable: Bool {
@@ -573,53 +582,132 @@ private struct LibraryEpisodeCard: View {
             }
             onOpen()
         }) {
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeCardGap) {
+            HStack(alignment: .center, spacing: WorkbenchTestLibraryMetrics.episodeListItemGap) {
                 LibraryCoverWithProgress(
                     coverPath: video.coverPath,
                     positionMilliseconds: video.positionMilliseconds,
-                    duration: video.playbackDuration ?? video.duration
+                    duration: video.playbackDuration ?? video.duration,
+                    watchState: video.watchState
+                )
+                .frame(
+                    width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
+                    height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
                 )
 
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Text(episodeLabel)
-                        .font(.system(size: WorkbenchTestLibraryMetrics.metaSize, weight: .medium))
+                VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap) {
+                    HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                        Text(displayTitle)
+                            .font(.system(size: WorkbenchTestLibraryMetrics.episodeListTitleSize, weight: .semibold))
+                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .layoutPriority(1)
+
+                        WatchStatusBadge(status: LibraryWatchStatus(video.watchState))
+                            .fixedSize()
+                    }
+
+                    Text(subtitleFileName)
+                        .font(.system(size: WorkbenchTestLibraryMetrics.episodeListSubtitleSize))
+                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Text(metadataText)
+                        .font(.system(size: WorkbenchTestLibraryMetrics.episodeListMetaSize))
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .monospacedDigit()
-
-                    WatchStatusBadge(status: LibraryWatchStatus(video.watchState))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                LibraryPrimaryPlayLabel()
             }
-            .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
-            .frame(width: WorkbenchTestLibraryMetrics.episodeCardWidth, alignment: .topLeading)
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                    style: .continuous
-                )
-                .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
-            )
+            .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
+            .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.clear)
             .opacity(isAvailable ? 1 : 0.55)
             .contentShape(
                 RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                    cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius,
                     style: .continuous
                 )
             )
         }
-        .buttonStyle(LibraryMediaCardButtonStyle())
+        .buttonStyle(LibraryEpisodeListCardButtonStyle())
         .disabled(!isAvailable)
         .onHover { hovering in
-            isHovered = hovering
             updateCursor(isHovering: hovering)
         }
         .onDisappear {
             resetCursor()
         }
-        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .help(isAvailable ? "Play" : "Missing video file")
+        .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
     }
 
-    private var episodeLabel: String {
-        String(format: "EP%02d", video.episodeNumber)
+    private var displayTitle: String {
+        let trimmedDisplayTitle = video.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedDisplayTitle.isEmpty {
+            return trimmedDisplayTitle
+        }
+        return String(format: "EP%02d", video.episodeNumber)
+    }
+
+    private var subtitleFileName: String {
+        URL(fileURLWithPath: video.subtitlePath).lastPathComponent
+    }
+
+    private var metadataText: String {
+        let parts = [
+            video.fileSize.flatMap(Self.formatFileSize),
+            Self.formatResolution(width: video.videoWidth, height: video.videoHeight),
+            video.frameRate.flatMap(Self.formatFrameRate),
+            video.videoCodec.flatMap(Self.formatCodec)
+        ].compactMap { $0 }
+
+        if parts.isEmpty {
+            return "Metadata unavailable"
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private static func formatFileSize(_ fileSize: Int64) -> String? {
+        guard fileSize > 0 else {
+            return nil
+        }
+        return ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
+    }
+
+    private static func formatResolution(width: Int?, height: Int?) -> String? {
+        guard let width, let height, width > 0, height > 0 else {
+            return nil
+        }
+        return "\(width)x\(height)"
+    }
+
+    private static func formatFrameRate(_ frameRate: Double) -> String? {
+        guard frameRate.isFinite, frameRate > 0 else {
+            return nil
+        }
+
+        let rounded = (frameRate * 100).rounded() / 100
+        if rounded.rounded() == rounded {
+            return String(format: "%.0f fps", rounded)
+        }
+        let value = String(format: "%.2f", rounded)
+            .replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\.$", with: "", options: .regularExpression)
+        return "\(value) fps"
+    }
+
+    private static func formatCodec(_ codec: String) -> String? {
+        let trimmed = codec.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed.uppercased()
     }
 
     private func updateCursor(isHovering: Bool) {
@@ -647,6 +735,33 @@ private struct LibraryEpisodeCard: View {
     }
 }
 
+private struct LibraryPrimaryPlayLabel: View {
+    @State private var isHovered = false
+
+    var body: some View {
+        Text("Play")
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl))
+            .foregroundStyle(WorkbenchRedesignColors.primaryButtonText)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+            .frame(height: WorkbenchTestLibraryMetrics.episodeListButtonHeight)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    style: .continuous
+                )
+                .fill(isHovered ? WorkbenchRedesignColors.primaryButtonBgHover : WorkbenchRedesignColors.primaryButtonBg)
+            )
+            .onHover { isHovered = $0 }
+            .animation(.easeOut(duration: 0.12), value: isHovered)
+    }
+}
+
+private struct LibraryEpisodeListCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}
+
 private struct LibraryMediaCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -659,23 +774,35 @@ private struct LibraryCoverWithProgress: View {
     let coverPath: String?
     let positionMilliseconds: Int
     let duration: Double?
+    let watchState: LibraryWatchState
 
-    private var progress: Double? {
+    private var progressFraction: Double? {
         guard let duration, duration.isFinite, duration > 0 else {
             return nil
         }
-        let durationMilliseconds = duration * 1_000
-        guard durationMilliseconds > 0 else {
+
+        switch watchState {
+        case .unwatched:
             return nil
+        case .watching:
+            let durationMilliseconds = duration * 1_000
+            guard durationMilliseconds > 0 else {
+                return nil
+            }
+            let progress = min(1, max(0, Double(max(0, positionMilliseconds)) / durationMilliseconds))
+            return progress > 0 ? progress : nil
+        case .finished:
+            return 1
         }
-        return min(1, max(0, Double(max(0, positionMilliseconds)) / durationMilliseconds))
     }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             coverImage
 
-            progressTrack
+            if let progressFraction {
+                progressTrack(progressFraction: progressFraction)
+            }
 
             Text(timeBadgeText)
                 .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
@@ -712,7 +839,7 @@ private struct LibraryCoverWithProgress: View {
         }
     }
 
-    private var progressTrack: some View {
+    private func progressTrack(progressFraction: Double) -> some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 Rectangle()
@@ -720,7 +847,7 @@ private struct LibraryCoverWithProgress: View {
 
                 Rectangle()
                     .fill(WorkbenchRedesignColors.libraryProgressFill)
-                    .frame(width: proxy.size.width * (progress ?? 0))
+                    .frame(width: proxy.size.width * progressFraction)
             }
         }
         .frame(height: WorkbenchTestLibraryMetrics.progressBarHeight)
@@ -728,10 +855,13 @@ private struct LibraryCoverWithProgress: View {
     }
 
     private var timeBadgeText: String {
-        let current = Self.formatTime(milliseconds: positionMilliseconds)
         guard let duration, duration.isFinite, duration > 0 else {
+            let current = Self.formatTime(milliseconds: positionMilliseconds)
             return current
         }
+        let current = watchState == .finished
+            ? Self.formatTime(seconds: duration)
+            : Self.formatTime(milliseconds: positionMilliseconds)
         return "\(current)/\(Self.formatTime(seconds: duration))"
     }
 

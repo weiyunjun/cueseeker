@@ -84,6 +84,9 @@ Expected fields:
 - `file_size`
 - `modified_at`
 - `duration`
+- `video_width`
+- `video_height`
+- `frame_rate`
 - `video_codec`
 - `audio_codec`
 - `native_video_candidate`
@@ -384,7 +387,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `11`.
+- Schema version: `23`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -408,8 +411,13 @@ Current native schema:
   removed or rebuilt.
 - Version 11 adds a denormalized `line_count` column to `subtitle_cue_groups`
   so Search can skip the per-candidate `subtitle_cue_lines` lookup for
-  single-line groups. The column is derived index data: it is backfilled from
-  `subtitle_cue_lines` counts during migration and written by indexing.
+  groups with a single cue line (the common SRT case) and apply line-level
+  validation directly to the group's `search_content`. The column is derived
+  index data: it is backfilled from `subtitle_cue_lines` counts during
+  migration and written by indexing.
+- Version 23 adds video width, video height, and frame-rate metadata to
+  `video_files` so Library episode rows can render indexed video metadata
+  without opening media during view rendering.
 
 ## 15. Flutter Data Compatibility
 

@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `12`.
+- The current schema version is `23`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -139,6 +139,9 @@ Current mechanism:
   Search ordering data. It stores subtitle display order so Search can report
   and reuse materialized order diagnostics instead of treating display-title
   derivation as hidden hot-path work.
+- Schema version `23` adds video width, video height, and frame-rate metadata to
+  `video_files` so Library episode rows can render indexed video metadata
+  without opening media during view rendering.
 
 ## 5. Migration Rules
 

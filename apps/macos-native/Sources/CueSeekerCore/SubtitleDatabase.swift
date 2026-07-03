@@ -546,6 +546,11 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
 public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
+    public let fileSize: Int64?
+    public let videoCodec: String?
+    public let videoWidth: Int?
+    public let videoHeight: Int?
+    public let frameRate: Double?
     public let duration: Double?
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
@@ -1108,7 +1113,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 22
+    public static let currentSchemaVersion: Int = 23
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1191,6 +1196,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 file_size INTEGER,
                 modified_at REAL,
                 duration REAL,
+                video_width INTEGER,
+                video_height INTEGER,
+                frame_rate REAL,
                 video_codec TEXT,
                 audio_codec TEXT,
                 native_video_candidate INTEGER,
@@ -1622,6 +1630,33 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
             )
             try backfillCueGroupTimeRanges()
+        }
+
+        if previousVersion < 23 {
+            if try !columnExists(table: "video_files", column: "video_width") {
+                try database.execute(
+                    """
+                    ALTER TABLE video_files
+                    ADD COLUMN video_width INTEGER;
+                    """
+                )
+            }
+            if try !columnExists(table: "video_files", column: "video_height") {
+                try database.execute(
+                    """
+                    ALTER TABLE video_files
+                    ADD COLUMN video_height INTEGER;
+                    """
+                )
+            }
+            if try !columnExists(table: "video_files", column: "frame_rate") {
+                try database.execute(
+                    """
+                    ALTER TABLE video_files
+                    ADD COLUMN frame_rate REAL;
+                    """
+                )
+            }
         }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
@@ -5050,7 +5085,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
                    h.started_at, h.completed_at, h.updated_at, julianday(h.updated_at),
-                   vc.cover_path, fc.cover_path
+                   vc.cover_path, fc.cover_path, vf.file_size, vf.video_codec,
+                   vf.video_width, vf.video_height, vf.frame_rate
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
@@ -5143,6 +5179,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 CompleteLibraryVideoPresentation(
                     videoPath: statement.stringColumn(2),
                     videoName: statement.stringColumn(3),
+                    fileSize: statement.nullableInt64Column(18),
+                    videoCodec: statement.nullableStringColumn(19),
+                    videoWidth: statement.nullableIntColumn(20),
+                    videoHeight: statement.nullableIntColumn(21),
+                    frameRate: statement.nullableDoubleColumn(22),
                     duration: statement.nullableDoubleColumn(4),
                     subtitlePath: statement.stringColumn(5),
                     subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
@@ -5226,7 +5267,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
-                   h.started_at, h.completed_at, h.updated_at, vc.cover_path
+                   h.started_at, h.completed_at, h.updated_at, vc.cover_path,
+                   vf.file_size, vf.video_codec, vf.video_width, vf.video_height,
+                   vf.frame_rate
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
@@ -5252,6 +5295,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 CompleteLibraryVideoPresentation(
                     videoPath: statement.stringColumn(2),
                     videoName: statement.stringColumn(3),
+                    fileSize: statement.nullableInt64Column(16),
+                    videoCodec: statement.nullableStringColumn(17),
+                    videoWidth: statement.nullableIntColumn(18),
+                    videoHeight: statement.nullableIntColumn(19),
+                    frameRate: statement.nullableDoubleColumn(20),
                     duration: statement.nullableDoubleColumn(4),
                     subtitlePath: statement.stringColumn(5),
                     subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
@@ -5576,6 +5624,76 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try statement.bindNull(at: 1)
         }
         try statement.bind(videoFile.path, at: 2)
+        try statement.run()
+
+        let snapshotStatement = try database.prepare(
+            """
+            UPDATE library_video_rows
+            SET duration = ?
+            WHERE video_path = ?;
+            """
+        )
+        if let duration, duration.isFinite, duration >= 0 {
+            try snapshotStatement.bind(duration, at: 1)
+        } else {
+            try snapshotStatement.bindNull(at: 1)
+        }
+        try snapshotStatement.bind(videoFile.path, at: 2)
+        try snapshotStatement.run()
+    }
+
+    public func updateVideoMetadata(
+        videoFile: URL,
+        duration: Double?,
+        videoWidth: Int?,
+        videoHeight: Int?,
+        frameRate: Double?,
+        videoCodec: String?
+    ) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE video_files
+            SET duration = ?,
+                video_width = ?,
+                video_height = ?,
+                frame_rate = ?,
+                video_codec = ?
+            WHERE path = ?;
+            """
+        )
+
+        if let duration, duration.isFinite, duration >= 0 {
+            try statement.bind(duration, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+
+        if let videoWidth, videoWidth > 0 {
+            try statement.bind(videoWidth, at: 2)
+        } else {
+            try statement.bindNull(at: 2)
+        }
+
+        if let videoHeight, videoHeight > 0 {
+            try statement.bind(videoHeight, at: 3)
+        } else {
+            try statement.bindNull(at: 3)
+        }
+
+        if let frameRate, frameRate.isFinite, frameRate > 0 {
+            try statement.bind(frameRate, at: 4)
+        } else {
+            try statement.bindNull(at: 4)
+        }
+
+        let normalizedVideoCodec = videoCodec?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let normalizedVideoCodec, !normalizedVideoCodec.isEmpty {
+            try statement.bind(normalizedVideoCodec, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
+        }
+
+        try statement.bind(videoFile.path, at: 6)
         try statement.run()
 
         let snapshotStatement = try database.prepare(

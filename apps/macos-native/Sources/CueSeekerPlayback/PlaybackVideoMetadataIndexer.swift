@@ -18,11 +18,14 @@ public struct PlaybackVideoMetadataIndexer {
                 continue
             }
 
-            let durationNumber = try? SFXMediaMetadataInspector.durationSeconds(atMediaPath: video.videoPath)
-            let duration = durationNumber?.doubleValue
-            try database.updateVideoDuration(
+            let metadata = try? SFXMediaMetadataInspector.metadata(atMediaPath: video.videoPath)
+            try database.updateVideoMetadata(
                 videoFile: URL(fileURLWithPath: video.videoPath),
-                duration: duration
+                duration: metadata?.durationSeconds?.doubleValue,
+                videoWidth: metadata?.videoWidth?.intValue,
+                videoHeight: metadata?.videoHeight?.intValue,
+                frameRate: metadata?.frameRate?.doubleValue,
+                videoCodec: metadata?.videoCodec
             )
             updatedVideoPaths.insert(video.videoPath)
         }

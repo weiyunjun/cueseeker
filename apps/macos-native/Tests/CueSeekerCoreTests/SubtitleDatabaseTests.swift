@@ -2659,6 +2659,14 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
         )
         try database.updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
     }
+    try database.updateVideoMetadata(
+        videoFile: showA1,
+        duration: 1_000.0,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 23.976,
+        videoCodec: "hevc"
+    )
     try database.rebuildLibraryPresentationSnapshot()
 
     let eligibleVideos = try database.libraryCoverEligibleVideos(under: [root])
@@ -2693,6 +2701,10 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     #expect(detail.videos.map(\.videoPath) == [showA1.path, showA2.path])
     #expect(detail.videos.map(\.episodeNumber) == [1, 2])
     #expect(detail.videos.map(\.watchState) == [.unwatched, .watching])
+    #expect(detail.videos.first?.videoWidth == 1920)
+    #expect(detail.videos.first?.videoHeight == 1080)
+    #expect(detail.videos.first?.frameRate == 23.976)
+    #expect(detail.videos.first?.videoCodec == "hevc")
 }
 
 @Test
