@@ -3,7 +3,7 @@ main
 
 # 需求描述
 为了提升空间利用率并规范视频展示形式，重构 Library 二级界面的视频卡片为水平方向行卡片的弹性网格布局：
-1. 默认一排展示 2 个卡片。当容器可用宽度不足（如窗口缩小时）弹性自适应减少为一排 1 个卡片。
+1. 一排固定展示1个卡片。
 2. 卡片内部改为水平布局：左侧为封面图，中间为详细信息，右侧为 Play 按钮。
 3. 封面图大小增加 50%，保持 16:9 比例，保留进度条及右下角时间进度 Badge。
 4. 取消卡片整体悬停（Hover）底色淡入的视觉效果，背景保持透明。
@@ -11,7 +11,8 @@ main
    - 第一排：视频名称/集数，播放状态标签（unwatched/watching/finished）。
    - 第二排：字幕文件：{字幕文件名}。
    - 第三排：元数据以空格分隔，格式为：{视频大小} {视频分辨率} {视频帧率} {视频编码格式}。
-6. Play 按钮：采用纯文字设计（不带图标），底色采用 macOS 经典重点色（Active Blue），文本颜色为白色。
+6. 视频的元数据应该在index阶段处理完毕。如果某个元数据为未知就不显示。
+7. Play 按钮：采用纯文字设计（不带图标），底色采用macOS的accent color，文本颜色为白色。卡片的整个区域，只有点击Play按钮才会播放视频。
 
 
 # UI文档
@@ -127,11 +128,10 @@ main
 
 #### Primary Button
 --color-primary-button-bg:
-  Light: #0040FF
-  Dark: #0066FF
+  System: macOS accent color
+  Implementation: SwiftUI Color.accentColor / AppKit NSColor.controlAccentColor
 --color-primary-button-bg-hover:
-  Light: #0033CC
-  Dark: #3B82F6
+  System: macOS accent color with native hover emphasis
 --color-primary-button-text:
   Light: #FFFFFF
   Dark: #FFFFFF
@@ -436,7 +436,7 @@ main
 --height-library-progress-bar: 4px
 --width-library-recent-card-min: 180px
 --width-library-recent-card-max: 220px
---width-library-episode-card-min: 380px
+--width-library-episode-row-min: 380px
 --width-library-list-cover: 204px
 --height-library-list-cover: 115px
 --height-library-list-button: 30px
@@ -1733,14 +1733,14 @@ Disabled: not-allowed
 ### 3.3 Library Episode Grid and Card Layout
 
 #### Grid Structure
-Container: Library Folder Detail episode grid
-Columns: adaptive minimum --width-library-episode-card-min
+Container: Library Folder Detail episode list
+Columns: 1
+Row Width: 100% of available content width
+Minimum Row Width: --width-library-episode-row-min
 Gap: --gap-library-episode-grid
-Two Column Threshold: content width >= 776px
-Single Column Threshold: content width < 776px
 
 #### Card Structure
-Container: clickable media card
+Container: non-clickable episode row card
 Orientation: horizontal
 Align Items: center
 Gap: --gap-library-list-item
@@ -1769,7 +1769,8 @@ Info Region:
       Line Count: 1
     Watch Status: Watch Status Badge
   Second Row:
-    Subtitle File Name:
+    Subtitle File:
+      Format: 字幕文件：{subtitle file name}
       Font Size: --font-size-library-list-subtitle
       Text Color: --color-text-secondary
       Line Count: 1
@@ -1789,13 +1790,14 @@ Action Region:
 Default: transparent background
 Hover: no card background highlight and no card scale animation
 Pressed: no card scale animation
-Card Click: open video at saved playback position
+Card Click: none
 Play Button Click: open video at saved playback position
-Disabled / Missing File: reduce opacity and disable click
+Disabled / Missing File: reduce row opacity and disable Play button
 
 #### Cursor
-Default / Hover: pointer
-Disabled: not-allowed
+Episode Row: default
+Play Button Enabled: pointer
+Play Button Disabled: not-allowed
 
 ### 3.4 Library Folder Detail Header Layout
 

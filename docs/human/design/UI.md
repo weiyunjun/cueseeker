@@ -112,11 +112,10 @@
 
 #### Primary Button
 --color-primary-button-bg:
-  Light: #0040FF
-  Dark: #0066FF
+  System: macOS accent color
+  Implementation: SwiftUI Color.accentColor / AppKit NSColor.controlAccentColor
 --color-primary-button-bg-hover:
-  Light: #0033CC
-  Dark: #3B82F6
+  System: macOS accent color with native hover emphasis
 --color-primary-button-text:
   Light: #FFFFFF
   Dark: #FFFFFF
@@ -421,7 +420,7 @@
 --height-library-progress-bar: 4px
 --width-library-recent-card-min: 180px
 --width-library-recent-card-max: 220px
---width-library-episode-card-min: 380px
+--width-library-episode-row-min: 380px
 --width-library-list-cover: 204px
 --height-library-list-cover: 115px
 --height-library-list-button: 30px
@@ -1718,14 +1717,14 @@ Disabled: not-allowed
 ### 3.3 Library Episode Grid and Card Layout
 
 #### Grid Structure
-Container: Library Folder Detail episode grid
-Columns: adaptive minimum --width-library-episode-card-min
+Container: Library Folder Detail episode list
+Columns: 1
+Row Width: 100% of available content width
+Minimum Row Width: --width-library-episode-row-min
 Gap: --gap-library-episode-grid
-Two Column Threshold: content width >= 776px
-Single Column Threshold: content width < 776px
 
 #### Card Structure
-Container: clickable media card
+Container: non-clickable episode row card
 Orientation: horizontal
 Align Items: center
 Gap: --gap-library-list-item
@@ -1754,7 +1753,8 @@ Info Region:
       Line Count: 1
     Watch Status: Watch Status Badge
   Second Row:
-    Subtitle File Name:
+    Subtitle File:
+      Format: 字幕文件：{subtitle file name}
       Font Size: --font-size-library-list-subtitle
       Text Color: --color-text-secondary
       Line Count: 1
@@ -1774,13 +1774,14 @@ Action Region:
 Default: transparent background
 Hover: no card background highlight and no card scale animation
 Pressed: no card scale animation
-Card Click: open video at saved playback position
+Card Click: none
 Play Button Click: open video at saved playback position
-Disabled / Missing File: reduce opacity and disable click
+Disabled / Missing File: reduce row opacity and disable Play button
 
 #### Cursor
-Default / Hover: pointer
-Disabled: not-allowed
+Episode Row: default
+Play Button Enabled: pointer
+Play Button Disabled: not-allowed
 
 ### 3.4 Library Folder Detail Header Layout
 
