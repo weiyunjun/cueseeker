@@ -110,6 +110,17 @@
   Light: #D8E8FD
   Dark: #243F7F
 
+#### Primary Button
+--color-primary-button-bg:
+  Light: #0040FF
+  Dark: #0066FF
+--color-primary-button-bg-hover:
+  Light: #0033CC
+  Dark: #3B82F6
+--color-primary-button-text:
+  Light: #FFFFFF
+  Dark: #FFFFFF
+
 #### Focus
 --color-border-focus:
   Light: #3B82F6
@@ -410,19 +421,25 @@
 --height-library-progress-bar: 4px
 --width-library-recent-card-min: 180px
 --width-library-recent-card-max: 220px
---width-library-episode-card: 160px
+--width-library-episode-card-min: 380px
+--width-library-list-cover: 204px
+--height-library-list-cover: 115px
+--height-library-list-button: 30px
 --width-library-folder-cover: 120px
 --min-height-library-folder-card: 96px
 
 #### Library Radius
 --radius-library-cover: 8px
---radius-library-time-badge: 6px
+--radius-library-time-badge: 4px
 --radius-library-folder-card: 8px
 --radius-library-media-card-hover: 20px
+--radius-library-list-card: 16px
 
 #### Library Spacing
 --gap-library-recent-grid: 16px
---gap-library-episode-grid-card: 12px
+--gap-library-episode-grid: 16px
+--gap-library-list-item: 12px
+--gap-library-list-info-vertical: 8px
 --gap-library-folder-card-content: 12px
 
 #### Library Interaction
@@ -432,12 +449,16 @@
 --padding-library-folder-card: 12px 16px
 --padding-library-time-badge: 2px 6px
 --padding-library-media-card-hover: 12px
+--padding-library-list-card: 12px 16px
 
 #### Library Typography
 --font-size-section-title: 18px
 --font-size-library-title: 14px
 --font-size-library-meta: 12px
---font-size-library-time-badge: 12px
+--font-size-library-time-badge: 10px
+--font-size-library-list-title: 15px
+--font-size-library-list-subtitle: 13px
+--font-size-library-list-meta: 12px
 
 ## 2. Components
 
@@ -1227,10 +1248,10 @@ Progress Fill: --color-library-progress-fill
 Progress Fill Width: follows playback progress
 
 #### Status
-No Progress
-In Progress
-Finished
-Unknown Duration
+No Progress: hidden
+In Progress: visible, show progress fill
+Finished: visible, fill width 100%
+Unknown Duration: hidden
 
 #### Cursor
 Inherited from parent component
@@ -1283,7 +1304,36 @@ Disabled
 #### Cursor
 default
 
-### 2.29 Empty Hint
+### 2.29 Library Primary Play Button
+
+#### Container
+Height: --height-library-list-button
+Radius: --radius-control
+Padding X: --padding-control-x
+Background Default: --color-primary-button-bg
+Background Hover: --color-primary-button-bg-hover
+Border: none
+Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
+
+#### Content
+Text: Play
+Icon: none
+Font Family: --font-family-base
+Text Size: --font-size-control
+Text Weight: --font-weight-control
+Text Color: --color-primary-button-text
+
+#### Status
+Default
+Hover
+Pressed
+Disabled
+
+#### Cursor
+Enabled: pointer
+Disabled: not-allowed
+
+### 2.30 Empty Hint
 
 #### Container
 Display: flex
@@ -1303,7 +1353,7 @@ Default
 #### Cursor
 default
 
-### 2.30 App Sidebar Toggle Button
+### 2.31 App Sidebar Toggle Button
 
 #### Container
 Size: --size-icon-button
@@ -1328,7 +1378,7 @@ Disabled
 Default / Hover: pointer
 Disabled: not-allowed
 
-### 2.31 App Sidebar Navigation Item
+### 2.32 App Sidebar Navigation Item
 
 #### Container
 Height: --height-app-sidebar-item
@@ -1362,7 +1412,7 @@ Disabled
 Enabled: pointer
 Disabled: not-allowed
 
-### 2.32 App Sidebar Settings Item
+### 2.33 App Sidebar Settings Item
 
 #### Container
 Height: --height-app-sidebar-item
@@ -1392,7 +1442,7 @@ Disabled
 Enabled: pointer
 Disabled: not-allowed
 
-### 2.33 Player Circle Button
+### 2.34 Player Circle Button
 
 #### Container
 Size: --size-player-circle-button
@@ -1421,7 +1471,7 @@ Enabled: pointer
 Disabled: not-allowed
 Interaction Suppressed: default
 
-### 2.34 Player Capsule Button
+### 2.35 Player Capsule Button
 
 #### Container
 Height: --height-player-capsule-button
@@ -1450,7 +1500,7 @@ Enabled: pointer
 Disabled: not-allowed
 Interaction Suppressed: default
 
-### 2.35 Player Circle Button Group
+### 2.36 Player Circle Button Group
 
 #### Container
 Height: --height-player-capsule-button
@@ -1475,7 +1525,7 @@ Interaction Suppressed
 Container: default
 Child Button: pointer
 
-### 2.36 Player Speed Menu
+### 2.37 Player Speed Menu
 
 #### Container
 Width: --width-player-speed-menu
@@ -1508,7 +1558,7 @@ Interaction Suppressed
 Menu Item: pointer
 Menu Background: default
 
-### 2.37 Player Progress Scrubber
+### 2.38 Player Progress Scrubber
 
 #### Container
 Height: --height-player-progress-hit-area
@@ -1535,7 +1585,7 @@ Disabled / No Duration
 Track: pointer
 Disabled / No Duration: default
 
-### 2.38 Player Progress Time Capsule
+### 2.39 Player Progress Time Capsule
 
 #### Container
 Height: --height-player-progress-time-capsule
@@ -1556,7 +1606,7 @@ Visible On Progress Drag
 #### Cursor
 No hit testing
 
-### 2.39 Player Window Control Button
+### 2.40 Player Window Control Button
 
 #### Container
 Size: --size-player-window-control-button
@@ -1578,7 +1628,7 @@ Pressed
 #### Cursor
 Enabled: pointer
 
-### 2.40 Player Topbar Title
+### 2.41 Player Topbar Title
 
 #### Container
 Max Width: --width-player-topbar-title-max
@@ -1665,31 +1715,67 @@ Disabled / Empty Folder: reduce opacity and disable click
 Default / Hover: pointer
 Disabled: not-allowed
 
-### 3.3 Library Episode Card Layout
+### 3.3 Library Episode Grid and Card Layout
 
-#### Structure
+#### Grid Structure
+Container: Library Folder Detail episode grid
+Columns: adaptive minimum --width-library-episode-card-min
+Gap: --gap-library-episode-grid
+Two Column Threshold: content width >= 776px
+Single Column Threshold: content width < 776px
+
+#### Card Structure
 Container: clickable media card
-Orientation: vertical
-Gap: --spacing-2
-Padding: --padding-library-media-card-hover
-Hover Radius: --radius-library-media-card-hover
-Hover Background: --color-library-media-card-hover-bg
+Orientation: horizontal
+Align Items: center
+Gap: --gap-library-list-item
+Padding: --padding-library-list-card
+Radius: --radius-library-list-card
+Background: transparent
+Hover Background: none
+Pressed Scale: none
 
 #### Content
-Cover: Library Cover
-Cover Overlay: Library Cover Progress Overlay
-Cover Badge: Library Cover Badge / Time
-Meta Row:
-  Episode Label:
-    Font Size: --font-size-library-meta
-    Text Color: --color-text-muted
-  Watch Status: Watch Status Badge
+Cover Region:
+  Width: --width-library-list-cover
+  Height: --height-library-list-cover
+  Cover: Library Cover
+  Cover Overlay: Library Cover Progress Overlay
+  Cover Badge: Library Cover Badge / Time
+
+Info Region:
+  Orientation: vertical
+  Gap: --gap-library-list-info-vertical
+  First Row:
+    Video Name:
+      Font Size: --font-size-library-list-title
+      Font Weight: semibold
+      Text Color: --color-text-primary
+      Line Count: 1
+    Watch Status: Watch Status Badge
+  Second Row:
+    Subtitle File Name:
+      Font Size: --font-size-library-list-subtitle
+      Text Color: --color-text-secondary
+      Line Count: 1
+  Third Row:
+    Video Metadata:
+      Format: {video size} {resolution} {frame rate} {codec}
+      Separator: space
+      Font Size: --font-size-library-list-meta
+      Text Color: --color-text-muted
+      Line Count: 1
+
+Action Region:
+  Alignment: trailing center
+  Primary Action: Library Primary Play Button
 
 #### Interaction
 Default: transparent background
-Hover: show hover background
-Pressed: scale card to --scale-library-media-card-pressed while pointer is pressed
-Click: open video at saved playback position
+Hover: no card background highlight and no card scale animation
+Pressed: no card scale animation
+Card Click: open video at saved playback position
+Play Button Click: open video at saved playback position
 Disabled / Missing File: reduce opacity and disable click
 
 #### Cursor
