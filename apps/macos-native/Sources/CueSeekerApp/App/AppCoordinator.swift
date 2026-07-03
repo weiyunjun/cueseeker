@@ -355,6 +355,7 @@ final class AppCoordinator: ObservableObject {
     var currentCueSegmentFinished = false
     var cueSegmentPlaybackGeneration = 0
     var libraryPlaybackCompletedMilestoneVideoPath: String?
+    var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var autoPlayCueSequenceTask: Task<Void, Never>?
     var loadedGlobalSearchResultCount = 0
     var lastSearchCountProgressUpdate: UInt64 = 0

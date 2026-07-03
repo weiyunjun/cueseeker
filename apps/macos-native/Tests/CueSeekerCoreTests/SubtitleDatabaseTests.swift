@@ -4304,6 +4304,140 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
 }
 
 @Test
+func storesASSPrimaryStylePlaybackFinishMetadata() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Primary.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Primary.mkv")
+
+    let sharedTimestampGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "1000",
+        endTimecode: "2000",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        searchContent: "main jp\nmain cn",
+        cueLines: [
+            testCueLine(
+                eventIndex: 0,
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                content: "main jp",
+                displayOrder: 0,
+                sourceStyle: "MainJP"
+            ),
+            testCueLine(
+                eventIndex: 1,
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                content: "main cn",
+                displayOrder: 1,
+                sourceStyle: "MainCN"
+            ),
+            testCueLine(
+                eventIndex: 2,
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                content: "duplicate main cn",
+                displayOrder: 2,
+                sourceStyle: "MainCN"
+            )
+        ]
+    )
+
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            sharedTimestampGroup,
+            testCueGroup(
+                startMilliseconds: 2_000,
+                endMilliseconds: 3_000,
+                content: "adjacent main jp",
+                eventIndex: 3,
+                sourceStyle: "MainJP"
+            ),
+            testCueGroup(
+                startMilliseconds: 2_000,
+                endMilliseconds: 3_000,
+                content: "adjacent main cn",
+                eventIndex: 4,
+                sourceStyle: "MainCN"
+            ),
+            testCueGroup(
+                startMilliseconds: 4_000,
+                endMilliseconds: 5_000,
+                content: "overlap sign",
+                eventIndex: 5,
+                sourceStyle: "Sign"
+            ),
+            testCueGroup(
+                startMilliseconds: 4_500,
+                endMilliseconds: 5_500,
+                content: "overlap alt",
+                eventIndex: 6,
+                sourceStyle: "Alt"
+            ),
+            testCueGroup(
+                startMilliseconds: 90_000,
+                endMilliseconds: 91_000,
+                content: "last main jp",
+                eventIndex: 7,
+                sourceStyle: "MainJP"
+            ),
+            testCueGroup(
+                startMilliseconds: 92_000,
+                endMilliseconds: 93_000,
+                content: "last main cn",
+                eventIndex: 8,
+                sourceStyle: "MainCN"
+            ),
+            testCueGroup(
+                startMilliseconds: 98_000,
+                endMilliseconds: 99_000,
+                content: "last subtitle",
+                eventIndex: 9,
+                sourceStyle: "Credits"
+            )
+        ]
+    )
+
+    let metadata = try #require(try database.playbackFinishMetadata(forSubtitleFile: subtitleFile))
+    #expect(metadata.primaryStyles == ["MainCN", "MainJP"])
+    #expect(metadata.primaryStyleLastEndMilliseconds == 93_000)
+    #expect(metadata.lastSubtitleEndMilliseconds == 99_000)
+    #expect(metadata.finishPointMilliseconds(videoDuration: 100) == 93_000)
+}
+
+@Test
+func playbackFinishMetadataFallsBackToLastSubtitleOrVideoEnd() throws {
+    let lastSubtitleMetadata = SubtitlePlaybackFinishMetadata(
+        primaryStyles: ["Main"],
+        primaryStyleLastEndMilliseconds: 70_000,
+        lastSubtitleEndMilliseconds: 90_000
+    )
+    #expect(lastSubtitleMetadata.finishPointMilliseconds(videoDuration: 100) == 90_000)
+
+    let videoEndMetadata = SubtitlePlaybackFinishMetadata(
+        primaryStyles: [],
+        primaryStyleLastEndMilliseconds: nil,
+        lastSubtitleEndMilliseconds: 70_000
+    )
+    #expect(videoEndMetadata.finishPointMilliseconds(videoDuration: 100) == 100_000)
+    #expect(SubtitlePlaybackFinishMetadata.finishPointMilliseconds(
+        metadata: nil,
+        videoDuration: 100
+    ) == 100_000)
+}
+
+@Test
 func returnsCueTimingsForWindowedASSPreparation() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -4734,7 +4868,8 @@ private func testCueGroup(
     startMilliseconds: Int,
     endMilliseconds: Int,
     content: String,
-    eventIndex: Int
+    eventIndex: Int,
+    sourceStyle: String? = nil
 ) -> SubtitleCueGroup {
     SubtitleCueGroup(
         sequenceNumber: nil,
@@ -4747,7 +4882,7 @@ private func testCueGroup(
             SubtitleCueLine(
                 eventIndex: eventIndex,
                 sourceFormat: .ass,
-                sourceStyle: nil,
+                sourceStyle: sourceStyle,
                 sourceLayer: nil,
                 startTimecode: "\(startMilliseconds)",
                 endTimecode: "\(endMilliseconds)",
@@ -4767,12 +4902,13 @@ private func testCueLine(
     startMilliseconds: Int,
     endMilliseconds: Int,
     content: String,
-    displayOrder: Int
+    displayOrder: Int,
+    sourceStyle: String? = nil
 ) -> SubtitleCueLine {
     SubtitleCueLine(
         eventIndex: eventIndex,
         sourceFormat: .ass,
-        sourceStyle: nil,
+        sourceStyle: sourceStyle,
         sourceLayer: nil,
         startTimecode: "\(startMilliseconds)",
         endTimecode: "\(endMilliseconds)",

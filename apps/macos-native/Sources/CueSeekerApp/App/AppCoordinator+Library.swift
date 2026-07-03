@@ -509,7 +509,11 @@ extension AppCoordinator {
         guard case .library(let videoPath) = activePlaybackSource,
               libraryPlaybackCompletedMilestoneVideoPath != videoPath,
               duration.isFinite,
-              duration > 0
+              duration > 0,
+              let finishPointMilliseconds = SubtitlePlaybackFinishMetadata.finishPointMilliseconds(
+                metadata: libraryPlaybackFinishMetadata,
+                videoDuration: duration
+              )
         else {
             return
         }
@@ -518,10 +522,7 @@ extension AppCoordinator {
             0,
             Int((currentTime * 1_000).rounded(.down))
         )
-        guard LibraryWatchState.isFinishedThresholdReached(
-            positionMilliseconds: positionMilliseconds,
-            duration: duration
-        ) else {
+        guard positionMilliseconds >= finishPointMilliseconds else {
             return
         }
 
@@ -631,8 +632,10 @@ extension AppCoordinator {
         let existingHistory: LibraryPlaybackHistory?
         if let subtitleDatabase {
             existingHistory = try? subtitleDatabase.libraryPlaybackHistory(forVideoFile: videoFile)
+            libraryPlaybackFinishMetadata = try? subtitleDatabase.playbackFinishMetadata(forVideoFile: videoFile)
         } else {
             existingHistory = nil
+            libraryPlaybackFinishMetadata = nil
         }
         if existingHistory?.completedAt != nil {
             libraryPlaybackCompletedMilestoneVideoPath = videoPath
@@ -656,5 +659,6 @@ extension AppCoordinator {
         libraryPlaybackHistoryTask?.cancel()
         libraryPlaybackHistoryTask = nil
         libraryPlaybackCompletedMilestoneVideoPath = nil
+        libraryPlaybackFinishMetadata = nil
     }
 }

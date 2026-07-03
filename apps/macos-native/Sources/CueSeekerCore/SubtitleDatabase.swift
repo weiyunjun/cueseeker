@@ -441,21 +441,62 @@ public struct LibraryPlaybackHistory: Equatable, Sendable {
     public let updatedAt: String
 }
 
+public struct SubtitlePlaybackFinishMetadata: Equatable, Sendable {
+    public let primaryStyles: [String]
+    public let primaryStyleLastEndMilliseconds: Int?
+    public let lastSubtitleEndMilliseconds: Int?
+
+    public init(
+        primaryStyles: [String],
+        primaryStyleLastEndMilliseconds: Int?,
+        lastSubtitleEndMilliseconds: Int?
+    ) {
+        self.primaryStyles = primaryStyles
+        self.primaryStyleLastEndMilliseconds = primaryStyleLastEndMilliseconds
+        self.lastSubtitleEndMilliseconds = lastSubtitleEndMilliseconds
+    }
+
+    public func finishPointMilliseconds(videoDuration: Double) -> Int? {
+        guard videoDuration.isFinite, videoDuration > 0 else {
+            return nil
+        }
+
+        let videoDurationMilliseconds = Int((videoDuration * 1_000).rounded(.down))
+        let thresholdMilliseconds = videoDuration * 1_000 * 0.8
+
+        if let primaryStyleLastEndMilliseconds,
+           Double(primaryStyleLastEndMilliseconds) >= thresholdMilliseconds {
+            return primaryStyleLastEndMilliseconds
+        }
+
+        if let lastSubtitleEndMilliseconds,
+           Double(lastSubtitleEndMilliseconds) >= thresholdMilliseconds {
+            return lastSubtitleEndMilliseconds
+        }
+
+        return videoDurationMilliseconds
+    }
+
+    public static func finishPointMilliseconds(
+        metadata: SubtitlePlaybackFinishMetadata?,
+        videoDuration: Double
+    ) -> Int? {
+        guard videoDuration.isFinite, videoDuration > 0 else {
+            return nil
+        }
+
+        guard let metadata else {
+            return Int((videoDuration * 1_000).rounded(.down))
+        }
+
+        return metadata.finishPointMilliseconds(videoDuration: videoDuration)
+    }
+}
+
 public enum LibraryWatchState: String, Equatable, Sendable {
     case unwatched
     case watching
     case finished
-
-    public static func isFinishedThresholdReached(
-        positionMilliseconds: Int,
-        duration: Double?
-    ) -> Bool {
-        guard let duration, duration.isFinite, duration > 0 else {
-            return false
-        }
-        let positionSeconds = Double(max(0, positionMilliseconds)) / 1_000
-        return positionSeconds >= duration * 0.95 || duration - positionSeconds <= 1
-    }
 
     public init(positionMilliseconds: Int, duration: Double?) {
         self.init(
@@ -468,7 +509,7 @@ public enum LibraryWatchState: String, Equatable, Sendable {
 
     public init(
         positionMilliseconds: Int,
-        duration: Double?,
+        duration _: Double?,
         startedAt: String?,
         completedAt: String?
     ) {
@@ -482,22 +523,12 @@ public enum LibraryWatchState: String, Equatable, Sendable {
             return
         }
 
-        let positionSeconds = Double(max(0, positionMilliseconds)) / 1_000
-        guard positionSeconds > 0 else {
+        guard max(0, positionMilliseconds) > 0 else {
             self = .unwatched
             return
         }
 
-        guard let duration, duration.isFinite, duration > 0 else {
-            self = .watching
-            return
-        }
-
-        if Self.isFinishedThresholdReached(positionMilliseconds: positionMilliseconds, duration: duration) {
-            self = .finished
-        } else {
-            self = .watching
-        }
+        self = .watching
     }
 }
 
@@ -1113,7 +1144,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 23
+    public static let currentSchemaVersion: Int = 24
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1252,6 +1283,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS subtitle_playback_finish_metadata (
+                subtitle_file_id INTEGER PRIMARY KEY,
+                subtitle_path TEXT NOT NULL UNIQUE,
+                algorithm_version INTEGER NOT NULL,
+                primary_styles_json TEXT NOT NULL,
+                primary_style_last_end_ms INTEGER,
+                last_subtitle_end_ms INTEGER,
+                indexed_at TEXT NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_subtitle_files_subtitle_path
                 ON subtitle_files(subtitle_path);
 
@@ -1266,6 +1308,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_group_order
                 ON subtitle_cue_lines(cue_group_id, display_order, event_index);
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_playback_finish_metadata_path
+                ON subtitle_playback_finish_metadata(subtitle_path);
 
             CREATE TABLE IF NOT EXISTS subtitle_cue_line_speakers (
                 cue_line_id INTEGER NOT NULL,
@@ -2223,6 +2268,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         rebuildSearchDerivedIndex: Bool = true
     ) throws {
         try validateLanguageAnalysis(languageAnalysis, format: format, cueGroupCount: cueGroups.count)
+        let playbackFinishMetadata = Self.playbackFinishMetadata(format: format, cueGroups: cueGroups)
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
 
         do {
@@ -2237,6 +2283,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             let videoFileID = try upsertVideoFile(videoFile)
             try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
+            try insertPlaybackFinishMetadata(
+                subtitleFileID: subtitleFileID,
+                subtitleFile: subtitleFile,
+                metadata: playbackFinishMetadata
+            )
 
             if format == .ass {
                 try insertASSFontReferenceManifest(
@@ -2749,6 +2800,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return statement.intColumn(0) == SubtitleLanguageRecognizer.algorithmVersion
     }
 
+    public func hasCurrentPlaybackFinishMetadata(forSubtitleFile subtitleFile: URL) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            SELECT 1
+            FROM subtitle_playback_finish_metadata
+            WHERE subtitle_path = ?
+              AND algorithm_version = ?
+            LIMIT 1;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 2)
+        return try statement.step()
+    }
+
     public func cueTimings(
         forSubtitleFile subtitleFile: URL,
         startingAtMilliseconds startMilliseconds: Int,
@@ -2786,6 +2853,62 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return timings
+    }
+
+    public func playbackFinishMetadata(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> SubtitlePlaybackFinishMetadata? {
+        let statement = try database.prepare(
+            """
+            SELECT primary_styles_json, primary_style_last_end_ms, last_subtitle_end_ms
+            FROM subtitle_playback_finish_metadata
+            WHERE subtitle_path = ?
+              AND algorithm_version = ?;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 2)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return SubtitlePlaybackFinishMetadata(
+            primaryStyles: try Self.decodePrimaryStyles(from: statement.stringColumn(0)),
+            primaryStyleLastEndMilliseconds: statement.nullableIntColumn(1),
+            lastSubtitleEndMilliseconds: statement.nullableIntColumn(2)
+        )
+    }
+
+    public func playbackFinishMetadata(
+        forVideoFile videoFile: URL
+    ) throws -> SubtitlePlaybackFinishMetadata? {
+        let statement = try database.prepare(
+            """
+            SELECT pfm.primary_styles_json, pfm.primary_style_last_end_ms,
+                   pfm.last_subtitle_end_ms
+            FROM video_files vf
+            JOIN subtitle_video_matches m ON m.video_file_id = vf.id AND m.is_active = 1
+            JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+            JOIN subtitle_playback_finish_metadata pfm ON pfm.subtitle_file_id = sf.id
+            WHERE vf.path = ?
+              AND pfm.algorithm_version = ?
+            ORDER BY sf.subtitle_path ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 2)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return SubtitlePlaybackFinishMetadata(
+            primaryStyles: try Self.decodePrimaryStyles(from: statement.stringColumn(0)),
+            primaryStyleLastEndMilliseconds: statement.nullableIntColumn(1),
+            lastSubtitleEndMilliseconds: statement.nullableIntColumn(2)
+        )
     }
 
     public func cueTextSelection(
@@ -6287,6 +6410,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let searchContent: String
     }
 
+    private struct PlaybackFinishCueGroup {
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        let styles: Set<String>
+
+        func overlapMilliseconds(with other: PlaybackFinishCueGroup) -> Int {
+            min(endMilliseconds, other.endMilliseconds) - max(startMilliseconds, other.startMilliseconds)
+        }
+    }
+
+    private struct PlaybackFinishCueGroupKey: Hashable {
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+    }
+
     private struct CueLineStableKey: Hashable {
         let sourceFormat: SubtitleFormat
         let sourceStyle: String?
@@ -6356,6 +6494,102 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     private static func diagnosticMilliseconds(between start: UInt64, and end: UInt64) -> Double {
         Double(end - start) / 1_000_000
+    }
+
+    private static func playbackFinishMetadata(
+        format: SubtitleFormat,
+        cueGroups: [SubtitleCueGroup]
+    ) -> SubtitlePlaybackFinishMetadata {
+        var stylesByTimeRange: [PlaybackFinishCueGroupKey: Set<String>] = [:]
+        for group in cueGroups {
+            let key = PlaybackFinishCueGroupKey(
+                startMilliseconds: group.startMilliseconds,
+                endMilliseconds: group.endMilliseconds
+            )
+            stylesByTimeRange[key, default: []].formUnion(
+                group.cueLines.compactMap { line in
+                    let style = line.sourceStyle?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return style?.isEmpty == true ? nil : style
+                }
+            )
+        }
+
+        let groupedCues = stylesByTimeRange.map { key, styles in
+            PlaybackFinishCueGroup(
+                startMilliseconds: key.startMilliseconds,
+                endMilliseconds: key.endMilliseconds,
+                styles: styles
+            )
+        }
+
+        let lastSubtitleEndMilliseconds = groupedCues.map(\.endMilliseconds).max()
+        guard format == .ass else {
+            return SubtitlePlaybackFinishMetadata(
+                primaryStyles: [],
+                primaryStyleLastEndMilliseconds: nil,
+                lastSubtitleEndMilliseconds: lastSubtitleEndMilliseconds
+            )
+        }
+
+        var styleCounts: [String: Int] = [:]
+        for (index, group) in groupedCues.enumerated() {
+            let hasOverlap = groupedCues.indices.contains { otherIndex in
+                guard otherIndex != index else {
+                    return false
+                }
+
+                return group.overlapMilliseconds(with: groupedCues[otherIndex]) >= 1
+            }
+
+            guard !hasOverlap else {
+                continue
+            }
+
+            for style in group.styles {
+                styleCounts[style, default: 0] += 1
+            }
+        }
+
+        guard let primaryStyleCount = styleCounts.values.max(),
+              primaryStyleCount > 0
+        else {
+            return SubtitlePlaybackFinishMetadata(
+                primaryStyles: [],
+                primaryStyleLastEndMilliseconds: nil,
+                lastSubtitleEndMilliseconds: lastSubtitleEndMilliseconds
+            )
+        }
+
+        let primaryStyles = styleCounts
+            .filter { $0.value == primaryStyleCount }
+            .map(\.key)
+            .sorted()
+        let primaryStyleSet = Set(primaryStyles)
+        let primaryStyleLastEndMilliseconds = groupedCues
+            .filter { !$0.styles.isDisjoint(with: primaryStyleSet) }
+            .map(\.endMilliseconds)
+            .max()
+
+        return SubtitlePlaybackFinishMetadata(
+            primaryStyles: primaryStyles,
+            primaryStyleLastEndMilliseconds: primaryStyleLastEndMilliseconds,
+            lastSubtitleEndMilliseconds: lastSubtitleEndMilliseconds
+        )
+    }
+
+    private static func encodePrimaryStyles(_ primaryStyles: [String]) throws -> String {
+        let data = try JSONEncoder().encode(primaryStyles)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw SQLiteDatabaseError.stepFailed("Primary style metadata could not be encoded.")
+        }
+        return json
+    }
+
+    private static func decodePrimaryStyles(from json: String) throws -> [String] {
+        guard let data = json.data(using: .utf8) else {
+            throw SQLiteDatabaseError.stepFailed("Primary style metadata could not be decoded.")
+        }
+        return try JSONDecoder().decode([String].self, from: data)
     }
 
     private static func lineMatchRuleName(_ rule: LineMatchRule) -> String {
@@ -7092,6 +7326,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             try deleteASSRenderSegments.run()
 
+            let deletePlaybackFinishMetadata = try database.prepare(
+                """
+                DELETE FROM subtitle_playback_finish_metadata
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deletePlaybackFinishMetadata,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deletePlaybackFinishMetadata.run()
+
             let deleteFTS = try database.prepare(
                 """
                 DELETE FROM subtitle_cue_groups_fts
@@ -7404,6 +7655,44 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
 
         return database.lastInsertRowID()
+    }
+
+    private func insertPlaybackFinishMetadata(
+        subtitleFileID: Int64,
+        subtitleFile: URL,
+        metadata: SubtitlePlaybackFinishMetadata
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT OR REPLACE INTO subtitle_playback_finish_metadata(
+                subtitle_file_id,
+                subtitle_path,
+                algorithm_version,
+                primary_styles_json,
+                primary_style_last_end_ms,
+                last_subtitle_end_ms,
+                indexed_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?);
+            """
+        )
+
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(subtitleFile.path, at: 2)
+        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 3)
+        try statement.bind(try Self.encodePrimaryStyles(metadata.primaryStyles), at: 4)
+        if let primaryStyleLastEndMilliseconds = metadata.primaryStyleLastEndMilliseconds {
+            try statement.bind(primaryStyleLastEndMilliseconds, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
+        }
+        if let lastSubtitleEndMilliseconds = metadata.lastSubtitleEndMilliseconds {
+            try statement.bind(lastSubtitleEndMilliseconds, at: 6)
+        } else {
+            try statement.bindNull(at: 6)
+        }
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 7)
+        try statement.run()
     }
 
     private func insertCueLine(cueGroupID: Int64, line: SubtitleCueLine) throws -> Int64 {
@@ -8248,6 +8537,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteASSRenderSegments.bind(subtitlePath, at: 1)
         try deleteASSRenderSegments.run()
 
+        let deletePlaybackFinishMetadata = try database.prepare(
+            """
+            DELETE FROM subtitle_playback_finish_metadata
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deletePlaybackFinishMetadata.bind(subtitlePath, at: 1)
+        try deletePlaybackFinishMetadata.run()
+
         let deleteFTS = try database.prepare(
             """
             DELETE FROM subtitle_cue_groups_fts
@@ -8302,6 +8604,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             DROP TABLE IF EXISTS subtitle_language_detection_codes;
             DROP TABLE IF EXISTS subtitle_language_detections;
             DROP TABLE IF EXISTS subtitle_language_manifests;
+            DROP TABLE IF EXISTS subtitle_playback_finish_metadata;
             DROP TABLE IF EXISTS subtitle_cue_lines;
             DROP TABLE IF EXISTS subtitle_cue_groups;
             DROP TABLE IF EXISTS ass_font_references;

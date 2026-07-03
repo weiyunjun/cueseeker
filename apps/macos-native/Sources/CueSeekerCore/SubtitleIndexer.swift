@@ -150,6 +150,10 @@ public struct SubtitleIndexer {
             return false
         }
 
+        guard try database.hasCurrentPlaybackFinishMetadata(forSubtitleFile: subtitleFile) else {
+            return false
+        }
+
         if metadata.subtitleFormat == .ass,
            try !database.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) {
             return false
