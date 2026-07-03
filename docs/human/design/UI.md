@@ -698,7 +698,7 @@ Text Color Default: --color-text-primary
 Text Color Disabled: --color-text-disabled
 Icon Size: --size-button-icon
 Icon Weight: --weight-button-icon
-Icon Color Default: --color-icon-default
+Icon Color Default: --color-text-primary
 Icon Color Disabled: --color-icon-disabled
 
 #### Status
