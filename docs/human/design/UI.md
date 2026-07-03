@@ -272,10 +272,10 @@
 ### 1.2 尺寸、圆角、间距
 
 #### Height
---height-filter-bar-control: 32px
---height-control: 32px
+--height-filter-bar-control: 40px
+--height-control: 40px
 --height-field: 40px
---height-table-utility-bar: 32px
+--height-table-utility-bar: 40px
 --height-table-header: 40px
 --height-table-row: 64px
 --height-action-menu-item: 40px
@@ -300,8 +300,8 @@
 --size-inline-clear-symbol-font-size-macos: 11pt
 --size-inline-add-symbol-font-size-macos: 16pt
 --size-menu-item-symbol-font-size-macos: 14pt
---size-select-indicator: 11pt
---size-button-icon: 13px
+--size-select-indicator: 12pt
+--size-button-icon: 14px
 --size-control-icon: 16px
 --size-icon-button: 32px
 --size-row-action-button: 36px
@@ -355,7 +355,7 @@
 --gap-player-speed-menu-from-button: 8px
 
 #### Padding
---padding-control-x: 12px
+--padding-control-x: 14px
 --padding-field-x: 16px
 --padding-menu-item: 12px 16px
 --padding-header-trigger-x: 12px
@@ -378,7 +378,7 @@
 #### Typography
 --font-family-base: system-ui, sans-serif
 --font-size-body: 14px
---font-size-control: 13px
+--font-size-control: 14px
 --font-weight-control: 500
 --weight-select-indicator: semibold
 --weight-button-icon: medium
@@ -549,14 +549,14 @@ Text Size: --font-size-control
 Text Weight: --font-weight-control
 Text Color Default: --color-text-primary
 Text Color Disabled: --color-text-disabled
-Icon Color Default: --color-icon-default
+Icon Color Default: --color-text-primary
 Icon Color Disabled: --color-icon-disabled
 Select Indicator: chevrons-up-down
 Select Indicator Size: --size-select-indicator
 Select Indicator Weight: --weight-select-indicator
 Select Indicator Gap: --spacing-2
-Select Indicator Color Default: --color-icon-default
-Select Indicator Color Hover / Open: --color-icon-default
+Select Indicator Color Default: --color-text-primary
+Select Indicator Color Hover / Open: --color-text-primary
 Select Indicator Color Disabled: --color-icon-disabled
 
 #### Status
@@ -732,7 +732,7 @@ Text Color Disabled: --color-text-disabled
 Icon Slot Size: --size-control-icon
 Native macOS Symbol: SF Symbol plus, medium
 Native macOS Symbol Font Size: --size-inline-add-symbol-font-size-macos
-Icon Color Default: --color-icon-default
+Icon Color Default: --color-text-primary
 Icon Color Disabled: --color-text-disabled
 
 #### Status
