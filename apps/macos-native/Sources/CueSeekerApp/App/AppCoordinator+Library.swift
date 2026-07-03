@@ -509,11 +509,7 @@ extension AppCoordinator {
         guard case .library(let videoPath) = activePlaybackSource,
               libraryPlaybackCompletedMilestoneVideoPath != videoPath,
               duration.isFinite,
-              duration > 0,
-              let finishPointMilliseconds = SubtitlePlaybackFinishMetadata.finishPointMilliseconds(
-                metadata: libraryPlaybackFinishMetadata,
-                videoDuration: duration
-              )
+              duration > 0
         else {
             return
         }
@@ -522,17 +518,15 @@ extension AppCoordinator {
             0,
             Int((currentTime * 1_000).rounded(.down))
         )
-        guard positionMilliseconds >= finishPointMilliseconds else {
+        let snapshot = libraryPlaybackHistorySnapshot(
+            videoPath: videoPath,
+            positionMilliseconds: positionMilliseconds,
+            duration: duration
+        )
+        guard snapshot.markCompleted else {
             return
         }
 
-        libraryPlaybackCompletedMilestoneVideoPath = videoPath
-        let snapshot = LibraryPlaybackHistorySnapshot(
-            videoPath: videoPath,
-            positionMilliseconds: positionMilliseconds,
-            duration: duration,
-            markCompleted: true
-        )
         libraryPlaybackHistoryWriter.save(snapshot)
     }
 
@@ -564,7 +558,7 @@ extension AppCoordinator {
         let duration = playbackViewModel.duration.isFinite && playbackViewModel.duration > 0
             ? playbackViewModel.duration
             : nil
-        let snapshot = LibraryPlaybackHistorySnapshot(
+        let snapshot = libraryPlaybackHistorySnapshot(
             videoPath: videoPath,
             positionMilliseconds: positionMilliseconds,
             duration: duration
@@ -576,6 +570,48 @@ extension AppCoordinator {
             libraryPlaybackHistoryWriter.save(snapshot)
         }
         return true
+    }
+
+    private func libraryPlaybackHistorySnapshot(
+        videoPath: String,
+        positionMilliseconds: Int,
+        duration: Double?
+    ) -> LibraryPlaybackHistorySnapshot {
+        let markCompleted = shouldMarkLibraryPlaybackCompleted(
+            videoPath: videoPath,
+            positionMilliseconds: positionMilliseconds,
+            duration: duration
+        )
+        if markCompleted {
+            libraryPlaybackCompletedMilestoneVideoPath = videoPath
+        }
+
+        return LibraryPlaybackHistorySnapshot(
+            videoPath: videoPath,
+            positionMilliseconds: positionMilliseconds,
+            duration: duration,
+            markCompleted: markCompleted
+        )
+    }
+
+    private func shouldMarkLibraryPlaybackCompleted(
+        videoPath: String,
+        positionMilliseconds: Int,
+        duration: Double?
+    ) -> Bool {
+        guard libraryPlaybackCompletedMilestoneVideoPath != videoPath,
+              let duration,
+              duration.isFinite,
+              duration > 0,
+              let finishPointMilliseconds = SubtitlePlaybackFinishMetadata.finishPointMilliseconds(
+                metadata: libraryPlaybackFinishMetadata,
+                videoDuration: duration
+              )
+        else {
+            return false
+        }
+
+        return positionMilliseconds >= finishPointMilliseconds
     }
 
     func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {

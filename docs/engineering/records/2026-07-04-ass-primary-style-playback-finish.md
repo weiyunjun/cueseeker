@@ -10,9 +10,11 @@ Implementation:
 - Updated ASS/SRT indexing so unchanged-file checks require current playback finish metadata and the subtitle cue indexing algorithm version advances to 3.
 - Replaced Library playback completion with the new indexed finish point rules: primary style end after 80%, otherwise last subtitle end after 80%, otherwise video end.
 - Removed reliance on the previous 95% / last-second completion rule while preserving existing `completed_at` data.
+- During acceptance follow-up, moved completion marking into the unified Library playback history save path so next-video navigation, close, and periodic saves can mark `completed_at` when the saved position has reached the indexed finish point.
 
 Verification:
 
 - Added Core tests for Primary Style metadata generation and finish point fallback behavior.
 - Added App tests for Library playback completion at the subtitle-derived point and for the video-end fallback when subtitles end before 80%.
+- Added an App regression test for saving playback history after the current position has already reached the finish point without relying on a `time-pos` completion callback.
 - Ran `swift test` from `apps/macos-native`; all tests passed.
