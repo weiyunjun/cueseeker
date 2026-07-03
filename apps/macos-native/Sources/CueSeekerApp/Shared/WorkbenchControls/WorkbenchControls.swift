@@ -39,14 +39,18 @@ enum WorkbenchControlMetrics {
     static let redesignInlineClearButtonRadius: CGFloat = 9999
     /// --size-control-icon: 16px
     static let redesignControlIconSize: CGFloat = 16
-    /// --size-select-indicator-symbol-font-size-macos: 10pt
-    static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 10
-    /// --size-select-indicator-weight-macos: .medium
-    static let redesignSelectIndicatorWeightMacOS: Font.Weight = .medium
+    /// --size-select-indicator: 11pt
+    static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 11
+    /// --weight-select-indicator: semibold
+    static let redesignSelectIndicatorWeightMacOS: Font.Weight = .semibold
     /// --font-size-control: 13px
     static let redesignFontSizeControl: CGFloat = 13
     /// --font-weight-control: 500
     static let redesignFontWeightControl: Font.Weight = .medium
+    /// --size-button-icon: 13px
+    static let redesignButtonIconSize: CGFloat = 13
+    /// --weight-button-icon: medium
+    static let redesignButtonIconWeight: Font.Weight = .medium
     /// --size-inline-add-symbol-font-size-macos: 16pt
     static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
     /// --size-menu-item-symbol-font-size-macos: 14pt
@@ -312,8 +316,6 @@ struct WorkbenchToolbarButton: View {
 
             if showsChevron {
                 if isRedesign {
-                    Spacer(minLength: 0)
-                        .frame(width: 4) // spacing between text and chevron
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
                         .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // --size-control-icon
@@ -376,8 +378,8 @@ struct WorkbenchButton: View {
             HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 8) {
                 if let systemImage {
                     Image(systemName: systemImage)
-                        .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
-                        .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
+                        .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? WorkbenchControlMetrics.redesignButtonIconWeight : .regular))
+                        .frame(width: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil)
                         .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
                 }
 
