@@ -7,7 +7,7 @@
 
 ## Scope
 
-Apply the accepted compact control sizing to the Search and Shiori workbench
+Apply the accepted Search and Shiori toolbar control sizing to the workbench
 toolbars without changing table data, filtering behavior, export behavior, or
 row actions.
 
@@ -16,29 +16,28 @@ row actions.
 - Product semantics: unchanged.
 - Platform UI/UX: Search/Shiori toolbar controls, related icons, clear buttons,
   select triggers, neutral buttons, inline add buttons, and utility bars use the
-  compact control tokens.
+  accepted 40px control tokens while icon-only buttons stay out of scope.
 - Platform integration: unchanged.
 - Playback execution: unchanged.
 
 ## Changes
 
-- Updated redesign control height, search height, table utility bar height,
-  icon button size, control icon size, inline clear button size, and inline
-  clear icon size to match the compact toolbar requirement.
-- Split the previous shared horizontal padding into control padding and field
-  padding so 32px toolbar controls can tighten while 40px fields keep their
-  existing horizontal rhythm.
+- Restored redesign control height, search height, and table utility bar height
+  from 32px to the accepted 40px toolbar scale.
+- Kept the separate control and field padding tokens while increasing control
+  horizontal padding to the accepted 14px value.
 - Applied the control font size and weight token to Search/Shiori toolbar
   buttons, neutral buttons, inline add buttons, and the active filter trigger.
-- Updated the select-trigger chevrons indicator to use the default icon color
-  when enabled and the disabled icon color when disabled.
-- Updated the select-trigger chevrons indicator to use the dedicated 11pt
+- Updated select-trigger leading icons and chevrons indicators to use the primary
+  text token when enabled and the disabled icon token when disabled.
+- Updated the select-trigger chevrons indicator to use the dedicated 12pt
   semibold token and the documented 8px gap from the trigger text.
-- Updated neutral button symbols to use the dedicated 13px medium token instead
+- Updated neutral button symbols to use the dedicated 14px medium token instead
   of the general 16px control icon token.
 - Updated neutral button default symbol color to use the primary text token
   while keeping the disabled symbol color on the disabled icon token.
-- Kept inline add disabled icon color aligned with the accepted human design
+- Updated inline add button default symbol color to use the primary text token
+  while keeping the disabled symbol color aligned with the accepted human design
   document.
 
 ## Verification
@@ -50,8 +49,6 @@ row actions.
 
 ## Outcome
 
-Search and Shiori toolbar controls now follow the accepted compact 32px control
-system while ordinary 40px fields remain visually stable. Select trigger
-indicators are more legible, and bulk action button symbols are visually
-lighter than the general control icons while matching primary text contrast in
-their enabled state.
+Search and Shiori toolbar controls now follow the accepted 40px control system.
+Select trigger indicators are larger and use primary text contrast, inline add
+icons match the same enabled contrast, and icon-only buttons remain unchanged.

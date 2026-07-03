@@ -11,22 +11,22 @@ enum WorkbenchControlMetrics {
     // ==========================================
     // Redesign Tokens (对接新的 Token 规范)
     // ==========================================
-    /// --height-control / --height-filter-bar-control: 32px
-    static let redesignHeight: CGFloat = 32
+    /// --height-control / --height-filter-bar-control: 40px
+    static let redesignHeight: CGFloat = 40
     /// --radius-control: 8px
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
-    /// --height-filter-bar-control (Search box): 32px
-    static let redesignSearchHeight: CGFloat = 32
+    /// --height-filter-bar-control (Search box): 40px
+    static let redesignSearchHeight: CGFloat = 40
     /// --radius-field: 8px
     static let redesignFieldRadius: CGFloat = 8
     /// --radius-search: 9999px
     static let redesignSearchRadius: CGFloat = 9999
     /// --size-inline-clear-button: 24px
     static let redesignInlineClearButtonSize: CGFloat = 24
-    /// --padding-control-x: 12px
-    static let redesignControlPaddingX: CGFloat = 12
+    /// --padding-control-x: 14px
+    static let redesignControlPaddingX: CGFloat = 14
     /// --padding-field-x: 16px
     static let redesignFieldPaddingX: CGFloat = 16
     /// --size-inline-clear-symbol-font-size-macos: 11pt
@@ -39,16 +39,16 @@ enum WorkbenchControlMetrics {
     static let redesignInlineClearButtonRadius: CGFloat = 9999
     /// --size-control-icon: 16px
     static let redesignControlIconSize: CGFloat = 16
-    /// --size-select-indicator: 11pt
-    static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 11
+    /// --size-select-indicator: 12pt
+    static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 12
     /// --weight-select-indicator: semibold
     static let redesignSelectIndicatorWeightMacOS: Font.Weight = .semibold
-    /// --font-size-control: 13px
-    static let redesignFontSizeControl: CGFloat = 13
+    /// --font-size-control: 14px
+    static let redesignFontSizeControl: CGFloat = 14
     /// --font-weight-control: 500
     static let redesignFontWeightControl: Font.Weight = .medium
-    /// --size-button-icon: 13px
-    static let redesignButtonIconSize: CGFloat = 13
+    /// --size-button-icon: 14px
+    static let redesignButtonIconSize: CGFloat = 14
     /// --weight-button-icon: medium
     static let redesignButtonIconWeight: Font.Weight = .medium
     /// --size-inline-add-symbol-font-size-macos: 16pt
@@ -59,8 +59,8 @@ enum WorkbenchControlMetrics {
     static let redesignIconButtonSize: CGFloat = 32
     /// --height-table-header: 40px
     static let redesignTableHeaderHeight: CGFloat = 40
-    /// --height-table-utility-bar: 32px
-    static let redesignTableUtilityBarHeight: CGFloat = 32
+    /// --height-table-utility-bar: 40px
+    static let redesignTableUtilityBarHeight: CGFloat = 40
     /// --spacing-1: 4px
     static let redesignSpacing1: CGFloat = 4
     /// --spacing-2: 8px
@@ -306,7 +306,7 @@ struct WorkbenchToolbarButton: View {
             Image(systemName: systemImage)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
                 .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil) // --size-control-icon
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
 
             Text(title)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium))
@@ -319,7 +319,7 @@ struct WorkbenchToolbarButton: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
                         .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // --size-control-icon
-                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled)
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled)
                 } else {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.down")
@@ -444,7 +444,7 @@ struct WorkbenchPlainActionButton: View {
                 Image(systemName: systemImage)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignInlineAddSymbolFontSizeMacOS : WorkbenchControlMetrics.iconSize, weight: isRedesign ? (systemImage == "plus" ? .medium : .semibold) : .regular))
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
 
                 Text(title)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .regular))
