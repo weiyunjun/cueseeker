@@ -80,8 +80,8 @@ enum WorkbenchRedesignColors {
         static let bgActiveClearHover = NSColor.dynamic(lightHex: "#D8E8FD", darkHex: "#243F7F")
 
         // Primary Button
-        static let primaryButtonBg = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#0066FF")
-        static let primaryButtonBgHover = NSColor.dynamic(lightHex: "#0033CC", darkHex: "#3B82F6")
+        static let primaryButtonBg = NSColor.controlAccentColor
+        static let primaryButtonBgHover = NSColor.controlAccentColor
         static let primaryButtonText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
 
         // Focus
@@ -176,8 +176,8 @@ enum WorkbenchRedesignColors {
     static let bgActiveClearHover = Color(nsColor: NS.bgActiveClearHover)
 
     // Primary Button
-    static let primaryButtonBg = Color(nsColor: NS.primaryButtonBg)
-    static let primaryButtonBgHover = Color(nsColor: NS.primaryButtonBgHover)
+    static let primaryButtonBg = Color.accentColor
+    static let primaryButtonBgHover = Color.accentColor
     static let primaryButtonText = Color(nsColor: NS.primaryButtonText)
 
     // Focus

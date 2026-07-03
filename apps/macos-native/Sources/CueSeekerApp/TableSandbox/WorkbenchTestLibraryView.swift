@@ -216,7 +216,7 @@ private enum WorkbenchTestLibraryMetrics {
     static let folderCardGap = WorkbenchControlMetrics.redesignSpacing2
     static let detailHeaderGap = WorkbenchControlMetrics.redesignSpacing2
     static let episodeGridTopPadding = WorkbenchControlMetrics.redesignSpacing2
-    static let episodeCardMinWidth = WorkbenchControlMetrics.redesignLibraryEpisodeCardMinWidth
+    static let episodeRowMinWidth = WorkbenchControlMetrics.redesignLibraryEpisodeRowMinWidth
     static let episodeGridGap = WorkbenchControlMetrics.redesignLibraryEpisodeGridGap
     static let episodeListItemGap = WorkbenchControlMetrics.redesignLibraryListItemGap
     static let episodeListInfoVerticalGap = WorkbenchControlMetrics.redesignLibraryListInfoVerticalGap
@@ -533,31 +533,20 @@ private struct CompleteLibraryEpisodeGrid: View {
     let videos: [CompleteLibraryVideoPresentation]
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
-    private var columns: [GridItem] {
-        [
-            GridItem(
-                .adaptive(
-                    minimum: WorkbenchTestLibraryMetrics.episodeCardMinWidth
-                ),
-                spacing: WorkbenchTestLibraryMetrics.episodeGridGap,
-                alignment: .topLeading
-            )
-        ]
-    }
-
     var body: some View {
         if videos.isEmpty {
             LibraryEmptyHint("No episodes yet.")
         } else {
-            LazyVGrid(
-                columns: columns,
-                alignment: .leading,
-                spacing: WorkbenchTestLibraryMetrics.episodeGridGap
-            ) {
+            LazyVStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeGridGap) {
                 ForEach(videos) { video in
                     LibraryEpisodeCard(video: video) {
                         onOpen(video)
                     }
+                    .frame(
+                        minWidth: WorkbenchTestLibraryMetrics.episodeRowMinWidth,
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
                 }
             }
             .padding(.top, WorkbenchTestLibraryMetrics.episodeGridTopPadding)
@@ -569,81 +558,60 @@ private struct CompleteLibraryEpisodeGrid: View {
 private struct LibraryEpisodeCard: View {
     let video: CompleteLibraryVideoPresentation
     let onOpen: () -> Void
-    @State private var hasPushedCursor = false
 
     private var isAvailable: Bool {
         FileManager.default.fileExists(atPath: video.videoPath)
     }
 
     var body: some View {
-        Button(action: {
-            guard isAvailable else {
-                return
-            }
-            onOpen()
-        }) {
-            HStack(alignment: .center, spacing: WorkbenchTestLibraryMetrics.episodeListItemGap) {
-                LibraryCoverWithProgress(
-                    coverPath: video.coverPath,
-                    positionMilliseconds: video.positionMilliseconds,
-                    duration: video.playbackDuration ?? video.duration,
-                    watchState: video.watchState
-                )
-                .frame(
-                    width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
-                    height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
-                )
+        HStack(alignment: .center, spacing: WorkbenchTestLibraryMetrics.episodeListItemGap) {
+            LibraryCoverWithProgress(
+                coverPath: video.coverPath,
+                positionMilliseconds: video.positionMilliseconds,
+                duration: video.playbackDuration ?? video.duration,
+                watchState: video.watchState
+            )
+            .frame(
+                width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
+                height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
+            )
 
-                VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap) {
-                    HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                        Text(displayTitle)
-                            .font(.system(size: WorkbenchTestLibraryMetrics.episodeListTitleSize, weight: .semibold))
-                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .layoutPriority(1)
-
-                        WatchStatusBadge(status: LibraryWatchStatus(video.watchState))
-                            .fixedSize()
-                    }
-
-                    Text(subtitleFileName)
-                        .font(.system(size: WorkbenchTestLibraryMetrics.episodeListSubtitleSize))
-                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap) {
+                HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    Text(displayTitle)
+                        .font(.system(size: WorkbenchTestLibraryMetrics.episodeListTitleSize, weight: .semibold))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .layoutPriority(1)
 
+                    WatchStatusBadge(status: LibraryWatchStatus(video.watchState))
+                        .fixedSize()
+                }
+
+                Text("字幕文件：\(subtitleFileName)")
+                    .font(.system(size: WorkbenchTestLibraryMetrics.episodeListSubtitleSize))
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                if let metadataText {
                     Text(metadataText)
                         .font(.system(size: WorkbenchTestLibraryMetrics.episodeListMetaSize))
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                LibraryPrimaryPlayLabel()
             }
-            .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
-            .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.clear)
-            .opacity(isAvailable ? 1 : 0.55)
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius,
-                    style: .continuous
-                )
-            )
+
+            LibraryPrimaryPlayButton(isAvailable: isAvailable, action: onOpen)
         }
-        .buttonStyle(LibraryEpisodeListCardButtonStyle())
-        .disabled(!isAvailable)
-        .onHover { hovering in
-            updateCursor(isHovering: hovering)
-        }
-        .onDisappear {
-            resetCursor()
-        }
-        .help(isAvailable ? "Play" : "Missing video file")
+        .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
+        .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.clear)
+        .opacity(isAvailable ? 1 : 0.55)
         .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
     }
 
@@ -659,7 +627,7 @@ private struct LibraryEpisodeCard: View {
         URL(fileURLWithPath: video.subtitlePath).lastPathComponent
     }
 
-    private var metadataText: String {
+    private var metadataText: String? {
         let parts = [
             video.fileSize.flatMap(Self.formatFileSize),
             Self.formatResolution(width: video.videoWidth, height: video.videoHeight),
@@ -668,7 +636,7 @@ private struct LibraryEpisodeCard: View {
         ].compactMap { $0 }
 
         if parts.isEmpty {
-            return "Metadata unavailable"
+            return nil
         }
         return parts.joined(separator: " ")
     }
@@ -709,6 +677,33 @@ private struct LibraryEpisodeCard: View {
         }
         return trimmed.uppercased()
     }
+}
+
+private struct LibraryPrimaryPlayButton: View {
+    let isAvailable: Bool
+    let action: () -> Void
+    @State private var hasPushedCursor = false
+
+    var body: some View {
+        Button(action: {
+            guard isAvailable else {
+                return
+            }
+            action()
+        }) {
+            Text("Play")
+        }
+        .buttonStyle(LibraryPrimaryPlayButtonStyle())
+        .disabled(!isAvailable)
+        .onHover { hovering in
+            updateCursor(isHovering: hovering)
+        }
+        .onDisappear {
+            resetCursor()
+        }
+        .help(isAvailable ? "Play" : "Missing video file")
+        .accessibilityLabel(isAvailable ? "Play" : "Missing video file")
+    }
 
     private func updateCursor(isHovering: Bool) {
         guard isHovering else {
@@ -735,11 +730,19 @@ private struct LibraryEpisodeCard: View {
     }
 }
 
-private struct LibraryPrimaryPlayLabel: View {
+private struct LibraryPrimaryPlayButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        LibraryPrimaryPlayButtonStyleBody(configuration: configuration)
+    }
+}
+
+private struct LibraryPrimaryPlayButtonStyleBody: View {
+    let configuration: ButtonStyle.Configuration
+    @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
     var body: some View {
-        Text("Play")
+        configuration.label
             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl))
             .foregroundStyle(WorkbenchRedesignColors.primaryButtonText)
             .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
@@ -749,16 +752,32 @@ private struct LibraryPrimaryPlayLabel: View {
                     cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                     style: .continuous
                 )
-                .fill(isHovered ? WorkbenchRedesignColors.primaryButtonBgHover : WorkbenchRedesignColors.primaryButtonBg)
+                .fill(WorkbenchRedesignColors.primaryButtonBg.opacity(backgroundOpacity))
+            )
+            .overlay(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    style: .continuous
+                )
+                .fill(Color.white.opacity(hoverOverlayOpacity))
             )
             .onHover { isHovered = $0 }
             .animation(.easeOut(duration: 0.12), value: isHovered)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
-}
 
-private struct LibraryEpisodeListCardButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+    private var backgroundOpacity: Double {
+        guard isEnabled else {
+            return 0.45
+        }
+        return configuration.isPressed ? 0.82 : 1
+    }
+
+    private var hoverOverlayOpacity: Double {
+        guard isEnabled, isHovered, !configuration.isPressed else {
+            return 0
+        }
+        return 0.12
     }
 }
 

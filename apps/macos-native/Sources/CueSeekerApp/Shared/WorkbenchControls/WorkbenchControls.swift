@@ -112,8 +112,8 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryRecentCardMinWidth: CGFloat = 180
     /// --width-library-recent-card-max: 220px
     static let redesignLibraryRecentCardMaxWidth: CGFloat = 220
-    /// --width-library-episode-card-min: 380px
-    static let redesignLibraryEpisodeCardMinWidth: CGFloat = 380
+    /// --width-library-episode-row-min: 380px
+    static let redesignLibraryEpisodeRowMinWidth: CGFloat = 380
     /// --width-library-list-cover: 204px
     static let redesignLibraryListCoverWidth: CGFloat = 204
     /// --height-library-list-cover: 115px
