@@ -995,7 +995,8 @@ Row Hover Bg: --color-row-hover
 Row Selected Bg: --color-row-selected
 Header Hover Bg: --color-row-hover
 Trigger Surface Bg: --color-bg-hover
-Divider Horizontal: --color-border-divider
+Divider Horizontal: --color-border-control
+Divider Width: 1px
 
 #### Content
 Header Text Color: --color-text-primary

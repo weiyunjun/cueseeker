@@ -153,3 +153,15 @@ Menu Item Icon Color Disabled: --color-icon-disabled
 Row Action Trigger Icon: ellipsis
 Row Action Trigger Icon Color: --color-icon-default
 Row Action Trigger Disabled Icon Color: --color-icon-disabled
+
+### 2.17 Table Row
+
+#### Container
+Row Height: --height-table-row
+Header Height: --height-table-header
+Row Hover Bg: --color-row-hover
+Row Selected Bg: --color-row-selected
+Header Hover Bg: --color-row-hover
+Trigger Surface Bg: --color-bg-hover
+Divider Horizontal: --color-border-control
+Divider Width: 1px
