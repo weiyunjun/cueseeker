@@ -1743,6 +1743,8 @@ Cover Region:
   Cover Badge: Library Cover Badge / Time
 
 Info Region:
+  Vertical Distribution: first row aligned to top, metadata row aligned to bottom within cover height
+  Height: match Cover Region height
   Orientation: vertical
   Gap: --gap-library-list-info-vertical
   First Row:
