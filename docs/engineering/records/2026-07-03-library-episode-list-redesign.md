@@ -40,6 +40,9 @@ AI-maintained schema documentation that reflects the new database fields.
 - Updated the Play button background to use the macOS system accent color.
 - Added the `字幕文件：` label prefix to the subtitle row and removed placeholder
   metadata text when all optional metadata fields are unknown.
+- Matched the episode info region height to the cover height so the title row
+  aligns to the top, the metadata row aligns to the bottom, and the subtitle
+  row uses the middle space instead of clustering all text vertically.
 - Applied the global accepted watch-progress rule: unwatched covers hide the
   progress bar, watching covers show progress only after playback has advanced,
   and finished covers show a complete progress bar.
@@ -68,10 +71,16 @@ AI-maintained schema documentation that reflects the new database fields.
   - `swift build` passed from `apps/macos-native`.
   - `swift test --filter completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData`
     passed from `apps/macos-native`.
+- Follow-up alignment after the human-owned documents specified cover-height
+  vertical distribution for episode info rows:
+  - `git diff --check` passed.
+  - `swift build` passed from `apps/macos-native`.
 
 ## Outcome
 
 Library folder-detail episodes now render as the accepted single-column row
 interface. The metadata row is backed by indexed database fields, missing
 metadata fields are omitted, and playback is initiated only from the Play
-button. The progress-bar behavior is consistent across Library cover surfaces.
+button. Episode info rows now use the full cover height instead of clustering
+in the vertical center. The progress-bar behavior is consistent across Library
+cover surfaces.

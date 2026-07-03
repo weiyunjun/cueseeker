@@ -576,7 +576,7 @@ private struct LibraryEpisodeCard: View {
                 height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
             )
 
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
                     Text(displayTitle)
                         .font(.system(size: WorkbenchTestLibraryMetrics.episodeListTitleSize, weight: .semibold))
@@ -589,6 +589,8 @@ private struct LibraryEpisodeCard: View {
                         .fixedSize()
                 }
 
+                Spacer(minLength: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap)
+
                 Text("字幕文件：\(subtitleFileName)")
                     .font(.system(size: WorkbenchTestLibraryMetrics.episodeListSubtitleSize))
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
@@ -596,14 +598,23 @@ private struct LibraryEpisodeCard: View {
                     .truncationMode(.tail)
 
                 if let metadataText {
+                    Spacer(minLength: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap)
+
                     Text(metadataText)
                         .font(.system(size: WorkbenchTestLibraryMetrics.episodeListMetaSize))
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                } else {
+                    Spacer(minLength: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: WorkbenchTestLibraryMetrics.episodeListCoverHeight,
+                maxHeight: WorkbenchTestLibraryMetrics.episodeListCoverHeight,
+                alignment: .topLeading
+            )
 
             LibraryPrimaryPlayButton(isAvailable: isAvailable, action: onOpen)
         }
