@@ -1356,11 +1356,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
                     WorkbenchRedesignColors.NS.rowHover.setFill()
                     bounds.fill()
                 }
-                WorkbenchRedesignColors.NS.borderDivider.setStroke()
+                WorkbenchRedesignColors.NS.borderControl.setStroke()
                 let path = NSBezierPath()
                 path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
                 path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
-                path.lineWidth = 0.5
+                path.lineWidth = 1
                 path.stroke()
                 return
             }
@@ -2701,14 +2701,14 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             if isRedesign {
-                WorkbenchRedesignColors.NS.borderDivider.setStroke()
+                WorkbenchRedesignColors.NS.borderControl.setStroke()
             } else {
                 NSColor.separatorColor.setStroke()
             }
             let path = NSBezierPath()
             path.move(to: NSPoint(x: rect.minX, y: rect.maxY - 0.5))
             path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - 0.5))
-            path.lineWidth = 0.5
+            path.lineWidth = 1
             path.stroke()
         }
 

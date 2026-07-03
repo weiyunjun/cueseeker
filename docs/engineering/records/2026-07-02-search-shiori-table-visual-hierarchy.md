@@ -3,6 +3,7 @@
 ## Human-Owned Source
 
 - `docs/human/requirements/20260702-Feature-Search adn Shiori Table Visual Hierarchy.md`
+- `docs/human/requirements/20260703-Feature-Search Shiori Compact Toolbar Controls.md`
 - `docs/human/design/UI.md`
 
 ## Scope
@@ -50,10 +51,13 @@ with a secondary text token.
   lower-contrast table body against primary headers.
 - Tried switching Cues body text and underline to `textPrimary` only while
   hovering cue text.
+- Matched redesign table row dividers and the header-bottom divider to the
+  table border token and increased the divider stroke width to 1px.
 
 ## Verification
 
 - `git diff --check` passed.
+- `swift build` passed from `apps/macos-native`.
 - `swift test --filter subtitleTableText` passed.
 - `swift test --filter schemaWorkbenchColumnVisibilityMenu` passed.
 - `swift test --filter subtitleTableViewUsesExplicitColumnOrder` passed.
@@ -66,6 +70,7 @@ Search and Shiori table rows now present `Cues` as the visual focal point,
 while display titles, dates, and times use secondary text treatment and headers
 use primary medium treatment.
 Search text columns render as `Display Title`, `Cues`, `Time`, while Shiori
-text columns render as `Display Title`, `Cues`, `Time`, `Date Added`. The
-implementation keeps column visibility, selection, sorting, row actions, and
-playback behavior unchanged.
+text columns render as `Display Title`, `Cues`, `Time`, `Date Added`. Table
+row dividers now match the table border emphasis. The implementation keeps
+column visibility, selection, sorting, row actions, and playback behavior
+unchanged.
