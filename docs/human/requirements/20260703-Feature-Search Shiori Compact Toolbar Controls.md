@@ -36,6 +36,8 @@ main
 --size-inline-clear-symbol-font-size-macos: 11pt
 --size-inline-add-symbol-font-size-macos: 16pt
 --size-menu-item-symbol-font-size-macos: 14pt
+--size-select-indicator: 11pt
+--size-button-icon: 13px
 --size-control-icon: 16px
 --size-icon-button: 32px
 --size-row-action-button: 36px
@@ -77,6 +79,8 @@ main
 --font-size-body: 14px
 --font-size-control: 13px
 --font-weight-control: 500
+--weight-select-indicator: semibold
+--weight-button-icon: medium
 --font-size-table: 14px
 --font-size-table-header: 14px
 --font-size-caption: 12px
@@ -99,6 +103,9 @@ Text Color Disabled: --color-text-disabled
 Icon Color Default: --color-icon-default
 Icon Color Disabled: --color-icon-disabled
 Select Indicator: chevrons-up-down
+Select Indicator Size: --size-select-indicator
+Select Indicator Weight: --weight-select-indicator
+Select Indicator Gap: --spacing-2
 Select Indicator Color Default: --color-icon-default
 Select Indicator Color Hover / Open: --color-icon-default
 Select Indicator Color Disabled: --color-icon-disabled
@@ -112,7 +119,8 @@ Text Size: --font-size-control
 Text Weight: --font-weight-control
 Text Color Default: --color-text-primary
 Text Color Disabled: --color-text-disabled
-Icon Size: --size-control-icon
+Icon Size: --size-button-icon
+Icon Weight: --weight-button-icon
 Icon Color Default: --color-icon-default
 Icon Color Disabled: --color-icon-disabled
 
