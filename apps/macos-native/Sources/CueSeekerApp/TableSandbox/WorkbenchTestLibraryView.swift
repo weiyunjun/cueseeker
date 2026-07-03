@@ -309,8 +309,7 @@ private struct RecentWatchingCard: View {
                 LibraryCoverWithProgress(
                     coverPath: item.coverPath,
                     positionMilliseconds: item.positionMilliseconds,
-                    duration: item.playbackDuration ?? item.duration,
-                    watchState: item.watchState
+                    duration: item.playbackDuration ?? item.duration
                 )
 
                 Text(item.folderTitle)
@@ -568,8 +567,7 @@ private struct LibraryEpisodeCard: View {
             LibraryCoverWithProgress(
                 coverPath: video.coverPath,
                 positionMilliseconds: video.positionMilliseconds,
-                duration: video.playbackDuration ?? video.duration,
-                watchState: video.watchState
+                duration: video.playbackDuration ?? video.duration
             )
             .frame(
                 width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
@@ -804,26 +802,16 @@ private struct LibraryCoverWithProgress: View {
     let coverPath: String?
     let positionMilliseconds: Int
     let duration: Double?
-    let watchState: LibraryWatchState
+
+    private var presentation: LibraryCoverProgressPresentation {
+        LibraryCoverProgressPresentation(
+            positionMilliseconds: positionMilliseconds,
+            duration: duration
+        )
+    }
 
     private var progressFraction: Double? {
-        guard let duration, duration.isFinite, duration > 0 else {
-            return nil
-        }
-
-        switch watchState {
-        case .unwatched:
-            return nil
-        case .watching:
-            let durationMilliseconds = duration * 1_000
-            guard durationMilliseconds > 0 else {
-                return nil
-            }
-            let progress = min(1, max(0, Double(max(0, positionMilliseconds)) / durationMilliseconds))
-            return progress > 0 ? progress : nil
-        case .finished:
-            return 1
-        }
+        presentation.progressFraction
     }
 
     var body: some View {
@@ -885,13 +873,34 @@ private struct LibraryCoverWithProgress: View {
     }
 
     private var timeBadgeText: String {
+        presentation.timeBadgeText
+    }
+}
+
+struct LibraryCoverProgressPresentation: Equatable {
+    let positionMilliseconds: Int
+    let duration: Double?
+
+    var progressFraction: Double? {
         guard let duration, duration.isFinite, duration > 0 else {
-            let current = Self.formatTime(milliseconds: positionMilliseconds)
-            return current
+            return nil
         }
-        let current = watchState == .finished
-            ? Self.formatTime(seconds: duration)
-            : Self.formatTime(milliseconds: positionMilliseconds)
+
+        let durationMilliseconds = duration * 1_000
+        guard durationMilliseconds > 0 else {
+            return nil
+        }
+
+        let progress = min(1, max(0, Double(max(0, positionMilliseconds)) / durationMilliseconds))
+        return progress > 0 ? progress : nil
+    }
+
+    var timeBadgeText: String {
+        guard let duration, duration.isFinite, duration > 0 else {
+            return Self.formatTime(milliseconds: positionMilliseconds)
+        }
+
+        let current = Self.formatTime(milliseconds: positionMilliseconds)
         return "\(current)/\(Self.formatTime(seconds: duration))"
     }
 
