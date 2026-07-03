@@ -36,6 +36,8 @@ row actions.
   semibold token and the documented 8px gap from the trigger text.
 - Updated neutral button symbols to use the dedicated 13px medium token instead
   of the general 16px control icon token.
+- Updated neutral button default symbol color to use the primary text token
+  while keeping the disabled symbol color on the disabled icon token.
 - Kept inline add disabled icon color aligned with the accepted human design
   document.
 
@@ -51,4 +53,5 @@ row actions.
 Search and Shiori toolbar controls now follow the accepted compact 32px control
 system while ordinary 40px fields remain visually stable. Select trigger
 indicators are more legible, and bulk action button symbols are visually
-lighter than the general control icons.
+lighter than the general control icons while matching primary text contrast in
+their enabled state.
