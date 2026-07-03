@@ -11,48 +11,52 @@ enum WorkbenchControlMetrics {
     // ==========================================
     // Redesign Tokens (对接新的 Token 规范)
     // ==========================================
-    /// --height-control / --height-filter-bar-control: 40px
-    static let redesignHeight: CGFloat = 40
+    /// --height-control / --height-filter-bar-control: 32px
+    static let redesignHeight: CGFloat = 32
     /// --radius-control: 8px
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
-    /// --height-filter-bar-control (Search box): 40px
-    static let redesignSearchHeight: CGFloat = 40
+    /// --height-filter-bar-control (Search box): 32px
+    static let redesignSearchHeight: CGFloat = 32
     /// --radius-field: 8px
     static let redesignFieldRadius: CGFloat = 8
     /// --radius-search: 9999px
     static let redesignSearchRadius: CGFloat = 9999
-    /// --size-inline-clear-button: 32px
-    static let redesignInlineClearButtonSize: CGFloat = 32
-    /// --padding-field-x / --padding-control-x: 16px
-    static let redesignPaddingX: CGFloat = 16
+    /// --size-inline-clear-button: 24px
+    static let redesignInlineClearButtonSize: CGFloat = 24
+    /// --padding-control-x: 12px
+    static let redesignControlPaddingX: CGFloat = 12
+    /// --padding-field-x: 16px
+    static let redesignFieldPaddingX: CGFloat = 16
     /// --size-inline-clear-symbol-font-size-macos: 11pt
     static let inlineClearSymbolFontSizeMacOS: CGFloat = 11
-    /// --size-inline-clear-icon: 20px
-    static let inlineClearIconSize: CGFloat = 20
+    /// --size-inline-clear-icon: 16px
+    static let inlineClearIconSize: CGFloat = 16
     /// --focus-ring-width: 3px
     static let redesignFocusRingWidth: CGFloat = 3
     /// --radius-inline-clear-button: 9999px
     static let redesignInlineClearButtonRadius: CGFloat = 9999
-    /// --size-control-icon: 20px
-    static let redesignControlIconSize: CGFloat = 20
+    /// --size-control-icon: 16px
+    static let redesignControlIconSize: CGFloat = 16
     /// --size-select-indicator-symbol-font-size-macos: 10pt
     static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 10
     /// --size-select-indicator-weight-macos: .medium
     static let redesignSelectIndicatorWeightMacOS: Font.Weight = .medium
-    /// --font-size-control: 16px
-    static let redesignFontSizeControl: CGFloat = 16
+    /// --font-size-control: 13px
+    static let redesignFontSizeControl: CGFloat = 13
+    /// --font-weight-control: 500
+    static let redesignFontWeightControl: Font.Weight = .medium
     /// --size-inline-add-symbol-font-size-macos: 16pt
     static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
     /// --size-menu-item-symbol-font-size-macos: 14pt
     static let redesignMenuItemSymbolFontSizeMacOS: CGFloat = 14
-    /// --size-icon-button: 40px
-    static let redesignIconButtonSize: CGFloat = 40
+    /// --size-icon-button: 32px
+    static let redesignIconButtonSize: CGFloat = 32
     /// --height-table-header: 40px
     static let redesignTableHeaderHeight: CGFloat = 40
-    /// --height-table-utility-bar: 40px
-    static let redesignTableUtilityBarHeight: CGFloat = 40
+    /// --height-table-utility-bar: 32px
+    static let redesignTableUtilityBarHeight: CGFloat = 32
     /// --spacing-1: 4px
     static let redesignSpacing1: CGFloat = 4
     /// --spacing-2: 8px
@@ -167,7 +171,7 @@ struct WorkbenchInlineClearButton: View {
         Button(action: action) {
             Image(systemName: "xmark")
                 .font(.system(size: WorkbenchControlMetrics.inlineClearSymbolFontSizeMacOS, weight: .bold)) // --size-inline-clear-symbol-font-size-macos: 11pt
-                .frame(width: WorkbenchControlMetrics.inlineClearIconSize, height: WorkbenchControlMetrics.inlineClearIconSize) // --size-inline-clear-icon: 20px
+                .frame(width: WorkbenchControlMetrics.inlineClearIconSize, height: WorkbenchControlMetrics.inlineClearIconSize) // --size-inline-clear-icon: 16px
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted)
                 .frame(width: WorkbenchControlMetrics.redesignInlineClearButtonSize, height: WorkbenchControlMetrics.redesignInlineClearButtonSize)
                 .background(
@@ -218,9 +222,9 @@ struct WorkbenchSearchField: View {
     }
 
     var body: some View {
-        HStack(spacing: isRedesign ? 12 : 12) {
+        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: isRedesign ? 20 : 18, weight: .regular))
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 18, weight: .regular))
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.mutedText)
 
             TextField(
@@ -230,7 +234,7 @@ struct WorkbenchSearchField: View {
                     .foregroundColor(isRedesign ? WorkbenchRedesignColors.textPlaceholder : WorkbenchControlColors.mutedText)
             )
             .textFieldStyle(.plain)
-            .font(.system(size: isRedesign ? 16 : 15, weight: .regular))
+            .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: .regular))
             .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
             .focused($isFocused)
             .onSubmit {
@@ -243,7 +247,7 @@ struct WorkbenchSearchField: View {
                 }
             }
         }
-        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 18)
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 18)
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight)
         .background(
             RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
@@ -296,12 +300,12 @@ struct WorkbenchToolbarButton: View {
     private var label: some View {
         HStack(spacing: isRedesign ? 8 : 10) {
             Image(systemName: systemImage)
-                .font(.system(size: isRedesign ? 16 : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
-                .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil) // 20x20 icon slot
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
+                .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil) // --size-control-icon
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.primaryText)
 
             Text(title)
-                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? .medium : .medium))
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium))
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
@@ -312,8 +316,8 @@ struct WorkbenchToolbarButton: View {
                         .frame(width: 4) // spacing between text and chevron
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
-                        .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // 20x20 slot
-                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                        .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // --size-control-icon
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled)
                 } else {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.down")
@@ -322,7 +326,7 @@ struct WorkbenchToolbarButton: View {
                 }
             }
         }
-        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 14)
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 14)
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
         .background(
             Group {
@@ -369,7 +373,7 @@ struct WorkbenchButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: isRedesign ? 12 : 8) {
+            HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 8) {
                 if let systemImage {
                     Image(systemName: systemImage)
                         .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .regular))
@@ -378,12 +382,12 @@ struct WorkbenchButton: View {
                 }
 
                 Text(title)
-                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: .medium))
+                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium))
                     .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
-            .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 14)
+            .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 14)
             .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : 36)
             .background(
                 Group {
@@ -434,19 +438,19 @@ struct WorkbenchPlainActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: isRedesign ? 12 : 10) {
+            HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 10) {
                 Image(systemName: systemImage)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignInlineAddSymbolFontSizeMacOS : WorkbenchControlMetrics.iconSize, weight: isRedesign ? (systemImage == "plus" ? .medium : .semibold) : .regular))
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
 
                 Text(title)
-                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? .medium : .regular))
+                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .regular))
                     .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
-            .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 0)
+            .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 0)
             .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
             .background(
                 Group {
@@ -491,22 +495,22 @@ struct WorkbenchFilterPanelTriggerButton: View {
             Button(action: onTrigger) {
                 HStack(spacing: 8) {
                     Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: WorkbenchControlMetrics.redesignControlIconSize, weight: .semibold))
                     if let detail {
-                        (Text(title).font(.system(size: 15, weight: .medium))
-                         + Text(" · ").font(.system(size: 15, weight: .medium))
-                         + Text(detail).font(.system(size: 15, weight: .semibold)))
+                        (Text(title).font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl))
+                         + Text(" · ").font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl))
+                         + Text(detail).font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl)))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                     } else {
                         Text(title)
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl))
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)
                     }
                 }
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.accent : WorkbenchRedesignColors.iconMuted)
-                .padding(.leading, WorkbenchControlMetrics.redesignPaddingX)
+                .padding(.leading, WorkbenchControlMetrics.redesignControlPaddingX)
                 .padding(.trailing, 8)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
@@ -631,7 +635,7 @@ struct WorkbenchSelectFieldLabel: View {
                     .foregroundStyle(WorkbenchControlColors.mutedText)
             }
         }
-        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignPaddingX : 12)
+        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignFieldPaddingX : 12)
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : WorkbenchControlMetrics.controlHeight)
         .background(
             Group {
@@ -684,7 +688,7 @@ struct WorkbenchTextInputField: View {
             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .regular))
             .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
             .focused($isFocused)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
             .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
             .background(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
@@ -734,7 +738,7 @@ struct WorkbenchReadonlyField: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
             .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
             .background(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
@@ -872,7 +876,7 @@ struct WorkbenchPopoverRow: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, weight: .semibold))
                             .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
-                            .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
+                            .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled)
                     } else {
                         Color.clear
                             .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
@@ -891,7 +895,7 @@ struct WorkbenchPopoverRow: View {
             if let systemImage {
                 Image(systemName: systemImage)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 14, weight: isRedesign ? .medium : .medium))
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
             }
 

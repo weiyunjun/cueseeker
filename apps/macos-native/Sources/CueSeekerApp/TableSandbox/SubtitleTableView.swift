@@ -3804,7 +3804,7 @@ struct SubtitleTableHeaderCellView: View {
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingX)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
         .frame(maxHeight: .infinity)
     }
 
