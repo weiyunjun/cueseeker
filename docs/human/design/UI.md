@@ -984,8 +984,9 @@ Menu Item Padding: --padding-menu-item
 Menu Item Radius: --radius-action-menu-item
 Menu Item Hover Background: --color-bg-hover
 Divider: --color-border-divider
-Menu Anchor: triggering table cell content region
-Menu Open Cell Background: --color-bg-hover
+Menu Anchor: right-click pointer position inside triggering table cell content hover region
+Menu Position: below right-click position, clamped to visible content bounds
+Menu Open Cell Background: --color-bg-hover on triggering content hover region only
 
 #### Content
 Play Icon: play.fill
@@ -1023,6 +1024,9 @@ Cell Content Hover Radius: --radius-table-cell-hover
 Cell Content Hover Padding X: --padding-table-cell-hover-x
 Cell Content Hover Padding Y: --padding-table-cell-hover-y
 Cell Content Hover Scope: one rounded rectangle around the union bounds of visible text / content
+Interactive Cell Region: same bounds as Cell Content Hover Scope
+Cell Content Hit Testing: hover, pointer, left-click action, and right-click menu only apply inside Interactive Cell Region
+Non-interactive Cell Area: no cell hover, no pointer, no cell action; left click can toggle row checkbox selection
 Divider Horizontal: --color-border-control
 Divider Width: 1px
 
@@ -1134,8 +1138,8 @@ Default
 Hover (Underline)
 
 #### Cursor
-Default / Non-text Area: default
-Cues Text Hover: pointer
+Default / Non-interactive Area: default
+Interactive Text Hover: pointer
 
 ### 2.21 Table Scrollbar
 
@@ -1907,7 +1911,7 @@ Rows: Table Row
 Selection: Row Selection Checkbox
 Text Cell: Interactive Text Cell
 Tags: Chip / Tag
-Cell Actions: Row Action Menu opened from interactive data cells
+Cell Actions: left-click default actions and right-click Row Action Menu from interactive cell hover regions
 Scrollbar: Table Scrollbar
 Empty State: Empty Hint
 
@@ -1963,8 +1967,8 @@ Cues Column:
   Cell Hover Padding X: --padding-table-cell-hover-x
   Cell Hover Padding Y: --padding-table-cell-hover-y
   Text Hover: underline cue text
-  Click Behavior: open Row Action Menu
-  Play Behavior: use the Play menu item to open video playback
+  Left Click Behavior: play video
+  Right Click Behavior: open Row Action Menu
 
 Search Empty Hint:
   Text: Enter a search term or add filters to show cues.
@@ -1979,10 +1983,18 @@ Header: sort / column menu
 Rows: no full-row hover or selected background
 Header Area: no hover background
 Cell Content: hover shows one rounded rectangle around visible text / content union bounds using --color-bg-hover
-Cues Cell: pointer cursor; hover underlines cue text; click opens Row Action Menu
-Display Title Cell: pointer cursor; click opens Display Title Cell Action Menu
-Time Cell: pointer cursor; click opens Time Cell Action Menu
-Date Added Cell: pointer cursor; click opens Date Added Cell Action Menu
+Cell Content Hit Testing: hover, pointer, underline, left-click action, and right-click menu use the same Cell Content hover region
+Non-hover Cell Area Left Click: toggle row checkbox selection
+Non-hover Cell Area Right Click: no cell action menu
+Interactive Cell Hover: pointer cursor and underline for Display Title, Cues, Time, and Date Added
+Cues Cell Left Click: Play
+Cues Cell Right Click: open Cues Row Action Menu
+Display Title Cell Left Click: Open Folder
+Display Title Cell Right Click: open Display Title Cell Action Menu
+Time Cell Left Click: Copy Text
+Time Cell Right Click: open Time Cell Action Menu
+Date Added Cell Left Click: Copy Text
+Date Added Cell Right Click: open Date Added Cell Action Menu
 Other Data Cells: reserved for future cell menus; no action defined yet
 View Menu: Cues is checked + disabled; other data columns can be hidden
 Cues Row Action Menu: Play / Context / Copy Cue Text
@@ -1995,7 +2007,7 @@ Shiori Row Action Menu Extra Item: Remove Shiori
 Remove Shiori Icon: bookmark.slash
 Remove Shiori Icon Fallback: bookmark
 Shiori Remove: remove the row from saved Shiori records and refresh the Shiori table
-Cell Action Menu Anchor: use the triggering cell content hover rectangle as the menu anchor; menu gap uses the existing menu spacing token
+Cell Action Menu Anchor: use the right-click pointer position inside the triggering cell content hover region; menu opens below the click position and clamps to visible content bounds
 
 #### Effective Filter Condition
 An effective filter condition is any filter rule that can constrain results.
