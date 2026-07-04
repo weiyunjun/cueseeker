@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
@@ -22,6 +23,12 @@ struct LibraryPlaybackHistorySnapshot: Sendable {
         self.markStarted = markStarted
         self.markCompleted = markCompleted
     }
+}
+
+struct LibraryWatchStateSnapshot: Sendable {
+    let videoPath: String
+    let duration: Double?
+    let state: LibraryWatchState
 }
 
 final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
@@ -62,6 +69,30 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
             )
         } catch {
             print("Failed to save Library playback history: \(error)")
+        }
+    }
+
+    func setWatchStatesAndWait(_ snapshots: [LibraryWatchStateSnapshot]) {
+        queue.sync {
+            setWatchStates(snapshots)
+        }
+    }
+
+    private func setWatchStates(_ snapshots: [LibraryWatchStateSnapshot]) {
+        guard let database else {
+            return
+        }
+
+        for snapshot in snapshots {
+            do {
+                try database.setLibraryWatchState(
+                    videoFile: URL(fileURLWithPath: snapshot.videoPath),
+                    duration: snapshot.duration,
+                    state: snapshot.state
+                )
+            } catch {
+                print("Failed to set Library watch state: \(error)")
+            }
         }
     }
 }
@@ -331,6 +362,62 @@ extension AppCoordinator {
     func openRecentLibraryWatching(_ item: RecentLibraryWatchingPresentation) async {
         await prepareRecentLibraryNavigation(for: item)
         openLibraryVideo(item.libraryVideo)
+    }
+
+    func openFolder(atPath path: String) {
+        NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
+    }
+
+    func markLibraryVideo(_ video: LibraryVideo, as state: LibraryWatchState) {
+        markLibraryVideos([video], as: state)
+    }
+
+    func markCompleteLibraryFolder(folderPath: String, as state: LibraryWatchState) {
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                guard let detail = try await loadCompleteLibraryFolderDetail(folderPath: folderPath) else {
+                    return
+                }
+                markLibraryVideos(detail.videos.map(\.libraryVideo), as: state)
+            } catch {
+                print("Failed to load Library folder for watch-state update: \(error)")
+            }
+        }
+    }
+
+    private func markLibraryVideos(_ videos: [LibraryVideo], as state: LibraryWatchState) {
+        let snapshots = videos.map { video in
+            LibraryWatchStateSnapshot(
+                videoPath: video.videoPath,
+                duration: video.duration,
+                state: state
+            )
+        }
+        guard !snapshots.isEmpty else {
+            return
+        }
+
+        let writer = libraryPlaybackHistoryWriter
+        Task { [weak self] in
+            await Task.detached(priority: .userInitiated) {
+                writer.setWatchStatesAndWait(snapshots)
+            }.value
+
+            await MainActor.run {
+                self?.refreshLibraryAfterManualWatchStateChange()
+            }
+        }
+    }
+
+    private func refreshLibraryAfterManualWatchStateChange() {
+        library.libraryPlaybackHistoryRevision += 1
+        refreshRecentWatching()
+        refreshLoadedTestRecentWatching()
+        refreshCompleteLibrary()
     }
 
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {

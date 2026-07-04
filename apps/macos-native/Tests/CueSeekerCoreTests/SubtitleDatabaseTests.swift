@@ -166,9 +166,13 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     )
 
     let contextEntries = try database.entries(forSubtitleFile: contextSubtitleFile)
+    let firstContextEntry = try #require(contextEntries.first)
     let thirdContextEntry = try #require(contextEntries.first { $0.content == "context cue 3" })
     let lastContextEntry = try #require(contextEntries.first { $0.content == "context cue 6" })
 
+    #expect(
+        try database.firstCueGroupID(forSubtitleFile: contextSubtitleFile) == firstContextEntry.id
+    )
     #expect(
         try database.cueGroupID(
             forSubtitlePath: contextSubtitleFile.path,
@@ -2380,6 +2384,65 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
         startedAt: rewoundHistory.startedAt,
         completedAt: rewoundHistory.completedAt
     ) == .finished)
+}
+
+@Test
+func setLibraryWatchStateClearsCompletedStateAndDeletesUnwatchedHistory() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 960_000,
+        duration: 1_000.0,
+        markCompleted: true
+    )
+
+    try database.setLibraryWatchState(
+        videoFile: videoFile,
+        duration: 1_000.0,
+        state: .watching
+    )
+
+    let watchingHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(watchingHistory.startedAt != nil)
+    #expect(watchingHistory.completedAt == nil)
+    #expect(LibraryWatchState(
+        positionMilliseconds: watchingHistory.positionMilliseconds,
+        duration: watchingHistory.duration,
+        startedAt: watchingHistory.startedAt,
+        completedAt: watchingHistory.completedAt
+    ) == .watching)
+
+    try database.setLibraryWatchState(
+        videoFile: videoFile,
+        duration: 1_000.0,
+        state: .finished
+    )
+
+    let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(finishedHistory.positionMilliseconds == 1_000_000)
+    #expect(finishedHistory.completedAt != nil)
+    #expect(LibraryWatchState(
+        positionMilliseconds: finishedHistory.positionMilliseconds,
+        duration: finishedHistory.duration,
+        startedAt: finishedHistory.startedAt,
+        completedAt: finishedHistory.completedAt
+    ) == .finished)
+
+    try database.setLibraryWatchState(
+        videoFile: videoFile,
+        duration: 1_000.0,
+        state: .unwatched
+    )
+
+    #expect(try database.libraryPlaybackHistory(forVideoFile: videoFile) == nil)
 }
 
 @Test

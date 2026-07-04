@@ -2680,6 +2680,26 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return statement.int64Column(0)
     }
 
+    public func firstCueGroupID(forSubtitleFile subtitleFile: URL) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT g.id
+            FROM subtitle_cue_groups g
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY g.start_ms ASC, g.id ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return statement.int64Column(0)
+    }
+
     private func cueGroupLanguages(
         forCueGroupIDs cueGroupIDs: [Int64]
     ) throws -> [Int64: Set<SubtitleLanguageCode>] {
@@ -5919,6 +5939,76 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
         try statement.bind(updatedAtString, at: 6)
         try statement.run()
+    }
+
+    public func setLibraryWatchState(
+        videoFile: URL,
+        duration: Double?,
+        state: LibraryWatchState,
+        updatedAt: Date = Date()
+    ) throws {
+        switch state {
+        case .unwatched:
+            let statement = try database.prepare(
+                """
+                DELETE FROM library_playback_history
+                WHERE video_path = ?;
+                """
+            )
+            try statement.bind(videoFile.path, at: 1)
+            try statement.run()
+        case .watching, .finished:
+            let existingHistory = try libraryPlaybackHistory(forVideoFile: videoFile)
+            let updatedAtString = Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt)
+            let normalizedDuration = duration.flatMap { value in
+                value.isFinite && value > 0 ? value : nil
+            }
+            let existingPosition = existingHistory?.positionMilliseconds ?? 0
+            let positionMilliseconds: Int
+            if state == .finished, let normalizedDuration {
+                positionMilliseconds = Int((normalizedDuration * 1_000).rounded(.down))
+            } else {
+                positionMilliseconds = existingPosition
+            }
+            let startedAt = existingHistory?.startedAt ?? updatedAtString
+            let completedAt = state == .finished ? updatedAtString : nil
+
+            let statement = try database.prepare(
+                """
+                INSERT INTO library_playback_history(
+                    video_path,
+                    position_ms,
+                    duration,
+                    started_at,
+                    completed_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(video_path) DO UPDATE SET
+                    position_ms = excluded.position_ms,
+                    duration = excluded.duration,
+                    started_at = excluded.started_at,
+                    completed_at = excluded.completed_at,
+                    updated_at = excluded.updated_at;
+                """
+            )
+
+            try statement.bind(videoFile.path, at: 1)
+            try statement.bind(max(0, positionMilliseconds), at: 2)
+            if let normalizedDuration {
+                try statement.bind(normalizedDuration, at: 3)
+            } else {
+                try statement.bindNull(at: 3)
+            }
+            try statement.bind(startedAt, at: 4)
+            if let completedAt {
+                try statement.bind(completedAt, at: 5)
+            } else {
+                try statement.bindNull(at: 5)
+            }
+            try statement.bind(updatedAtString, at: 6)
+            try statement.run()
+        }
     }
 
     public func upsertShiori(

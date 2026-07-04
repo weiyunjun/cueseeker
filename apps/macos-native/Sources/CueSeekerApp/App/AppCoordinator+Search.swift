@@ -82,6 +82,30 @@ extension AppCoordinator {
         )
     }
 
+    func openLibraryVideoContext(_ video: LibraryVideo, displayTitle: String) {
+        guard let database = subtitleDatabase else {
+            return
+        }
+
+        do {
+            guard let targetEntryID = try database.firstCueGroupID(
+                forSubtitleFile: URL(fileURLWithPath: video.subtitlePath)
+            ) else {
+                return
+            }
+            let contextTitle = displayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? video.videoName
+                : displayTitle
+            openCueContextSearch(
+                displayTitle: contextTitle,
+                subtitlePath: video.subtitlePath,
+                targetEntryID: targetEntryID
+            )
+        } catch {
+            print("Failed to open Library video context: \(error)")
+        }
+    }
+
     func openCueContextSearch(
         displayTitle: String,
         subtitlePath: String,

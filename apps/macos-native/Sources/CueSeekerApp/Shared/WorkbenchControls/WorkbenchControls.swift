@@ -126,6 +126,10 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryListCoverHeight: CGFloat = 115
     /// --height-library-list-button: 30px
     static let redesignLibraryListButtonHeight: CGFloat = 30
+    /// --size-library-card-action-button: 32px
+    static let redesignLibraryCardActionButtonSize: CGFloat = 32
+    /// --size-library-card-action-icon: 16px
+    static let redesignLibraryCardActionIconSize: CGFloat = 16
     /// --width-library-folder-cover: 120px
     static let redesignLibraryFolderCoverWidth: CGFloat = 120
     /// --min-height-library-folder-card: 96px
@@ -152,6 +156,12 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryFolderCardContentGap: CGFloat = 12
     /// --scale-library-media-card-pressed: 0.98
     static let redesignLibraryMediaCardPressedScale: CGFloat = 0.98
+    /// --scale-library-cover-hover: 1.02
+    static let redesignLibraryCoverHoverScale: CGFloat = 1.02
+    /// --duration-library-cover-hover: 0.12s
+    static let redesignLibraryCoverHoverDuration: Double = 0.12
+    /// --duration-library-card-action-hover: 0.12s
+    static let redesignLibraryCardActionHoverDuration: Double = 0.12
     /// --padding-library-folder-card: 12px 16px
     static let redesignLibraryFolderCardVerticalPadding: CGFloat = 12
     static let redesignLibraryFolderCardHorizontalPadding: CGFloat = 16

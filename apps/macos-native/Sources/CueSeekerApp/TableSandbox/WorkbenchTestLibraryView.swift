@@ -225,7 +225,12 @@ private enum WorkbenchTestLibraryMetrics {
     static let episodeListCardHorizontalPadding = WorkbenchControlMetrics.redesignLibraryListCardHorizontalPadding
     static let episodeListCoverWidth = WorkbenchControlMetrics.redesignLibraryListCoverWidth
     static let episodeListCoverHeight = WorkbenchControlMetrics.redesignLibraryListCoverHeight
-    static let episodeListButtonHeight = WorkbenchControlMetrics.redesignLibraryListButtonHeight
+    static let cardActionButtonSize = WorkbenchControlMetrics.redesignLibraryCardActionButtonSize
+    static let cardActionIconSize = WorkbenchControlMetrics.redesignLibraryCardActionIconSize
+    static let cardActionButtonInset: CGFloat = 8
+    static let cardActionHoverDuration = WorkbenchControlMetrics.redesignLibraryCardActionHoverDuration
+    static let coverHoverScale = WorkbenchControlMetrics.redesignLibraryCoverHoverScale
+    static let coverHoverDuration = WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
 
     static let coverAspectRatio = WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
     static let coverRadius = WorkbenchControlMetrics.redesignLibraryCoverRadius
@@ -289,71 +294,101 @@ private struct RecentWatchingGrid: View {
 }
 
 private struct RecentWatchingCard: View {
+    @EnvironmentObject private var appState: AppCoordinator
     let item: RecentLibraryWatchingPresentation
     let onOpen: () -> Void
     @State private var isHovered = false
-    @State private var hasPushedCursor = false
+    @State private var isActionMenuPresented = false
 
     private var isAvailable: Bool {
         FileManager.default.fileExists(atPath: item.videoPath)
     }
 
     var body: some View {
-        Button(action: {
+        VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentCardGap) {
+            coverWithActionMenu
+
+            Text(item.folderTitle)
+                .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                Text(episodeLabel)
+                    .font(.system(size: WorkbenchTestLibraryMetrics.metaSize, weight: .medium))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .monospacedDigit()
+
+                WatchStatusBadge(status: watchStatus)
+            }
+        }
+        .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
+        .frame(maxWidth: WorkbenchTestLibraryMetrics.recentCardMaxWidth, alignment: .topLeading)
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                style: .continuous
+            )
+            .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+        )
+        .opacity(isAvailable ? 1 : 0.55)
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                style: .continuous
+            )
+        )
+        .onTapGesture {
             guard isAvailable else {
                 return
             }
             onOpen()
-        }) {
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentCardGap) {
-                LibraryCoverWithProgress(
-                    coverPath: item.coverPath,
-                    positionMilliseconds: item.positionMilliseconds,
-                    duration: item.playbackDuration ?? item.duration
-                )
-
-                Text(item.folderTitle)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Text(episodeLabel)
-                        .font(.system(size: WorkbenchTestLibraryMetrics.metaSize, weight: .medium))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .monospacedDigit()
-
-                    WatchStatusBadge(status: watchStatus)
-                }
-            }
-            .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
-            .frame(maxWidth: WorkbenchTestLibraryMetrics.recentCardMaxWidth, alignment: .topLeading)
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                    style: .continuous
-                )
-                .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
-            )
-            .opacity(isAvailable ? 1 : 0.55)
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                    style: .continuous
-                )
-            )
         }
-        .buttonStyle(LibraryMediaCardButtonStyle())
-        .disabled(!isAvailable)
         .onHover { hovering in
             isHovered = hovering
-            updateCursor(isHovering: hovering)
         }
-        .onDisappear {
-            resetCursor()
-        }
+        .libraryCardCursor(isEnabled: isAvailable)
         .animation(.easeOut(duration: 0.12), value: isHovered)
+    }
+
+    private var coverWithActionMenu: some View {
+        ZStack(alignment: .topTrailing) {
+            LibraryCoverWithProgress(
+                coverPath: item.coverPath,
+                positionMilliseconds: item.positionMilliseconds,
+                duration: item.playbackDuration ?? item.duration
+            )
+            .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
+
+            LibraryCardActionButton(isAvailable: isAvailable) {
+                isActionMenuPresented = true
+            }
+            .padding(WorkbenchTestLibraryMetrics.cardActionButtonInset)
+            .popover(isPresented: $isActionMenuPresented, arrowEdge: .top) {
+                LibraryCardActionMenu(isPresented: $isActionMenuPresented, items: recentActionItems)
+            }
+        }
+    }
+
+    private var recentActionItems: [LibraryCardActionMenuItem] {
+        [
+            LibraryCardActionMenuItem(title: "Open Folder", systemImage: "folder") {
+                appState.revealFile(atPath: item.videoPath)
+            },
+            LibraryCardActionMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
+                appState.markLibraryVideo(item.libraryVideo, as: .finished)
+            },
+            LibraryCardActionMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
+                appState.markLibraryVideo(item.libraryVideo, as: .unwatched)
+            },
+            LibraryCardActionMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
+                appState.markLibraryVideo(item.libraryVideo, as: .watching)
+            },
+            LibraryCardActionMenuItem(title: "Context", systemImage: "search") {
+                appState.openLibraryVideoContext(item.libraryVideo, displayTitle: contextDisplayTitle)
+            }
+        ]
     }
 
     private var episodeLabel: String {
@@ -364,28 +399,12 @@ private struct RecentWatchingCard: View {
         LibraryWatchStatus(item.watchState)
     }
 
-    private func updateCursor(isHovering: Bool) {
-        guard isHovering else {
-            resetCursor()
-            return
+    private var contextDisplayTitle: String {
+        let trimmedDisplayTitle = item.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedDisplayTitle.isEmpty {
+            return trimmedDisplayTitle
         }
-        guard !hasPushedCursor else {
-            return
-        }
-        if isAvailable {
-            NSCursor.pointingHand.push()
-        } else {
-            NSCursor.operationNotAllowed.push()
-        }
-        hasPushedCursor = true
-    }
-
-    private func resetCursor() {
-        guard hasPushedCursor else {
-            return
-        }
-        NSCursor.pop()
-        hasPushedCursor = false
+        return item.folderTitle
     }
 }
 
@@ -419,89 +438,92 @@ private struct CompleteLibraryFolderGrid: View {
 }
 
 private struct LibraryFolderCard: View {
+    @EnvironmentObject private var appState: AppCoordinator
     let folder: CompleteLibraryFolderSummaryPresentation
     let onOpen: () -> Void
     @State private var isHovered = false
-    @State private var hasPushedCursor = false
+    @State private var isActionMenuPresented = false
 
     private var isAvailable: Bool {
         folder.episodeCount > 0
     }
 
     var body: some View {
-        Button(action: {
+        VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderCardGap) {
+            coverWithActionMenu
+
+            Text(folder.folderTitle)
+                .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
+        .frame(maxWidth: WorkbenchTestLibraryMetrics.folderCardMaxWidth, alignment: .topLeading)
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                style: .continuous
+            )
+            .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+        )
+        .opacity(isAvailable ? 1 : 0.55)
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                style: .continuous
+            )
+        )
+        .onTapGesture {
             guard isAvailable else {
                 return
             }
             onOpen()
-        }) {
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderCardGap) {
-                LibraryCoverWithBadge(
-                    coverPath: folder.coverPath,
-                    badgeText: episodeCountText
-                )
-
-                Text(folder.folderTitle)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
-            .frame(maxWidth: WorkbenchTestLibraryMetrics.folderCardMaxWidth, alignment: .topLeading)
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                    style: .continuous
-                )
-                .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
-            )
-            .opacity(isAvailable ? 1 : 0.55)
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                    style: .continuous
-                )
-            )
         }
-        .buttonStyle(LibraryMediaCardButtonStyle())
-        .disabled(!isAvailable)
         .onHover { hovering in
             isHovered = hovering
-            updateCursor(isHovering: hovering)
         }
-        .onDisappear {
-            resetCursor()
-        }
+        .libraryCardCursor(isEnabled: isAvailable)
         .animation(.easeOut(duration: 0.12), value: isHovered)
+    }
+
+    private var coverWithActionMenu: some View {
+        ZStack(alignment: .topTrailing) {
+            LibraryCoverWithBadge(
+                coverPath: folder.coverPath,
+                badgeText: episodeCountText
+            )
+            .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
+
+            LibraryCardActionButton(isAvailable: isAvailable) {
+                isActionMenuPresented = true
+            }
+            .padding(WorkbenchTestLibraryMetrics.cardActionButtonInset)
+            .popover(isPresented: $isActionMenuPresented, arrowEdge: .top) {
+                LibraryCardActionMenu(isPresented: $isActionMenuPresented, items: folderActionItems)
+            }
+        }
+    }
+
+    private var folderActionItems: [LibraryCardActionMenuItem] {
+        [
+            LibraryCardActionMenuItem(title: "Open Folder", systemImage: "folder") {
+                appState.openFolder(atPath: folder.folderPath)
+            },
+            LibraryCardActionMenuItem(title: "Mark All as Finished", systemImage: "checkmark.circle") {
+                appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .finished)
+            },
+            LibraryCardActionMenuItem(title: "Mark All as Unwatched", systemImage: "circle") {
+                appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .unwatched)
+            },
+            LibraryCardActionMenuItem(title: "Mark All as Watching", systemImage: "play.circle") {
+                appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .watching)
+            }
+        ]
     }
 
     private var episodeCountText: String {
         folder.episodeCount == 1 ? "1 episode" : "\(folder.episodeCount) episodes"
-    }
-
-    private func updateCursor(isHovering: Bool) {
-        guard isHovering else {
-            resetCursor()
-            return
-        }
-        guard !hasPushedCursor else {
-            return
-        }
-        if isAvailable {
-            NSCursor.pointingHand.push()
-        } else {
-            NSCursor.operationNotAllowed.push()
-        }
-        hasPushedCursor = true
-    }
-
-    private func resetCursor() {
-        guard hasPushedCursor else {
-            return
-        }
-        NSCursor.pop()
-        hasPushedCursor = false
     }
 }
 
@@ -555,8 +577,11 @@ private struct CompleteLibraryEpisodeGrid: View {
 }
 
 private struct LibraryEpisodeCard: View {
+    @EnvironmentObject private var appState: AppCoordinator
     let video: CompleteLibraryVideoPresentation
     let onOpen: () -> Void
+    @State private var isHovered = false
+    @State private var isActionMenuPresented = false
 
     private var isAvailable: Bool {
         FileManager.default.fileExists(atPath: video.videoPath)
@@ -564,15 +589,7 @@ private struct LibraryEpisodeCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: WorkbenchTestLibraryMetrics.episodeListItemGap) {
-            LibraryCoverWithProgress(
-                coverPath: video.coverPath,
-                positionMilliseconds: video.positionMilliseconds,
-                duration: video.playbackDuration ?? video.duration
-            )
-            .frame(
-                width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
-                height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
-            )
+            coverWithActionMenu
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -613,15 +630,72 @@ private struct LibraryEpisodeCard: View {
                 maxHeight: WorkbenchTestLibraryMetrics.episodeListCoverHeight,
                 alignment: .topLeading
             )
-
-            LibraryPrimaryPlayButton(isAvailable: isAvailable, action: onOpen)
         }
         .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
         .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.clear)
         .opacity(isAvailable ? 1 : 0.55)
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius,
+                style: .continuous
+            )
+        )
+        .onTapGesture {
+            guard isAvailable else {
+                return
+            }
+            onOpen()
+        }
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .libraryCardCursor(isEnabled: isAvailable)
         .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
+    }
+
+    private var coverWithActionMenu: some View {
+        ZStack(alignment: .topTrailing) {
+            LibraryCoverWithProgress(
+                coverPath: video.coverPath,
+                positionMilliseconds: video.positionMilliseconds,
+                duration: video.playbackDuration ?? video.duration
+            )
+            .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
+
+            LibraryCardActionButton(isAvailable: isAvailable) {
+                isActionMenuPresented = true
+            }
+            .padding(WorkbenchTestLibraryMetrics.cardActionButtonInset)
+            .popover(isPresented: $isActionMenuPresented, arrowEdge: .top) {
+                LibraryCardActionMenu(isPresented: $isActionMenuPresented, items: episodeActionItems)
+            }
+        }
+        .frame(
+            width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
+            height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
+        )
+    }
+
+    private var episodeActionItems: [LibraryCardActionMenuItem] {
+        [
+            LibraryCardActionMenuItem(title: "Open Folder", systemImage: "folder") {
+                appState.revealFile(atPath: video.videoPath)
+            },
+            LibraryCardActionMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
+                appState.markLibraryVideo(video.libraryVideo, as: .finished)
+            },
+            LibraryCardActionMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
+                appState.markLibraryVideo(video.libraryVideo, as: .unwatched)
+            },
+            LibraryCardActionMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
+                appState.markLibraryVideo(video.libraryVideo, as: .watching)
+            },
+            LibraryCardActionMenuItem(title: "Context", systemImage: "search") {
+                appState.openLibraryVideoContext(video.libraryVideo, displayTitle: displayTitle)
+            }
+        ]
     }
 
     private var displayTitle: String {
@@ -688,10 +762,20 @@ private struct LibraryEpisodeCard: View {
     }
 }
 
-private struct LibraryPrimaryPlayButton: View {
+private struct LibraryCardActionMenuItem: Identifiable {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var id: String {
+        title
+    }
+}
+
+private struct LibraryCardActionButton: View {
     let isAvailable: Bool
     let action: () -> Void
-    @State private var hasPushedCursor = false
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: {
@@ -700,18 +784,69 @@ private struct LibraryPrimaryPlayButton: View {
             }
             action()
         }) {
-            Text("Play")
+            Image(systemName: "ellipsis")
+                .font(.system(size: WorkbenchTestLibraryMetrics.cardActionIconSize, weight: .semibold))
+                .foregroundStyle(isHovered && isAvailable ? PlaybackTheme.iconSelected : Color.white)
+                .frame(
+                    width: WorkbenchTestLibraryMetrics.cardActionButtonSize,
+                    height: WorkbenchTestLibraryMetrics.cardActionButtonSize
+                )
+                .background(
+                    Circle()
+                        .fill(isHovered && isAvailable ? Color.white : Color.black.opacity(0.30))
+                )
         }
-        .buttonStyle(LibraryPrimaryPlayButtonStyle())
+        .buttonStyle(.plain)
         .disabled(!isAvailable)
-        .onHover { hovering in
-            updateCursor(isHovering: hovering)
+        .onHover { isHovered = $0 }
+        .libraryCardCursor(isEnabled: isAvailable)
+        .animation(.easeOut(duration: WorkbenchTestLibraryMetrics.cardActionHoverDuration), value: isHovered)
+        .help(isAvailable ? "More actions" : "Missing video file")
+        .accessibilityLabel(isAvailable ? "More actions" : "Missing video file")
+    }
+}
+
+private struct LibraryCardActionMenu: View {
+    @Binding var isPresented: Bool
+    let items: [LibraryCardActionMenuItem]
+
+    var body: some View {
+        WorkbenchPopoverPanel(isRedesign: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(items) { item in
+                    WorkbenchPopoverRow(
+                        title: item.title,
+                        systemImage: item.systemImage,
+                        isRedesign: true,
+                        showsCheckmarkSlot: false,
+                        isEnabled: true,
+                        action: {
+                            isPresented = false
+                            item.action()
+                        }
+                    )
+                }
+            }
+            .frame(minWidth: 220, alignment: .leading)
         }
-        .onDisappear {
-            resetCursor()
-        }
-        .help(isAvailable ? "Play" : "Missing video file")
-        .accessibilityLabel(isAvailable ? "Play" : "Missing video file")
+    }
+}
+
+private struct LibraryCardCursorModifier: ViewModifier {
+    let isEnabled: Bool
+    @State private var hasPushedCursor = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { hovering in
+                updateCursor(isHovering: hovering)
+            }
+            .onChange(of: isEnabled) { _ in
+                resetCursor()
+            }
+            .onDisappear {
+                resetCursor()
+            }
     }
 
     private func updateCursor(isHovering: Bool) {
@@ -722,7 +857,7 @@ private struct LibraryPrimaryPlayButton: View {
         guard !hasPushedCursor else {
             return
         }
-        if isAvailable {
+        if isEnabled {
             NSCursor.pointingHand.push()
         } else {
             NSCursor.operationNotAllowed.push()
@@ -739,62 +874,23 @@ private struct LibraryPrimaryPlayButton: View {
     }
 }
 
-private struct LibraryPrimaryPlayButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        LibraryPrimaryPlayButtonStyleBody(configuration: configuration)
+private struct LibraryCoverHoverEffectModifier: ViewModifier {
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isActive ? WorkbenchTestLibraryMetrics.coverHoverScale : 1)
+            .animation(.easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration), value: isActive)
     }
 }
 
-private struct LibraryPrimaryPlayButtonStyleBody: View {
-    let configuration: ButtonStyle.Configuration
-    @Environment(\.isEnabled) private var isEnabled
-    @State private var isHovered = false
-
-    var body: some View {
-        configuration.label
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl))
-            .foregroundStyle(WorkbenchRedesignColors.primaryButtonText)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
-            .frame(height: WorkbenchTestLibraryMetrics.episodeListButtonHeight)
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                    style: .continuous
-                )
-                .fill(WorkbenchRedesignColors.primaryButtonBg.opacity(backgroundOpacity))
-            )
-            .overlay(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                    style: .continuous
-                )
-                .fill(Color.white.opacity(hoverOverlayOpacity))
-            )
-            .onHover { isHovered = $0 }
-            .animation(.easeOut(duration: 0.12), value: isHovered)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+private extension View {
+    func libraryCardCursor(isEnabled: Bool) -> some View {
+        modifier(LibraryCardCursorModifier(isEnabled: isEnabled))
     }
 
-    private var backgroundOpacity: Double {
-        guard isEnabled else {
-            return 0.45
-        }
-        return configuration.isPressed ? 0.82 : 1
-    }
-
-    private var hoverOverlayOpacity: Double {
-        guard isEnabled, isHovered, !configuration.isPressed else {
-            return 0
-        }
-        return 0.12
-    }
-}
-
-private struct LibraryMediaCardButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? WorkbenchControlMetrics.redesignLibraryMediaCardPressedScale : 1)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    func libraryCoverHoverEffect(isActive: Bool) -> some View {
+        modifier(LibraryCoverHoverEffectModifier(isActive: isActive))
     }
 }
 
