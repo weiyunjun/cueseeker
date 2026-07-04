@@ -39,7 +39,7 @@ struct LiquidGlassTokens {
 
     // Card fill — v6 `--search-page-card-bg` (white @0.62 / white @0.10).
     var cardFill: Color { Color.white.opacity(isDark ? 0.10 : 0.62) }
-    var cardHoverFill: Color { Color.white.opacity(isDark ? 0.15 : 0.82) }
+    var cardHoverFill: Color { Color.accentColor.opacity(isDark ? 0.12 : 0.08) }
     var cardSelectedFill: Color { Color.accentColor.opacity(isDark ? 0.22 : 0.16) }
 
     // Library-launched "playing" indicator fill — v6 `--card-selected-bg`

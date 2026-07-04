@@ -32,6 +32,13 @@ extension NSColor {
             }
         }
     }
+
+    static func controlAccent(lightAlpha: CGFloat, darkAlpha: CGFloat) -> NSColor {
+        return NSColor(name: nil) { appearance in
+            let alpha = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? darkAlpha : lightAlpha
+            return NSColor.controlAccentColor.withAlphaComponent(alpha)
+        }
+    }
 }
 
 enum WorkbenchRedesignColors {
@@ -85,8 +92,8 @@ enum WorkbenchRedesignColors {
         static let primaryButtonText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
 
         // Focus
-        static let borderFocus = NSColor.dynamic(lightHex: "#3B82F6", darkHex: "#60A5FA")
-        static let focusRing = NSColor.dynamic(lightHex: "#3B82F6", lightAlpha: 0.22, darkHex: "#60A5FA", darkAlpha: 0.30)
+        static let borderFocus = NSColor.controlAccentColor
+        static let focusRing = NSColor.controlAccent(lightAlpha: 0.22, darkAlpha: 0.30)
 
         // Table Row
         static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#202024")
@@ -121,12 +128,12 @@ enum WorkbenchRedesignColors {
         static let watchStatusFinishedText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
 
         // Library Media
-        static let libraryProgressFill = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#7AA2FF")
+        static let libraryProgressFill = NSColor.controlAccentColor
         static let libraryProgressTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
         static let libraryTimeBadgeBg = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.72, darkHex: "#000000", darkAlpha: 0.58)
         static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
         static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
-        static let libraryMediaCardHoverBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#27272A")
+        static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
 
         // Shadow Color
         static let shadowPopover = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.12, darkHex: "#000000", darkAlpha: 0.36)
@@ -181,7 +188,7 @@ enum WorkbenchRedesignColors {
     static let primaryButtonText = Color(nsColor: NS.primaryButtonText)
 
     // Focus
-    static let borderFocus = Color(nsColor: NS.borderFocus)
+    static let borderFocus = Color.accentColor
     static let focusRing = Color(nsColor: NS.focusRing)
 
     // Table Row
@@ -217,7 +224,7 @@ enum WorkbenchRedesignColors {
     static let watchStatusFinishedText = Color(nsColor: NS.watchStatusFinishedText)
 
     // Library Media
-    static let libraryProgressFill = Color(nsColor: NS.libraryProgressFill)
+    static let libraryProgressFill = Color.accentColor
     static let libraryProgressTrack = Color(nsColor: NS.libraryProgressTrack)
     static let libraryTimeBadgeBg = Color(nsColor: NS.libraryTimeBadgeBg)
     static let libraryTimeBadgeText = Color(nsColor: NS.libraryTimeBadgeText)

@@ -53,7 +53,7 @@ public enum PlaybackTheme {
 
     /// --color-player-progress-fill
     public static var progressFill: Color {
-        Color(red: 1, green: 0, blue: 0)
+        Color.accentColor
     }
 
     /// --color-player-progress-track
@@ -137,7 +137,7 @@ public enum PlaybackTheme {
         menuItemHoverBackground
     }
 
-    /// YouTube-style signature red for active playback progress track.
+    /// Compatibility alias for active playback progress track.
     public static var progressRed: Color {
         progressFill
     }
