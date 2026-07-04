@@ -61,19 +61,21 @@ Menu Item Icon Color Disabled: --color-icon-disabled
 
 #### Container
 Style: Row Action Menu
-Trigger: right click on Library card hover region
+Trigger: right click on the card-defined interactive hover region
 Menu Background: --color-bg-popover
 Menu Border: --color-border-muted
 Menu Border Radius: --radius-menu
 Menu Shadow: --shadow-popover
 Menu Padding: --spacing-1
+Menu Width: fixed or intrinsic menu width; must not expand to parent container width
 Menu Item Hover Background: --color-bg-hover
+Dismiss: click outside menu closes the menu
 System Popover Arrow: none
 
 #### Anchor
 Recent Watching Card: right-click position inside card hover region
 Library Folder Card: right-click position inside card hover region
-Library Episode Card: right-click position inside card hover region
+Library Episode Card: right-click position inside Cover Region only
 Menu Position: align to right-click position and clamp to visible content bounds
 
 #### Menu Content
@@ -140,16 +142,18 @@ Disabled / Empty Folder: reduce opacity and disable click
 ### 3.3 Library Episode Grid and Card Layout
 
 #### Card Structure
-Container: clickable media card
+Container: horizontal episode row
 Orientation: horizontal
 Align Items: center
 Gap: --gap-library-list-item
 Padding: --padding-library-list-card
 Radius: --radius-library-list-card
 Background: transparent
-Hover Radius: --radius-library-media-card-hover
-Hover Background: --color-library-media-card-hover-bg
-Pressed: media card press feedback
+Cover Region: only interactive playback/menu region
+Info Region: non-playback information region reserved for future interactions
+Hover Radius: --radius-library-media-card-hover applies to Cover Region only
+Hover Background: --color-library-media-card-hover-bg applies to Cover Region only
+Pressed: Cover Region press feedback only
 
 #### Content
 Cover Region:
@@ -193,11 +197,13 @@ Context Menu:
 
 #### Interaction
 Default: transparent background
-Hover: show hover background and apply Library Cover hover effect
-Pressed: media card press feedback
-Left Click: open video at saved playback position
-Right Click: open Library Card Context Menu without triggering card click
-Disabled / Missing File: reduce row opacity and disable click
+Cover Hover: show Cover Region hover background and apply Library Cover hover effect
+Info Hover: no playback hover background and no Library Cover hover effect
+Pressed: Cover Region press feedback only
+Left Click: Cover Region opens video at saved playback position
+Right Click: Cover Region opens Library Card Context Menu without triggering video playback
+Cursor: pointing hand only inside Cover Region
+Disabled / Missing File: reduce row opacity and disable Cover Region click/menu
 
 #### Cursor
 Default / Hover: pointer
