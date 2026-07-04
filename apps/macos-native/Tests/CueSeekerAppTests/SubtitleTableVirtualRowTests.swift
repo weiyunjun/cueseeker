@@ -548,6 +548,24 @@ func subtitleTableViewClearsCueTextCursorState() {
     #expect(fixture.coordinator.hasPushedCueTextCursorForTesting() == false)
 }
 
+@MainActor
+@Test
+func subtitleTableViewDismissMenuClearsCueTextCursorState() {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let anchorFrame = CGRect(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth,
+        y: 14,
+        width: 520,
+        height: fixture.coordinator.currentRowHeight
+    )
+
+    fixture.coordinator.setCueTextCursorActiveForTesting(true)
+    fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
+    fixture.coordinator.dismissMenu(recalculateHover: false)
+
+    #expect(fixture.coordinator.hasPushedCueTextCursorForTesting() == false)
+}
+
 @Test
 func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
     var cache = SubtitleVirtualRowHeightCache()

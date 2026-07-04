@@ -457,6 +457,10 @@ final class SubtitleTextLayout {
         lineUsedRects(at: origin).contains { $0.contains(point) }
     }
 
+    func usedRects(at origin: CGPoint) -> [CGRect] {
+        lineUsedRects(at: origin)
+    }
+
     func underlineRects(
         at origin: CGPoint,
         thickness: CGFloat,
@@ -1359,10 +1363,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
             super.draw(dirtyRect)
             
             if isRedesign {
-                if isHeaderHovered {
-                    WorkbenchRedesignColors.NS.rowHover.setFill()
-                    bounds.fill()
-                }
                 WorkbenchRedesignColors.NS.borderControl.setStroke()
                 let path = NSBezierPath()
                 path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
@@ -2732,59 +2732,59 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if let dateAddedRect = layout.dateAddedRect {
                 let cellRect = rowColumnRect(dateAddedRect, rowRect: rowRect)
-                drawCellHoverBackground(row: row, columnID: "dateAdded", rect: cellRect, hasContent: model != nil)
                 drawBody(
                     model?.dateAdded ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .metadata
+                    role: .metadata,
+                    isHovered: isCellHovered(row: row, columnID: "dateAdded")
                 )
             }
             if showsDisplayTitleColumn {
                 let cellRect = rowColumnRect(layout.nameRect, rowRect: rowRect)
-                drawCellHoverBackground(row: row, columnID: "display", rect: cellRect, hasContent: model != nil)
                 drawBody(
                     model?.displayTitle ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .secondaryContext
+                    role: .secondaryContext,
+                    isHovered: isCellHovered(row: row, columnID: "display")
                 )
             }
             if let timeRect = layout.timeRect {
                 let cellRect = rowColumnRect(timeRect, rowRect: rowRect)
-                drawCellHoverBackground(row: row, columnID: "time", rect: cellRect, hasContent: model != nil)
                 drawBody(
                     model?.timeRange ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .metadata
+                    role: .metadata,
+                    isHovered: isCellHovered(row: row, columnID: "time")
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
             let isCuesHovered = isCellHovered(row: row, columnID: "cues")
-            drawCellHoverBackground(row: row, columnID: "cues", rect: cuesRect, hasContent: model != nil)
             drawBody(
                 model?.cues ?? "",
                 in: cuesRect,
                 trailing: cuesTextTrailingInset(forRowRect: rowRect),
-                isHovered: isCuesHovered
+                isHovered: isCuesHovered,
+                underline: isCuesHovered
             )
             if let speakerRect = layout.speakerRect {
                 let cellRect = rowColumnRect(speakerRect, rowRect: rowRect)
-                drawCellHoverBackground(row: row, columnID: "speaker", rect: cellRect, hasContent: model != nil)
                 drawTags(
                     model?.speakerTags ?? [],
                     in: cellRect,
-                    trailing: M.trailingInset
+                    trailing: M.trailingInset,
+                    isHovered: isCellHovered(row: row, columnID: "speaker")
                 )
             }
             if let languageRect = layout.languageRect {
                 let cellRect = rowColumnRect(languageRect, rowRect: rowRect)
-                drawCellHoverBackground(row: row, columnID: "language", rect: cellRect, hasContent: model != nil)
                 drawTags(
                     model?.tags ?? [],
                     in: cellRect,
-                    trailing: M.trailingInset
+                    trailing: M.trailingInset,
+                    isHovered: isCellHovered(row: row, columnID: "language")
                 )
             }
         }
@@ -2795,21 +2795,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 (columnID == "cues" && isMenuOpen && activeRowMenuRow == row)
         }
 
-        private func drawCellHoverBackground(row: Int, columnID: String, rect: CGRect, hasContent: Bool) {
-            guard hasContent, isCellHovered(row: row, columnID: columnID) else { return }
-            drawCellHoverBackground(rect: rect)
-        }
-
-        private func drawCellHoverBackground(rect: CGRect) {
+        private func drawContentHoverBackground(rects: [CGRect], clippedTo clipRect: CGRect) {
             let M = SubtitleTableMetrics.self
-            let hoverRect = rect.insetBy(dx: M.tableCellHoverInset, dy: M.tableCellHoverInset)
-            guard hoverRect.width > 0, hoverRect.height > 0 else { return }
-            WorkbenchRedesignColors.NS.rowHover.setFill()
-            NSBezierPath(
-                roundedRect: hoverRect,
-                xRadius: M.tableCellHoverRadius,
-                yRadius: M.tableCellHoverRadius
-            ).fill()
+            WorkbenchRedesignColors.NS.bgHover.setFill()
+            for contentRect in rects {
+                let hoverRect = contentRect
+                    .insetBy(dx: -M.tableCellHoverInset, dy: -M.tableCellHoverInset)
+                    .intersection(clipRect)
+                guard !hoverRect.isNull, hoverRect.width > 0, hoverRect.height > 0 else { continue }
+                NSBezierPath(
+                    roundedRect: hoverRect,
+                    xRadius: M.tableCellHoverRadius,
+                    yRadius: M.tableCellHoverRadius
+                ).fill()
+            }
         }
 
         private func rowColumnRect(_ columnRect: CGRect, rowRect: CGRect) -> CGRect {
@@ -2853,6 +2852,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
             let origin = bodyTextOrigin(in: rect)
+            if isHovered {
+                drawContentHoverBackground(rects: textLayout.usedRects(at: origin), clippedTo: rect)
+            }
             if underline {
                 textLayout.drawUnderline(
                     at: origin,
@@ -2871,7 +2873,12 @@ struct SubtitleTableView: NSViewRepresentable {
             return M.trailingInset
         }
 
-        private func drawTags(_ tags: [WorkbenchTag], in rect: CGRect, trailing: CGFloat) {
+        private func drawTags(
+            _ tags: [WorkbenchTag],
+            in rect: CGRect,
+            trailing: CGFloat,
+            isHovered: Bool = false
+        ) {
             let M = SubtitleTableMetrics.self
             guard !tags.isEmpty else { return }
 
@@ -2909,6 +2916,9 @@ struct SubtitleTableView: NSViewRepresentable {
                     xRadius: tagStyle.cornerRadius,
                     yRadius: tagStyle.cornerRadius
                 )
+                if isHovered {
+                    drawContentHoverBackground(rects: [tagRect], clippedTo: rect)
+                }
                 tagStyle.fillColor(for: tag, isRedesign: isRedesign, isEnabled: isEnabled).setFill()
                 path.fill()
 
@@ -3639,15 +3649,20 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func dismissMenu(recalculateHover: Bool = true) {
             let previousRowMenuRow = activeRowMenuRow
+            let previousHoveredRow = hoveredRow
             isMenuOpen = false
             activeHeaderMenuColumnID = nil
             activeRowMenuRow = nil
             activeMenuAnchor = nil
+            updateHoveredColumnID(nil)
+            updateHoveredCueTextRow(nil)
+            updateHoveredRowActionRow(nil)
+            clearCueTextCursor()
             menuHost?.isHidden = true
             menuOverlayView?.isHidden = true
             removeMenuDismissMonitor()
             headerView?.refreshHeaderHosts()
-            invalidateRows([previousRowMenuRow])
+            invalidateRows([previousRowMenuRow, previousHoveredRow])
 
             guard recalculateHover else { return }
 
