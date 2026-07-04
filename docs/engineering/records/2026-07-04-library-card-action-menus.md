@@ -45,6 +45,14 @@ Library card behavior matches the shared Row Action Menu interaction model.
 - Reused the existing Library watch-state and first-cue Context actions; the
   watch-state storage/progress separation is tracked in the dedicated
   watch-state regression record.
+- Follow-up correction: narrowed Complete Library episode hover, pointer,
+  playback click, and right-click context-menu triggering to the cover region
+  only, leaving the info region non-playback and available for later actions.
+- Follow-up correction: constrained the custom Library context menu to its
+  intrinsic menu width, added a same-window outside-click monitor that dismisses
+  the menu, and disabled card right-click triggers while a menu is open so an
+  outside click closes the menu without also opening playback or a replacement
+  menu.
 
 ## Verification
 
@@ -53,12 +61,17 @@ Library card behavior matches the shared Row Action Menu interaction model.
 - `swift test --filter libraryCoverProgressPresentationKeepsFinishedProgressAtSavedPosition`
 - `swift test --filter recentPlaybackNavigationPreparesSameFolderEpisodes`
 - `swift test`
+- Follow-up correction: `git diff --check`
+- Follow-up correction: `swift build`
+- Follow-up correction: `swift test`
 
 ## Outcome
 
 Recent Watching, Complete Library folder, and Complete Library episode cards now
 use right-click Library Card Context Menus backed by the shared Row Action Menu
 views. The previous `...` buttons and system popover arrows are removed.
-Complete Library episode rows now match the other Library card surfaces for
-left-click playback, hover feedback, pointer cursor behavior, and context-menu
-entry.
+Complete Library episode rows now use the cover region only for playback hover,
+left-click playback, pointer cursor behavior, and context-menu entry. The info
+region no longer triggers cover hover, video playback, or the Library Card
+Context Menu. Library Card Context Menus now stay at menu width and outside
+clicks dismiss the open menu before another card action can run.

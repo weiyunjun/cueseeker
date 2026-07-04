@@ -628,14 +628,30 @@ private struct LibraryEpisodeCard: View {
         .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
         .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(isAvailable ? 1 : 0.55)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
+    }
+
+    private var cover: some View {
+        LibraryCoverWithProgress(
+            coverPath: video.coverPath,
+            positionMilliseconds: video.positionMilliseconds,
+            duration: video.playbackDuration ?? video.duration
+        )
+        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
+        .frame(
+            width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
+            height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
+        )
         .background(
             RoundedRectangle(
                 cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
                 style: .continuous
             )
             .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+            .padding(-WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
         )
-        .opacity(isAvailable ? 1 : 0.55)
         .contentShape(
             RoundedRectangle(
                 cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
@@ -658,21 +674,6 @@ private struct LibraryEpisodeCard: View {
             openContextMenu: openContextMenu
         )
         .libraryCardCursor(isEnabled: isAvailable)
-        .animation(.easeOut(duration: 0.12), value: isHovered)
-        .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
-    }
-
-    private var cover: some View {
-        LibraryCoverWithProgress(
-            coverPath: video.coverPath,
-            positionMilliseconds: video.positionMilliseconds,
-            duration: video.playbackDuration ?? video.duration
-        )
-        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
-        .frame(
-            width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
-            height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
-        )
     }
 
     private var episodeContextMenuItems: [LibraryCardContextMenuItem] {
@@ -763,6 +764,17 @@ private enum LibraryCardContextMenuCoordinateSpace {
     static let name = "LibraryCardContextMenuCoordinateSpace"
 }
 
+private struct LibraryCardContextMenuIsOpenKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private extension EnvironmentValues {
+    var libraryCardContextMenuIsOpen: Bool {
+        get { self[LibraryCardContextMenuIsOpenKey.self] }
+        set { self[LibraryCardContextMenuIsOpenKey.self] = newValue }
+    }
+}
+
 private struct LibraryCardContextMenuItem: Identifiable {
     let title: String
     let systemImage: String
@@ -786,12 +798,23 @@ private struct LibraryCardContextMenuHost<Content: View>: View {
 
     var body: some View {
         content(openContextMenu)
+            .environment(\.libraryCardContextMenuIsOpen, activeMenu != nil)
             .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
             .overlay(alignment: .topLeading) {
                 if let activeMenu {
                     GeometryReader { proxy in
+                        let menuFrame = menuFrame(for: activeMenu, in: proxy.size)
                         ZStack(alignment: .topLeading) {
+                            LibraryCardMenuDismissMonitor(
+                                isActive: true,
+                                menuFrame: menuFrame,
+                                onDismiss: dismissContextMenu
+                            )
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .allowsHitTesting(false)
+
                             Color.clear
+                                .frame(width: proxy.size.width, height: proxy.size.height)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     dismissContextMenu()
@@ -829,20 +852,112 @@ private struct LibraryCardContextMenuHost<Content: View>: View {
         activeMenu = nil
     }
 
+    private func menuFrame(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGRect {
+        let offset = menuOffset(for: menu, in: containerSize)
+        let size = resolvedMenuSize(for: menu)
+        return CGRect(
+            x: offset.width,
+            y: offset.height,
+            width: size.width,
+            height: size.height
+        )
+    }
+
     private func menuOffset(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGSize {
-        let fallbackSize = CGSize(
-            width: 220,
-            height: CGFloat(menu.items.count * 40 + 8)
-        )
-        let resolvedSize = CGSize(
-            width: menuSize.width > 0 ? menuSize.width : fallbackSize.width,
-            height: menuSize.height > 0 ? menuSize.height : fallbackSize.height
-        )
+        let resolvedSize = resolvedMenuSize(for: menu)
         let maxX = max(0, containerSize.width - resolvedSize.width)
         let maxY = max(0, containerSize.height - resolvedSize.height)
         let x = min(max(0, menu.anchorPoint.x), maxX)
         let y = min(max(0, menu.anchorPoint.y), maxY)
         return CGSize(width: x, height: y)
+    }
+
+    private func resolvedMenuSize(for menu: LibraryCardContextMenuState) -> CGSize {
+        let fallbackSize = CGSize(
+            width: 220,
+            height: CGFloat(menu.items.count * 40 + 8)
+        )
+        return CGSize(
+            width: menuSize.width > 0 ? menuSize.width : fallbackSize.width,
+            height: menuSize.height > 0 ? menuSize.height : fallbackSize.height
+        )
+    }
+}
+
+private struct LibraryCardMenuDismissMonitor: NSViewRepresentable {
+    let isActive: Bool
+    let menuFrame: CGRect
+    let onDismiss: () -> Void
+
+    func makeNSView(context _: Context) -> MonitoringView {
+        MonitoringView()
+    }
+
+    func updateNSView(_ nsView: MonitoringView, context _: Context) {
+        nsView.update(isActive: isActive, menuFrame: menuFrame, onDismiss: onDismiss)
+    }
+
+    final class MonitoringView: NSView {
+        nonisolated(unsafe) private var monitor: Any?
+        private var isActive = false
+        private var menuFrame = CGRect.zero
+        private var onDismiss: (() -> Void)?
+
+        override var isFlipped: Bool {
+            true
+        }
+
+        func update(isActive: Bool, menuFrame: CGRect, onDismiss: @escaping () -> Void) {
+            self.isActive = isActive
+            self.menuFrame = menuFrame
+            self.onDismiss = onDismiss
+            updateMonitor()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            updateMonitor()
+        }
+
+        deinit {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
+
+        private func updateMonitor() {
+            guard isActive, window != nil else {
+                removeMonitor()
+                return
+            }
+            guard monitor == nil else {
+                return
+            }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+                guard let self else {
+                    return event
+                }
+                guard event.window === self.window else {
+                    return event
+                }
+
+                let localPoint = self.convert(event.locationInWindow, from: nil)
+                guard !self.menuFrame.contains(localPoint) else {
+                    return event
+                }
+
+                self.onDismiss?()
+                return nil
+            }
+        }
+
+        private func removeMonitor() {
+            guard let monitor else {
+                return
+            }
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
     }
 }
 
@@ -877,6 +992,7 @@ private struct LibraryCardContextMenu: View {
             }
             .frame(minWidth: 220, alignment: .leading)
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -885,12 +1001,13 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
     let isHovered: Bool
     let items: [LibraryCardContextMenuItem]
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
+    @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
 
     func body(content: Content) -> some View {
         content.background(
             GeometryReader { proxy in
                 let frame = proxy.frame(in: .named(LibraryCardContextMenuCoordinateSpace.name))
-                LibraryCardRightClickMonitor(isEnabled: isEnabled && isHovered) { localPoint in
+                LibraryCardRightClickMonitor(isEnabled: isEnabled && isHovered && !isContextMenuOpen) { localPoint in
                     openContextMenu(
                         items,
                         CGPoint(
