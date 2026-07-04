@@ -86,6 +86,12 @@ public enum SubtitleScreenshotExporter {
         let subtitleBands: [SubtitleBand]
     }
 
+    // Drawing uses the unflipped bitmap context; crop bands use top-origin CGImage pixels.
+    private struct SubtitlePlacement: Equatable {
+        let drawingRect: CGRect
+        let pixelBand: SubtitleBand
+    }
+
     public static func defaultScreenshotFileName(for item: SubtitleScreenshotExportItem) -> String {
         "\(item.displayTitle)-\(timeString(milliseconds: item.startMilliseconds))-\(timeString(milliseconds: item.endMilliseconds)).png"
     }
@@ -369,16 +375,18 @@ public enum SubtitleScreenshotExporter {
         let backgroundWidth = min(CGFloat(width) - 64, ceil(measured.width + paddingX * 2))
         let backgroundHeight = ceil(measured.height + paddingY * 2)
         let bottomPadding = max(28, CGFloat(height) * 0.026)
-        let backgroundRect = CGRect(
-            x: (CGFloat(width) - backgroundWidth) / 2,
-            y: CGFloat(height) - bottomPadding - backgroundHeight,
+        let placement = bottomAnchoredSubtitlePlacement(
+            frameWidth: width,
+            frameHeight: height,
             width: backgroundWidth,
-            height: backgroundHeight
+            height: backgroundHeight,
+            bottomPadding: bottomPadding
         )
+        let backgroundRect = placement.drawingRect
         let textRect = backgroundRect.insetBy(dx: paddingX, dy: paddingY)
 
         NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
         NSColor.black.withAlphaComponent(0.68).setFill()
         NSBezierPath(roundedRect: backgroundRect, xRadius: 6, yRadius: 6).fill()
         NSString(string: text).draw(in: textRect, withAttributes: attributes)
@@ -389,10 +397,47 @@ public enum SubtitleScreenshotExporter {
         }
 
         let band = paddedBand(
-            SubtitleBand(y1: Int(backgroundRect.minY.rounded(.down)), y2: Int(backgroundRect.maxY.rounded(.up)) - 1),
+            placement.pixelBand,
             frameHeight: height
         )
         return RenderedSubtitleFrame(image: image, subtitleBands: [band])
+    }
+
+    static func _renderSimpleSubtitleFrameForTesting(
+        item: SubtitleScreenshotExportItem,
+        frameImage: CGImage
+    ) throws -> (image: CGImage, subtitleBands: [(y1: Int, y2: Int)]) {
+        let renderedFrame = try renderSimpleSubtitleFrame(item: item, frameImage: frameImage)
+        return (
+            image: renderedFrame.image,
+            subtitleBands: renderedFrame.subtitleBands.map { (y1: $0.y1, y2: $0.y2) }
+        )
+    }
+
+    private static func bottomAnchoredSubtitlePlacement(
+        frameWidth: Int,
+        frameHeight: Int,
+        width: CGFloat,
+        height: CGFloat,
+        bottomPadding: CGFloat
+    ) -> SubtitlePlacement {
+        let frameWidth = CGFloat(frameWidth)
+        let frameHeight = CGFloat(frameHeight)
+        let clampedWidth = min(max(0, width), frameWidth)
+        let clampedHeight = min(max(0, height), frameHeight)
+        let drawingMinY = min(max(0, bottomPadding), max(0, frameHeight - clampedHeight))
+        let drawingRect = CGRect(
+            x: (frameWidth - clampedWidth) / 2,
+            y: drawingMinY,
+            width: clampedWidth,
+            height: clampedHeight
+        )
+        let pixelMinY = frameHeight - drawingRect.maxY
+        let pixelBand = SubtitleBand(
+            y1: max(0, Int(pixelMinY.rounded(.down))),
+            y2: min(Int(frameHeight) - 1, Int((pixelMinY + drawingRect.height).rounded(.up)) - 1)
+        )
+        return SubtitlePlacement(drawingRect: drawingRect, pixelBand: pixelBand)
     }
 
     private static func makeASSSession(

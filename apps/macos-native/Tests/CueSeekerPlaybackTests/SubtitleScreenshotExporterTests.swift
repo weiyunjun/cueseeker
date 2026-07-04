@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import Testing
 import CueSeekerCore
 @testable import CueSeekerPlayback
@@ -91,4 +92,119 @@ func subtitleScreenshotCollageRequiresOneVideoAndAtMostFiftyItems() {
     #expect(SubtitleScreenshotExporter.canExportCollage([baseItem, sameVideo]))
     #expect(!SubtitleScreenshotExporter.canExportCollage([baseItem, otherVideo]))
     #expect(!SubtitleScreenshotExporter.canExportCollage(Array(repeating: baseItem, count: 51)))
+}
+
+@Test
+func srtSubtitleScreenshotKeepsVideoOrientationAndBottomAnchorsSubtitle() throws {
+    let width = 320
+    let height = 180
+    let frameImage = try makeOrientationTestImage(width: width, height: height)
+    let item = SubtitleScreenshotExportItem(
+        displayTitle: "SRT Orientation",
+        videoPath: "/tmp/video.mkv",
+        subtitlePath: "/tmp/video.srt",
+        subtitleFormat: .srt,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        textLines: ["Test"]
+    )
+
+    let rendered = try SubtitleScreenshotExporter._renderSimpleSubtitleFrameForTesting(
+        item: item,
+        frameImage: frameImage
+    )
+
+    let topPixel = try pixel(in: rendered.image, x: 12, y: 12)
+    let bottomPixel = try pixel(in: rendered.image, x: 12, y: height - 12)
+    #expect(topPixel.red > 220)
+    #expect(topPixel.green < 40)
+    #expect(topPixel.blue < 40)
+    #expect(bottomPixel.red < 40)
+    #expect(bottomPixel.green < 40)
+    #expect(bottomPixel.blue > 220)
+
+    let band = try #require(rendered.subtitleBands.first)
+    #expect(band.y1 > height / 2)
+    #expect(band.y2 < height)
+    #expect(try darkPixelCount(in: rendered.image, yRange: 0..<(height / 3)) == 0)
+    #expect(try darkPixelCount(in: rendered.image, yRange: (height * 2 / 3)..<height) > 100)
+}
+
+private struct RGBAPixel {
+    let red: UInt8
+    let green: UInt8
+    let blue: UInt8
+    let alpha: UInt8
+}
+
+private func makeOrientationTestImage(width: Int, height: Int) throws -> CGImage {
+    var data = Data(count: width * height * 4)
+    data.withUnsafeMutableBytes { rawBuffer in
+        let bytes = rawBuffer.bindMemory(to: UInt8.self)
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = ((y * width) + x) * 4
+                if y < height / 2 {
+                    bytes[offset] = 255
+                    bytes[offset + 1] = 0
+                    bytes[offset + 2] = 0
+                    bytes[offset + 3] = 255
+                } else {
+                    bytes[offset] = 0
+                    bytes[offset + 1] = 0
+                    bytes[offset + 2] = 255
+                    bytes[offset + 3] = 255
+                }
+            }
+        }
+    }
+
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let provider = try #require(CGDataProvider(data: data as CFData))
+    return try #require(CGImage(
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bitsPerPixel: 32,
+        bytesPerRow: width * 4,
+        space: colorSpace,
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
+        provider: provider,
+        decode: nil,
+        shouldInterpolate: false,
+        intent: .defaultIntent
+    ))
+}
+
+private func pixel(in image: CGImage, x: Int, y: Int) throws -> RGBAPixel {
+    let data = try imageData(image)
+    let offset = (y * image.bytesPerRow) + (x * 4)
+    return RGBAPixel(
+        red: data[offset],
+        green: data[offset + 1],
+        blue: data[offset + 2],
+        alpha: data[offset + 3]
+    )
+}
+
+private func darkPixelCount(in image: CGImage, yRange: Range<Int>) throws -> Int {
+    let data = try imageData(image)
+    var count = 0
+    for y in yRange {
+        for x in 0..<image.width {
+            let offset = (y * image.bytesPerRow) + (x * 4)
+            if data[offset] < 100,
+               data[offset + 1] < 100,
+               data[offset + 2] < 100,
+               data[offset + 3] > 180 {
+                count += 1
+            }
+        }
+    }
+    return count
+}
+
+private func imageData(_ image: CGImage) throws -> Data {
+    let providerData = try #require(image.dataProvider?.data)
+    return providerData as Data
 }
