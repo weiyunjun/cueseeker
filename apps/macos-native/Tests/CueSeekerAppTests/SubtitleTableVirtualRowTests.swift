@@ -460,7 +460,24 @@ func subtitleTableViewDisplayTitleCellClickOpensMenu() {
 
 @MainActor
 @Test
-func subtitleTableViewDisplayTitleCellMenuAnchorsToDisplayTitleColumn() {
+func subtitleTableViewCueCellMenuAnchorsToContentHoverRect() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let cuesPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+    let windowPoint = fixture.documentView.convert(cuesPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let contentFrame = try #require(fixture.coordinator.cellContentHoverFrameForTesting(row: 0, columnID: "cues"))
+    expectMenuFrame(menuFrame, anchorsTo: contentFrame)
+}
+
+@MainActor
+@Test
+func subtitleTableViewDisplayTitleCellMenuAnchorsToContentHoverRect() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let displayPoint = CGPoint(
         x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.cellLeading + 4,
@@ -470,9 +487,17 @@ func subtitleTableViewDisplayTitleCellMenuAnchorsToDisplayTitleColumn() {
 
     #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
 
-    let menuFrame = fixture.coordinator.menuFrameForTesting()
-    #expect(menuFrame != nil)
-    #expect(abs((menuFrame?.minX ?? -1) - SubtitleTableMetrics.indexColumnWidth) < 0.5)
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let contentFrame = try #require(fixture.coordinator.cellContentHoverFrameForTesting(row: 0, columnID: "display"))
+    expectMenuFrame(menuFrame, anchorsTo: contentFrame)
+}
+
+private func expectMenuFrame(_ menuFrame: CGRect, anchorsTo contentFrame: CGRect) {
+    #expect(abs(menuFrame.minX - contentFrame.minX) < 0.5)
+    let gap = WorkbenchControlMetrics.redesignSpacing1
+    let aboveGap = abs(menuFrame.maxY - (contentFrame.minY - gap))
+    let belowGap = abs(menuFrame.minY - (contentFrame.maxY + gap))
+    #expect(min(aboveGap, belowGap) < 0.5)
 }
 
 @MainActor

@@ -2495,6 +2495,10 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.frame
         }
 
+        func cellContentHoverFrameForTesting(row: Int, columnID: String) -> CGRect? {
+            cellContentHoverFrameInContainer(for: row, columnID: columnID)
+        }
+
         func setFocusedCheckboxRowForTesting(_ row: Int?) {
             updateFocusedCheckbox(row)
         }
@@ -2908,16 +2912,22 @@ struct SubtitleTableView: NSViewRepresentable {
                 (isMenuOpen && activeRowMenuRow == row && activeRowMenuColumnID == columnID)
         }
 
-        private func drawContentHoverBackground(rects: [CGRect], clippedTo clipRect: CGRect) {
+        private func contentHoverRect(rects: [CGRect], clippedTo clipRect: CGRect) -> CGRect? {
             let M = SubtitleTableMetrics.self
-            guard var contentBounds = rects.first else { return }
+            guard var contentBounds = rects.first else { return nil }
             for rect in rects.dropFirst() {
                 contentBounds = contentBounds.union(rect)
             }
             let hoverRect = contentBounds
                 .insetBy(dx: -M.tableCellHoverPaddingX, dy: -M.tableCellHoverPaddingY)
                 .intersection(clipRect)
-            guard !hoverRect.isNull, hoverRect.width > 0, hoverRect.height > 0 else { return }
+            guard !hoverRect.isNull, hoverRect.width > 0, hoverRect.height > 0 else { return nil }
+            return hoverRect
+        }
+
+        private func drawContentHoverBackground(rects: [CGRect], clippedTo clipRect: CGRect) {
+            let M = SubtitleTableMetrics.self
+            guard let hoverRect = contentHoverRect(rects: rects, clippedTo: clipRect) else { return }
             WorkbenchRedesignColors.NS.bgHover.setFill()
             NSBezierPath(
                 roundedRect: hoverRect,
@@ -2988,6 +2998,43 @@ struct SubtitleTableView: NSViewRepresentable {
         private func cuesTextTrailingInset(forRowRect _: CGRect) -> CGFloat {
             let M = SubtitleTableMetrics.self
             return M.trailingInset
+        }
+
+        private func bodyTextRole(for columnID: String) -> SubtitleTableTextRole {
+            switch columnID {
+            case "dateAdded", "time":
+                return .metadata
+            case "display":
+                return .secondaryContext
+            default:
+                return .primaryContent
+            }
+        }
+
+        private func bodyTextTrailingInset(for columnID: String, rowRect: CGRect) -> CGFloat {
+            let M = SubtitleTableMetrics.self
+            return columnID == "cues" ? cuesTextTrailingInset(forRowRect: rowRect) : M.trailingInset
+        }
+
+        private func bodyContentHoverRect(
+            text: String,
+            in rect: CGRect,
+            trailing: CGFloat,
+            role: SubtitleTableTextRole
+        ) -> CGRect? {
+            let M = SubtitleTableMetrics.self
+            guard !text.isEmpty else { return nil }
+            textLayout.update(
+                attributedString: SubtitleTableText.body(
+                    text,
+                    role: role,
+                    isRedesign: isRedesign
+                ),
+                width: max(0, rect.width - M.cellLeading - trailing)
+            )
+            let origin = bodyTextOrigin(in: rect)
+            guard let textBounds = textLayout.unionUsedRect(at: origin) else { return nil }
+            return contentHoverRect(rects: [textBounds], clippedTo: rect)
         }
 
         private func drawTags(
@@ -3247,8 +3294,46 @@ struct SubtitleTableView: NSViewRepresentable {
             return frame
         }
 
+        private func cellContentHoverRectInDocument(row: Int, columnID: String) -> CGRect? {
+            guard SubtitleTableCellActionMenuKind(columnID: columnID) != nil,
+                  let documentView,
+                  let model = rowProvider(row),
+                  row >= 0,
+                  row < rowCount
+            else {
+                return nil
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            guard let cellRect = dataCellRect(columnID: columnID, rowRect: rowRect) else {
+                return nil
+            }
+            return bodyContentHoverRect(
+                text: text(for: columnID, model: model),
+                in: cellRect,
+                trailing: bodyTextTrailingInset(for: columnID, rowRect: rowRect),
+                role: bodyTextRole(for: columnID)
+            )
+        }
+
+        private func cellContentHoverFrameInContainer(for row: Int, columnID: String) -> CGRect? {
+            guard let container,
+                  let scrollView,
+                  let documentView,
+                  let documentFrame = cellContentHoverRectInDocument(row: row, columnID: columnID)
+            else {
+                return nil
+            }
+            let frame = container.convert(documentFrame, from: documentView)
+            guard frame.intersects(scrollView.frame) else {
+                return nil
+            }
+            return frame
+        }
+
         private func rowMenuTriggerFrameInContainer(row: Int, columnID: String, fallback: CGRect) -> CGRect {
-            cellFrameInContainer(for: row, columnID: columnID) ?? fallback
+            cellContentHoverFrameInContainer(for: row, columnID: columnID) ??
+                cellFrameInContainer(for: row, columnID: columnID) ??
+                fallback
         }
 
         private func dataCellRect(columnID: String, rowRect: CGRect) -> CGRect? {
