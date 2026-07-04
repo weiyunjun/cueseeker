@@ -245,3 +245,4 @@ Shiori Row Action Menu Extra Item: Remove Shiori
 Remove Shiori Icon: bookmark.slash
 Remove Shiori Icon Fallback: bookmark
 Shiori Remove: remove the row from saved Shiori records and refresh the Shiori table
+Cell Action Menu Anchor: use the triggering cell content hover rectangle as the menu anchor; menu gap uses the existing menu spacing token
