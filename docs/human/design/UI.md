@@ -122,11 +122,12 @@
 
 #### Focus
 --color-border-focus:
-  Light: #3B82F6
-  Dark: #60A5FA
+  System: macOS accent color
+  Implementation: SwiftUI Color.accentColor / AppKit NSColor.controlAccentColor
 --color-focus-ring:
-  Light: rgba(59,130,246,0.22)
-  Dark: rgba(96,165,250,0.30)
+  System: macOS accent color with opacity
+  Light Alpha: 0.22
+  Dark Alpha: 0.30
 
 #### Table Row
 --color-row-hover:
@@ -202,8 +203,8 @@
 
 #### Library Media
 --color-library-progress-fill:
-  Light: #0040FF
-  Dark: #7AA2FF
+  System: macOS accent color
+  Implementation: SwiftUI Color.accentColor / AppKit NSColor.controlAccentColor
 --color-library-progress-track:
   Light: #E5E7EB
   Dark: #303036
@@ -217,8 +218,9 @@
   Light: #E5E7EB
   Dark: #303036
 --color-library-media-card-hover-bg:
-  Light: #E5E7EB
-  Dark: #27272A
+  System: macOS accent color with opacity
+  Light Alpha: 0.08
+  Dark Alpha: 0.12
 
 #### Player Chrome
 --color-player-stage-bg:
@@ -249,8 +251,8 @@
   Light: #1A1A1F
   Dark: #1A1A1F
 --color-player-progress-fill:
-  Light: #FF0000
-  Dark: #FF0000
+  System: macOS accent color
+  Implementation: SwiftUI Color.accentColor / AppKit NSColor.controlAccentColor
 --color-player-progress-track:
   Light: rgba(0,0,0,0.60)
   Dark: rgba(0,0,0,0.60)
