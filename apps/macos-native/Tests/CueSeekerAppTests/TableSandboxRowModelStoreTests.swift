@@ -116,6 +116,38 @@ func tableSandboxRowModelStoreUsesSearchDisplayTitleWithoutResolvingPath() {
 
 @MainActor
 @Test
+func tableSandboxRowModelStoreCarriesSubtitlePathsIntoRows() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let searchPath = "/tmp/CueSeeker/Search/episode-01.ass"
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 1,
+                path: searchPath,
+                content: "line",
+                cueLines: ["line"]
+            ),
+        ],
+        tableName: "test-search"
+    )
+
+    #expect(store.snapshot.rows[0].subtitlePath == searchPath)
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(id: 2, content: "saved line", languages: [.japanese]),
+        ],
+        startIndex: 0,
+        totalRowCount: 1,
+        tableName: "shiori"
+    )
+
+    #expect(store.snapshot.rows[0].subtitlePath == "/tmp/CueSeeker/Series/episode-2.ass")
+}
+
+@MainActor
+@Test
 func tableSandboxRowModelStoreUpdatesVersionWhenRowContentChangesWithoutReResolvingTitle() {
     var resolvedPaths: [String] = []
     let store = TableSandboxRowModelStore { path in

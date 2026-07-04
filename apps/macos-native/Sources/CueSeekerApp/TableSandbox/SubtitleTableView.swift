@@ -653,52 +653,116 @@ enum SubtitleTableRowActionMenuStyle {
     case shiori
 }
 
+private enum SubtitleTableCellActionMenuKind: Equatable {
+    case cues
+    case displayTitle
+    case time
+    case dateAdded
+
+    init?(columnID: String) {
+        switch columnID {
+        case "cues":
+            self = .cues
+        case "display":
+            self = .displayTitle
+        case "time":
+            self = .time
+        case "dateAdded":
+            self = .dateAdded
+        default:
+            return nil
+        }
+    }
+}
+
 private struct RowActionMenu: View {
+    var kind: SubtitleTableCellActionMenuKind = .cues
     var style: SubtitleTableRowActionMenuStyle = .search
+    var canOpenFolder = true
     var onPlay: () -> Void
     var onContext: () -> Void
-    var onCopy: () -> Void
+    var onCopyCueText: () -> Void
+    var onOpenFolder: () -> Void
+    var onCopyText: () -> Void
     var onRemoveShiori: () -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
-                WorkbenchPopoverRow(
-                    title: "Play",
-                    systemImage: "play.fill",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: true,
-                    action: onPlay
-                )
-                WorkbenchPopoverRow(
-                    title: "Context",
-                    systemImage: "doc.text",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: true,
-                    action: onContext
-                )
-                WorkbenchPopoverRow(
-                    title: "Copy Cue Text",
-                    systemImage: "doc.on.doc", // Mapped from "copy" to "doc.on.doc" for macOS copy semantics
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: true,
-                    action: onCopy
-                )
-                if style == .shiori {
-                    WorkbenchPopoverRow(
-                        title: "Remove Shiori",
-                        systemImage: "bookmark.slash",
-                        isRedesign: true,
-                        showsCheckmarkSlot: false,
-                        isEnabled: true,
-                        action: onRemoveShiori
-                    )
+                switch kind {
+                case .cues:
+                    cuesRows
+                case .displayTitle:
+                    displayTitleRows
+                case .time, .dateAdded:
+                    copyTextRow
                 }
             }
         }
+    }
+
+    private var cuesRows: some View {
+        Group {
+            WorkbenchPopoverRow(
+                title: "Play",
+                systemImage: "play.fill",
+                isRedesign: true,
+                showsCheckmarkSlot: false,
+                isEnabled: true,
+                action: onPlay
+            )
+            WorkbenchPopoverRow(
+                title: "Context",
+                systemImage: "doc.text",
+                isRedesign: true,
+                showsCheckmarkSlot: false,
+                isEnabled: true,
+                action: onContext
+            )
+            WorkbenchPopoverRow(
+                title: "Copy Cue Text",
+                systemImage: "doc.on.doc",
+                isRedesign: true,
+                showsCheckmarkSlot: false,
+                isEnabled: true,
+                action: onCopyCueText
+            )
+            if style == .shiori {
+                WorkbenchPopoverRow(
+                    title: "Remove Shiori",
+                    systemImage: "bookmark.slash",
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: true,
+                    action: onRemoveShiori
+                )
+            }
+        }
+    }
+
+    private var displayTitleRows: some View {
+        Group {
+            WorkbenchPopoverRow(
+                title: "Open Folder",
+                systemImage: "folder",
+                isRedesign: true,
+                showsCheckmarkSlot: false,
+                isEnabled: canOpenFolder,
+                action: onOpenFolder
+            )
+            copyTextRow
+        }
+    }
+
+    private var copyTextRow: some View {
+        WorkbenchPopoverRow(
+            title: "Copy Text",
+            systemImage: "doc.on.doc",
+            isRedesign: true,
+            showsCheckmarkSlot: false,
+            isEnabled: true,
+            action: onCopyText
+        )
     }
 }
 
@@ -1827,6 +1891,9 @@ struct SubtitleTableView: NSViewRepresentable {
     var onToggleAllSelection: () -> Void = {}
     var onPlay: (SubtitleTableRow) -> Void
     var onShowContext: (SubtitleTableRow) -> Void = { _ in }
+    var onOpenSubtitleFile: (String) -> Void = { path in
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
     var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
     var isRedesign: Bool = false
@@ -1858,6 +1925,7 @@ struct SubtitleTableView: NSViewRepresentable {
             onToggleAllSelection: onToggleAllSelection,
             onPlay: onPlay,
             onShowContext: onShowContext,
+            onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             onRemoveShiori: onRemoveShiori
         )
@@ -1969,6 +2037,7 @@ struct SubtitleTableView: NSViewRepresentable {
             onToggleAllSelection: onToggleAllSelection,
             onPlay: onPlay,
             onShowContext: onShowContext,
+            onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             onRemoveShiori: onRemoveShiori
         )
@@ -2003,6 +2072,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onToggleAllSelection: () -> Void
         private var onPlay: (SubtitleTableRow) -> Void
         private var onShowContext: (SubtitleTableRow) -> Void
+        private var onOpenSubtitleFile: (String) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
         private var onRemoveShiori: (SubtitleTableRow) -> Void
 
@@ -2066,6 +2136,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var menuOverlayView: SubtitleTableMenuOverlayView?
         private var activeMenuAnchor: ActiveMenuAnchor?
         private var activeRowMenuRow: Int?
+        private var activeRowMenuColumnID: String?
         nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
 
@@ -2093,6 +2164,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     hoveredColumnID = nil
                     hoveredCueTextRow = nil
                     hoveredRowActionRow = nil
+                    activeRowMenuColumnID = nil
                     invalidateDocumentCursorRects()
                     buttonsHost?.isHidden = true
                     layoutHoverButtons()
@@ -2146,6 +2218,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onToggleAllSelection: @escaping () -> Void = {},
             onPlay: @escaping (SubtitleTableRow) -> Void,
             onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
+            onOpenSubtitleFile: @escaping (String) -> Void = { path in
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
@@ -2174,6 +2249,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
             self.onShowContext = onShowContext
+            self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.onRemoveShiori = onRemoveShiori
         }
@@ -2251,6 +2327,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onToggleAllSelection: @escaping () -> Void,
             onPlay: @escaping (SubtitleTableRow) -> Void,
             onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
+            onOpenSubtitleFile: @escaping (String) -> Void = { path in
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
@@ -2291,6 +2370,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onToggleAllSelection = onToggleAllSelection
             self.onPlay = onPlay
             self.onShowContext = onShowContext
+            self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.onRemoveShiori = onRemoveShiori
 
@@ -2428,13 +2508,21 @@ struct SubtitleTableView: NSViewRepresentable {
             tableContentWidth(viewportWidth: viewportWidth)
         }
 
-        func cueCursorRectsForTesting() -> [CGRect] {
+        func interactiveCellCursorRectsForTesting() -> [CGRect] {
             guard let documentView else { return [] }
-            return cueCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width)
+            return interactiveCellCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width)
         }
 
-        func isCueCursorActiveForTesting(documentPoint: CGPoint) -> Bool {
-            isCueCursorActive(at: documentPoint)
+        func isInteractiveCellCursorActiveForTesting(documentPoint: CGPoint) -> Bool {
+            isInteractiveCellCursorActive(at: documentPoint)
+        }
+
+        func copyCellTextForTesting(row: Int, columnID: String) {
+            copyCellText(row: row, columnID: columnID)
+        }
+
+        func openSubtitleFileForTesting(row: Int) {
+            openSubtitleFile(row: row)
         }
 
         func selectionHeaderStateForRendering() -> WorkbenchCheckboxState {
@@ -2813,7 +2901,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func isCellHovered(row: Int, columnID: String) -> Bool {
             guard isRedesign else { return false }
             return (hoveredRow == row && hoveredColumnID == columnID) ||
-                (columnID == "cues" && isMenuOpen && activeRowMenuRow == row)
+                (isMenuOpen && activeRowMenuRow == row && activeRowMenuColumnID == columnID)
         }
 
         private func drawContentHoverBackground(rects: [CGRect], clippedTo clipRect: CGRect) {
@@ -3019,7 +3107,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func installCursorRects(in documentView: SubtitleVirtualTableDocumentView) {
-            for rect in cueCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width) {
+            for rect in interactiveCellCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width) {
                 documentView.addCursorRect(rect, cursor: .pointingHand)
             }
         }
@@ -3027,7 +3115,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func refreshDocumentCursor(windowPoint: CGPoint) {
             guard let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
-            if isCueCursorActive(at: point) {
+            if isInteractiveCellCursorActive(at: point) {
                 NSCursor.pointingHand.set()
             } else if documentView.visibleRect.contains(point) {
                 NSCursor.arrow.set()
@@ -3039,7 +3127,7 @@ struct SubtitleTableView: NSViewRepresentable {
             documentView.window?.invalidateCursorRects(for: documentView)
         }
 
-        private func cueCursorRects(in visibleRect: CGRect, documentWidth: CGFloat) -> [CGRect] {
+        private func interactiveCellCursorRects(in visibleRect: CGRect, documentWidth: CGFloat) -> [CGRect] {
             guard isRedesign,
                   isEnabled,
                   !isMenuOpen,
@@ -3049,23 +3137,32 @@ struct SubtitleTableView: NSViewRepresentable {
                 return []
             }
 
-            return range.compactMap { row in
-                guard rowProvider(row) != nil else { return nil }
+            return range.flatMap { row -> [CGRect] in
+                guard rowProvider(row) != nil else { return [] }
                 let rowRect = rectForRow(row, width: documentWidth)
-                let cursorRect = cuesCellRect(forRowRect: rowRect).intersection(visibleRect)
-                guard !cursorRect.isNull, cursorRect.width > 0, cursorRect.height > 0 else {
-                    return nil
+                return cellActionMenuColumnIDs().compactMap { columnID in
+                    guard let cellRect = dataCellRect(columnID: columnID, rowRect: rowRect) else {
+                        return nil
+                    }
+                    let cursorRect = cellRect.intersection(visibleRect)
+                    guard !cursorRect.isNull, cursorRect.width > 0, cursorRect.height > 0 else {
+                        return nil
+                    }
+                    return cursorRect
                 }
-                return cursorRect
             }
         }
 
-        private func isCueCursorActive(at point: CGPoint) -> Bool {
+        private func isInteractiveCellCursorActive(at point: CGPoint) -> Bool {
             guard let documentView else { return false }
-            return cueCursorRects(
+            return interactiveCellCursorRects(
                 in: documentView.visibleRect,
                 documentWidth: documentView.bounds.width
             ).contains { $0.contains(point) }
+        }
+
+        private func cellActionMenuColumnIDs() -> [String] {
+            visibleTextColumnOrder().filter { SubtitleTableCellActionMenuKind(columnID: $0) != nil }
         }
 
         private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
@@ -3126,7 +3223,7 @@ struct SubtitleTableView: NSViewRepresentable {
             false
         }
 
-        private func cuesCellFrameInContainer(for row: Int) -> CGRect? {
+        private func cellFrameInContainer(for row: Int, columnID: String) -> CGRect? {
             guard let container,
                   let scrollView,
                   let documentView,
@@ -3136,11 +3233,39 @@ struct SubtitleTableView: NSViewRepresentable {
                 return nil
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
-            let frame = container.convert(cuesCellRect(forRowRect: rowRect), from: documentView)
+            guard let documentCellRect = dataCellRect(columnID: columnID, rowRect: rowRect) else {
+                return nil
+            }
+            let frame = container.convert(documentCellRect, from: documentView)
             guard frame.intersects(scrollView.frame) else {
                 return nil
             }
             return frame
+        }
+
+        private func cuesCellFrameInContainer(for row: Int) -> CGRect? {
+            cellFrameInContainer(for: row, columnID: "cues")
+        }
+
+        private func dataCellRect(columnID: String, rowRect: CGRect) -> CGRect? {
+            let layout = tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height)
+            switch columnID {
+            case "dateAdded":
+                return layout.dateAddedRect.map { rowColumnRect($0, rowRect: rowRect) }
+            case "display":
+                guard showsDisplayTitleColumn else { return nil }
+                return rowColumnRect(layout.nameRect, rowRect: rowRect)
+            case "time":
+                return layout.timeRect.map { rowColumnRect($0, rowRect: rowRect) }
+            case "cues":
+                return rowColumnRect(layout.cuesRect, rowRect: rowRect)
+            case "speaker":
+                return layout.speakerRect.map { rowColumnRect($0, rowRect: rowRect) }
+            case "language":
+                return layout.languageRect.map { rowColumnRect($0, rowRect: rowRect) }
+            default:
+                return nil
+            }
         }
 
         private func isPointInCueCell(row: Int, point: CGPoint) -> Bool {
@@ -3156,6 +3281,15 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
             return cuesCellRect(forRowRect: rowRect).contains(point)
+        }
+
+        private func actionMenuColumnID(row: Int, point: CGPoint) -> String? {
+            guard let columnID = hoveredDataColumnID(row: row, point: point),
+                  SubtitleTableCellActionMenuKind(columnID: columnID) != nil
+            else {
+                return nil
+            }
+            return columnID
         }
 
         private func hoveredDataColumnID(row: Int, point: CGPoint) -> String? {
@@ -3254,9 +3388,9 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return false
             }
-            if isPointInCueCell(row: row, point: point),
-               let anchorFrame = cuesCellFrameInContainer(for: row) {
-                showMenu(for: row, buttonFrame: anchorFrame)
+            if let columnID = actionMenuColumnID(row: row, point: point),
+               let anchorFrame = cellFrameInContainer(for: row, columnID: columnID) {
+                showMenu(for: row, columnID: columnID, buttonFrame: anchorFrame)
                 return true
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
@@ -3568,9 +3702,10 @@ struct SubtitleTableView: NSViewRepresentable {
             return CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
         }
 
-        func showMenu(for row: Int, buttonFrame: CGRect) {
+        func showMenu(for row: Int, columnID: String = "cues", buttonFrame: CGRect) {
             isMenuOpen = true
             activeRowMenuRow = row
+            activeRowMenuColumnID = columnID
             activeMenuAnchor = .row(row: row, anchorFrame: buttonFrame)
             layoutHoverButtons()
             invalidateRows([row])
@@ -3578,6 +3713,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let container = self.container else {
                 isMenuOpen = false
                 activeRowMenuRow = nil
+                activeRowMenuColumnID = nil
                 activeMenuAnchor = nil
                 return
             }
@@ -3593,8 +3729,11 @@ struct SubtitleTableView: NSViewRepresentable {
             menuOverlayView?.frame = container.bounds
             menuOverlayView?.isHidden = false
 
+            let menuKind = SubtitleTableCellActionMenuKind(columnID: columnID) ?? .cues
             let menuView = RowActionMenu(
+                kind: menuKind,
                 style: rowActionMenuStyle,
+                canOpenFolder: canOpenSubtitleFile(row: row),
                 onPlay: { [weak self] in
                     self?.dismissMenu()
                     self?.playRow(row)
@@ -3604,8 +3743,16 @@ struct SubtitleTableView: NSViewRepresentable {
                     self.dismissMenu()
                     self.onShowContext(model)
                 },
-                onCopy: { [weak self] in
+                onCopyCueText: { [weak self] in
                     self?.copyRow(row)
+                    self?.dismissMenu()
+                },
+                onOpenFolder: { [weak self] in
+                    self?.openSubtitleFile(row: row)
+                    self?.dismissMenu()
+                },
+                onCopyText: { [weak self] in
+                    self?.copyCellText(row: row, columnID: columnID)
                     self?.dismissMenu()
                 },
                 onRemoveShiori: { [weak self] in
@@ -3639,6 +3786,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func showHeaderMenu(for columnID: String, triggerFrame: CGRect) {
             isMenuOpen = true
             activeRowMenuRow = nil
+            activeRowMenuColumnID = nil
             activeHeaderMenuColumnID = columnID
             activeMenuAnchor = .header(triggerFrame: triggerFrame)
             layoutHoverButtons()
@@ -3647,6 +3795,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let container = self.container, let headerView = self.headerView else {
                 isMenuOpen = false
                 activeHeaderMenuColumnID = nil
+                activeRowMenuColumnID = nil
                 activeMenuAnchor = nil
                 return
             }
@@ -3704,6 +3853,7 @@ struct SubtitleTableView: NSViewRepresentable {
             isMenuOpen = false
             activeHeaderMenuColumnID = nil
             activeRowMenuRow = nil
+            activeRowMenuColumnID = nil
             activeMenuAnchor = nil
             updateHoveredColumnID(nil)
             updateHoveredCueTextRow(nil)
@@ -3803,6 +3953,25 @@ struct SubtitleTableView: NSViewRepresentable {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(model.cues, forType: .string)
+        }
+
+        private func copyCellText(row: Int, columnID: String) {
+            guard let model = rowProvider(row) else { return }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text(for: columnID, model: model), forType: .string)
+        }
+
+        private func canOpenSubtitleFile(row: Int) -> Bool {
+            guard let model = rowProvider(row) else { return false }
+            return !model.subtitlePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        private func openSubtitleFile(row: Int) {
+            guard let model = rowProvider(row) else { return }
+            let path = model.subtitlePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !path.isEmpty else { return }
+            onOpenSubtitleFile(path)
         }
 
         private func scheduleResizeAfterDrawing() {

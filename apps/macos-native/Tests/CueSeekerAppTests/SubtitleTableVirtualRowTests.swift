@@ -446,6 +446,77 @@ func subtitleTableViewCueCellClickOpensMenuInsteadOfPlaying() {
 
 @MainActor
 @Test
+func subtitleTableViewDisplayTitleCellClickOpensMenu() {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let displayPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+    let windowPoint = fixture.documentView.convert(displayPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+}
+
+@MainActor
+@Test
+func subtitleTableViewTimeCellClickOpensMenu() {
+    let fixture = makeAttachedVirtualTableCoordinator(showsTimeColumn: true)
+    let timePoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+    let windowPoint = fixture.documentView.convert(timePoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+}
+
+@MainActor
+@Test
+func subtitleTableViewDateAddedCellClickOpensMenu() {
+    let fixture = makeAttachedVirtualTableCoordinator(showsDateAddedColumn: true)
+    let dateAddedPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+    let windowPoint = fixture.documentView.convert(dateAddedPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+}
+
+@MainActor
+@Test
+func subtitleTableViewCopiesCellActionText() {
+    let fixture = makeAttachedVirtualTableCoordinator(showsDateAddedColumn: true, showsTimeColumn: true)
+    let pasteboard = NSPasteboard.general
+
+    fixture.coordinator.copyCellTextForTesting(row: 0, columnID: "display")
+    #expect(pasteboard.string(forType: .string) == "Episode 01")
+
+    fixture.coordinator.copyCellTextForTesting(row: 0, columnID: "time")
+    #expect(pasteboard.string(forType: .string) == "00:01 - 00:02")
+
+    fixture.coordinator.copyCellTextForTesting(row: 0, columnID: "dateAdded")
+    #expect(pasteboard.string(forType: .string) == "26-07-04 19:00")
+}
+
+@MainActor
+@Test
+func subtitleTableViewOpenFolderActionUsesSubtitlePath() {
+    var openedPath: String?
+    let fixture = makeAttachedVirtualTableCoordinator(onOpenSubtitleFile: { path in
+        openedPath = path
+    })
+
+    fixture.coordinator.openSubtitleFileForTesting(row: 0)
+
+    #expect(openedPath == "/tmp/CueSeeker/Episode 01.srt")
+}
+
+@MainActor
+@Test
 func subtitleTableViewDoesNotCreateRowActionHostsDuringContainerLayout() {
     let fixture = makeAttachedVirtualTableCoordinator(width: 500)
     let initialSubviewCount = fixture.container.subviews.count
@@ -538,20 +609,20 @@ func subtitleTableViewScrollsToTargetRowOnReset() {
 
 @MainActor
 @Test
-func subtitleTableViewProvidesCueCursorRectsForVisibleRows() {
+func subtitleTableViewProvidesInteractiveCellCursorRectsForVisibleRows() {
     let fixture = makeAttachedVirtualTableCoordinator()
     let cuesPoint = CGPoint(
         x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading + 4,
         y: fixture.coordinator.currentRowHeight / 2
     )
 
-    #expect(fixture.coordinator.cueCursorRectsForTesting().contains { $0.contains(cuesPoint) })
-    #expect(fixture.coordinator.isCueCursorActiveForTesting(documentPoint: cuesPoint) == true)
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
 }
 
 @MainActor
 @Test
-func subtitleTableViewDismissMenuKeepsCueCursorRectAvailable() {
+func subtitleTableViewDismissMenuKeepsInteractiveCellCursorRectAvailable() {
     let fixture = makeAttachedVirtualTableCoordinator()
     let anchorFrame = CGRect(
         x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth,
@@ -567,7 +638,7 @@ func subtitleTableViewDismissMenuKeepsCueCursorRectAvailable() {
     fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
     fixture.coordinator.dismissMenu(recalculateHover: false)
 
-    #expect(fixture.coordinator.isCueCursorActiveForTesting(documentPoint: cuesPoint) == true)
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
 }
 
 @Test
@@ -633,8 +704,11 @@ private func makeAttachedVirtualTableCoordinator(
 
 @MainActor
 private func makeAttachedVirtualTableCoordinator(
-    width: CGFloat,
-    onPlay: @escaping (SubtitleTableRow) -> Void = { _ in }
+    width: CGFloat = 900,
+    showsDateAddedColumn: Bool = false,
+    showsTimeColumn: Bool = false,
+    onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
+    onOpenSubtitleFile: @escaping (String) -> Void = { _ in }
 ) -> (
     coordinator: SubtitleTableView.Coordinator,
     container: SubtitleTableContainerView,
@@ -645,7 +719,11 @@ private func makeAttachedVirtualTableCoordinator(
 ) {
     let loadedRow = SubtitleTableRow(
         id: 1,
+        subtitlePath: "/tmp/CueSeeker/Episode 01.srt",
+        dateAdded: "26-07-04 19:00",
         displayTitle: "Episode 01",
+        startTime: "00:01",
+        endTime: "00:02",
         cues: "cue text",
         tags: [],
         speakerTags: []
@@ -656,11 +734,14 @@ private func makeAttachedVirtualTableCoordinator(
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
+        showsDateAddedColumn: showsDateAddedColumn,
+        showsTimeColumn: showsTimeColumn,
         showsLanguageColumn: true,
         showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
-        onPlay: onPlay
+        onPlay: onPlay,
+        onOpenSubtitleFile: onOpenSubtitleFile
     )
     coordinator.isRedesign = true
 

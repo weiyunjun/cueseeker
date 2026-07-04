@@ -5,6 +5,7 @@ import Foundation
 /// (displayTitle = user-facing subtitle title, cues = merged same-timestamp subtitle text).
 struct SubtitleTableRow: Identifiable, Equatable {
     let id: Int
+    let subtitlePath: String
     let dateAdded: String
     let displayTitle: String
     let startTime: String
@@ -18,6 +19,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
 
     init(
         id: Int,
+        subtitlePath: String = "",
         dateAdded: String = "",
         displayTitle: String,
         startTime: String = "",
@@ -28,6 +30,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
         speakerTags: [WorkbenchTag] = []
     ) {
         self.id = id
+        self.subtitlePath = subtitlePath
         self.dateAdded = dateAdded
         self.displayTitle = displayTitle
         self.startTime = startTime
