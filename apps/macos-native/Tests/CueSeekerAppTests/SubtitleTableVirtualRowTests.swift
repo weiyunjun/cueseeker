@@ -460,6 +460,23 @@ func subtitleTableViewDisplayTitleCellClickOpensMenu() {
 
 @MainActor
 @Test
+func subtitleTableViewDisplayTitleCellMenuAnchorsToDisplayTitleColumn() {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let displayPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+    let windowPoint = fixture.documentView.convert(displayPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+
+    let menuFrame = fixture.coordinator.menuFrameForTesting()
+    #expect(menuFrame != nil)
+    #expect(abs((menuFrame?.minX ?? -1) - SubtitleTableMetrics.indexColumnWidth) < 0.5)
+}
+
+@MainActor
+@Test
 func subtitleTableViewTimeCellClickOpensMenu() {
     let fixture = makeAttachedVirtualTableCoordinator(showsTimeColumn: true)
     let timePoint = CGPoint(

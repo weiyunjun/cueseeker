@@ -2141,7 +2141,7 @@ struct SubtitleTableView: NSViewRepresentable {
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
 
         private enum ActiveMenuAnchor {
-            case row(row: Int, anchorFrame: CGRect)
+            case row(row: Int, columnID: String, anchorFrame: CGRect)
             case header(triggerFrame: CGRect)
         }
 
@@ -2489,6 +2489,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func isMenuOpenForTesting() -> Bool {
             isMenuOpen && menuHost?.isHidden == false && menuOverlayView?.isHidden == false
+        }
+
+        func menuFrameForTesting() -> CGRect? {
+            menuHost?.frame
         }
 
         func setFocusedCheckboxRowForTesting(_ row: Int?) {
@@ -3243,8 +3247,8 @@ struct SubtitleTableView: NSViewRepresentable {
             return frame
         }
 
-        private func cuesCellFrameInContainer(for row: Int) -> CGRect? {
-            cellFrameInContainer(for: row, columnID: "cues")
+        private func rowMenuTriggerFrameInContainer(row: Int, columnID: String, fallback: CGRect) -> CGRect {
+            cellFrameInContainer(for: row, columnID: columnID) ?? fallback
         }
 
         private func dataCellRect(columnID: String, rowRect: CGRect) -> CGRect? {
@@ -3706,7 +3710,7 @@ struct SubtitleTableView: NSViewRepresentable {
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
-            activeMenuAnchor = .row(row: row, anchorFrame: buttonFrame)
+            activeMenuAnchor = .row(row: row, columnID: columnID, anchorFrame: buttonFrame)
             layoutHoverButtons()
             invalidateRows([row])
 
@@ -3774,7 +3778,11 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.layout()
             let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
 
-            let triggerFrameInContainer = cuesCellFrameInContainer(for: row) ?? buttonFrame
+            let triggerFrameInContainer = rowMenuTriggerFrameInContainer(
+                row: row,
+                columnID: columnID,
+                fallback: buttonFrame
+            )
             let finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
 
             menuHost?.frame = finalMenuFrame
@@ -3923,8 +3931,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let triggerFrameInContainer: CGRect
             switch activeMenuAnchor {
-            case .row(let row, let anchorFrame):
-                triggerFrameInContainer = cuesCellFrameInContainer(for: row) ?? anchorFrame
+            case .row(let row, let columnID, let anchorFrame):
+                triggerFrameInContainer = rowMenuTriggerFrameInContainer(
+                    row: row,
+                    columnID: columnID,
+                    fallback: anchorFrame
+                )
             case .header(let triggerFrame):
                 guard let headerView else { return }
                 triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
