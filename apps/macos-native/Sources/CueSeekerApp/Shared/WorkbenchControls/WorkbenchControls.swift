@@ -124,12 +124,6 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryListCoverWidth: CGFloat = 204
     /// --height-library-list-cover: 115px
     static let redesignLibraryListCoverHeight: CGFloat = 115
-    /// --height-library-list-button: 30px
-    static let redesignLibraryListButtonHeight: CGFloat = 30
-    /// --size-library-card-action-button: 32px
-    static let redesignLibraryCardActionButtonSize: CGFloat = 32
-    /// --size-library-card-action-icon: 16px
-    static let redesignLibraryCardActionIconSize: CGFloat = 16
     /// --width-library-folder-cover: 120px
     static let redesignLibraryFolderCoverWidth: CGFloat = 120
     /// --min-height-library-folder-card: 96px
@@ -148,8 +142,8 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryRecentGridGap: CGFloat = 16
     /// --gap-library-episode-grid: 16px
     static let redesignLibraryEpisodeGridGap: CGFloat = 16
-    /// --gap-library-list-item: 12px
-    static let redesignLibraryListItemGap: CGFloat = 12
+    /// --gap-library-list-item: 20px
+    static let redesignLibraryListItemGap: CGFloat = 20
     /// --gap-library-list-info-vertical: 8px
     static let redesignLibraryListInfoVerticalGap: CGFloat = 8
     /// --gap-library-folder-card-content: 12px
@@ -160,8 +154,6 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryCoverHoverScale: CGFloat = 1.02
     /// --duration-library-cover-hover: 0.12s
     static let redesignLibraryCoverHoverDuration: Double = 0.12
-    /// --duration-library-card-action-hover: 0.12s
-    static let redesignLibraryCardActionHoverDuration: Double = 0.12
     /// --padding-library-folder-card: 12px 16px
     static let redesignLibraryFolderCardVerticalPadding: CGFloat = 12
     static let redesignLibraryFolderCardHorizontalPadding: CGFloat = 16

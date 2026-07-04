@@ -225,10 +225,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let episodeListCardHorizontalPadding = WorkbenchControlMetrics.redesignLibraryListCardHorizontalPadding
     static let episodeListCoverWidth = WorkbenchControlMetrics.redesignLibraryListCoverWidth
     static let episodeListCoverHeight = WorkbenchControlMetrics.redesignLibraryListCoverHeight
-    static let cardActionButtonSize = WorkbenchControlMetrics.redesignLibraryCardActionButtonSize
-    static let cardActionIconSize = WorkbenchControlMetrics.redesignLibraryCardActionIconSize
-    static let cardActionButtonInset: CGFloat = 8
-    static let cardActionHoverDuration = WorkbenchControlMetrics.redesignLibraryCardActionHoverDuration
     static let coverHoverScale = WorkbenchControlMetrics.redesignLibraryCoverHoverScale
     static let coverHoverDuration = WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
 
@@ -282,23 +278,25 @@ private struct RecentWatchingGrid: View {
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentGridGap) {
-            ForEach(items) { item in
-                RecentWatchingCard(item: item) {
-                    onOpen(item)
+        LibraryCardContextMenuHost { openContextMenu in
+            LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentGridGap) {
+                ForEach(items) { item in
+                    RecentWatchingCard(item: item, openContextMenu: openContextMenu) {
+                        onOpen(item)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 private struct RecentWatchingCard: View {
     @EnvironmentObject private var appState: AppCoordinator
     let item: RecentLibraryWatchingPresentation
+    let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
-    @State private var isActionMenuPresented = false
 
     private var isAvailable: Bool {
         FileManager.default.fileExists(atPath: item.videoPath)
@@ -306,7 +304,7 @@ private struct RecentWatchingCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentCardGap) {
-            coverWithActionMenu
+            cover
 
             Text(item.folderTitle)
                 .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
@@ -348,44 +346,40 @@ private struct RecentWatchingCard: View {
         .onHover { hovering in
             isHovered = hovering
         }
+        .libraryCardContextMenuTrigger(
+            isEnabled: isAvailable,
+            isHovered: isHovered,
+            items: recentContextMenuItems,
+            openContextMenu: openContextMenu
+        )
         .libraryCardCursor(isEnabled: isAvailable)
         .animation(.easeOut(duration: 0.12), value: isHovered)
     }
 
-    private var coverWithActionMenu: some View {
-        ZStack(alignment: .topTrailing) {
-            LibraryCoverWithProgress(
-                coverPath: item.coverPath,
-                positionMilliseconds: item.positionMilliseconds,
-                duration: item.playbackDuration ?? item.duration
-            )
-            .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
-
-            LibraryCardActionButton(isAvailable: isAvailable) {
-                isActionMenuPresented = true
-            }
-            .padding(WorkbenchTestLibraryMetrics.cardActionButtonInset)
-            .popover(isPresented: $isActionMenuPresented, arrowEdge: .top) {
-                LibraryCardActionMenu(isPresented: $isActionMenuPresented, items: recentActionItems)
-            }
-        }
+    private var cover: some View {
+        LibraryCoverWithProgress(
+            coverPath: item.coverPath,
+            positionMilliseconds: item.positionMilliseconds,
+            duration: item.playbackDuration ?? item.duration
+        )
+        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
     }
 
-    private var recentActionItems: [LibraryCardActionMenuItem] {
+    private var recentContextMenuItems: [LibraryCardContextMenuItem] {
         [
-            LibraryCardActionMenuItem(title: "Open Folder", systemImage: "folder") {
+            LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 appState.revealFile(atPath: item.videoPath)
             },
-            LibraryCardActionMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
+            LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
                 appState.markLibraryVideo(item.libraryVideo, as: .finished)
             },
-            LibraryCardActionMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
+            LibraryCardContextMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
                 appState.markLibraryVideo(item.libraryVideo, as: .unwatched)
             },
-            LibraryCardActionMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
+            LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
                 appState.markLibraryVideo(item.libraryVideo, as: .watching)
             },
-            LibraryCardActionMenuItem(title: "Context", systemImage: "search") {
+            LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
                 appState.openLibraryVideoContext(item.libraryVideo, displayTitle: contextDisplayTitle)
             }
         ]
@@ -426,23 +420,25 @@ private struct CompleteLibraryFolderGrid: View {
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderGridGap) {
-            ForEach(folders) { folder in
-                LibraryFolderCard(folder: folder) {
-                    onOpen(folder)
+        LibraryCardContextMenuHost { openContextMenu in
+            LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderGridGap) {
+                ForEach(folders) { folder in
+                    LibraryFolderCard(folder: folder, openContextMenu: openContextMenu) {
+                        onOpen(folder)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 private struct LibraryFolderCard: View {
     @EnvironmentObject private var appState: AppCoordinator
     let folder: CompleteLibraryFolderSummaryPresentation
+    let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
-    @State private var isActionMenuPresented = false
 
     private var isAvailable: Bool {
         folder.episodeCount > 0
@@ -450,7 +446,7 @@ private struct LibraryFolderCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderCardGap) {
-            coverWithActionMenu
+            cover
 
             Text(folder.folderTitle)
                 .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
@@ -483,40 +479,36 @@ private struct LibraryFolderCard: View {
         .onHover { hovering in
             isHovered = hovering
         }
+        .libraryCardContextMenuTrigger(
+            isEnabled: isAvailable,
+            isHovered: isHovered,
+            items: folderContextMenuItems,
+            openContextMenu: openContextMenu
+        )
         .libraryCardCursor(isEnabled: isAvailable)
         .animation(.easeOut(duration: 0.12), value: isHovered)
     }
 
-    private var coverWithActionMenu: some View {
-        ZStack(alignment: .topTrailing) {
-            LibraryCoverWithBadge(
-                coverPath: folder.coverPath,
-                badgeText: episodeCountText
-            )
-            .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
-
-            LibraryCardActionButton(isAvailable: isAvailable) {
-                isActionMenuPresented = true
-            }
-            .padding(WorkbenchTestLibraryMetrics.cardActionButtonInset)
-            .popover(isPresented: $isActionMenuPresented, arrowEdge: .top) {
-                LibraryCardActionMenu(isPresented: $isActionMenuPresented, items: folderActionItems)
-            }
-        }
+    private var cover: some View {
+        LibraryCoverWithBadge(
+            coverPath: folder.coverPath,
+            badgeText: episodeCountText
+        )
+        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
     }
 
-    private var folderActionItems: [LibraryCardActionMenuItem] {
+    private var folderContextMenuItems: [LibraryCardContextMenuItem] {
         [
-            LibraryCardActionMenuItem(title: "Open Folder", systemImage: "folder") {
+            LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 appState.openFolder(atPath: folder.folderPath)
             },
-            LibraryCardActionMenuItem(title: "Mark All as Finished", systemImage: "checkmark.circle") {
+            LibraryCardContextMenuItem(title: "Mark All as Finished", systemImage: "checkmark.circle") {
                 appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .finished)
             },
-            LibraryCardActionMenuItem(title: "Mark All as Unwatched", systemImage: "circle") {
+            LibraryCardContextMenuItem(title: "Mark All as Unwatched", systemImage: "circle") {
                 appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .unwatched)
             },
-            LibraryCardActionMenuItem(title: "Mark All as Watching", systemImage: "play.circle") {
+            LibraryCardContextMenuItem(title: "Mark All as Watching", systemImage: "play.circle") {
                 appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .watching)
             }
         ]
@@ -558,20 +550,22 @@ private struct CompleteLibraryEpisodeGrid: View {
         if videos.isEmpty {
             LibraryEmptyHint("No episodes yet.")
         } else {
-            LazyVStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeGridGap) {
-                ForEach(videos) { video in
-                    LibraryEpisodeCard(video: video) {
-                        onOpen(video)
+            LibraryCardContextMenuHost { openContextMenu in
+                LazyVStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeGridGap) {
+                    ForEach(videos) { video in
+                        LibraryEpisodeCard(video: video, openContextMenu: openContextMenu) {
+                            onOpen(video)
+                        }
+                        .frame(
+                            minWidth: WorkbenchTestLibraryMetrics.episodeRowMinWidth,
+                            maxWidth: .infinity,
+                            alignment: .leading
+                        )
                     }
-                    .frame(
-                        minWidth: WorkbenchTestLibraryMetrics.episodeRowMinWidth,
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
                 }
+                .padding(.top, WorkbenchTestLibraryMetrics.episodeGridTopPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.top, WorkbenchTestLibraryMetrics.episodeGridTopPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -579,9 +573,9 @@ private struct CompleteLibraryEpisodeGrid: View {
 private struct LibraryEpisodeCard: View {
     @EnvironmentObject private var appState: AppCoordinator
     let video: CompleteLibraryVideoPresentation
+    let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
-    @State private var isActionMenuPresented = false
 
     private var isAvailable: Bool {
         FileManager.default.fileExists(atPath: video.videoPath)
@@ -589,7 +583,7 @@ private struct LibraryEpisodeCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: WorkbenchTestLibraryMetrics.episodeListItemGap) {
-            coverWithActionMenu
+            cover
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -634,11 +628,17 @@ private struct LibraryEpisodeCard: View {
         .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
         .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.clear)
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                style: .continuous
+            )
+            .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+        )
         .opacity(isAvailable ? 1 : 0.55)
         .contentShape(
             RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius,
+                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
                 style: .continuous
             )
         )
@@ -651,48 +651,45 @@ private struct LibraryEpisodeCard: View {
         .onHover { hovering in
             isHovered = hovering
         }
+        .libraryCardContextMenuTrigger(
+            isEnabled: isAvailable,
+            isHovered: isHovered,
+            items: episodeContextMenuItems,
+            openContextMenu: openContextMenu
+        )
         .libraryCardCursor(isEnabled: isAvailable)
+        .animation(.easeOut(duration: 0.12), value: isHovered)
         .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
     }
 
-    private var coverWithActionMenu: some View {
-        ZStack(alignment: .topTrailing) {
-            LibraryCoverWithProgress(
-                coverPath: video.coverPath,
-                positionMilliseconds: video.positionMilliseconds,
-                duration: video.playbackDuration ?? video.duration
-            )
-            .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
-
-            LibraryCardActionButton(isAvailable: isAvailable) {
-                isActionMenuPresented = true
-            }
-            .padding(WorkbenchTestLibraryMetrics.cardActionButtonInset)
-            .popover(isPresented: $isActionMenuPresented, arrowEdge: .top) {
-                LibraryCardActionMenu(isPresented: $isActionMenuPresented, items: episodeActionItems)
-            }
-        }
+    private var cover: some View {
+        LibraryCoverWithProgress(
+            coverPath: video.coverPath,
+            positionMilliseconds: video.positionMilliseconds,
+            duration: video.playbackDuration ?? video.duration
+        )
+        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
         .frame(
             width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
             height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
         )
     }
 
-    private var episodeActionItems: [LibraryCardActionMenuItem] {
+    private var episodeContextMenuItems: [LibraryCardContextMenuItem] {
         [
-            LibraryCardActionMenuItem(title: "Open Folder", systemImage: "folder") {
+            LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 appState.revealFile(atPath: video.videoPath)
             },
-            LibraryCardActionMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
+            LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
                 appState.markLibraryVideo(video.libraryVideo, as: .finished)
             },
-            LibraryCardActionMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
+            LibraryCardContextMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
                 appState.markLibraryVideo(video.libraryVideo, as: .unwatched)
             },
-            LibraryCardActionMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
+            LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
                 appState.markLibraryVideo(video.libraryVideo, as: .watching)
             },
-            LibraryCardActionMenuItem(title: "Context", systemImage: "search") {
+            LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
                 appState.openLibraryVideoContext(video.libraryVideo, displayTitle: displayTitle)
             }
         ]
@@ -762,7 +759,11 @@ private struct LibraryEpisodeCard: View {
     }
 }
 
-private struct LibraryCardActionMenuItem: Identifiable {
+private enum LibraryCardContextMenuCoordinateSpace {
+    static let name = "LibraryCardContextMenuCoordinateSpace"
+}
+
+private struct LibraryCardContextMenuItem: Identifiable {
     let title: String
     let systemImage: String
     let action: () -> Void
@@ -772,43 +773,90 @@ private struct LibraryCardActionMenuItem: Identifiable {
     }
 }
 
-private struct LibraryCardActionButton: View {
-    let isAvailable: Bool
-    let action: () -> Void
-    @State private var isHovered = false
+private struct LibraryCardContextMenuState: Identifiable {
+    let id = UUID()
+    let anchorPoint: CGPoint
+    let items: [LibraryCardContextMenuItem]
+}
+
+private struct LibraryCardContextMenuHost<Content: View>: View {
+    @State private var activeMenu: LibraryCardContextMenuState?
+    @State private var menuSize: CGSize = .zero
+    @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void) -> Content
 
     var body: some View {
-        Button(action: {
-            guard isAvailable else {
-                return
+        content(openContextMenu)
+            .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
+            .overlay(alignment: .topLeading) {
+                if let activeMenu {
+                    GeometryReader { proxy in
+                        ZStack(alignment: .topLeading) {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    dismissContextMenu()
+                                }
+
+                            LibraryCardContextMenu(
+                                items: activeMenu.items,
+                                onDismiss: dismissContextMenu
+                            )
+                            .background(
+                                GeometryReader { menuProxy in
+                                    Color.clear.preference(
+                                        key: LibraryCardContextMenuSizePreferenceKey.self,
+                                        value: menuProxy.size
+                                    )
+                                }
+                            )
+                            .offset(menuOffset(for: activeMenu, in: proxy.size))
+                        }
+                    }
+                    .zIndex(1000)
+                    .onPreferenceChange(LibraryCardContextMenuSizePreferenceKey.self) { newSize in
+                        menuSize = newSize
+                    }
+                }
             }
-            action()
-        }) {
-            Image(systemName: "ellipsis")
-                .font(.system(size: WorkbenchTestLibraryMetrics.cardActionIconSize, weight: .semibold))
-                .foregroundStyle(isHovered && isAvailable ? PlaybackTheme.iconSelected : Color.white)
-                .frame(
-                    width: WorkbenchTestLibraryMetrics.cardActionButtonSize,
-                    height: WorkbenchTestLibraryMetrics.cardActionButtonSize
-                )
-                .background(
-                    Circle()
-                        .fill(isHovered && isAvailable ? Color.white : Color.black.opacity(0.30))
-                )
-        }
-        .buttonStyle(.plain)
-        .disabled(!isAvailable)
-        .onHover { isHovered = $0 }
-        .libraryCardCursor(isEnabled: isAvailable)
-        .animation(.easeOut(duration: WorkbenchTestLibraryMetrics.cardActionHoverDuration), value: isHovered)
-        .help(isAvailable ? "More actions" : "Missing video file")
-        .accessibilityLabel(isAvailable ? "More actions" : "Missing video file")
+    }
+
+    private func openContextMenu(items: [LibraryCardContextMenuItem], anchorPoint: CGPoint) {
+        menuSize = .zero
+        activeMenu = LibraryCardContextMenuState(anchorPoint: anchorPoint, items: items)
+    }
+
+    private func dismissContextMenu() {
+        activeMenu = nil
+    }
+
+    private func menuOffset(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGSize {
+        let fallbackSize = CGSize(
+            width: 220,
+            height: CGFloat(menu.items.count * 40 + 8)
+        )
+        let resolvedSize = CGSize(
+            width: menuSize.width > 0 ? menuSize.width : fallbackSize.width,
+            height: menuSize.height > 0 ? menuSize.height : fallbackSize.height
+        )
+        let maxX = max(0, containerSize.width - resolvedSize.width)
+        let maxY = max(0, containerSize.height - resolvedSize.height)
+        let x = min(max(0, menu.anchorPoint.x), maxX)
+        let y = min(max(0, menu.anchorPoint.y), maxY)
+        return CGSize(width: x, height: y)
     }
 }
 
-private struct LibraryCardActionMenu: View {
-    @Binding var isPresented: Bool
-    let items: [LibraryCardActionMenuItem]
+private struct LibraryCardContextMenuSizePreferenceKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
+    }
+}
+
+private struct LibraryCardContextMenu: View {
+    let items: [LibraryCardContextMenuItem]
+    let onDismiss: () -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
@@ -821,13 +869,111 @@ private struct LibraryCardActionMenu: View {
                         showsCheckmarkSlot: false,
                         isEnabled: true,
                         action: {
-                            isPresented = false
+                            onDismiss()
                             item.action()
                         }
                     )
                 }
             }
             .frame(minWidth: 220, alignment: .leading)
+        }
+    }
+}
+
+private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
+    let isEnabled: Bool
+    let isHovered: Bool
+    let items: [LibraryCardContextMenuItem]
+    let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
+
+    func body(content: Content) -> some View {
+        content.background(
+            GeometryReader { proxy in
+                let frame = proxy.frame(in: .named(LibraryCardContextMenuCoordinateSpace.name))
+                LibraryCardRightClickMonitor(isEnabled: isEnabled && isHovered) { localPoint in
+                    openContextMenu(
+                        items,
+                        CGPoint(
+                            x: frame.minX + localPoint.x,
+                            y: frame.minY + localPoint.y
+                        )
+                    )
+                }
+            }
+        )
+    }
+}
+
+private struct LibraryCardRightClickMonitor: NSViewRepresentable {
+    let isEnabled: Bool
+    let onRightClick: (CGPoint) -> Void
+
+    func makeNSView(context _: Context) -> MonitoringView {
+        MonitoringView()
+    }
+
+    func updateNSView(_ nsView: MonitoringView, context _: Context) {
+        nsView.update(isEnabled: isEnabled, onRightClick: onRightClick)
+    }
+
+    final class MonitoringView: NSView {
+        nonisolated(unsafe) private var monitor: Any?
+        private var isEnabled = false
+        private var onRightClick: ((CGPoint) -> Void)?
+
+        override var isFlipped: Bool {
+            true
+        }
+
+        func update(isEnabled: Bool, onRightClick: @escaping (CGPoint) -> Void) {
+            self.isEnabled = isEnabled
+            self.onRightClick = onRightClick
+            updateMonitor()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            updateMonitor()
+        }
+
+        deinit {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
+
+        private func updateMonitor() {
+            guard isEnabled, window != nil else {
+                removeMonitor()
+                return
+            }
+            guard monitor == nil else {
+                return
+            }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown]) { [weak self] event in
+                guard let self else {
+                    return event
+                }
+                guard event.window === self.window else {
+                    return event
+                }
+
+                let localPoint = self.convert(event.locationInWindow, from: nil)
+                guard self.bounds.contains(localPoint) else {
+                    return event
+                }
+
+                self.onRightClick?(localPoint)
+                return nil
+            }
+        }
+
+        private func removeMonitor() {
+            guard let monitor else {
+                return
+            }
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
         }
     }
 }
@@ -887,6 +1033,22 @@ private struct LibraryCoverHoverEffectModifier: ViewModifier {
 private extension View {
     func libraryCardCursor(isEnabled: Bool) -> some View {
         modifier(LibraryCardCursorModifier(isEnabled: isEnabled))
+    }
+
+    func libraryCardContextMenuTrigger(
+        isEnabled: Bool,
+        isHovered: Bool,
+        items: [LibraryCardContextMenuItem],
+        openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void
+    ) -> some View {
+        modifier(
+            LibraryCardContextMenuTriggerModifier(
+                isEnabled: isEnabled,
+                isHovered: isHovered,
+                items: items,
+                openContextMenu: openContextMenu
+            )
+        )
     }
 
     func libraryCoverHoverEffect(isActive: Bool) -> some View {
