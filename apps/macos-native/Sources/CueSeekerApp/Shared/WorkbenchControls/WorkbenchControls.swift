@@ -71,6 +71,12 @@ enum WorkbenchControlMetrics {
     static let redesignAppTopbarTitleAfterToggleGap: CGFloat = 12
     /// --padding-header-trigger-x: 12px
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
+    /// --radius-table-cell-hover: 8px
+    static let redesignTableCellHoverRadius = redesignFieldRadius
+    /// --padding-table-cell-hover-x: 12px
+    static let redesignTableCellHoverPaddingX = redesignPaddingHeaderTriggerX
+    /// --padding-table-cell-hover-y: 6px
+    static let redesignTableCellHoverPaddingY: CGFloat = 6
     /// --font-size-table: 14px
     static let redesignFontSizeTable: CGFloat = 14
     /// --font-size-table-header: 14px

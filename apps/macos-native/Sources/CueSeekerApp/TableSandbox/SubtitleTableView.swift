@@ -32,8 +32,9 @@ enum SubtitleTableMetrics {
     static var checkboxLeadingInset: CGFloat { (indexColumnWidth - checkboxSize) / 2 }
     static let checkboxCornerRadius: CGFloat = 4
     static let checkboxHitSlop: CGFloat = 8
-    static let tableCellHoverInset: CGFloat = 4
-    static let tableCellHoverRadius: CGFloat = 6
+    static let tableCellHoverPaddingX = WorkbenchControlMetrics.redesignTableCellHoverPaddingX
+    static let tableCellHoverPaddingY = WorkbenchControlMetrics.redesignTableCellHoverPaddingY
+    static let tableCellHoverRadius = WorkbenchControlMetrics.redesignTableCellHoverRadius
     static let scrollbarSize: CGFloat = 8
     static let scrollbarInset: CGFloat = 4
     static let scrollbarMinThumbLength: CGFloat = 24
@@ -459,6 +460,15 @@ final class SubtitleTextLayout {
 
     func usedRects(at origin: CGPoint) -> [CGRect] {
         lineUsedRects(at: origin)
+    }
+
+    func unionUsedRect(at origin: CGPoint) -> CGRect? {
+        let rects = lineUsedRects(at: origin)
+        guard var result = rects.first else { return nil }
+        for rect in rects.dropFirst() {
+            result = result.union(rect)
+        }
+        return result
     }
 
     func underlineRects(
@@ -2797,18 +2807,20 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func drawContentHoverBackground(rects: [CGRect], clippedTo clipRect: CGRect) {
             let M = SubtitleTableMetrics.self
-            WorkbenchRedesignColors.NS.bgHover.setFill()
-            for contentRect in rects {
-                let hoverRect = contentRect
-                    .insetBy(dx: -M.tableCellHoverInset, dy: -M.tableCellHoverInset)
-                    .intersection(clipRect)
-                guard !hoverRect.isNull, hoverRect.width > 0, hoverRect.height > 0 else { continue }
-                NSBezierPath(
-                    roundedRect: hoverRect,
-                    xRadius: M.tableCellHoverRadius,
-                    yRadius: M.tableCellHoverRadius
-                ).fill()
+            guard var contentBounds = rects.first else { return }
+            for rect in rects.dropFirst() {
+                contentBounds = contentBounds.union(rect)
             }
+            let hoverRect = contentBounds
+                .insetBy(dx: -M.tableCellHoverPaddingX, dy: -M.tableCellHoverPaddingY)
+                .intersection(clipRect)
+            guard !hoverRect.isNull, hoverRect.width > 0, hoverRect.height > 0 else { return }
+            WorkbenchRedesignColors.NS.bgHover.setFill()
+            NSBezierPath(
+                roundedRect: hoverRect,
+                xRadius: M.tableCellHoverRadius,
+                yRadius: M.tableCellHoverRadius
+            ).fill()
         }
 
         private func rowColumnRect(_ columnRect: CGRect, rowRect: CGRect) -> CGRect {
@@ -2853,7 +2865,9 @@ struct SubtitleTableView: NSViewRepresentable {
             )
             let origin = bodyTextOrigin(in: rect)
             if isHovered {
-                drawContentHoverBackground(rects: textLayout.usedRects(at: origin), clippedTo: rect)
+                if let textBounds = textLayout.unionUsedRect(at: origin) {
+                    drawContentHoverBackground(rects: [textBounds], clippedTo: rect)
+                }
             }
             if underline {
                 textLayout.drawUnderline(
@@ -2890,6 +2904,7 @@ struct SubtitleTableView: NSViewRepresentable {
             var y: CGFloat?
             let maxX = rect.maxX - trailing
             let maxY = isRedesign ? rect.maxY : rect.maxY - M.rowVerticalInset
+            var laidOutTags: [(tag: WorkbenchTag, attributed: NSAttributedString, textSize: CGSize, tagRect: CGRect)] = []
 
             for tag in tags {
                 let attributed = SubtitleTableText.tag(tag, isRedesign: isRedesign, isEnabled: isEnabled)
@@ -2911,25 +2926,30 @@ struct SubtitleTableView: NSViewRepresentable {
                 }
 
                 let tagRect = CGRect(x: x, y: resolvedY, width: min(tagWidth, max(0, maxX - x)), height: tagHeight)
+                laidOutTags.append((tag: tag, attributed: attributed, textSize: textSize, tagRect: tagRect))
+                x += tagRect.width + tagStyle.horizontalSpacing
+            }
+
+            if isHovered {
+                drawContentHoverBackground(rects: laidOutTags.map { $0.tagRect }, clippedTo: rect)
+            }
+
+            for item in laidOutTags {
                 let path = NSBezierPath(
-                    roundedRect: tagRect,
+                    roundedRect: item.tagRect,
                     xRadius: tagStyle.cornerRadius,
                     yRadius: tagStyle.cornerRadius
                 )
-                if isHovered {
-                    drawContentHoverBackground(rects: [tagRect], clippedTo: rect)
-                }
-                tagStyle.fillColor(for: tag, isRedesign: isRedesign, isEnabled: isEnabled).setFill()
+                tagStyle.fillColor(for: item.tag, isRedesign: isRedesign, isEnabled: isEnabled).setFill()
                 path.fill()
 
                 let textRect = CGRect(
-                    x: tagRect.minX + tagStyle.horizontalInset,
-                    y: tagRect.minY + max(0, (tagRect.height - textSize.height) / 2),
-                    width: max(0, tagRect.width - 2 * tagStyle.horizontalInset),
-                    height: textSize.height
+                    x: item.tagRect.minX + tagStyle.horizontalInset,
+                    y: item.tagRect.minY + max(0, (item.tagRect.height - item.textSize.height) / 2),
+                    width: max(0, item.tagRect.width - 2 * tagStyle.horizontalInset),
+                    height: item.textSize.height
                 )
-                attributed.draw(in: textRect)
-                x += tagRect.width + tagStyle.horizontalSpacing
+                item.attributed.draw(in: textRect)
             }
 
             NSGraphicsContext.restoreGraphicsState()
