@@ -6,8 +6,10 @@ main
 2. 删除Cues的...按钮。
 3. 每个单元格的内容会有单独的hover效果，和现在的hover表头文字区域的效果颜色一致，圆角矩形。
 4. 点击Cues单元格，从直接播放视频改为弹出一个菜单，在...按钮的菜单基础上，增加了一个Play选项。
-5. 点击其它列的单元格后续也会有菜单，暂时还没想好做什么。
-6. 详见# UI文档改动。
+5. Display Title，2个菜单：Open Folder，Copy Text。Open Folder用Library那个文件夹图标，点击后打开字幕所在文件夹并选中该字幕。Copy Text用Copy Cue Text那个图标，点击后将文字复制到剪贴板。
+6. Time，1个菜单：Copy Text。Copy Text用Copy Cue Text那个图标，点击后将文字复制到剪贴板。
+7. Date Added，1个菜单：Copy Text。Copy Text用Copy Cue Text那个图标，点击后将文字复制到剪贴板。
+8. 详见# UI文档改动。
 
 # UI文档改动
 
@@ -68,13 +70,15 @@ Menu Item Padding: --padding-menu-item
 Menu Item Radius: --radius-action-menu-item
 Menu Item Hover Background: --color-bg-hover
 Divider: --color-border-divider
-Menu Anchor: Cues cell content region
-Menu Open Cell Background: --color-row-hover
+Menu Anchor: triggering table cell content region
+Menu Open Cell Background: --color-bg-hover
 
 #### Content
 Play Icon: play.fill
 Copy Cue Text Icon: copy
+Copy Text Icon: copy
 Open Context Icon: search
+Open Folder Icon: folder
 Favorite Icon: star
 Menu Item Icon Slot Size: --size-control-icon
 Menu Item Native macOS Symbol Font Size: --size-menu-item-symbol-font-size-macos
@@ -153,7 +157,7 @@ Rows: Table Row
 Selection: Row Selection Checkbox
 Text Cell: Interactive Text Cell
 Tags: Chip / Tag
-Row Actions: Row Action Menu opened from the Cues cell
+Cell Actions: Row Action Menu opened from interactive data cells
 Scrollbar: Table Scrollbar
 Empty State: Empty Hint
 
@@ -226,10 +230,18 @@ Rows: no full-row hover or selected background
 Header Area: no hover background
 Cell Content: hover shows one rounded rectangle around visible text / content union bounds using --color-bg-hover
 Cues Cell: pointer cursor; hover underlines cue text; click opens Row Action Menu
+Display Title Cell: pointer cursor; click opens Display Title Cell Action Menu
+Time Cell: pointer cursor; click opens Time Cell Action Menu
+Date Added Cell: pointer cursor; click opens Date Added Cell Action Menu
 Other Data Cells: reserved for future cell menus; no action defined yet
 View Menu: Cues is checked + disabled; other data columns can be hidden
-Search Row Action Menu: Play / Copy Cue Text
-Shiori Row Action Menu: Play / Copy Cue Text / Remove Shiori
+Cues Row Action Menu: Play / Context / Copy Cue Text
+Display Title Cell Action Menu: Open Folder / Copy Text
+Time Cell Action Menu: Copy Text
+Date Added Cell Action Menu: Copy Text
+Open Folder Action: open the subtitle file's containing folder and select the subtitle file
+Copy Text Action: copy the triggering cell's displayed text to the clipboard
+Shiori Row Action Menu Extra Item: Remove Shiori
 Remove Shiori Icon: bookmark.slash
 Remove Shiori Icon Fallback: bookmark
 Shiori Remove: remove the row from saved Shiori records and refresh the Shiori table
