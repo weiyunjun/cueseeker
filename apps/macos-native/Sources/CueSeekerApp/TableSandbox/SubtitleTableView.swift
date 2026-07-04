@@ -1693,16 +1693,24 @@ final class SubtitleVirtualTableDocumentView: NSView {
         hoverTracking = area
     }
 
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        coordinator?.installCursorRects(in: self)
+    }
+
     override func mouseMoved(with event: NSEvent) {
         coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
+        coordinator?.refreshDocumentCursor(windowPoint: event.locationInWindow)
     }
 
     override func mouseEntered(with event: NSEvent) {
         coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
+        coordinator?.refreshDocumentCursor(windowPoint: event.locationInWindow)
     }
 
     override func mouseExited(with event: NSEvent) {
         coordinator?.clearHover()
+        NSCursor.arrow.set()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -2015,6 +2023,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 notifyVisibleRowsChanged(force: true)
                 updateHoveredColumnID(nil)
                 updateHoveredCueTextRow(nil)
+                invalidateDocumentCursorRects()
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
@@ -2030,6 +2039,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     updateHoveredColumnID(nil)
                     updateHoveredCueTextRow(nil)
                 }
+                invalidateDocumentCursorRects()
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
             }
@@ -2083,14 +2093,16 @@ struct SubtitleTableView: NSViewRepresentable {
                     hoveredColumnID = nil
                     hoveredCueTextRow = nil
                     hoveredRowActionRow = nil
-                    updateCueTextCursor(isActive: false)
+                    invalidateDocumentCursorRects()
                     buttonsHost?.isHidden = true
                     layoutHoverButtons()
                     documentView?.needsDisplay = true
                     headerView?.refreshHeaderHosts()
                 } else {
+                    invalidateDocumentCursorRects()
                     if let window = documentView?.window {
                         handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+                        refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
                     }
                     headerView?.refreshHeaderHosts()
                 }
@@ -2103,7 +2115,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private var hoveredColumnID: String?
         private var hoveredCueTextRow: Int?
         private var hoveredRowActionRow: Int?
-        private var hasPushedCueTextCursor = false
         private var focusedCheckboxRow: Int?
         private var lastNotifiedVisibleRows: Range<Int>?
         private var lastHeaderHorizontalOffset: CGFloat?
@@ -2169,9 +2180,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
         deinit {
             NotificationCenter.default.removeObserver(self)
-            MainActor.assumeIsolated {
-                clearCueTextCursor()
-            }
             if let monitor = menuEventMonitor {
                 NSEvent.removeMonitor(monitor)
             }
@@ -2324,6 +2332,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             headerView?.needsDisplay = true
             documentView?.needsDisplay = true
+            invalidateDocumentCursorRects()
             layoutHoverButtons()
         }
 
@@ -2419,16 +2428,13 @@ struct SubtitleTableView: NSViewRepresentable {
             tableContentWidth(viewportWidth: viewportWidth)
         }
 
-        func hasPushedCueTextCursorForTesting() -> Bool {
-            hasPushedCueTextCursor
+        func cueCursorRectsForTesting() -> [CGRect] {
+            guard let documentView else { return [] }
+            return cueCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width)
         }
 
-        func setCueTextCursorActiveForTesting(_ isActive: Bool) {
-            updateCueTextCursor(isActive: isActive)
-        }
-
-        func clearCueTextCursorForTesting() {
-            clearCueTextCursor()
+        func isCueCursorActiveForTesting(documentPoint: CGPoint) -> Bool {
+            isCueCursorActive(at: documentPoint)
         }
 
         func selectionHeaderStateForRendering() -> WorkbenchCheckboxState {
@@ -2527,6 +2533,7 @@ struct SubtitleTableView: NSViewRepresentable {
             } else {
                 refreshHeaderForHorizontalScrollIfNeeded()
             }
+            invalidateDocumentCursorRects()
         }
 
         func notifyVisibleRowsChanged(force: Bool = false) {
@@ -2545,6 +2552,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.reflectScrolledClipView(scrollView.contentView)
             documentView?.needsDisplay = true
             scrollbarOverlayView?.needsDisplay = true
+            invalidateDocumentCursorRects()
             notifyVisibleRowsChanged(force: true)
         }
 
@@ -2562,6 +2570,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.reflectScrolledClipView(scrollView.contentView)
             documentView.needsDisplay = true
             scrollbarOverlayView?.needsDisplay = true
+            invalidateDocumentCursorRects()
             notifyVisibleRowsChanged(force: true)
         }
 
@@ -2574,12 +2583,14 @@ struct SubtitleTableView: NSViewRepresentable {
             origin.x = clampedX
             scrollView.contentView.scroll(to: origin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
+            invalidateDocumentCursorRects()
         }
 
         @objc func scrollContentDidChange() {
             notifyVisibleRowsChanged()
             scrollbarOverlayView?.scrollMetricsDidChange()
             refreshHeaderForHorizontalScrollIfNeeded()
+            invalidateDocumentCursorRects()
             if isMenuOpen {
                 repositionOpenMenu()
                 layoutHoverButtons()
@@ -3007,6 +3018,56 @@ struct SubtitleTableView: NSViewRepresentable {
             return lowerBound < upperBound ? lowerBound..<upperBound : nil
         }
 
+        func installCursorRects(in documentView: SubtitleVirtualTableDocumentView) {
+            for rect in cueCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width) {
+                documentView.addCursorRect(rect, cursor: .pointingHand)
+            }
+        }
+
+        func refreshDocumentCursor(windowPoint: CGPoint) {
+            guard let documentView else { return }
+            let point = documentView.convert(windowPoint, from: nil)
+            if isCueCursorActive(at: point) {
+                NSCursor.pointingHand.set()
+            } else if documentView.visibleRect.contains(point) {
+                NSCursor.arrow.set()
+            }
+        }
+
+        private func invalidateDocumentCursorRects() {
+            guard let documentView else { return }
+            documentView.window?.invalidateCursorRects(for: documentView)
+        }
+
+        private func cueCursorRects(in visibleRect: CGRect, documentWidth: CGFloat) -> [CGRect] {
+            guard isRedesign,
+                  isEnabled,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  let range = visibleRowRange(in: visibleRect)
+            else {
+                return []
+            }
+
+            return range.compactMap { row in
+                guard rowProvider(row) != nil else { return nil }
+                let rowRect = rectForRow(row, width: documentWidth)
+                let cursorRect = cuesCellRect(forRowRect: rowRect).intersection(visibleRect)
+                guard !cursorRect.isNull, cursorRect.width > 0, cursorRect.height > 0 else {
+                    return nil
+                }
+                return cursorRect
+            }
+        }
+
+        private func isCueCursorActive(at point: CGPoint) -> Bool {
+            guard let documentView else { return false }
+            return cueCursorRects(
+                in: documentView.visibleRect,
+                documentWidth: documentView.bounds.width
+            ).contains { $0.contains(point) }
+        }
+
         private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
             guard rowCount > 0 else { return nil }
             let row = rowHeightCache.rowIndex(
@@ -3399,47 +3460,17 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func updateHoveredCueTextRow(_ newRow: Int?) {
-            guard newRow != hoveredCueTextRow else {
-                refreshInteractiveCursor()
-                return
-            }
+            guard newRow != hoveredCueTextRow else { return }
             let oldRow = hoveredCueTextRow
             hoveredCueTextRow = newRow
             invalidateRows([oldRow, newRow])
-            refreshInteractiveCursor()
         }
 
         private func updateHoveredRowActionRow(_ newRow: Int?) {
-            guard newRow != hoveredRowActionRow else {
-                refreshInteractiveCursor()
-                return
-            }
+            guard newRow != hoveredRowActionRow else { return }
             let oldRow = hoveredRowActionRow
             hoveredRowActionRow = newRow
             invalidateRows([oldRow, newRow])
-            refreshInteractiveCursor()
-        }
-
-        private func refreshInteractiveCursor() {
-            updateCueTextCursor(isActive: hoveredCueTextRow != nil || hoveredRowActionRow != nil)
-        }
-
-        private func updateCueTextCursor(isActive: Bool) {
-            if isActive {
-                guard !hasPushedCueTextCursor else { return }
-                NSCursor.pointingHand.push()
-                hasPushedCueTextCursor = true
-                return
-            }
-
-            if hasPushedCueTextCursor {
-                NSCursor.pop()
-                hasPushedCueTextCursor = false
-            }
-        }
-
-        private func clearCueTextCursor() {
-            updateCueTextCursor(isActive: false)
         }
 
         private func invalidateRows(_ rows: [Int?]) {
@@ -3677,9 +3708,9 @@ struct SubtitleTableView: NSViewRepresentable {
             updateHoveredColumnID(nil)
             updateHoveredCueTextRow(nil)
             updateHoveredRowActionRow(nil)
-            clearCueTextCursor()
             menuHost?.isHidden = true
             menuOverlayView?.isHidden = true
+            invalidateDocumentCursorRects()
             removeMenuDismissMonitor()
             headerView?.refreshHeaderHosts()
             invalidateRows([previousRowMenuRow, previousHoveredRow])
@@ -3688,6 +3719,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
             if let window = documentView?.window {
                 handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+                DispatchQueue.main.async { [weak self, weak window] in
+                    guard let self, let window, !self.isMenuOpen else { return }
+                    self.invalidateDocumentCursorRects()
+                    self.refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
+                }
             } else {
                 layoutHoverButtons()
             }

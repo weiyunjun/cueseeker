@@ -538,19 +538,20 @@ func subtitleTableViewScrollsToTargetRowOnReset() {
 
 @MainActor
 @Test
-func subtitleTableViewClearsCueTextCursorState() {
+func subtitleTableViewProvidesCueCursorRectsForVisibleRows() {
     let fixture = makeAttachedVirtualTableCoordinator()
+    let cuesPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
 
-    fixture.coordinator.setCueTextCursorActiveForTesting(true)
-    #expect(fixture.coordinator.hasPushedCueTextCursorForTesting() == true)
-
-    fixture.coordinator.clearCueTextCursorForTesting()
-    #expect(fixture.coordinator.hasPushedCueTextCursorForTesting() == false)
+    #expect(fixture.coordinator.cueCursorRectsForTesting().contains { $0.contains(cuesPoint) })
+    #expect(fixture.coordinator.isCueCursorActiveForTesting(documentPoint: cuesPoint) == true)
 }
 
 @MainActor
 @Test
-func subtitleTableViewDismissMenuClearsCueTextCursorState() {
+func subtitleTableViewDismissMenuKeepsCueCursorRectAvailable() {
     let fixture = makeAttachedVirtualTableCoordinator()
     let anchorFrame = CGRect(
         x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth,
@@ -558,12 +559,15 @@ func subtitleTableViewDismissMenuClearsCueTextCursorState() {
         width: 520,
         height: fixture.coordinator.currentRowHeight
     )
+    let cuesPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
 
-    fixture.coordinator.setCueTextCursorActiveForTesting(true)
     fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
     fixture.coordinator.dismissMenu(recalculateHover: false)
 
-    #expect(fixture.coordinator.hasPushedCueTextCursorForTesting() == false)
+    #expect(fixture.coordinator.isCueCursorActiveForTesting(documentPoint: cuesPoint) == true)
 }
 
 @Test
