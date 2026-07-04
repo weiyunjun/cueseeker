@@ -390,9 +390,9 @@ func subtitleTableViewCueTextHitTestingUsesTextFragmentsOnly() {
 
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: textPoint) == true)
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: trailingPoint) == false)
-    #expect(rowActionFrame != nil)
+    #expect(rowActionFrame == nil)
     #expect(fixture.coordinator.cueTextHitTestForTesting(row: row, point: rowActionPoint) == false)
-    #expect(fixture.coordinator.rowActionButtonHitTestForTesting(row: row, point: rowActionPoint) == true)
+    #expect(fixture.coordinator.rowActionButtonHitTestForTesting(row: row, point: rowActionPoint) == false)
 }
 
 @MainActor
@@ -412,7 +412,7 @@ func subtitleTableViewExpandsRedesignDocumentWidthForHorizontalScrolling() {
 
 @MainActor
 @Test
-func subtitleTableViewMovesRowActionButtonWithCuesColumnDuringHorizontalScroll() {
+func subtitleTableViewRemovesRowActionButtonFromCuesColumn() {
     let fixture = makeAttachedVirtualTableCoordinator(width: 900)
     let beforeScrollFrame = fixture.coordinator.rowActionButtonFrameForTesting(row: 0)
 
@@ -422,11 +422,26 @@ func subtitleTableViewMovesRowActionButtonWithCuesColumnDuringHorizontalScroll()
 
     let afterScrollFrame = fixture.coordinator.rowActionButtonFrameForTesting(row: 0)
 
-    #expect(beforeScrollFrame != nil)
-    #expect(afterScrollFrame != nil)
-    if let beforeScrollFrame, let afterScrollFrame {
-        #expect(abs((beforeScrollFrame.minX - afterScrollFrame.minX) - 120) < 0.5)
-    }
+    #expect(beforeScrollFrame == nil)
+    #expect(afterScrollFrame == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewCueCellClickOpensMenuInsteadOfPlaying() {
+    var playCount = 0
+    let fixture = makeAttachedVirtualTableCoordinator(onPlay: { _ in
+        playCount += 1
+    })
+    let cuesPoint = CGPoint(
+        x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth + SubtitleTableMetrics.cellLeading + 4,
+        y: fixture.coordinator.currentRowHeight / 2
+    )
+    let windowPoint = fixture.documentView.convert(cuesPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == true)
+    #expect(playCount == 0)
 }
 
 @MainActor
@@ -581,7 +596,24 @@ private func makeAttachedVirtualTableCoordinator() -> (
 }
 
 @MainActor
-private func makeAttachedVirtualTableCoordinator(width: CGFloat) -> (
+private func makeAttachedVirtualTableCoordinator(
+    onPlay: @escaping (SubtitleTableRow) -> Void
+) -> (
+    coordinator: SubtitleTableView.Coordinator,
+    container: SubtitleTableContainerView,
+    header: SubtitleVirtualTableHeaderView,
+    scrollView: NSScrollView,
+    overlay: SubtitleTableScrollbarOverlayView,
+    documentView: SubtitleVirtualTableDocumentView
+) {
+    makeAttachedVirtualTableCoordinator(width: 900, onPlay: onPlay)
+}
+
+@MainActor
+private func makeAttachedVirtualTableCoordinator(
+    width: CGFloat,
+    onPlay: @escaping (SubtitleTableRow) -> Void = { _ in }
+) -> (
     coordinator: SubtitleTableView.Coordinator,
     container: SubtitleTableContainerView,
     header: SubtitleVirtualTableHeaderView,
@@ -606,7 +638,7 @@ private func makeAttachedVirtualTableCoordinator(width: CGFloat) -> (
         showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
-        onPlay: { _ in }
+        onPlay: onPlay
     )
     coordinator.isRedesign = true
 

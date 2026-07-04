@@ -32,10 +32,8 @@ enum SubtitleTableMetrics {
     static var checkboxLeadingInset: CGFloat { (indexColumnWidth - checkboxSize) / 2 }
     static let checkboxCornerRadius: CGFloat = 4
     static let checkboxHitSlop: CGFloat = 8
-    static let rowActionButtonSize: CGFloat = 36
-    static let rowActionButtonGap: CGFloat = 8
-    static let rowActionIconDotSize: CGFloat = 4
-    static let rowActionIconDotSpacing: CGFloat = 4
+    static let tableCellHoverInset: CGFloat = 4
+    static let tableCellHoverRadius: CGFloat = 6
     static let scrollbarSize: CGFloat = 8
     static let scrollbarInset: CGFloat = 4
     static let scrollbarMinThumbLength: CGFloat = 24
@@ -643,6 +641,7 @@ enum SubtitleTableRowActionMenuStyle {
 
 private struct RowActionMenu: View {
     var style: SubtitleTableRowActionMenuStyle = .search
+    var onPlay: () -> Void
     var onContext: () -> Void
     var onCopy: () -> Void
     var onRemoveShiori: () -> Void
@@ -650,6 +649,14 @@ private struct RowActionMenu: View {
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
+                WorkbenchPopoverRow(
+                    title: "Play",
+                    systemImage: "play.fill",
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: true,
+                    action: onPlay
+                )
                 WorkbenchPopoverRow(
                     title: "Context",
                     systemImage: "doc.text",
@@ -1996,6 +2003,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 lastNotifiedVisibleRows = nil
                 resizeDocument()
                 notifyVisibleRowsChanged(force: true)
+                updateHoveredColumnID(nil)
                 updateHoveredCueTextRow(nil)
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
@@ -2009,6 +2017,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 guard oldValue != isEnabled else { return }
                 if !isEnabled {
                     clearFocusedCheckbox()
+                    updateHoveredColumnID(nil)
                     updateHoveredCueTextRow(nil)
                 }
                 layoutHoverButtons()
@@ -2041,7 +2050,7 @@ struct SubtitleTableView: NSViewRepresentable {
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
 
         private enum ActiveMenuAnchor {
-            case row(row: Int, buttonFrame: CGRect)
+            case row(row: Int, anchorFrame: CGRect)
             case header(triggerFrame: CGRect)
         }
 
@@ -2061,6 +2070,7 @@ struct SubtitleTableView: NSViewRepresentable {
                         dismissMenu(recalculateHover: false)
                     }
                     hoveredRow = nil
+                    hoveredColumnID = nil
                     hoveredCueTextRow = nil
                     hoveredRowActionRow = nil
                     updateCueTextCursor(isActive: false)
@@ -2080,6 +2090,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private let textLayout = SubtitleTextLayout()
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
         private var hoveredRow: Int?
+        private var hoveredColumnID: String?
         private var hoveredCueTextRow: Int?
         private var hoveredRowActionRow: Int?
         private var hasPushedCueTextCursor = false
@@ -2687,16 +2698,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawRowBackground(row: Int, rect: CGRect) {
-            let rowIsSelected = isRedesign && isRowSelected(row)
-            if rowIsSelected {
-                WorkbenchRedesignColors.NS.rowSelected.setFill()
-                rect.fill()
-            } else if hoveredRow == row {
-                if isRedesign {
-                    WorkbenchRedesignColors.NS.rowHover.setFill()
-                } else {
-                    NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
-                }
+            if !isRedesign, hoveredRow == row {
+                NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
                 rect.fill()
             }
 
@@ -2728,53 +2731,85 @@ struct SubtitleTableView: NSViewRepresentable {
                 drawIndex(row + 1, in: rowColumnRect(layout.indexRect, rowRect: rowRect))
             }
             if let dateAddedRect = layout.dateAddedRect {
+                let cellRect = rowColumnRect(dateAddedRect, rowRect: rowRect)
+                drawCellHoverBackground(row: row, columnID: "dateAdded", rect: cellRect, hasContent: model != nil)
                 drawBody(
                     model?.dateAdded ?? "",
-                    in: rowColumnRect(dateAddedRect, rowRect: rowRect),
+                    in: cellRect,
                     trailing: M.trailingInset,
                     role: .metadata
                 )
             }
             if showsDisplayTitleColumn {
+                let cellRect = rowColumnRect(layout.nameRect, rowRect: rowRect)
+                drawCellHoverBackground(row: row, columnID: "display", rect: cellRect, hasContent: model != nil)
                 drawBody(
                     model?.displayTitle ?? "",
-                    in: rowColumnRect(layout.nameRect, rowRect: rowRect),
+                    in: cellRect,
                     trailing: M.trailingInset,
                     role: .secondaryContext
                 )
             }
             if let timeRect = layout.timeRect {
+                let cellRect = rowColumnRect(timeRect, rowRect: rowRect)
+                drawCellHoverBackground(row: row, columnID: "time", rect: cellRect, hasContent: model != nil)
                 drawBody(
                     model?.timeRange ?? "",
-                    in: rowColumnRect(timeRect, rowRect: rowRect),
+                    in: cellRect,
                     trailing: M.trailingInset,
                     role: .metadata
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
+            let isCuesHovered = isCellHovered(row: row, columnID: "cues")
+            drawCellHoverBackground(row: row, columnID: "cues", rect: cuesRect, hasContent: model != nil)
             drawBody(
                 model?.cues ?? "",
                 in: cuesRect,
                 trailing: cuesTextTrailingInset(forRowRect: rowRect),
-                underline: isRedesign && hoveredCueTextRow == row
+                isHovered: isCuesHovered
             )
-            if isRedesign, model != nil, let buttonFrame = rowActionButtonFrameInDocument(forRowRect: rowRect) {
-                drawRowActionButton(row: row, in: buttonFrame)
-            }
             if let speakerRect = layout.speakerRect {
+                let cellRect = rowColumnRect(speakerRect, rowRect: rowRect)
+                drawCellHoverBackground(row: row, columnID: "speaker", rect: cellRect, hasContent: model != nil)
                 drawTags(
                     model?.speakerTags ?? [],
-                    in: rowColumnRect(speakerRect, rowRect: rowRect),
+                    in: cellRect,
                     trailing: M.trailingInset
                 )
             }
             if let languageRect = layout.languageRect {
+                let cellRect = rowColumnRect(languageRect, rowRect: rowRect)
+                drawCellHoverBackground(row: row, columnID: "language", rect: cellRect, hasContent: model != nil)
                 drawTags(
                     model?.tags ?? [],
-                    in: rowColumnRect(languageRect, rowRect: rowRect),
+                    in: cellRect,
                     trailing: M.trailingInset
                 )
             }
+        }
+
+        private func isCellHovered(row: Int, columnID: String) -> Bool {
+            guard isRedesign else { return false }
+            return (hoveredRow == row && hoveredColumnID == columnID) ||
+                (columnID == "cues" && isMenuOpen && activeRowMenuRow == row)
+        }
+
+        private func drawCellHoverBackground(row: Int, columnID: String, rect: CGRect, hasContent: Bool) {
+            guard hasContent, isCellHovered(row: row, columnID: columnID) else { return }
+            drawCellHoverBackground(rect: rect)
+        }
+
+        private func drawCellHoverBackground(rect: CGRect) {
+            let M = SubtitleTableMetrics.self
+            let hoverRect = rect.insetBy(dx: M.tableCellHoverInset, dy: M.tableCellHoverInset)
+            guard hoverRect.width > 0, hoverRect.height > 0 else { return }
+            WorkbenchRedesignColors.NS.rowHover.setFill()
+            NSBezierPath(
+                roundedRect: hoverRect,
+                xRadius: M.tableCellHoverRadius,
+                yRadius: M.tableCellHoverRadius
+            ).fill()
         }
 
         private func rowColumnRect(_ columnRect: CGRect, rowRect: CGRect) -> CGRect {
@@ -2801,6 +2836,7 @@ struct SubtitleTableView: NSViewRepresentable {
             in rect: CGRect,
             trailing: CGFloat,
             role: SubtitleTableTextRole = .primaryContent,
+            isHovered: Bool = false,
             underline: Bool = false
         ) {
             let M = SubtitleTableMetrics.self
@@ -2812,7 +2848,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     text,
                     role: role,
                     isRedesign: isRedesign,
-                    foregroundColor: underline ? WorkbenchRedesignColors.NS.textPrimary : nil
+                    foregroundColor: isHovered ? WorkbenchRedesignColors.NS.textPrimary : nil
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
@@ -2830,47 +2866,9 @@ struct SubtitleTableView: NSViewRepresentable {
             NSGraphicsContext.restoreGraphicsState()
         }
 
-        private func cuesTextTrailingInset(forRowRect rowRect: CGRect) -> CGFloat {
+        private func cuesTextTrailingInset(forRowRect _: CGRect) -> CGFloat {
             let M = SubtitleTableMetrics.self
-            guard isRedesign,
-                  rowActionButtonFrameInDocument(forRowRect: rowRect) != nil
-            else {
-                return M.trailingInset
-            }
-            return M.trailingInset + M.rowActionButtonSize + M.rowActionButtonGap
-        }
-
-        private func drawRowActionButton(row: Int, in frame: CGRect) {
-            let M = SubtitleTableMetrics.self
-            let isActionEnabled = isEnabled && !isExternalPopupLayerOpen
-            let isHighlighted = isActionEnabled && (hoveredRowActionRow == row || (isMenuOpen && activeRowMenuRow == row))
-
-            if isHighlighted {
-                WorkbenchRedesignColors.NS.bgHover.setFill()
-                NSBezierPath(
-                    roundedRect: frame,
-                    xRadius: WorkbenchControlMetrics.redesignFieldRadius,
-                    yRadius: WorkbenchControlMetrics.redesignFieldRadius
-                ).fill()
-            }
-
-            let dotSize = M.rowActionIconDotSize
-            let spacing = M.rowActionIconDotSpacing
-            let totalWidth = dotSize * 3 + spacing * 2
-            let startX = frame.midX - totalWidth / 2
-            let dotY = frame.midY - dotSize / 2
-            let dotColor = isActionEnabled ? WorkbenchRedesignColors.NS.iconDefault : WorkbenchRedesignColors.NS.iconDisabled
-            dotColor.setFill()
-
-            for index in 0..<3 {
-                let dotRect = CGRect(
-                    x: startX + CGFloat(index) * (dotSize + spacing),
-                    y: dotY,
-                    width: dotSize,
-                    height: dotSize
-                )
-                NSBezierPath(ovalIn: dotRect).fill()
-            }
+            return M.trailingInset
         }
 
         private func drawTags(_ tags: [WorkbenchTag], in rect: CGRect, trailing: CGFloat) {
@@ -3008,20 +3006,8 @@ struct SubtitleTableView: NSViewRepresentable {
             return rowActionButtonFrameInDocument(forRowRect: rowRect)
         }
 
-        private func rowActionButtonFrameInDocument(forRowRect rowRect: CGRect) -> CGRect? {
-            guard isRedesign else { return nil }
-            let M = SubtitleTableMetrics.self
-            let cuesRect = cuesCellRect(forRowRect: rowRect)
-            guard cuesRect.width >= M.cellLeading + M.rowActionButtonSize + M.trailingInset else {
-                return nil
-            }
-            let buttonSize = M.rowActionButtonSize
-            return CGRect(
-                x: cuesRect.maxX - M.trailingInset - buttonSize,
-                y: cuesRect.midY - buttonSize / 2,
-                width: buttonSize,
-                height: buttonSize
-            )
+        private func rowActionButtonFrameInDocument(forRowRect _: CGRect) -> CGRect? {
+            nil
         }
 
         private func rowActionButtonFrameInContainer(for row: Int) -> CGRect? {
@@ -3045,18 +3031,77 @@ struct SubtitleTableView: NSViewRepresentable {
             return CGPoint(x: rect.minX + M.cellLeading, y: yOffset)
         }
 
-        private func isPointInRowActionButton(row: Int, point: CGPoint) -> Bool {
+        private func isPointInRowActionButton(row _: Int, point _: CGPoint) -> Bool {
+            false
+        }
+
+        private func cuesCellFrameInContainer(for row: Int) -> CGRect? {
+            guard let container,
+                  let scrollView,
+                  let documentView,
+                  row >= 0,
+                  row < rowCount
+            else {
+                return nil
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            let frame = container.convert(cuesCellRect(forRowRect: rowRect), from: documentView)
+            guard frame.intersects(scrollView.frame) else {
+                return nil
+            }
+            return frame
+        }
+
+        private func isPointInCueCell(row: Int, point: CGPoint) -> Bool {
             guard isRedesign,
                   isEnabled,
                   !isExternalPopupLayerOpen,
                   row >= 0,
                   row < rowCount,
                   rowProvider(row) != nil,
-                  let buttonFrame = rowActionButtonFrameInDocument(for: row)
+                  let documentView
             else {
                 return false
             }
-            return buttonFrame.contains(point)
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            return cuesCellRect(forRowRect: rowRect).contains(point)
+        }
+
+        private func hoveredDataColumnID(row: Int, point: CGPoint) -> String? {
+            guard isRedesign,
+                  row >= 0,
+                  row < rowCount,
+                  rowProvider(row) != nil,
+                  let documentView
+            else {
+                return nil
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            let layout = tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height)
+            if let dateAddedRect = layout.dateAddedRect,
+               rowColumnRect(dateAddedRect, rowRect: rowRect).contains(point) {
+                return "dateAdded"
+            }
+            if showsDisplayTitleColumn,
+               rowColumnRect(layout.nameRect, rowRect: rowRect).contains(point) {
+                return "display"
+            }
+            if let timeRect = layout.timeRect,
+               rowColumnRect(timeRect, rowRect: rowRect).contains(point) {
+                return "time"
+            }
+            if rowColumnRect(layout.cuesRect, rowRect: rowRect).contains(point) {
+                return "cues"
+            }
+            if let speakerRect = layout.speakerRect,
+               rowColumnRect(speakerRect, rowRect: rowRect).contains(point) {
+                return "speaker"
+            }
+            if let languageRect = layout.languageRect,
+               rowColumnRect(languageRect, rowRect: rowRect).contains(point) {
+                return "language"
+            }
+            return nil
         }
 
         private func isPointInCueText(row: Int, point: CGPoint) -> Bool {
@@ -3096,9 +3141,10 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let row = rowAtDocumentPoint(point)
             updateHoveredRow(row)
-            let rowActionRow = row.flatMap { isPointInRowActionButton(row: $0, point: point) ? $0 : nil }
-            let cueTextRow = row.flatMap { rowActionRow == nil && isPointInCueText(row: $0, point: point) ? $0 : nil }
-            updateHoveredRowActionRow(rowActionRow)
+            let hoveredColumn = row.flatMap { hoveredDataColumnID(row: $0, point: point) }
+            updateHoveredColumnID(hoveredColumn)
+            let cueTextRow = row.flatMap { hoveredColumn == "cues" && isPointInCueCell(row: $0, point: point) ? $0 : nil }
+            updateHoveredRowActionRow(nil)
             updateHoveredCueTextRow(cueTextRow)
         }
 
@@ -3117,13 +3163,9 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return false
             }
-            if isPointInRowActionButton(row: row, point: point),
-               let buttonFrame = rowActionButtonFrameInContainer(for: row) {
-                showMenu(for: row, buttonFrame: buttonFrame)
-                return true
-            }
-            if isPointInCueText(row: row, point: point) {
-                playRow(row)
+            if isPointInCueCell(row: row, point: point),
+               let anchorFrame = cuesCellFrameInContainer(for: row) {
+                showMenu(for: row, buttonFrame: anchorFrame)
                 return true
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
@@ -3302,6 +3344,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func clearHover() {
+            updateHoveredColumnID(nil)
             updateHoveredRow(nil)
             updateHoveredCueTextRow(nil)
             updateHoveredRowActionRow(nil)
@@ -3316,6 +3359,13 @@ struct SubtitleTableView: NSViewRepresentable {
             hoveredRow = newRow
             invalidateRows([oldRow, newRow])
             layoutHoverButtons()
+        }
+
+        private func updateHoveredColumnID(_ newColumnID: String?) {
+            guard newColumnID != hoveredColumnID else { return }
+            let row = hoveredRow
+            hoveredColumnID = newColumnID
+            invalidateRows([row])
         }
 
         private func updateHoveredCueTextRow(_ newRow: Int?) {
@@ -3460,7 +3510,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func showMenu(for row: Int, buttonFrame: CGRect) {
             isMenuOpen = true
             activeRowMenuRow = row
-            activeMenuAnchor = .row(row: row, buttonFrame: buttonFrame)
+            activeMenuAnchor = .row(row: row, anchorFrame: buttonFrame)
             layoutHoverButtons()
             invalidateRows([row])
 
@@ -3484,6 +3534,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let menuView = RowActionMenu(
                 style: rowActionMenuStyle,
+                onPlay: { [weak self] in
+                    self?.dismissMenu()
+                    self?.playRow(row)
+                },
                 onContext: { [weak self] in
                     guard let self, let model = self.rowProvider(row) else { return }
                     self.dismissMenu()
@@ -3512,7 +3566,7 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.layout()
             let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
 
-            let triggerFrameInContainer = rowActionButtonFrameInContainer(for: row) ?? buttonFrame
+            let triggerFrameInContainer = cuesCellFrameInContainer(for: row) ?? buttonFrame
             let finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
 
             menuHost?.frame = finalMenuFrame
@@ -3648,8 +3702,8 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let triggerFrameInContainer: CGRect
             switch activeMenuAnchor {
-            case .row(let row, let buttonFrame):
-                triggerFrameInContainer = rowActionButtonFrameInContainer(for: row) ?? buttonFrame
+            case .row(let row, let anchorFrame):
+                triggerFrameInContainer = cuesCellFrameInContainer(for: row) ?? anchorFrame
             case .header(let triggerFrame):
                 guard let headerView else { return }
                 triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
