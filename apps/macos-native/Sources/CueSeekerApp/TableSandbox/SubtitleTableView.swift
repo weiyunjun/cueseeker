@@ -1786,6 +1786,13 @@ final class SubtitleVirtualTableDocumentView: NSView {
         super.mouseDown(with: event)
     }
 
+    override func rightMouseDown(with event: NSEvent) {
+        if coordinator?.handleRightMouseDown(windowPoint: event.locationInWindow) == true {
+            return
+        }
+        super.rightMouseDown(with: event)
+    }
+
     override func keyDown(with event: NSEvent) {
         if coordinator?.handleKeyDown(event) == true {
             return
@@ -2141,7 +2148,7 @@ struct SubtitleTableView: NSViewRepresentable {
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
 
         private enum ActiveMenuAnchor {
-            case row(row: Int, columnID: String, anchorFrame: CGRect)
+            case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInContainer: CGPoint?)
             case header(triggerFrame: CGRect)
         }
 
@@ -2499,6 +2506,10 @@ struct SubtitleTableView: NSViewRepresentable {
             cellContentHoverFrameInContainer(for: row, columnID: columnID)
         }
 
+        func cellContentHoverDocumentRectForTesting(row: Int, columnID: String) -> CGRect? {
+            cellContentHoverRectInDocument(row: row, columnID: columnID)
+        }
+
         func setFocusedCheckboxRowForTesting(_ row: Int?) {
             updateFocusedCheckbox(row)
         }
@@ -2849,32 +2860,38 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if let dateAddedRect = layout.dateAddedRect {
                 let cellRect = rowColumnRect(dateAddedRect, rowRect: rowRect)
+                let isDateAddedHovered = isCellHovered(row: row, columnID: "dateAdded")
                 drawBody(
                     model?.dateAdded ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
                     role: .metadata,
-                    isHovered: isCellHovered(row: row, columnID: "dateAdded")
+                    isHovered: isDateAddedHovered,
+                    underline: isDateAddedHovered
                 )
             }
             if showsDisplayTitleColumn {
                 let cellRect = rowColumnRect(layout.nameRect, rowRect: rowRect)
+                let isDisplayHovered = isCellHovered(row: row, columnID: "display")
                 drawBody(
                     model?.displayTitle ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
                     role: .secondaryContext,
-                    isHovered: isCellHovered(row: row, columnID: "display")
+                    isHovered: isDisplayHovered,
+                    underline: isDisplayHovered
                 )
             }
             if let timeRect = layout.timeRect {
                 let cellRect = rowColumnRect(timeRect, rowRect: rowRect)
+                let isTimeHovered = isCellHovered(row: row, columnID: "time")
                 drawBody(
                     model?.timeRange ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
                     role: .metadata,
-                    isHovered: isCellHovered(row: row, columnID: "time")
+                    isHovered: isTimeHovered,
+                    underline: isTimeHovered
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
@@ -3043,13 +3060,57 @@ struct SubtitleTableView: NSViewRepresentable {
             trailing: CGFloat,
             isHovered: Bool = false
         ) {
-            let M = SubtitleTableMetrics.self
             guard !tags.isEmpty else { return }
 
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath.clip(rect)
 
             let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
+            let laidOutTags = layoutTags(tags, in: rect, trailing: trailing, tagStyle: tagStyle)
+
+            if isHovered {
+                drawContentHoverBackground(rects: laidOutTags.map { $0.tagRect }, clippedTo: rect)
+            }
+
+            for item in laidOutTags {
+                let path = NSBezierPath(
+                    roundedRect: item.tagRect,
+                    xRadius: tagStyle.cornerRadius,
+                    yRadius: tagStyle.cornerRadius
+                )
+                tagStyle.fillColor(for: item.tag, isRedesign: isRedesign, isEnabled: isEnabled).setFill()
+                path.fill()
+
+                let textRect = CGRect(
+                    x: item.tagRect.minX + tagStyle.horizontalInset,
+                    y: item.tagRect.minY + max(0, (item.tagRect.height - item.textSize.height) / 2),
+                    width: max(0, item.tagRect.width - 2 * tagStyle.horizontalInset),
+                    height: item.textSize.height
+                )
+                item.attributed.draw(in: textRect)
+            }
+
+            NSGraphicsContext.restoreGraphicsState()
+        }
+
+        private func tagContentHoverRect(
+            tags: [WorkbenchTag],
+            in rect: CGRect,
+            trailing: CGFloat
+        ) -> CGRect? {
+            guard !tags.isEmpty else { return nil }
+            let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
+            let laidOutTags = layoutTags(tags, in: rect, trailing: trailing, tagStyle: tagStyle)
+            return contentHoverRect(rects: laidOutTags.map { $0.tagRect }, clippedTo: rect)
+        }
+
+        private func layoutTags(
+            _ tags: [WorkbenchTag],
+            in rect: CGRect,
+            trailing: CGFloat,
+            tagStyle: SubtitleTableTagStyle
+        ) -> [(tag: WorkbenchTag, attributed: NSAttributedString, textSize: CGSize, tagRect: CGRect)] {
+            let M = SubtitleTableMetrics.self
             var x = rect.minX + M.cellLeading
             var y: CGFloat?
             let maxX = rect.maxX - trailing
@@ -3080,29 +3141,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 x += tagRect.width + tagStyle.horizontalSpacing
             }
 
-            if isHovered {
-                drawContentHoverBackground(rects: laidOutTags.map { $0.tagRect }, clippedTo: rect)
-            }
-
-            for item in laidOutTags {
-                let path = NSBezierPath(
-                    roundedRect: item.tagRect,
-                    xRadius: tagStyle.cornerRadius,
-                    yRadius: tagStyle.cornerRadius
-                )
-                tagStyle.fillColor(for: item.tag, isRedesign: isRedesign, isEnabled: isEnabled).setFill()
-                path.fill()
-
-                let textRect = CGRect(
-                    x: item.tagRect.minX + tagStyle.horizontalInset,
-                    y: item.tagRect.minY + max(0, (item.tagRect.height - item.textSize.height) / 2),
-                    width: max(0, item.tagRect.width - 2 * tagStyle.horizontalInset),
-                    height: item.textSize.height
-                )
-                item.attributed.draw(in: textRect)
-            }
-
-            NSGraphicsContext.restoreGraphicsState()
+            return laidOutTags
         }
 
         private func heightForRow(_ row: Int, width: CGFloat) -> CGFloat {
@@ -3190,12 +3229,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
             return range.flatMap { row -> [CGRect] in
                 guard rowProvider(row) != nil else { return [] }
-                let rowRect = rectForRow(row, width: documentWidth)
                 return cellActionMenuColumnIDs().compactMap { columnID in
-                    guard let cellRect = dataCellRect(columnID: columnID, rowRect: rowRect) else {
+                    guard let documentHoverRect = cellContentHoverRectInDocument(row: row, columnID: columnID) else {
                         return nil
                     }
-                    let cursorRect = cellRect.intersection(visibleRect)
+                    let cursorRect = documentHoverRect.intersection(visibleRect)
                     guard !cursorRect.isNull, cursorRect.width > 0, cursorRect.height > 0 else {
                         return nil
                     }
@@ -3274,29 +3312,8 @@ struct SubtitleTableView: NSViewRepresentable {
             false
         }
 
-        private func cellFrameInContainer(for row: Int, columnID: String) -> CGRect? {
-            guard let container,
-                  let scrollView,
-                  let documentView,
-                  row >= 0,
-                  row < rowCount
-            else {
-                return nil
-            }
-            let rowRect = rectForRow(row, width: documentView.bounds.width)
-            guard let documentCellRect = dataCellRect(columnID: columnID, rowRect: rowRect) else {
-                return nil
-            }
-            let frame = container.convert(documentCellRect, from: documentView)
-            guard frame.intersects(scrollView.frame) else {
-                return nil
-            }
-            return frame
-        }
-
         private func cellContentHoverRectInDocument(row: Int, columnID: String) -> CGRect? {
-            guard SubtitleTableCellActionMenuKind(columnID: columnID) != nil,
-                  let documentView,
+            guard let documentView,
                   let model = rowProvider(row),
                   row >= 0,
                   row < rowCount
@@ -3306,6 +3323,20 @@ struct SubtitleTableView: NSViewRepresentable {
             let rowRect = rectForRow(row, width: documentView.bounds.width)
             guard let cellRect = dataCellRect(columnID: columnID, rowRect: rowRect) else {
                 return nil
+            }
+            if columnID == "speaker" {
+                return tagContentHoverRect(
+                    tags: model.speakerTags,
+                    in: cellRect,
+                    trailing: SubtitleTableMetrics.trailingInset
+                )
+            }
+            if columnID == "language" {
+                return tagContentHoverRect(
+                    tags: model.tags,
+                    in: cellRect,
+                    trailing: SubtitleTableMetrics.trailingInset
+                )
             }
             return bodyContentHoverRect(
                 text: text(for: columnID, model: model),
@@ -3332,7 +3363,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func rowMenuTriggerFrameInContainer(row: Int, columnID: String, fallback: CGRect) -> CGRect {
             cellContentHoverFrameInContainer(for: row, columnID: columnID) ??
-                cellFrameInContainer(for: row, columnID: columnID) ??
                 fallback
         }
 
@@ -3385,34 +3415,32 @@ struct SubtitleTableView: NSViewRepresentable {
             guard isRedesign,
                   row >= 0,
                   row < rowCount,
-                  rowProvider(row) != nil,
-                  let documentView
+                  rowProvider(row) != nil
             else {
                 return nil
             }
-            let rowRect = rectForRow(row, width: documentView.bounds.width)
-            let layout = tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height)
-            if let dateAddedRect = layout.dateAddedRect,
-               rowColumnRect(dateAddedRect, rowRect: rowRect).contains(point) {
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "dateAdded"),
+               hoverRect.contains(point) {
                 return "dateAdded"
             }
-            if showsDisplayTitleColumn,
-               rowColumnRect(layout.nameRect, rowRect: rowRect).contains(point) {
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "display"),
+               hoverRect.contains(point) {
                 return "display"
             }
-            if let timeRect = layout.timeRect,
-               rowColumnRect(timeRect, rowRect: rowRect).contains(point) {
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "time"),
+               hoverRect.contains(point) {
                 return "time"
             }
-            if rowColumnRect(layout.cuesRect, rowRect: rowRect).contains(point) {
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "cues"),
+               hoverRect.contains(point) {
                 return "cues"
             }
-            if let speakerRect = layout.speakerRect,
-               rowColumnRect(speakerRect, rowRect: rowRect).contains(point) {
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "speaker"),
+               hoverRect.contains(point) {
                 return "speaker"
             }
-            if let languageRect = layout.languageRect,
-               rowColumnRect(languageRect, rowRect: rowRect).contains(point) {
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "language"),
+               hoverRect.contains(point) {
                 return "language"
             }
             return nil
@@ -3478,15 +3506,55 @@ struct SubtitleTableView: NSViewRepresentable {
                 return false
             }
             if let columnID = actionMenuColumnID(row: row, point: point),
-               let anchorFrame = cellFrameInContainer(for: row, columnID: columnID) {
-                showMenu(for: row, columnID: columnID, buttonFrame: anchorFrame)
+               performDefaultCellAction(row: row, columnID: columnID) {
                 return true
             }
-            let rowRect = rectForRow(row, width: documentView.bounds.width)
-            guard checkboxHitRect(forRowRect: rowRect).contains(point) else {
+            return toggleRowCheckboxFromMouse(row: row)
+        }
+
+        func handleRightMouseDown(windowPoint: CGPoint) -> Bool {
+            guard isRedesign,
+                  isEnabled,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  let documentView,
+                  let container
+            else {
                 return false
             }
-            return toggleRowCheckboxFromMouse(row: row)
+            let point = documentView.convert(windowPoint, from: nil)
+            guard documentView.visibleRect.contains(point),
+                  let row = rowAtDocumentPoint(point),
+                  let columnID = actionMenuColumnID(row: row, point: point)
+            else {
+                return false
+            }
+            let anchorPoint = container.convert(point, from: documentView)
+            let fallbackFrame = CGRect(origin: anchorPoint, size: .zero)
+            showMenu(
+                for: row,
+                columnID: columnID,
+                buttonFrame: fallbackFrame,
+                clickPointInContainer: anchorPoint
+            )
+            return true
+        }
+
+        @discardableResult
+        private func performDefaultCellAction(row: Int, columnID: String) -> Bool {
+            switch SubtitleTableCellActionMenuKind(columnID: columnID) {
+            case .cues:
+                playRow(row)
+                return true
+            case .displayTitle:
+                openSubtitleFile(row: row)
+                return true
+            case .time, .dateAdded:
+                copyCellText(row: row, columnID: columnID)
+                return true
+            case nil:
+                return false
+            }
         }
 
         private func toggleRowCheckboxFromMouse(row: Int) -> Bool {
@@ -3791,11 +3859,45 @@ struct SubtitleTableView: NSViewRepresentable {
             return CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
         }
 
-        func showMenu(for row: Int, columnID: String = "cues", buttonFrame: CGRect) {
+        private func positionMenuBelowClick(clickPointInContainer: CGPoint, menuSize: CGSize) -> CGRect {
+            let visibleRect = container?.bounds ?? .zero
+            let M = SubtitleTableMetrics.self
+            let gap = WorkbenchControlMetrics.redesignSpacing1
+            let menuWidth = menuSize.width
+            let menuHeight = menuSize.height
+
+            var menuX = clickPointInContainer.x
+            if menuX + menuWidth > visibleRect.maxX - M.trailingInset {
+                menuX = max(visibleRect.minX, visibleRect.maxX - menuWidth - M.trailingInset)
+            }
+            menuX = max(visibleRect.minX, menuX)
+
+            var menuY = clickPointInContainer.y - menuHeight - gap
+            if menuY < visibleRect.minY {
+                menuY = clickPointInContainer.y + gap
+                if menuY + menuHeight > visibleRect.maxY {
+                    menuY = max(visibleRect.minY, visibleRect.maxY - menuHeight)
+                }
+            }
+
+            return CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
+        }
+
+        func showMenu(
+            for row: Int,
+            columnID: String = "cues",
+            buttonFrame: CGRect,
+            clickPointInContainer: CGPoint? = nil
+        ) {
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
-            activeMenuAnchor = .row(row: row, columnID: columnID, anchorFrame: buttonFrame)
+            activeMenuAnchor = .row(
+                row: row,
+                columnID: columnID,
+                anchorFrame: buttonFrame,
+                clickPointInContainer: clickPointInContainer
+            )
             layoutHoverButtons()
             invalidateRows([row])
 
@@ -3863,12 +3965,20 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.layout()
             let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
 
-            let triggerFrameInContainer = rowMenuTriggerFrameInContainer(
-                row: row,
-                columnID: columnID,
-                fallback: buttonFrame
-            )
-            let finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
+            let finalMenuFrame: CGRect
+            if let clickPointInContainer {
+                finalMenuFrame = positionMenuBelowClick(
+                    clickPointInContainer: clickPointInContainer,
+                    menuSize: menuSize
+                )
+            } else {
+                let triggerFrameInContainer = rowMenuTriggerFrameInContainer(
+                    row: row,
+                    columnID: columnID,
+                    fallback: buttonFrame
+                )
+                finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
+            }
 
             menuHost?.frame = finalMenuFrame
             menuHost?.isHidden = false
@@ -4014,23 +4124,35 @@ struct SubtitleTableView: NSViewRepresentable {
                 height: menuSize.height > 0 ? menuSize.height : menuHost.frame.height
             )
 
-            let triggerFrameInContainer: CGRect
+            let finalMenuFrame: CGRect
             switch activeMenuAnchor {
-            case .row(let row, let columnID, let anchorFrame):
-                triggerFrameInContainer = rowMenuTriggerFrameInContainer(
-                    row: row,
-                    columnID: columnID,
-                    fallback: anchorFrame
-                )
+            case .row(let row, let columnID, let anchorFrame, let clickPointInContainer):
+                if let clickPointInContainer {
+                    finalMenuFrame = positionMenuBelowClick(
+                        clickPointInContainer: clickPointInContainer,
+                        menuSize: resolvedMenuSize
+                    )
+                } else {
+                    let triggerFrameInContainer = rowMenuTriggerFrameInContainer(
+                        row: row,
+                        columnID: columnID,
+                        fallback: anchorFrame
+                    )
+                    finalMenuFrame = positionMenu(
+                        triggerFrameInContainer: triggerFrameInContainer,
+                        menuSize: resolvedMenuSize
+                    )
+                }
             case .header(let triggerFrame):
                 guard let headerView else { return }
-                triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
+                let triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
+                finalMenuFrame = positionMenu(
+                    triggerFrameInContainer: triggerFrameInContainer,
+                    menuSize: resolvedMenuSize
+                )
             }
 
-            menuHost.frame = positionMenu(
-                triggerFrameInContainer: triggerFrameInContainer,
-                menuSize: resolvedMenuSize
-            )
+            menuHost.frame = finalMenuFrame
         }
 
         private func removeMenuDismissMonitor() {
