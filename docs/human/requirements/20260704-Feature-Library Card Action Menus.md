@@ -2,20 +2,14 @@
 main
 
 # 需求描述
-1. 在视频封面图右上方，添加...按钮，点击后弹出菜单。...按钮是圆形的，灰色半透明底，hover后有一个白色的底。类似播放器界面的播放按钮。
-2. Recent和Library一级/二级界面的...按钮，点击以后弹出菜单，样式复用已有的菜单样式。
-3. Recent和Library二级界面的...按钮的弹出菜单：Open Folder，Mark as Finished，Mark as Unwatched，Mark as Watching，Context。其中Open Folder后会打开视频所在文件夹并选中对应视频，Context会默认从第一个Cue Group开始显示。
-4. Library一级界面的...按钮的弹出菜单：Open Folder，Mark All as Finished，Mark All as Unwatched，Mark All as Watching。其中Open Folder后会打开视频所在文件夹并不选中任何文件。
-5. Library二级界面，去掉Play按钮，封面图新增和Library一级界面一样的Hover效果。点击封面图hover区域除...按钮之外的地方，播放视频。Recent和Library二级界面，点击除...按钮之外的地方，播放视频。
+1. Library二级界面，去掉Play按钮，封面图新增和Library一级界面一样的Hover效果和点击播放效果。排版上，视频信息栏需要往右移一些。
+2. Recent和Library一级/二级界面，hover区域，右键点击后弹出菜单。
+3. Recent和Library二级界面的弹出菜单：Open Folder，Mark as Finished，Mark as Unwatched，Mark as Watching，Context。其中Open Folder后会打开视频所在文件夹并选中对应视频，Context会默认从第一个Cue Group开始显示。
+4. Library一级界面的弹出菜单：Open Folder，Mark All as Finished，Mark All as Unwatched，Mark All as Watching。其中Open Folder后会打开视频所在文件夹并不选中任何文件。
 
 # UI文档改动
 
 ### 1.2 尺寸、圆角、间距
-#### Library Interaction
---scale-library-media-card-pressed: 0.98
---scale-library-cover-hover: 1.02
---duration-library-cover-hover: 0.12s
---duration-library-card-action-hover: 0.12s
 
 #### Library Size
 --aspect-library-cover: 16 / 9
@@ -25,39 +19,69 @@ main
 --width-library-episode-row-min: 380px
 --width-library-list-cover: 204px
 --height-library-list-cover: 115px
---height-library-list-button: 30px
 --width-library-folder-cover: 120px
 --min-height-library-folder-card: 96px
---size-library-card-action-button: 32px
---size-library-card-action-icon: 16px
 
-### 2.29 Library Card Action Button and Menu
+#### Library Radius
+--radius-library-cover: 8px
+--radius-library-time-badge: 4px
+--radius-library-folder-card: 8px
+--radius-library-media-card-hover: 20px
+--radius-library-list-card: 16px
 
-#### Action Button Container
-Size: --size-library-card-action-button
-Radius: full circle
-Background Default: Color.black.opacity(0.3)
-Background Hover: Color.white
-Animation: --duration-library-card-action-hover
-Placement: cover top trailing overlay
+#### Library Spacing
+--gap-library-recent-grid: 16px
+--gap-library-episode-grid: 16px
+--gap-library-list-item: 20px
+--gap-library-list-info-vertical: 8px
+--gap-library-folder-card-content: 12px
 
-#### Action Button Content
-Icon: ellipsis
-Icon Size: --size-library-card-action-icon
-Icon Weight: semibold
-Icon Color Default: Color.white
-Icon Color Hover: PlaybackTheme.iconSelected
+#### Library Interaction
+--scale-library-media-card-pressed: 0.98
+--scale-library-cover-hover: 1.02
+--duration-library-cover-hover: 0.12s
 
-#### Menu Container
+### 2.16 Row Action Menu
+
+#### Content
+Play Icon: play.fill
+Copy Cue Text Icon: copy
+Copy Text Icon: copy
+Open Context Icon: doc.text
+Open Folder Icon: folder
+Favorite Icon: star
+Menu Item Icon Slot Size: --size-control-icon
+Menu Item Native macOS Symbol Font Size: --size-menu-item-symbol-font-size-macos
+Menu Item Text Color Default: --color-text-primary
+Menu Item Text Color Disabled: --color-text-disabled
+Menu Item Icon Color Default: --color-text-primary
+Menu Item Icon Color Disabled: --color-icon-disabled
+
+### 2.29 Library Card Context Menu
+
+#### Container
 Style: Row Action Menu
-Anchor: Library Card Action Button
+Trigger: right click on Library card hover region
+Menu Background: --color-bg-popover
+Menu Border: --color-border-muted
+Menu Border Radius: --radius-menu
+Menu Shadow: --shadow-popover
+Menu Padding: --spacing-1
+Menu Item Hover Background: --color-bg-hover
+System Popover Arrow: none
+
+#### Anchor
+Recent Watching Card: right-click position inside card hover region
+Library Folder Card: right-click position inside card hover region
+Library Episode Card: right-click position inside card hover region
+Menu Position: align to right-click position and clamp to visible content bounds
 
 #### Menu Content
 Open Folder Icon: folder
 Mark as Finished Icon: checkmark.circle
 Mark as Unwatched Icon: circle
 Mark as Watching Icon: play.circle
-Context Icon: search
+Context Icon: doc.text
 Menu Item Text Color Default: --color-text-primary
 Menu Item Icon Color Default: --color-text-primary
 
@@ -68,16 +92,14 @@ Menu Open
 Disabled
 
 #### Cursor
-Enabled: pointer
-Disabled: not-allowed
+Menu Items: pointer
 
 ### 3.1 Recent Watching Card Layout
 #### Content
 Cover: Library Cover
 Cover Overlay: Library Cover Progress Overlay
 Cover Badge: Library Cover Badge / Time
-Cover Action: Library Card Action Button
-Action Menu: Open Folder, Mark as Finished, Mark as Unwatched, Mark as Watching, Context
+Context Menu: Open Folder, Mark as Finished, Mark as Unwatched, Mark as Watching, Context
 Folder Name:
   Font Size: --font-size-library-title
   Text Color: --color-text-primary
@@ -92,8 +114,8 @@ Meta Row:
 Default: transparent background
 Hover: show hover background
 Pressed: media card press feedback
-Click: open video at saved playback position, except Library Card Action Button
-Action Menu Click: open menu without triggering card click
+Left Click: open video at saved playback position
+Right Click: open Library Card Context Menu without triggering card click
 Disabled / Missing File: reduce opacity and disable click
 
 ### 3.2 Library Folder Card Layout
@@ -101,8 +123,7 @@ Disabled / Missing File: reduce opacity and disable click
 #### Content
 Cover: Library Cover
 Cover Badge: Library Cover Badge / Count
-Cover Action: Library Card Action Button
-Action Menu: Open Folder, Mark All as Finished, Mark All as Unwatched, Mark All as Watching
+Context Menu: Open Folder, Mark All as Finished, Mark All as Unwatched, Mark All as Watching
 Folder Name:
   Font Size: --font-size-library-title
   Text Color: --color-text-primary
@@ -112,11 +133,23 @@ Folder Name:
 Default: transparent background
 Hover: show hover background
 Pressed: scale card to --scale-library-media-card-pressed while pointer is pressed
-Click: open Library Folder Detail view, except Library Card Action Button
-Action Menu Click: open menu without triggering card click
+Left Click: open Library Folder Detail view
+Right Click: open Library Card Context Menu without triggering card click
 Disabled / Empty Folder: reduce opacity and disable click
 
 ### 3.3 Library Episode Grid and Card Layout
+
+#### Card Structure
+Container: clickable media card
+Orientation: horizontal
+Align Items: center
+Gap: --gap-library-list-item
+Padding: --padding-library-list-card
+Radius: --radius-library-list-card
+Background: transparent
+Hover Radius: --radius-library-media-card-hover
+Hover Background: --color-library-media-card-hover-bg
+Pressed: media card press feedback
 
 #### Content
 Cover Region:
@@ -155,14 +188,17 @@ Info Region:
 Action Region:
   Removed
 
-Cover Action:
-  Component: Library Card Action Button
+Context Menu:
   Menu: Open Folder, Mark as Finished, Mark as Unwatched, Mark as Watching, Context
 
 #### Interaction
 Default: transparent background
-Hover: no card background highlight and no card scale animation
-Pressed: no card scale animation
-Card Click: open video at saved playback position, except Library Card Action Button
-Action Menu Click: open menu without triggering card click
+Hover: show hover background and apply Library Cover hover effect
+Pressed: media card press feedback
+Left Click: open video at saved playback position
+Right Click: open Library Card Context Menu without triggering card click
 Disabled / Missing File: reduce row opacity and disable click
+
+#### Cursor
+Default / Hover: pointer
+Disabled: not-allowed
