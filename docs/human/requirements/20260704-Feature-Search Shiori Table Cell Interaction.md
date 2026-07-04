@@ -4,11 +4,10 @@ main
 # 需求描述
 1. 取消表格的整体的hover和selected效果。
 2. 删除Cues的...按钮。
-3. 每个单元格的内容会有单独的hover效果，和现在的hover表格整列的效果颜色一致，圆角矩形。
+3. 每个单元格的内容会有单独的hover效果，和现在的hover表头文字区域的效果颜色一致，圆角矩形。
 4. 点击Cues单元格，从直接播放视频改为弹出一个菜单，在...按钮的菜单基础上，增加了一个Play选项。
-5. 取消Cues单元格hover时的下划线，鼠标样式还是保留。
-6. 点击其它列的单元格后续也会有菜单，暂时还没想好做什么。
-7. 修改部分UI界面颜色，详见# UI文档改动。
+5. 点击其它列的单元格后续也会有菜单，暂时还没想好做什么。
+6. 详见# UI文档改动。
 
 # UI文档改动
 
@@ -95,40 +94,52 @@ Row Height: --height-table-row
 Header Height: --height-table-header
 Row Hover Bg: none
 Row Selected Bg: none
-Header Hover Bg: --color-row-hover
-Cell Content Hover Bg: --color-row-hover
-Cell Content Hover Radius: --radius-table-cell-hover
-Cell Content Hover Inset: --padding-table-cell-hover
+Header Hover Bg: none
 Trigger Surface Bg: --color-bg-hover
+Cell Content Hover Bg: --color-bg-hover
+Cell Content Hover Radius: --radius-table-cell-hover
+Cell Content Hover Padding: --padding-table-cell-hover
+Cell Content Hover Scope: visible text / content bounds only
 Divider Horizontal: --color-border-control
 Divider Width: 1px
 
 #### Status
 Default
-Header Hover / Header Area
+Header Hover / Header Area: no background
 Header Hover / Trigger Surface
 Body Hover: no full-row background
 Body Selected: no full-row background
 Cell Content Hover
 
+### 2.18 Sortable Header Cell
+
+#### Container
+Header Height: --height-table-header
+Trigger Padding X: --padding-header-trigger-x
+Trigger Bg Hover / Menu Open: --color-bg-hover
+Row Bg Hover: none
+Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
+
 ### 2.20 Interactive Text Cell
 
 #### Container
 Background Default: transparent
-Background Hover: --color-row-hover
+Background Hover: --color-bg-hover
 Radius Hover: --radius-table-cell-hover
 Padding / Inset Hover: --padding-table-cell-hover
-Scope: hovered cell content area only; does not fill the full row
+Scope: visible text / content bounds only; does not fill the full cell or full row
 
 #### Content
 Text Default: --color-text-primary
 Text Hover: --color-text-primary
-Underline Hover: none
-Text Decoration: none
+Underline Hover: same as text color
+Text Decoration: underline
+Decoration Thickness: --width-interactive-text-underline
+Decoration Offset: --offset-interactive-text-underline
 
 #### Status
 Default
-Hover
+Hover (Underline)
 
 ### 3.7 Search / Shiori Table Layout
 
@@ -190,7 +201,8 @@ Time Column:
 
 Cues Column:
   Contains: cue text
-  Cell Hover: rounded cell content background using --color-row-hover
+  Cell Hover: rounded visible cue text background using --color-bg-hover
+  Text Hover: underline cue text
   Click Behavior: open Row Action Menu
   Play Behavior: use the Play menu item to open video playback
 
@@ -205,8 +217,9 @@ Shiori Empty Hint:
 #### Interaction
 Header: sort / column menu
 Rows: no full-row hover or selected background
-Cell Content: hover shows rounded content background
-Cues Cell: pointer cursor; click opens Row Action Menu
+Header Area: no hover background
+Cell Content: hover shows rounded visible text / content background using --color-bg-hover
+Cues Cell: pointer cursor; hover underlines cue text; click opens Row Action Menu
 Other Data Cells: reserved for future cell menus; no action defined yet
 View Menu: Cues is checked + disabled; other data columns can be hidden
 Search Row Action Menu: Play / Copy Cue Text
