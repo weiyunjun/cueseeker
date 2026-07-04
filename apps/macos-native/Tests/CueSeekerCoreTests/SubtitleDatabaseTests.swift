@@ -2387,7 +2387,7 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
 }
 
 @Test
-func setLibraryWatchStateClearsCompletedStateAndDeletesUnwatchedHistory() throws {
+func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -2396,38 +2396,36 @@ func setLibraryWatchStateClearsCompletedStateAndDeletesUnwatchedHistory() throws
     let database = try SubtitleDatabase(path: databaseURL)
     try database.migrate()
 
+    let root = URL(fileURLWithPath: "/Media")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: videoFile.deletingPathExtension().appendingPathExtension("srt"),
+        videoFile: videoFile,
+        entries: [databaseTestEntry(text: "episode one")]
+    )
+    try database.rebuildLibraryPresentationSnapshot()
+
+    let playedAt = Date(timeIntervalSince1970: 1_800_000_000)
     try database.upsertLibraryPlaybackHistory(
         videoFile: videoFile,
-        positionMilliseconds: 960_000,
-        duration: 1_000.0,
-        markCompleted: true
+        positionMilliseconds: 42_500,
+        duration: 100.0,
+        updatedAt: playedAt
     )
+
+    let initialHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(initialHistory.positionMilliseconds == 42_500)
+    #expect(initialHistory.updatedAt == "2027-01-15T08:00:00.000Z")
 
     try database.setLibraryWatchState(
         videoFile: videoFile,
-        duration: 1_000.0,
-        state: .watching
-    )
-
-    let watchingHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
-    #expect(watchingHistory.startedAt != nil)
-    #expect(watchingHistory.completedAt == nil)
-    #expect(LibraryWatchState(
-        positionMilliseconds: watchingHistory.positionMilliseconds,
-        duration: watchingHistory.duration,
-        startedAt: watchingHistory.startedAt,
-        completedAt: watchingHistory.completedAt
-    ) == .watching)
-
-    try database.setLibraryWatchState(
-        videoFile: videoFile,
-        duration: 1_000.0,
+        duration: 100.0,
         state: .finished
     )
 
     let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
-    #expect(finishedHistory.positionMilliseconds == 1_000_000)
+    #expect(finishedHistory.positionMilliseconds == 42_500)
+    #expect(finishedHistory.updatedAt == initialHistory.updatedAt)
     #expect(finishedHistory.completedAt != nil)
     #expect(LibraryWatchState(
         positionMilliseconds: finishedHistory.positionMilliseconds,
@@ -2435,14 +2433,32 @@ func setLibraryWatchStateClearsCompletedStateAndDeletesUnwatchedHistory() throws
         startedAt: finishedHistory.startedAt,
         completedAt: finishedHistory.completedAt
     ) == .finished)
+    let finishedRecent = try #require(try database.recentLibraryWatching(under: [root], limit: 5).first)
+    #expect(finishedRecent.videoPath == videoFile.path)
+    #expect(finishedRecent.positionMilliseconds == 42_500)
+    #expect(finishedRecent.watchState == .finished)
 
     try database.setLibraryWatchState(
         videoFile: videoFile,
-        duration: 1_000.0,
+        duration: 100.0,
         state: .unwatched
     )
 
-    #expect(try database.libraryPlaybackHistory(forVideoFile: videoFile) == nil)
+    let unwatchedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    #expect(unwatchedHistory.positionMilliseconds == 42_500)
+    #expect(unwatchedHistory.updatedAt == initialHistory.updatedAt)
+    #expect(unwatchedHistory.startedAt == nil)
+    #expect(unwatchedHistory.completedAt == nil)
+    #expect(LibraryWatchState(
+        positionMilliseconds: unwatchedHistory.positionMilliseconds,
+        duration: unwatchedHistory.duration,
+        startedAt: unwatchedHistory.startedAt,
+        completedAt: unwatchedHistory.completedAt
+    ) == .unwatched)
+    let unwatchedRecent = try #require(try database.recentLibraryWatching(under: [root], limit: 5).first)
+    #expect(unwatchedRecent.videoPath == videoFile.path)
+    #expect(unwatchedRecent.positionMilliseconds == 42_500)
+    #expect(unwatchedRecent.watchState == .unwatched)
 }
 
 @Test

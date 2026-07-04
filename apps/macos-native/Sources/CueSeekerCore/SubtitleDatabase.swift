@@ -498,13 +498,8 @@ public enum LibraryWatchState: String, Equatable, Sendable {
     case watching
     case finished
 
-    public init(positionMilliseconds: Int, duration: Double?) {
-        self.init(
-            positionMilliseconds: positionMilliseconds,
-            duration: duration,
-            startedAt: nil,
-            completedAt: nil
-        )
+    public init(positionMilliseconds: Int, duration _: Double?) {
+        self = max(0, positionMilliseconds) > 0 ? .watching : .unwatched
     }
 
     public init(
@@ -523,12 +518,7 @@ public enum LibraryWatchState: String, Equatable, Sendable {
             return
         }
 
-        guard max(0, positionMilliseconds) > 0 else {
-            self = .unwatched
-            return
-        }
-
-        self = .watching
+        self = .unwatched
     }
 }
 
@@ -1144,7 +1134,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 24
+    public static let currentSchemaVersion: Int = 25
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1447,6 +1437,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS library_watch_states (
+                video_path TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS library_video_rows (
                 video_path TEXT PRIMARY KEY,
                 video_name TEXT NOT NULL,
@@ -1652,6 +1648,25 @@ public final class SubtitleDatabase: @unchecked Sendable {
                       (CAST(position_ms AS REAL) / 1000.0) >= duration * 0.95
                       OR duration - (CAST(position_ms AS REAL) / 1000.0) <= 1
                   );
+                """
+            )
+        }
+
+        if previousVersion < 25 {
+            try database.execute(
+                """
+                INSERT OR IGNORE INTO library_watch_states(video_path, state, updated_at)
+                SELECT video_path,
+                       CASE
+                           WHEN completed_at IS NOT NULL THEN 'finished'
+                           WHEN started_at IS NOT NULL OR position_ms > 0 THEN 'watching'
+                           ELSE 'unwatched'
+                       END,
+                       COALESCE(completed_at, started_at, updated_at)
+                FROM library_playback_history
+                WHERE completed_at IS NOT NULL
+                   OR started_at IS NOT NULL
+                   OR position_ms > 0;
                 """
             )
         }
@@ -5157,9 +5172,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
-                   h.started_at, h.completed_at, h.updated_at, vc.cover_path
+                   CASE
+                       WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'watching' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.started_at
+                   END,
+                   CASE
+                       WHEN ws.state = 'finished' THEN ws.updated_at
+                       WHEN ws.state = 'watching' THEN NULL
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.completed_at
+                   END,
+                   h.updated_at, vc.cover_path
             FROM library_playback_history h
             JOIN library_video_rows lvr ON lvr.video_path = h.video_path
+            LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
             WHERE \(scopeCondition)
@@ -5227,11 +5255,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
-                   h.started_at, h.completed_at, h.updated_at, julianday(h.updated_at),
+                   CASE
+                       WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'watching' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.started_at
+                   END,
+                   CASE
+                       WHEN ws.state = 'finished' THEN ws.updated_at
+                       WHEN ws.state = 'watching' THEN NULL
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.completed_at
+                   END,
+                   h.updated_at, julianday(h.updated_at),
                    vc.cover_path, fc.cover_path, vf.file_size, vf.video_codec,
                    vf.video_width, vf.video_height, vf.frame_rate
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
+            LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
             LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
@@ -5410,11 +5451,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
-                   h.started_at, h.completed_at, h.updated_at, vc.cover_path,
+                   CASE
+                       WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'watching' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.started_at
+                   END,
+                   CASE
+                       WHEN ws.state = 'finished' THEN ws.updated_at
+                       WHEN ws.state = 'watching' THEN NULL
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.completed_at
+                   END,
+                   h.updated_at, vc.cover_path,
                    vf.file_size, vf.video_codec, vf.video_width, vf.video_height,
                    vf.frame_rate
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
+            LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
             WHERE lvr.folder_path = ?
@@ -5862,9 +5916,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func libraryPlaybackHistory(forVideoFile videoFile: URL) throws -> LibraryPlaybackHistory? {
         let statement = try database.prepare(
             """
-            SELECT video_path, position_ms, duration, started_at, completed_at, updated_at
-            FROM library_playback_history
-            WHERE video_path = ?;
+            SELECT h.video_path, h.position_ms, h.duration,
+                   CASE
+                       WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'watching' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.started_at
+                   END,
+                   CASE
+                       WHEN ws.state = 'finished' THEN ws.updated_at
+                       WHEN ws.state = 'watching' THEN NULL
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.completed_at
+                   END,
+                   h.updated_at
+            FROM library_playback_history h
+            LEFT JOIN library_watch_states ws ON ws.video_path = h.video_path
+            WHERE h.video_path = ?;
             """
         )
 
@@ -5939,76 +6007,52 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
         try statement.bind(updatedAtString, at: 6)
         try statement.run()
+
+        if markCompleted {
+            try upsertLibraryWatchState(videoFile: videoFile, state: .finished, updatedAt: updatedAt)
+        } else if markStarted {
+            let currentWatchState = try libraryPlaybackHistory(forVideoFile: videoFile).map {
+                LibraryWatchState(
+                    positionMilliseconds: $0.positionMilliseconds,
+                    duration: $0.duration,
+                    startedAt: $0.startedAt,
+                    completedAt: $0.completedAt
+                )
+            } ?? .unwatched
+            if currentWatchState != .finished {
+                try upsertLibraryWatchState(videoFile: videoFile, state: .watching, updatedAt: updatedAt)
+            }
+        }
     }
 
     public func setLibraryWatchState(
         videoFile: URL,
-        duration: Double?,
+        duration _: Double?,
         state: LibraryWatchState,
         updatedAt: Date = Date()
     ) throws {
-        switch state {
-        case .unwatched:
-            let statement = try database.prepare(
-                """
-                DELETE FROM library_playback_history
-                WHERE video_path = ?;
-                """
-            )
-            try statement.bind(videoFile.path, at: 1)
-            try statement.run()
-        case .watching, .finished:
-            let existingHistory = try libraryPlaybackHistory(forVideoFile: videoFile)
-            let updatedAtString = Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt)
-            let normalizedDuration = duration.flatMap { value in
-                value.isFinite && value > 0 ? value : nil
-            }
-            let existingPosition = existingHistory?.positionMilliseconds ?? 0
-            let positionMilliseconds: Int
-            if state == .finished, let normalizedDuration {
-                positionMilliseconds = Int((normalizedDuration * 1_000).rounded(.down))
-            } else {
-                positionMilliseconds = existingPosition
-            }
-            let startedAt = existingHistory?.startedAt ?? updatedAtString
-            let completedAt = state == .finished ? updatedAtString : nil
+        try upsertLibraryWatchState(videoFile: videoFile, state: state, updatedAt: updatedAt)
+    }
 
-            let statement = try database.prepare(
-                """
-                INSERT INTO library_playback_history(
-                    video_path,
-                    position_ms,
-                    duration,
-                    started_at,
-                    completed_at,
-                    updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(video_path) DO UPDATE SET
-                    position_ms = excluded.position_ms,
-                    duration = excluded.duration,
-                    started_at = excluded.started_at,
-                    completed_at = excluded.completed_at,
-                    updated_at = excluded.updated_at;
-                """
-            )
-
-            try statement.bind(videoFile.path, at: 1)
-            try statement.bind(max(0, positionMilliseconds), at: 2)
-            if let normalizedDuration {
-                try statement.bind(normalizedDuration, at: 3)
-            } else {
-                try statement.bindNull(at: 3)
-            }
-            try statement.bind(startedAt, at: 4)
-            if let completedAt {
-                try statement.bind(completedAt, at: 5)
-            } else {
-                try statement.bindNull(at: 5)
-            }
-            try statement.bind(updatedAtString, at: 6)
-            try statement.run()
-        }
+    private func upsertLibraryWatchState(
+        videoFile: URL,
+        state: LibraryWatchState,
+        updatedAt: Date = Date()
+    ) throws {
+        let updatedAtString = Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt)
+        let statement = try database.prepare(
+            """
+            INSERT INTO library_watch_states(video_path, state, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(video_path) DO UPDATE SET
+                state = excluded.state,
+                updated_at = excluded.updated_at;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(state.rawValue, at: 2)
+        try statement.bind(updatedAtString, at: 3)
+        try statement.run()
     }
 
     public func upsertShiori(

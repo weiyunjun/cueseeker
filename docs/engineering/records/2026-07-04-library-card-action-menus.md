@@ -2,7 +2,7 @@
 
 ## Human-Owned Source
 
-- `docs/human/requirements/20260704-Feature-Library-Card-Action-Menus.md`
+- `docs/human/requirements/20260704-Feature-Library Card Action Menus.md`
 - `docs/human/design/UI.md`
 
 ## Scope
