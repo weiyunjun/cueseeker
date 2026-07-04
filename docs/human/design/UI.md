@@ -343,6 +343,7 @@
 --radius-select-menu-item: 8px
 --radius-action-menu-item: 8px
 --radius-row-action: 8px
+--radius-table-cell-hover: 6px
 --radius-chip: 6px
 --scrollbar-radius: 9999px
 --radius-app-sidebar-item: 8px
@@ -373,6 +374,7 @@
 --padding-header-trigger-x: 12px
 --padding-chip-x: 10px
 --padding-chip-y: 4px
+--padding-table-cell-hover: 4px
 --padding-app-sidebar-x: 12px
 --padding-app-sidebar-y: 12px
 --padding-app-sidebar-item-x: 10px
@@ -980,13 +982,11 @@ Menu Item Padding: --padding-menu-item
 Menu Item Radius: --radius-action-menu-item
 Menu Item Hover Background: --color-bg-hover
 Divider: --color-border-divider
-Row Action Trigger Size: --size-row-action-button
-Row Action Trigger Radius: --radius-row-action
-Row Action Trigger Background Default: transparent
-Row Action Trigger Background Open: --color-bg-hover
-Row Action Trigger Border: none
+Menu Anchor: Cues cell content region
+Menu Open Cell Background: --color-row-hover
 
 #### Content
+Play Icon: play.fill
 Copy Cue Text Icon: copy
 Open Context Icon: search
 Favorite Icon: star
@@ -996,14 +996,11 @@ Menu Item Text Color Default: --color-text-primary
 Menu Item Text Color Disabled: --color-text-disabled
 Menu Item Icon Color Default: --color-text-primary
 Menu Item Icon Color Disabled: --color-icon-disabled
-Row Action Trigger Icon: ellipsis
-Row Action Trigger Icon Color: --color-icon-default
-Row Action Trigger Disabled Icon Color: --color-icon-disabled
 
 #### Status
 Default Menu
 Hover / Highlighted Item
-Menu Open (from Row Action Button)
+Menu Open (from Cues Cell)
 
 #### Cursor
 Not specified in image
@@ -1041,8 +1038,9 @@ Tags: Chip / Tag
 Default
 Header Hover / Header Area
 Header Hover / Trigger Surface
-Body Hover
-Body Selected
+Body Hover: no full-row background
+Body Selected: no full-row background
+Cell Content Hover
 
 #### Cursor
 Not specified in image
@@ -1106,19 +1104,21 @@ Not specified in image
 ### 2.20 Interactive Text Cell
 
 #### Container
-Not specified in image
+Background Default: transparent
+Background Hover: --color-row-hover
+Radius Hover: --radius-table-cell-hover
+Padding / Inset Hover: --padding-table-cell-hover
+Scope: hovered cell content area only; does not fill the full row
 
 #### Content
 Text Default: --color-text-primary
 Text Hover: --color-text-primary
-Underline Hover: same as text color
-Text Decoration: underline
-Decoration Thickness: --width-interactive-text-underline
-Decoration Offset: --offset-interactive-text-underline
+Underline Hover: none
+Text Decoration: none
 
 #### Status
 Default
-Hover (Underline)
+Hover
 
 #### Cursor
 Default / Non-text Area: default
@@ -1874,7 +1874,7 @@ Rows: Table Row
 Selection: Row Selection Checkbox
 Text Cell: Interactive Text Cell
 Tags: Chip / Tag
-Row Actions: Cues column trailing action area with Row Action Button / Row Action Menu
+Row Actions: Row Action Menu opened from the Cues cell
 Scrollbar: Table Scrollbar
 Empty State: Empty Hint
 
@@ -1925,9 +1925,10 @@ Time Column:
   Sort: by cue start time
 
 Cues Column:
-  Contains: cue text and row action trigger
-  Row Action Placement: trailing area of the Cues cell
-  Row Action Behavior: follows the row during vertical scrolling and follows the Cues column during horizontal scrolling
+  Contains: cue text
+  Cell Hover: rounded cell content background using --color-row-hover
+  Click Behavior: open Row Action Menu
+  Play Behavior: use the Play menu item to open video playback
 
 Search Empty Hint:
   Text: Enter a search term or add filters to show cues.
@@ -1939,17 +1940,16 @@ Shiori Empty Hint:
 
 #### Interaction
 Header: sort / column menu
-Rows: hover / select
-Row Actions: always visible in each row; placed inside the trailing area of the Cues column
-Text Cell: click cue text
-View Menu: Cues is checked + disabled; row actions cannot be hidden; other data columns can be hidden
-Search Row Action Menu: Copy Cue Text
-Shiori Row Action Menu: Copy Cue Text / Remove Shiori
+Rows: no full-row hover or selected background
+Cell Content: hover shows rounded content background
+Cues Cell: pointer cursor; click opens Row Action Menu
+Other Data Cells: reserved for future cell menus; no action defined yet
+View Menu: Cues is checked + disabled; other data columns can be hidden
+Search Row Action Menu: Play / Copy Cue Text
+Shiori Row Action Menu: Play / Copy Cue Text / Remove Shiori
 Remove Shiori Icon: bookmark.slash
 Remove Shiori Icon Fallback: bookmark
 Shiori Remove: remove the row from saved Shiori records and refresh the Shiori table
-Shiori Default Sort: Date Added, newest to oldest
-Scrollbar: virtualized table scrolling
 
 #### Effective Filter Condition
 An effective filter condition is any filter rule that can constrain results.
