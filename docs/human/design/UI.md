@@ -343,7 +343,7 @@
 --radius-select-menu-item: 8px
 --radius-action-menu-item: 8px
 --radius-row-action: 8px
---radius-table-cell-hover: 6px
+--radius-table-cell-hover: 8px
 --radius-chip: 6px
 --scrollbar-radius: 9999px
 --radius-app-sidebar-item: 8px
@@ -374,7 +374,8 @@
 --padding-header-trigger-x: 12px
 --padding-chip-x: 10px
 --padding-chip-y: 4px
---padding-table-cell-hover: 4px
+--padding-table-cell-hover-x: 12px
+--padding-table-cell-hover-y: 6px
 --padding-app-sidebar-x: 12px
 --padding-app-sidebar-y: 12px
 --padding-app-sidebar-item-x: 10px
@@ -1016,8 +1017,9 @@ Header Hover Bg: none
 Trigger Surface Bg: --color-bg-hover
 Cell Content Hover Bg: --color-bg-hover
 Cell Content Hover Radius: --radius-table-cell-hover
-Cell Content Hover Padding: --padding-table-cell-hover
-Cell Content Hover Scope: visible text / content bounds only
+Cell Content Hover Padding X: --padding-table-cell-hover-x
+Cell Content Hover Padding Y: --padding-table-cell-hover-y
+Cell Content Hover Scope: one rounded rectangle around the union bounds of visible text / content
 Divider Horizontal: --color-border-control
 Divider Width: 1px
 
@@ -1111,8 +1113,10 @@ Not specified in image
 Background Default: transparent
 Background Hover: --color-bg-hover
 Radius Hover: --radius-table-cell-hover
-Padding / Inset Hover: --padding-table-cell-hover
-Scope: visible text / content bounds only; does not fill the full cell or full row
+Padding X Hover: --padding-table-cell-hover-x
+Padding Y Hover: --padding-table-cell-hover-y
+Scope: one rounded rectangle around the union bounds of visible text / content; does not fill the full cell or full row
+Multi-line Text: one unified rounded rectangle, not separate per-line backgrounds
 
 #### Content
 Text Default: --color-text-primary
@@ -1932,7 +1936,9 @@ Time Column:
 
 Cues Column:
   Contains: cue text
-  Cell Hover: rounded visible cue text background using --color-bg-hover
+  Cell Hover: one rounded rectangle around visible cue text union bounds using --color-bg-hover
+  Cell Hover Padding X: --padding-table-cell-hover-x
+  Cell Hover Padding Y: --padding-table-cell-hover-y
   Text Hover: underline cue text
   Click Behavior: open Row Action Menu
   Play Behavior: use the Play menu item to open video playback
@@ -1949,7 +1955,7 @@ Shiori Empty Hint:
 Header: sort / column menu
 Rows: no full-row hover or selected background
 Header Area: no hover background
-Cell Content: hover shows rounded visible text / content background using --color-bg-hover
+Cell Content: hover shows one rounded rectangle around visible text / content union bounds using --color-bg-hover
 Cues Cell: pointer cursor; hover underlines cue text; click opens Row Action Menu
 Other Data Cells: reserved for future cell menus; no action defined yet
 View Menu: Cues is checked + disabled; other data columns can be hidden
