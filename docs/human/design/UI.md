@@ -431,6 +431,8 @@
 --height-library-list-button: 30px
 --width-library-folder-cover: 120px
 --min-height-library-folder-card: 96px
+--size-library-card-action-button: 32px
+--size-library-card-action-icon: 16px
 
 #### Library Radius
 --radius-library-cover: 8px
@@ -448,6 +450,9 @@
 
 #### Library Interaction
 --scale-library-media-card-pressed: 0.98
+--scale-library-cover-hover: 1.02
+--duration-library-cover-hover: 0.12s
+--duration-library-card-action-hover: 0.12s
 
 #### Library Padding
 --padding-library-folder-card: 12px 16px
@@ -1317,29 +1322,40 @@ Disabled
 #### Cursor
 default
 
-### 2.29 Library Primary Play Button
+### 2.29 Library Card Action Button and Menu
 
-#### Container
-Height: --height-library-list-button
-Radius: --radius-control
-Padding X: --padding-control-x
-Background Default: --color-primary-button-bg
-Background Hover: --color-primary-button-bg-hover
-Border: none
-Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
+#### Action Button Container
+Size: --size-library-card-action-button
+Radius: full circle
+Background Default: Color.black.opacity(0.3)
+Background Hover: Color.white
+Animation: --duration-library-card-action-hover
+Placement: cover top trailing overlay
 
-#### Content
-Text: Play
-Icon: none
-Font Family: --font-family-base
-Text Size: --font-size-control
-Text Weight: --font-weight-control
-Text Color: --color-primary-button-text
+#### Action Button Content
+Icon: ellipsis
+Icon Size: --size-library-card-action-icon
+Icon Weight: semibold
+Icon Color Default: Color.white
+Icon Color Hover: PlaybackTheme.iconSelected
+
+#### Menu Container
+Style: Row Action Menu
+Anchor: Library Card Action Button
+
+#### Menu Content
+Open Folder Icon: folder
+Mark as Finished Icon: checkmark.circle
+Mark as Unwatched Icon: circle
+Mark as Watching Icon: play.circle
+Context Icon: search
+Menu Item Text Color Default: --color-text-primary
+Menu Item Icon Color Default: --color-text-primary
 
 #### Status
 Default
 Hover
-Pressed
+Menu Open
 Disabled
 
 #### Cursor
@@ -1678,6 +1694,8 @@ Hover Background: --color-library-media-card-hover-bg
 Cover: Library Cover
 Cover Overlay: Library Cover Progress Overlay
 Cover Badge: Library Cover Badge / Time
+Cover Action: Library Card Action Button
+Action Menu: Open Folder, Mark as Finished, Mark as Unwatched, Mark as Watching, Context
 Folder Name:
   Font Size: --font-size-library-title
   Text Color: --color-text-primary
@@ -1692,7 +1710,8 @@ Meta Row:
 Default: transparent background
 Hover: show hover background
 Pressed: media card press feedback
-Click: open video at saved playback position
+Click: open video at saved playback position, except Library Card Action Button
+Action Menu Click: open menu without triggering card click
 Disabled / Missing File: reduce opacity and disable click
 
 #### Cursor
@@ -1712,6 +1731,8 @@ Hover Background: --color-library-media-card-hover-bg
 #### Content
 Cover: Library Cover
 Cover Badge: Library Cover Badge / Count
+Cover Action: Library Card Action Button
+Action Menu: Open Folder, Mark All as Finished, Mark All as Unwatched, Mark All as Watching
 Folder Name:
   Font Size: --font-size-library-title
   Text Color: --color-text-primary
@@ -1721,7 +1742,8 @@ Folder Name:
 Default: transparent background
 Hover: show hover background
 Pressed: scale card to --scale-library-media-card-pressed while pointer is pressed
-Click: open Library Folder Detail view
+Click: open Library Folder Detail view, except Library Card Action Button
+Action Menu Click: open menu without triggering card click
 Disabled / Empty Folder: reduce opacity and disable click
 
 #### Cursor
@@ -1783,16 +1805,19 @@ Info Region:
       Line Count: 1
 
 Action Region:
-  Alignment: trailing center
-  Primary Action: Library Primary Play Button
+  Removed
+
+Cover Action:
+  Component: Library Card Action Button
+  Menu: Open Folder, Mark as Finished, Mark as Unwatched, Mark as Watching, Context
 
 #### Interaction
 Default: transparent background
 Hover: no card background highlight and no card scale animation
 Pressed: no card scale animation
-Card Click: none
-Play Button Click: open video at saved playback position
-Disabled / Missing File: reduce row opacity and disable Play button
+Card Click: open video at saved playback position, except Library Card Action Button
+Action Menu Click: open menu without triggering card click
+Disabled / Missing File: reduce row opacity and disable click
 
 #### Cursor
 Episode Row: default
