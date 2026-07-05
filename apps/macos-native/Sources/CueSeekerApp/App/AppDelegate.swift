@@ -57,7 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.playback)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: AppShellLayout.minimumWindowWidth, height: 720),
+            contentRect: NSRect(x: 0, y: 0, width: AppShellLayout.defaultWindowWidth, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false

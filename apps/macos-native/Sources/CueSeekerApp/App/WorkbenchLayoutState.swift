@@ -109,6 +109,16 @@ final class WorkbenchLayoutState: ObservableObject {
         userDefaults.set(isVisible, forKey: Self.isSidebarVisibleKey)
     }
 
+    @discardableResult
+    func collapseSidebarForCompactWindowIfNeeded(width: CGFloat, threshold: CGFloat) -> Bool {
+        guard width > 0, width <= threshold, isSidebarVisible else {
+            return false
+        }
+
+        setSidebarVisible(false)
+        return true
+    }
+
     func selectTestLibraryFolder(_ folder: CompleteLibraryFolderSummaryPresentation) {
         selectedTestLibraryFolder = folder
     }

@@ -37,29 +37,38 @@ private struct ContentRootView: View {
             let isPlaybackFullscreen = fullscreenManager.isFullscreen
             let hidesWorkbenchChrome = isPlaybackFullscreen || appState.isPlaybackPageVisible
 
-            return ZStack(alignment: .topLeading) {
-                windowBackground
-                    .ignoresSafeArea()
+            return GeometryReader { geometry in
+                ZStack(alignment: .topLeading) {
+                    windowBackground
+                        .ignoresSafeArea()
 
-                HStack(spacing: 0) {
-                    if !hidesWorkbenchChrome && layoutState.isSidebarVisible {
-                        AppSidebar()
-                            .frame(width: AppShellLayout.sidebarWidth)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    HStack(spacing: 0) {
+                        if !hidesWorkbenchChrome && layoutState.isSidebarVisible {
+                            AppSidebar()
+                                .frame(width: AppShellLayout.sidebarWidth)
+                                .transition(.move(edge: .leading).combined(with: .opacity))
+                        }
+
+                        mainWorkspace
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(.top, hidesWorkbenchChrome ? 0 : AppShellLayout.topBarHeight)
                     }
 
-                    mainWorkspace
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding(.top, hidesWorkbenchChrome ? 0 : AppShellLayout.topBarHeight)
-                }
+                    if !hidesWorkbenchChrome {
+                        AppTopBar()
+                            .zIndex(3)
+                    }
 
-                if !hidesWorkbenchChrome {
-                    AppTopBar()
-                        .zIndex(3)
+                    TitlebarCommandBridge()
+                        .frame(width: 0, height: 0)
                 }
-
-                TitlebarCommandBridge()
-                    .frame(width: 0, height: 0)
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .onAppear {
+                    collapseSidebarForCompactWindowIfNeeded(width: geometry.size.width)
+                }
+                .onChange(of: geometry.size.width) { width in
+                    collapseSidebarForCompactWindowIfNeeded(width: width)
+                }
             }
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
@@ -71,6 +80,13 @@ private struct ContentRootView: View {
     @ViewBuilder
     private var mainWorkspace: some View {
         SearchView()
+    }
+
+    private func collapseSidebarForCompactWindowIfNeeded(width: CGFloat) {
+        layoutState.collapseSidebarForCompactWindowIfNeeded(
+            width: width,
+            threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
+        )
     }
 }
 
@@ -327,8 +343,10 @@ private struct AppSidebarToggleButtonStyle: ButtonStyle {
 
 enum AppShellLayout {
     static let contentTopPadding: CGFloat = 16
-    static let minimumWindowWidth: CGFloat = 1_000
+    static let defaultWindowWidth: CGFloat = 1_000
+    static let minimumWindowWidth: CGFloat = 480
     static let minimumWindowHeight: CGFloat = 560
+    static let sidebarAutoCollapseWindowWidth: CGFloat = 760
     static let topBarHeight = WorkbenchControlMetrics.redesignAppTopbarHeight
     static let sidePanelAnimationDuration: Double = 0.18
 

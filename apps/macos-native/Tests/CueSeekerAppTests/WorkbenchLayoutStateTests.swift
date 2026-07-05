@@ -52,6 +52,45 @@ func workbenchLayoutStatePersistsSidebarVisibility() {
 }
 
 @MainActor
+@Test
+func workbenchLayoutStateCollapsesSidebarForCompactWindowOnce() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+
+        let collapsed = layoutState.collapseSidebarForCompactWindowIfNeeded(
+            width: 760,
+            threshold: 760
+        )
+        let expandedAgain = layoutState.collapseSidebarForCompactWindowIfNeeded(
+            width: 900,
+            threshold: 760
+        )
+
+        let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+        #expect(collapsed)
+        #expect(!expandedAgain)
+        #expect(!layoutState.isSidebarVisible)
+        #expect(!reloadedLayoutState.isSidebarVisible)
+    }
+}
+
+@MainActor
+@Test
+func workbenchLayoutStateIgnoresNonPositiveCompactWindowWidth() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+
+        let collapsed = layoutState.collapseSidebarForCompactWindowIfNeeded(
+            width: 0,
+            threshold: 760
+        )
+
+        #expect(!collapsed)
+        #expect(layoutState.isSidebarVisible)
+    }
+}
+
+@MainActor
 private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> Void) {
     let suiteName = "CueSeekerWorkbenchLayoutStateTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!
