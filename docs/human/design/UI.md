@@ -1916,15 +1916,40 @@ Scrollbar: Table Scrollbar
 Empty State: Empty Hint
 
 Search Columns:
+  Selection
   Display Title
   Cues
   Time
 
 Shiori Columns:
+  Selection
   Display Title
   Cues
   Time
   Date Added
+
+Column Widths:
+  Selection:
+    Width: 50pt
+    Fixed: yes
+
+  Display Title:
+    Width: 240pt
+    Fixed: yes
+
+  Time:
+    Width: 190pt
+    Fixed: yes
+
+  Date Added:
+    Applies To: Shiori
+    Width: 160pt
+    Fixed: yes
+
+  Cues:
+    Minimum Width: 520pt
+    Flexible: yes
+    Behavior: expands to fill remaining table content width
 
 Column Visual Priority:
   Cues:
