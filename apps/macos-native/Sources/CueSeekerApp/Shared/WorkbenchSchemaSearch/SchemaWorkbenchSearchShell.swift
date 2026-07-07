@@ -292,6 +292,8 @@ enum SchemaWorkbenchSearchDefaults {
 }
 
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
+    @Environment(\.isWorkbenchPopupLayerOpen) private var isParentWorkbenchPopupLayerOpen
+
     @Binding var searchDraft: String
     @Binding var visibleColumnIDs: Set<String>
     @Binding var activeFilterSetID: String?
@@ -424,7 +426,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
             overlayLayer
         }
-        .environment(\.isWorkbenchPopupLayerOpen, openPopover != nil)
+        .environment(\.isWorkbenchPopupLayerOpen, isParentWorkbenchPopupLayerOpen || openPopover != nil)
         .coordinateSpace(name: "SearchShellSpace")
         .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { frames in
             self.shellDropdownFrames = frames

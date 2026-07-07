@@ -25,6 +25,8 @@ struct SearchView: View {
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .clipped()
+                        .environment(\.isWorkbenchPopupLayerOpen, showsPlaybackRoute)
+                        .allowsHitTesting(!showsPlaybackRoute)
 
                     if showsPlaybackRoute {
                         PlaybackPageView(

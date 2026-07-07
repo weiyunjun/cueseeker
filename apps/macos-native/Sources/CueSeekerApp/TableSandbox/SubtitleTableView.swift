@@ -3203,7 +3203,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func refreshDocumentCursor(windowPoint: CGPoint) {
-            guard let documentView else { return }
+            guard !isExternalPopupLayerOpen, let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
             if isInteractiveCellCursorActive(at: point) {
                 NSCursor.pointingHand.set()

@@ -39,6 +39,18 @@ source-specific state during hover-driven UI rebuilds.
 - Added regression coverage that Search, Library, and Shiori playback entries
   all clear workbench focus before playback proceeds.
 
+## Playback Overlay Interaction Freeze
+
+- Marked the underlying Workbench content as externally covered while
+  `PlaybackPageView` is visible, and disabled Workbench hit testing underneath
+  the playback route.
+- Preserved parent external-layer state inside `SchemaWorkbenchSearchShell` so
+  shell-local popover state no longer overwrites the playback overlay freeze.
+- Extended the table cursor refresh path to skip cursor work while an external
+  overlay layer is open, matching the existing table hover suppression rules.
+- Added regression coverage for cursor-region suppression when the table is
+  externally covered.
+
 ## Verification
 
 - `git diff --check`
@@ -54,6 +66,15 @@ Follow-up verification:
 - `swift test --filter playbackChromeSnapshotUsesEntryMetadataAcrossSources`
 - `swift test --filter PlaybackNavigation`
 
+Playback overlay freeze verification:
+
+- `git diff --check`
+- `swift test --filter subtitleTableViewSuppressesInteractiveCursorRectsWhenExternalLayerIsOpen`
+- `swift test --filter playbackEntryClearsWorkbenchFocusAcrossSources`
+- `swift test --filter playbackChromeSnapshotUsesEntryMetadataAcrossSources`
+- `swift test --filter PlaybackNavigation`
+- `swift test` (XCTest 7 tests, Swift Testing 402 tests)
+
 ## Outcome
 
 Playback chrome now reads title and previous/next availability from a unified
@@ -65,3 +86,8 @@ The follow-up closes the remaining entry inconsistency: Shiori and Library now
 use the same playback entry focus preparation as Search, and pointer-driven
 chrome visibility no longer destroys and recreates the top bar or bottom
 controls while the playback page is active.
+
+The playback overlay freeze follow-up keeps the underlying Workbench table out
+of hit testing and table hover/cursor work while playback is visible, so
+pointer-driven player chrome changes are no longer coupled to the covered
+Search, Shiori, or Library workbench surface.

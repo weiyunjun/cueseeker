@@ -695,6 +695,19 @@ func subtitleTableViewProvidesInteractiveCellCursorRectsForContentHoverRegions()
 
 @MainActor
 @Test
+func subtitleTableViewSuppressesInteractiveCursorRectsWhenExternalLayerIsOpen() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
+    let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
+
+    fixture.coordinator.isExternalPopupLayerOpen = true
+
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().isEmpty)
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == false)
+}
+
+@MainActor
+@Test
 func subtitleTableViewDismissMenuKeepsInteractiveCellCursorRectAvailable() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let anchorFrame = CGRect(
