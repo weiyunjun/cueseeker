@@ -584,12 +584,9 @@ Initial Shiori save behavior:
   overlay rather than creating an empty Shiori record.
 - If the resolved cue is not already saved, the app should persist it and show a
   playback feedback overlay with the Shiori icon and `Shiori Saved`.
-- If the resolved cue is already saved, the app should ask for confirmation
-  before deletion. Suggested English copy is title `Remove Shiori?`, message
-  `This subtitle is already saved. Remove it from Shiori?`, confirmation
-  `Remove`, and cancellation `Cancel`.
-- After confirmed deletion, the app should show a playback feedback overlay with
-  the Shiori icon and `Shiori Removed`.
+- If the resolved cue is already saved, the playback Shiori button and `S`
+  shortcut must not remove it.
+- Shiori deletion must be available only from the Shiori table removal action.
 
 Initial Shiori panel behavior:
 

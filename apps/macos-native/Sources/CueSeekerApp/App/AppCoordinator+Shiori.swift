@@ -283,13 +283,7 @@ extension AppCoordinator {
                 startMilliseconds: selection.startMilliseconds,
                 endMilliseconds: selection.endMilliseconds
             ) != nil {
-                try database.removeShiori(
-                    subtitleFile: subtitleFile,
-                    startMilliseconds: selection.startMilliseconds,
-                    endMilliseconds: selection.endMilliseconds
-                )
-                try refreshShioriPresentationAfterMutation(database: database)
-                playbackViewModel.showShioriFeedback(.removed)
+                playbackViewModel.showShioriFeedback(.saved)
                 return true
             }
 
