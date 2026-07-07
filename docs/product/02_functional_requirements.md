@@ -585,7 +585,8 @@ Initial Shiori save behavior:
 - If the resolved cue is not already saved, the app should persist it and show a
   playback feedback overlay with the Shiori icon and `Shiori Saved`.
 - If the resolved cue is already saved, the playback Shiori button and `S`
-  shortcut must not remove it.
+  shortcut must not remove it and should show a playback feedback overlay with
+  the Shiori icon and `Shiori Already Saved`.
 - Shiori deletion must be available only from the Shiori table removal action.
 
 Initial Shiori panel behavior:

@@ -10,6 +10,7 @@ enum PlaybackFeedbackPosition: Equatable {
 
 enum ShioriFeedbackState {
     case saved
+    case alreadySaved
     case removed
     case unavailable
 }
@@ -427,6 +428,12 @@ public final class PlaybackViewModel: ObservableObject {
                 position: .center,
                 systemImage: "bookmark.fill",
                 text: "Shiori Saved"
+            )
+        case .alreadySaved:
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "bookmark.fill",
+                text: "Shiori Already Saved"
             )
         case .removed:
             PlaybackFeedback(

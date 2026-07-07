@@ -283,7 +283,7 @@ extension AppCoordinator {
                 startMilliseconds: selection.startMilliseconds,
                 endMilliseconds: selection.endMilliseconds
             ) != nil {
-                playbackViewModel.showShioriFeedback(.saved)
+                playbackViewModel.showShioriFeedback(.alreadySaved)
                 return true
             }
 

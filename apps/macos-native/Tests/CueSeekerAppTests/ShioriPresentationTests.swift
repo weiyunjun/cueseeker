@@ -92,6 +92,7 @@ func playbackShioriToggleDoesNotRemoveExistingShiori() throws {
     #expect(try database.shioriCount() == 1)
     #expect(try database.shiori(id: shiori.id)?.id == shiori.id)
     #expect(app.shiori.selectedShiori?.id == shiori.id)
+    #expect(playbackViewModel.feedback?.text == "Shiori Already Saved")
 }
 
 @MainActor
@@ -147,6 +148,7 @@ func playbackShioriToggleStillSavesUnsavedCue() throws {
     #expect(saved.subtitlePath == subtitleFile.path)
     #expect(saved.videoPath == videoFile.path)
     #expect(saved.content == "playback saved cue")
+    #expect(playbackViewModel.feedback?.text == "Shiori Saved")
 }
 
 private func makeShiori(

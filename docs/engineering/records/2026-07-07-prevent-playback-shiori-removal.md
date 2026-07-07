@@ -23,6 +23,8 @@ Shiori saving and Shiori table removal intact.
 
 - Changed the playback Shiori command so an already saved cue remains saved
   instead of being removed.
+- Added the `Shiori Already Saved` playback feedback for that already-saved
+  path.
 - Kept the unsaved-cue path saving the current playback cue as a Shiori.
 - Kept Shiori table removal through `removeShiori`.
 - Updated product requirements to describe playback save-only behavior and the
@@ -38,5 +40,5 @@ Shiori saving and Shiori table removal intact.
 
 Playback Shiori controls now prevent accidental deletion. Pressing `S` or the
 playback Shiori button still saves an unsaved current cue, but repeating the
-action on an already saved cue leaves it in Shiori. Deletion remains available
-from the Shiori table.
+action on an already saved cue leaves it in Shiori and shows `Shiori Already
+Saved`. Deletion remains available from the Shiori table.
