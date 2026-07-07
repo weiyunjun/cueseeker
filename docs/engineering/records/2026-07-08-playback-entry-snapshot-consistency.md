@@ -25,6 +25,20 @@ source-specific state during hover-driven UI rebuilds.
 - Added regression coverage that opens playback through Search, Library, and
   Shiori and verifies the shared chrome snapshot receives entry metadata.
 
+## Follow-Up Changes
+
+- Aligned Shiori and Library playback entry preparation with Search by clearing
+  workbench keyboard focus before playback state is selected.
+- Removed unused Search, Shiori, and Library environment subscriptions from the
+  playback page/stage where playback rendering did not read those stores.
+- Kept player top/bottom chrome mounted during pointer-driven visibility
+  changes and hid it with opacity/hit-testing instead of removing and
+  rebuilding the control tree.
+- Added a guard so repeated requests for the current player UI visibility state
+  do not publish duplicate chrome visibility updates.
+- Added regression coverage that Search, Library, and Shiori playback entries
+  all clear workbench focus before playback proceeds.
+
 ## Verification
 
 - `git diff --check`
@@ -33,9 +47,21 @@ source-specific state during hover-driven UI rebuilds.
 - `swift test --filter Playback`
 - `swift test` (XCTest 7 tests, Swift Testing 400 tests)
 
+Follow-up verification:
+
+- `git diff --check`
+- `swift test --filter playbackEntryClearsWorkbenchFocusAcrossSources`
+- `swift test --filter playbackChromeSnapshotUsesEntryMetadataAcrossSources`
+- `swift test --filter PlaybackNavigation`
+
 ## Outcome
 
 Playback chrome now reads title and previous/next availability from a unified
 entry snapshot seeded by Search, Shiori, and Library playback entry points.
 Hover-driven player chrome rebuilds no longer derive display titles or
 navigation availability by branching back through source-specific store state.
+
+The follow-up closes the remaining entry inconsistency: Shiori and Library now
+use the same playback entry focus preparation as Search, and pointer-driven
+chrome visibility no longer destroys and recreates the top bar or bottom
+controls while the playback page is active.

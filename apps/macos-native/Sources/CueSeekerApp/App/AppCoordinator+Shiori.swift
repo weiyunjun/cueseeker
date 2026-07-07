@@ -187,6 +187,7 @@ extension AppCoordinator {
             "ACTION UI.Shiori.opened",
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
         )
+        preparePlaybackKeyboardFocus()
         shioriPlaybackNavigationScopeIDs = normalizedShioriPlaybackNavigationScopeIDs(navigationScopeIDs)
         refreshShioriPlaybackNavigationSnapshot(for: shiori)
         rememberPlaybackOriginatingPanelModeIfEntering()

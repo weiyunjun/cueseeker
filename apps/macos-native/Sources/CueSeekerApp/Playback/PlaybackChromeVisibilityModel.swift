@@ -182,6 +182,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private func setPlayerUIState(_ state: VisibilityState) {
+        guard playerUIState != state else {
+            return
+        }
         playerUIState = state
         isPlayerUIVisible = state == .visible
     }

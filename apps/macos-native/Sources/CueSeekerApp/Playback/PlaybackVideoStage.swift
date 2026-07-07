@@ -6,9 +6,6 @@ struct PlaybackVideoStage: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
-    @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var search: SearchStore
-    @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
@@ -23,6 +20,8 @@ struct PlaybackVideoStage: View {
             let isFullscreenToggleDisabled = !chromeSnapshot.hasPlaybackSelection
                 || layoutState.isVideoSizeTransitionInProgress
                 || fullscreenManager.isTransitioning
+            let isTopBarVisible = chrome.isPlayerUIVisible && !fullscreenManager.isFullscreen
+            let isBottomChromeVisible = chrome.isPlayerUIVisible
 
             ZStack(alignment: .topLeading) {
                 Color.black
@@ -32,7 +31,7 @@ struct PlaybackVideoStage: View {
                     .background(Color.black)
                     .position(x: frame.midX, y: frame.midY)
 
-                if chrome.isPlayerUIVisible, !fullscreenManager.isFullscreen {
+                if !fullscreenManager.isFullscreen {
                     LiquidGlassVideoTopBar(
                         title: chromeSnapshot.displayTitle,
                         onClose: onClose,
@@ -47,6 +46,9 @@ struct PlaybackVideoStage: View {
                         x: stageSize.width / 2,
                         y: PlaybackChromeMetrics.videoTopBarHeight / 2
                     )
+                    .opacity(isTopBarVisible ? 1 : 0)
+                    .allowsHitTesting(isTopBarVisible)
+                    .accessibilityHidden(!isTopBarVisible)
                 }
 
                 if case .failed(let message) = playback.playbackStatus {
@@ -58,7 +60,7 @@ struct PlaybackVideoStage: View {
                         .offset(x: frame.minX + 18, y: frame.minY + 72)
                 }
 
-                if chrome.isPlayerUIVisible, let viewModel = playback.playbackViewModel {
+                if let viewModel = playback.playbackViewModel {
                     PlaybackChromeView(
                         viewModel: viewModel,
                         controls: .appState(
@@ -80,6 +82,9 @@ struct PlaybackVideoStage: View {
                             stageSize.height - PlaybackChromeMetrics.bottomInset - PlaybackChromeMetrics.interactiveHeight / 2
                         )
                     )
+                    .opacity(isBottomChromeVisible ? 1 : 0)
+                    .allowsHitTesting(isBottomChromeVisible)
+                    .accessibilityHidden(!isBottomChromeVisible)
                 }
 
                 PlaybackChromeTrackingView(

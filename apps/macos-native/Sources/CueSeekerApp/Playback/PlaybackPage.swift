@@ -7,10 +7,7 @@ struct PlaybackPageView: View {
     @ObservedObject var appState: AppCoordinator
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
-    @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var search: SearchStore
-    @EnvironmentObject private var shiori: ShioriStore
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         GeometryReader { geometry in

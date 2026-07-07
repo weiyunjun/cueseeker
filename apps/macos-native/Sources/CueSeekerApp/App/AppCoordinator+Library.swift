@@ -497,6 +497,7 @@ extension AppCoordinator {
             "ACTION UI.LibraryVideo.opened",
             details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"
         )
+        preparePlaybackKeyboardFocus()
         rememberPlaybackOriginatingPanelModeIfEntering()
         if case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()

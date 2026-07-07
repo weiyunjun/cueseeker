@@ -254,6 +254,52 @@ func playbackChromeSnapshotUsesEntryMetadataAcrossSources() async throws {
 
 @MainActor
 @Test
+func playbackEntryClearsWorkbenchFocusAcrossSources() async throws {
+    try await withTemporaryNavigationApp { app, database in
+        let searchResult = SubtitleSearchResult(
+            entryID: 10,
+            subtitlePath: "/Media/Search.srt",
+            subtitleFormat: .srt,
+            videoPath: "/Media/Search.mkv",
+            videoName: "Search.mkv",
+            displayTitle: "Search Snapshot Title",
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_000,
+            content: "search cue",
+            cueLines: ["search cue"]
+        )
+
+        app.workbenchLayout.isSearchFocused = true
+        app.openSearchResult(searchResult, recordsNavigationHistory: false)
+        #expect(!app.workbenchLayout.isSearchFocused)
+
+        try indexFakeLibraryVideo(in: database, basename: "Library")
+        app.library.libraryVideos = try database.libraryVideos(
+            under: [URL(fileURLWithPath: "/Media")]
+        )
+        let libraryVideo = try #require(app.library.libraryVideos.first {
+            $0.videoPath == "/Media/Library.mkv"
+        })
+
+        app.workbenchLayout.isSearchFocused = true
+        app.openLibraryVideo(libraryVideo, recordsNavigationHistory: false)
+        #expect(!app.workbenchLayout.isSearchFocused)
+
+        let shiori = try insertNavigationShiori(
+            in: database,
+            content: "saved cue",
+            startMilliseconds: 3_000,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+
+        app.workbenchLayout.isSearchFocused = true
+        app.openShiori(shiori, recordsNavigationHistory: false)
+        #expect(!app.workbenchLayout.isSearchFocused)
+    }
+}
+
+@MainActor
+@Test
 func quickSearchBackResumesShioriEntry() async throws {
     try await withTemporaryNavigationApp { app, database in
         try indexFakeLibraryVideo(in: database, basename: "Next")
