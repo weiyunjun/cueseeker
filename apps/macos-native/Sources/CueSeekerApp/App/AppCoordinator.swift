@@ -350,6 +350,7 @@ final class AppCoordinator: ObservableObject {
     var quickSearchChunkCountTaskRequestID: Int?
     var quickSearchSearchContextSnapshot: PlaybackQuickSearchSearchContextSnapshot?
     var quickSearchSearchContextWasMutated = false
+    var shioriPlaybackNavigationScopeIDs: [Int64]?
     var activePlaybackSource: ActivePlaybackSource = .none
     var playbackOriginatingPanelMode: WorkbenchPanelMode?
     var currentCueSegmentFinished = false

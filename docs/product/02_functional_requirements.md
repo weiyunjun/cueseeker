@@ -588,6 +588,10 @@ Initial Shiori save behavior:
   shortcut must not remove it and should show a playback feedback overlay with
   the Shiori icon and `Shiori Already Saved`.
 - Shiori deletion must be available only from the Shiori table removal action.
+- When playback is opened from the Shiori table, previous and next Shiori
+  navigation follows the table row order that was active at open time, including
+  the current search or filter result scope, instead of falling back to all saved
+  Shiori records.
 
 Initial Shiori panel behavior:
 

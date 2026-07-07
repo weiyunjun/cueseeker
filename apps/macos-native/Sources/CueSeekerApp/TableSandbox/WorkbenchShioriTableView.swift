@@ -298,7 +298,8 @@ private struct WorkbenchShioriTableContent: View {
         guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
             return
         }
-        appState.openShiori(item)
+        let navigationScopeIDs = rowStore.snapshot.rows.map { Int64($0.id) }
+        appState.openShiori(item, navigationScopeIDs: navigationScopeIDs)
     }
 
     private func showContext(_ row: SubtitleTableRow) {

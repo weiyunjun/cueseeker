@@ -147,6 +147,7 @@ extension AppCoordinator {
             if shiori.selectedShiori?.id == item.id {
                 shiori.selectedShiori = nil
             }
+            removeShioriFromPlaybackNavigationScope(item.id)
             playback.playbackViewModel?.showShioriFeedback(.removed)
             return true
         } catch {
@@ -167,11 +168,16 @@ extension AppCoordinator {
         )
     }
 
-    func openShiori(_ shiori: Shiori, recordsNavigationHistory: Bool = true) {
+    func openShiori(
+        _ shiori: Shiori,
+        recordsNavigationHistory: Bool = true,
+        navigationScopeIDs: [Int64]? = nil
+    ) {
         UIInvalidationProbe.mark(
             "ACTION UI.Shiori.opened",
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
         )
+        shioriPlaybackNavigationScopeIDs = normalizedShioriPlaybackNavigationScopeIDs(navigationScopeIDs)
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
@@ -363,7 +369,7 @@ extension AppCoordinator {
         let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .previous, hasResult: hasResult)
         if let target {
-            openShiori(target)
+            openShiori(target, navigationScopeIDs: shioriPlaybackNavigationScopeIDs)
         }
     }
 
@@ -374,7 +380,7 @@ extension AppCoordinator {
         let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .next, hasResult: hasResult)
         if let target {
-            openShiori(target)
+            openShiori(target, navigationScopeIDs: shioriPlaybackNavigationScopeIDs)
         }
     }
 
@@ -382,6 +388,22 @@ extension AppCoordinator {
         to selectedShiori: Shiori,
         direction: ShioriNavigationDirection
     ) -> Shiori? {
+        if let scopeIDs = shioriPlaybackNavigationScopeIDs,
+           let index = scopeIDs.firstIndex(of: selectedShiori.id) {
+            let targetIndex: Int
+            switch direction {
+            case .previous:
+                targetIndex = index - 1
+            case .next:
+                targetIndex = index + 1
+            }
+
+            guard scopeIDs.indices.contains(targetIndex) else {
+                return nil
+            }
+            return shiori(withID: scopeIDs[targetIndex])
+        }
+
         if let database = subtitleDatabase {
             do {
                 return try database.adjacentShiori(to: selectedShiori, direction: direction)
@@ -400,5 +422,44 @@ extension AppCoordinator {
         case .next:
             return index < shiori.shioris.count - 1 ? shiori.shioris[index + 1] : nil
         }
+    }
+
+    private func shiori(withID id: Int64) -> Shiori? {
+        if let cached = shiori.shioris.first(where: { $0.id == id }) {
+            return cached
+        }
+        if let entryID = Int(exactly: id),
+           let tableItem = shiori.tableRowStore.snapshot.shiori(entryID: entryID) {
+            return tableItem
+        }
+        guard let database = subtitleDatabase else {
+            return nil
+        }
+
+        do {
+            return try database.shiori(id: id)
+        } catch {
+            print("Failed to load scoped Shiori: \(error)")
+            return nil
+        }
+    }
+
+    private func normalizedShioriPlaybackNavigationScopeIDs(_ ids: [Int64]?) -> [Int64]? {
+        guard let ids else {
+            return nil
+        }
+
+        var seenIDs: Set<Int64> = []
+        let normalizedIDs = ids.filter { seenIDs.insert($0).inserted }
+        return normalizedIDs.isEmpty ? nil : normalizedIDs
+    }
+
+    private func removeShioriFromPlaybackNavigationScope(_ id: Int64) {
+        guard var scopeIDs = shioriPlaybackNavigationScopeIDs else {
+            return
+        }
+
+        scopeIDs.removeAll { $0 == id }
+        shioriPlaybackNavigationScopeIDs = scopeIDs.isEmpty ? nil : scopeIDs
     }
 }

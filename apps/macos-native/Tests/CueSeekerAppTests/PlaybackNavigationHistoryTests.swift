@@ -286,6 +286,48 @@ func shioriPlaybackNavigationUsesDatabaseWhenStoreIsNotHydrated() async throws {
 
 @MainActor
 @Test
+func shioriPlaybackNavigationUsesProvidedTableScope() async throws {
+    try await withTemporaryNavigationApp { app, database in
+        let outsideScope = try insertNavigationShiori(
+            in: database,
+            content: "outside filtered shiori",
+            startMilliseconds: 1_000,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let filteredMiddle = try insertNavigationShiori(
+            in: database,
+            content: "filtered middle shiori",
+            startMilliseconds: 3_000,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        let filteredNewest = try insertNavigationShiori(
+            in: database,
+            content: "filtered newest shiori",
+            startMilliseconds: 5_000,
+            createdAt: Date(timeIntervalSince1970: 1_900_000_000)
+        )
+
+        #expect(app.shiori.shioris.isEmpty)
+        app.openShiori(
+            filteredMiddle,
+            navigationScopeIDs: [filteredNewest.id, filteredMiddle.id]
+        )
+        #expect(app.canOpenPreviousShiori)
+        #expect(!app.canOpenNextShiori)
+
+        app.openPreviousShiori()
+        #expect(app.shiori.selectedShiori?.id == filteredNewest.id)
+        #expect(!app.canOpenPreviousShiori)
+
+        app.openNextShiori()
+        #expect(app.shiori.selectedShiori?.id == filteredMiddle.id)
+        #expect(!app.canOpenNextShiori)
+        #expect(app.shiori.selectedShiori?.id != outsideScope.id)
+    }
+}
+
+@MainActor
+@Test
 func quickSearchBackResumesSearchEntryWithUnchangedRevision() async throws {
     try await withTemporaryNavigationApp { app, database in
         let subtitleURL = URL(fileURLWithPath: "/Media/Movie.srt")
