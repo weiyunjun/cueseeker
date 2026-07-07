@@ -177,6 +177,7 @@ extension AppCoordinator {
         activePlaybackSource = .search
         workbenchLayout.selectPanelMode(.search)
         search.selectedSearchResult = result
+        updateSearchNavigationSnapshotForOpenedResult(result)
         shiori.selectedShiori = nil
         library.selectedLibraryVideo = nil
         playback.isPlaybackSurfaceExpanded = true

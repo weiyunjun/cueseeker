@@ -1395,6 +1395,62 @@ extension AppCoordinator {
         search.searchNavigationSnapshot = snapshot
     }
 
+    func updateSearchNavigationSnapshotForOpenedResult(_ result: SubtitleSearchResult) {
+        let radius = Self.searchNavigationPanelRadius
+        if let snapshot = searchNavigationSnapshot(
+            containing: result,
+            in: search.searchResults,
+            totalCount: search.searchResultTotalCount,
+            radius: radius
+        ) {
+            applySearchNavigationSnapshot(snapshot)
+            return
+        }
+
+        if let existingSnapshot = search.searchNavigationSnapshot,
+           let snapshot = searchNavigationSnapshot(
+               containing: result,
+               in: existingSnapshot.neighborhood,
+               totalCount: existingSnapshot.totalCount,
+               radius: radius
+           ) {
+            applySearchNavigationSnapshot(snapshot)
+            return
+        }
+
+        search.searchNavigationSnapshot = nil
+    }
+
+    private func searchNavigationSnapshot(
+        containing result: SubtitleSearchResult,
+        in results: [SubtitleSearchResult],
+        totalCount: Int,
+        radius: Int
+    ) -> SearchNavigationSnapshot? {
+        let loadedResults = results.sorted { lhs, rhs in
+            lhs.searchRank < rhs.searchRank
+        }
+        guard let currentIndex = loadedResults.firstIndex(where: { $0.entryID == result.entryID }) else {
+            return nil
+        }
+
+        let boundedRadius = max(1, radius)
+        let lowerBound = max(0, currentIndex - boundedRadius)
+        let upperBound = min(loadedResults.count, currentIndex + boundedRadius + 1)
+        let previous = currentIndex > 0 ? loadedResults[currentIndex - 1] : nil
+        let current = loadedResults[currentIndex]
+        let next = currentIndex + 1 < loadedResults.count ? loadedResults[currentIndex + 1] : nil
+
+        return SearchNavigationSnapshot(
+            totalCount: max(totalCount, loadedResults.count),
+            currentIndex: current.searchRank,
+            neighborhood: Array(loadedResults[lowerBound..<upperBound]),
+            previous: previous,
+            current: current,
+            next: next
+        )
+    }
+
     func revealInitialSearchResultGroupPage(for subtitlePath: String) {
         let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
         if !currentRows.isEmpty {

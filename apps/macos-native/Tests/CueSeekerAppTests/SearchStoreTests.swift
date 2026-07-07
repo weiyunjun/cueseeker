@@ -376,6 +376,60 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
     #expect(snapshot.next?.content == "after selected")
 }
 
+@MainActor
+@Test
+func openingSearchResultUpdatesNavigationStateImmediately() throws {
+    let suiteName = "CueSeekerSearchPlaybackNavigationStateTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSearchPlaybackNavigationStateTests-\(UUID().uuidString).sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: databaseURL)
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+    }
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let first = makeTableSandboxSearchResult(
+        id: 1,
+        content: "first result",
+        speakers: [],
+        searchRank: 0
+    )
+    let second = makeTableSandboxSearchResult(
+        id: 2,
+        content: "second result",
+        speakers: [],
+        searchRank: 1
+    )
+    let third = makeTableSandboxSearchResult(
+        id: 3,
+        content: "third result",
+        speakers: [],
+        searchRank: 2
+    )
+    app.search.searchResults = [first, second, third]
+    app.search.searchResultTotalCount = 3
+
+    app.openSearchResult(first, recordsNavigationHistory: false)
+
+    #expect(!app.canOpenPreviousSearchResult)
+    #expect(app.canOpenNextSearchResult)
+    #expect(app.search.searchNavigationSnapshot?.previous == nil)
+    #expect(app.search.searchNavigationSnapshot?.current?.entryID == first.entryID)
+    #expect(app.search.searchNavigationSnapshot?.next?.entryID == second.entryID)
+
+    app.openSearchResult(second, recordsNavigationHistory: false)
+
+    #expect(app.canOpenPreviousSearchResult)
+    #expect(app.canOpenNextSearchResult)
+    #expect(app.search.searchNavigationSnapshot?.previous?.entryID == first.entryID)
+    #expect(app.search.searchNavigationSnapshot?.current?.entryID == second.entryID)
+    #expect(app.search.searchNavigationSnapshot?.next?.entryID == third.entryID)
+}
+
 private func makeSearchResults() throws -> [SubtitleSearchResult] {
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSearchStoreTests-\(UUID().uuidString).sqlite")

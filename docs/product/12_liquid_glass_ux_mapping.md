@@ -437,6 +437,9 @@ Rules:
   target exists.
 - Previous and next Search result commands use the complete active Search
   result order and are active only when that navigation target exists.
+- Opening a Search result must update the previous and next Search result
+  command availability for that active result immediately, including the first
+  result having no previous target.
 - Play or pause toggles current playback and must not be blocked by unavailable
   navigation commands.
 - The Shiori control sits immediately before the copy-current-subtitle control

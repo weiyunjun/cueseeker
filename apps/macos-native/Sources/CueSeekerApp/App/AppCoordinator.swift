@@ -219,7 +219,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     var canOpenPreviousSearchResult: Bool {
-        guard isSearchPlaybackActive, search.selectedSearchResult != nil else {
+        guard isSearchPlaybackActive, let selectedSearchResult = search.selectedSearchResult else {
             return false
         }
 
@@ -227,11 +227,11 @@ final class AppCoordinator: ObservableObject {
             return searchNavigationSnapshot.previous != nil
         }
 
-        return search.searchResultTotalCount > 1
+        return selectedSearchResult.searchRank > 0
     }
 
     var canOpenNextSearchResult: Bool {
-        guard isSearchPlaybackActive, search.selectedSearchResult != nil else {
+        guard isSearchPlaybackActive, let selectedSearchResult = search.selectedSearchResult else {
             return false
         }
 
@@ -239,7 +239,8 @@ final class AppCoordinator: ObservableObject {
             return searchNavigationSnapshot.next != nil
         }
 
-        return search.searchResultTotalCount > 1
+        let totalCount = max(search.searchResultTotalCount, search.searchResults.count)
+        return selectedSearchResult.searchRank + 1 < totalCount
     }
 
     // MARK: - Unified Navigation
