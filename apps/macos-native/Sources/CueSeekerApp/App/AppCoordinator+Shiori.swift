@@ -144,10 +144,15 @@ extension AppCoordinator {
                     rebuildShioriFileGroups()
                 }
             }
+            removeShioriFromPlaybackNavigationScope(item.id)
             if shiori.selectedShiori?.id == item.id {
                 shiori.selectedShiori = nil
+                shioriPlaybackNavigationSnapshot = nil
+            } else {
+                if let selectedShiori = shiori.selectedShiori {
+                    refreshShioriPlaybackNavigationSnapshot(for: selectedShiori)
+                }
             }
-            removeShioriFromPlaybackNavigationScope(item.id)
             playback.playbackViewModel?.showShioriFeedback(.removed)
             return true
         } catch {
@@ -178,6 +183,7 @@ extension AppCoordinator {
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
         )
         shioriPlaybackNavigationScopeIDs = normalizedShioriPlaybackNavigationScopeIDs(navigationScopeIDs)
+        refreshShioriPlaybackNavigationSnapshot(for: shiori)
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
@@ -349,23 +355,27 @@ extension AppCoordinator {
     }
 
     var canOpenPreviousShiori: Bool {
-        guard activePlaybackSource == .shiori, let selectedShiori = shiori.selectedShiori else {
+        guard activePlaybackSource == .shiori,
+              let selectedShiori = shiori.selectedShiori,
+              shioriPlaybackNavigationSnapshot?.currentID == selectedShiori.id
+        else {
             return false
         }
-        return adjacentShiori(to: selectedShiori, direction: .previous) != nil
+        return shioriPlaybackNavigationSnapshot?.previousID != nil
     }
 
     var canOpenNextShiori: Bool {
-        guard activePlaybackSource == .shiori, let selectedShiori = shiori.selectedShiori else {
+        guard activePlaybackSource == .shiori,
+              let selectedShiori = shiori.selectedShiori,
+              shioriPlaybackNavigationSnapshot?.currentID == selectedShiori.id
+        else {
             return false
         }
-        return adjacentShiori(to: selectedShiori, direction: .next) != nil
+        return shioriPlaybackNavigationSnapshot?.nextID != nil
     }
 
     func openPreviousShiori() {
-        let target = shiori.selectedShiori.flatMap {
-            adjacentShiori(to: $0, direction: .previous)
-        }
+        let target = shioriPlaybackNavigationTarget(direction: .previous)
         let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .previous, hasResult: hasResult)
         if let target {
@@ -374,9 +384,7 @@ extension AppCoordinator {
     }
 
     func openNextShiori() {
-        let target = shiori.selectedShiori.flatMap {
-            adjacentShiori(to: $0, direction: .next)
-        }
+        let target = shioriPlaybackNavigationTarget(direction: .next)
         let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .next, hasResult: hasResult)
         if let target {
@@ -384,44 +392,65 @@ extension AppCoordinator {
         }
     }
 
-    private func adjacentShiori(
-        to selectedShiori: Shiori,
-        direction: ShioriNavigationDirection
-    ) -> Shiori? {
-        if let scopeIDs = shioriPlaybackNavigationScopeIDs,
-           let index = scopeIDs.firstIndex(of: selectedShiori.id) {
-            let targetIndex: Int
-            switch direction {
-            case .previous:
-                targetIndex = index - 1
-            case .next:
-                targetIndex = index + 1
-            }
+    private func shioriPlaybackNavigationTarget(direction: ShioriNavigationDirection) -> Shiori? {
+        guard activePlaybackSource == .shiori,
+              let selectedShiori = shiori.selectedShiori,
+              let snapshot = shioriPlaybackNavigationSnapshot,
+              snapshot.currentID == selectedShiori.id
+        else {
+            return nil
+        }
 
-            guard scopeIDs.indices.contains(targetIndex) else {
-                return nil
-            }
-            return shiori(withID: scopeIDs[targetIndex])
+        let targetID: Int64?
+        switch direction {
+        case .previous:
+            targetID = snapshot.previousID
+        case .next:
+            targetID = snapshot.nextID
+        }
+        return targetID.flatMap(shiori(withID:))
+    }
+
+    private func refreshShioriPlaybackNavigationSnapshot(for selectedShiori: Shiori) {
+        let selectedID = selectedShiori.id
+
+        if let scopeIDs = shioriPlaybackNavigationScopeIDs,
+           let index = scopeIDs.firstIndex(of: selectedID) {
+            shioriPlaybackNavigationSnapshot = (
+                currentID: selectedID,
+                previousID: index > 0 ? scopeIDs[index - 1] : nil,
+                nextID: index + 1 < scopeIDs.count ? scopeIDs[index + 1] : nil
+            )
+            return
         }
 
         if let database = subtitleDatabase {
             do {
-                return try database.adjacentShiori(to: selectedShiori, direction: direction)
+                shioriPlaybackNavigationSnapshot = (
+                    currentID: selectedID,
+                    previousID: try database.adjacentShiori(to: selectedShiori, direction: .previous)?.id,
+                    nextID: try database.adjacentShiori(to: selectedShiori, direction: .next)?.id
+                )
+                return
             } catch {
                 print("Failed to load adjacent Shiori: \(error)")
-                return nil
             }
         }
 
-        guard let index = shiori.shioris.firstIndex(where: { $0.id == selectedShiori.id }) else {
-            return nil
+        if let index = shiori.shioris.firstIndex(where: { $0.id == selectedID }) {
+            shioriPlaybackNavigationSnapshot = (
+                currentID: selectedID,
+                previousID: index > 0 ? shiori.shioris[index - 1].id : nil,
+                nextID: index + 1 < shiori.shioris.count ? shiori.shioris[index + 1].id : nil
+            )
+            return
         }
-        switch direction {
-        case .previous:
-            return index > 0 ? shiori.shioris[index - 1] : nil
-        case .next:
-            return index < shiori.shioris.count - 1 ? shiori.shioris[index + 1] : nil
-        }
+
+        shioriPlaybackNavigationSnapshot = (
+            currentID: selectedID,
+            previousID: nil,
+            nextID: nil
+        )
     }
 
     private func shiori(withID id: Int64) -> Shiori? {

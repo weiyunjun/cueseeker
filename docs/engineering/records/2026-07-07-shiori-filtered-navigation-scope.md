@@ -46,3 +46,41 @@ Shiori playback opened from a Shiori table row now keeps previous and next
 navigation inside that table row scope. A filtered Shiori result no longer jumps
 to an unrelated saved Shiori outside the visible result set, while unscoped
 Shiori playback still uses the existing database-wide adjacent lookup.
+
+## 2026-07-07 Playback UI Availability Follow-up
+
+## Human-Owned Source
+
+- `docs/human/requirements/20260707-Bug-Shiori Filtered Navigation Scope.md`
+
+## Scope
+
+Fix the Shiori playback-navigation implementation so player UI availability
+checks do not resolve adjacent Shiori records.
+
+## Changes
+
+- Added a lightweight Shiori playback navigation snapshot with current,
+  previous, and next Shiori IDs.
+- Changed `canOpenPreviousShiori` and `canOpenNextShiori` to read the cached
+  snapshot only.
+- Kept full Shiori record resolution on the explicit previous/next command
+  path, where a target is actually opened.
+- Added regression coverage proving scoped and database-derived Shiori
+  navigation availability remains available after the database is removed from
+  the AppCoordinator, so hover-driven player UI rebuilds cannot depend on
+  resolving adjacent targets.
+
+## Verification
+
+- `git diff --check`
+- `swift test --filter shioriPlaybackNavigation`
+- `swift test --filter Shiori`
+- `swift test` (XCTest 7 tests, Swift Testing 399 tests)
+
+## Outcome
+
+Shiori playback UI availability now reads cached navigation IDs instead of
+resolving adjacent Shiori records. Hover-driven player chrome rebuilds no longer
+hit the adjacent Shiori lookup path, while explicit previous and next commands
+still resolve and open the selected target.

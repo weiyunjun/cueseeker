@@ -328,6 +328,65 @@ func shioriPlaybackNavigationUsesProvidedTableScope() async throws {
 
 @MainActor
 @Test
+func shioriPlaybackNavigationAvailabilityUsesCachedScope() async throws {
+    try await withTemporaryNavigationApp { app, database in
+        let filteredMiddle = try insertNavigationShiori(
+            in: database,
+            content: "filtered middle shiori",
+            startMilliseconds: 3_000,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        let filteredNewest = try insertNavigationShiori(
+            in: database,
+            content: "filtered newest shiori",
+            startMilliseconds: 5_000,
+            createdAt: Date(timeIntervalSince1970: 1_900_000_000)
+        )
+
+        app.openShiori(
+            filteredMiddle,
+            navigationScopeIDs: [filteredNewest.id, filteredMiddle.id]
+        )
+        app.subtitleDatabase = nil
+
+        #expect(app.canOpenPreviousShiori)
+        #expect(!app.canOpenNextShiori)
+    }
+}
+
+@MainActor
+@Test
+func shioriPlaybackNavigationAvailabilityUsesCachedDatabaseSnapshot() async throws {
+    try await withTemporaryNavigationApp { app, database in
+        _ = try insertNavigationShiori(
+            in: database,
+            content: "old saved cue",
+            startMilliseconds: 1_000,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let middle = try insertNavigationShiori(
+            in: database,
+            content: "middle saved cue",
+            startMilliseconds: 3_000,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        _ = try insertNavigationShiori(
+            in: database,
+            content: "newest saved cue",
+            startMilliseconds: 5_000,
+            createdAt: Date(timeIntervalSince1970: 1_900_000_000)
+        )
+
+        app.openShiori(middle)
+        app.subtitleDatabase = nil
+
+        #expect(app.canOpenPreviousShiori)
+        #expect(app.canOpenNextShiori)
+    }
+}
+
+@MainActor
+@Test
 func quickSearchBackResumesSearchEntryWithUnchangedRevision() async throws {
     try await withTemporaryNavigationApp { app, database in
         let subtitleURL = URL(fileURLWithPath: "/Media/Movie.srt")
