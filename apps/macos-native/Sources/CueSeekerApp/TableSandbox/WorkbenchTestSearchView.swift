@@ -373,7 +373,7 @@ struct WorkbenchTestSearchView: View {
         else {
             return
         }
-        appState.openSearchResult(result)
+        appState.openSearchResult(result, displayTitle: row.displayTitle)
     }
 
     private func showContext(_ row: SubtitleTableRow) {

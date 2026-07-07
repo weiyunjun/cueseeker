@@ -125,7 +125,10 @@ struct WorkbenchTestLibraryView: View {
                 videos: folderDetail.videos,
                 onOpen: { video in
                     appState.prepareLibraryNavigationVideos(folderDetail.videos)
-                    appState.openLibraryVideo(video.libraryVideo)
+                    appState.openLibraryVideo(
+                        video.libraryVideo,
+                        displayTitle: video.displayTitle
+                    )
                 }
             )
         } else {

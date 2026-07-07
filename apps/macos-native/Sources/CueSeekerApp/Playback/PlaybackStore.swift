@@ -76,6 +76,20 @@ enum PlaybackQuickSearchChunkCountState: Equatable {
     }
 }
 
+struct PlaybackChromeSnapshot: Equatable {
+    let displayTitle: String
+    let canGoPrevious: Bool
+    let canGoNext: Bool
+    let hasPlaybackSelection: Bool
+
+    static let empty = PlaybackChromeSnapshot(
+        displayTitle: "No video selected",
+        canGoPrevious: false,
+        canGoNext: false,
+        hasPlaybackSelection: false
+    )
+}
+
 @MainActor
 final class PlaybackStore: ObservableObject {
     @Published var playbackStatus: PlaybackStatus = .idle
@@ -84,6 +98,7 @@ final class PlaybackStore: ObservableObject {
     @Published var isTimelineScrubbing = false
     @Published var timelineScrubTime: Double?
     @Published var playbackViewModel: PlaybackViewModel?
+    @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
     @Published var isQuickSearchOverlayVisible = false
     @Published var quickSearchDraft = "" {
         didSet {
@@ -123,6 +138,17 @@ final class PlaybackStore: ObservableObject {
     private var quickSearchAIOptionsSnapshot: PlaybackQuickSearchAIOptionsSnapshot?
 
     init(userDefaults _: UserDefaults) {}
+
+    func setChromeSnapshot(_ snapshot: PlaybackChromeSnapshot) {
+        guard chromeSnapshot != snapshot else {
+            return
+        }
+        chromeSnapshot = snapshot
+    }
+
+    func clearChromeSnapshot() {
+        setChromeSnapshot(.empty)
+    }
 
     func setQuickSearchDraft(_ draft: String) {
         resetQuickSearchResultSelection()

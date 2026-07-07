@@ -4,7 +4,7 @@ import SwiftUI
 struct LibraryEpisodeGrid: View {
     let rows: [LibraryVideoRow]
     let selectedLibraryVideoPath: String?
-    let onOpenVideo: (LibraryVideo) -> Void
+    let onOpenVideo: (LibraryVideoRow) -> Void
 
     var body: some View {
         // v6 `.library-episode-grid`: a wrapping flow (not a fixed-column
@@ -20,7 +20,7 @@ struct LibraryEpisodeGrid: View {
                 LibraryEpisodeButton(
                     rank: index + 1,
                     isPlaying: row.video.videoPath == selectedLibraryVideoPath,
-                    action: { onOpenVideo(row.video) }
+                    action: { onOpenVideo(row) }
                 )
                 .id(row.video.videoPath)
             }

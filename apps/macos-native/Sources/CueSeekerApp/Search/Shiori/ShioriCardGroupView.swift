@@ -4,7 +4,7 @@ import SwiftUI
 struct ShioriCardGroupView: View {
     let group: ShioriFileGroup
     let onToggle: () -> Void
-    let onOpenShiori: (Shiori) -> Void
+    let onOpenShiori: (Shiori, String) -> Void
     let onExportToAnki: () -> Void
 
     var body: some View {
@@ -27,7 +27,7 @@ struct ShioriCardGroupView: View {
                         ShioriCard(
                             shiori: shiori,
                             rank: index + 1,
-                            onOpen: { onOpenShiori(shiori) }
+                            onOpen: { onOpenShiori(shiori, group.subtitleDisplayTitle) }
                         )
                         .focusable(false)
                     }

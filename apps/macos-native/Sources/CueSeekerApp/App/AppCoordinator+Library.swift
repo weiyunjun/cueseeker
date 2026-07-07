@@ -361,7 +361,7 @@ extension AppCoordinator {
 
     func openRecentLibraryWatching(_ item: RecentLibraryWatchingPresentation) async {
         await prepareRecentLibraryNavigation(for: item)
-        openLibraryVideo(item.libraryVideo)
+        openLibraryVideo(item.libraryVideo, displayTitle: item.displayTitle)
     }
 
     func openFolder(atPath path: String) {
@@ -488,7 +488,11 @@ extension AppCoordinator {
         )
     }
 
-    func openLibraryVideo(_ video: LibraryVideo, recordsNavigationHistory: Bool = true) {
+    func openLibraryVideo(
+        _ video: LibraryVideo,
+        recordsNavigationHistory: Bool = true,
+        displayTitle: String? = nil
+    ) {
         UIInvalidationProbe.mark(
             "ACTION UI.LibraryVideo.opened",
             details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"
@@ -504,6 +508,15 @@ extension AppCoordinator {
         library.selectedLibraryVideo = video
         search.selectedSearchResult = nil
         shiori.selectedShiori = nil
+        let navigationAvailability = libraryNavigationAvailability(for: video)
+        setPlaybackChromeSnapshot(
+            displayTitle: playbackDisplayTitle(
+                for: video,
+                providedDisplayTitle: displayTitle
+            ),
+            canGoPrevious: navigationAvailability.previous,
+            canGoNext: navigationAvailability.next
+        )
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
@@ -727,6 +740,13 @@ extension AppCoordinator {
         openLibraryVideo(target)
     }
 
+    func libraryNavigationAvailability(for video: LibraryVideo) -> (previous: Bool, next: Bool) {
+        (
+            previous: libraryAdjacentVideo(to: video, offset: -1) != nil,
+            next: libraryAdjacentVideo(to: video, offset: 1) != nil
+        )
+    }
+
     func libraryAdjacentVideo(offset: Int) -> LibraryVideo? {
         guard isLibraryPlaybackActive,
               let selectedLibraryVideo = library.selectedLibraryVideo
@@ -734,6 +754,10 @@ extension AppCoordinator {
             return nil
         }
 
+        return libraryAdjacentVideo(to: selectedLibraryVideo, offset: offset)
+    }
+
+    func libraryAdjacentVideo(to selectedLibraryVideo: LibraryVideo, offset: Int) -> LibraryVideo? {
         let navigationVideos = library.libraryPlaybackNavigationVideos.contains { $0.videoPath == selectedLibraryVideo.videoPath }
             ? library.libraryPlaybackNavigationVideos
             : library.libraryVideos
@@ -751,6 +775,15 @@ extension AppCoordinator {
 
     func startLibraryPlaybackHistoryTracking(videoPath: String) {
         activePlaybackSource = .library(videoPath: videoPath)
+        if let selectedLibraryVideo = library.selectedLibraryVideo,
+           selectedLibraryVideo.videoPath == videoPath {
+            let navigationAvailability = libraryNavigationAvailability(for: selectedLibraryVideo)
+            setPlaybackChromeSnapshot(
+                displayTitle: playback.chromeSnapshot.displayTitle,
+                canGoPrevious: navigationAvailability.previous,
+                canGoNext: navigationAvailability.next
+            )
+        }
         let videoFile = URL(fileURLWithPath: videoPath)
         let existingHistory: LibraryPlaybackHistory?
         if let subtitleDatabase {

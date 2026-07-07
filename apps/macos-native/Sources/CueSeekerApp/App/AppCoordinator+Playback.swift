@@ -160,7 +160,11 @@ extension AppCoordinator {
         playbackOriginatingPanelMode = workbenchLayout.panelMode
     }
 
-    func openSearchResult(_ result: SubtitleSearchResult, recordsNavigationHistory: Bool = true) {
+    func openSearchResult(
+        _ result: SubtitleSearchResult,
+        recordsNavigationHistory: Bool = true,
+        displayTitle: String? = nil
+    ) {
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
@@ -180,6 +184,12 @@ extension AppCoordinator {
         updateSearchNavigationSnapshotForOpenedResult(result)
         shiori.selectedShiori = nil
         library.selectedLibraryVideo = nil
+        refreshPlaybackChromeSnapshot(
+            displayTitle: playbackDisplayTitle(
+                for: result,
+                providedDisplayTitle: displayTitle
+            )
+        )
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
@@ -1330,6 +1340,7 @@ extension AppCoordinator {
             search.selectedSearchResult = nil
             library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
+            clearPlaybackChromeSnapshot()
             playback.isPlaybackSurfaceExpanded = false
             playback.isQuickSearchOverlayVisible = false
             playback.isQuickSearchFocused = false

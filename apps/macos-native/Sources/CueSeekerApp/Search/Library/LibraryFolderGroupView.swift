@@ -6,7 +6,7 @@ struct LibraryFolderGroupView: View {
     let isCollapsed: Bool
     let selectedLibraryVideoPath: String?
     let onToggle: () -> Void
-    let onOpenVideo: (LibraryVideo) -> Void
+    let onOpenVideo: (LibraryVideoRow) -> Void
 
     var body: some View {
         // v6 `.library-group`: top/bottom padding + a bottom margin, and

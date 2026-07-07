@@ -148,9 +148,13 @@ extension AppCoordinator {
             if shiori.selectedShiori?.id == item.id {
                 shiori.selectedShiori = nil
                 shioriPlaybackNavigationSnapshot = nil
+                clearPlaybackChromeSnapshot()
             } else {
                 if let selectedShiori = shiori.selectedShiori {
                     refreshShioriPlaybackNavigationSnapshot(for: selectedShiori)
+                    refreshPlaybackChromeSnapshot(
+                        displayTitle: playback.chromeSnapshot.displayTitle
+                    )
                 }
             }
             playback.playbackViewModel?.showShioriFeedback(.removed)
@@ -176,7 +180,8 @@ extension AppCoordinator {
     func openShiori(
         _ shiori: Shiori,
         recordsNavigationHistory: Bool = true,
-        navigationScopeIDs: [Int64]? = nil
+        navigationScopeIDs: [Int64]? = nil,
+        displayTitle: String? = nil
     ) {
         UIInvalidationProbe.mark(
             "ACTION UI.Shiori.opened",
@@ -196,6 +201,12 @@ extension AppCoordinator {
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil
         library.selectedLibraryVideo = nil
+        refreshPlaybackChromeSnapshot(
+            displayTitle: playbackDisplayTitle(
+                for: shiori,
+                providedDisplayTitle: displayTitle
+            )
+        )
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()

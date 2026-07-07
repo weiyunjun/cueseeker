@@ -169,33 +169,96 @@ final class AppCoordinator: ObservableObject {
     }
 
     var currentPlaybackDisplayTitle: String {
-        if let selectedLibraryVideo = library.selectedLibraryVideo {
-            return library.libraryFolderGroups
+        playback.chromeSnapshot.displayTitle
+    }
+
+    func playbackDisplayTitle(
+        providedDisplayTitle: String?,
+        fallback: @autoclosure () -> String
+    ) -> String {
+        let trimmedDisplayTitle = providedDisplayTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmedDisplayTitle, !trimmedDisplayTitle.isEmpty else {
+            return fallback()
+        }
+        return trimmedDisplayTitle
+    }
+
+    func playbackDisplayTitle(
+        for selectedLibraryVideo: LibraryVideo,
+        providedDisplayTitle: String? = nil
+    ) -> String {
+        playbackDisplayTitle(
+            providedDisplayTitle: providedDisplayTitle,
+            fallback: library.libraryFolderGroups
                 .lazy
                 .flatMap(\.videos)
                 .first { $0.video.videoPath == selectedLibraryVideo.videoPath }?
                 .displayTitle
-                ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedLibraryVideo.subtitlePath)
-        }
+            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedLibraryVideo.subtitlePath)
+        )
+    }
 
-        if let selectedSearchResult = search.selectedSearchResult {
-            return search.searchResultGroups
+    func playbackDisplayTitle(
+        for selectedSearchResult: SubtitleSearchResult,
+        providedDisplayTitle: String? = nil
+    ) -> String {
+        let resolvedDisplayTitle = [
+            providedDisplayTitle,
+            selectedSearchResult.displayTitle
+        ]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+
+        return playbackDisplayTitle(
+            providedDisplayTitle: resolvedDisplayTitle,
+            fallback: search.searchResultGroups
                 .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
                 .subtitleDisplayTitle
-                ?? search.searchFileSummaries
-                    .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
-                    .subtitleDisplayTitle
-                ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
-        }
+            ?? search.searchFileSummaries
+                .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
+                .subtitleDisplayTitle
+            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
+        )
+    }
 
-        if let selectedShiori = shiori.selectedShiori {
-            return shiori.shioriFileGroups
+    func playbackDisplayTitle(
+        for selectedShiori: Shiori,
+        providedDisplayTitle: String? = nil
+    ) -> String {
+        playbackDisplayTitle(
+            providedDisplayTitle: providedDisplayTitle,
+            fallback: shiori.shioriFileGroups
                 .first { $0.subtitlePath == selectedShiori.subtitlePath }?
                 .subtitleDisplayTitle
-                ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedShiori.subtitlePath)
-        }
+            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedShiori.subtitlePath)
+        )
+    }
 
-        return "No video selected"
+    func setPlaybackChromeSnapshot(
+        displayTitle: String,
+        canGoPrevious: Bool,
+        canGoNext: Bool
+    ) {
+        playback.setChromeSnapshot(
+            PlaybackChromeSnapshot(
+                displayTitle: displayTitle,
+                canGoPrevious: canGoPrevious,
+                canGoNext: canGoNext,
+                hasPlaybackSelection: currentPlaybackVideoPath != nil
+            )
+        )
+    }
+
+    func refreshPlaybackChromeSnapshot(displayTitle: String) {
+        setPlaybackChromeSnapshot(
+            displayTitle: displayTitle,
+            canGoPrevious: canGoPrevious,
+            canGoNext: canGoNext
+        )
+    }
+
+    func clearPlaybackChromeSnapshot() {
+        playback.clearChromeSnapshot()
     }
 
     var isLibraryPlaybackActive: Bool {

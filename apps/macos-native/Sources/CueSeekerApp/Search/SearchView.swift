@@ -155,7 +155,10 @@ struct SearchView: View {
                                 },
                                 onOpenVideo: { video in
                                     layoutState.clearSearchFocus()
-                                    appState.openLibraryVideo(video)
+                                    appState.openLibraryVideo(
+                                        video.video,
+                                        displayTitle: video.displayTitle
+                                    )
                                 }
                             )
                         }
@@ -268,9 +271,9 @@ struct SearchView: View {
                                 layoutState.clearSearchFocus()
                                 appState.toggleShioriGroup(group.subtitlePath)
                             },
-                            onOpenShiori: { shiori in
+                            onOpenShiori: { shiori, displayTitle in
                                 layoutState.clearSearchFocus()
-                                appState.openShiori(shiori)
+                                appState.openShiori(shiori, displayTitle: displayTitle)
                             },
                             onExportToAnki: {
                                 layoutState.clearSearchFocus()

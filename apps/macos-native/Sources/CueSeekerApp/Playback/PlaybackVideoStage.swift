@@ -19,6 +19,10 @@ struct PlaybackVideoStage: View {
                 containerSize: stageSize,
                 aspectRatio: videoAspectRatio
             )
+            let chromeSnapshot = playback.chromeSnapshot
+            let isFullscreenToggleDisabled = !chromeSnapshot.hasPlaybackSelection
+                || layoutState.isVideoSizeTransitionInProgress
+                || fullscreenManager.isTransitioning
 
             ZStack(alignment: .topLeading) {
                 Color.black
@@ -30,7 +34,7 @@ struct PlaybackVideoStage: View {
 
                 if chrome.isPlayerUIVisible, !fullscreenManager.isFullscreen {
                     LiquidGlassVideoTopBar(
-                        title: appState.currentPlaybackDisplayTitle,
+                        title: chromeSnapshot.displayTitle,
                         onClose: onClose,
                         onMinimize: { appState.minimizePlaybackWindowFromUser() },
                         onZoom: { appState.togglePlaybackFullscreenFromUser() }
@@ -57,7 +61,12 @@ struct PlaybackVideoStage: View {
                 if chrome.isPlayerUIVisible, let viewModel = playback.playbackViewModel {
                     PlaybackChromeView(
                         viewModel: viewModel,
-                        controls: .appState(appState)
+                        controls: .appState(
+                            appState,
+                            snapshot: chromeSnapshot,
+                            isFullscreen: fullscreenManager.isFullscreen,
+                            isFullscreenToggleDisabled: isFullscreenToggleDisabled
+                        )
                     )
                     .frame(
                         width: max(0, stageSize.width - PlaybackChromeMetrics.horizontalInset * 2),

@@ -1393,6 +1393,15 @@ extension AppCoordinator {
 
     func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
         search.searchNavigationSnapshot = snapshot
+        guard activePlaybackSource == .search,
+              search.selectedSearchResult?.entryID == snapshot.current?.entryID
+        else {
+            return
+        }
+
+        refreshPlaybackChromeSnapshot(
+            displayTitle: playback.chromeSnapshot.displayTitle
+        )
     }
 
     func updateSearchNavigationSnapshotForOpenedResult(_ result: SubtitleSearchResult) {

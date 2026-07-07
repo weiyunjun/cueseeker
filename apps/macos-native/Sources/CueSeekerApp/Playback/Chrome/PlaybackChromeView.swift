@@ -19,13 +19,16 @@ struct PlaybackChromeControls {
 extension PlaybackChromeControls {
     static func appState(
         _ appState: AppCoordinator,
+        snapshot: PlaybackChromeSnapshot,
+        isFullscreen: Bool,
+        isFullscreenToggleDisabled: Bool,
         fullscreenAction: (() -> Void)? = nil
     ) -> PlaybackChromeControls {
         PlaybackChromeControls(
-            canGoPrevious: appState.canGoPrevious,
+            canGoPrevious: snapshot.canGoPrevious,
             goPrevious: { appState.goPrevious() },
             togglePlayPause: appState.togglePlaybackFromUser,
-            canGoNext: appState.canGoNext,
+            canGoNext: snapshot.canGoNext,
             goNext: { appState.goNext() },
             toggleShiori: {
                 _ = appState.toggleCurrentShiori()
@@ -33,8 +36,8 @@ extension PlaybackChromeControls {
             copySubtitle: {
                 _ = appState.copyCurrentSubtitleToClipboard()
             },
-            isFullscreen: appState.playbackFullscreenManager.isFullscreen,
-            isFullscreenToggleDisabled: appState.isPlaybackFullscreenToggleDisabled,
+            isFullscreen: isFullscreen,
+            isFullscreenToggleDisabled: isFullscreenToggleDisabled,
             toggleFullscreen: fullscreenAction ?? {
                 appState.togglePlaybackFullscreenFromUser()
             }

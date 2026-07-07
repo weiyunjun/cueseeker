@@ -194,6 +194,66 @@ func quickSearchBackResumesLibraryEntry() async throws {
 
 @MainActor
 @Test
+func playbackChromeSnapshotUsesEntryMetadataAcrossSources() async throws {
+    try await withTemporaryNavigationApp { app, database in
+        let searchResult = SubtitleSearchResult(
+            entryID: 10,
+            subtitlePath: "/Media/Search.srt",
+            subtitleFormat: .srt,
+            videoPath: "/Media/Search.mkv",
+            videoName: "Search.mkv",
+            displayTitle: "Search Snapshot Title",
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_000,
+            content: "search cue",
+            cueLines: ["search cue"]
+        )
+
+        app.openSearchResult(searchResult, displayTitle: "Search Row Title")
+        #expect(app.playback.chromeSnapshot.displayTitle == "Search Row Title")
+        #expect(app.playback.chromeSnapshot.hasPlaybackSelection)
+
+        try indexFakeLibraryVideo(in: database, basename: "A")
+        try indexFakeLibraryVideo(in: database, basename: "B")
+        try indexFakeLibraryVideo(in: database, basename: "C")
+        app.library.libraryVideos = try database.libraryVideos(
+            under: [URL(fileURLWithPath: "/Media")]
+        )
+        let videoB = try #require(app.library.libraryVideos.first {
+            $0.videoPath == "/Media/B.mkv"
+        })
+
+        app.openLibraryVideo(videoB, displayTitle: "Library Row Title")
+        #expect(app.playback.chromeSnapshot.displayTitle == "Library Row Title")
+        #expect(app.playback.chromeSnapshot.canGoPrevious)
+        #expect(app.playback.chromeSnapshot.canGoNext)
+
+        let older = try insertNavigationShiori(
+            in: database,
+            content: "older shiori cue",
+            startMilliseconds: 3_000,
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        let newer = try insertNavigationShiori(
+            in: database,
+            content: "newer shiori cue",
+            startMilliseconds: 5_000,
+            createdAt: Date(timeIntervalSince1970: 1_900_000_000)
+        )
+
+        app.openShiori(
+            older,
+            navigationScopeIDs: [newer.id, older.id],
+            displayTitle: "Shiori Row Title"
+        )
+        #expect(app.playback.chromeSnapshot.displayTitle == "Shiori Row Title")
+        #expect(app.playback.chromeSnapshot.canGoPrevious)
+        #expect(!app.playback.chromeSnapshot.canGoNext)
+    }
+}
+
+@MainActor
+@Test
 func quickSearchBackResumesShioriEntry() async throws {
     try await withTemporaryNavigationApp { app, database in
         try indexFakeLibraryVideo(in: database, basename: "Next")
