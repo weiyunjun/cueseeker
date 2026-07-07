@@ -501,6 +501,7 @@ Current Settings categories:
 
 - `Library`.
 - `Appearance`.
+- `Search`.
 - `Decode`.
 - `Layout`.
 - `Experimental Features`.
@@ -521,6 +522,15 @@ Current Settings categories:
   category.
 - Use the same app-drawn segmented-control pattern as the `Decode` category's
   `Decoder` control.
+
+`Search` settings requirements:
+
+- Present `Primary Search Language` in the `Search` category.
+- Provide a persisted `Search Scope` picker with `All`, `Only Finished`, and
+  `Watching + Finished` options.
+- Default `Search Scope` to `All`.
+- Apply `Search Scope` only to regular Search results in the Search tab.
+- Do not apply `Search Scope` to Shiori search or Cue Context search.
 
 `Decode` settings requirements:
 

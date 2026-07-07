@@ -109,6 +109,7 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
         query: "shared",
         folderPaths: [fixtureRoot.path],
         languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
+        watchStateFilter: app.settings.searchScope.searchWatchStateFilter,
         filterSignature: app.search.activeFilterSetSignature,
         run: nil
     )

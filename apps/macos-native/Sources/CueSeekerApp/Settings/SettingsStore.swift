@@ -7,6 +7,7 @@ import CueSeekerPlayback
 final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
     private static let primarySearchLanguageKey = "primarySearchLanguage"
+    private static let searchScopeKey = "searchScope"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let autoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
@@ -33,6 +34,12 @@ final class SettingsStore: ObservableObject {
     @Published var primarySearchLanguage: PrimarySearchLanguage {
         didSet {
             userDefaults.set(primarySearchLanguage.rawValue, forKey: Self.primarySearchLanguageKey)
+        }
+    }
+
+    @Published var searchScope: SearchScope {
+        didSet {
+            userDefaults.set(searchScope.rawValue, forKey: Self.searchScopeKey)
         }
     }
 
@@ -108,6 +115,7 @@ final class SettingsStore: ObservableObject {
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.primarySearchLanguageKey: PrimarySearchLanguage.defaultValue.rawValue,
+            Self.searchScopeKey: SearchScope.defaultValue.rawValue,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.autoPlayCueSequenceEnabledKey: false,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoPlayCueSequenceGapDefaultMilliseconds,
@@ -123,6 +131,7 @@ final class SettingsStore: ObservableObject {
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
+        self.searchScope = Self.loadSearchScope(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.autoPlayCueSequenceEnabled = userDefaults.bool(forKey: Self.autoPlayCueSequenceEnabledKey)
         self.autoPlayCueSequenceGapMilliseconds = Self.loadAutoPlayCueSequenceGapMilliseconds(from: userDefaults)
@@ -217,6 +226,15 @@ final class SettingsStore: ObservableObject {
             return .defaultValue
         }
         return language
+    }
+
+    private static func loadSearchScope(from userDefaults: UserDefaults) -> SearchScope {
+        guard let rawValue = userDefaults.string(forKey: searchScopeKey),
+              let scope = SearchScope(rawValue: rawValue)
+        else {
+            return .defaultValue
+        }
+        return scope
     }
 
     private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {

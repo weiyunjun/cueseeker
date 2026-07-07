@@ -142,6 +142,36 @@ func settingsStorePersistsPrimarySearchLanguage() {
 
 @MainActor
 @Test
+func settingsStorePersistsSearchScope() {
+    withTemporarySettingsUserDefaults { userDefaults, service in
+        let store = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(store.searchScope == .all)
+        #expect(store.searchScope.searchWatchStateFilter == .all)
+
+        store.searchScope = .watchingAndFinished
+
+        let reloadedStore = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(reloadedStore.searchScope == .watchingAndFinished)
+        #expect(reloadedStore.searchScope.displayName == "Watching + Finished")
+        #expect(reloadedStore.searchScope.searchWatchStateFilter == .watchingAndFinished)
+        #expect(SearchScope.allCases.map(\.displayName) == [
+            "All",
+            "Only Finished",
+            "Watching + Finished"
+        ])
+    }
+}
+
+@MainActor
+@Test
 func settingsStoreForcesLegacyAIChunkingPromptTemplateToCurrentDefaultOnce() throws {
     try withTemporarySettingsUserDefaults { userDefaults, service in
         let legacyTemplate = "Legacy {{sentence}} -> {{language}}"

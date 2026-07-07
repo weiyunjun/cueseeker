@@ -631,6 +631,82 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 }
 
 @Test
+func searchFiltersByLibraryWatchState() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let unwatchedSubtitleFile = URL(fileURLWithPath: "/Media/Unwatched.srt")
+    let unwatchedVideoFile = URL(fileURLWithPath: "/Media/Unwatched.mkv")
+    let watchingSubtitleFile = URL(fileURLWithPath: "/Media/Watching.srt")
+    let watchingVideoFile = URL(fileURLWithPath: "/Media/Watching.mkv")
+    let finishedSubtitleFile = URL(fileURLWithPath: "/Media/Finished.srt")
+    let finishedVideoFile = URL(fileURLWithPath: "/Media/Finished.mkv")
+    func entry(_ text: String) -> SubtitleEntry {
+        SubtitleEntry(
+            sequenceNumber: 1,
+            startTimecode: "00:00:01,000",
+            endTimecode: "00:00:03,000",
+            startMilliseconds: 1_000,
+            endMilliseconds: 3_000,
+            text: text
+        )
+    }
+
+    try database.replaceEntries(
+        subtitleFile: unwatchedSubtitleFile,
+        videoFile: unwatchedVideoFile,
+        entries: [entry("scope shared unwatched")]
+    )
+    try database.replaceEntries(
+        subtitleFile: watchingSubtitleFile,
+        videoFile: watchingVideoFile,
+        entries: [entry("scope shared watching")]
+    )
+    try database.replaceEntries(
+        subtitleFile: finishedSubtitleFile,
+        videoFile: finishedVideoFile,
+        entries: [entry("scope shared finished")]
+    )
+    try database.setLibraryWatchState(
+        videoFile: watchingVideoFile,
+        duration: nil,
+        state: .watching
+    )
+    try database.setLibraryWatchState(
+        videoFile: finishedVideoFile,
+        duration: nil,
+        state: .finished
+    )
+
+    let allResults = try database.search("scope shared", watchStateFilter: .all)
+    #expect(allResults.map(\.videoName).sorted() == [
+        "Finished.mkv",
+        "Unwatched.mkv",
+        "Watching.mkv"
+    ])
+
+    let onlyFinishedResults = try database.search("scope shared", watchStateFilter: .onlyFinished)
+    #expect(onlyFinishedResults.map(\.videoName) == ["Finished.mkv"])
+
+    let watchingAndFinishedPage = try database.searchVisiblePage(
+        "scope shared",
+        limit: 10,
+        cursor: .start,
+        watchStateFilter: .watchingAndFinished
+    )
+    #expect(watchingAndFinishedPage.results.map(\.videoName).sorted() == [
+        "Finished.mkv",
+        "Watching.mkv"
+    ])
+    #expect(watchingAndFinishedPage.totalCount == 2)
+}
+
+@Test
 func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

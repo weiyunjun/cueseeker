@@ -4,6 +4,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case library
     case play
     case appearance
+    case search
     case decode
     case maintenance
     case developer
@@ -19,6 +20,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Play"
         case .appearance:
             "Appearance"
+        case .search:
+            "Search"
         case .decode:
             "Decode"
         case .maintenance:
@@ -38,6 +41,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "play.fill"
         case .appearance:
             "circle.lefthalf.filled"
+        case .search:
+            "magnifyingglass"
         case .decode:
             "play.rectangle"
         case .maintenance:
@@ -119,6 +124,8 @@ struct SettingsView: View {
             SettingsPlayCategory()
         case .appearance:
             SettingsAppearanceCategory()
+        case .search:
+            SettingsSearchCategory()
         case .decode:
             SettingsDecodeCategory()
         case .maintenance:

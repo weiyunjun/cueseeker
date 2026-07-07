@@ -522,6 +522,23 @@ public enum LibraryWatchState: String, Equatable, Sendable {
     }
 }
 
+public enum SubtitleSearchWatchStateFilter: String, Equatable, Sendable {
+    case all
+    case onlyFinished
+    case watchingAndFinished
+
+    var states: [LibraryWatchState] {
+        switch self {
+        case .all:
+            []
+        case .onlyFinished:
+            [.finished]
+        case .watchingAndFinished:
+            [.watching, .finished]
+        }
+    }
+}
+
 public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
@@ -3271,6 +3288,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
         languageFilter: SubtitleSearchLanguageFilter = .all,
+        watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet()
     ) throws -> [SubtitleSearchResult] {
         try searchPage(
@@ -3280,6 +3298,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             under: folders,
             inSubtitlePath: subtitlePath,
             languageFilter: languageFilter,
+            watchStateFilter: watchStateFilter,
             filterSet: filterSet
         ).results
     }
@@ -3291,6 +3310,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
         languageFilter: SubtitleSearchLanguageFilter = .all,
+        watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
@@ -3303,6 +3323,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             under: folders,
             inSubtitlePath: subtitlePath,
             languageFilter: languageFilter,
+            watchStateFilter: watchStateFilter,
             filterSet: filterSet,
             diagnostics: diagnostics,
             progress: progress,
@@ -3317,6 +3338,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
         languageFilter: SubtitleSearchLanguageFilter = .all,
+        watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil
@@ -3328,6 +3350,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             under: folders,
             inSubtitlePath: subtitlePath,
             languageFilter: languageFilter,
+            watchStateFilter: watchStateFilter,
             filterSet: filterSet,
             diagnostics: diagnostics,
             progress: progress,
@@ -4174,6 +4197,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         inSubtitlePath subtitlePath: String? = nil,
         languageFilter: SubtitleSearchLanguageFilter = .all,
+        watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
@@ -4255,6 +4279,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 .init("pathPrefixes", pathPrefixes?.count ?? 0),
                 .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
                 .init("languageFilter", languageFilter.rawValue),
+                .init("watchStateFilter", watchStateFilter.rawValue),
                 .init("hasFilterSet", filterSet.isEffectivelyEmpty ? "false" : "true")
             ]
         )
@@ -4318,6 +4343,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 )
                 """
             }
+            let watchStateValues = watchStateFilter.states.map(\.rawValue)
+            let watchStateJoin = watchStateValues.isEmpty
+                ? ""
+                : "JOIN library_watch_states ws ON ws.video_path = vf.path"
+            let watchStateCondition: String
+            if watchStateValues.isEmpty {
+                watchStateCondition = ""
+            } else {
+                let placeholders = Array(repeating: "?", count: watchStateValues.count)
+                    .joined(separator: ", ")
+                watchStateCondition = "AND ws.state IN (\(placeholders))"
+            }
             emit(
                 "setup",
                 since: setupStart,
@@ -4326,6 +4363,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
                     .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
                     .init("languageFilter", languageFilter.rawValue),
+                    .init("watchStateFilter", watchStateFilter.rawValue),
                     .init("hasFilterSet", filterSet.isEffectivelyEmpty ? "false" : "true"),
                     .init("metadataMode", mode.rawValue)
                 ]
@@ -4349,11 +4387,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN video_files vf ON vf.id = m.video_file_id
+                \(watchStateJoin)
                 JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
                 \(languageCondition)
+                \(watchStateCondition)
                 ORDER BY f.rowid ASC
                 LIMIT ? OFFSET ?;
                 """
@@ -4382,6 +4422,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
                 for languageCode in languageConditionCodes {
                     try statement.bind(languageCode.rawValue, at: bindIndex)
+                    bindIndex += 1
+                }
+                for watchStateValue in watchStateValues {
+                    try statement.bind(watchStateValue, at: bindIndex)
                     bindIndex += 1
                 }
                 try statement.bind(candidateBatchLimit, at: bindIndex)

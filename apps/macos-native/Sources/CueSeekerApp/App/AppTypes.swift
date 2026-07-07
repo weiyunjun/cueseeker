@@ -187,6 +187,38 @@ enum PrimarySearchLanguage: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum SearchScope: String, CaseIterable, Identifiable, Sendable {
+    case all
+    case onlyFinished
+    case watchingAndFinished
+
+    static let defaultValue: Self = .all
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .all:
+            "All"
+        case .onlyFinished:
+            "Only Finished"
+        case .watchingAndFinished:
+            "Watching + Finished"
+        }
+    }
+
+    var searchWatchStateFilter: SubtitleSearchWatchStateFilter {
+        switch self {
+        case .all:
+            .all
+        case .onlyFinished:
+            .onlyFinished
+        case .watchingAndFinished:
+            .watchingAndFinished
+        }
+    }
+}
+
 struct SearchResultFileGroup: Identifiable, Equatable {
     let subtitlePath: String
     let subtitleDisplayTitle: String

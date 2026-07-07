@@ -28,29 +28,6 @@ struct SettingsAppearanceCategory: View {
                 AppearanceModeSegmentedControl(selection: $settingsStore.appAppearanceMode)
             }
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 14) {
-                Label("Search", systemImage: "magnifyingglass")
-                    .font(.headline)
-
-                HStack(spacing: 16) {
-                    Text("Primary Search Language")
-                        .font(.headline)
-
-                    Spacer()
-
-                    Picker("Primary Search Language", selection: $settingsStore.primarySearchLanguage) {
-                        ForEach(PrimarySearchLanguage.allCases) { language in
-                            Text(language.displayName)
-                                .tag(language)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 180)
-                }
-            }
-
             Spacer()
         }
         .padding(24)
