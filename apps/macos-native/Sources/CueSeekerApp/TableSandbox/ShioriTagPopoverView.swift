@@ -32,6 +32,7 @@ struct ShioriTagPopoverView: View {
     let appState: AppCoordinator
     @ObservedObject var rowStore: TableSandboxRowModelStore
     var onDismiss: () -> Void
+    var onRequestLayout: () -> Void = {}
 
     @State private var allTags: [ShioriTag] = []
     @State private var currentTags: [ShioriTag] = []
@@ -56,22 +57,25 @@ struct ShioriTagPopoverView: View {
                             .foregroundStyle(WorkbenchRedesignColors.textMuted)
 
                         ScrollView {
-                            ShioriTagWrapLayout(
-                                horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
-                                verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
-                            ) {
-                                ForEach(filteredTags, id: \.id) { tag in
-                                    ShioriTagChip(
-                                        title: tag.name,
-                                        isRemovable: true,
-                                        onBody: isCurrentTag(tag) ? nil : {
-                                            addExistingTag(tag)
-                                        },
-                                        onRemove: {
-                                            pendingDeleteTag = tag
-                                        }
-                                    )
+                            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                                ShioriTagWrapLayout(
+                                    horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
+                                    verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
+                                ) {
+                                    ForEach(filteredTags, id: \.id) { tag in
+                                        ShioriTagChip(
+                                            title: tag.name,
+                                            isRemovable: true,
+                                            onBody: isCurrentTag(tag) ? nil : {
+                                                addExistingTag(tag)
+                                            },
+                                            onRemove: {
+                                                pendingDeleteTag = tag
+                                            }
+                                        )
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
                                 if showsCreateOption {
                                     ShioriTagCreateOption(title: trimmedInput) {
@@ -82,11 +86,15 @@ struct ShioriTagPopoverView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 2)
                         }
-                        .frame(maxHeight: 280)
+                        .frame(minHeight: hasGlobalPoolContent ? 36 : 0, maxHeight: 280)
                     }
                     .padding(12)
                 }
                 .frame(width: 420, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isInputFocused = true
+                }
 
                 if let pendingDeleteTag {
                     ShioriTagDeleteConfirmationDialog(
@@ -105,7 +113,11 @@ struct ShioriTagPopoverView: View {
             loadState()
             DispatchQueue.main.async {
                 isInputFocused = true
+                onRequestLayout()
             }
+        }
+        .onChange(of: pendingDeleteTag != nil) { _ in
+            onRequestLayout()
         }
         .onExitCommand {
             onDismiss()
@@ -143,6 +155,8 @@ struct ShioriTagPopoverView: View {
                 let normalized = ShioriTagComposerInputRules.normalizedInput(nextValue)
                 if normalized != nextValue {
                     inputText = normalized
+                } else {
+                    onRequestLayout()
                 }
             }
         }
@@ -169,6 +183,10 @@ struct ShioriTagPopoverView: View {
             !allTags.contains { $0.name == trimmedInput }
     }
 
+    private var hasGlobalPoolContent: Bool {
+        showsCreateOption || !filteredTags.isEmpty
+    }
+
     private func isCurrentTag(_ tag: ShioriTag) -> Bool {
         currentTags.contains { $0.id == tag.id }
     }
@@ -183,11 +201,13 @@ struct ShioriTagPopoverView: View {
     private func apply(_ state: ShioriTagPopoverState) {
         allTags = state.allTags
         applyCurrentTags(state.currentTags)
+        onRequestLayout()
     }
 
     private func applyCurrentTags(_ tags: [ShioriTag]) {
         currentTags = tags
         rowStore.updateShioriTags(tags, forShioriID: shioriID, tableName: "shiori")
+        onRequestLayout()
     }
 
     private func addExistingTag(_ tag: ShioriTag) {

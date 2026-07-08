@@ -38,12 +38,12 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
 
     #expect(coordinator.numberOfRowsForTesting() == 2_000_000)
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
-    #expect(coordinator.cellFullText(row: -1, column: 2) == "Time")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
     #expect(coordinator.cellFullText(row: -1, column: 4) == "Speaker")
     #expect(coordinator.cellFullText(row: -1, column: 5) == "Language")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
-    #expect(coordinator.cellFullText(row: 0, column: 2) == "01:15:32 - 01:16:04")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "01:15:32 - 01:16:04")
     #expect(coordinator.cellFullText(row: 0, column: 4) == "高松灯")
     #expect(coordinator.cellFullText(row: 0, column: 5) == "zh-hans, jp")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 0) == "1000001")
@@ -85,12 +85,12 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
     )
     coordinator.isRedesign = true
 
-    #expect(coordinator.cellFullText(row: -1, column: 1) == "Time")
-    #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Time")
     #expect(coordinator.cellFullText(row: -1, column: 3) == "Language")
     #expect(coordinator.cellFullText(row: -1, column: 4) == "")
-    #expect(coordinator.cellFullText(row: 0, column: 1) == "15:18 - 15:20")
-    #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 1) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "15:18 - 15:20")
     #expect(coordinator.cellFullText(row: 0, column: 3) == "zh-hans, jp")
     #expect(coordinator.cellFullText(row: 0, column: 4) == "")
 }
@@ -116,7 +116,7 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
-        columnOrder: ["display", "cues", "time", "dateAdded", "tags"],
+        columnOrder: ["display", "cues", "tags", "time", "dateAdded"],
         showsDateAddedColumn: true,
         showsTimeColumn: true,
         showsLanguageColumn: false,
@@ -129,14 +129,14 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
 
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
     #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
-    #expect(coordinator.cellFullText(row: -1, column: 3) == "Time")
-    #expect(coordinator.cellFullText(row: -1, column: 4) == "Date Added")
-    #expect(coordinator.cellFullText(row: -1, column: 5) == "Tags")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "Tags")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "Time")
+    #expect(coordinator.cellFullText(row: -1, column: 5) == "Date Added")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
     #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "15:18 - 15:20")
-    #expect(coordinator.cellFullText(row: 0, column: 4) == "26-07-02 14:30")
-    #expect(coordinator.cellFullText(row: 0, column: 5) == "Review, Grammar")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "Review, Grammar")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "15:18 - 15:20")
+    #expect(coordinator.cellFullText(row: 0, column: 5) == "26-07-02 14:30")
 }
 
 @MainActor
@@ -152,7 +152,7 @@ func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
         showsLanguageColumn: false,
         showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "time", "dateAdded", "tags"]
+        columnOrder: ["display", "cues", "tags", "time", "dateAdded"]
     )
     let newLayout = SubtitleTableColumnLayout.resolve(
         contentWidth: 1_360,
@@ -164,7 +164,7 @@ func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
         showsLanguageColumn: false,
         showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "time", "dateAdded", "tags"]
+        columnOrder: ["display", "cues", "tags", "time", "dateAdded"]
     )
 
     #expect(newLayout.isCuesOnlyWidthChange(from: oldLayout))
@@ -173,6 +173,8 @@ func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
     #expect(newLayout.dateAddedRect?.width == oldLayout.dateAddedRect?.width)
     #expect(newLayout.tagsRect?.width == 180)
     #expect(newLayout.tagsRect?.width == oldLayout.tagsRect?.width)
+    #expect(newLayout.tagsRect?.minX == newLayout.cuesRect.maxX)
+    #expect(newLayout.timeRect?.minX == newLayout.tagsRect?.maxX)
     #expect(newLayout.cuesRect.width > oldLayout.cuesRect.width)
 }
 
@@ -603,7 +605,7 @@ func subtitleTableViewTagsContentLeftClickOpensPopover() throws {
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_400,
         showsTagsColumn: true,
-        makeTagsPopover: { row, _ in
+        makeTagsPopover: { row, _, _ in
             requestedRowID = row.id
             return AnyView(Text("Tags"))
         }
@@ -615,6 +617,51 @@ func subtitleTableViewTagsContentLeftClickOpensPopover() throws {
     #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
     #expect(requestedRowID == 1)
     #expect(fixture.coordinator.isMenuOpenForTesting())
+}
+
+@MainActor
+@Test
+func subtitleTableViewTagsEmptyCellAreaLeftClickOpensPopover() throws {
+    var requestedRowID: Int?
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        showsTagsColumn: true,
+        makeTagsPopover: { row, _, _ in
+            requestedRowID = row.id
+            return AnyView(Text("Tags"))
+        }
+    )
+    let tagsCellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags"))
+    let tagsContentRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "tags"))
+    let tagsPoint = CGPoint(x: tagsCellRect.maxX - 6, y: tagsCellRect.midY)
+    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
+
+    #expect(!tagsContentRect.contains(tagsPoint))
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(requestedRowID == 1)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+}
+
+@MainActor
+@Test
+func subtitleTableViewMenuHostKeepsInsideClicksOpen() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        showsTagsColumn: true,
+        makeTagsPopover: { _, _, _ in
+            AnyView(Text("Tags").frame(width: 240, height: 140))
+        }
+    )
+    let tagsCellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags"))
+    let tagsPoint = CGPoint(x: tagsCellRect.midX, y: tagsCellRect.midY)
+    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let insideMenuPoint = CGPoint(x: menuFrame.midX, y: menuFrame.midY)
+    let insideWindowPoint = fixture.container.convert(insideMenuPoint, to: nil)
+
+    #expect(fixture.coordinator.menuContainsWindowPointForTesting(insideWindowPoint))
 }
 
 @MainActor
@@ -924,7 +971,7 @@ private func makeAttachedVirtualTableCoordinator(
     showsDateAddedColumn: Bool = false,
     showsTimeColumn: Bool = false,
     showsTagsColumn: Bool = false,
-    makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil },
+    makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil },
     onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },

@@ -56,13 +56,13 @@ struct SubtitleTableColumnLayout: Equatable {
     var contentWidth: CGFloat
 
     private static let defaultTextColumnOrder = [
-        "dateAdded",
         "display",
-        "time",
         "cues",
+        "tags",
+        "time",
+        "dateAdded",
         "speaker",
         "language",
-        "tags",
     ]
 
     static func minimumContentWidth(
@@ -833,9 +833,33 @@ private struct RowActionMenu: View {
 
 final class SubtitleTableMenuOverlayView: NSView {
     var onClick: (() -> Void)?
+    weak var passthroughView: NSView?
     override var isFlipped: Bool { true }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if let passthroughView,
+           !passthroughView.isHidden,
+           passthroughView.bounds.contains(convert(point, to: passthroughView)) {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
     override func mouseDown(with event: NSEvent) {
         onClick?()
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        onClick?()
+    }
+}
+
+final class SubtitleTableMenuHostingView: NSHostingView<AnyView> {
+    var onIntrinsicContentSizeInvalidated: (() -> Void)?
+
+    override func invalidateIntrinsicContentSize() {
+        super.invalidateIntrinsicContentSize()
+        onIntrinsicContentSizeInvalidated?()
     }
 }
 
@@ -2050,7 +2074,7 @@ struct SubtitleTableView: NSViewRepresentable {
     }
     var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
-    var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil }
+    var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
     var isRedesign: Bool = false
 
     func makeCoordinator() -> Coordinator {
@@ -2238,7 +2262,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onOpenSubtitleFile: (String) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
         private var onRemoveShiori: (SubtitleTableRow) -> Void
-        private var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void) -> AnyView?
+        private var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView?
 
         var isRedesign: Bool = false {
             didSet {
@@ -2296,11 +2320,12 @@ struct SubtitleTableView: NSViewRepresentable {
         private weak var documentView: SubtitleVirtualTableDocumentView?
         private var buttonsHost: NSHostingView<CueHoverButtons>?
         fileprivate var isMenuOpen = false
-        private var menuHost: NSHostingView<AnyView>?
+        private var menuHost: SubtitleTableMenuHostingView?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
         private var activeMenuAnchor: ActiveMenuAnchor?
         private var activeRowMenuRow: Int?
         private var activeRowMenuColumnID: String?
+        private var pendingMenuReposition = false
         nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
 
@@ -2394,7 +2419,7 @@ struct SubtitleTableView: NSViewRepresentable {
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in },
-            makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil }
+            makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
         ) {
             self.tableName = tableName
             self.rowCount = max(0, rowCount)
@@ -2509,7 +2534,7 @@ struct SubtitleTableView: NSViewRepresentable {
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in },
-            makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil }
+            makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
         ) {
             let tableChanged = tableName != self.tableName
             self.tableName = tableName
@@ -2694,6 +2719,16 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func menuFrameForTesting() -> CGRect? {
             menuHost?.frame
+        }
+
+        func menuContainsWindowPointForTesting(_ windowPoint: CGPoint) -> Bool {
+            isWindowPointInsideOpenMenu(windowPoint)
+        }
+
+        func dataCellRectForTesting(row: Int, columnID: String) -> CGRect? {
+            guard let documentView else { return nil }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            return dataCellRect(columnID: columnID, rowRect: rowRect)
         }
 
         func cellContentHoverFrameForTesting(row: Int, columnID: String) -> CGRect? {
@@ -4150,12 +4185,27 @@ struct SubtitleTableView: NSViewRepresentable {
             let wrapped = AnyView(content)
             if let menuHost {
                 menuHost.rootView = wrapped
+                menuHost.invalidateIntrinsicContentSize()
             } else {
-                let host = NSHostingView(rootView: wrapped)
+                let host = SubtitleTableMenuHostingView(rootView: wrapped)
                 host.wantsLayer = true
                 host.layer?.masksToBounds = false
+                host.onIntrinsicContentSizeInvalidated = { [weak self] in
+                    self?.requestOpenMenuReposition()
+                }
                 container.addSubview(host)
                 menuHost = host
+            }
+            menuOverlayView?.passthroughView = menuHost
+        }
+
+        private func requestOpenMenuReposition() {
+            guard isMenuOpen, !pendingMenuReposition else { return }
+            pendingMenuReposition = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.pendingMenuReposition = false
+                self.repositionOpenMenu()
             }
         }
 
@@ -4315,6 +4365,8 @@ struct SubtitleTableView: NSViewRepresentable {
                   let model = rowProvider(row),
                   let popoverView = makeTagsPopover(model, { [weak self] in
                       self?.dismissMenu()
+                  }, { [weak self] in
+                      self?.requestOpenMenuReposition()
                   })
             else {
                 return false
@@ -4470,11 +4522,8 @@ struct SubtitleTableView: NSViewRepresentable {
                         DispatchQueue.main.async { self.dismissMenu() }
                         return event
                     }
-                    if let menuHost = self.menuHost, !menuHost.isHidden {
-                        let clickPoint = container.convert(event.locationInWindow, from: nil)
-                        if menuHost.frame.contains(clickPoint) {
-                            return event
-                        }
+                    if self.isWindowPointInsideOpenMenu(event.locationInWindow) {
+                        return event
                     }
                     DispatchQueue.main.async {
                         self.dismissMenu()
@@ -4482,6 +4531,14 @@ struct SubtitleTableView: NSViewRepresentable {
                 }
                 return event
             }
+        }
+
+        private func isWindowPointInsideOpenMenu(_ windowPoint: CGPoint) -> Bool {
+            guard let menuHost, !menuHost.isHidden else {
+                return false
+            }
+            let point = menuHost.convert(windowPoint, from: nil)
+            return menuHost.bounds.contains(point)
         }
 
         private func repositionOpenMenu() {
@@ -4497,6 +4554,7 @@ struct SubtitleTableView: NSViewRepresentable {
             menuOverlayView?.frame = container.bounds
             menuOverlayView?.isHidden = false
 
+            menuHost.layoutSubtreeIfNeeded()
             let menuSize = menuHost.fittingSize
             let resolvedMenuSize = CGSize(
                 width: menuSize.width > 0 ? menuSize.width : menuHost.frame.width,

@@ -250,6 +250,12 @@ enum SchemaWorkbenchSearchDefaults {
             width: .flexible(min: 580)
         ),
         WorkbenchTableColumn(
+            id: "tags",
+            title: "Tags",
+            kind: .text,
+            width: .fixed(180)
+        ),
+        WorkbenchTableColumn(
             id: "time",
             title: "Time",
             kind: .text,
@@ -260,12 +266,6 @@ enum SchemaWorkbenchSearchDefaults {
             title: "Date Added",
             kind: .text,
             width: .fixed(190)
-        ),
-        WorkbenchTableColumn(
-            id: "tags",
-            title: "Tags",
-            kind: .text,
-            width: .fixed(180)
         ),
     ]
 
