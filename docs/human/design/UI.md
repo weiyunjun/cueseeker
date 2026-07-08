@@ -1248,6 +1248,9 @@ Language Background: --color-chip-language-bg
 Language Text: --color-chip-language-text
 Shiori Tag Background: --color-bg-hover
 Shiori Tag Text: --color-text-secondary
+Shiori Tag Table Style: same Shiori Tag Background, Text, Radius, Padding, and Font as Shiori Tag Popover Style
+Shiori Tag Popover Style: same Shiori Tag Background, Text, Radius, Padding, and Font as Shiori Tag Table Style
+Shiori Tag Visual Difference: popover removable tags may show x button; table tags must not show x button
 Disabled Background: --color-bg-disabled
 Disabled Text: --color-text-disabled
 Remove Button Icon: x
@@ -1835,10 +1838,10 @@ Not specified in image
 ### 2.43 Tag Composer Field
 
 #### Container
-Background: --color-bg-popover
+Background: transparent
 Border: none
-Padding X: --spacing-3
-Padding Y: --spacing-3
+Padding X: 0
+Padding Y: 0
 Gap X: --spacing-2
 Gap Y: --spacing-2
 Layout: horizontal wrap
@@ -1879,7 +1882,8 @@ Inline Text Input: text
 Typing: update owning layout's local query state
 Tag Body Click: delegated to owning layout
 Tag x Click: delegated to owning layout
-Click Empty Composer Area: focus Inline Text Input
+Click Empty Composer Area: focus Inline Text Input and must not dismiss the owning popover
+Focus After Owning Command: owning layout may restore focus to Inline Text Input after add, create, remove association, or dialog cancel / close
 
 #### Refresh Scope
 Owner:
@@ -2360,7 +2364,7 @@ Inherited from child components
 #### Refresh Scope
 Owner:
 - Search / Shiori table surface.
-- Table document, header, scrollbar, selection, tag popover, and menu subregions own their own local rendering.
+- Table document, header, scrollbar, selection, tag popover, confirmation dialog, and menu subregions own their own local rendering.
 
 Allowed invalidation:
 - Search or Shiori row snapshot changes may update table rows and table summary.
@@ -2373,10 +2377,11 @@ Allowed invalidation:
 - Confirmed global tag deletion may update only the open tag popover and visible Shiori Tags cells whose cue used the deleted tag.
 
 Forbidden invalidation:
-- Table hover, cursor, focus, menu-open, tag popover open, tag popover hover, tag popover typing, and scrollbar interactions must not invalidate SearchView, App Sidebar, App Topbar, Playback Page, or Playback render host.
+- Table hover, cursor, focus, menu-open, tag popover open, tag popover hover, tag popover typing, tag confirmation dialog, and scrollbar interactions must not invalidate SearchView, App Sidebar, App Topbar, Playback Page, or Playback render host.
 - Search table updates must not invalidate Shiori or Library surfaces.
 - Shiori table updates must not invalidate Search or Library surfaces.
 - Tag popover typing and hover must not reload table rows, rebuild table snapshots, or start background row hydration.
+- Adding or creating a tag association for the current Shiori must not update any other Shiori row's Tags cell.
 - Tag association changes must not rebuild the full table snapshot when the current or affected visible Tags cells can be patched.
 - Background row hydration must not run while the owning table surface is not allowed to respond to interaction.
 
@@ -2931,15 +2936,20 @@ Orientation: vertical
 Layout Sections:
   1. Current Tags and Search
   2. Global Tag Pool
-Popover Anchor: left-click pointer position inside the triggering Shiori Tags cell content hover region
+Section Separator: none
+Popover Anchor: left-click pointer position inside the triggering Shiori Tags cell
 Popover Position: below the click position, clamped to visible content bounds
 Dismiss: click outside popover closes the popover
 Inside Popover Click: never dismisses the popover by itself
 Popover Measurement: remeasure and reclamp when local content changes
+Delete Tag Confirmation: centered Confirmation Dialog Layout overlay using Delete Tag Content; not embedded inside the popover panel
 System Popover Arrow: none
 
 #### Content
 Current Tags and Search:
+  Hint Text: Current Tags
+  Hint Text Color: --color-text-muted
+  Section Background: transparent
   Tag Composer: Tag Composer Field
   Tag Composer Tags: tags associated with the current Shiori cue
   Tag Composer Tag Style: Removable Chip / Tag using [label | x]
@@ -2948,10 +2958,12 @@ Current Tags and Search:
 Global Tag Pool:
   Hint Text: Select a tag or create one
   Hint Text Color: --color-text-muted
+  Section Background: transparent
   Tags Layout: horizontal wrap
-  Tags When Input Is Empty: all existing tags
-  Tags When Input Is Not Empty: existing tags matching the current input
+  Tags When Input Is Empty: all existing tags, including tags already associated with the current Shiori cue
+  Tags When Input Is Not Empty: existing tags matching the current input, including matching tags already associated with the current Shiori cue
   Global Tag Style: Removable Chip / Tag using [label | x]
+  Global Tag Style Consistency: same Shiori Tag visual style as table Tags cell; x button is the only visual difference
   Create Option Visibility: when the current input is not empty and no existing tag exactly matches it
   Create Option Layout: horizontal row
   Create Option Content: Create label + non-removable Chip / Tag preview using the current input text
@@ -2963,20 +2975,21 @@ Open Behavior: open at the left-click pointer position using the same positionin
 Open Focus: automatically focus the Tag Composer Inline Text Input
 Tag Composer Placeholder / No Current Tags: Add a tag
 Tag Composer Placeholder / Has Current Tags: none
-Typing In Tag Composer: update local search text and Global Tag Pool matching results
-Click Matching Global Tag / Not Associated: add that tag to the current Shiori cue and clear the input
-Click Matching Global Tag / Already Associated: no action and no prompt
-Click Create Option: create the tag, add it to the current Shiori cue, and clear the input
+Typing In Tag Composer: update local search text, Global Tag Pool matching results, Create Option visibility, and popover measurement
+Click Matching Global Tag / Not Associated: add that tag only to the current Shiori cue, clear the input, keep the popover open, and restore focus to Tag Composer Inline Text Input
+Click Matching Global Tag / Already Associated: no action, no prompt, keep the popover open, and keep focus in the popover
+Click Create Option: create the tag, add it only to the current Shiori cue, clear the input, keep the popover open, and restore focus to Tag Composer Inline Text Input
 Current Tag Body Click: no action
-Current Tag x Click: remove only that tag association from the current Shiori cue
-Global Tag Body Click / Not Associated: add that tag to the current Shiori cue and clear the input
-Global Tag Body Click / Already Associated: no action and no prompt
-Global Tag x Click: open Confirmation Dialog Layout using Delete Tag Content
+Current Tag x Click: remove only that tag association from the current Shiori cue, keep the popover open, and restore focus to Tag Composer Inline Text Input
+Global Tag Body Click / Not Associated: add that tag only to the current Shiori cue, clear the input, keep the popover open, and restore focus to Tag Composer Inline Text Input
+Global Tag Body Click / Already Associated: no action, no prompt, keep the popover open, and keep focus in the popover
+Global Tag x Click: open centered Confirmation Dialog Layout using Delete Tag Content; keep the Shiori Tag Popover open behind the dialog
+Delete Tag Dialog Cancel: close only the dialog and restore focus to Tag Composer Inline Text Input
+Delete Tag Dialog Confirm: delete the tag globally, close only the dialog, refresh the open Shiori Tag Popover and affected visible Shiori Tags cells, and restore focus to Tag Composer Inline Text Input
 Right Click: no action
-Escape Key: close popover
+Escape Key: close popover when Delete Tag dialog is not open; cancel Delete Tag dialog when it is open
 Click Inside Popover Background: no dismiss; keep focus in the popover
 Click Empty Tag Composer Area: focus Tag Composer Inline Text Input
-Typing In Tag Composer: update local search text, Global Tag Pool matching results, Create Option visibility, and popover measurement
 
 #### Cursor
 Popover Background: default
@@ -2988,25 +3001,30 @@ Tag x Button: pointer
 #### Refresh Scope
 Owner:
 - Shiori tag popover overlay.
+- Centered Delete Tag confirmation dialog overlay when opened from the Shiori tag popover.
 - Current Shiori row Tags cell for current-cue association changes.
 - Visible Shiori Tags cells affected by confirmed global tag deletion.
 
 Allowed invalidation:
 - Popover open / close may update only the active row, active Tags cell trigger, popover overlay, focus state, and dismiss monitor.
-- Typing in Tag Composer may update only the composer input value, Global Tag Pool matching tags, and Create Option visibility.
+- Typing in Tag Composer may update only the composer input value, Global Tag Pool matching tags, Create Option visibility, focus state, and open popover measurement.
 - Tag hover, x hover, and Create Option hover may update only the hovered tag, x button, or Create Option row.
-- Adding an existing tag may update only the current row Tags cell, Tag Composer tags, Global Tag Pool associated/no-op state, and composer input value.
-- Creating a tag may update only the current row Tags cell, Tag Composer tags, Global Tag Pool tags, and composer input value.
-- Removing a current tag association may update only the current row Tags cell and Tag Composer tags.
-- Confirmed global tag deletion may update only the open popover tag sections and visible Shiori Tags cells whose cue used the deleted tag.
+- Adding an existing tag may update only the current row Tags cell, Tag Composer tags, Global Tag Pool associated/no-op state, composer input value, and popover focus state.
+- Creating a tag may update only the current row Tags cell, Tag Composer tags, Global Tag Pool tags, composer input value, and popover focus state.
+- Removing a current tag association may update only the current row Tags cell, Tag Composer tags, Global Tag Pool associated/no-op state, and popover focus state.
+- Opening Delete Tag confirmation may update only the centered dialog overlay and dialog focus state while keeping the Shiori Tag Popover open.
+- Canceling Delete Tag confirmation may update only the centered dialog overlay and restore Shiori Tag Popover focus.
+- Confirmed global tag deletion may update only the centered dialog overlay, open popover tag sections, and visible Shiori Tags cells whose cue used the deleted tag.
 - Typing in Tag Composer may remeasure and reclamp only the open popover overlay.
 
 Forbidden invalidation:
 - Popover open, close, typing, focus, hover, and measurement must not reload Shiori table rows or rebuild the Shiori table snapshot.
 - Popover local state must not be written into SearchStore, ShioriStore, LibraryStore, or PlaybackStore unless the user confirms a data-changing command.
 - Adding, creating, removing, or deleting tags must not invalidate SearchView, Library, Playback Page, or Playback render host.
+- Adding or creating a tag for the current Shiori cue must not update any other Shiori row's Tags cell unless that row has its own separate association refresh.
 - Confirmed global tag deletion must not rebuild the full Shiori table snapshot when affected visible Tags cells can be patched.
 - Global tag body click on an already associated tag must not publish state changes, show a prompt, reload data, or redraw unrelated rows.
+- Delete Tag confirmation must not be measured, positioned, clipped, or hosted as popover content.
 
 Probe / verification:
 - Opening the popover keeps table snapshot rebuild count at 0.
