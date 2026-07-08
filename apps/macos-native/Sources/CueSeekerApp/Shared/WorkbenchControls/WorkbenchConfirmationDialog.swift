@@ -47,14 +47,13 @@ struct WorkbenchConfirmationDialog: View {
             .padding(24)
             .frame(width: 360, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                     .fill(WorkbenchRedesignColors.bgSurface)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                     .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 10)
         }
     }
 }

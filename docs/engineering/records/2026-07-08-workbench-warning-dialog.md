@@ -29,6 +29,10 @@ warning dialog layout and destructive button component.
   title, message, and trailing horizontal actions.
 - Updated the Shiori table removal confirmation to pass a destructive action
   title and handler to the shared dialog.
+- Follow-up: aligned the dialog panel to `--color-bg-surface`,
+  `--radius-control`, `--color-border-control`, and `Panel Shadow: none`.
+- Follow-up: changed the Shiori removal confirmation title from
+  `Remove Shiori?` to `Remove Shiori`.
 
 ## Verification
 
@@ -42,3 +46,6 @@ The Shiori removal confirmation now matches the accepted Workbench warning
 dialog direction. The visual surface is reusable through dialog parameters, and
 the destructive styling is isolated in a shared button component while deletion
 behavior remains scoped to the Shiori table confirmation path.
+
+Follow-up alignment removed the legacy panel shadow, tokenized the panel radius,
+and matched the accepted Shiori removal title copy.
