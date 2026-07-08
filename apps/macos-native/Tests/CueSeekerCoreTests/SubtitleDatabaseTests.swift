@@ -3138,6 +3138,186 @@ func migrationCreatesShioriTablePerformanceIndexes() throws {
 }
 
 @Test
+func migrationCreatesShioriTagTablesAndIndexes() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL))
+    #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL))
+    #expect(try sqliteIndexExists("idx_shiori_tags_name", databaseURL: databaseURL))
+    #expect(try sqliteIndexExists("idx_shiori_tag_assignments_tag", databaseURL: databaseURL))
+    #expect(try sqliteIndexExists("idx_shiori_tag_assignments_shiori", databaseURL: databaseURL))
+}
+
+@Test
+func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Tags.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Tags.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "First tagged shiori."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Second tagged shiori."
+            ),
+        ]
+    )
+
+    let firstSelection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let secondSelection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 3_500
+    ))
+    let firstShiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: firstSelection
+    )
+    let secondShiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: secondSelection
+    )
+
+    let createdAt = try #require(ISO8601DateFormatter().date(from: "2026-07-08T00:00:00Z"))
+    let tag = try database.createShioriTag(named: "  Tag  ", createdAt: createdAt)
+    let duplicate = try database.createShioriTag(named: "Tag")
+    let lowerCaseTag = try database.createShioriTag(named: "tag")
+
+    #expect(tag.name == "Tag")
+    #expect(duplicate.id == tag.id)
+    #expect(lowerCaseTag.id != tag.id)
+    #expect(try database.shioriTag(named: " Tag ")?.id == tag.id)
+
+    #expect(try database.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
+    #expect(try !database.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
+    let secondTag = try database.assignShioriTag(named: "復習", toShioriID: secondShiori.id)
+
+    var tagsByShioriID = try database.shioriTagsByShioriID(
+        forShioriIDs: [firstShiori.id, secondShiori.id]
+    )
+    #expect(tagsByShioriID[firstShiori.id]?.map(\.name) == ["Tag"])
+    #expect(tagsByShioriID[secondShiori.id]?.map(\.name) == ["復習"])
+
+    #expect(try database.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
+    #expect(try !database.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
+    #expect(try database.shioriTags(forShioriID: firstShiori.id).isEmpty)
+
+    #expect(try database.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
+    #expect(try database.assignShioriTag(tagID: tag.id, toShioriID: secondShiori.id))
+    let deletion = try database.deleteShioriTag(tagID: tag.id)
+    #expect(deletion.didDelete)
+    #expect(deletion.affectedShioriIDs == [firstShiori.id, secondShiori.id].sorted())
+    #expect(try database.shioriTag(id: tag.id) == nil)
+    tagsByShioriID = try database.shioriTagsByShioriID(
+        forShioriIDs: [firstShiori.id, secondShiori.id]
+    )
+    #expect(tagsByShioriID[firstShiori.id]?.isEmpty == true)
+    #expect(tagsByShioriID[secondShiori.id]?.map(\.id) == [secondTag.id])
+
+    let missingDeletion = try database.deleteShioriTag(tagID: -1)
+    #expect(!missingDeletion.didDelete)
+    #expect(missingDeletion.affectedShioriIDs.isEmpty)
+
+    do {
+        _ = try database.assignShioriTag(named: "Orphan", toShioriID: -1)
+        Issue.record("Expected missing Shiori assignment to fail")
+    } catch {
+        #expect(try database.shioriTag(named: "Orphan") == nil)
+    }
+}
+
+@Test
+func shioriTagValidationRejectsInvalidNames() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    expectShioriTagValidationError(.emptyName) {
+        _ = try database.createShioriTag(named: "   ")
+    }
+    expectShioriTagValidationError(.nameTooLong(maximumCharacters: 20)) {
+        _ = try database.createShioriTag(named: "123456789012345678901")
+    }
+    expectShioriTagValidationError(.invalidCharacters) {
+        _ = try database.createShioriTag(named: "hello\nworld")
+    }
+    expectShioriTagValidationError(.invalidCharacters) {
+        _ = try database.createShioriTag(named: "\nhello")
+    }
+    expectShioriTagValidationError(.invalidCharacters) {
+        _ = try database.createShioriTag(named: "hello\tworld")
+    }
+    expectShioriTagValidationError(.invalidCharacters) {
+        _ = try database.createShioriTag(named: "hello\u{200B}world")
+    }
+
+    let allowed = try database.createShioriTag(named: #" C++ "Q" / \ & 😀 "#)
+    #expect(allowed.name == #"C++ "Q" / \ & 😀"#)
+}
+
+@Test
+func migrationAddsShioriTagsWithoutDroppingExistingShioris() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try createVersionTwentyFiveDatabaseWithShiori(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL))
+    #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL))
+
+    let shiori = try #require(try database.shioris().first)
+    #expect(shiori.content == "Durable Shiori survives tag migration.")
+
+    let tag = try database.assignShioriTag(named: "Review", toShioriID: shiori.id)
+    #expect(tag.name == "Review")
+    #expect(try database.shioriTags(forShioriID: shiori.id).map(\.name) == ["Review"])
+}
+
+@Test
 func removingIndexedFolderPreservesShiori() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -5019,6 +5199,56 @@ private func sqliteIndexExists(_ name: String, databaseURL: URL) throws -> Bool 
     return sqlite3_step(statement) == SQLITE_ROW
 }
 
+private func sqliteTableExists(_ name: String, databaseURL: URL) throws -> Bool {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1;",
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+        let statement
+    else {
+        let message = String(cString: sqlite3_errmsg(database))
+        throw SQLiteFixtureError.executeFailed(message)
+    }
+
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    sqlite3_bind_text(statement, 1, name, -1, transient)
+    return sqlite3_step(statement) == SQLITE_ROW
+}
+
+private func expectShioriTagValidationError(
+    _ expected: ShioriTagValidationError,
+    _ operation: () throws -> Void
+) {
+    var received: ShioriTagValidationError?
+    do {
+        try operation()
+    } catch let error as ShioriTagValidationError {
+        received = error
+    } catch {
+        Issue.record("Expected ShioriTagValidationError, received \(error)")
+    }
+    #expect(received == expected)
+}
+
 private func testCueGroup(
     startMilliseconds: Int,
     endMilliseconds: Int,
@@ -5489,6 +5719,63 @@ private func createVersionNineteenDatabaseWithLibraryPlaybackHistory(at url: URL
             ('/Media/Completed.mkv', 960000, 1000.0, '2026-06-01T00:01:00Z');
 
         PRAGMA user_version = 19;
+        """
+    )
+}
+
+private func createVersionTwentyFiveDatabaseWithShiori(at url: URL) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        CREATE TABLE shioris (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_path TEXT NOT NULL,
+            subtitle_format TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            video_path TEXT NOT NULL,
+            video_name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            is_valid INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            UNIQUE(subtitle_path, start_ms, end_ms)
+        );
+
+        INSERT INTO shioris(
+            subtitle_path,
+            subtitle_format,
+            start_ms,
+            end_ms,
+            video_path,
+            video_name,
+            content,
+            is_valid,
+            created_at
+        )
+        VALUES (
+            '/Media/Durable.srt',
+            'srt',
+            1000,
+            2000,
+            '/Media/Durable.mkv',
+            'Durable.mkv',
+            'Durable Shiori survives tag migration.',
+            1,
+            '2026-07-08T00:00:00Z'
+        );
+
+        PRAGMA user_version = 25;
         """
     )
 }

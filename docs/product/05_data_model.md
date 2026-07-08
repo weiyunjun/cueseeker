@@ -375,6 +375,35 @@ an indexed subtitle cue, video file, or Library row is derived index state. If
 the indexed resource disappears, the Shiori record should remain and show an invalid
 or unavailable resource state until the index is rebuilt or repaired.
 
+## 13.1 Shiori Tags
+
+Shiori tags are durable user state for organizing saved Shiori records.
+
+Expected tag fields:
+
+- `id`
+- `name`
+- `normalized_name`
+- `created_at`
+
+Expected assignment fields:
+
+- `shiori_id`
+- `tag_id`
+- `created_at`
+
+The tag pool is global to Shiori. A tag can be assigned to many Shiori records,
+and a Shiori record can have many tags. Tag assignments should be keyed by the
+durable `shioris.id` record rather than rebuildable subtitle cue-group rows.
+
+`normalized_name` stores the trimmed tag text used for uniqueness. Tag names
+are case-sensitive: `Tag` and `tag` are distinct tags. Tag text validation
+follows the human-owned Shiori tag requirement, including the 20-character
+limit, trim behavior, and forbidden control/format characters.
+
+Deleting a tag deletes its tag-assignment rows but must not delete the
+associated Shiori records.
+
 ## 14. Schema Versioning
 
 The native implementation must define an explicit schema versioning mechanism before writing production user data.
@@ -387,7 +416,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `23`.
+- Schema version: `26`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -418,6 +447,10 @@ Current native schema:
 - Version 23 adds video width, video height, and frame-rate metadata to
   `video_files` so Library episode rows can render indexed video metadata
   without opening media during view rendering.
+- Version 25 backfills durable Library watch states from Library playback
+  history.
+- Version 26 adds `shiori_tags` and `shiori_tag_assignments` for the global
+  Shiori tag pool and Shiori/tag associations.
 
 ## 15. Flutter Data Compatibility
 

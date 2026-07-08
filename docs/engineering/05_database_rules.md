@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `23`.
+- The current schema version is `26`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -142,6 +142,13 @@ Current mechanism:
 - Schema version `23` adds video width, video height, and frame-rate metadata to
   `video_files` so Library episode rows can render indexed video metadata
   without opening media during view rendering.
+- Schema version `25` backfills durable Library watch states from Library
+  playback history so the Library can render watch state without deriving it
+  from resume-position rows in view code.
+- Schema version `26` adds durable Shiori tag tables: `shiori_tags` for the
+  global tag pool and `shiori_tag_assignments` for many-to-many Shiori/tag
+  associations. Tag deletion cascades assignments but must not delete Shiori
+  records.
 
 ## 5. Migration Rules
 
