@@ -164,6 +164,7 @@ Shiori Columns:
   Selection
   Display Title
   Cues
+  Tags
   Time
   Date Added
 
@@ -436,6 +437,7 @@ Copy Text Action: copy the triggering cell's displayed text to the clipboard
 Shiori Row Action Menu Extra Item: Remove Shiori
 Remove Shiori Action: open Confirmation Dialog Layout
 Cell Action Menu Anchor: use the right-click pointer position inside the triggering cell content hover region; menu opens below the click position and clamps to visible content bounds
+Tags Cell Hit Testing: full Tags data cell area, including empty space
 ```
 
 #### Refresh Scope
@@ -503,6 +505,8 @@ Layout Sections:
 Popover Anchor: left-click pointer position inside the triggering Shiori Tags cell content hover region
 Popover Position: below the click position, clamped to visible content bounds
 Dismiss: click outside popover closes the popover
+Inside Popover Click: never dismisses the popover by itself
+Popover Measurement: remeasure and reclamp when local content changes
 System Popover Arrow: none
 ```
 
@@ -782,6 +786,9 @@ Global Tag Body Click / Already Associated: no action and no prompt
 Global Tag x Click: open Confirmation Dialog Layout using Delete Tag Content
 Right Click: no action
 Escape Key: close popover
+Click Inside Popover Background: no dismiss; keep focus in the popover
+Click Empty Tag Composer Area: focus Tag Composer Inline Text Input
+Typing In Tag Composer: update local search text, Global Tag Pool matching results, Create Option visibility, and popover measurement
 ```
 
 #### Cursor
@@ -858,6 +865,7 @@ Allowed invalidation:
 - Creating a tag may update only the current row Tags cell, Tag Composer tags, Global Tag Pool tags, and composer input value.
 - Removing a current tag association may update only the current row Tags cell and Tag Composer tags.
 - Confirmed global tag deletion may update only the open popover tag sections and visible Shiori Tags cells whose cue used the deleted tag.
+- Typing in Tag Composer may remeasure and reclamp only the open popover overlay.
 
 Forbidden invalidation:
 - Popover open, close, typing, focus, hover, and measurement must not reload Shiori table rows or rebuild the Shiori table snapshot.
