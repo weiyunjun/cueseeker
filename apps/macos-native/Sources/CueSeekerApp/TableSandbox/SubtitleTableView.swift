@@ -11,6 +11,7 @@ enum SubtitleTableMetrics {
     static let cuesColumnMinimumWidth: CGFloat = 520
     static let speakerColumnWidth: CGFloat = 180
     static let languageColumnWidth: CGFloat = 160
+    static let tagsColumnWidth: CGFloat = 180
     static let cellLeading: CGFloat = 12
     static let trailingInset: CGFloat = 14
     static let indexTrailingInset: CGFloat = 6
@@ -51,6 +52,7 @@ struct SubtitleTableColumnLayout: Equatable {
     var cuesRect: CGRect
     var speakerRect: CGRect?
     var languageRect: CGRect?
+    var tagsRect: CGRect?
     var contentWidth: CGFloat
 
     private static let defaultTextColumnOrder = [
@@ -60,6 +62,7 @@ struct SubtitleTableColumnLayout: Equatable {
         "cues",
         "speaker",
         "language",
+        "tags",
     ]
 
     static func minimumContentWidth(
@@ -68,6 +71,7 @@ struct SubtitleTableColumnLayout: Equatable {
         showsTimeColumn: Bool = false,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool,
+        showsTagsColumn: Bool = false,
         cuesMinimumWidth: CGFloat
     ) -> CGFloat {
         let M = SubtitleTableMetrics.self
@@ -76,7 +80,8 @@ struct SubtitleTableColumnLayout: Equatable {
         let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        return M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth + cuesMinimumWidth + speakerWidth + languageWidth
+        let tagsWidth = showsTagsColumn ? M.tagsColumnWidth : 0
+        return M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth + cuesMinimumWidth + speakerWidth + languageWidth + tagsWidth
     }
 
     static func resolve(
@@ -87,6 +92,7 @@ struct SubtitleTableColumnLayout: Equatable {
         showsTimeColumn: Bool = false,
         showsSpeakerColumn: Bool,
         showsLanguageColumn: Bool,
+        showsTagsColumn: Bool = false,
         cuesMinimumWidth: CGFloat,
         columnOrder: [String] = [],
         expandsToMinimumContentWidth: Bool = true
@@ -98,6 +104,7 @@ struct SubtitleTableColumnLayout: Equatable {
             showsTimeColumn: showsTimeColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             showsLanguageColumn: showsLanguageColumn,
+            showsTagsColumn: showsTagsColumn,
             cuesMinimumWidth: cuesMinimumWidth
         )
         let resolvedContentWidth = expandsToMinimumContentWidth
@@ -108,9 +115,10 @@ struct SubtitleTableColumnLayout: Equatable {
         let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
+        let tagsWidth = showsTagsColumn ? M.tagsColumnWidth : 0
         let cuesWidth = max(
             cuesMinimumWidth,
-            resolvedContentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - timeWidth - speakerWidth - languageWidth
+            resolvedContentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - timeWidth - speakerWidth - languageWidth - tagsWidth
         )
 
         var x: CGFloat = 0
@@ -122,6 +130,7 @@ struct SubtitleTableColumnLayout: Equatable {
         var cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
         var speakerRect: CGRect?
         var languageRect: CGRect?
+        var tagsRect: CGRect?
 
         for columnID in resolvedTextColumnOrder(
             columnOrder,
@@ -129,7 +138,8 @@ struct SubtitleTableColumnLayout: Equatable {
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsTimeColumn: showsTimeColumn,
             showsSpeakerColumn: showsSpeakerColumn,
-            showsLanguageColumn: showsLanguageColumn
+            showsLanguageColumn: showsLanguageColumn,
+            showsTagsColumn: showsTagsColumn
         ) {
             switch columnID {
             case "dateAdded":
@@ -150,6 +160,9 @@ struct SubtitleTableColumnLayout: Equatable {
             case "language":
                 languageRect = CGRect(x: x, y: 0, width: M.languageColumnWidth, height: height)
                 x += M.languageColumnWidth
+            case "tags":
+                tagsRect = CGRect(x: x, y: 0, width: M.tagsColumnWidth, height: height)
+                x += M.tagsColumnWidth
             default:
                 break
             }
@@ -163,6 +176,7 @@ struct SubtitleTableColumnLayout: Equatable {
             cuesRect: cuesRect,
             speakerRect: speakerRect,
             languageRect: languageRect,
+            tagsRect: tagsRect,
             contentWidth: resolvedContentWidth
         )
     }
@@ -173,7 +187,8 @@ struct SubtitleTableColumnLayout: Equatable {
         showsDisplayTitleColumn: Bool = true,
         showsTimeColumn: Bool = false,
         showsSpeakerColumn: Bool,
-        showsLanguageColumn: Bool
+        showsLanguageColumn: Bool,
+        showsTagsColumn: Bool = false
     ) -> [String] {
         var result: [String] = []
         for columnID in columnOrder + defaultTextColumnOrder
@@ -183,7 +198,8 @@ struct SubtitleTableColumnLayout: Equatable {
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsTimeColumn: showsTimeColumn,
             showsSpeakerColumn: showsSpeakerColumn,
-            showsLanguageColumn: showsLanguageColumn
+            showsLanguageColumn: showsLanguageColumn,
+            showsTagsColumn: showsTagsColumn
         ) {
             result.append(columnID)
         }
@@ -206,6 +222,8 @@ struct SubtitleTableColumnLayout: Equatable {
             return speakerRect
         case "language":
             return languageRect
+        case "tags":
+            return tagsRect
         default:
             return nil
         }
@@ -218,6 +236,7 @@ struct SubtitleTableColumnLayout: Equatable {
             timeRect?.size == previous.timeRect?.size &&
             speakerRect?.size == previous.speakerRect?.size &&
             languageRect?.size == previous.languageRect?.size &&
+            tagsRect?.size == previous.tagsRect?.size &&
             cuesRect.origin == previous.cuesRect.origin &&
             cuesRect.height == previous.cuesRect.height &&
             cuesRect.width != previous.cuesRect.width
@@ -229,7 +248,8 @@ struct SubtitleTableColumnLayout: Equatable {
         showsDisplayTitleColumn: Bool,
         showsTimeColumn: Bool,
         showsSpeakerColumn: Bool,
-        showsLanguageColumn: Bool
+        showsLanguageColumn: Bool,
+        showsTagsColumn: Bool
     ) -> Bool {
         switch columnID {
         case "dateAdded":
@@ -244,6 +264,8 @@ struct SubtitleTableColumnLayout: Equatable {
             return showsSpeakerColumn
         case "language":
             return showsLanguageColumn
+        case "tags":
+            return showsTagsColumn
         default:
             return false
         }
@@ -256,7 +278,8 @@ struct SubtitleTableColumnLayout: Equatable {
         showsDisplayTitleColumn: Bool = true,
         showsTimeColumn: Bool = false,
         showsSpeakerColumn: Bool,
-        showsLanguageColumn: Bool
+        showsLanguageColumn: Bool,
+        showsTagsColumn: Bool = false
     ) -> SubtitleTableColumnLayout {
         let M = SubtitleTableMetrics.self
         let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
@@ -264,7 +287,8 @@ struct SubtitleTableColumnLayout: Equatable {
         let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
         let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
         let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - timeWidth - speakerWidth - languageWidth)
+        let tagsWidth = showsTagsColumn ? M.tagsColumnWidth : 0
+        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - timeWidth - speakerWidth - languageWidth - tagsWidth)
         let cuesX = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth
         let speakerRect = showsSpeakerColumn ? CGRect(
             x: max(cuesX, contentWidth - languageWidth - M.speakerColumnWidth),
@@ -276,6 +300,12 @@ struct SubtitleTableColumnLayout: Equatable {
             x: max(cuesX, contentWidth - M.languageColumnWidth),
             y: 0,
             width: M.languageColumnWidth,
+            height: height
+        ) : nil
+        let tagsRect = showsTagsColumn ? CGRect(
+            x: max(cuesX, contentWidth - M.tagsColumnWidth),
+            y: 0,
+            width: M.tagsColumnWidth,
             height: height
         ) : nil
 
@@ -292,6 +322,7 @@ struct SubtitleTableColumnLayout: Equatable {
             ),
             speakerRect: speakerRect,
             languageRect: languageRect,
+            tagsRect: tagsRect,
             contentWidth: contentWidth
         )
     }
@@ -305,6 +336,7 @@ struct SubtitleTableColumnLayout: Equatable {
             cuesRect: cuesRect.offsetBy(dx: dx, dy: 0),
             speakerRect: speakerRect?.offsetBy(dx: dx, dy: 0),
             languageRect: languageRect?.offsetBy(dx: dx, dy: 0),
+            tagsRect: tagsRect?.offsetBy(dx: dx, dy: 0),
             contentWidth: contentWidth
         )
     }
@@ -1410,6 +1442,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private var cuesHeaderHost: NSHostingView<AnyView>?
     private var speakerHeaderHost: NSHostingView<AnyView>?
     private var languageHeaderHost: NSHostingView<AnyView>?
+    private var tagsHeaderHost: NSHostingView<AnyView>?
     private var lastHeaderLayout: SubtitleTableColumnLayout?
 
     private var hoverTracking: NSTrackingArea?
@@ -1486,11 +1519,13 @@ final class SubtitleVirtualTableHeaderView: NSView {
             let showsTimeColumn = coordinator?.showsTimeColumnForRendering() ?? false
             let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
             let showsSpeakerColumn = coordinator?.showsSpeakerColumnForRendering() ?? false
+            let showsTagsColumn = coordinator?.showsTagsColumnForRendering() ?? false
             let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
             let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
             let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
             let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
             let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
+            let tagsWidth = showsTagsColumn ? M.tagsColumnWidth : 0
             let cuesX = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth
             drawHeader(
                 "#",
@@ -1527,7 +1562,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 rect: CGRect(
                     x: cuesX,
                     y: 0,
-                    width: max(0, bounds.width - cuesX - speakerWidth - languageWidth),
+                    width: max(0, bounds.width - cuesX - speakerWidth - languageWidth - tagsWidth),
                     height: bounds.height
                 ),
                 leading: M.headerHorizontalInset,
@@ -1553,6 +1588,19 @@ final class SubtitleVirtualTableHeaderView: NSView {
                         x: max(cuesX, bounds.width - M.languageColumnWidth),
                         y: 0,
                         width: M.languageColumnWidth,
+                        height: bounds.height
+                    ),
+                    leading: M.headerHorizontalInset,
+                    trailing: M.trailingInset
+                )
+            }
+            if showsTagsColumn {
+                drawHeader(
+                    coordinator?.tagsHeaderForRendering() ?? "Tags",
+                    rect: CGRect(
+                        x: max(cuesX, bounds.width - M.tagsColumnWidth),
+                        y: 0,
+                        width: M.tagsColumnWidth,
                         height: bounds.height
                     ),
                     leading: M.headerHorizontalInset,
@@ -1600,6 +1648,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             cuesHeaderHost?.isHidden = true
             speakerHeaderHost?.isHidden = true
             languageHeaderHost?.isHidden = true
+            tagsHeaderHost?.isHidden = true
             lastHeaderLayout = nil
             return
         }
@@ -1635,6 +1684,12 @@ final class SubtitleVirtualTableHeaderView: NSView {
         } else {
             languageHeaderHost?.isHidden = true
         }
+
+        if let tagsRect = layout.tagsRect {
+            updateHeaderHost(&tagsHeaderHost, title: coordinator?.tagsHeaderForRendering() ?? "Tags", columnID: "tags", isSortable: true, frame: tagsRect)
+        } else {
+            tagsHeaderHost?.isHidden = true
+        }
         updateHeaderKeyViewBridge()
         lastHeaderLayout = layout
     }
@@ -1653,6 +1708,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         updateHeaderHost(&cuesHeaderHost, title: coordinator?.cuesHeaderForRendering() ?? "Cues", columnID: "cues", isSortable: true, frame: layout.cuesRect)
         updateHeaderFrame(&speakerHeaderHost, frame: layout.speakerRect)
         updateHeaderFrame(&languageHeaderHost, frame: layout.languageRect)
+        updateHeaderFrame(&tagsHeaderHost, frame: layout.tagsRect)
         updateHeaderKeyViewBridge()
         lastHeaderLayout = layout
     }
@@ -1787,6 +1843,9 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     private func lastInteractiveHeaderHost() -> NSView? {
+        if let tagsHeaderHost, !tagsHeaderHost.isHidden {
+            return tagsHeaderHost
+        }
         if let languageHeaderHost, !languageHeaderHost.isHidden {
             return languageHeaderHost
         }
@@ -1969,12 +2028,14 @@ struct SubtitleTableView: NSViewRepresentable {
     var cuesHeader = "Cues"
     var speakerHeader = "Speaker"
     var languageHeader = "Language"
+    var tagsHeader = "Tags"
     var columnOrder: [String] = []
     var showsDateAddedColumn = false
     var showsDisplayTitleColumn = true
     var showsTimeColumn = false
     var showsLanguageColumn = false
     var showsSpeakerColumn = false
+    var showsTagsColumn = false
     var scrollResetToken = 0
     var scrollTargetRow: Int?
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
@@ -2003,12 +2064,14 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
+            tagsHeader: tagsHeader,
             columnOrder: columnOrder,
             showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsTimeColumn: showsTimeColumn,
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
+            showsTagsColumn: showsTagsColumn,
             scrollResetToken: scrollResetToken,
             scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
@@ -2115,12 +2178,14 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: cuesHeader,
             speakerHeader: speakerHeader,
             languageHeader: languageHeader,
+            tagsHeader: tagsHeader,
             columnOrder: columnOrder,
             showsDateAddedColumn: showsDateAddedColumn,
             showsDisplayTitleColumn: showsDisplayTitleColumn,
             showsTimeColumn: showsTimeColumn,
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
+            showsTagsColumn: showsTagsColumn,
             scrollResetToken: scrollResetToken,
             scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
@@ -2150,12 +2215,14 @@ struct SubtitleTableView: NSViewRepresentable {
         private var cuesHeader: String
         private var speakerHeader: String
         private var languageHeader: String
+        private var tagsHeader: String
         private var columnOrder: [String]
         private var showsDateAddedColumn: Bool
         private var showsDisplayTitleColumn: Bool
         private var showsTimeColumn: Bool
         private var showsLanguageColumn: Bool
         private var showsSpeakerColumn: Bool
+        private var showsTagsColumn: Bool
         private var scrollResetToken: Int
         private var scrollTargetRow: Int?
         private var onVisibleRowsChange: (Range<Int>) -> Void
@@ -2301,12 +2368,14 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
+            tagsHeader: String = "Tags",
             columnOrder: [String] = [],
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
             showsTimeColumn: Bool = false,
             showsLanguageColumn: Bool = false,
             showsSpeakerColumn: Bool = false,
+            showsTagsColumn: Bool = false,
             scrollResetToken: Int = 0,
             scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
@@ -2332,12 +2401,14 @@ struct SubtitleTableView: NSViewRepresentable {
             self.cuesHeader = cuesHeader
             self.speakerHeader = speakerHeader
             self.languageHeader = languageHeader
+            self.tagsHeader = tagsHeader
             self.columnOrder = columnOrder
             self.showsDateAddedColumn = showsDateAddedColumn
             self.showsDisplayTitleColumn = showsDisplayTitleColumn
             self.showsTimeColumn = showsTimeColumn
             self.showsLanguageColumn = showsLanguageColumn
             self.showsSpeakerColumn = showsSpeakerColumn
+            self.showsTagsColumn = showsTagsColumn
             self.scrollResetToken = scrollResetToken
             self.scrollTargetRow = scrollTargetRow
             self.onVisibleRowsChange = onVisibleRowsChange
@@ -2410,12 +2481,14 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
+            tagsHeader: String = "Tags",
             columnOrder: [String] = [],
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
             showsTimeColumn: Bool = false,
             showsLanguageColumn: Bool,
             showsSpeakerColumn: Bool,
+            showsTagsColumn: Bool = false,
             scrollResetToken: Int,
             scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
@@ -2446,6 +2519,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.speakerHeader = speakerHeader
             let languageHeaderChanged = languageHeader != self.languageHeader
             self.languageHeader = languageHeader
+            let tagsHeaderChanged = tagsHeader != self.tagsHeader
+            self.tagsHeader = tagsHeader
             let columnOrderChanged = columnOrder != self.columnOrder
             self.columnOrder = columnOrder
             let dateAddedColumnChanged = showsDateAddedColumn != self.showsDateAddedColumn
@@ -2458,6 +2533,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsLanguageColumn = showsLanguageColumn
             let speakerColumnChanged = showsSpeakerColumn != self.showsSpeakerColumn
             self.showsSpeakerColumn = showsSpeakerColumn
+            let tagsColumnChanged = showsTagsColumn != self.showsTagsColumn
+            self.showsTagsColumn = showsTagsColumn
             let shouldResetScroll = scrollResetToken != self.scrollResetToken
             self.scrollResetToken = scrollResetToken
             self.scrollTargetRow = scrollTargetRow
@@ -2490,8 +2567,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 rowProvider(row) != nil
             }
 
-            let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || timeColumnChanged || languageColumnChanged || speakerColumnChanged || columnOrderChanged
-            let headerTitleChanged = dateAddedChanged || displayTitleChanged || timeChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged
+            let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || timeColumnChanged || languageColumnChanged || speakerColumnChanged || tagsColumnChanged || columnOrderChanged
+            let headerTitleChanged = dateAddedChanged || displayTitleChanged || timeChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged || tagsHeaderChanged
             let needsDocumentResize = tableChanged || rowsChanged || columnVisibilityChanged
 
             if needsDocumentResize {
@@ -2548,6 +2625,10 @@ struct SubtitleTableView: NSViewRepresentable {
             languageHeader
         }
 
+        func tagsHeaderForRendering() -> String {
+            tagsHeader
+        }
+
         func showsDateAddedColumnForRendering() -> Bool {
             showsDateAddedColumn
         }
@@ -2566,6 +2647,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func showsSpeakerColumnForRendering() -> Bool {
             showsSpeakerColumn
+        }
+
+        func showsTagsColumnForRendering() -> Bool {
+            showsTagsColumn
         }
 
         func headerColumnLayoutForRendering(viewportWidth: CGFloat, height: CGFloat) -> SubtitleTableColumnLayout {
@@ -2837,6 +2922,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsTimeColumn: showsTimeColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
                 showsLanguageColumn: showsLanguageColumn,
+                showsTagsColumn: showsTagsColumn,
                 cuesMinimumWidth: cuesMinimumWidth
             )
             return max(viewportWidth, minimumWidth)
@@ -2851,7 +2937,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     showsDisplayTitleColumn: showsDisplayTitleColumn,
                     showsTimeColumn: showsTimeColumn,
                     showsSpeakerColumn: showsSpeakerColumn,
-                    showsLanguageColumn: showsLanguageColumn
+                    showsLanguageColumn: showsLanguageColumn,
+                    showsTagsColumn: showsTagsColumn
                 )
             }
             return SubtitleTableColumnLayout.resolve(
@@ -2862,6 +2949,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsTimeColumn: showsTimeColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
                 showsLanguageColumn: showsLanguageColumn,
+                showsTagsColumn: showsTagsColumn,
                 cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
                 columnOrder: columnOrder
             )
@@ -2874,7 +2962,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsDisplayTitleColumn: showsDisplayTitleColumn,
                 showsTimeColumn: showsTimeColumn,
                 showsSpeakerColumn: showsSpeakerColumn,
-                showsLanguageColumn: showsLanguageColumn
+                showsLanguageColumn: showsLanguageColumn,
+                showsTagsColumn: showsTagsColumn
             )
         }
 
@@ -2892,6 +2981,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 return speakerHeader
             case "language":
                 return languageHeader
+            case "tags":
+                return tagsHeader
             default:
                 return ""
             }
@@ -2911,6 +3002,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 return model.speakerTags.map(\.label).joined(separator: ", ")
             case "language":
                 return model.tags.map(\.label).joined(separator: ", ")
+            case "tags":
+                return model.shioriTags.map(\.label).joined(separator: ", ")
             default:
                 return ""
             }
@@ -3042,6 +3135,15 @@ struct SubtitleTableView: NSViewRepresentable {
                     in: cellRect,
                     trailing: M.trailingInset,
                     isHovered: isCellHovered(row: row, columnID: "language")
+                )
+            }
+            if let tagsRect = layout.tagsRect {
+                let cellRect = rowColumnRect(tagsRect, rowRect: rowRect)
+                drawTags(
+                    model?.shioriTags ?? [],
+                    in: cellRect,
+                    trailing: M.trailingInset,
+                    isHovered: isCellHovered(row: row, columnID: "tags")
                 )
             }
         }
@@ -3352,7 +3454,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             return range.flatMap { row -> [CGRect] in
                 guard rowProvider(row) != nil else { return [] }
-                return cellActionMenuColumnIDs().compactMap { columnID in
+                return interactiveCellColumnIDs().compactMap { columnID in
                     guard let documentHoverRect = cellContentHoverRectInDocument(row: row, columnID: columnID) else {
                         return nil
                     }
@@ -3375,6 +3477,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func cellActionMenuColumnIDs() -> [String] {
             visibleTextColumnOrder().filter { SubtitleTableCellActionMenuKind(columnID: $0) != nil }
+        }
+
+        private func interactiveCellColumnIDs() -> [String] {
+            visibleTextColumnOrder().filter { columnID in
+                SubtitleTableCellActionMenuKind(columnID: columnID) != nil || columnID == "tags"
+            }
         }
 
         private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
@@ -3461,6 +3569,13 @@ struct SubtitleTableView: NSViewRepresentable {
                     trailing: SubtitleTableMetrics.trailingInset
                 )
             }
+            if columnID == "tags" {
+                return tagContentHoverRect(
+                    tags: model.shioriTags,
+                    in: cellRect,
+                    trailing: SubtitleTableMetrics.trailingInset
+                )
+            }
             return bodyContentHoverRect(
                 text: text(for: columnID, model: model),
                 in: cellRect,
@@ -3505,6 +3620,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 return layout.speakerRect.map { rowColumnRect($0, rowRect: rowRect) }
             case "language":
                 return layout.languageRect.map { rowColumnRect($0, rowRect: rowRect) }
+            case "tags":
+                return layout.tagsRect.map { rowColumnRect($0, rowRect: rowRect) }
             default:
                 return nil
             }
@@ -3565,6 +3682,10 @@ struct SubtitleTableView: NSViewRepresentable {
             if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "language"),
                hoverRect.contains(point) {
                 return "language"
+            }
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "tags"),
+               hoverRect.contains(point) {
+                return "tags"
             }
             return nil
         }

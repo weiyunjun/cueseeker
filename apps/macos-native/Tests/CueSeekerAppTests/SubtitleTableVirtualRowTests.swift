@@ -103,7 +103,11 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         displayTitle: "Episode 01",
         startTime: "15:18",
         endTime: "15:20",
-        cues: "loaded cue"
+        cues: "loaded cue",
+        shioriTags: [
+            WorkbenchTag(key: "7", label: "Review", colorID: .gray),
+            WorkbenchTag(key: "8", label: "Grammar", colorID: .gray),
+        ]
     )
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "shiori",
@@ -111,11 +115,12 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
-        columnOrder: ["display", "cues", "time", "dateAdded"],
+        columnOrder: ["display", "cues", "time", "dateAdded", "tags"],
         showsDateAddedColumn: true,
         showsTimeColumn: true,
         showsLanguageColumn: false,
         showsSpeakerColumn: false,
+        showsTagsColumn: true,
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
@@ -125,10 +130,12 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
     #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
     #expect(coordinator.cellFullText(row: -1, column: 3) == "Time")
     #expect(coordinator.cellFullText(row: -1, column: 4) == "Date Added")
+    #expect(coordinator.cellFullText(row: -1, column: 5) == "Tags")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
     #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
     #expect(coordinator.cellFullText(row: 0, column: 3) == "15:18 - 15:20")
     #expect(coordinator.cellFullText(row: 0, column: 4) == "26-07-02 14:30")
+    #expect(coordinator.cellFullText(row: 0, column: 5) == "Review, Grammar")
 }
 
 @MainActor
@@ -142,8 +149,9 @@ func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
         showsTimeColumn: true,
         showsSpeakerColumn: false,
         showsLanguageColumn: false,
+        showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "time", "dateAdded"]
+        columnOrder: ["display", "cues", "time", "dateAdded", "tags"]
     )
     let newLayout = SubtitleTableColumnLayout.resolve(
         contentWidth: 1_360,
@@ -153,14 +161,17 @@ func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
         showsTimeColumn: true,
         showsSpeakerColumn: false,
         showsLanguageColumn: false,
+        showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "time", "dateAdded"]
+        columnOrder: ["display", "cues", "time", "dateAdded", "tags"]
     )
 
     #expect(newLayout.isCuesOnlyWidthChange(from: oldLayout))
     #expect(newLayout.nameRect.width == oldLayout.nameRect.width)
     #expect(newLayout.timeRect?.width == oldLayout.timeRect?.width)
     #expect(newLayout.dateAddedRect?.width == oldLayout.dateAddedRect?.width)
+    #expect(newLayout.tagsRect?.width == 180)
+    #expect(newLayout.tagsRect?.width == oldLayout.tagsRect?.width)
     #expect(newLayout.cuesRect.width > oldLayout.cuesRect.width)
 }
 
@@ -572,6 +583,20 @@ func subtitleTableViewRightClickOutsideContentHoverRegionDoesNotOpenMenu() throw
 
 @MainActor
 @Test
+func subtitleTableViewTagsContentRightClickDoesNotOpenMenu() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 1_400, showsTagsColumn: true)
+    let tagsRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "tags"))
+    let tagsPoint = CGPoint(x: tagsRect.midX, y: tagsRect.midY)
+    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
+
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(tagsPoint) })
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: tagsPoint) == true)
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == false)
+    #expect(fixture.coordinator.isMenuOpenForTesting() == false)
+}
+
+@MainActor
+@Test
 func subtitleTableViewLeftClickOutsideContentHoverRegionTogglesSelection() throws {
     var toggledRows: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in
@@ -876,6 +901,7 @@ private func makeAttachedVirtualTableCoordinator(
     width: CGFloat = 900,
     showsDateAddedColumn: Bool = false,
     showsTimeColumn: Bool = false,
+    showsTagsColumn: Bool = false,
     onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
@@ -897,7 +923,8 @@ private func makeAttachedVirtualTableCoordinator(
         endTime: "00:02",
         cues: "cue text",
         tags: [],
-        speakerTags: []
+        speakerTags: [],
+        shioriTags: showsTagsColumn ? [WorkbenchTag(key: "7", label: "Review", colorID: .gray)] : []
     )
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "test-search",
@@ -909,6 +936,7 @@ private func makeAttachedVirtualTableCoordinator(
         showsTimeColumn: showsTimeColumn,
         showsLanguageColumn: true,
         showsSpeakerColumn: true,
+        showsTagsColumn: showsTagsColumn,
         onVisibleRowsChange: onVisibleRowsChange,
         isRowSelected: { _ in false },
         onToggleRowSelection: onToggleRowSelection,

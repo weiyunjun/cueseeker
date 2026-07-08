@@ -261,6 +261,12 @@ enum SchemaWorkbenchSearchDefaults {
             kind: .text,
             width: .fixed(190)
         ),
+        WorkbenchTableColumn(
+            id: "tags",
+            title: "Tags",
+            kind: .text,
+            width: .fixed(180)
+        ),
     ]
 
     static let initialVisibleColumnIDs = Set(columns.map(\.id))

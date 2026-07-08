@@ -123,6 +123,7 @@ func subtitleTableClipboardCopiesVisibleTagColumnsAsText() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "speaker", title: "Speaker", kind: .text, width: .fixed(180)),
         WorkbenchTableColumn(id: "language", title: "Language", kind: .text, width: .fixed(160)),
+        WorkbenchTableColumn(id: "tags", title: "Tags", kind: .text, width: .fixed(180)),
     ])
     let row = SubtitleTableRow(
         id: 1,
@@ -135,13 +136,17 @@ func subtitleTableClipboardCopiesVisibleTagColumnsAsText() {
         speakerTags: [
             WorkbenchTag(key: "Tomori"),
             WorkbenchTag(key: "Anon"),
+        ],
+        shioriTags: [
+            WorkbenchTag(key: "7", label: "Review", colorID: .gray),
+            WorkbenchTag(key: "8", label: "Grammar", colorID: .gray),
         ]
     )
 
     let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
     let expected = [
-        "Speaker\tLanguage",
-        "Tomori, Anon\tJapanese, Simplified Chinese",
+        "Speaker\tLanguage\tTags",
+        "Tomori, Anon\tJapanese, Simplified Chinese\tReview, Grammar",
     ].joined(separator: "\n")
 
     #expect(text == expected)
