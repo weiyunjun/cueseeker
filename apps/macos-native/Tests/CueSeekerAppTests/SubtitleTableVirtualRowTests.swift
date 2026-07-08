@@ -133,6 +133,39 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
 
 @MainActor
 @Test
+func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
+    let oldLayout = SubtitleTableColumnLayout.resolve(
+        contentWidth: 1_160,
+        height: 64,
+        showsDateAddedColumn: true,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
+        columnOrder: ["display", "cues", "time", "dateAdded"]
+    )
+    let newLayout = SubtitleTableColumnLayout.resolve(
+        contentWidth: 1_360,
+        height: 64,
+        showsDateAddedColumn: true,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
+        columnOrder: ["display", "cues", "time", "dateAdded"]
+    )
+
+    #expect(newLayout.isCuesOnlyWidthChange(from: oldLayout))
+    #expect(newLayout.nameRect.width == oldLayout.nameRect.width)
+    #expect(newLayout.timeRect?.width == oldLayout.timeRect?.width)
+    #expect(newLayout.dateAddedRect?.width == oldLayout.dateAddedRect?.width)
+    #expect(newLayout.cuesRect.width > oldLayout.cuesRect.width)
+}
+
+@MainActor
+@Test
 func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "test-search",

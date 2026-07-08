@@ -16,7 +16,6 @@ struct WorkbenchTestSearchView: View {
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
     @State private var rowSelection = TableSandboxRowSelectionState()
-    @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
     @State private var lastHandledCueContextRequestID: UUID?
     @State private var activeCueContextRequest: CueContextSearchRequest?
@@ -897,29 +896,24 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func refreshSelectedCollageAvailability() {
-        collageAvailabilityGeneration += 1
-        let generation = collageAvailabilityGeneration
         let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
         guard !selectedRows.isEmpty, selectedRows.count <= 50 else {
-            canExportSelectedRowsAsCollage = false
+            setCanExportSelectedRowsAsCollage(false)
             return
         }
 
-        canExportSelectedRowsAsCollage = false
-        Task { @MainActor in
-            await hydrateRowsForExport(selectedRows)
-            guard generation == collageAvailabilityGeneration else {
-                return
-            }
-            let items = selectedSearchResultsFromSnapshot(for: selectedRows)
-                .map { appState.subtitleScreenshotItem(for: $0) }
-            canExportSelectedRowsAsCollage = SubtitleScreenshotExporter.canExportCollage(items)
-        }
+        let items = selectedSearchResultsFromSnapshot(for: selectedRows)
+            .map { appState.subtitleScreenshotItem(for: $0) }
+        setCanExportSelectedRowsAsCollage(SubtitleScreenshotExporter.canExportCollage(items))
     }
 
     private func resetSelectedCollageAvailability() {
-        collageAvailabilityGeneration += 1
-        canExportSelectedRowsAsCollage = false
+        setCanExportSelectedRowsAsCollage(false)
+    }
+
+    private func setCanExportSelectedRowsAsCollage(_ canExport: Bool) {
+        guard canExportSelectedRowsAsCollage != canExport else { return }
+        canExportSelectedRowsAsCollage = canExport
     }
 
     private func hydrateRowsForExport(_ selectedRows: [Int]) async {

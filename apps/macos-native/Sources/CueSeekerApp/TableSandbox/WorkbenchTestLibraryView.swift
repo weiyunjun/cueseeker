@@ -53,7 +53,7 @@ struct WorkbenchTestRecentWatchingView: View {
 struct WorkbenchTestLibraryView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
-    @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
     @State private var folderDetail: CompleteLibraryFolderDetailPresentation?
     @State private var folderDetailStatus: LibraryStatus = .idle
@@ -105,7 +105,7 @@ struct WorkbenchTestLibraryView: View {
             CompleteLibraryFolderGrid(
                 folders: library.completeLibraryFolderSummaries,
                 onOpen: { folder in
-                    layoutState.selectTestLibraryFolder(folder)
+                    appState.workbenchLayout.selectTestLibraryFolder(folder)
                 }
             )
         }
@@ -147,7 +147,7 @@ struct WorkbenchTestLibraryView: View {
     }
 
     private func closeFolderDetail() {
-        layoutState.clearTestLibraryFolder()
+        appState.workbenchLayout.clearTestLibraryFolder()
         folderDetail = nil
         folderDetailStatus = .idle
     }
@@ -162,7 +162,7 @@ struct WorkbenchTestLibraryView: View {
             }
             return
         }
-        layoutState.selectTestLibraryFolder(updatedFolder)
+        appState.workbenchLayout.selectTestLibraryFolder(updatedFolder)
     }
 
     @MainActor
@@ -194,7 +194,7 @@ struct WorkbenchTestLibraryView: View {
 
 private extension WorkbenchTestLibraryView {
     var selectedFolder: CompleteLibraryFolderSummaryPresentation? {
-        layoutState.selectedTestLibraryFolder
+        routeState.selectedTestLibraryFolder
     }
 }
 

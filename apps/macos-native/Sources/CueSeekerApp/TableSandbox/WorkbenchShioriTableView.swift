@@ -23,7 +23,6 @@ private struct WorkbenchShioriTableContent: View {
     @State private var isLoadingContinuousRows = false
     @State private var continuousTotalRowCount = 0
     @State private var pendingRemoval: Shiori?
-    @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
     @State private var hasDeferredReloadWhileCovered = false
 
@@ -455,29 +454,24 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func refreshSelectedCollageAvailability() {
-        collageAvailabilityGeneration += 1
-        let generation = collageAvailabilityGeneration
         let selectedRows = rowSelection.selectedRows(rowCount: rowStore.snapshot.totalRowCount)
         guard !selectedRows.isEmpty, selectedRows.count <= 50 else {
-            canExportSelectedRowsAsCollage = false
+            setCanExportSelectedRowsAsCollage(false)
             return
         }
 
-        canExportSelectedRowsAsCollage = false
-        Task { @MainActor in
-            await hydrateRowsForExport(selectedRows)
-            guard generation == collageAvailabilityGeneration else {
-                return
-            }
-            let items = selectedShioriScreenshotSourcesFromSnapshot(for: selectedRows)
-                .map { appState.subtitleScreenshotItem(for: $0.shiori, displayTitle: $0.displayTitle) }
-            canExportSelectedRowsAsCollage = SubtitleScreenshotExporter.canExportCollage(items)
-        }
+        let items = selectedShioriScreenshotSourcesFromSnapshot(for: selectedRows)
+            .map { appState.subtitleScreenshotItem(for: $0.shiori, displayTitle: $0.displayTitle) }
+        setCanExportSelectedRowsAsCollage(SubtitleScreenshotExporter.canExportCollage(items))
     }
 
     private func resetSelectedCollageAvailability() {
-        collageAvailabilityGeneration += 1
-        canExportSelectedRowsAsCollage = false
+        setCanExportSelectedRowsAsCollage(false)
+    }
+
+    private func setCanExportSelectedRowsAsCollage(_ canExport: Bool) {
+        guard canExportSelectedRowsAsCollage != canExport else { return }
+        canExportSelectedRowsAsCollage = canExport
     }
 
     private func hydrateRowsForExport(_ selectedRows: [Int]) async {

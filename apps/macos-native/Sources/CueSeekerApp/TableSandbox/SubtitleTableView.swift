@@ -43,7 +43,7 @@ enum SubtitleTableMetrics {
     static let interactiveTextUnderlineOffset = WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset
 }
 
-struct SubtitleTableColumnLayout {
+struct SubtitleTableColumnLayout: Equatable {
     var indexRect: CGRect
     var dateAddedRect: CGRect?
     var nameRect: CGRect
@@ -188,6 +188,39 @@ struct SubtitleTableColumnLayout {
             result.append(columnID)
         }
         return result
+    }
+
+    func rect(for columnID: String) -> CGRect? {
+        switch columnID {
+        case "rowNumber":
+            return indexRect
+        case "dateAdded":
+            return dateAddedRect
+        case "display":
+            return nameRect
+        case "time":
+            return timeRect
+        case "cues":
+            return cuesRect
+        case "speaker":
+            return speakerRect
+        case "language":
+            return languageRect
+        default:
+            return nil
+        }
+    }
+
+    func isCuesOnlyWidthChange(from previous: SubtitleTableColumnLayout) -> Bool {
+        indexRect.size == previous.indexRect.size &&
+            dateAddedRect?.size == previous.dateAddedRect?.size &&
+            nameRect.size == previous.nameRect.size &&
+            timeRect?.size == previous.timeRect?.size &&
+            speakerRect?.size == previous.speakerRect?.size &&
+            languageRect?.size == previous.languageRect?.size &&
+            cuesRect.origin == previous.cuesRect.origin &&
+            cuesRect.height == previous.cuesRect.height &&
+            cuesRect.width != previous.cuesRect.width
     }
 
     private static func isTextColumnVisible(
@@ -1377,6 +1410,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private var cuesHeaderHost: NSHostingView<AnyView>?
     private var speakerHeaderHost: NSHostingView<AnyView>?
     private var languageHeaderHost: NSHostingView<AnyView>?
+    private var lastHeaderLayout: SubtitleTableColumnLayout?
 
     private var hoverTracking: NSTrackingArea?
     private var isHeaderHovered = false {
@@ -1553,7 +1587,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func layout() {
         super.layout()
-        refreshHeaderHosts()
+        refreshHeaderHostsForLayoutChange()
     }
 
     func refreshHeaderHosts() {
@@ -1566,23 +1600,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
             cuesHeaderHost?.isHidden = true
             speakerHeaderHost?.isHidden = true
             languageHeaderHost?.isHidden = true
+            lastHeaderLayout = nil
             return
         }
 
-        let M = SubtitleTableMetrics.self
-        let layout = coordinator?.headerColumnLayoutForRendering(
-            viewportWidth: bounds.width,
-            height: bounds.height
-        ) ?? SubtitleTableColumnLayout.resolve(
-            contentWidth: bounds.width,
-            height: bounds.height,
-            showsDateAddedColumn: false,
-            showsDisplayTitleColumn: false,
-            showsTimeColumn: false,
-            showsSpeakerColumn: false,
-            showsLanguageColumn: false,
-            cuesMinimumWidth: max(0, bounds.width - M.indexColumnWidth)
-        )
+        let layout = currentHeaderLayout()
 
         updateSelectionHeaderHost(&indexHeaderHost, frame: layout.indexRect)
         if let dateAddedRect = layout.dateAddedRect {
@@ -1614,6 +1636,70 @@ final class SubtitleVirtualTableHeaderView: NSView {
             languageHeaderHost?.isHidden = true
         }
         updateHeaderKeyViewBridge()
+        lastHeaderLayout = layout
+    }
+
+    func refreshHeaderHostsForCuesWidthChange() {
+        guard isRedesign else {
+            refreshHeaderHosts()
+            return
+        }
+
+        let layout = currentHeaderLayout()
+        updateHeaderFrame(&indexHeaderHost, frame: layout.indexRect)
+        updateHeaderFrame(&dateAddedHeaderHost, frame: layout.dateAddedRect)
+        updateHeaderFrame(&nameHeaderHost, frame: coordinator?.showsDisplayTitleColumnForRendering() ?? true ? layout.nameRect : nil)
+        updateHeaderFrame(&timeHeaderHost, frame: layout.timeRect)
+        updateHeaderHost(&cuesHeaderHost, title: coordinator?.cuesHeaderForRendering() ?? "Cues", columnID: "cues", isSortable: true, frame: layout.cuesRect)
+        updateHeaderFrame(&speakerHeaderHost, frame: layout.speakerRect)
+        updateHeaderFrame(&languageHeaderHost, frame: layout.languageRect)
+        updateHeaderKeyViewBridge()
+        lastHeaderLayout = layout
+    }
+
+    private func refreshHeaderHostsForLayoutChange() {
+        guard isRedesign else {
+            refreshHeaderHosts()
+            return
+        }
+
+        let layout = currentHeaderLayout()
+        if let lastHeaderLayout,
+           layout.isCuesOnlyWidthChange(from: lastHeaderLayout)
+        {
+            refreshHeaderHostsForCuesWidthChange()
+        } else {
+            refreshHeaderHosts()
+        }
+    }
+
+    private func currentHeaderLayout() -> SubtitleTableColumnLayout {
+        let M = SubtitleTableMetrics.self
+        return coordinator?.headerColumnLayoutForRendering(
+            viewportWidth: bounds.width,
+            height: bounds.height
+        ) ?? SubtitleTableColumnLayout.resolve(
+            contentWidth: bounds.width,
+            height: bounds.height,
+            showsDateAddedColumn: false,
+            showsDisplayTitleColumn: false,
+            showsTimeColumn: false,
+            showsSpeakerColumn: false,
+            showsLanguageColumn: false,
+            cuesMinimumWidth: max(0, bounds.width - M.indexColumnWidth)
+        )
+    }
+
+    private func updateHeaderFrame(
+        _ hostVar: inout NSHostingView<AnyView>?,
+        frame: CGRect?
+    ) {
+        guard let frame else {
+            hostVar?.isHidden = true
+            return
+        }
+        hostVar?.frame = frame
+        hostVar?.isHidden = false
     }
 
     private func updateSelectionHeaderHost(
@@ -2643,6 +2729,16 @@ struct SubtitleTableView: NSViewRepresentable {
                 CGFloat(rowCount) * currentRowHeight
             )
             let nextSize = CGSize(width: width, height: max(1, height))
+            let oldSize = documentView.frame.size
+            let oldLayout = isRedesign
+                ? tableColumnLayout(contentWidth: max(1, oldSize.width), height: currentRowHeight)
+                : nil
+            let newLayout = isRedesign
+                ? tableColumnLayout(contentWidth: width, height: currentRowHeight)
+                : nil
+            let isCuesOnlyWidthResize = oldSize.height == nextSize.height &&
+                oldSize.width != nextSize.width &&
+                oldLayout.map { old in newLayout?.isCuesOnlyWidthChange(from: old) == true } == true
             scrollbarOverlayView?.needsDisplay = true
             let sizeChanged = documentView.frame.size != nextSize
             if sizeChanged {
@@ -2650,7 +2746,18 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             clampHorizontalScrollOffset(contentWidth: width)
             scrollbarOverlayView?.scrollMetricsDidChange()
-            if sizeChanged {
+            if isCuesOnlyWidthResize,
+               let oldLayout,
+               let newLayout
+            {
+                invalidateColumnLayoutChange(
+                    columnID: "cues",
+                    oldLayout: oldLayout,
+                    newLayout: newLayout
+                )
+                headerView?.refreshHeaderHostsForCuesWidthChange()
+                refreshHeaderForHorizontalScrollIfNeeded()
+            } else if sizeChanged {
                 refreshHeaderForHorizontalScrollIfNeeded(force: true)
             } else {
                 refreshHeaderForHorizontalScrollIfNeeded()
@@ -3784,6 +3891,32 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let documentView else { return }
             for row in rows.compactMap({ $0 }) where row >= 0 && row < rowCount {
                 documentView.setNeedsDisplay(rectForRow(row, width: documentView.bounds.width))
+            }
+        }
+
+        private func invalidateColumnLayoutChange(
+            columnID: String,
+            oldLayout: SubtitleTableColumnLayout,
+            newLayout: SubtitleTableColumnLayout
+        ) {
+            guard let documentView,
+                  let visibleRows = visibleRowRange(in: documentView.visibleRect)
+            else {
+                return
+            }
+
+            for row in visibleRows {
+                let rowRect = rectForRow(row, width: documentView.bounds.width)
+                var dirtyRect = CGRect.null
+                if let oldColumnRect = oldLayout.rect(for: columnID) {
+                    dirtyRect = dirtyRect.union(rowColumnRect(oldColumnRect, rowRect: rowRect))
+                }
+                if let newColumnRect = newLayout.rect(for: columnID) {
+                    dirtyRect = dirtyRect.union(rowColumnRect(newColumnRect, rowRect: rowRect))
+                }
+                if !dirtyRect.isNull {
+                    documentView.setNeedsDisplay(dirtyRect)
+                }
             }
         }
 

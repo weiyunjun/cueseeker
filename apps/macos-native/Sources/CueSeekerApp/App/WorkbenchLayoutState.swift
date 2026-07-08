@@ -64,16 +64,25 @@ enum WorkbenchPanelMode: String, CaseIterable {
 }
 
 @MainActor
+final class WorkbenchRouteState: ObservableObject {
+    @Published fileprivate(set) var panelMode: WorkbenchPanelMode
+    @Published fileprivate(set) var isSearchFocused = false
+    @Published fileprivate(set) var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation?
+
+    init(panelMode: WorkbenchPanelMode) {
+        self.panelMode = panelMode
+    }
+}
+
+@MainActor
 final class WorkbenchLayoutState: ObservableObject {
     private static let panelModeKey = "workbenchPanelMode"
     private static let isSidebarVisibleKey = "workbenchSidebarVisible"
 
-    @Published var panelMode: WorkbenchPanelMode
     @Published var isSidebarVisible: Bool
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
-    @Published var isSearchFocused = false
-    @Published var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation?
+    let route: WorkbenchRouteState
 
     private let userDefaults: UserDefaults
 
@@ -82,16 +91,30 @@ final class WorkbenchLayoutState: ObservableObject {
         let savedMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
         ) ?? .search
-        panelMode = savedMode == .library ? .search : savedMode
+        route = WorkbenchRouteState(panelMode: savedMode == .library ? .search : savedMode)
         isSidebarVisible = userDefaults.object(forKey: Self.isSidebarVisibleKey) as? Bool ?? true
     }
 
+    var panelMode: WorkbenchPanelMode {
+        route.panelMode
+    }
+
+    var isSearchFocused: Bool {
+        get { route.isSearchFocused }
+        set { route.isSearchFocused = newValue }
+    }
+
+    var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation? {
+        get { route.selectedTestLibraryFolder }
+        set { route.selectedTestLibraryFolder = newValue }
+    }
+
     func selectPanelMode(_ mode: WorkbenchPanelMode) {
-        guard panelMode != mode else {
+        guard route.panelMode != mode else {
             return
         }
 
-        panelMode = mode
+        route.panelMode = mode
         userDefaults.set(mode.rawValue, forKey: Self.panelModeKey)
     }
 
@@ -120,11 +143,11 @@ final class WorkbenchLayoutState: ObservableObject {
     }
 
     func selectTestLibraryFolder(_ folder: CompleteLibraryFolderSummaryPresentation) {
-        selectedTestLibraryFolder = folder
+        route.selectedTestLibraryFolder = folder
     }
 
     func clearTestLibraryFolder() {
-        selectedTestLibraryFolder = nil
+        route.selectedTestLibraryFolder = nil
     }
 
     func beginVideoSizeTransition() -> Bool {
@@ -141,12 +164,12 @@ final class WorkbenchLayoutState: ObservableObject {
     }
 
     func clearSearchFocus() {
-        guard isSearchFocused else {
+        guard route.isSearchFocused else {
             return
         }
 
         AppPerformanceProbe.measure("WorkbenchLayoutState.clearSearchFocus", thresholdMilliseconds: 4) {
-            isSearchFocused = false
+            route.isSearchFocused = false
         }
     }
 }

@@ -5,7 +5,7 @@ import CueSeekerCore
 
 struct SearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
-    @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var library: LibraryStore
@@ -33,7 +33,7 @@ struct SearchView: View {
                             playbackSurface: AnyView(playbackSurface),
                             appState: appState,
                             onClose: {
-                                layoutState.clearSearchFocus()
+                                appState.workbenchLayout.clearSearchFocus()
                                 appState.stopPlayback()
                             }
                         )
@@ -59,11 +59,11 @@ struct SearchView: View {
         AppPerformanceProbe.measure("SearchView.mainContent.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count(
                 "UI.WorkbenchMainContent.body",
-                details: "mode=\(layoutState.panelMode.rawValue)"
+                details: "mode=\(routeState.panelMode.rawValue)"
             )
 
             return Group {
-                switch layoutState.panelMode {
+                switch routeState.panelMode {
                 case .library:
                     workbenchSearchSurface
                 case .shiori:
@@ -152,11 +152,11 @@ struct SearchView: View {
                                 isCollapsed: isCollapsed,
                                 selectedLibraryVideoPath: library.selectedLibraryVideo?.videoPath,
                                 onToggle: {
-                                    layoutState.clearSearchFocus()
+                                    appState.workbenchLayout.clearSearchFocus()
                                     toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
                                 },
                                 onOpenVideo: { video in
-                                    layoutState.clearSearchFocus()
+                                    appState.workbenchLayout.clearSearchFocus()
                                     appState.openLibraryVideo(
                                         video.video,
                                         displayTitle: video.displayTitle
@@ -240,7 +240,7 @@ struct SearchView: View {
 
             if shiori.hasShioriFileGroups {
                 Button {
-                    layoutState.clearSearchFocus()
+                    appState.workbenchLayout.clearSearchFocus()
                     appState.collapseAllShioriGroups()
                 } label: {
                     Text("Collapse All")
@@ -270,15 +270,15 @@ struct SearchView: View {
                         ShioriCardGroupView(
                             group: group,
                             onToggle: {
-                                layoutState.clearSearchFocus()
+                                appState.workbenchLayout.clearSearchFocus()
                                 appState.toggleShioriGroup(group.subtitlePath)
                             },
                             onOpenShiori: { shiori, displayTitle in
-                                layoutState.clearSearchFocus()
+                                appState.workbenchLayout.clearSearchFocus()
                                 appState.openShiori(shiori, displayTitle: displayTitle)
                             },
                             onExportToAnki: {
-                                layoutState.clearSearchFocus()
+                                appState.workbenchLayout.clearSearchFocus()
                                 appState.exportShioriGroupToAnki(group)
                             }
                         )
@@ -297,7 +297,7 @@ struct SearchView: View {
             player: appState.playbackPlayer,
             viewModel: playback.playbackViewModel,
             onSurfaceTap: {
-                layoutState.clearSearchFocus()
+                appState.workbenchLayout.clearSearchFocus()
                 appState.togglePlaybackFromUser()
             }
         )

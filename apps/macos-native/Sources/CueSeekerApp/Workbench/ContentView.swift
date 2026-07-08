@@ -93,6 +93,7 @@ private struct ContentRootView: View {
 private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var routeState: WorkbenchRouteState
 
     var body: some View {
         UIInvalidationProbe.count("UI.AppTopBar.body")
@@ -113,14 +114,14 @@ private struct AppTopBar: View {
 
     @ViewBuilder
     private var titlebarContent: some View {
-        switch layoutState.panelMode {
+        switch routeState.panelMode {
         case .testLibrary:
-            if let selectedFolder = layoutState.selectedTestLibraryFolder {
+            if let selectedFolder = routeState.selectedTestLibraryFolder {
                 LibraryFolderDetailHeader(
                     folderTitle: selectedFolder.folderTitle,
                     onBack: {
                         appState.performUserInitiatedAppCommand {
-                            layoutState.clearTestLibraryFolder()
+                            appState.workbenchLayout.clearTestLibraryFolder()
                         }
                     }
                 )
@@ -129,7 +130,7 @@ private struct AppTopBar: View {
                     .allowsHitTesting(false)
             }
         default:
-            LibrarySectionTitle(layoutState.panelMode.title)
+            LibrarySectionTitle(routeState.panelMode.title)
                 .allowsHitTesting(false)
         }
     }
@@ -175,11 +176,12 @@ private struct TitlebarCommandBridge: View {
 private struct AppSidebar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var routeState: WorkbenchRouteState
 
     var body: some View {
         UIInvalidationProbe.count(
             "UI.AppSidebar.body",
-            details: "selection=\(layoutState.panelMode.rawValue)"
+            details: "selection=\(routeState.panelMode.rawValue)"
         )
 
         return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -187,10 +189,10 @@ private struct AppSidebar: View {
                 ForEach(WorkbenchPanelMode.sidebarCases, id: \.rawValue) { mode in
                     AppSidebarNavigationItem(
                         mode: mode,
-                        isSelected: layoutState.panelMode == mode,
+                        isSelected: routeState.panelMode == mode,
                         isEnabled: !layoutState.isVideoSizeTransitionInProgress,
                         onSelect: {
-                            guard layoutState.panelMode != mode else {
+                            guard routeState.panelMode != mode else {
                                 return
                             }
 

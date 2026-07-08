@@ -572,10 +572,6 @@ final class AppCoordinator: ObservableObject {
 
     func toggleWorkbenchSidebarVisibilityFromUser() {
         AppPerformanceProbe.action("AppCoordinator.toggleWorkbenchSidebarVisibility", thresholdMilliseconds: 4) {
-            guard beginVideoSizeTransition(duration: AppShellLayout.sidePanelAnimationDuration) else {
-                return
-            }
-
             UIInvalidationProbe.mark(
                 "ACTION UI.AppSidebar.toggled",
                 details: "visibleBefore=\(workbenchLayout.isSidebarVisible)"

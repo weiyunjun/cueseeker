@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import Testing
 @testable import CueSeekerApp
 
@@ -48,6 +49,32 @@ func workbenchLayoutStatePersistsSidebarVisibility() {
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
         #expect(!reloadedLayoutState.isSidebarVisible)
+    }
+}
+
+@MainActor
+@Test
+func sidebarVisibilityDoesNotInvalidateRouteState() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+        var routeInvalidations = 0
+        var layoutInvalidations = 0
+
+        let routeCancellable = layoutState.route.objectWillChange.sink {
+            routeInvalidations += 1
+        }
+        let layoutCancellable = layoutState.objectWillChange.sink {
+            layoutInvalidations += 1
+        }
+
+        layoutState.toggleSidebarVisibility()
+
+        #expect(routeInvalidations == 0)
+        #expect(layoutInvalidations == 1)
+        #expect(layoutState.panelMode == .search)
+
+        withExtendedLifetime(routeCancellable) {}
+        withExtendedLifetime(layoutCancellable) {}
     }
 }
 
