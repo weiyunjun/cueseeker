@@ -3,14 +3,18 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
-private func tableSandboxShioriRowSources(from page: ShioriPage) -> [TableSandboxShioriRowSource] {
+private func tableSandboxShioriRowSources(
+    from page: ShioriPage,
+    tagsByShioriID: [Int64: [ShioriTag]] = [:]
+) -> [TableSandboxShioriRowSource] {
     page.shioris.map { shiori in
         TableSandboxShioriRowSource(
             shiori: shiori,
             displayTitle: page.displayTitlesByShioriID[shiori.id]
                 ?? URL(fileURLWithPath: shiori.subtitlePath).lastPathComponent,
             dateAddedText: shioriDateAddedDisplayText(for: shiori.createdAt),
-            languages: page.languagesByShioriID[shiori.id] ?? [.unknown]
+            languages: page.languagesByShioriID[shiori.id] ?? [.unknown],
+            shioriTags: tagsByShioriID[shiori.id] ?? []
         )
     }
 }
@@ -53,8 +57,14 @@ extension AppCoordinator {
                     searchText: trimmedSearchText,
                     filterSet: filterSet
                 )
+                let tagsByShioriID = try pageDatabase.shioriTagsByShioriID(
+                    forShioriIDs: rawPage.shioris.map(\.id)
+                )
                 let totalSavedRowCount = try pageDatabase.shioriCount()
-                let rows = tableSandboxShioriRowSources(from: rawPage)
+                let rows = tableSandboxShioriRowSources(
+                    from: rawPage,
+                    tagsByShioriID: tagsByShioriID
+                )
                 return TableSandboxShioriHydrationPage(
                     range: lowerBound..<(lowerBound + rows.count),
                     rows: rows,

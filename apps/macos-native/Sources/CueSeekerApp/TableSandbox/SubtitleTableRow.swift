@@ -16,6 +16,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
     let cues: String
     let tags: [WorkbenchTag]
     let speakerTags: [WorkbenchTag]
+    let shioriTags: [WorkbenchTag]
 
     init(
         id: Int,
@@ -27,7 +28,8 @@ struct SubtitleTableRow: Identifiable, Equatable {
         timeRange: String? = nil,
         cues: String,
         tags: [WorkbenchTag] = [],
-        speakerTags: [WorkbenchTag] = []
+        speakerTags: [WorkbenchTag] = [],
+        shioriTags: [WorkbenchTag] = []
     ) {
         self.id = id
         self.subtitlePath = subtitlePath
@@ -42,6 +44,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.cues = cues
         self.tags = tags
         self.speakerTags = speakerTags
+        self.shioriTags = shioriTags
     }
 }
 

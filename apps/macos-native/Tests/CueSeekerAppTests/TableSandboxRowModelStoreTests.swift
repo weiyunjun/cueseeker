@@ -555,6 +555,35 @@ func tableSandboxRowModelStoreMapsSearchSpeakersToTags() {
 
 @MainActor
 @Test
+func tableSandboxRowModelStoreMapsShioriTagsToNeutralTags() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(
+                id: 1,
+                content: "saved row",
+                languages: [.japanese],
+                shioriTags: [
+                    ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z"),
+                    ShioriTag(id: 8, name: "Grammar", createdAt: "2026-07-08T00:01:00Z"),
+                ]
+            ),
+        ],
+        startIndex: 0,
+        totalRowCount: 1,
+        tableName: "shiori"
+    )
+
+    let row = store.snapshot.row(at: 0)
+    #expect(row?.tags.map(\.key) == ["jp"])
+    #expect(row?.shioriTags.map(\.key) == ["7", "8"])
+    #expect(row?.shioriTags.map(\.label) == ["Review", "Grammar"])
+    #expect(row?.shioriTags.map(\.colorID) == [.gray, .gray])
+}
+
+@MainActor
+@Test
 func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     let store = ShioriStore()
     store.tableSearchDraft = "tomori"
@@ -646,6 +675,7 @@ private func shioriSource(
     id: Int64,
     content: String,
     languages: Set<SubtitleLanguageCode>,
+    shioriTags: [ShioriTag] = [],
     startMilliseconds: Int = 1_000,
     endMilliseconds: Int = 2_000
 ) -> TableSandboxShioriRowSource {
@@ -664,6 +694,7 @@ private func shioriSource(
         ),
         displayTitle: "Episode \(id)",
         dateAddedText: "26-06-23 12:00",
-        languages: languages
+        languages: languages,
+        shioriTags: shioriTags
     )
 }

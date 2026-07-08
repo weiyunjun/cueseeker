@@ -33,6 +33,7 @@ struct TableSandboxShioriRowSource: Equatable, Sendable {
     let displayTitle: String
     let dateAddedText: String
     let languages: Set<SubtitleLanguageCode>
+    let shioriTags: [ShioriTag]
 }
 
 @MainActor
@@ -334,7 +335,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 content: item.shiori.content,
                 cueLines: item.shiori.cueLines
             ),
-            tags: SubtitleLanguageWorkbenchTags.tags(for: item.languages)
+            tags: SubtitleLanguageWorkbenchTags.tags(for: item.languages),
+            shioriTags: tableSandboxShioriTags(for: item.shioriTags)
         )
     }
 
@@ -390,7 +392,8 @@ func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTab
             content: item.shiori.content,
             cueLines: item.shiori.cueLines
         ),
-        tags: SubtitleLanguageWorkbenchTags.tags(for: item.languages)
+        tags: SubtitleLanguageWorkbenchTags.tags(for: item.languages),
+        shioriTags: tableSandboxShioriTags(for: item.shioriTags)
     )
 }
 
@@ -423,6 +426,12 @@ private func tableSandboxSpeakerTags(for speakers: Set<String>) -> [WorkbenchTag
         .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         .sorted()
         .map { WorkbenchTag(key: $0, colorID: .purple) }
+}
+
+private func tableSandboxShioriTags(for tags: [ShioriTag]) -> [WorkbenchTag] {
+    tags.map { tag in
+        WorkbenchTag(key: String(tag.id), label: tag.name, colorID: .gray)
+    }
 }
 
 private func truncateTableSandboxDisplayLine(_ line: String) -> String {
