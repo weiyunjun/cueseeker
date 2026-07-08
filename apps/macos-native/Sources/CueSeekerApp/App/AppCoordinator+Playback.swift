@@ -1553,6 +1553,7 @@ extension AppCoordinator {
             url: subtitleURL,
             format: .ass,
             matchedVideoURL: videoURL,
+            initialTimestampMilliseconds: startMilliseconds,
             preparationTimeWindow: playbackSubtitleTimeWindow(
                 forSubtitleFile: subtitleURL,
                 startingAtMilliseconds: startMilliseconds,

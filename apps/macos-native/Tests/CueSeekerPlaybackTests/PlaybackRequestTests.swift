@@ -439,6 +439,7 @@ func playbackRequestStoresASSSubtitleSource() throws {
     #expect(request.subtitleSource?.url == subtitleURL)
     #expect(request.subtitleSource?.format == .ass)
     #expect(request.subtitleSource?.matchedVideoURL == videoURL.standardizedFileURL)
+    #expect(request.subtitleSource?.initialTimestampMilliseconds == 1_000)
     #expect(request.subtitleSource?.speakerDisplayCues == [speakerDisplayCue])
 }
 
@@ -534,11 +535,224 @@ func playbackRequestStoresASSSubtitleTimeWindow() throws {
         subtitleSource: PlaybackSubtitleSource(
             url: subtitleURL,
             format: .ass,
+            initialTimestampMilliseconds: 5_000,
             preparationTimeWindow: timeWindow
         )
     )
 
+    #expect(request.subtitleSource?.initialTimestampMilliseconds == 5_000)
     #expect(request.subtitleSource?.preparationTimeWindow == timeWindow)
+    #expect(request.subtitleSource?.initialRenderTimestamp(fallbackMilliseconds: 0) == 5_000)
+}
+
+@Test
+func playbackRequestUsesStartTimeAsDefaultASSSubtitleInitialTimestamp() throws {
+    let videoURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
+        .appendingPathExtension("mp4")
+    defer {
+        try? FileManager.default.removeItem(at: videoURL)
+    }
+
+    try Data().write(to: videoURL)
+
+    let subtitleURL = videoURL.deletingPathExtension().appendingPathExtension("ass")
+    let request = try PlaybackRequest(
+        videoURL: videoURL,
+        startMilliseconds: 42_000,
+        subtitleSource: PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .ass
+        )
+    )
+
+    #expect(request.subtitleSource?.initialTimestampMilliseconds == 42_000)
+    #expect(request.subtitleSource?.initialRenderTimestamp(fallbackMilliseconds: 0) == 42_000)
+}
+
+@Test
+func playbackSubtitleSourceClampsInitialRenderTimestampToPreparationWindow() {
+    let subtitleURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
+        .appendingPathExtension("ass")
+    let timeWindow = PlaybackSubtitleTimeWindow(
+        startMilliseconds: 1_000,
+        endMilliseconds: 9_000
+    )
+
+    let beforeWindow = PlaybackSubtitleSource(
+        url: subtitleURL,
+        format: .ass,
+        initialTimestampMilliseconds: 100,
+        preparationTimeWindow: timeWindow
+    )
+    let afterWindow = PlaybackSubtitleSource(
+        url: subtitleURL,
+        format: .ass,
+        initialTimestampMilliseconds: 12_000,
+        preparationTimeWindow: timeWindow
+    )
+    let fallbackOnly = PlaybackSubtitleSource(
+        url: subtitleURL,
+        format: .ass,
+        preparationTimeWindow: timeWindow
+    )
+    let zeroDurationWindow = PlaybackSubtitleSource(
+        url: subtitleURL,
+        format: .ass,
+        initialTimestampMilliseconds: 12_000,
+        preparationTimeWindow: PlaybackSubtitleTimeWindow(
+            startMilliseconds: 4_000,
+            endMilliseconds: 4_000
+        )
+    )
+
+    #expect(beforeWindow.initialRenderTimestamp(fallbackMilliseconds: 6_000) == 1_000)
+    #expect(afterWindow.initialRenderTimestamp(fallbackMilliseconds: 6_000) == 8_999)
+    #expect(fallbackOnly.initialRenderTimestamp(fallbackMilliseconds: 6_000) == 6_000)
+    #expect(fallbackOnly.initialRenderTimestamp(fallbackMilliseconds: 100) == 1_000)
+    #expect(zeroDurationWindow.initialRenderTimestamp(fallbackMilliseconds: 6_000) == 4_000)
+}
+
+@Test
+func playbackSubtitleTimeWindowContainsTimestampWithHalfOpenEnd() {
+    let timeWindow = PlaybackSubtitleTimeWindow(
+        startMilliseconds: 2_000,
+        endMilliseconds: 5_000
+    )
+    let zeroDurationWindow = PlaybackSubtitleTimeWindow(
+        startMilliseconds: 4_000,
+        endMilliseconds: 4_000
+    )
+
+    #expect(!timeWindow.contains(timestampMilliseconds: 1_999))
+    #expect(timeWindow.contains(timestampMilliseconds: 2_000))
+    #expect(timeWindow.contains(timestampMilliseconds: 4_999))
+    #expect(!timeWindow.contains(timestampMilliseconds: 5_000))
+    #expect(zeroDurationWindow.contains(timestampMilliseconds: 4_000))
+    #expect(!zeroDurationWindow.contains(timestampMilliseconds: 4_001))
+}
+
+@Test
+func playbackSubtitleRenderTimeGateHoldsInitialTimestampUntilNativeTimeEntersWindow() throws {
+    let subtitleURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
+        .appendingPathExtension("ass")
+    let timeWindow = PlaybackSubtitleTimeWindow(
+        startMilliseconds: 1_000,
+        endMilliseconds: 9_000
+    )
+    let source = PlaybackSubtitleSource(
+        url: subtitleURL,
+        format: .ass,
+        initialTimestampMilliseconds: 5_000,
+        preparationTimeWindow: timeWindow
+    )
+
+    let gate = try #require(
+        PlaybackSubtitleRenderTimeGate(source: source, fallbackMilliseconds: 0)
+    )
+
+    #expect(
+        gate.renderTimestamp(forNativeMilliseconds: 99)
+            == PlaybackSubtitleRenderTimeGateDecision(
+                timestampMilliseconds: 5_000,
+                releasesGate: false
+            )
+    )
+    #expect(
+        gate.renderTimestamp(forNativeMilliseconds: 1_000)
+            == PlaybackSubtitleRenderTimeGateDecision(
+                timestampMilliseconds: 1_000,
+                releasesGate: true
+            )
+    )
+    #expect(
+        gate.renderTimestamp(forNativeMilliseconds: 8_999)
+            == PlaybackSubtitleRenderTimeGateDecision(
+                timestampMilliseconds: 8_999,
+                releasesGate: true
+            )
+    )
+    #expect(
+        gate.renderTimestamp(forNativeMilliseconds: 9_000)
+            == PlaybackSubtitleRenderTimeGateDecision(
+                timestampMilliseconds: 5_000,
+                releasesGate: false
+            )
+    )
+}
+
+@Test
+func playbackSubtitleRenderTimeGateRetargetsExplicitTimestampInsideWindow() throws {
+    let subtitleURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPlaybackTests-\(UUID().uuidString)")
+        .appendingPathExtension("ass")
+    let timeWindow = PlaybackSubtitleTimeWindow(
+        startMilliseconds: 1_000,
+        endMilliseconds: 9_000
+    )
+    let source = PlaybackSubtitleSource(
+        url: subtitleURL,
+        format: .ass,
+        initialTimestampMilliseconds: 5_000,
+        preparationTimeWindow: timeWindow
+    )
+    let gate = try #require(
+        PlaybackSubtitleRenderTimeGate(source: source, fallbackMilliseconds: 0)
+    )
+
+    let retargetedGate = try #require(
+        gate.retargetingHeldTimestamp(forExplicitMilliseconds: 7_000)
+    )
+
+    #expect(
+        retargetedGate.renderTimestamp(forNativeMilliseconds: 99)
+            == PlaybackSubtitleRenderTimeGateDecision(
+                timestampMilliseconds: 7_000,
+                releasesGate: false
+            )
+    )
+    #expect(
+        retargetedGate.renderTimestamp(forNativeMilliseconds: 7_000)
+            == PlaybackSubtitleRenderTimeGateDecision(
+                timestampMilliseconds: 7_000,
+                releasesGate: true
+            )
+    )
+    #expect(gate.retargetingHeldTimestamp(forExplicitMilliseconds: 999) == nil)
+    #expect(gate.retargetingHeldTimestamp(forExplicitMilliseconds: 9_000) == nil)
+}
+
+@Test
+@MainActor
+func sourceFaithfulASSSubtitleOverlayReplacesRendererWorkerWhenSourceChanges() throws {
+    let directory = try temporaryPlaybackTestDirectory()
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let firstSubtitleURL = directory.appendingPathComponent("First.ass")
+    let secondSubtitleURL = directory.appendingPathComponent("Second.ass")
+    try minimalASSPlaybackScript(text: "First").write(to: firstSubtitleURL, atomically: true, encoding: .utf8)
+    try minimalASSPlaybackScript(text: "Second").write(to: secondSubtitleURL, atomically: true, encoding: .utf8)
+
+    let view = SourceFaithfulASSSubtitleOverlayView(frame: CGRect(x: 0, y: 0, width: 640, height: 360))
+    view.videoSize = CGSize(width: 640, height: 360)
+    let initialWorker = view.rendererWorkerIdentityForTesting
+
+    view.setSource(PlaybackSubtitleSource(url: firstSubtitleURL, format: .ass))
+    let firstWorker = view.rendererWorkerIdentityForTesting
+
+    view.setSource(PlaybackSubtitleSource(url: secondSubtitleURL, format: .ass))
+    let secondWorker = view.rendererWorkerIdentityForTesting
+
+    view.setSource(nil)
+    let clearedWorker = view.rendererWorkerIdentityForTesting
+
+    #expect(firstWorker != initialWorker)
+    #expect(secondWorker != firstWorker)
+    #expect(clearedWorker != secondWorker)
 }
 
 func playbackSubtitleTimeWindowDetectsOverlappingCues() {
@@ -647,4 +861,21 @@ private func playbackTestCueGroup(content: String) -> SubtitleCueGroup {
             )
         ]
     )
+}
+
+private func minimalASSPlaybackScript(text: String) -> String {
+    """
+    [Script Info]
+    ScriptType: v4.00+
+    PlayResX: 640
+    PlayResY: 360
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+    Style: Default, Helvetica, 32, &H00FFFFFF, &H000000FF, &H80000000, &H40000000, 0, 0, 0, 0, 100, 100, 0, 0, 1, 2, 1, 2, 20, 20, 20, 1
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:00.00,0:00:02.00,Default,,0,0,0,,\(text)
+    """
 }

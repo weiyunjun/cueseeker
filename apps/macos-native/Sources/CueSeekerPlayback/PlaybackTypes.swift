@@ -39,6 +39,7 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let url: URL
     public let format: PlaybackSubtitleSourceFormat
     public let matchedVideoURL: URL?
+    public let initialTimestampMilliseconds: Int?
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
     public let renderCacheDatabaseURL: URL?
     public let speakerDisplayCues: [SubtitleSpeakerDisplayCue]
@@ -47,6 +48,7 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
         url: URL,
         format: PlaybackSubtitleSourceFormat,
         matchedVideoURL: URL? = nil,
+        initialTimestampMilliseconds: Int? = nil,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
         renderCacheDatabaseURL: URL? = nil,
         speakerDisplayCues: [SubtitleSpeakerDisplayCue] = []
@@ -54,20 +56,30 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
         self.url = url
         self.format = format
         self.matchedVideoURL = matchedVideoURL
+        self.initialTimestampMilliseconds = initialTimestampMilliseconds.map { max(0, $0) }
         self.preparationTimeWindow = preparationTimeWindow
         self.renderCacheDatabaseURL = renderCacheDatabaseURL
         self.speakerDisplayCues = speakerDisplayCues
     }
 
-    public func fillingMatchedVideoURL(_ fallbackVideoURL: URL) -> PlaybackSubtitleSource {
-        guard matchedVideoURL == nil else {
-            return self
+    public func initialRenderTimestamp(fallbackMilliseconds: Int) -> Int {
+        let requestedTimestamp = max(0, initialTimestampMilliseconds ?? fallbackMilliseconds)
+        guard let preparationTimeWindow else {
+            return requestedTimestamp
         }
 
-        return PlaybackSubtitleSource(
+        return preparationTimeWindow.clampedTimestampMilliseconds(requestedTimestamp)
+    }
+
+    public func fillingPlaybackRequestDefaults(
+        fallbackVideoURL: URL,
+        startMilliseconds: Int
+    ) -> PlaybackSubtitleSource {
+        PlaybackSubtitleSource(
             url: url,
             format: format,
-            matchedVideoURL: fallbackVideoURL,
+            matchedVideoURL: matchedVideoURL ?? fallbackVideoURL,
+            initialTimestampMilliseconds: initialTimestampMilliseconds ?? max(0, startMilliseconds),
             preparationTimeWindow: preparationTimeWindow,
             renderCacheDatabaseURL: renderCacheDatabaseURL,
             speakerDisplayCues: speakerDisplayCues
@@ -97,6 +109,71 @@ public struct PlaybackSubtitleTimeWindow: Equatable, Sendable {
         return cueStartMilliseconds < self.endMilliseconds
             && cueEndMilliseconds > self.startMilliseconds
     }
+
+    public func clampedTimestampMilliseconds(_ milliseconds: Int) -> Int {
+        let timestamp = max(0, milliseconds)
+        guard endMilliseconds > startMilliseconds else {
+            return startMilliseconds
+        }
+
+        return min(max(timestamp, startMilliseconds), endMilliseconds - 1)
+    }
+
+    public func contains(timestampMilliseconds: Int) -> Bool {
+        let timestamp = max(0, timestampMilliseconds)
+        guard endMilliseconds > startMilliseconds else {
+            return timestamp == startMilliseconds
+        }
+
+        return timestamp >= startMilliseconds && timestamp < endMilliseconds
+    }
+}
+
+struct PlaybackSubtitleRenderTimeGateDecision: Equatable, Sendable {
+    let timestampMilliseconds: Int
+    let releasesGate: Bool
+}
+
+struct PlaybackSubtitleRenderTimeGate: Equatable, Sendable {
+    private(set) var heldTimestampMilliseconds: Int
+    let preparationTimeWindow: PlaybackSubtitleTimeWindow
+
+    init?(source: PlaybackSubtitleSource, fallbackMilliseconds: Int) {
+        guard let preparationTimeWindow = source.preparationTimeWindow else {
+            return nil
+        }
+
+        self.heldTimestampMilliseconds = source.initialRenderTimestamp(
+            fallbackMilliseconds: fallbackMilliseconds
+        )
+        self.preparationTimeWindow = preparationTimeWindow
+    }
+
+    func retargetingHeldTimestamp(forExplicitMilliseconds milliseconds: Int) -> PlaybackSubtitleRenderTimeGate? {
+        let timestamp = max(0, milliseconds)
+        guard preparationTimeWindow.contains(timestampMilliseconds: timestamp) else {
+            return nil
+        }
+
+        var nextGate = self
+        nextGate.heldTimestampMilliseconds = timestamp
+        return nextGate
+    }
+
+    func renderTimestamp(forNativeMilliseconds milliseconds: Int) -> PlaybackSubtitleRenderTimeGateDecision {
+        let nativeMilliseconds = max(0, milliseconds)
+        guard preparationTimeWindow.contains(timestampMilliseconds: nativeMilliseconds) else {
+            return PlaybackSubtitleRenderTimeGateDecision(
+                timestampMilliseconds: heldTimestampMilliseconds,
+                releasesGate: false
+            )
+        }
+
+        return PlaybackSubtitleRenderTimeGateDecision(
+            timestampMilliseconds: nativeMilliseconds,
+            releasesGate: true
+        )
+    }
 }
 
 public struct PlaybackRequest: Equatable, Sendable {
@@ -125,7 +202,10 @@ public struct PlaybackRequest: Equatable, Sendable {
         self.segmentEndMilliseconds = segmentEndMilliseconds.map {
             max(safeStartMilliseconds, $0)
         }
-        self.subtitleSource = subtitleSource?.fillingMatchedVideoURL(videoURL.standardizedFileURL)
+        self.subtitleSource = subtitleSource?.fillingPlaybackRequestDefaults(
+            fallbackVideoURL: videoURL.standardizedFileURL,
+            startMilliseconds: safeStartMilliseconds
+        )
     }
 }
 

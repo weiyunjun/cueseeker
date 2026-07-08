@@ -65,6 +65,8 @@ private struct ASSRenderWorkerError: Error, Sendable {
 
 private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private let queue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
+    private let invalidationLock = NSLock()
+    private var invalidated = false
     private var session: SFXASSRendererSession?
     private var sourcePath: String?
     private var renderCacheDatabaseURL: URL?
@@ -87,9 +89,12 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             sourcePath = source.url.path,
             renderCacheDatabaseURL = source.renderCacheDatabaseURL
         ] in
+            guard !self.isInvalidated else {
+                return
+            }
+
             do {
-                self.session?.close()
-                self.session = nil
+                self.clearState()
                 self.sourcePath = sourcePath
                 self.renderCacheDatabaseURL = renderCacheDatabaseURL
                 self.frameWidth = frameWidth
@@ -113,9 +118,18 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 )
 
                 let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
+                guard !self.isInvalidated else {
+                    nextSession.close()
+                    return
+                }
+
                 self.session = nextSession
                 completion(nextGeneration, .success(()))
             } catch {
+                guard !self.isInvalidated else {
+                    return
+                }
+
                 self.session = nil
                 self.activeRenderSegmentWindow = nil
                 completion(
@@ -130,16 +144,18 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
     func clear(completion: (@Sendable () -> Void)? = nil) {
         queue.async {
-            self.session?.close()
-            self.session = nil
-            self.sourcePath = nil
-            self.renderCacheDatabaseURL = nil
-            self.frameWidth = 0
-            self.frameHeight = 0
-            self.activeRenderSegmentWindow = nil
-            self.requestedFontNames = nil
-            self.speakerDisplayCues = []
+            self.clearState()
             completion?()
+        }
+    }
+
+    func invalidate() {
+        invalidationLock.lock()
+        invalidated = true
+        invalidationLock.unlock()
+
+        queue.async {
+            self.clearState()
         }
     }
 
@@ -149,6 +165,10 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         completion: @escaping @Sendable (UUID, Result<ASSRenderedFrame, ASSRenderWorkerError>) -> Void
     ) {
         queue.async {
+            guard !self.isInvalidated else {
+                return
+            }
+
             do {
                 try self.ensureSessionCovers(timestampMilliseconds: timestampMilliseconds)
                 guard let session = self.session else {
@@ -160,6 +180,10 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 }
 
                 let output = try session.renderCroppedImage(atTimestampMilliseconds: timestampMilliseconds)
+                guard !self.isInvalidated else {
+                    return
+                }
+
                 guard output.changed else {
                     completion(expectedGeneration, .success(.unchanged(timestampMilliseconds: timestampMilliseconds)))
                     return
@@ -173,12 +197,36 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 )
                 completion(expectedGeneration, .success(.sparse(frame)))
             } catch {
+                guard !self.isInvalidated else {
+                    return
+                }
+
                 completion(
                     expectedGeneration,
                     .failure(ASSRenderWorkerError(message: "ASS renderer failed at \(timestampMilliseconds) ms: \(error.localizedDescription)"))
                 )
             }
         }
+    }
+
+    private var isInvalidated: Bool {
+        invalidationLock.lock()
+        defer {
+            invalidationLock.unlock()
+        }
+        return invalidated
+    }
+
+    private func clearState() {
+        session?.close()
+        session = nil
+        sourcePath = nil
+        renderCacheDatabaseURL = nil
+        frameWidth = 0
+        frameHeight = 0
+        activeRenderSegmentWindow = nil
+        requestedFontNames = nil
+        speakerDisplayCues = []
     }
 
     private func ensureSessionCovers(timestampMilliseconds: Int) throws {
@@ -325,7 +373,6 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     var onRenderingFailure: ((String) -> Void)?
 
-    private let rendererWorker = SourceFaithfulASSRendererWorker()
     private var source: PlaybackSubtitleSource?
     private var generation: UUID?
     private var isRendererReady = false
@@ -336,6 +383,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var failureMessage: String?
     private let subtitleContainerLayer = CALayer()
     private var subtitleSurfaceLayer: CALayer?
+    private var rendererWorker = SourceFaithfulASSRendererWorker()
 
     override var isFlipped: Bool {
         true
@@ -365,7 +413,11 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     deinit {
-        rendererWorker.clear()
+        rendererWorker.invalidate()
+    }
+
+    var rendererWorkerIdentityForTesting: ObjectIdentifier {
+        ObjectIdentifier(rendererWorker)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -388,12 +440,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         clearPresentationState()
 
         guard source != nil else {
-            generation = nil
-            rendererWorker.clear { [weak self] in
-                DispatchQueue.main.async {
-                    self?.needsDisplay = true
-                }
-            }
+            replaceRendererWorker()
             needsDisplay = true
             return
         }
@@ -426,6 +473,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             clearPresentationState()
             failureMessage = nil
             needsDisplay = true
+            replaceRendererWorker()
 
             let loadGeneration = rendererWorker.load(
                 source: source,
@@ -543,6 +591,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         renderedFrame = nil
         failureMessage = nil
         clearSubtitleLayers()
+    }
+
+    private func replaceRendererWorker() {
+        let previousWorker = rendererWorker
+        rendererWorker = SourceFaithfulASSRendererWorker()
+        generation = nil
+        previousWorker.invalidate()
     }
 
     private func updatePresentation(for renderedFrame: ASSRenderedFrame) {

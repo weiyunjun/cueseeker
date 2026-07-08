@@ -21,6 +21,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var storedSpeed: Double = 1.0
     private var subtitlesVisible = true
     private var activeSubtitleSource: PlaybackSubtitleSource?
+    private var assSubtitleRenderTimeGate: PlaybackSubtitleRenderTimeGate?
     private var subtitleLoadTask: Task<Void, Never>?
     private var subtitleRenderTickTask: Task<Void, Never>?
     private var heldSubtitlePresentationMilliseconds: Int?
@@ -136,6 +137,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         activeSubtitleSource = source
 
         guard let source, source.format == .ass else {
+            assSubtitleRenderTimeGate = nil
             stopASSSubtitleRenderTicks()
             Task { @MainActor in
                 guard let container = self.renderView as? PlaybackRenderContainerView else {
@@ -156,6 +158,17 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             ]
         )
 
+        let fallbackMilliseconds = effectiveASSSubtitleMilliseconds(
+            currentNativePlaybackMilliseconds()
+        )
+        let initialMilliseconds = source.initialRenderTimestamp(
+            fallbackMilliseconds: fallbackMilliseconds
+        )
+        assSubtitleRenderTimeGate = PlaybackSubtitleRenderTimeGate(
+            source: source,
+            fallbackMilliseconds: fallbackMilliseconds
+        )
+
         Task { @MainActor in
             guard self.activeSubtitleSource == source,
                   let container = self.renderView as? PlaybackRenderContainerView
@@ -163,16 +176,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 return
             }
 
-            let currentMilliseconds = self.effectiveASSSubtitleMilliseconds(
-                self.currentNativePlaybackMilliseconds()
-            )
             container.assRenderingFailureHandler = { [weak self] message in
                 guard let self else { return }
                 self.delegate?.player(self, didFailWithMessage: message)
             }
             container.setVideoSize(self.currentNativeVideoSize())
+            container.setASSSubtitleTime(milliseconds: initialMilliseconds)
             container.setSourceFaithfulASSSubtitleSource(source)
-            container.setASSSubtitleTime(milliseconds: currentMilliseconds)
             container.setSubtitlesVisible(self.subtitlesVisible)
         }
         startASSSubtitleRenderTicks()
@@ -202,7 +212,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
 
         clearHeldSubtitlePresentationWithoutRendering()
-        updateASSSubtitleTime(milliseconds: currentNativePlaybackMilliseconds())
+        updateASSSubtitleTimeFromNative(milliseconds: currentNativePlaybackMilliseconds())
     }
 
     public func getDoubleProperty(_ name: String) throws -> Double {
@@ -290,6 +300,16 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     private func updateASSSubtitleTime(milliseconds: Int) {
         let effectiveMilliseconds = effectiveASSSubtitleMilliseconds(milliseconds)
+        retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds: effectiveMilliseconds)
+        Task { @MainActor in
+            (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: effectiveMilliseconds)
+        }
+    }
+
+    private func updateASSSubtitleTimeFromNative(milliseconds: Int) {
+        let effectiveMilliseconds = renderedASSSubtitleMilliseconds(
+            forNativeMilliseconds: milliseconds
+        )
         Task { @MainActor in
             (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: effectiveMilliseconds)
         }
@@ -301,6 +321,31 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     private func effectiveASSSubtitleMilliseconds(_ milliseconds: Int) -> Int {
         heldSubtitlePresentationMilliseconds ?? max(0, milliseconds)
+    }
+
+    private func retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds milliseconds: Int) {
+        guard let assSubtitleRenderTimeGate else {
+            return
+        }
+
+        self.assSubtitleRenderTimeGate = assSubtitleRenderTimeGate.retargetingHeldTimestamp(
+            forExplicitMilliseconds: milliseconds
+        )
+    }
+
+    private func renderedASSSubtitleMilliseconds(forNativeMilliseconds milliseconds: Int) -> Int {
+        let effectiveMilliseconds = effectiveASSSubtitleMilliseconds(milliseconds)
+        guard let assSubtitleRenderTimeGate else {
+            return effectiveMilliseconds
+        }
+
+        let decision = assSubtitleRenderTimeGate.renderTimestamp(
+            forNativeMilliseconds: effectiveMilliseconds
+        )
+        if decision.releasesGate {
+            self.assSubtitleRenderTimeGate = nil
+        }
+        return decision.timestampMilliseconds
     }
 
     private func clearHeldSubtitlePresentationWithoutRendering() {
@@ -315,8 +360,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                     return
                 }
 
-                let milliseconds = self.effectiveASSSubtitleMilliseconds(
-                    self.currentNativePlaybackMilliseconds()
+                let milliseconds = self.renderedASSSubtitleMilliseconds(
+                    forNativeMilliseconds: self.currentNativePlaybackMilliseconds()
                 )
                 (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: milliseconds)
                 try? await Task.sleep(nanoseconds: 33_000_000)
@@ -355,7 +400,7 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
         let milliseconds = max(0, Int((time * 1_000).rounded(.down)))
-        updateASSSubtitleTime(milliseconds: milliseconds)
+        updateASSSubtitleTimeFromNative(milliseconds: milliseconds)
     }
 
     public func nativePlaybackPlayer(
