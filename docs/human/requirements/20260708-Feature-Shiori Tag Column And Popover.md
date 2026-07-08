@@ -497,6 +497,8 @@ Orientation: vertical
 Layout Sections:
   1. Current Tags and Search
   2. Global Tag Pool
+Popover Anchor: left-click pointer position inside the triggering Shiori Tags cell content hover region
+Popover Position: below the click position, clamped to visible content bounds
 Dismiss: click outside popover closes the popover
 System Popover Arrow: none
 ```
@@ -651,7 +653,8 @@ Inline Text Input:
   Font Family: --font-family-base
   Font Size: --font-size-body
   Text Color: --color-text-primary
-  Placeholder Text Color: --color-text-placeholder
+  Placeholder Text: owning layout supplied
+  Placeholder Text Color: --color-text-muted
   Width: flexible inline width
   Min Width: enough for text caret and short input
   Search Icon: none
@@ -761,6 +764,10 @@ Escape Key: close popover
 ```markdown
 #### Interaction
 Open Trigger: left click on a Shiori Tags cell
+Open Behavior: open at the left-click pointer position using the same positioning and clamping behavior as Row Action Menu
+Open Focus: automatically focus the Tag Composer Inline Text Input
+Tag Composer Placeholder / No Current Tags: Add a tag
+Tag Composer Placeholder / Has Current Tags: none
 Typing In Tag Composer: update local search text and Global Tag Pool matching results
 Click Matching Global Tag / Not Associated: add that tag to the current Shiori cue and clear the input
 Click Matching Global Tag / Already Associated: no action and no prompt
