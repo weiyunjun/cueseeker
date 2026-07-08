@@ -33,91 +33,85 @@ struct ShioriTagPopoverView: View {
     @ObservedObject var rowStore: TableSandboxRowModelStore
     var onDismiss: () -> Void
     var onRequestLayout: () -> Void = {}
+    var onRequestDeleteConfirmation: (
+        ShioriTag,
+        @escaping () -> Void,
+        @escaping () -> Void
+    ) -> Void = { _, _, _ in }
 
     @State private var allTags: [ShioriTag] = []
     @State private var currentTags: [ShioriTag] = []
     @State private var inputText = ""
-    @State private var pendingDeleteTag: ShioriTag?
-    @FocusState private var isInputFocused: Bool
+    @State private var inputFocusToken = 0
 
     private var shioriID: Int64 { Int64(row.id) }
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
-            ZStack {
-                VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3 * 2) {
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    Text("Current Tags")
+                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .medium))
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+
                     composerField
-                        .padding(12)
+                }
 
-                    Divider()
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    Text("Select a tag or create one")
+                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .medium))
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
 
-                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                        Text("Select a tag or create one")
-                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .medium))
-                            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                                ShioriTagWrapLayout(
-                                    horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
-                                    verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
-                                ) {
-                                    ForEach(filteredTags, id: \.id) { tag in
-                                        ShioriTagChip(
-                                            title: tag.name,
-                                            isRemovable: true,
-                                            onBody: isCurrentTag(tag) ? nil : {
-                                                addExistingTag(tag)
-                                            },
-                                            onRemove: {
-                                                pendingDeleteTag = tag
-                                            }
-                                        )
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                                if showsCreateOption {
-                                    ShioriTagCreateOption(title: trimmedInput) {
-                                        createTag()
-                                    }
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                            ShioriTagWrapLayout(
+                                horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
+                                verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
+                            ) {
+                                ForEach(filteredTags, id: \.id) { tag in
+                                    let isAssigned = isCurrentTag(tag)
+                                    ShioriTagChip(
+                                        title: tag.name,
+                                        isRemovable: true,
+                                        isBodyInteractive: !isAssigned,
+                                        onBody: isAssigned ? {
+                                            focusInput()
+                                        } : {
+                                            addExistingTag(tag)
+                                        },
+                                        onRemove: {
+                                            requestDeleteTag(tag)
+                                        }
+                                    )
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 2)
-                        }
-                        .frame(minHeight: hasGlobalPoolContent ? 36 : 0, maxHeight: 280)
-                    }
-                    .padding(12)
-                }
-                .frame(width: 420, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isInputFocused = true
-                }
 
-                if let pendingDeleteTag {
-                    ShioriTagDeleteConfirmationDialog(
-                        tag: pendingDeleteTag,
-                        onDelete: {
-                            deleteTag(pendingDeleteTag)
-                        },
-                        onCancel: {
-                            self.pendingDeleteTag = nil
+                            if showsCreateOption {
+                                ShioriTagCreateOption(title: trimmedInput) {
+                                    createTag()
+                                }
+                            }
                         }
-                    )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 2)
+                    }
+                    .frame(minHeight: hasGlobalPoolContent ? 36 : 0, maxHeight: 280)
                 }
+            }
+            .padding(12)
+            .frame(width: 420, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                focusInput()
             }
         }
         .onAppear {
             loadState()
             DispatchQueue.main.async {
-                isInputFocused = true
+                focusInput()
                 onRequestLayout()
             }
-        }
-        .onChange(of: pendingDeleteTag != nil) { _ in
-            onRequestLayout()
         }
         .onExitCommand {
             onDismiss()
@@ -133,39 +127,31 @@ struct ShioriTagPopoverView: View {
                 ShioriTagChip(
                     title: tag.name,
                     isRemovable: true,
-                    onBody: nil,
+                    isBodyInteractive: false,
+                    onBody: {
+                        focusInput()
+                    },
                     onRemove: {
                         removeCurrentTag(tag)
                     }
                 )
             }
 
-            TextField(
-                "",
+            ShioriTagInlineTextField(
                 text: $inputText,
-                prompt: Text(currentTags.isEmpty ? "Add a tag" : "")
-                    .foregroundColor(WorkbenchRedesignColors.textPlaceholder)
-            )
-            .textFieldStyle(.plain)
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .regular))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            .focused($isInputFocused)
-            .frame(minWidth: 90, idealWidth: 140, maxWidth: 180)
-            .onChange(of: inputText) { nextValue in
-                let normalized = ShioriTagComposerInputRules.normalizedInput(nextValue)
-                if normalized != nextValue {
-                    inputText = normalized
-                } else {
+                placeholder: currentTags.isEmpty ? "Add a tag" : "",
+                focusToken: inputFocusToken,
+                onTextChanged: {
+                    let normalized = ShioriTagComposerInputRules.normalizedInput(inputText)
+                    if normalized != inputText {
+                        inputText = normalized
+                    }
                     onRequestLayout()
                 }
-            }
+            )
+            .frame(minWidth: 90, idealWidth: 140, maxWidth: 180, minHeight: 18)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(WorkbenchRedesignColors.bgHover)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var trimmedInput: String {
@@ -191,6 +177,10 @@ struct ShioriTagPopoverView: View {
         currentTags.contains { $0.id == tag.id }
     }
 
+    private func focusInput() {
+        inputFocusToken += 1
+    }
+
     private func loadState() {
         guard let state = appState.shioriTagPopoverState(forShioriID: shioriID) else {
             return
@@ -214,35 +204,53 @@ struct ShioriTagPopoverView: View {
         guard !isCurrentTag(tag),
               let tags = appState.assignShioriTag(tagID: tag.id, toShioriID: shioriID)
         else {
+            focusInput()
             return
         }
         applyCurrentTags(tags)
         inputText = ""
+        focusInput()
     }
 
     private func createTag() {
         guard showsCreateOption,
               let state = appState.createAndAssignShioriTag(named: trimmedInput, toShioriID: shioriID)
         else {
+            focusInput()
             return
         }
         apply(state)
         inputText = ""
+        focusInput()
     }
 
     private func removeCurrentTag(_ tag: ShioriTag) {
         guard let tags = appState.removeShioriTagAssignment(tagID: tag.id, fromShioriID: shioriID) else {
+            focusInput()
             return
         }
         applyCurrentTags(tags)
+        focusInput()
+    }
+
+    private func requestDeleteTag(_ tag: ShioriTag) {
+        onRequestDeleteConfirmation(
+            tag,
+            {
+                deleteTag(tag)
+                focusInput()
+            },
+            {
+                focusInput()
+            }
+        )
     }
 
     private func deleteTag(_ tag: ShioriTag) {
         guard let outcome = appState.deleteShioriTagGlobally(tagID: tag.id, currentShioriID: shioriID) else {
-            pendingDeleteTag = nil
+            onRequestLayout()
             return
         }
-        pendingDeleteTag = nil
         allTags = outcome.popoverState.allTags
         currentTags = outcome.popoverState.currentTags
         rowStore.removeShioriTagFromVisibleRows(
@@ -250,33 +258,115 @@ struct ShioriTagPopoverView: View {
             affectedShioriIDs: outcome.deletionResult.affectedShioriIDs,
             tableName: "shiori"
         )
+        onRequestLayout()
+    }
+}
+
+private struct ShioriTagInlineTextField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let focusToken: Int
+    var onTextChanged: () -> Void
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField(string: text)
+        textField.delegate = context.coordinator
+        textField.isBordered = false
+        textField.isBezeled = false
+        textField.drawsBackground = false
+        textField.focusRingType = .none
+        textField.font = textFont()
+        textField.textColor = WorkbenchRedesignColors.NS.textPrimary
+        textField.placeholderAttributedString = placeholderString(placeholder)
+        textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        textField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        textField.target = context.coordinator
+        textField.action = #selector(Coordinator.commitEditing(_:))
+        return textField
     }
 
+    func updateNSView(_ textField: NSTextField, context: Context) {
+        context.coordinator.parent = self
+        if textField.stringValue != text {
+            textField.stringValue = text
+        }
+        textField.placeholderAttributedString = placeholderString(placeholder)
+        textField.font = textFont()
+        textField.textColor = WorkbenchRedesignColors.NS.textPrimary
+
+        guard context.coordinator.lastFocusToken != focusToken else { return }
+        context.coordinator.lastFocusToken = focusToken
+        DispatchQueue.main.async {
+            guard textField.window != nil else { return }
+            textField.window?.makeFirstResponder(textField)
+            if let editor = textField.currentEditor() {
+                editor.selectedRange = NSRange(location: textField.stringValue.count, length: 0)
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    private func textFont() -> NSFont {
+        .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+    }
+
+    private func placeholderString(_ value: String) -> NSAttributedString {
+        NSAttributedString(string: value, attributes: [
+            .foregroundColor: WorkbenchRedesignColors.NS.textPlaceholder,
+            .font: textFont(),
+        ])
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: ShioriTagInlineTextField
+        var lastFocusToken = -1
+
+        init(parent: ShioriTagInlineTextField) {
+            self.parent = parent
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else { return }
+            parent.text = textField.stringValue
+            parent.onTextChanged()
+        }
+
+        @objc func commitEditing(_: NSTextField) {}
+    }
 }
 
 private struct ShioriTagChip: View {
     let title: String
     var isRemovable: Bool
+    var isBodyInteractive: Bool = false
     var onBody: (() -> Void)?
     var onRemove: (() -> Void)?
+
+    private let style = SubtitleTableTagStyle.resolve(isRedesign: true)
 
     var body: some View {
         HStack(spacing: 0) {
             if let onBody {
                 Button(action: onBody) {
                     chipLabel
-                        .padding(.leading, WorkbenchControlMetrics.redesignSpacing2)
-                        .padding(.trailing, isRemovable ? 6 : WorkbenchControlMetrics.redesignSpacing2)
-                        .padding(.vertical, 4)
+                        .padding(.leading, style.horizontalInset)
+                        .padding(.trailing, isRemovable ? 6 : style.horizontalInset)
+                        .padding(.vertical, style.verticalInset)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .pointerOnHover(isEnabled: true)
+                .pointerOnHover(isEnabled: isBodyInteractive)
             } else {
                 chipLabel
-                    .padding(.leading, WorkbenchControlMetrics.redesignSpacing2)
-                    .padding(.trailing, isRemovable ? 6 : WorkbenchControlMetrics.redesignSpacing2)
-                    .padding(.vertical, 4)
+                    .padding(.leading, style.horizontalInset)
+                    .padding(.trailing, isRemovable ? 6 : style.horizontalInset)
+                    .padding(.vertical, style.verticalInset)
             }
 
             if isRemovable {
@@ -289,22 +379,22 @@ private struct ShioriTagChip: View {
                         .frame(width: 14, height: 14)
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, WorkbenchControlMetrics.redesignSpacing2)
-                .padding(.vertical, 4)
+                .padding(.trailing, style.horizontalInset)
+                .padding(.vertical, style.verticalInset)
                 .pointerOnHover(isEnabled: true)
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: SubtitleTableMetrics.tagCornerRadius, style: .continuous)
-                .fill(WorkbenchRedesignColors.bgHover)
+            RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous)
+                .fill(Color(nsColor: WorkbenchTagColorID.gray.redesignFillColor()))
         )
         .frame(maxWidth: 260, alignment: .leading)
     }
 
     private var chipLabel: some View {
         Text(title)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Color(nsColor: WorkbenchTagColorID.gray.redesignForegroundColor()))
             .lineLimit(1)
             .truncationMode(.tail)
     }
@@ -325,6 +415,7 @@ private struct ShioriTagCreateOption: View {
                 ShioriTagChip(
                     title: title,
                     isRemovable: false,
+                    isBodyInteractive: false,
                     onBody: nil,
                     onRemove: nil
                 )
@@ -341,56 +432,6 @@ private struct ShioriTagCreateOption: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .pointerOnHover(isEnabled: true)
-    }
-}
-
-private struct ShioriTagDeleteConfirmationDialog: View {
-    let tag: ShioriTag
-    var onDelete: () -> Void
-    var onCancel: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.18)
-
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                Text("Delete Tag")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-
-                Text("Are you sure you want to delete this tag? This will remove the tag from all cues. This action cannot be undone.")
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Spacer(minLength: 0)
-
-                    WorkbenchButton(
-                        title: "Cancel",
-                        isRedesign: true,
-                        action: onCancel
-                    )
-                    .keyboardShortcut(.defaultAction)
-                    .keyboardShortcut(.cancelAction)
-
-                    WorkbenchDestructiveButton(
-                        title: "Delete",
-                        action: onDelete
-                    )
-                }
-            }
-            .padding(24)
-            .frame(width: 360, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .fill(WorkbenchRedesignColors.bgSurface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
-            )
-        }
     }
 }
 

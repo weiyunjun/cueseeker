@@ -23,6 +23,7 @@ private struct WorkbenchShioriTableContent: View {
     @State private var isLoadingContinuousRows = false
     @State private var continuousTotalRowCount = 0
     @State private var pendingRemoval: Shiori?
+    @State private var pendingTagDeletion: PendingShioriTagDeletion?
     @State private var canExportSelectedRowsAsCollage = false
     @State private var hasDeferredReloadWhileCovered = false
 
@@ -83,8 +84,16 @@ private struct WorkbenchShioriTableContent: View {
                                 appState: appState,
                                 rowStore: rowStore,
                                 onDismiss: dismiss,
-                                onRequestLayout: requestLayout
+                                onRequestLayout: requestLayout,
+                                onRequestDeleteConfirmation: { tag, onConfirm, onCancel in
+                                    pendingTagDeletion = PendingShioriTagDeletion(
+                                        tag: tag,
+                                        onConfirm: onConfirm,
+                                        onCancel: onCancel
+                                    )
+                                }
                             )
+                            .id(row.id)
                         )
                     },
                     isRedesign: true
@@ -110,6 +119,26 @@ private struct WorkbenchShioriTableContent: View {
                     }
                 )
                 .zIndex(20)
+            }
+
+            if let pendingTagDeletion {
+                WorkbenchConfirmationDialog(
+                    title: "Delete Tag",
+                    message: "Are you sure you want to delete this tag? This will remove the tag from all cues. This action cannot be undone.",
+                    destructiveTitle: "Delete",
+                    cancelTitle: "Cancel",
+                    onDestructive: {
+                        let onConfirm = pendingTagDeletion.onConfirm
+                        self.pendingTagDeletion = nil
+                        onConfirm()
+                    },
+                    onCancel: {
+                        let onCancel = pendingTagDeletion.onCancel
+                        self.pendingTagDeletion = nil
+                        onCancel()
+                    }
+                )
+                .zIndex(30)
             }
         }
         .task {
@@ -499,4 +528,10 @@ private struct WorkbenchShioriTableContent: View {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
         refreshSelectedCollageAvailability()
     }
+}
+
+private struct PendingShioriTagDeletion {
+    let tag: ShioriTag
+    var onConfirm: () -> Void
+    var onCancel: () -> Void
 }

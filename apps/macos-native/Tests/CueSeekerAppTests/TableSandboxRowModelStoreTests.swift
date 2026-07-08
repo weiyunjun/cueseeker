@@ -624,6 +624,35 @@ func tableSandboxRowModelStorePatchesShioriTagCells() {
 
 @MainActor
 @Test
+func tableSandboxRowModelStorePatchesOnlyMatchingShioriTagCell() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(id: 1, content: "first saved row", languages: [.japanese]),
+            shioriSource(id: 2, content: "second saved row", languages: [.japanese]),
+        ],
+        startIndex: 0,
+        totalRowCount: 2,
+        tableName: "shiori"
+    )
+
+    let patched = store.updateShioriTags(
+        [
+            ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z"),
+        ],
+        forShioriID: 1,
+        tableName: "shiori"
+    )
+
+    #expect(patched)
+    #expect(store.snapshot.row(at: 0)?.shioriTags.map(\.label) == ["Review"])
+    #expect(store.snapshot.row(at: 1)?.shioriTags.isEmpty == true)
+    #expect(store.snapshot.update == .cells([TableSandboxCellInvalidation(row: 0, columnID: "tags")]))
+}
+
+@MainActor
+@Test
 func tableSandboxRowModelStoreRemovesDeletedShioriTagFromAffectedVisibleRows() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let sharedTag = ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z")
