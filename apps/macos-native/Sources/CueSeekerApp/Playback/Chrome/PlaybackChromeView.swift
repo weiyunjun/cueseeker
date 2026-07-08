@@ -55,9 +55,9 @@ private struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
 
 @MainActor
 struct PlaybackChromeView: View {
-    @ObservedObject var viewModel: PlaybackViewModel
+    let viewModel: PlaybackViewModel
+    let timeline: PlaybackTimelineInteractionStore
     let controls: PlaybackChromeControls
-    @EnvironmentObject private var playback: PlaybackStore
     @State private var isSpeedMenuVisible = false
     @State private var speedMenuEventMonitor: Any?
     @State private var speedButtonFrame: CGRect = .zero
@@ -75,17 +75,18 @@ struct PlaybackChromeView: View {
         .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
             speedMenuOverlay(anchor: anchor)
         }
+        .background(
+            PlaybackChromeTimelineResetter(
+                timeline: timeline,
+                isSpeedMenuVisible: $isSpeedMenuVisible,
+                isTimeHovered: $isTimeHovered
+            )
+        )
         .onChange(of: isSpeedMenuVisible) { isVisible in
             if isVisible {
                 installSpeedMenuDismissMonitor()
             } else {
                 removeSpeedMenuDismissMonitor()
-            }
-        }
-        .onChange(of: playback.isTimelineScrubbing) { isScrubbing in
-            if isScrubbing {
-                isSpeedMenuVisible = false
-                isTimeHovered = false
             }
         }
         .onDisappear {
@@ -135,7 +136,7 @@ struct PlaybackChromeView: View {
 
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,
-                    suppressesInteraction: playback.isTimelineScrubbing,
+                    suppressesInteraction: timeline.isScrubbing,
                     onSelect: { speed in
                         viewModel.setSpeed(speed)
                         isSpeedMenuVisible = false
@@ -151,41 +152,35 @@ struct PlaybackChromeView: View {
     private var scrubberRow: some View {
         PlaybackProgressScrubber(
             viewModel: viewModel,
-            scrubTime: Binding(
-                get: { playback.timelineScrubTime },
-                set: { playback.timelineScrubTime = $0 }
-            ),
-            onScrubbingChanged: { playback.isTimelineScrubbing = $0 }
+            timeline: timeline
         )
             .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
     }
 
     private var leftGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.leftControlsGap) {
-            PlaybackChromeIconButton(
-                systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
-                kind: .transport,
-                suppressesInteraction: playback.isTimelineScrubbing,
-                accessibilityLabel: viewModel.isPlaying ? "Pause" : "Play",
+            PlaybackPlayPauseChromeButton(
+                viewModel: viewModel,
+                timeline: timeline,
                 action: controls.togglePlayPause
             )
 
             HStack(spacing: 0) {
-                PlaybackChromeIconButton(
+                PlaybackTimelineChromeIconButton(
+                    timeline: timeline,
                     systemName: "backward.end.fill",
                     kind: .transport,
                     isDisabled: !controls.canGoPrevious,
-                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Previous video",
                     action: controls.goPrevious
                 )
 
-                PlaybackChromeIconButton(
+                PlaybackTimelineChromeIconButton(
+                    timeline: timeline,
                     systemName: "forward.end.fill",
                     kind: .transport,
                     isDisabled: !controls.canGoNext,
-                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Next video",
                     action: controls.goNext
@@ -196,66 +191,41 @@ struct PlaybackChromeView: View {
 
             PlaybackVolumeControl(
                 viewModel: viewModel,
-                suppressesInteraction: playback.isTimelineScrubbing
+                timeline: timeline
             )
 
-            HStack(spacing: PlaybackChromeMetrics.timeLabelGap) {
-                Text(formatPlaybackTime(playback.timelineScrubTime ?? viewModel.displayedCurrentTime))
-                    .foregroundStyle(PlaybackTheme.textPrimary)
-                Text("/")
-                    .foregroundStyle(PlaybackTheme.textTertiary)
-                Text(formatPlaybackTime(viewModel.duration))
-                    .foregroundStyle(PlaybackTheme.textPrimary)
-            }
-            .font(.system(size: PlaybackChromeMetrics.timeFontSize, weight: .semibold, design: .monospaced))
-            .monospacedDigit()
-            .padding(.horizontal, PlaybackChromeMetrics.capsuleButtonHorizontalPadding)
-            .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
-            .background(
-                PlaybackCinematicBacking(
-                    shape: Capsule(),
-                    isHovered: isTimeHovered,
-                    scaleX: 0.92,
-                    scaleY: 0.85
-                )
+            PlaybackChromeTimeCapsule(
+                viewModel: viewModel,
+                timeline: timeline,
+                isTimeHovered: $isTimeHovered
             )
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    isTimeHovered = playback.isTimelineScrubbing ? false : hovering
-                }
-            }
         }
     }
 
     private var rightGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.rightControlsGap) {
             HStack(spacing: 0) {
-                PlaybackChromeIconButton(
+                PlaybackTimelineChromeIconButton(
+                    timeline: timeline,
                     systemName: "bookmark",
                     kind: .transport,
-                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Shiori",
                     action: controls.toggleShiori
                 )
 
-                PlaybackChromeIconButton(
+                PlaybackTimelineChromeIconButton(
+                    timeline: timeline,
                     icon: .copy,
                     kind: .transport,
-                    suppressesInteraction: playback.isTimelineScrubbing,
                     hasPersistentBase: false,
                     accessibilityLabel: "Copy current subtitle",
                     action: controls.copySubtitle
                 )
 
-                PlaybackChromeIconButton(
-                    systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
-                    kind: .transport,
-                    isSelected: false,
-                    suppressesInteraction: playback.isTimelineScrubbing,
-                    hasPersistentBase: false,
-                    accessibilityLabel: "Subtitles",
-                    action: viewModel.toggleSubtitles
+                PlaybackSubtitleChromeButton(
+                    viewModel: viewModel,
+                    timeline: timeline
                 )
             }
             .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
@@ -263,13 +233,13 @@ struct PlaybackChromeView: View {
 
             speedControl
 
-            PlaybackChromeIconButton(
+            PlaybackTimelineChromeIconButton(
+                timeline: timeline,
                 systemName: controls.isFullscreen
                     ? "arrow.down.right.and.arrow.up.left"
                     : "viewfinder",
                 kind: .transport,
                 isDisabled: controls.isFullscreenToggleDisabled,
-                suppressesInteraction: playback.isTimelineScrubbing,
                 accessibilityLabel: "Fullscreen",
                 action: controls.toggleFullscreen
             )
@@ -277,39 +247,11 @@ struct PlaybackChromeView: View {
     }
 
     private var speedControl: some View {
-        Button {
-            guard !playback.isTimelineScrubbing else {
-                return
-            }
-            isSpeedMenuVisible.toggle()
-        } label: {
-            Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
-                .font(.system(size: PlaybackChromeMetrics.timeFontSize, weight: .semibold))
-                .monospacedDigit()
-                .frame(width: PlaybackChromeMetrics.speedButtonWidth, height: PlaybackChromeMetrics.capsuleButtonHeight)
-                .contentShape(Capsule())
-        }
-        .buttonStyle(
-            PlaybackChromeCapsuleButtonStyle(
-                suppressesInteraction: playback.isTimelineScrubbing
-            )
-        )
-        .accessibilityLabel("Playback speed")
-        .frame(
-            width: PlaybackChromeMetrics.speedButtonWidth,
-            height: PlaybackChromeMetrics.capsuleButtonHeight,
-            alignment: .center
-        )
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                        speedButtonFrame = geo.frame(in: .global)
-                    }
-                    .onChange(of: geo.frame(in: .global)) { newFrame in
-                        speedButtonFrame = newFrame
-                    }
-            }
+        PlaybackSpeedChromeButton(
+            viewModel: viewModel,
+            timeline: timeline,
+            isSpeedMenuVisible: $isSpeedMenuVisible,
+            speedButtonFrame: $speedButtonFrame
         )
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }
@@ -344,19 +286,231 @@ struct PlaybackChromeView: View {
         }
     }
 
-    private func formatPlaybackTime(_ seconds: Double) -> String {
-        let safeSeconds = seconds.isFinite ? max(0, seconds) : 0
-        let totalSeconds = Int(safeSeconds.rounded(.down))
-        let hours = totalSeconds / 3_600
-        let minutes = (totalSeconds % 3_600) / 60
-        let seconds = totalSeconds % 60
+}
 
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
+private struct PlaybackChromeTimelineResetter: View {
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
+    @Binding var isSpeedMenuVisible: Bool
+    @Binding var isTimeHovered: Bool
 
-        return String(format: "%02d:%02d", minutes, seconds)
+    var body: some View {
+        Color.clear
+            .allowsHitTesting(false)
+            .onChange(of: timeline.isScrubbing) { isScrubbing in
+                if isScrubbing {
+                    isSpeedMenuVisible = false
+                    isTimeHovered = false
+                }
+            }
     }
+}
+
+private struct PlaybackTimelineChromeIconButton: View {
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
+    let icon: PlaybackChromeIcon
+    var kind: PlaybackChromeButtonKind = .circle
+    var isSelected = false
+    var isDisabled = false
+    var hasPersistentBase = true
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    init(
+        timeline: PlaybackTimelineInteractionStore,
+        systemName: String,
+        kind: PlaybackChromeButtonKind = .circle,
+        isSelected: Bool = false,
+        isDisabled: Bool = false,
+        hasPersistentBase: Bool = true,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) {
+        self.timeline = timeline
+        self.icon = .system(systemName)
+        self.kind = kind
+        self.isSelected = isSelected
+        self.isDisabled = isDisabled
+        self.hasPersistentBase = hasPersistentBase
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
+
+    init(
+        timeline: PlaybackTimelineInteractionStore,
+        icon: PlaybackChromeIcon,
+        kind: PlaybackChromeButtonKind = .circle,
+        isSelected: Bool = false,
+        isDisabled: Bool = false,
+        hasPersistentBase: Bool = true,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) {
+        self.timeline = timeline
+        self.icon = icon
+        self.kind = kind
+        self.isSelected = isSelected
+        self.isDisabled = isDisabled
+        self.hasPersistentBase = hasPersistentBase
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+    }
+
+    var body: some View {
+        PlaybackChromeIconButton(
+            icon: icon,
+            kind: kind,
+            isSelected: isSelected,
+            isDisabled: isDisabled,
+            suppressesInteraction: timeline.isScrubbing,
+            hasPersistentBase: hasPersistentBase,
+            accessibilityLabel: accessibilityLabel,
+            action: action
+        )
+    }
+}
+
+private struct PlaybackPlayPauseChromeButton: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
+    let action: () -> Void
+
+    var body: some View {
+        PlaybackChromeIconButton(
+            systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
+            kind: .transport,
+            suppressesInteraction: timeline.isScrubbing,
+            accessibilityLabel: viewModel.isPlaying ? "Pause" : "Play",
+            action: action
+        )
+    }
+}
+
+private struct PlaybackSubtitleChromeButton: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
+
+    var body: some View {
+        PlaybackChromeIconButton(
+            systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
+            kind: .transport,
+            isSelected: false,
+            suppressesInteraction: timeline.isScrubbing,
+            hasPersistentBase: false,
+            accessibilityLabel: "Subtitles",
+            action: viewModel.toggleSubtitles
+        )
+    }
+}
+
+private struct PlaybackChromeTimeCapsule: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
+    @ObservedObject private var scrubTimeStore: PlaybackTimelineScrubTimeStore
+    @Binding var isTimeHovered: Bool
+
+    init(
+        viewModel: PlaybackViewModel,
+        timeline: PlaybackTimelineInteractionStore,
+        isTimeHovered: Binding<Bool>
+    ) {
+        self.viewModel = viewModel
+        self.timeline = timeline
+        _scrubTimeStore = ObservedObject(wrappedValue: timeline.scrubTimeStore)
+        _isTimeHovered = isTimeHovered
+    }
+
+    var body: some View {
+        HStack(spacing: PlaybackChromeMetrics.timeLabelGap) {
+            Text(formatPlaybackTime(scrubTimeStore.scrubTime ?? viewModel.displayedCurrentTime))
+                .foregroundStyle(PlaybackTheme.textPrimary)
+            Text("/")
+                .foregroundStyle(PlaybackTheme.textTertiary)
+            Text(formatPlaybackTime(viewModel.duration))
+                .foregroundStyle(PlaybackTheme.textPrimary)
+        }
+        .font(.system(size: PlaybackChromeMetrics.timeFontSize, weight: .semibold, design: .monospaced))
+        .monospacedDigit()
+        .padding(.horizontal, PlaybackChromeMetrics.capsuleButtonHorizontalPadding)
+        .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
+        .background(
+            PlaybackCinematicBacking(
+                shape: Capsule(),
+                isHovered: isTimeHovered,
+                scaleX: 0.92,
+                scaleY: 0.85
+            )
+        )
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isTimeHovered = timeline.isScrubbing ? false : hovering
+            }
+        }
+    }
+}
+
+private struct PlaybackSpeedChromeButton: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
+    @Binding var isSpeedMenuVisible: Bool
+    @Binding var speedButtonFrame: CGRect
+
+    var body: some View {
+        Button {
+            guard !timeline.isScrubbing else {
+                return
+            }
+            isSpeedMenuVisible.toggle()
+        } label: {
+            Text(PlaybackViewModel.formatSpeed(viewModel.playbackSpeed))
+                .font(.system(size: PlaybackChromeMetrics.timeFontSize, weight: .semibold))
+                .monospacedDigit()
+                .frame(width: PlaybackChromeMetrics.speedButtonWidth, height: PlaybackChromeMetrics.capsuleButtonHeight)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(
+            PlaybackChromeCapsuleButtonStyle(
+                suppressesInteraction: timeline.isScrubbing
+            )
+        )
+        .accessibilityLabel("Playback speed")
+        .frame(
+            width: PlaybackChromeMetrics.speedButtonWidth,
+            height: PlaybackChromeMetrics.capsuleButtonHeight,
+            alignment: .center
+        )
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear {
+                        updateSpeedButtonFrame(geo.frame(in: .global))
+                    }
+                    .onChange(of: geo.frame(in: .global)) { newFrame in
+                        updateSpeedButtonFrame(newFrame)
+                    }
+            }
+        )
+    }
+
+    private func updateSpeedButtonFrame(_ newFrame: CGRect) {
+        guard speedButtonFrame != newFrame else {
+            return
+        }
+        speedButtonFrame = newFrame
+    }
+}
+
+private func formatPlaybackTime(_ seconds: Double) -> String {
+    let safeSeconds = seconds.isFinite ? max(0, seconds) : 0
+    let totalSeconds = Int(safeSeconds.rounded(.down))
+    let hours = totalSeconds / 3_600
+    let minutes = (totalSeconds % 3_600) / 60
+    let seconds = totalSeconds % 60
+
+    if hours > 0 {
+        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    return String(format: "%02d:%02d", minutes, seconds)
 }
 
 private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {

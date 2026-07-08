@@ -23,7 +23,7 @@ struct PlaybackView: View {
 
 struct PlaybackVideoView: View {
     let player: PlaybackPlayer
-    @ObservedObject var viewModel: PlaybackViewModel
+    let viewModel: PlaybackViewModel
     let onSurfaceTap: () -> Void
 
     var body: some View {
@@ -39,14 +39,23 @@ struct PlaybackVideoView: View {
                 onSurfaceTap()
             }
 
-            PlaybackSubtitleOverlay(
-                text: viewModel.activeSubtitleText,
-                bottomPadding: 28
-            )
+            PlaybackSubtitleOverlayHost(viewModel: viewModel, bottomPadding: 28)
             // The feedback HUD is hosted by PlaybackPageView above the centered
             // overlay panel (doc 12 §11/§13.4, doc 11 §6); it is intentionally
             // not in this render-surface ZStack so the panel cannot occlude it.
         }
+    }
+}
+
+private struct PlaybackSubtitleOverlayHost: View {
+    @ObservedObject var viewModel: PlaybackViewModel
+    let bottomPadding: CGFloat
+
+    var body: some View {
+        PlaybackSubtitleOverlay(
+            text: viewModel.activeSubtitleText,
+            bottomPadding: bottomPadding
+        )
     }
 }
 

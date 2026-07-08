@@ -91,12 +91,29 @@ struct PlaybackChromeSnapshot: Equatable {
 }
 
 @MainActor
+final class PlaybackTimelineScrubTimeStore: ObservableObject {
+    @Published var scrubTime: Double?
+}
+
+@MainActor
+final class PlaybackTimelineInteractionStore: ObservableObject {
+    let scrubTimeStore = PlaybackTimelineScrubTimeStore()
+
+    @Published var isScrubbing = false
+
+    var scrubTime: Double? {
+        get { scrubTimeStore.scrubTime }
+        set { scrubTimeStore.scrubTime = newValue }
+    }
+}
+
+@MainActor
 final class PlaybackStore: ObservableObject {
+    let timeline = PlaybackTimelineInteractionStore()
+
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = false
-    @Published var isTimelineScrubbing = false
-    @Published var timelineScrubTime: Double?
     @Published var playbackViewModel: PlaybackViewModel?
     @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
     @Published var isQuickSearchOverlayVisible = false
@@ -138,6 +155,16 @@ final class PlaybackStore: ObservableObject {
     private var quickSearchAIOptionsSnapshot: PlaybackQuickSearchAIOptionsSnapshot?
 
     init(userDefaults _: UserDefaults) {}
+
+    var isTimelineScrubbing: Bool {
+        get { timeline.isScrubbing }
+        set { timeline.isScrubbing = newValue }
+    }
+
+    var timelineScrubTime: Double? {
+        get { timeline.scrubTime }
+        set { timeline.scrubTime = newValue }
+    }
 
     func setChromeSnapshot(_ snapshot: PlaybackChromeSnapshot) {
         guard chromeSnapshot != snapshot else {

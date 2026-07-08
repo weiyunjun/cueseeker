@@ -505,7 +505,7 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: video))
         }
-        recordRecentLibraryWatching(for: video)
+        recordRecentLibraryWatching(for: video, refreshPresentation: false)
         library.selectedLibraryVideo = video
         search.selectedSearchResult = nil
         shiori.selectedShiori = nil
@@ -525,7 +525,10 @@ extension AppCoordinator {
         }
     }
 
-    func recordRecentLibraryWatching(for video: LibraryVideo) {
+    func recordRecentLibraryWatching(
+        for video: LibraryVideo,
+        refreshPresentation: Bool = true
+    ) {
         let existingHistory = libraryPlaybackHistory(for: video)
         let snapshot = LibraryPlaybackHistorySnapshot(
             videoPath: video.videoPath,
@@ -533,6 +536,14 @@ extension AppCoordinator {
             duration: existingHistory?.duration ?? video.duration
         )
         libraryPlaybackHistoryWriter.saveAndWait(snapshot)
+        guard refreshPresentation else {
+            library.hasDeferredPlaybackHistoryPresentationRefresh = true
+            UIInvalidationProbe.mark(
+                "ACTION UI.LibraryPlaybackHistory.recorded",
+                details: "presentationRefresh=false"
+            )
+            return
+        }
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
@@ -637,10 +648,13 @@ extension AppCoordinator {
             return
         }
 
-        if saveCurrentLibraryPlaybackHistory(waitUntilFinished: true) {
+        let savedHistory = saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
+        if savedHistory || library.hasDeferredPlaybackHistoryPresentationRefresh {
+            library.hasDeferredPlaybackHistoryPresentationRefresh = false
             library.libraryPlaybackHistoryRevision += 1
             refreshRecentWatching()
             refreshLoadedTestRecentWatching()
+            refreshCompleteLibrary()
         }
     }
 

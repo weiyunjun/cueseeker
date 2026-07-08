@@ -1,10 +1,45 @@
 import Foundation
+import Combine
 import Testing
 import CueSeekerCore
 @testable import CueSeekerApp
 
 private func mockChunks(_ items: [String]) -> [AIChunkItem] {
     items.map { AIChunkItem(item: $0, translation: $0) }
+}
+
+@MainActor
+@Test
+func timelineInteractionStateDoesNotInvalidatePlaybackStore() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        var playbackStoreInvalidations = 0
+        var timelineInvalidations = 0
+        var scrubTimeInvalidations = 0
+
+        let playbackStoreCancellable = store.objectWillChange.sink {
+            playbackStoreInvalidations += 1
+        }
+        let timelineCancellable = store.timeline.objectWillChange.sink {
+            timelineInvalidations += 1
+        }
+        let scrubTimeCancellable = store.timeline.scrubTimeStore.objectWillChange.sink {
+            scrubTimeInvalidations += 1
+        }
+
+        store.isTimelineScrubbing = true
+        store.timelineScrubTime = 12.5
+
+        #expect(playbackStoreInvalidations == 0)
+        #expect(timelineInvalidations == 1)
+        #expect(scrubTimeInvalidations == 1)
+        #expect(store.isTimelineScrubbing)
+        #expect(store.timelineScrubTime == 12.5)
+
+        withExtendedLifetime(playbackStoreCancellable) {}
+        withExtendedLifetime(timelineCancellable) {}
+        withExtendedLifetime(scrubTimeCancellable) {}
+    }
 }
 
 @MainActor

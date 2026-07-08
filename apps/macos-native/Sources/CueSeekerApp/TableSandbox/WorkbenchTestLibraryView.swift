@@ -264,6 +264,7 @@ struct LibrarySectionTitle: View {
 }
 
 private struct RecentWatchingGrid: View {
+    @EnvironmentObject private var appState: AppCoordinator
     let items: [RecentLibraryWatchingPresentation]
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
@@ -284,7 +285,11 @@ private struct RecentWatchingGrid: View {
         LibraryCardContextMenuHost { openContextMenu in
             LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentGridGap) {
                 ForEach(items) { item in
-                    RecentWatchingCard(item: item, openContextMenu: openContextMenu) {
+                    RecentWatchingCard(
+                        item: item,
+                        actions: .appState(appState),
+                        openContextMenu: openContextMenu
+                    ) {
                         onOpen(item)
                     }
                 }
@@ -294,9 +299,28 @@ private struct RecentWatchingGrid: View {
     }
 }
 
+@MainActor
+private struct LibraryCardActionHandlers {
+    let revealFile: (String) -> Void
+    let openFolder: (String) -> Void
+    let markVideo: (LibraryVideo, LibraryWatchState) -> Void
+    let markFolder: (String, LibraryWatchState) -> Void
+    let openVideoContext: (LibraryVideo, String) -> Void
+
+    static func appState(_ appState: AppCoordinator) -> LibraryCardActionHandlers {
+        LibraryCardActionHandlers(
+            revealFile: { appState.revealFile(atPath: $0) },
+            openFolder: { appState.openFolder(atPath: $0) },
+            markVideo: { appState.markLibraryVideo($0, as: $1) },
+            markFolder: { appState.markCompleteLibraryFolder(folderPath: $0, as: $1) },
+            openVideoContext: { appState.openLibraryVideoContext($0, displayTitle: $1) }
+        )
+    }
+}
+
 private struct RecentWatchingCard: View {
-    @EnvironmentObject private var appState: AppCoordinator
     let item: RecentLibraryWatchingPresentation
+    let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
@@ -371,19 +395,19 @@ private struct RecentWatchingCard: View {
     private var recentContextMenuItems: [LibraryCardContextMenuItem] {
         [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
-                appState.revealFile(atPath: item.videoPath)
+                actions.revealFile(item.videoPath)
             },
             LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
-                appState.markLibraryVideo(item.libraryVideo, as: .finished)
+                actions.markVideo(item.libraryVideo, .finished)
             },
             LibraryCardContextMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
-                appState.markLibraryVideo(item.libraryVideo, as: .unwatched)
+                actions.markVideo(item.libraryVideo, .unwatched)
             },
             LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
-                appState.markLibraryVideo(item.libraryVideo, as: .watching)
+                actions.markVideo(item.libraryVideo, .watching)
             },
             LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
-                appState.openLibraryVideoContext(item.libraryVideo, displayTitle: contextDisplayTitle)
+                actions.openVideoContext(item.libraryVideo, contextDisplayTitle)
             }
         ]
     }
@@ -406,6 +430,7 @@ private struct RecentWatchingCard: View {
 }
 
 private struct CompleteLibraryFolderGrid: View {
+    @EnvironmentObject private var appState: AppCoordinator
     let folders: [CompleteLibraryFolderSummaryPresentation]
     let onOpen: (CompleteLibraryFolderSummaryPresentation) -> Void
 
@@ -426,7 +451,11 @@ private struct CompleteLibraryFolderGrid: View {
         LibraryCardContextMenuHost { openContextMenu in
             LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderGridGap) {
                 ForEach(folders) { folder in
-                    LibraryFolderCard(folder: folder, openContextMenu: openContextMenu) {
+                    LibraryFolderCard(
+                        folder: folder,
+                        actions: .appState(appState),
+                        openContextMenu: openContextMenu
+                    ) {
                         onOpen(folder)
                     }
                 }
@@ -437,8 +466,8 @@ private struct CompleteLibraryFolderGrid: View {
 }
 
 private struct LibraryFolderCard: View {
-    @EnvironmentObject private var appState: AppCoordinator
     let folder: CompleteLibraryFolderSummaryPresentation
+    let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
@@ -503,16 +532,16 @@ private struct LibraryFolderCard: View {
     private var folderContextMenuItems: [LibraryCardContextMenuItem] {
         [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
-                appState.openFolder(atPath: folder.folderPath)
+                actions.openFolder(folder.folderPath)
             },
             LibraryCardContextMenuItem(title: "Mark All as Finished", systemImage: "checkmark.circle") {
-                appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .finished)
+                actions.markFolder(folder.folderPath, .finished)
             },
             LibraryCardContextMenuItem(title: "Mark All as Unwatched", systemImage: "circle") {
-                appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .unwatched)
+                actions.markFolder(folder.folderPath, .unwatched)
             },
             LibraryCardContextMenuItem(title: "Mark All as Watching", systemImage: "play.circle") {
-                appState.markCompleteLibraryFolder(folderPath: folder.folderPath, as: .watching)
+                actions.markFolder(folder.folderPath, .watching)
             }
         ]
     }
@@ -546,6 +575,7 @@ struct LibraryFolderDetailHeader: View {
 }
 
 private struct CompleteLibraryEpisodeGrid: View {
+    @EnvironmentObject private var appState: AppCoordinator
     let videos: [CompleteLibraryVideoPresentation]
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
@@ -556,7 +586,11 @@ private struct CompleteLibraryEpisodeGrid: View {
             LibraryCardContextMenuHost { openContextMenu in
                 LazyVStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeGridGap) {
                     ForEach(videos) { video in
-                        LibraryEpisodeCard(video: video, openContextMenu: openContextMenu) {
+                        LibraryEpisodeCard(
+                            video: video,
+                            actions: .appState(appState),
+                            openContextMenu: openContextMenu
+                        ) {
                             onOpen(video)
                         }
                         .frame(
@@ -574,8 +608,8 @@ private struct CompleteLibraryEpisodeGrid: View {
 }
 
 private struct LibraryEpisodeCard: View {
-    @EnvironmentObject private var appState: AppCoordinator
     let video: CompleteLibraryVideoPresentation
+    let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
@@ -682,19 +716,19 @@ private struct LibraryEpisodeCard: View {
     private var episodeContextMenuItems: [LibraryCardContextMenuItem] {
         [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
-                appState.revealFile(atPath: video.videoPath)
+                actions.revealFile(video.videoPath)
             },
             LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
-                appState.markLibraryVideo(video.libraryVideo, as: .finished)
+                actions.markVideo(video.libraryVideo, .finished)
             },
             LibraryCardContextMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
-                appState.markLibraryVideo(video.libraryVideo, as: .unwatched)
+                actions.markVideo(video.libraryVideo, .unwatched)
             },
             LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
-                appState.markLibraryVideo(video.libraryVideo, as: .watching)
+                actions.markVideo(video.libraryVideo, .watching)
             },
             LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
-                appState.openLibraryVideoContext(video.libraryVideo, displayTitle: displayTitle)
+                actions.openVideoContext(video.libraryVideo, displayTitle)
             }
         ]
     }
@@ -840,6 +874,9 @@ private struct LibraryCardContextMenuHost<Content: View>: View {
                     }
                     .zIndex(1000)
                     .onPreferenceChange(LibraryCardContextMenuSizePreferenceKey.self) { newSize in
+                        guard menuSize != newSize else {
+                            return
+                        }
                         menuSize = newSize
                     }
                 }

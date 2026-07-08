@@ -2,13 +2,13 @@ import SwiftUI
 
 struct PlaybackVolumeControl: View {
     @ObservedObject var viewModel: PlaybackViewModel
-    var suppressesInteraction = false
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
     @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 0) {
             Button {
-                guard !suppressesInteraction else {
+                guard !timeline.isScrubbing else {
                     return
                 }
                 viewModel.toggleMute()
@@ -51,18 +51,18 @@ struct PlaybackVolumeControl: View {
         .background(
             PlaybackCinematicBacking(
                 shape: RoundedRectangle(cornerRadius: PlaybackChromeMetrics.capsuleButtonHeight / 2),
-                isHovered: !suppressesInteraction && isHovered,
+                isHovered: !timeline.isScrubbing && isHovered,
                 scaleX: isHovered ? 0.96 : 0.85,
                 scaleY: 0.85
             )
         )
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.22)) {
-                isHovered = suppressesInteraction ? false : hovering
+                isHovered = timeline.isScrubbing ? false : hovering
             }
         }
-        .onChange(of: suppressesInteraction) { isSuppressed in
-            if isSuppressed {
+        .onChange(of: timeline.isScrubbing) { isScrubbing in
+            if isScrubbing {
                 withAnimation(.easeInOut(duration: 0.22)) {
                     isHovered = false
                 }

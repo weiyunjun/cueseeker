@@ -2,19 +2,28 @@ import SwiftUI
 
 struct PlaybackProgressScrubber: View {
     @ObservedObject var viewModel: PlaybackViewModel
-    @Binding var scrubTime: Double?
-    var onScrubbingChanged: (Bool) -> Void = { _ in }
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
+    @ObservedObject private var scrubTimeStore: PlaybackTimelineScrubTimeStore
     @State private var isHovered = false
     @State private var isDragging = false
     @State private var hoverX: CGFloat? = nil
     @State private var isHoveringScrubber = false
     @State private var tooltipWidth: CGFloat = PlaybackChromeMetrics.progressTimeCapsuleMinWidth
 
+    init(
+        viewModel: PlaybackViewModel,
+        timeline: PlaybackTimelineInteractionStore
+    ) {
+        self.viewModel = viewModel
+        self.timeline = timeline
+        _scrubTimeStore = ObservedObject(wrappedValue: timeline.scrubTimeStore)
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let duration = max(0, viewModel.duration)
-            let isScrubbing = scrubTime != nil
-            let displayTime = scrubTime ?? viewModel.displayedCurrentTime
+            let isScrubbing = scrubTimeStore.scrubTime != nil
+            let displayTime = scrubTimeStore.scrubTime ?? viewModel.displayedCurrentTime
             let progress = duration > 0
                 ? min(max(displayTime / duration, 0), 1)
                 : 0
@@ -26,7 +35,7 @@ struct PlaybackProgressScrubber: View {
 
             let targetX = isScrubbing ? filledWidth : hoverX
             let tooltipTime: Double = {
-                if let scrubTime {
+                if let scrubTime = scrubTimeStore.scrubTime {
                     return scrubTime
                 }
                 if let hoverX = hoverX {
@@ -80,7 +89,7 @@ struct PlaybackProgressScrubber: View {
                             return
                         }
                         let targetTime = seekTime(for: value.location.x, width: width, duration: duration)
-                        scrubTime = targetTime
+                        scrubTimeStore.scrubTime = targetTime
                         viewModel.updateTimelineScrubbing(to: targetTime)
                     }
                     .onEnded { value in
@@ -90,7 +99,7 @@ struct PlaybackProgressScrubber: View {
                             return
                         }
                         let finalTime = seekTime(for: value.location.x, width: width, duration: duration)
-                        scrubTime = finalTime
+                        scrubTimeStore.scrubTime = finalTime
                         viewModel.endTimelineScrubbing(to: finalTime)
                         endScrubbingIfNeeded()
                     }
@@ -146,7 +155,7 @@ struct PlaybackProgressScrubber: View {
 
         isDragging = true
         viewModel.beginTimelineScrubbing()
-        onScrubbingChanged(true)
+        timeline.isScrubbing = true
     }
 
     private func endScrubbingIfNeeded() {
@@ -155,8 +164,8 @@ struct PlaybackProgressScrubber: View {
         }
 
         isDragging = false
-        scrubTime = nil
-        onScrubbingChanged(false)
+        scrubTimeStore.scrubTime = nil
+        timeline.isScrubbing = false
     }
 
     private func seekTime(for xPosition: CGFloat, width: CGFloat, duration: Double) -> Double {

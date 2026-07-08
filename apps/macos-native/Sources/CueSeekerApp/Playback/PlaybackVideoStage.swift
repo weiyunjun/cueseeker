@@ -63,6 +63,7 @@ struct PlaybackVideoStage: View {
                 if let viewModel = playback.playbackViewModel {
                     PlaybackChromeView(
                         viewModel: viewModel,
+                        timeline: playback.timeline,
                         controls: .appState(
                             appState,
                             snapshot: chromeSnapshot,

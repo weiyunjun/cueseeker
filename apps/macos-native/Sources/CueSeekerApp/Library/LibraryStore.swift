@@ -19,4 +19,5 @@ final class LibraryStore: ObservableObject {
     @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?
     var libraryPlaybackNavigationVideos: [LibraryVideo] = []
+    var hasDeferredPlaybackHistoryPresentationRefresh = false
 }
