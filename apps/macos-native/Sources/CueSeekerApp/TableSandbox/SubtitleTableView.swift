@@ -2167,6 +2167,11 @@ struct SubtitleTableView: NSViewRepresentable {
                     if isMenuOpen {
                         dismissMenu(recalculateHover: false)
                     }
+                    let invalidatedRows = [
+                        hoveredRow,
+                        hoveredCueTextRow,
+                        hoveredRowActionRow,
+                    ]
                     hoveredRow = nil
                     hoveredColumnID = nil
                     hoveredCueTextRow = nil
@@ -2175,7 +2180,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     invalidateDocumentCursorRects()
                     buttonsHost?.isHidden = true
                     layoutHoverButtons()
-                    documentView?.needsDisplay = true
+                    invalidateRows(invalidatedRows)
                     headerView?.refreshHeaderHosts()
                 } else {
                     invalidateDocumentCursorRects()
@@ -2340,6 +2345,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
+            let tableChanged = tableName != self.tableName
             self.tableName = tableName
             self.rowProvider = rowProvider
             let dateAddedChanged = dateAddedHeader != self.dateAddedHeader
@@ -2382,10 +2388,12 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onRemoveShiori = onRemoveShiori
 
             let nextRowCount = max(0, rowCount)
-            let changed = nextRowCount != self.rowCount || rowsVersion != self.rowsVersion
+            let rowCountChanged = nextRowCount != self.rowCount
+            let rowsVersionChanged = rowsVersion != self.rowsVersion
+            let rowsChanged = rowCountChanged || rowsVersionChanged
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
-            if changed || shouldResetScroll {
+            if rowsChanged || shouldResetScroll {
                 lastNotifiedVisibleRows = nil
             }
             if let focusedCheckboxRow, focusedCheckboxRow >= nextRowCount {
@@ -2398,9 +2406,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || timeColumnChanged || languageColumnChanged || speakerColumnChanged || columnOrderChanged
             let headerTitleChanged = dateAddedChanged || displayTitleChanged || timeChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged
+            let needsDocumentResize = tableChanged || rowsChanged || columnVisibilityChanged
 
-            resizeDocument()
-            if changed || columnVisibilityChanged {
+            if needsDocumentResize {
+                resizeDocument()
+            }
+            if rowsChanged || columnVisibilityChanged {
                 if isMenuOpen {
                     repositionOpenMenu()
                 }
@@ -2411,16 +2422,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 } else {
                     scrollToTop()
                 }
-            } else if changed || columnVisibilityChanged {
-                notifyVisibleRowsChanged(force: changed)
+            } else if rowsChanged || columnVisibilityChanged {
+                notifyVisibleRowsChanged(force: rowsChanged)
             }
-            if changed || columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged {
+            if tableChanged || rowsChanged || columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged {
                 headerView?.refreshHeaderHosts()
             }
-            headerView?.needsDisplay = true
-            documentView?.needsDisplay = true
-            invalidateDocumentCursorRects()
-            layoutHoverButtons()
+            if columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged {
+                headerView?.needsDisplay = true
+            }
+            invalidateRows(for: rowsUpdate, rowsChanged: rowsChanged)
+            if needsDocumentResize || columnVisibilityChanged || headerTitleChanged || shouldResetScroll {
+                invalidateDocumentCursorRects()
+                layoutHoverButtons()
+            }
         }
 
         func dateAddedHeaderForRendering() -> String {
@@ -2644,6 +2659,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func notifyVisibleRowsChanged(force: Bool = false) {
+            guard !isExternalPopupLayerOpen else { return }
             guard let range = visibleRowRange() else { return }
             guard force || range != lastNotifiedVisibleRows else { return }
             lastNotifiedVisibleRows = range
@@ -3768,6 +3784,18 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let documentView else { return }
             for row in rows.compactMap({ $0 }) where row >= 0 && row < rowCount {
                 documentView.setNeedsDisplay(rectForRow(row, width: documentView.bounds.width))
+            }
+        }
+
+        private func invalidateRows(for rowsUpdate: TableSandboxRowsUpdate, rowsChanged: Bool) {
+            guard rowsChanged else { return }
+            switch rowsUpdate {
+            case .none:
+                break
+            case .append(let range):
+                invalidateRows(range.map { Optional($0) })
+            case .reload:
+                documentView?.needsDisplay = true
             }
         }
 

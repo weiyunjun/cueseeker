@@ -678,6 +678,58 @@ func subtitleTableViewScrollsToTargetRowOnReset() {
 
 @MainActor
 @Test
+func subtitleTableViewDoesNotRedrawForCallbackOnlyUpdates() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 900)
+    fixture.header.needsDisplay = false
+    fixture.documentView.needsDisplay = false
+
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: 100,
+        rowProvider: { _ in nil },
+        rowsVersion: 1,
+        rowsUpdate: .none,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    #expect(fixture.header.needsDisplay == false)
+    #expect(fixture.documentView.needsDisplay == false)
+}
+
+@MainActor
+@Test
+func subtitleTableViewSuppressesVisibleRowNotificationsWhenExternalLayerIsOpen() {
+    var visibleRowNotifications = 0
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 900,
+        onVisibleRowsChange: { _ in
+            visibleRowNotifications += 1
+        }
+    )
+
+    visibleRowNotifications = 0
+    fixture.coordinator.isExternalPopupLayerOpen = true
+    fixture.coordinator.notifyVisibleRowsChanged(force: true)
+
+    #expect(visibleRowNotifications == 0)
+
+    fixture.coordinator.isExternalPopupLayerOpen = false
+    fixture.coordinator.notifyVisibleRowsChanged(force: true)
+
+    #expect(visibleRowNotifications == 1)
+}
+
+@MainActor
+@Test
 func subtitleTableViewProvidesInteractiveCellCursorRectsForContentHoverRegions() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
@@ -791,6 +843,7 @@ private func makeAttachedVirtualTableCoordinator(
     width: CGFloat = 900,
     showsDateAddedColumn: Bool = false,
     showsTimeColumn: Bool = false,
+    onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
     onOpenSubtitleFile: @escaping (String) -> Void = { _ in }
@@ -823,7 +876,7 @@ private func makeAttachedVirtualTableCoordinator(
         showsTimeColumn: showsTimeColumn,
         showsLanguageColumn: true,
         showsSpeakerColumn: true,
-        onVisibleRowsChange: { _ in },
+        onVisibleRowsChange: onVisibleRowsChange,
         isRowSelected: { _ in false },
         onToggleRowSelection: onToggleRowSelection,
         onPlay: onPlay,

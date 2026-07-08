@@ -25,6 +25,7 @@ private struct WorkbenchShioriTableContent: View {
     @State private var pendingRemoval: Shiori?
     @State private var collageAvailabilityGeneration = 0
     @State private var canExportSelectedRowsAsCollage = false
+    @State private var hasDeferredReloadWhileCovered = false
 
     private static let continuousPageSize = 1_000
 
@@ -109,6 +110,13 @@ private struct WorkbenchShioriTableContent: View {
         .onChange(of: shioriStore.tableFilterRules) { _ in
             reloadRows(resetScroll: true)
         }
+        .onChange(of: appState.isPlaybackPageVisible) { isVisible in
+            if isVisible {
+                resetContinuousRowLoading()
+            } else {
+                resumeDeferredTableResponse()
+            }
+        }
         .onDisappear { resetContinuousRowLoading() }
     }
 
@@ -173,7 +181,17 @@ private struct WorkbenchShioriTableContent: View {
         visibleColumns.first { $0.id == id }?.title ?? fallback
     }
 
+    private var allowsTableResponse: Bool {
+        !appState.isPlaybackPageVisible
+    }
+
     private func loadInitialRowsIfNeeded() {
+        guard allowsTableResponse else {
+            if !shioriStore.tableHasLoadedInitialPage {
+                hasDeferredReloadWhileCovered = true
+            }
+            return
+        }
         guard !shioriStore.tableHasLoadedInitialPage else {
             loadNextContinuousRowsIfNeeded(generation: continuousLoadGeneration)
             return
@@ -188,6 +206,11 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func reloadRows(resetScroll: Bool) {
+        guard allowsTableResponse else {
+            hasDeferredReloadWhileCovered = true
+            resetContinuousRowLoading()
+            return
+        }
         reloadGeneration += 1
         let generation = reloadGeneration
         resetContinuousRowLoading()
@@ -201,13 +224,16 @@ private struct WorkbenchShioriTableContent: View {
         }
 
         Task { @MainActor in
+            guard allowsTableResponse else { return }
             guard let page = await loadRows(range: 0..<TableSandboxHydrationPaging.pageSize) else {
                 guard generation == reloadGeneration else { return }
                 shioriStore.markTableRowsLoaded(totalSavedRowCount: 0)
                 return
             }
 
-            guard generation == reloadGeneration else {
+            guard allowsTableResponse,
+                  generation == reloadGeneration
+            else {
                 return
             }
             applyHydrationPage(page)
@@ -217,6 +243,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
+        guard allowsTableResponse else { return }
         lastVisibleRows = visibleRows
         guard visibleRows.upperBound >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize else {
             return
@@ -240,6 +267,7 @@ private struct WorkbenchShioriTableContent: View {
 
     private func loadNextContinuousRowsIfNeeded(generation: Int) {
         guard generation == continuousLoadGeneration,
+              allowsTableResponse,
               !isLoadingContinuousRows
         else {
             return
@@ -253,7 +281,9 @@ private struct WorkbenchShioriTableContent: View {
         let range = loadedRowCount..<upperBound
 
         Task { @MainActor in
+            guard allowsTableResponse else { return }
             guard let page = await loadRows(range: range),
+                  allowsTableResponse,
                   generation == continuousLoadGeneration
             else {
                 if generation == continuousLoadGeneration {
@@ -267,6 +297,16 @@ private struct WorkbenchShioriTableContent: View {
             if appended {
                 loadNextContinuousRowsIfNeeded(generation: generation)
             }
+        }
+    }
+
+    private func resumeDeferredTableResponse() {
+        guard allowsTableResponse else { return }
+        if hasDeferredReloadWhileCovered {
+            hasDeferredReloadWhileCovered = false
+            reloadRows(resetScroll: false)
+        } else {
+            loadInitialRowsIfNeeded()
         }
     }
 

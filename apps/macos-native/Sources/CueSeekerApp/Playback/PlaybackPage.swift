@@ -7,7 +7,6 @@ struct PlaybackPageView: View {
     @ObservedObject var appState: AppCoordinator
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
-    @EnvironmentObject private var search: SearchStore
 
     var body: some View {
         GeometryReader { geometry in
@@ -41,61 +40,79 @@ struct PlaybackPageView: View {
     @ViewBuilder
     private func quickSearchOverlay(in size: CGSize) -> some View {
         let visible = playback.isQuickSearchOverlayVisible
-        let overlayWidth = min(860, max(280, size.width - 64))
-        let overlayTop = min(max(58, size.height * 0.18 - 37), 113)
-        let submittedQuery = playback.quickSearchSubmittedQuery
-        let trimmedSearchQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let overlayResults = submittedQuery == trimmedSearchQuery ? search.searchResults : []
 
         if visible {
-            PlaybackQuickSearchOverlay(
-                draft: $playback.quickSearchDraft,
-                isFocused: $playback.isQuickSearchFocused,
-                forcedTextUpdateID: playback.quickSearchForcedTextUpdateID,
-                focusRequestID: playback.quickSearchFocusRequestID,
-                submittedQuery: submittedQuery,
-                results: overlayResults,
-                selectedResultIndex: playback.quickSearchSelectedResultIndex,
-                isSearching: search.isSearching,
-                currentSentence: playback.quickSearchCurrentSentence,
-                aiState: playback.quickSearchAIState,
-                selectedChunkCountState: playback.quickSearchSelectedChunkCountState,
-                navigationState: playback.quickSearchNavigationState,
-                focusTarget: playback.quickSearchFocusTarget,
-                onSubmit: {
-                    appState.submitPlaybackQuickSearchFromUser()
-                },
-                onClear: {
-                    playback.setQuickSearchDraft("")
-                },
-                onRequestFocus: {
-                    playback.requestQuickSearchFocus()
-                },
-                onMoveUp: {
-                    appState.movePlaybackQuickSearchFocus(by: -1)
-                },
-                onMoveDown: {
-                    appState.movePlaybackQuickSearchFocus(by: 1)
-                },
-                onMoveLeft: {
-                    appState.movePlaybackQuickSearchOptionRowSelection(by: -1)
-                },
-                onMoveRight: { _ in
-                    appState.movePlaybackQuickSearchOptionRowSelection(by: 1)
-                },
-                onOpenResult: { result in
-                    appState.openPlaybackQuickSearchResult(result)
-                },
-                onResultAppear: { result in
-                    appState.markSearchResultVisible(result)
-                    appState.loadMoreSearchResultsIfNeeded(currentResult: result)
-                }
-            )
-            .frame(width: overlayWidth)
-            .padding(.top, overlayTop)
+            PlaybackQuickSearchOverlayHost(appState: appState, size: size)
             .transition(.opacity.combined(with: .scale(scale: 0.98)).combined(with: .offset(y: 8)))
             .animation(.easeInOut(duration: 0.16), value: visible)
         }
     }
 
+}
+
+private struct PlaybackQuickSearchOverlayHost: View {
+    @ObservedObject var appState: AppCoordinator
+    let size: CGSize
+    @EnvironmentObject private var playback: PlaybackStore
+    @EnvironmentObject private var search: SearchStore
+
+    var body: some View {
+        let submittedQuery = playback.quickSearchSubmittedQuery
+        let trimmedSearchQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let overlayResults = submittedQuery == trimmedSearchQuery ? search.searchResults : []
+
+        PlaybackQuickSearchOverlay(
+            draft: $playback.quickSearchDraft,
+            isFocused: $playback.isQuickSearchFocused,
+            forcedTextUpdateID: playback.quickSearchForcedTextUpdateID,
+            focusRequestID: playback.quickSearchFocusRequestID,
+            submittedQuery: submittedQuery,
+            results: overlayResults,
+            selectedResultIndex: playback.quickSearchSelectedResultIndex,
+            isSearching: search.isSearching,
+            currentSentence: playback.quickSearchCurrentSentence,
+            aiState: playback.quickSearchAIState,
+            selectedChunkCountState: playback.quickSearchSelectedChunkCountState,
+            navigationState: playback.quickSearchNavigationState,
+            focusTarget: playback.quickSearchFocusTarget,
+            onSubmit: {
+                appState.submitPlaybackQuickSearchFromUser()
+            },
+            onClear: {
+                playback.setQuickSearchDraft("")
+            },
+            onRequestFocus: {
+                playback.requestQuickSearchFocus()
+            },
+            onMoveUp: {
+                appState.movePlaybackQuickSearchFocus(by: -1)
+            },
+            onMoveDown: {
+                appState.movePlaybackQuickSearchFocus(by: 1)
+            },
+            onMoveLeft: {
+                appState.movePlaybackQuickSearchOptionRowSelection(by: -1)
+            },
+            onMoveRight: { _ in
+                appState.movePlaybackQuickSearchOptionRowSelection(by: 1)
+            },
+            onOpenResult: { result in
+                appState.openPlaybackQuickSearchResult(result)
+            },
+            onResultAppear: { result in
+                appState.markSearchResultVisible(result)
+                appState.loadMoreSearchResultsIfNeeded(currentResult: result)
+            }
+        )
+        .frame(width: overlayWidth)
+        .padding(.top, overlayTop)
+    }
+
+    private var overlayWidth: CGFloat {
+        min(860, max(280, size.width - 64))
+    }
+
+    private var overlayTop: CGFloat {
+        min(max(58, size.height * 0.18 - 37), 113)
+    }
 }

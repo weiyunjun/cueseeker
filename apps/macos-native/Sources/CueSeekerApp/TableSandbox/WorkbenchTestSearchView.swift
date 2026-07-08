@@ -29,6 +29,7 @@ struct WorkbenchTestSearchView: View {
     @State private var isLoadingCueContextRows = false
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
+    @State private var hasDeferredRefreshWhileCovered = false
 
     private static let continuousPageSize = 1_000
 
@@ -169,6 +170,13 @@ struct WorkbenchTestSearchView: View {
             }
             _ = applyCueContextSearchRequest(request)
         }
+        .onChange(of: appState.isPlaybackPageVisible) { isVisible in
+            if isVisible {
+                resetCoveredTableLoading()
+            } else {
+                resumeDeferredTableResponse()
+            }
+        }
         .onDisappear {
             resetContinuousRowLoading()
         }
@@ -193,8 +201,16 @@ struct WorkbenchTestSearchView: View {
             && search.activeFilterSet.isEffectivelyEmpty
     }
 
+    private var allowsTableResponse: Bool {
+        !appState.isPlaybackPageVisible
+    }
+
     @discardableResult
     private func applyCueContextSearchRequest(_ request: CueContextSearchRequest) -> Bool {
+        guard allowsTableResponse else {
+            hasDeferredRefreshWhileCovered = true
+            return false
+        }
         guard lastHandledCueContextRequestID != request.id else {
             return false
         }
@@ -343,6 +359,10 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
+        guard allowsTableResponse else {
+            hasDeferredRefreshWhileCovered = true
+            return
+        }
         rowStore.updateSearchRows(
             results,
             totalRowCount: results.count,
@@ -353,6 +373,11 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func clearTableRows(resetScroll: Bool) {
+        guard allowsTableResponse else {
+            hasDeferredRefreshWhileCovered = true
+            resetCoveredTableLoading()
+            return
+        }
         let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
         resetContinuousRowLoading()
         resetCueContextWindow()
@@ -387,6 +412,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
+        guard allowsTableResponse else { return }
         lastVisibleRows = visibleRows
         if activeCueContextRequest != nil {
             loadCueContextAdjacentRowsIfNeeded(generation: cueContextLoadGeneration)
@@ -413,8 +439,36 @@ struct WorkbenchTestSearchView: View {
         isLoadingCueContextRows = false
     }
 
+    private func resetCoveredTableLoading() {
+        resetContinuousRowLoading()
+        cueContextLoadGeneration += 1
+        isLoadingCueContextRows = false
+    }
+
+    private func resumeDeferredTableResponse() {
+        guard allowsTableResponse, hasDeferredRefreshWhileCovered else { return }
+        hasDeferredRefreshWhileCovered = false
+        refreshTableForCurrentState()
+    }
+
+    private func refreshTableForCurrentState() {
+        if let request = search.cueContextSearchRequest,
+           applyCueContextSearchRequest(request) {
+            return
+        }
+
+        if showsSearchEmptyHint {
+            clearTableRows(resetScroll: false)
+        } else if isFilterOnlyMode {
+            loadAllCueRows(resetScroll: false)
+        } else {
+            updateRows(search.searchResults)
+        }
+    }
+
     private func loadNextContinuousRowsIfNeeded(generation: Int) {
         guard generation == continuousLoadGeneration,
+              allowsTableResponse,
               !isLoadingContinuousRows,
               isFilterOnlyMode,
               activeCueContextRequest == nil
@@ -431,8 +485,15 @@ struct WorkbenchTestSearchView: View {
         let range = loadedRowCount..<upperBound
 
         Task { @MainActor in
+            guard allowsTableResponse else {
+                if generation == continuousLoadGeneration {
+                    isLoadingContinuousRows = false
+                }
+                return
+            }
             guard let page = await appState.loadTableSandboxAllCueRows(range: range),
                   generation == continuousLoadGeneration,
+                  allowsTableResponse,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   activeCueContextRequest == nil,
                   search.activeFilterSetSignature == appliedFilterSignature
@@ -470,6 +531,11 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func loadAllCueRows(resetScroll: Bool) {
+        guard allowsTableResponse else {
+            hasDeferredRefreshWhileCovered = true
+            resetCoveredTableLoading()
+            return
+        }
         activeCueContextRequest = nil
         tableScrollTargetRow = nil
         resetCueContextWindow()
@@ -483,6 +549,7 @@ struct WorkbenchTestSearchView: View {
         }
 
         Task { @MainActor in
+            guard allowsTableResponse else { return }
             guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 return
             }
@@ -495,6 +562,7 @@ struct WorkbenchTestSearchView: View {
                 rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
                 return
             }
+            guard allowsTableResponse else { return }
             appState.applyTableSandboxAllCueSearchContext(page)
             rowStore.updateSearchRows(
                 page.results,
@@ -511,7 +579,12 @@ struct WorkbenchTestSearchView: View {
         filterSignature: String,
         generation: Int
     ) {
+        guard allowsTableResponse else {
+            hasDeferredRefreshWhileCovered = true
+            return
+        }
         Task { @MainActor in
+            guard allowsTableResponse else { return }
             guard let page = await appState.loadCueContextSearchPage(
                 request: request,
                 range: 0..<TableSandboxHydrationPaging.pageSize,
@@ -523,6 +596,7 @@ struct WorkbenchTestSearchView: View {
             }
 
             guard generation == cueContextLoadGeneration,
+                  allowsTableResponse,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   search.activeFilterSetSignature == filterSignature
             else {
@@ -561,6 +635,7 @@ struct WorkbenchTestSearchView: View {
         preferredDirection: CueContextLoadDirection? = nil
     ) {
         guard generation == cueContextLoadGeneration,
+              allowsTableResponse,
               activeCueContextRequest != nil,
               let sourceRange = cueContextLoadedSourceRange,
               cueContextTotalRowCount > 0,
@@ -607,6 +682,7 @@ struct WorkbenchTestSearchView: View {
         scrollAnchor: CueContextScrollAnchor
     ) {
         guard generation == cueContextLoadGeneration,
+              allowsTableResponse,
               let request = activeCueContextRequest,
               let sourceRange = cueContextLoadedSourceRange,
               !isLoadingCueContextRows
@@ -633,12 +709,19 @@ struct WorkbenchTestSearchView: View {
         isLoadingCueContextRows = true
 
         Task { @MainActor in
+            guard allowsTableResponse else {
+                if generation == cueContextLoadGeneration {
+                    isLoadingCueContextRows = false
+                }
+                return
+            }
             guard let page = await appState.loadCueContextSearchPage(
                 request: request,
                 range: range,
                 anchorsInitialPage: false
             ),
                 generation == cueContextLoadGeneration,
+                allowsTableResponse,
                 activeCueContextRequest?.id == request.id,
                 search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 search.activeFilterSetSignature == filterSignature
