@@ -1246,17 +1246,55 @@ Speaker Background: --color-chip-speaker-bg
 Speaker Text: --color-chip-speaker-text
 Language Background: --color-chip-language-bg
 Language Text: --color-chip-language-text
+Shiori Tag Background: --color-bg-hover
+Shiori Tag Text: --color-text-secondary
 Disabled Background: --color-bg-disabled
 Disabled Text: --color-text-disabled
+Remove Button Icon: x
+Remove Button Icon Color Default: --color-icon-muted
+Remove Button Icon Color Hover: --color-danger-text
+Remove Button Background Hover: --color-danger-bg-hover
+Non-removable Layout: [label]
+Removable Layout: [label | x]
 
 #### Status
 Speaker / Default
 Language / Default
 Speaker / Disabled
 Language / Disabled
+Shiori Tag / Default
+Shiori Tag / Hover
+Shiori Tag / Removable
+Shiori Tag Remove Button / Hover
+Shiori Tag / Disabled
 
 #### Cursor
-default
+Default: default
+Interactive Tag Body: pointer
+Remove Button: pointer
+Disabled: default
+
+#### Interaction
+Non-removable Tag: display label only; no x button
+Removable Tag: display label and x remove button
+Tag Body Click: delegated to the owning layout
+Remove Button Click: delegated to the owning layout
+Remove Button Hit Area: only the x button; must not trigger tag body click
+
+#### Refresh Scope
+Owner:
+- Direct chip owner: table cell, tag popover section, or dialog command target.
+
+Allowed invalidation:
+- Chip hover may update only the hovered chip.
+- Remove button hover may update only the hovered remove button.
+- Tag body click may execute only the action declared by the owning layout.
+- Remove button click may execute only the remove or delete action declared by the owning layout.
+
+Forbidden invalidation:
+- Chip hover must not reload table rows or rebuild table snapshots.
+- Remove button hover must not update row selection, Search, Shiori, Library, or Playback state.
+- Remove button click must not also trigger tag body click.
 
 ### 2.23 Count Summary
 
@@ -1794,6 +1832,68 @@ Disabled
 #### Cursor
 Not specified in image
 
+### 2.43 Tag Composer Field
+
+#### Container
+Background: --color-bg-popover
+Border: none
+Padding X: --spacing-3
+Padding Y: --spacing-3
+Gap X: --spacing-2
+Gap Y: --spacing-2
+Layout: horizontal wrap
+Align Items: center
+Min Height: fit-content
+
+#### Content
+Tags: Chip / Tag
+Tag Layout: removable Chip / Tag using [label | x]
+Inline Text Input:
+  Background: transparent
+  Border: none
+  Focus Ring: none
+  Font Family: --font-family-base
+  Font Size: --font-size-body
+  Text Color: --color-text-primary
+  Placeholder Text Color: --color-text-placeholder
+  Width: flexible inline width
+  Min Width: enough for text caret and short input
+  Search Icon: none
+  Clear Button: none
+
+#### Status
+Empty
+Focused Empty
+Typing
+Filled With Tags
+Filled With Tags And Typing
+Disabled
+
+#### Cursor
+Tag Body: delegated to owning layout
+Tag x Button: pointer
+Inline Text Input: text
+
+#### Interaction
+Typing: update owning layout's local query state
+Tag Body Click: delegated to owning layout
+Tag x Click: delegated to owning layout
+Click Empty Composer Area: focus Inline Text Input
+
+#### Refresh Scope
+Owner:
+- Owning tag composer layout.
+
+Allowed invalidation:
+- Typing may update only the inline input value and owning layout's local matching results.
+- Tag hover may update only the hovered tag.
+- Tag x hover may update only the hovered x button.
+- Focus changes may update only the composer field and owning popover focus state.
+
+Forbidden invalidation:
+- Typing, focus, hover, and local measurement must not reload table rows or rebuild table snapshots.
+- Local input state must not be written into SearchStore, ShioriStore, LibraryStore, or PlaybackStore.
+
 ## 3. Layout
 
 ### 3.1 Recent Watching Card Layout
@@ -2101,7 +2201,7 @@ Rows: Table Row
 Selection: Row Selection Checkbox
 Text Cell: Interactive Text Cell
 Tags: Chip / Tag
-Cell Actions: left-click default actions and right-click Row Action Menu from interactive cell hover regions
+Cell Actions: left-click default actions, Shiori Tags popover, and right-click Row Action Menu from declared interactive cell hover regions
 Scrollbar: Table Scrollbar
 Empty State: Empty Hint
 
@@ -2117,6 +2217,7 @@ Shiori Columns:
   Cues
   Time
   Date Added
+  Tags
 
 Column Widths:
   Selection:
@@ -2134,6 +2235,11 @@ Column Widths:
   Date Added:
     Applies To: Shiori
     Width: 160pt
+    Fixed: yes
+
+  Tags:
+    Applies To: Shiori
+    Width: 180pt
     Fixed: yes
 
   Cues:
@@ -2162,6 +2268,11 @@ Column Visual Priority:
     Font Weight: 500
     Numeric Variant: tabular-nums
 
+  Tags:
+    Role: user tag metadata
+    Applies To: Shiori
+    Cell Content: Chip / Tag
+
   Time:
     Role: metadata
     Applies To: Search / Shiori
@@ -2185,6 +2296,17 @@ Cues Column:
   Left Click Behavior: play video
   Right Click Behavior: open Row Action Menu
 
+Tags Column:
+  Applies To: Shiori
+  Identifier: tags
+  Label: Tags
+  Source: tags associated with the Shiori cue
+  Cell Content: horizontally tiled Chip / Tag items
+  Cell Tags: non-removable; do not show x button
+  Cell Hover: one rounded rectangle around visible tag content union bounds using --color-bg-hover
+  Left Click Behavior: open Shiori Tag Popover Layout
+  Right Click Behavior: no action
+
 Search Empty Hint:
   Text: Enter a search term or add filters to show cues.
   Condition: no search term and no effective filter condition
@@ -2201,7 +2323,7 @@ Cell Content: hover shows one rounded rectangle around visible text / content un
 Cell Content Hit Testing: hover, pointer, underline, left-click action, and right-click menu use the same Cell Content hover region
 Non-hover Cell Area Left Click: toggle row checkbox selection
 Non-hover Cell Area Right Click: no cell action menu
-Interactive Cell Hover: pointer cursor and underline for Display Title, Cues, Time, and Date Added
+Interactive Cell Hover: pointer cursor for Display Title, Cues, Time, Date Added, and Tags; underline for Display Title, Cues, Time, and Date Added only
 Cues Cell Left Click: Play
 Cues Cell Right Click: open Cues Row Action Menu
 Display Title Cell Left Click: Open Folder
@@ -2210,6 +2332,9 @@ Time Cell Left Click: Copy Text
 Time Cell Right Click: open Time Cell Action Menu
 Date Added Cell Left Click: Copy Text
 Date Added Cell Right Click: open Date Added Cell Action Menu
+Tags Cell Left Click: open Shiori Tag Popover Layout
+Tags Cell Right Click: no action
+Tags Cell Table Chips: non-removable; no x button
 Other Data Cells: reserved for future cell menus; no action defined yet
 View Menu: Cues is checked + disabled; other data columns can be hidden
 Cues Row Action Menu: Play / Context / Copy Cue Text
@@ -2233,7 +2358,7 @@ Inherited from child components
 #### Refresh Scope
 Owner:
 - Search / Shiori table surface.
-- Table document, header, scrollbar, selection, and menu subregions own their own local rendering.
+- Table document, header, scrollbar, selection, tag popover, and menu subregions own their own local rendering.
 
 Allowed invalidation:
 - Search or Shiori row snapshot changes may update table rows and table summary.
@@ -2241,11 +2366,16 @@ Allowed invalidation:
 - Filter or submitted search changes may reload the owning table data.
 - Visible-row changes may request additional rows only for the owning table.
 - Row action menus may update only the active row, active menu, and menu overlay.
+- Tags cell popover open / close may update only the active row, active Tags cell trigger, popover overlay, focus state, and dismiss monitor.
+- Adding, creating, or removing a tag association for the current Shiori may update only the current row's Tags cell and the open tag popover.
+- Confirmed global tag deletion may update only the open tag popover and visible Shiori Tags cells whose cue used the deleted tag.
 
 Forbidden invalidation:
-- Table hover, cursor, focus, menu-open, and scrollbar interactions must not invalidate SearchView, App Sidebar, App Topbar, Playback Page, or Playback render host.
+- Table hover, cursor, focus, menu-open, tag popover open, tag popover hover, tag popover typing, and scrollbar interactions must not invalidate SearchView, App Sidebar, App Topbar, Playback Page, or Playback render host.
 - Search table updates must not invalidate Shiori or Library surfaces.
 - Shiori table updates must not invalidate Search or Library surfaces.
+- Tag popover typing and hover must not reload table rows, rebuild table snapshots, or start background row hydration.
+- Tag association changes must not rebuild the full table snapshot when the current or affected visible Tags cells can be patched.
 - Background row hydration must not run while the owning table surface is not allowed to respond to interaction.
 
 ### 3.8 App Sidebar Layout
@@ -2446,10 +2576,25 @@ Destructive Action Button:
   Base Component: Destructive Button
   Text: Remove
 
+#### Delete Tag Content
+Title: Delete Tag
+Message: Are you sure you want to delete this tag? This will remove the tag from all cues. This action cannot be undone.
+Cancel Action Button:
+  Base Component: Neutral Button
+  Text: Cancel
+  Default Focus: yes
+Destructive Action Button:
+  Base Component: Destructive Button
+  Text: Delete
+  Text Color: --color-danger-text
+  Hover Background: --color-danger-bg-hover
+
 #### Interaction
 Default Focus: Cancel Action Button
 Cancel Action: close dialog without changes
-Remove Action: remove the Shiori row, close dialog, refresh Shiori table and selection state
+Remove Shiori Action: remove the Shiori row, close dialog, refresh Shiori table and selection state
+Delete Tag Action: delete the tag globally, close dialog, refresh the open Shiori Tag Popover and affected visible Shiori Tags cells
+Confirmed Destructive Action: execute only the requested command target
 Escape Key: same as Cancel
 Return Key: activate default focused action
 Click Outside: no action, dialog remains open
@@ -2775,6 +2920,85 @@ Allowed invalidation:
 Forbidden invalidation:
 - Progress hover and drag must not invalidate workbench surfaces.
 - Progress hover and drag must not trigger table row hydration, Search/Shiori/Library refresh, or Playback render host layout unless video geometry changes.
+
+### 3.14 Shiori Tag Popover Layout
+
+#### Structure
+Container: popover overlay
+Orientation: vertical
+Layout Sections:
+  1. Current Tags and Search
+  2. Global Tag Pool
+Dismiss: click outside popover closes the popover
+System Popover Arrow: none
+
+#### Content
+Current Tags and Search:
+  Tag Composer: Tag Composer Field
+  Tag Composer Tags: tags associated with the current Shiori cue
+  Tag Composer Tag Style: Removable Chip / Tag using [label | x]
+  Tag Composer Input: search or create tag query
+
+Global Tag Pool:
+  Hint Text: Select a tag or create one
+  Hint Text Color: --color-text-muted
+  Tags Layout: horizontal wrap
+  Tags When Input Is Empty: all existing tags
+  Tags When Input Is Not Empty: existing tags matching the current input
+  Global Tag Style: Removable Chip / Tag using [label | x]
+  Create Option Visibility: when the current input is not empty and no existing tag exactly matches it
+  Create Option Layout: horizontal row
+  Create Option Content: Create label + non-removable Chip / Tag preview using the current input text
+  Create Option Hover Background: --color-bg-hover
+
+#### Interaction
+Open Trigger: left click on a Shiori Tags cell
+Typing In Tag Composer: update local search text and Global Tag Pool matching results
+Click Matching Global Tag / Not Associated: add that tag to the current Shiori cue and clear the input
+Click Matching Global Tag / Already Associated: no action and no prompt
+Click Create Option: create the tag, add it to the current Shiori cue, and clear the input
+Current Tag Body Click: no action
+Current Tag x Click: remove only that tag association from the current Shiori cue
+Global Tag Body Click / Not Associated: add that tag to the current Shiori cue and clear the input
+Global Tag Body Click / Already Associated: no action and no prompt
+Global Tag x Click: open Confirmation Dialog Layout using Delete Tag Content
+Right Click: no action
+Escape Key: close popover
+
+#### Cursor
+Popover Background: default
+Tag Composer Inline Text Input: text
+Create Option Row: pointer
+Tag Body: pointer when the owning interaction has an action; default when no action is available
+Tag x Button: pointer
+
+#### Refresh Scope
+Owner:
+- Shiori tag popover overlay.
+- Current Shiori row Tags cell for current-cue association changes.
+- Visible Shiori Tags cells affected by confirmed global tag deletion.
+
+Allowed invalidation:
+- Popover open / close may update only the active row, active Tags cell trigger, popover overlay, focus state, and dismiss monitor.
+- Typing in Tag Composer may update only the composer input value, Global Tag Pool matching tags, and Create Option visibility.
+- Tag hover, x hover, and Create Option hover may update only the hovered tag, x button, or Create Option row.
+- Adding an existing tag may update only the current row Tags cell, Tag Composer tags, Global Tag Pool associated/no-op state, and composer input value.
+- Creating a tag may update only the current row Tags cell, Tag Composer tags, Global Tag Pool tags, and composer input value.
+- Removing a current tag association may update only the current row Tags cell and Tag Composer tags.
+- Confirmed global tag deletion may update only the open popover tag sections and visible Shiori Tags cells whose cue used the deleted tag.
+
+Forbidden invalidation:
+- Popover open, close, typing, focus, hover, and measurement must not reload Shiori table rows or rebuild the Shiori table snapshot.
+- Popover local state must not be written into SearchStore, ShioriStore, LibraryStore, or PlaybackStore unless the user confirms a data-changing command.
+- Adding, creating, removing, or deleting tags must not invalidate SearchView, Library, Playback Page, or Playback render host.
+- Confirmed global tag deletion must not rebuild the full Shiori table snapshot when affected visible Tags cells can be patched.
+- Global tag body click on an already associated tag must not publish state changes, show a prompt, reload data, or redraw unrelated rows.
+
+Probe / verification:
+- Opening the popover keeps table snapshot rebuild count at 0.
+- Typing in Tag Composer keeps table row reload count at 0.
+- Adding or removing a current tag redraws only the current visible Tags cell and the popover.
+- Confirmed global tag deletion redraws only affected visible Tags cells and the popover.
 
 ## 4. Refresh Scope Contract
 
