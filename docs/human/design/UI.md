@@ -1759,6 +1759,41 @@ Truncated
 #### Cursor
 Default
 
+### 2.42 Destructive Button
+
+#### Container
+Height: --height-control
+Radius: --radius-control
+Padding X: --padding-control-x
+Background Default: --color-danger-bg-hover
+Background Hover: --color-danger-bg-hover
+Background Disabled: --color-bg-disabled
+Border Default: transparent
+Border Hover: transparent
+Border Disabled: --color-border-disabled
+Focus Ring: --color-focus-ring + --focus-ring-width + --focus-ring-offset
+
+#### Content
+Leading Icon: optional
+Gap: --spacing-2
+Font Family: --font-family-base
+Text Size: --font-size-control
+Text Weight: --font-weight-control
+Text Color Default: --color-danger-text
+Text Color Disabled: --color-text-disabled
+Icon Size: --size-button-icon
+Icon Weight: --weight-button-icon
+Icon Color Default: --color-danger-text
+Icon Color Disabled: --color-icon-disabled
+
+#### Status
+Default
+Hover
+Disabled
+
+#### Cursor
+Not specified in image
+
 ## 3. Layout
 
 ### 3.1 Recent Watching Card Layout
@@ -2378,34 +2413,36 @@ Forbidden invalidation:
 #### Structure
 Container: modal dialog
 Orientation: vertical
-Align Items: center
+Align Items: stretch
 Backdrop: modal overlay
 Panel: centered dialog surface
+Layout Sections:
+  1. Title
+  2. Message
+  3. Actions
 
 #### Content
-Icon:
-  Source: action-specific icon
-  Size: --size-icon-button
-  Color: --color-icon-default
 Title:
   Text: action-specific title
+  Color: --color-text-primary
 Message:
   Text: action-specific message
+  Color: --color-text-muted
 Actions:
+  Alignment: trailing
+  Layout: horizontal
   Neutral Button
-  Neutral Button
+  Destructive Button
 
 #### Remove Shiori Content
-Icon: bookmark.slash
-Icon Fallback: bookmark
 Title: Remove Shiori?
 Message: This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.
-Primary Action Button:
-  Base Component: Neutral Button
-  Text: Remove
 Cancel Action Button:
   Base Component: Neutral Button
   Text: Cancel
+Destructive Action Button:
+  Base Component: Destructive Button
+  Text: Remove
 
 #### Interaction
 Default Focus: Cancel Action Button
