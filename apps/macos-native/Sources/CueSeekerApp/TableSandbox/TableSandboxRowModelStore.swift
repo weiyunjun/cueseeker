@@ -264,6 +264,71 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
     }
 
+    @discardableResult
+    func updateShioriTags(
+        _ tags: [ShioriTag],
+        forShioriID shioriID: Int64,
+        tableName _: String
+    ) -> Bool {
+        guard let rowIndex = snapshot.rows.firstIndex(where: { $0.id == Int(shioriID) }) else {
+            return false
+        }
+
+        let nextRow = snapshot.rows[rowIndex].replacingShioriTags(
+            tableSandboxShioriTags(for: tags)
+        )
+        guard nextRow != snapshot.rows[rowIndex] else {
+            return false
+        }
+
+        var nextRows = snapshot.rows
+        nextRows[rowIndex] = nextRow
+        snapshot = TableSandboxRowsSnapshot(
+            rows: nextRows,
+            searchResultsByEntryID: snapshot.searchResultsByEntryID,
+            shiorisByEntryID: snapshot.shiorisByEntryID,
+            version: snapshot.version + 1,
+            update: .cells([TableSandboxCellInvalidation(row: rowIndex, columnID: "tags")]),
+            totalRowCount: snapshot.totalRowCount
+        )
+        return true
+    }
+
+    @discardableResult
+    func removeShioriTagFromVisibleRows(
+        tagID: Int64,
+        affectedShioriIDs: [Int64],
+        tableName _: String
+    ) -> [Int64] {
+        let tagKey = String(tagID)
+        let affectedIDs = Set(affectedShioriIDs.map(Int.init))
+        var nextRows = snapshot.rows
+        var invalidations: [TableSandboxCellInvalidation] = []
+        var patchedIDs: [Int64] = []
+
+        for (index, row) in snapshot.rows.enumerated()
+        where affectedIDs.contains(row.id) && row.shioriTags.contains(where: { $0.key == tagKey }) {
+            let nextTags = row.shioriTags.filter { $0.key != tagKey }
+            nextRows[index] = row.replacingShioriTags(nextTags)
+            invalidations.append(TableSandboxCellInvalidation(row: index, columnID: "tags"))
+            patchedIDs.append(Int64(row.id))
+        }
+
+        guard !invalidations.isEmpty else {
+            return []
+        }
+
+        snapshot = TableSandboxRowsSnapshot(
+            rows: nextRows,
+            searchResultsByEntryID: snapshot.searchResultsByEntryID,
+            shiorisByEntryID: snapshot.shiorisByEntryID,
+            version: snapshot.version + 1,
+            update: .cells(invalidations),
+            totalRowCount: snapshot.totalRowCount
+        )
+        return patchedIDs
+    }
+
     private func apply(
         _ rows: [SubtitleTableRow],
         searchResultsByEntryID: [Int: SubtitleSearchResult],

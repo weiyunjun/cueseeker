@@ -582,6 +582,78 @@ func tableSandboxRowModelStoreMapsShioriTagsToNeutralTags() {
     #expect(row?.shioriTags.map(\.colorID) == [.gray, .gray])
 }
 
+@Test
+func shioriTagComposerInputRulesFilterInvalidCharactersAndCapLength() {
+    #expect(
+        ShioriTagComposerInputRules.normalizedInput("123456789012345678901") ==
+            "12345678901234567890"
+    )
+    #expect(ShioriTagComposerInputRules.normalizedInput("hello\n\t\u{200B}world") == "helloworld")
+    #expect(ShioriTagComposerInputRules.isValidTrimmedTagText("Review"))
+    #expect(!ShioriTagComposerInputRules.isValidTrimmedTagText(""))
+    #expect(!ShioriTagComposerInputRules.isValidTrimmedTagText("123456789012345678901"))
+    #expect(!ShioriTagComposerInputRules.isValidTrimmedTagText("hello\nworld"))
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStorePatchesShioriTagCells() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(id: 1, content: "saved row", languages: [.japanese]),
+        ],
+        startIndex: 0,
+        totalRowCount: 1,
+        tableName: "shiori"
+    )
+
+    let patched = store.updateShioriTags(
+        [
+            ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z"),
+        ],
+        forShioriID: 1,
+        tableName: "shiori"
+    )
+
+    #expect(patched)
+    #expect(store.snapshot.row(at: 0)?.shioriTags.map(\.label) == ["Review"])
+    #expect(store.snapshot.update == .cells([TableSandboxCellInvalidation(row: 0, columnID: "tags")]))
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreRemovesDeletedShioriTagFromAffectedVisibleRows() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let sharedTag = ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z")
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(id: 1, content: "first", languages: [.japanese], shioriTags: [sharedTag]),
+            shioriSource(id: 2, content: "second", languages: [.japanese], shioriTags: [sharedTag]),
+            shioriSource(id: 3, content: "third", languages: [.japanese]),
+        ],
+        startIndex: 0,
+        totalRowCount: 3,
+        tableName: "shiori"
+    )
+
+    let patchedIDs = store.removeShioriTagFromVisibleRows(
+        tagID: 7,
+        affectedShioriIDs: [1, 2, 99],
+        tableName: "shiori"
+    )
+
+    #expect(patchedIDs == [1, 2])
+    #expect(store.snapshot.row(at: 0)?.shioriTags.isEmpty == true)
+    #expect(store.snapshot.row(at: 1)?.shioriTags.isEmpty == true)
+    #expect(store.snapshot.update == .cells([
+        TableSandboxCellInvalidation(row: 0, columnID: "tags"),
+        TableSandboxCellInvalidation(row: 1, columnID: "tags"),
+    ]))
+}
+
 @MainActor
 @Test
 func shioriStoreKeepsTableStateAndRowsForViewRemounts() {

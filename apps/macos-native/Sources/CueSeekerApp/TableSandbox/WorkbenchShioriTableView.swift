@@ -76,6 +76,16 @@ private struct WorkbenchShioriTableContent: View {
                     onShowContext: showContext,
                     rowActionMenuStyle: .shiori,
                     onRemoveShiori: requestRemoveShiori,
+                    makeTagsPopover: { row, dismiss in
+                        AnyView(
+                            ShioriTagPopoverView(
+                                row: row,
+                                appState: appState,
+                                rowStore: rowStore,
+                                onDismiss: dismiss
+                            )
+                        )
+                    },
                     isRedesign: true
                 )
 

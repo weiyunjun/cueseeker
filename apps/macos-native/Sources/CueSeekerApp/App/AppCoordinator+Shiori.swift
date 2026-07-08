@@ -31,6 +31,16 @@ private func shioriDateAddedDisplayText(for value: String) -> String {
     return displayFormatter.string(from: date)
 }
 
+struct ShioriTagPopoverState: Equatable {
+    let allTags: [ShioriTag]
+    let currentTags: [ShioriTag]
+}
+
+struct ShioriTagDeletionOutcome: Equatable {
+    let popoverState: ShioriTagPopoverState
+    let deletionResult: ShioriTagDeletionResult
+}
+
 @MainActor
 extension AppCoordinator {
     func loadTableSandboxShioriRows(
@@ -80,6 +90,73 @@ extension AppCoordinator {
             return page
         } catch {
             print("Failed to load Shiori table rows: \(error)")
+            return nil
+        }
+    }
+
+    func shioriTagPopoverState(forShioriID shioriID: Int64) -> ShioriTagPopoverState? {
+        guard let database = subtitleDatabase else { return nil }
+        do {
+            return ShioriTagPopoverState(
+                allTags: try database.shioriTags(),
+                currentTags: try database.shioriTags(forShioriID: shioriID)
+            )
+        } catch {
+            print("Failed to load Shiori tags: \(error)")
+            return nil
+        }
+    }
+
+    func assignShioriTag(tagID: Int64, toShioriID shioriID: Int64) -> [ShioriTag]? {
+        guard let database = subtitleDatabase else { return nil }
+        do {
+            _ = try database.assignShioriTag(tagID: tagID, toShioriID: shioriID)
+            return try database.shioriTags(forShioriID: shioriID)
+        } catch {
+            print("Failed to assign Shiori tag: \(error)")
+            return nil
+        }
+    }
+
+    func createAndAssignShioriTag(named name: String, toShioriID shioriID: Int64) -> ShioriTagPopoverState? {
+        guard let database = subtitleDatabase else { return nil }
+        do {
+            _ = try database.assignShioriTag(named: name, toShioriID: shioriID)
+            return ShioriTagPopoverState(
+                allTags: try database.shioriTags(),
+                currentTags: try database.shioriTags(forShioriID: shioriID)
+            )
+        } catch {
+            print("Failed to create Shiori tag: \(error)")
+            return nil
+        }
+    }
+
+    func removeShioriTagAssignment(tagID: Int64, fromShioriID shioriID: Int64) -> [ShioriTag]? {
+        guard let database = subtitleDatabase else { return nil }
+        do {
+            _ = try database.removeShioriTagAssignment(tagID: tagID, fromShioriID: shioriID)
+            return try database.shioriTags(forShioriID: shioriID)
+        } catch {
+            print("Failed to remove Shiori tag assignment: \(error)")
+            return nil
+        }
+    }
+
+    func deleteShioriTagGlobally(tagID: Int64, currentShioriID: Int64) -> ShioriTagDeletionOutcome? {
+        guard let database = subtitleDatabase else { return nil }
+        do {
+            let deletion = try database.deleteShioriTag(tagID: tagID)
+            let state = ShioriTagPopoverState(
+                allTags: try database.shioriTags(),
+                currentTags: try database.shioriTags(forShioriID: currentShioriID)
+            )
+            return ShioriTagDeletionOutcome(
+                popoverState: state,
+                deletionResult: deletion
+            )
+        } catch {
+            print("Failed to delete Shiori tag: \(error)")
             return nil
         }
     }

@@ -46,6 +46,22 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.speakerTags = speakerTags
         self.shioriTags = shioriTags
     }
+
+    func replacingShioriTags(_ nextShioriTags: [WorkbenchTag]) -> SubtitleTableRow {
+        SubtitleTableRow(
+            id: id,
+            subtitlePath: subtitlePath,
+            dateAdded: dateAdded,
+            displayTitle: displayTitle,
+            startTime: startTime,
+            endTime: endTime,
+            timeRange: timeRange,
+            cues: cues,
+            tags: tags,
+            speakerTags: speakerTags,
+            shioriTags: nextShioriTags
+        )
+    }
 }
 
 enum SubtitleTableTimeRange {

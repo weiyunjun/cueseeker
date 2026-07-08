@@ -2050,6 +2050,7 @@ struct SubtitleTableView: NSViewRepresentable {
     }
     var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
+    var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil }
     var isRedesign: Bool = false
 
     func makeCoordinator() -> Coordinator {
@@ -2083,7 +2084,8 @@ struct SubtitleTableView: NSViewRepresentable {
             onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
-            onRemoveShiori: onRemoveShiori
+            onRemoveShiori: onRemoveShiori,
+            makeTagsPopover: makeTagsPopover
         )
         coordinator.isRedesign = isRedesign
         return coordinator
@@ -2197,7 +2199,8 @@ struct SubtitleTableView: NSViewRepresentable {
             onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
-            onRemoveShiori: onRemoveShiori
+            onRemoveShiori: onRemoveShiori,
+            makeTagsPopover: makeTagsPopover
         )
     }
 
@@ -2235,6 +2238,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onOpenSubtitleFile: (String) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
         private var onRemoveShiori: (SubtitleTableRow) -> Void
+        private var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void) -> AnyView?
 
         var isRedesign: Bool = false {
             didSet {
@@ -2389,7 +2393,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
-            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
+            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in },
+            makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil }
         ) {
             self.tableName = tableName
             self.rowCount = max(0, rowCount)
@@ -2421,6 +2426,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.onRemoveShiori = onRemoveShiori
+            self.makeTagsPopover = makeTagsPopover
         }
 
         deinit {
@@ -2502,7 +2508,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
-            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
+            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in },
+            makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil }
         ) {
             let tableChanged = tableName != self.tableName
             self.tableName = tableName
@@ -2549,6 +2556,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.onRemoveShiori = onRemoveShiori
+            self.makeTagsPopover = makeTagsPopover
 
             let nextRowCount = max(0, rowCount)
             let rowCountChanged = nextRowCount != self.rowCount
@@ -3455,7 +3463,10 @@ struct SubtitleTableView: NSViewRepresentable {
             return range.flatMap { row -> [CGRect] in
                 guard rowProvider(row) != nil else { return [] }
                 return interactiveCellColumnIDs().compactMap { columnID in
-                    guard let documentHoverRect = cellContentHoverRectInDocument(row: row, columnID: columnID) else {
+                    let rowRect = rectForRow(row, width: documentWidth)
+                    let documentHoverRect = cellContentHoverRectInDocument(row: row, columnID: columnID)
+                        ?? (columnID == "tags" ? dataCellRect(columnID: columnID, rowRect: rowRect) : nil)
+                    guard let documentHoverRect else {
                         return nil
                     }
                     let cursorRect = documentHoverRect.intersection(visibleRect)
@@ -3683,11 +3694,25 @@ struct SubtitleTableView: NSViewRepresentable {
                hoverRect.contains(point) {
                 return "language"
             }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "tags"),
-               hoverRect.contains(point) {
+            if isPointInTagsCell(row: row, point: point) {
                 return "tags"
             }
             return nil
+        }
+
+        private func isPointInTagsCell(row: Int, point: CGPoint) -> Bool {
+            guard isRedesign,
+                  isEnabled,
+                  !isExternalPopupLayerOpen,
+                  row >= 0,
+                  row < rowCount,
+                  rowProvider(row) != nil,
+                  let documentView
+            else {
+                return false
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            return dataCellRect(columnID: "tags", rowRect: rowRect)?.contains(point) == true
         }
 
         private func isPointInCueText(row: Int, point: CGPoint) -> Bool {
@@ -3748,6 +3773,9 @@ struct SubtitleTableView: NSViewRepresentable {
                   let row = rowAtDocumentPoint(point)
             else {
                 return false
+            }
+            if isPointInTagsCell(row: row, point: point) {
+                return showTagsPopover(row: row, documentPoint: point)
             }
             if let columnID = actionMenuColumnID(row: row, point: point),
                performDefaultCellAction(row: row, columnID: columnID) {
@@ -4048,8 +4076,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 break
             case .append(let range):
                 invalidateRows(range.map { Optional($0) })
+            case .cells(let cells):
+                invalidateCells(cells)
             case .reload:
                 documentView?.needsDisplay = true
+            }
+        }
+
+        private func invalidateCells(_ cells: [TableSandboxCellInvalidation]) {
+            guard let documentView else { return }
+            for cell in cells where cell.row >= 0 && cell.row < rowCount {
+                let rowRect = rectForRow(cell.row, width: documentView.bounds.width)
+                if let cellRect = dataCellRect(columnID: cell.columnID, rowRect: rowRect) {
+                    documentView.setNeedsDisplay(cellRect)
+                }
             }
         }
 
@@ -4266,6 +4306,63 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.isHidden = false
 
             installMenuDismissMonitor()
+        }
+
+        @discardableResult
+        private func showTagsPopover(row: Int, documentPoint: CGPoint) -> Bool {
+            guard let container,
+                  let documentView,
+                  let model = rowProvider(row),
+                  let popoverView = makeTagsPopover(model, { [weak self] in
+                      self?.dismissMenu()
+                  })
+            else {
+                return false
+            }
+
+            isMenuOpen = true
+            activeRowMenuRow = row
+            activeRowMenuColumnID = "tags"
+            let clickPointInContainer = container.convert(documentPoint, from: documentView)
+            activeMenuAnchor = .row(
+                row: row,
+                columnID: "tags",
+                anchorFrame: CGRect(origin: clickPointInContainer, size: .zero),
+                clickPointInContainer: clickPointInContainer
+            )
+            layoutHoverButtons()
+            invalidateRows([row])
+
+            if menuOverlayView == nil {
+                let overlay = SubtitleTableMenuOverlayView()
+                overlay.onClick = { [weak self] in
+                    self?.dismissMenu()
+                }
+                container.addSubview(overlay)
+                menuOverlayView = overlay
+            }
+            menuOverlayView?.frame = container.bounds
+            menuOverlayView?.isHidden = false
+
+            setMenuHost(popoverView, in: container)
+
+            if let menuOverlayView {
+                container.addSubview(menuOverlayView)
+            }
+            if let menuHost {
+                container.addSubview(menuHost)
+            }
+
+            menuHost?.layout()
+            let menuSize = menuHost?.fittingSize ?? CGSize(width: 420, height: 420)
+            menuHost?.frame = positionMenuBelowClick(
+                clickPointInContainer: clickPointInContainer,
+                menuSize: menuSize
+            )
+            menuHost?.isHidden = false
+
+            installMenuDismissMonitor()
+            return true
         }
 
         func showHeaderMenu(for columnID: String, triggerFrame: CGRect) {

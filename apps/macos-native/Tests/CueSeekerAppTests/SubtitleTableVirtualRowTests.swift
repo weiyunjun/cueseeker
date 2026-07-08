@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -597,6 +598,27 @@ func subtitleTableViewTagsContentRightClickDoesNotOpenMenu() throws {
 
 @MainActor
 @Test
+func subtitleTableViewTagsContentLeftClickOpensPopover() throws {
+    var requestedRowID: Int?
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        showsTagsColumn: true,
+        makeTagsPopover: { row, _ in
+            requestedRowID = row.id
+            return AnyView(Text("Tags"))
+        }
+    )
+    let tagsRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "tags"))
+    let tagsPoint = CGPoint(x: tagsRect.midX, y: tagsRect.midY)
+    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(requestedRowID == 1)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+}
+
+@MainActor
+@Test
 func subtitleTableViewLeftClickOutsideContentHoverRegionTogglesSelection() throws {
     var toggledRows: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in
@@ -902,6 +924,7 @@ private func makeAttachedVirtualTableCoordinator(
     showsDateAddedColumn: Bool = false,
     showsTimeColumn: Bool = false,
     showsTagsColumn: Bool = false,
+    makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void) -> AnyView? = { _, _ in nil },
     onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
@@ -941,7 +964,8 @@ private func makeAttachedVirtualTableCoordinator(
         isRowSelected: { _ in false },
         onToggleRowSelection: onToggleRowSelection,
         onPlay: onPlay,
-        onOpenSubtitleFile: onOpenSubtitleFile
+        onOpenSubtitleFile: onOpenSubtitleFile,
+        makeTagsPopover: makeTagsPopover
     )
     coordinator.isRedesign = true
 
