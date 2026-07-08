@@ -1,12 +1,11 @@
 import SwiftUI
 
 struct WorkbenchConfirmationDialog: View {
-    let systemImage: String
     let title: String
     let message: String
-    let confirmTitle: String
+    let destructiveTitle: String
     let cancelTitle: String
-    var onConfirm: () -> Void
+    var onDestructive: () -> Void
     var onCancel: () -> Void
 
     var body: some View {
@@ -14,34 +13,21 @@ struct WorkbenchConfirmationDialog: View {
             Color.black.opacity(0.18)
                 .ignoresSafeArea()
 
-            VStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 38, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.iconDefault)
-                    .frame(width: 56, height: 56)
-                    .background(WorkbenchRedesignColors.bgHover)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .multilineTextAlignment(.leading)
 
-                VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Text(title)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .multilineTextAlignment(.center)
+                Text(message)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Text(message)
-                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    WorkbenchButton(
-                        title: confirmTitle,
-                        isRedesign: true,
-                        action: onConfirm
-                    )
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    Spacer(minLength: 0)
 
                     WorkbenchButton(
                         title: cancelTitle,
@@ -50,11 +36,16 @@ struct WorkbenchConfirmationDialog: View {
                     )
                     .keyboardShortcut(.defaultAction)
                     .keyboardShortcut(.cancelAction)
+
+                    WorkbenchDestructiveButton(
+                        title: destructiveTitle,
+                        action: onDestructive
+                    )
                 }
                 .padding(.top, WorkbenchControlMetrics.redesignSpacing1)
             }
             .padding(24)
-            .frame(width: 360)
+            .frame(width: 360, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(WorkbenchRedesignColors.bgSurface)

@@ -85,12 +85,11 @@ private struct WorkbenchShioriTableContent: View {
         .overlay {
             if let pendingRemoval {
                 WorkbenchConfirmationDialog(
-                    systemImage: "bookmark.slash",
                     title: "Remove Shiori?",
                     message: "This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.",
-                    confirmTitle: "Remove",
+                    destructiveTitle: "Remove",
                     cancelTitle: "Cancel",
-                    onConfirm: {
+                    onDestructive: {
                         confirmRemoveShiori(pendingRemoval)
                     },
                     onCancel: {

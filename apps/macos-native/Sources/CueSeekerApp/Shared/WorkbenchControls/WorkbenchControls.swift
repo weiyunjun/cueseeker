@@ -457,6 +457,58 @@ struct WorkbenchButton: View {
     }
 }
 
+struct WorkbenchDestructiveButton: View {
+    let title: String
+    var systemImage: String? = nil
+    var action: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: WorkbenchControlMetrics.redesignButtonIconSize, weight: WorkbenchControlMetrics.redesignButtonIconWeight))
+                        .frame(width: WorkbenchControlMetrics.redesignButtonIconSize, height: WorkbenchControlMetrics.redesignButtonIconSize)
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.dangerText : WorkbenchRedesignColors.iconDisabled)
+                }
+
+                Text(title)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: WorkbenchControlMetrics.redesignFontWeightControl))
+                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.dangerText : WorkbenchRedesignColors.textDisabled)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+            .frame(height: WorkbenchControlMetrics.redesignHeight)
+            .background(
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                    .fill(isEnabled ? WorkbenchRedesignColors.dangerBgHover : WorkbenchRedesignColors.bgDisabled)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                    .strokeBorder(isEnabled ? Color.clear : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
+            )
+            .overlay(
+                Group {
+                    if isFocused && isEnabled {
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                    }
+                }
+            )
+            .fixedSize(horizontal: true, vertical: false)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focused($isFocused)
+        .disableFocusEffect()
+    }
+}
+
 struct WorkbenchPlainActionButton: View {
     let title: String
     let systemImage: String
