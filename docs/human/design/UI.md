@@ -2219,9 +2219,7 @@ Date Added Cell Action Menu: Copy Text
 Open Folder Action: open the subtitle file's containing folder and select the subtitle file
 Copy Text Action: copy the triggering cell's displayed text to the clipboard
 Shiori Row Action Menu Extra Item: Remove Shiori
-Remove Shiori Icon: bookmark.slash
-Remove Shiori Icon Fallback: bookmark
-Shiori Remove: remove the row from saved Shiori records and refresh the Shiori table
+Remove Shiori Action: open Confirmation Dialog Layout
 Cell Action Menu Anchor: use the right-click pointer position inside the triggering cell content hover region; menu opens below the click position and clamps to visible content bounds
 
 #### Effective Filter Condition
@@ -2416,6 +2414,10 @@ Orientation: vertical
 Align Items: stretch
 Backdrop: modal overlay
 Panel: centered dialog surface
+Panel Background: --color-bg-surface
+Panel Radius: --radius-control
+Panel Border: --color-border-control
+Panel Shadow: none
 Layout Sections:
   1. Title
   2. Message
@@ -2435,7 +2437,7 @@ Actions:
   Destructive Button
 
 #### Remove Shiori Content
-Title: Remove Shiori?
+Title: Remove Shiori
 Message: This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.
 Cancel Action Button:
   Base Component: Neutral Button

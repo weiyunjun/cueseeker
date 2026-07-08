@@ -4,7 +4,7 @@ main
 # 需求描述
 1. 修改Remove Shiori界面的警告提示框。
 2. 将其改造为通用的警告提示界面，后续类似界面只需传递参数即可调用。
-3. 新增警告提示界面的Layout，分为从上到下的3部分：标题（--color-text-primary），提示文字（--color-text-muted），两个按钮（一个普通按钮，一个警告按钮，2个按钮整体居右）。
+3. 新增警告提示界面的Layout，分为从上到下的3部分：标题（Remove Shiori，--color-text-primary），提示文字（This cue will be removed from your Shiori. The original subtitle and video files will not be deleted. --color-text-muted），两个按钮（一个普通按钮，一个警告按钮，2个按钮整体居右）。
 4. 警告按钮，需要新建component：淡红色的背景色和红色的字体颜色。
 5. 详细UI改动见# UI文档改动。
 
@@ -77,6 +77,10 @@ Orientation: vertical
 Align Items: stretch
 Backdrop: modal overlay
 Panel: centered dialog surface
+Panel Background: --color-bg-surface
+Panel Radius: --radius-control
+Panel Border: --color-border-control
+Panel Shadow: none
 Layout Sections:
   1. Title
   2. Message
@@ -141,7 +145,7 @@ Cancel Action Button:
 
 ```markdown
 #### Remove Shiori Content
-Title: Remove Shiori?
+Title: Remove Shiori
 Message: This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.
 Cancel Action Button:
   Base Component: Neutral Button
