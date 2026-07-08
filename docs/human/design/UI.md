@@ -1846,7 +1846,10 @@ Gap X: --spacing-2
 Gap Y: --spacing-2
 Layout: horizontal wrap
 Align Items: center
+Inline Item Vertical Alignment: Chip / Tag and Inline Text Input share the same visual row center
+Content Left Edge: aligned with the owning section content left edge
 Min Height: fit-content
+Row Min Height: at least Chip / Tag visual height
 
 #### Content
 Tags: Chip / Tag
@@ -1860,6 +1863,10 @@ Inline Text Input:
   Text Color: --color-text-primary
   Placeholder Text: owning layout supplied
   Placeholder Text Color: --color-text-muted
+  Visual Box: transparent inline item with no visible background
+  Height: same visual row height as Chip / Tag
+  Text / Caret Vertical Alignment: centered with Chip / Tag text and visual center
+  Text / Caret Left Edge: must not protrude left of the inline item or owning section content edge
   Width: flexible inline width
   Min Width: enough for text caret and short input
   Search Icon: none
@@ -2950,10 +2957,13 @@ Current Tags and Search:
   Hint Text: Current Tags
   Hint Text Color: --color-text-muted
   Section Background: transparent
+  Section Content Left Edge: aligned with Hint Text
   Tag Composer: Tag Composer Field
+  Tag Composer Left Edge: aligned with Hint Text and current tag chips
   Tag Composer Tags: tags associated with the current Shiori cue
   Tag Composer Tag Style: Removable Chip / Tag using [label | x]
   Tag Composer Input: search or create tag query
+  Tag Composer Input Alignment: inline text / caret is vertically centered with current tag chips
 
 Global Tag Pool:
   Hint Text: Select a tag or create one
@@ -2972,7 +2982,7 @@ Global Tag Pool:
 #### Interaction
 Open Trigger: left click on a Shiori Tags cell
 Open Behavior: open at the left-click pointer position using the same positioning and clamping behavior as Row Action Menu
-Open Focus: automatically focus the Tag Composer Inline Text Input
+Open Focus: automatically focus the Tag Composer Inline Text Input, including after the popover was previously closed by Escape
 Tag Composer Placeholder / No Current Tags: Add a tag
 Tag Composer Placeholder / Has Current Tags: none
 Typing In Tag Composer: update local search text, Global Tag Pool matching results, Create Option visibility, and popover measurement
@@ -2988,6 +2998,7 @@ Delete Tag Dialog Cancel: close only the dialog and restore focus to Tag Compose
 Delete Tag Dialog Confirm: delete the tag globally, close only the dialog, refresh the open Shiori Tag Popover and affected visible Shiori Tags cells, and restore focus to Tag Composer Inline Text Input
 Right Click: no action
 Escape Key: close popover when Delete Tag dialog is not open; cancel Delete Tag dialog when it is open
+Reopen After Escape: treat as a fresh popover open and restore default focus to Tag Composer Inline Text Input
 Click Inside Popover Background: no dismiss; keep focus in the popover
 Click Empty Tag Composer Area: focus Tag Composer Inline Text Input
 
