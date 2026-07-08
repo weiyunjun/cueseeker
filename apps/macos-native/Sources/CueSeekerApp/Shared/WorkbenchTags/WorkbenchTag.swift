@@ -76,6 +76,8 @@ enum WorkbenchTagColorID: String, Equatable {
 
     func redesignForegroundColor() -> NSColor {
         switch self {
+        case .gray:
+            return WorkbenchRedesignColors.NS.textSecondary
         case .purple:
             return WorkbenchRedesignColors.NS.chipSpeakerText
         case .blue:
@@ -87,6 +89,8 @@ enum WorkbenchTagColorID: String, Equatable {
 
     func redesignFillColor() -> NSColor {
         switch self {
+        case .gray:
+            return WorkbenchRedesignColors.NS.bgHover
         case .purple:
             return WorkbenchRedesignColors.NS.chipSpeakerBg
         case .blue:

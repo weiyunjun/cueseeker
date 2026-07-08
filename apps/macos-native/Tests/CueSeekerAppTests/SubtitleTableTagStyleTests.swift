@@ -39,6 +39,12 @@ func workbenchTagRedesignColorsMapSpeakerAndLanguageTokens() {
     #expect(hexString(WorkbenchTagColorID.blue.redesignForegroundColor()) == "#0040FF")
 }
 
+@Test
+func workbenchTagRedesignColorsMapShioriGrayTokens() {
+    #expect(hexString(WorkbenchTagColorID.gray.redesignFillColor()) == "#F3F4F6")
+    #expect(hexString(WorkbenchTagColorID.gray.redesignForegroundColor()) == "#404040")
+}
+
 private func hexString(_ color: NSColor) -> String {
     var resolved: NSColor?
     NSAppearance(named: .aqua)!.performAsCurrentDrawingAppearance {

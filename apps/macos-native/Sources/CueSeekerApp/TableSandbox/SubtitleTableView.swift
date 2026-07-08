@@ -2062,6 +2062,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var showsTagsColumn = false
     var scrollResetToken = 0
     var scrollTargetRow: Int?
+    var suspendsMenuOutsideClickDismiss = false
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var isRowSelected: (Int) -> Bool = { _ in false }
     var selectionHeaderState: WorkbenchCheckboxState = .unchecked
@@ -2118,6 +2119,7 @@ struct SubtitleTableView: NSViewRepresentable {
     func makeNSView(context: Context) -> SubtitleTableContainerView {
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
+        context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
         let container = SubtitleTableContainerView()
 
         let header = SubtitleVirtualTableHeaderView()
@@ -2192,6 +2194,7 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isRedesign = isRedesign
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
+        context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
         context.coordinator.update(
             tableName: tableName,
             rowCount: rowCount,
@@ -2342,6 +2345,7 @@ struct SubtitleTableView: NSViewRepresentable {
         var sortedColumnID: String?
         var sortDirection: TableSortDirection?
         var activeHeaderMenuColumnID: String?
+        var suspendsMenuOutsideClickDismiss = false
         var isExternalPopupLayerOpen = false {
             didSet {
                 guard isExternalPopupLayerOpen != oldValue else { return }
@@ -2723,6 +2727,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func menuContainsWindowPointForTesting(_ windowPoint: CGPoint) -> Bool {
             isWindowPointInsideOpenMenu(windowPoint)
+        }
+
+        func menuOutsideClickDismissesForTesting(windowPoint: CGPoint) -> Bool {
+            shouldDismissOpenMenu(isEventInContainerWindow: true, windowPoint: windowPoint)
         }
 
         func dataCellRectForTesting(row: Int, columnID: String) -> CGRect? {
@@ -4520,20 +4528,24 @@ struct SubtitleTableView: NSViewRepresentable {
             removeMenuDismissMonitor()
             menuEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
                 guard let self else { return event }
-                if self.isMenuOpen {
-                    guard let container = self.container, event.window === container.window else {
-                        DispatchQueue.main.async { self.dismissMenu() }
-                        return event
-                    }
-                    if self.isWindowPointInsideOpenMenu(event.locationInWindow) {
-                        return event
-                    }
+                guard let container = self.container else { return event }
+                if self.shouldDismissOpenMenu(
+                    isEventInContainerWindow: event.window === container.window,
+                    windowPoint: event.locationInWindow
+                ) {
                     DispatchQueue.main.async {
                         self.dismissMenu()
                     }
                 }
                 return event
             }
+        }
+
+        private func shouldDismissOpenMenu(isEventInContainerWindow: Bool, windowPoint: CGPoint) -> Bool {
+            guard isMenuOpen else { return false }
+            guard !suspendsMenuOutsideClickDismiss else { return false }
+            guard isEventInContainerWindow else { return true }
+            return !isWindowPointInsideOpenMenu(windowPoint)
         }
 
         private func isWindowPointInsideOpenMenu(_ windowPoint: CGPoint) -> Bool {

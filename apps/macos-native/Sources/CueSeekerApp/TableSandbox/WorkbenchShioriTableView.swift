@@ -68,6 +68,7 @@ private struct WorkbenchShioriTableContent: View {
                     showsSpeakerColumn: false,
                     showsTagsColumn: isColumnVisible("tags", in: visibleColumns),
                     scrollResetToken: tableScrollResetToken,
+                    suspendsMenuOutsideClickDismiss: pendingTagDeletion != nil,
                     onVisibleRowsChange: hydrateVisibleRows,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),

@@ -666,6 +666,38 @@ func subtitleTableViewMenuHostKeepsInsideClicksOpen() throws {
 
 @MainActor
 @Test
+func subtitleTableViewCanSuspendMenuOutsideClickDismissForExternalDialog() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        showsTagsColumn: true,
+        makeTagsPopover: { _, _, _ in
+            AnyView(Text("Tags").frame(width: 240, height: 140))
+        }
+    )
+    let tagsCellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags"))
+    let tagsPoint = CGPoint(x: tagsCellRect.midX, y: tagsCellRect.midY)
+    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let outsideMenuContainerPoint = try #require([
+        CGPoint(x: 4, y: 4),
+        CGPoint(x: fixture.container.bounds.maxX - 4, y: 4),
+        CGPoint(x: 4, y: fixture.container.bounds.maxY - 4),
+        CGPoint(x: fixture.container.bounds.maxX - 4, y: fixture.container.bounds.maxY - 4),
+    ].first { !menuFrame.contains($0) })
+    let outsideMenuWindowPoint = fixture.container.convert(outsideMenuContainerPoint, to: nil)
+
+    #expect(fixture.coordinator.menuOutsideClickDismissesForTesting(windowPoint: outsideMenuWindowPoint))
+
+    fixture.coordinator.suspendsMenuOutsideClickDismiss = true
+
+    #expect(!fixture.coordinator.menuOutsideClickDismissesForTesting(windowPoint: outsideMenuWindowPoint))
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+}
+
+@MainActor
+@Test
 func subtitleTableViewLeftClickOutsideContentHoverRegionTogglesSelection() throws {
     var toggledRows: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in
