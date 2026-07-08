@@ -4492,8 +4492,11 @@ struct SubtitleTableView: NSViewRepresentable {
             updateHoveredColumnID(nil)
             updateHoveredCueTextRow(nil)
             updateHoveredRowActionRow(nil)
+            menuHost?.rootView = AnyView(EmptyView())
+            menuHost?.invalidateIntrinsicContentSize()
             menuHost?.isHidden = true
             menuOverlayView?.isHidden = true
+            menuOverlayView?.passthroughView = nil
             invalidateDocumentCursorRects()
             removeMenuDismissMonitor()
             headerView?.refreshHeaderHosts()

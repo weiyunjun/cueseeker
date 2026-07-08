@@ -149,7 +149,15 @@ struct ShioriTagPopoverView: View {
                     onRequestLayout()
                 }
             )
-            .frame(minWidth: 90, idealWidth: 140, maxWidth: 180, minHeight: 18)
+            .padding(.leading, ShioriTagPopoverMetrics.inlineTextLeadingInset)
+            .frame(
+                minWidth: 90,
+                idealWidth: 140,
+                maxWidth: 180,
+                minHeight: ShioriTagPopoverMetrics.inlineItemHeight,
+                maxHeight: ShioriTagPopoverMetrics.inlineItemHeight,
+                alignment: .center
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -259,6 +267,17 @@ struct ShioriTagPopoverView: View {
             tableName: "shiori"
         )
         onRequestLayout()
+    }
+}
+
+private enum ShioriTagPopoverMetrics {
+    static let inlineTextLeadingInset: CGFloat = 2
+
+    static var inlineItemHeight: CGFloat {
+        let style = SubtitleTableTagStyle.resolve(isRedesign: true)
+        let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        let textHeight = NSAttributedString(string: "Ag", attributes: [.font: font]).size().height
+        return ceil(textHeight) + 2 * style.verticalInset
     }
 }
 
@@ -466,29 +485,46 @@ private struct ShioriTagWrapLayout: Layout {
     }
 
     private func layout(subviews: Subviews, width: CGFloat) -> (origins: [CGPoint], size: CGSize) {
-        var origins: [CGPoint] = []
+        var origins = Array(repeating: CGPoint.zero, count: subviews.count)
+        var lineItems: [(index: Int, x: CGFloat, size: CGSize)] = []
         var x: CGFloat = 0
         var y: CGFloat = 0
         var lineHeight: CGFloat = 0
         var maxX: CGFloat = 0
 
-        for subview in subviews {
+        func flushLine(addSpacing: Bool) {
+            guard !lineItems.isEmpty else { return }
+            for item in lineItems {
+                origins[item.index] = CGPoint(
+                    x: item.x,
+                    y: y + max(0, (lineHeight - item.size.height) / 2)
+                )
+                maxX = max(maxX, item.x + item.size.width)
+            }
+            y += lineHeight
+            if addSpacing {
+                y += verticalSpacing
+            }
+            lineItems.removeAll(keepingCapacity: true)
+            x = 0
+            lineHeight = 0
+        }
+
+        for (index, subview) in subviews.enumerated() {
             let size = subview.sizeThatFits(.unspecified)
-            if x > 0, x + size.width > width {
-                x = 0
-                y += lineHeight + verticalSpacing
-                lineHeight = 0
+            if !lineItems.isEmpty, x + size.width > width {
+                flushLine(addSpacing: true)
             }
 
-            origins.append(CGPoint(x: x, y: y))
+            lineItems.append((index: index, x: x, size: size))
             x += size.width + horizontalSpacing
             lineHeight = max(lineHeight, size.height)
-            maxX = max(maxX, x - horizontalSpacing)
         }
+        flushLine(addSpacing: false)
 
         return (
             origins,
-            CGSize(width: maxX, height: y + lineHeight)
+            CGSize(width: maxX, height: y)
         )
     }
 }
