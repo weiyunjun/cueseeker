@@ -136,6 +136,33 @@ public final class PlaybackViewModel: ObservableObject {
         performSeek(to: seconds, resetsAccumulatedFeedback: true)
     }
 
+    @discardableResult
+    public func playContinuously(from seconds: Double) -> Bool {
+        clearSubtitlePresentationHold()
+        let targetTime = clampedPlaybackTime(seconds)
+        let previousTime = currentTime
+        let previousIsPlaying = isPlaying
+        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        protectSeekTarget(targetTime)
+        accumulatedForwardSeconds = 0
+        accumulatedRewindSeconds = 0
+
+        do {
+            try player.seek(
+                toMilliseconds: Int(targetTime * 1_000),
+                pauseAfterFirstFrame: false
+            )
+            isPlaying = true
+            return true
+        } catch {
+            clearProtectedSeekTarget()
+            updatePlaybackTime(previousTime, publishesControlsImmediately: true)
+            isPlaying = previousIsPlaying
+            print("Failed to play continuously from cue: \(error)")
+            return false
+        }
+    }
+
     public func beginTimelineScrubbing() {
         guard timelineScrubbingWasPlaying == nil else {
             return

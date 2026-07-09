@@ -420,6 +420,38 @@ func subtitleFocusScrollSequencePassesOutsideStartAndScalesLegacyWheel() {
 }
 
 @Test
+func subtitleFocusScrollSequenceRequiresNewGestureAfterMenuSuppression() {
+    var sequence = PlaybackSubtitleFocusScrollSequence()
+    _ = sequence.consume(focusScrollSample(
+        deltaY: -10,
+        phase: .began,
+        isInside: true
+    ))
+    sequence.reset(requiresNewGesture: true)
+
+    let staleChanged = sequence.consume(focusScrollSample(
+        deltaY: -30,
+        phase: .changed,
+        isInside: true
+    ))
+    let staleMomentum = sequence.consume(focusScrollSample(
+        deltaY: -20,
+        momentumPhase: .began,
+        isInside: true
+    ))
+    let newBegan = sequence.consume(focusScrollSample(
+        deltaY: -12,
+        phase: .began,
+        isInside: true
+    ))
+
+    #expect(staleChanged == .consumedNoop)
+    #expect(staleMomentum == .consumedNoop)
+    #expect(newBegan.shouldConsume)
+    #expect(newBegan.deltaY == -12)
+}
+
+@Test
 func subtitleFocusMomentumEndAppliesFinalDeltaBeforeSettling() {
     var sequence = PlaybackSubtitleFocusScrollSequence()
     _ = sequence.consume(focusScrollSample(

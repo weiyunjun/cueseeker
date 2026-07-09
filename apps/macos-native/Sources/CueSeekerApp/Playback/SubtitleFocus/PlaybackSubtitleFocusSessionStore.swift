@@ -63,13 +63,18 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         = nil
     @Published private(set) var targetWindowState: PlaybackSubtitleFocusTargetWindowState = .idle
     @Published private(set) var targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit? = nil
+    @Published private(set) var actionMenuState: PlaybackSubtitleFocusActionMenuState? = nil
+    @Published private(set) var isActionMenuOpening = false
 
     private var cueCache = SubtitleFocusCueCache()
     private var loadScheduler: PlaybackSubtitleFocusLoadScheduler
     private var pendingScrollbarPreviewOrdinal: Int?
     private var protectedVisibleOrdinalRange: Range<Int>?
     private var targetWindowCommitSequence = 0
+    private var actionMenuGeneration = 0
     private var isSessionActive = true
+    private var isScrollbarDragging = false
+    private var isCueReelMotionActive = false
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationDirections: [SubtitleFocusNavigationDirection] = []
     private(set) var initialSelectedOrdinal: Int?
@@ -117,6 +122,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         targetWindowState.isLoading
     }
 
+    var isActionMenuOpen: Bool {
+        actionMenuState != nil
+    }
+
     @discardableResult
     func publishInitialSnapshot(
         _ snapshot: SubtitleFocusSnapshot,
@@ -152,6 +161,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         _ direction: SubtitleFocusNavigationDirection
     ) -> Bool {
         guard isSessionActive,
+              actionMenuState == nil,
               let snapshot = currentSnapshot
         else {
             return false
@@ -171,7 +181,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     func requestKeyboardNavigation(
         _ direction: SubtitleFocusNavigationDirection
     ) -> Bool {
-        guard isSessionActive, currentSnapshot != nil else {
+        guard isSessionActive,
+              actionMenuState == nil,
+              !isActionMenuOpening,
+              currentSnapshot != nil
+        else {
             return false
         }
         supersedeTargetWindowLoadForNavigationIfNeeded()
@@ -194,6 +208,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         _ direction: SubtitleFocusNavigationDirection
     ) -> Bool {
         guard isSessionActive,
+              actionMenuState == nil,
               let snapshot = currentSnapshot
         else {
             return false
@@ -222,6 +237,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         _ direction: SubtitleFocusNavigationDirection
     ) -> PlaybackSubtitleFocusWindowLoadRequest? {
         guard isSessionActive,
+              actionMenuState == nil,
+              !isActionMenuOpening,
               let snapshot = currentSnapshot,
               let loadedRange = cueCache.ordinalRange
         else {
@@ -271,7 +288,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     }
 
     func noteScrollbarPreviewChanged(ordinal: Int) {
-        guard let snapshot = currentSnapshot,
+        guard actionMenuState == nil,
+              !isActionMenuOpening,
+              let snapshot = currentSnapshot,
               ordinal >= 0,
               ordinal < snapshot.totalCount
         else {
@@ -302,7 +321,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     func windowLoadRequestForScrollbarTarget(
         ordinal: Int
     ) -> PlaybackSubtitleFocusWindowLoadRequest? {
-        guard let snapshot = currentSnapshot,
+        guard actionMenuState == nil,
+              !isActionMenuOpening,
+              let snapshot = currentSnapshot,
               ordinal >= 0,
               ordinal < snapshot.totalCount,
               cueCache[ordinal] == nil,
@@ -325,7 +346,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func commitCachedScrollbarTarget(ordinal: Int) -> Bool {
-        guard currentSnapshot != nil,
+        guard actionMenuState == nil,
+              !isActionMenuOpening,
+              currentSnapshot != nil,
               cueCache[ordinal] != nil
         else {
             return false
@@ -371,7 +394,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         ordinal: Int,
         focusAnchorY: CGFloat
     ) -> Bool {
-        guard focusAnchorY.isFinite else {
+        guard actionMenuState == nil,
+              !isActionMenuOpening,
+              focusAnchorY.isFinite
+        else {
             return false
         }
         supersedeWindowLoads(resolvesScrollbar: true)
@@ -379,6 +405,220 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return true
         }
         return selectCachedCue(ordinal: ordinal, focusAnchorY: focusAnchorY)
+    }
+
+    func noteScrollbarDragging(_ isDragging: Bool) {
+        guard isSessionActive else {
+            return
+        }
+        isScrollbarDragging = isDragging
+    }
+
+    func noteCueReelMotion(_ isActive: Bool) {
+        guard isSessionActive else {
+            return
+        }
+        isCueReelMotionActive = isActive
+    }
+
+    @discardableResult
+    func deferActionMenuOpenUntilNavigationCompletes() -> Bool {
+        guard isSessionActive,
+              currentSnapshot != nil,
+              actionMenuState == nil,
+              !isActionMenuOpening,
+              !targetWindowState.isLoading,
+              !isScrollbarDragging,
+              (!pendingKeyboardNavigationDirections.isEmpty || isCueReelMotionActive)
+        else {
+            return false
+        }
+        isActionMenuOpening = true
+        return true
+    }
+
+    @discardableResult
+    func consumeDeferredActionMenuOpen() -> Bool {
+        guard isActionMenuOpening else {
+            return false
+        }
+        isActionMenuOpening = false
+        return canOpenActionMenu(requiresEmptyKeyboardQueue: true)
+    }
+
+    @discardableResult
+    func cancelDeferredActionMenuOpen() -> Bool {
+        guard isActionMenuOpening else {
+            return false
+        }
+        isActionMenuOpening = false
+        return true
+    }
+
+    func actionMenuCandidateForKeyboard() -> SubtitleFocusCue? {
+        guard canOpenActionMenu(requiresEmptyKeyboardQueue: true) else {
+            return nil
+        }
+        return currentSnapshot?.selectedCue
+    }
+
+    func canOpenActionMenuFromPointer(for cue: SubtitleFocusCue) -> Bool {
+        guard canOpenActionMenu(requiresEmptyKeyboardQueue: false) else {
+            return false
+        }
+        return cueCache[cue.ordinal] == cue
+    }
+
+    var actionMenuShioriLookupRequest: PlaybackSubtitleFocusShioriLookupRequest? {
+        guard let actionMenuState,
+              actionMenuState.shioriAvailability == .checking
+        else {
+            return nil
+        }
+        return PlaybackSubtitleFocusShioriLookupRequest(
+            context: actionMenuState.context,
+            menuGeneration: actionMenuState.generation
+        )
+    }
+
+    @discardableResult
+    func openActionMenuFromKeyboard(
+        for expectedCue: SubtitleFocusCue
+    ) -> Bool {
+        guard actionMenuCandidateForKeyboard() == expectedCue else {
+            return false
+        }
+        return publishActionMenu(for: expectedCue)
+    }
+
+    @discardableResult
+    func openActionMenuFromPointer(
+        for cue: SubtitleFocusCue,
+        focusAnchorY clickedFocusAnchorY: CGFloat
+    ) -> Bool {
+        guard canOpenActionMenuFromPointer(for: cue),
+              let snapshot = currentSnapshot
+        else {
+            return false
+        }
+
+        pendingKeyboardNavigationDirections.removeAll(keepingCapacity: true)
+        keyboardNavigationRequest = nil
+        isActionMenuOpening = false
+        if snapshot.selectedOrdinal != cue.ordinal {
+            guard clickedFocusAnchorY.isFinite,
+                  selectCachedCue(
+                      ordinal: cue.ordinal,
+                      focusAnchorY: clickedFocusAnchorY
+                  )
+            else {
+                return false
+            }
+        }
+        return publishActionMenu(for: cue)
+    }
+
+    @discardableResult
+    func resolveActionMenuShioriAvailability(
+        _ availability: PlaybackSubtitleFocusShioriAvailability,
+        request: PlaybackSubtitleFocusShioriLookupRequest
+    ) -> Bool {
+        guard var nextState = actionMenuState,
+              nextState.generation == request.menuGeneration,
+              nextState.context == request.context,
+              nextState.resolveShioriAvailability(availability)
+        else {
+            return false
+        }
+        actionMenuState = nextState
+        return true
+    }
+
+    @discardableResult
+    func dismissActionMenu() -> Bool {
+        guard let actionMenuState,
+              !actionMenuState.isPerforming
+        else {
+            return false
+        }
+        self.actionMenuState = nil
+        return true
+    }
+
+    @discardableResult
+    func moveActionMenuSelection(
+        _ direction: SubtitleFocusNavigationDirection
+    ) -> Bool {
+        guard var nextState = actionMenuState,
+              nextState.moveSelection(direction)
+        else {
+            return false
+        }
+        actionMenuState = nextState
+        return true
+    }
+
+    @discardableResult
+    func hoverActionMenuItem(_ action: PlaybackSubtitleFocusAction) -> Bool {
+        guard var nextState = actionMenuState,
+              nextState.select(action)
+        else {
+            return false
+        }
+        actionMenuState = nextState
+        return true
+    }
+
+    func beginActionMenuExecution(
+        action requestedAction: PlaybackSubtitleFocusAction? = nil
+    ) -> PlaybackSubtitleFocusActionExecution? {
+        guard var nextState = actionMenuState,
+              let action = nextState.beginExecution(action: requestedAction)
+        else {
+            return nil
+        }
+        actionMenuState = nextState
+        return PlaybackSubtitleFocusActionExecution(
+            action: action,
+            context: nextState.context,
+            menuGeneration: nextState.generation
+        )
+    }
+
+    @discardableResult
+    func failActionMenuExecution(menuGeneration: Int) -> Bool {
+        guard var nextState = actionMenuState,
+              nextState.generation == menuGeneration,
+              nextState.isPerforming
+        else {
+            return false
+        }
+        nextState.finishFailedExecution()
+        actionMenuState = nextState
+        return true
+    }
+
+    @discardableResult
+    func markActionMenuShioriSaved(menuGeneration: Int) -> Bool {
+        guard var nextState = actionMenuState,
+              nextState.generation == menuGeneration,
+              nextState.isPerforming
+        else {
+            return false
+        }
+        nextState.markShioriSaved()
+        actionMenuState = nextState
+        return true
+    }
+
+    func completeActionMenuExecution(menuGeneration: Int) -> Bool? {
+        guard let actionMenuState,
+              actionMenuState.generation == menuGeneration,
+              actionMenuState.isPerforming
+        else {
+            return nil
+        }
+        return closeSession()
     }
 
     @discardableResult
@@ -408,6 +648,41 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     private func accepts(_ requestToken: PlaybackSubtitleFocusSessionToken) -> Bool {
         isSessionActive && requestToken == token
+    }
+
+    private func canOpenActionMenu(
+        requiresEmptyKeyboardQueue: Bool
+    ) -> Bool {
+        isSessionActive
+            && currentSnapshot != nil
+            && actionMenuState == nil
+            && !isActionMenuOpening
+            && !targetWindowState.isLoading
+            && !isScrollbarDragging
+            && !isCueReelMotionActive
+            && (!requiresEmptyKeyboardQueue || pendingKeyboardNavigationDirections.isEmpty)
+    }
+
+    private func publishActionMenu(
+        for cue: SubtitleFocusCue
+    ) -> Bool {
+        guard isSessionActive,
+              actionMenuState == nil,
+              currentSnapshot?.selectedCue == cue
+        else {
+            return false
+        }
+        supersedeWindowLoads(resolvesScrollbar: true)
+        isActionMenuOpening = false
+        actionMenuGeneration += 1
+        actionMenuState = PlaybackSubtitleFocusActionMenuState(
+            context: PlaybackSubtitleFocusActionContext(
+                source: openSnapshot.source,
+                cue: cue
+            ),
+            generation: actionMenuGeneration
+        )
+        return true
     }
 
     private func selectCachedCue(
@@ -462,6 +737,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 : .forward
             cueCache = nextCache
             protectedVisibleOrdinalRange = nil
+            isCueReelMotionActive = true
             targetWindowCommitSequence += 1
             targetWindowCommit = PlaybackSubtitleFocusTargetWindowCommit(
                 sequence: targetWindowCommitSequence,
@@ -585,6 +861,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         loadScheduler.invalidate()
         pendingScrollbarPreviewOrdinal = nil
         protectedVisibleOrdinalRange = nil
+        actionMenuState = nil
+        isScrollbarDragging = false
+        isCueReelMotionActive = false
+        isActionMenuOpening = false
         cueCache.removeAll()
         pendingKeyboardNavigationDirections.removeAll(keepingCapacity: false)
         keyboardNavigationRequest = nil

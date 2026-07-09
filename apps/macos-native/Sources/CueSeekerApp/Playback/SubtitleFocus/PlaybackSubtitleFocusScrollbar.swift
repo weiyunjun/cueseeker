@@ -182,6 +182,7 @@ struct PlaybackSubtitleFocusScrollbar: View {
     let onPreviewChanged: (Int) -> Void
     let onCommitCachedTarget: (Int) -> Bool
     let onRequestTarget: (Int) -> Void
+    let onDraggingChanged: (Bool) -> Void
 
     @State private var interaction = PlaybackSubtitleFocusScrollbarInteractionState()
     @State private var debounceTask: Task<Void, Never>?
@@ -197,7 +198,8 @@ struct PlaybackSubtitleFocusScrollbar: View {
             isPresented: totalCount > 0,
             onDrag: { event in
                 handleDrag(event, metrics: metrics)
-            }
+            },
+            onDraggingChanged: onDraggingChanged
         )
         .onAppear {
             interaction.synchronizeCommittedOrdinal(committedOrdinal, force: true)
@@ -284,6 +286,7 @@ private struct PlaybackSubtitleFocusScrollbarRepresentable: NSViewRepresentable 
     let presentation: TableScrollbarPresentation
     let isPresented: Bool
     let onDrag: (TableScrollbarDragEvent) -> Void
+    let onDraggingChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> TableScrollbarOverlayView {
         let view = TableScrollbarOverlayView()
@@ -298,6 +301,7 @@ private struct PlaybackSubtitleFocusScrollbarRepresentable: NSViewRepresentable 
     ) {
         nsView.presentationProvider = { presentation }
         nsView.onDrag = onDrag
+        nsView.onDragStateChanged = onDraggingChanged
         nsView.isPresented = isPresented
         nsView.scrollbarMetricsDidChange()
     }
@@ -309,5 +313,6 @@ private struct PlaybackSubtitleFocusScrollbarRepresentable: NSViewRepresentable 
         nsView.isPresented = false
         nsView.presentationProvider = { nil }
         nsView.onDrag = { _ in }
+        nsView.onDragStateChanged = nil
     }
 }

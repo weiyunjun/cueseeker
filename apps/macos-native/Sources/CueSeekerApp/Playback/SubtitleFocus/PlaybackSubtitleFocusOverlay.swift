@@ -62,6 +62,10 @@ struct PlaybackSubtitleFocusLayer: View {
     let onScrollbarPreview: (Int) -> Void
     let onCommitCachedScrollbarTarget: (Int) -> Bool
     let onRequestScrollbarTarget: (Int) -> Void
+    let onOpenActionMenu: (SubtitleFocusCue, CGFloat) -> Bool
+    let onOpenSelectedActionMenu: () -> Bool
+    let onDismissActionMenu: () -> Bool
+    let onExecuteAction: (PlaybackSubtitleFocusAction) -> Bool
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
@@ -69,7 +73,11 @@ struct PlaybackSubtitleFocusLayer: View {
         onNavigationIntent: ((SubtitleFocusNavigationDirection) -> Void)? = nil,
         onScrollbarPreview: ((Int) -> Void)? = nil,
         onCommitCachedScrollbarTarget: ((Int) -> Bool)? = nil,
-        onRequestScrollbarTarget: ((Int) -> Void)? = nil
+        onRequestScrollbarTarget: ((Int) -> Void)? = nil,
+        onOpenActionMenu: ((SubtitleFocusCue, CGFloat) -> Bool)? = nil,
+        onOpenSelectedActionMenu: (() -> Bool)? = nil,
+        onDismissActionMenu: (() -> Bool)? = nil,
+        onExecuteAction: ((PlaybackSubtitleFocusAction) -> Bool)? = nil
     ) {
         self.session = session
         self.onMoveSelection = onMoveSelection ?? session.moveSelection
@@ -78,6 +86,27 @@ struct PlaybackSubtitleFocusLayer: View {
         self.onCommitCachedScrollbarTarget = onCommitCachedScrollbarTarget
             ?? session.commitCachedScrollbarTarget
         self.onRequestScrollbarTarget = onRequestScrollbarTarget ?? { _ in }
+        self.onOpenActionMenu = onOpenActionMenu ?? { cue, focusAnchorY in
+            session.openActionMenuFromPointer(
+                for: cue,
+                focusAnchorY: focusAnchorY
+            )
+        }
+        self.onOpenSelectedActionMenu = onOpenSelectedActionMenu ?? {
+            guard let cue = session.actionMenuCandidateForKeyboard() else {
+                return false
+            }
+            return session.openActionMenuFromKeyboard(for: cue)
+        }
+        self.onDismissActionMenu = onDismissActionMenu ?? session.dismissActionMenu
+        self.onExecuteAction = onExecuteAction ?? { action in
+            guard let execution = session.beginActionMenuExecution(action: action) else {
+                return false
+            }
+            return session.failActionMenuExecution(
+                menuGeneration: execution.menuGeneration
+            )
+        }
     }
 
     var body: some View {
@@ -92,18 +121,28 @@ struct PlaybackSubtitleFocusLayer: View {
                 keyboardNavigationRequest: session.keyboardNavigationRequest,
                 targetWindowState: session.targetWindowState,
                 targetWindowCommit: session.targetWindowCommit,
+                actionMenuState: session.actionMenuState,
+                isActionMenuOpening: session.isActionMenuOpening,
                 onProtectedVisibleRangeChanged:
                     session.updateProtectedVisibleOrdinalRange,
                 takePendingKeyboardNavigationDirections:
                     session.takePendingKeyboardNavigationDirections,
+                consumeDeferredActionMenuOpen:
+                    session.consumeDeferredActionMenuOpen,
                 canMoveSelection: session.canMoveSelection,
                 isCueCached: session.isCueCached,
                 onMoveSelection: onMoveSelection,
                 onNavigationIntent: onNavigationIntent,
-                onSelectCue: session.selectCue,
                 onScrollbarPreview: onScrollbarPreview,
                 onCommitCachedScrollbarTarget: onCommitCachedScrollbarTarget,
-                onRequestScrollbarTarget: onRequestScrollbarTarget
+                onRequestScrollbarTarget: onRequestScrollbarTarget,
+                onScrollbarDraggingChanged: session.noteScrollbarDragging,
+                onCueReelMotionChanged: session.noteCueReelMotion,
+                onOpenActionMenu: onOpenActionMenu,
+                onOpenSelectedActionMenu: onOpenSelectedActionMenu,
+                onDismissActionMenu: onDismissActionMenu,
+                onHoverActionMenuItem: session.hoverActionMenuItem,
+                onExecuteAction: onExecuteAction
             )
         }
     }
@@ -116,20 +155,31 @@ struct PlaybackSubtitleFocusOverlay: View {
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let targetWindowState: PlaybackSubtitleFocusTargetWindowState
     let targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit?
+    let actionMenuState: PlaybackSubtitleFocusActionMenuState?
+    let isActionMenuOpening: Bool
     let onProtectedVisibleRangeChanged: (Range<Int>?) -> Void
     let takePendingKeyboardNavigationDirections: () -> [SubtitleFocusNavigationDirection]
+    let consumeDeferredActionMenuOpen: () -> Bool
     let canMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
     let isCueCached: (Int) -> Bool
     let onMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
     let onNavigationIntent: (SubtitleFocusNavigationDirection) -> Void
-    let onSelectCue: (Int, CGFloat) -> Bool
     let onScrollbarPreview: (Int) -> Void
     let onCommitCachedScrollbarTarget: (Int) -> Bool
     let onRequestScrollbarTarget: (Int) -> Void
+    let onScrollbarDraggingChanged: (Bool) -> Void
+    let onCueReelMotionChanged: (Bool) -> Void
+    let onOpenActionMenu: (SubtitleFocusCue, CGFloat) -> Bool
+    let onOpenSelectedActionMenu: () -> Bool
+    let onDismissActionMenu: () -> Bool
+    let onHoverActionMenuItem: (PlaybackSubtitleFocusAction) -> Bool
+    let onExecuteAction: (PlaybackSubtitleFocusAction) -> Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var wheelAccumulator = PlaybackSubtitleFocusWheelAccumulator()
     @State private var wheelSettleTask: Task<Void, Never>?
+    @State private var isCueReelMotionActive = false
+    @State private var cueReelMotionTask: Task<Void, Never>?
     @State private var reelPresentation = PlaybackSubtitleFocusReelPresentation()
 
     init(
@@ -139,17 +189,26 @@ struct PlaybackSubtitleFocusOverlay: View {
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
         targetWindowState: PlaybackSubtitleFocusTargetWindowState = .idle,
         targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit? = nil,
+        actionMenuState: PlaybackSubtitleFocusActionMenuState? = nil,
+        isActionMenuOpening: Bool = false,
         onProtectedVisibleRangeChanged: @escaping (Range<Int>?) -> Void = { _ in },
         takePendingKeyboardNavigationDirections: @escaping () -> [SubtitleFocusNavigationDirection]
             = { [] },
+        consumeDeferredActionMenuOpen: @escaping () -> Bool = { false },
         canMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
         isCueCached: @escaping (Int) -> Bool = { _ in false },
         onMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
         onNavigationIntent: @escaping (SubtitleFocusNavigationDirection) -> Void = { _ in },
-        onSelectCue: @escaping (Int, CGFloat) -> Bool = { _, _ in false },
         onScrollbarPreview: @escaping (Int) -> Void = { _ in },
         onCommitCachedScrollbarTarget: @escaping (Int) -> Bool = { _ in false },
-        onRequestScrollbarTarget: @escaping (Int) -> Void = { _ in }
+        onRequestScrollbarTarget: @escaping (Int) -> Void = { _ in },
+        onScrollbarDraggingChanged: @escaping (Bool) -> Void = { _ in },
+        onCueReelMotionChanged: @escaping (Bool) -> Void = { _ in },
+        onOpenActionMenu: @escaping (SubtitleFocusCue, CGFloat) -> Bool = { _, _ in false },
+        onOpenSelectedActionMenu: @escaping () -> Bool = { false },
+        onDismissActionMenu: @escaping () -> Bool = { false },
+        onHoverActionMenuItem: @escaping (PlaybackSubtitleFocusAction) -> Bool = { _ in false },
+        onExecuteAction: @escaping (PlaybackSubtitleFocusAction) -> Bool = { _ in false }
     ) {
         self.snapshot = snapshot
         self.initialSelectedOrdinal = initialSelectedOrdinal
@@ -157,16 +216,25 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.keyboardNavigationRequest = keyboardNavigationRequest
         self.targetWindowState = targetWindowState
         self.targetWindowCommit = targetWindowCommit
+        self.actionMenuState = actionMenuState
+        self.isActionMenuOpening = isActionMenuOpening
         self.onProtectedVisibleRangeChanged = onProtectedVisibleRangeChanged
         self.takePendingKeyboardNavigationDirections = takePendingKeyboardNavigationDirections
+        self.consumeDeferredActionMenuOpen = consumeDeferredActionMenuOpen
         self.canMoveSelection = canMoveSelection
         self.isCueCached = isCueCached
         self.onMoveSelection = onMoveSelection
         self.onNavigationIntent = onNavigationIntent
-        self.onSelectCue = onSelectCue
         self.onScrollbarPreview = onScrollbarPreview
         self.onCommitCachedScrollbarTarget = onCommitCachedScrollbarTarget
         self.onRequestScrollbarTarget = onRequestScrollbarTarget
+        self.onScrollbarDraggingChanged = onScrollbarDraggingChanged
+        self.onCueReelMotionChanged = onCueReelMotionChanged
+        self.onOpenActionMenu = onOpenActionMenu
+        self.onOpenSelectedActionMenu = onOpenSelectedActionMenu
+        self.onDismissActionMenu = onDismissActionMenu
+        self.onHoverActionMenuItem = onHoverActionMenuItem
+        self.onExecuteAction = onExecuteAction
     }
 
     var body: some View {
@@ -207,6 +275,7 @@ struct PlaybackSubtitleFocusOverlay: View {
                 viewportMaxY: viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset,
                 presentationTranslation: wheelAccumulator.translation
             )
+            let suppressesNavigation = actionMenuState != nil || isActionMenuOpening
 
             ZStack(alignment: .top) {
                 PlaybackTheme.subtitleFocusOverlayBackground
@@ -223,7 +292,7 @@ struct PlaybackSubtitleFocusOverlay: View {
                                             ?? reelOffset + wheelAccumulator.translation)
                                         + CGFloat(cue.ordinal - loadedStartOrdinal)
                                             * PlaybackSubtitleFocusMetrics.cueSlotPitch
-                                    selectCue(
+                                    openActionMenu(
                                         cue,
                                         focusAnchorY: clickedAnchorY
                                     )
@@ -253,10 +322,12 @@ struct PlaybackSubtitleFocusOverlay: View {
                 )
                 .clipped()
                 .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
+                .allowsHitTesting(!suppressesNavigation)
 
-                PlaybackSubtitleFocusScrollCapture { output in
-                    handleScroll(output)
-                }
+                PlaybackSubtitleFocusScrollCapture(
+                    suppressesNavigation: suppressesNavigation,
+                    onScroll: handleScroll
+                )
                 .frame(width: viewportSize.width, height: viewportSize.height)
                 .opacity(0.001)
 
@@ -268,18 +339,54 @@ struct PlaybackSubtitleFocusOverlay: View {
                     isCueCached: isCueCached,
                     onPreviewChanged: onScrollbarPreview,
                     onCommitCachedTarget: onCommitCachedScrollbarTarget,
-                    onRequestTarget: onRequestScrollbarTarget
+                    onRequestTarget: onRequestScrollbarTarget,
+                    onDraggingChanged: onScrollbarDraggingChanged
                 )
                 .frame(
                     width: viewportSize.width,
                     height: cueViewportHeight
                 )
                 .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
+                .allowsHitTesting(!suppressesNavigation)
 
                 PlaybackSubtitleFocusProtectedRangeReporter(
                     range: protectedVisibleRange,
                     onChange: onProtectedVisibleRangeChanged
                 )
+
+                if let actionMenuState {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            _ = onDismissActionMenu()
+                        }
+
+                    let selectedCueFrame = CGRect(
+                        x: (viewportSize.width - contentWidth) / 2,
+                        y: resolvedFocusAnchorY,
+                        width: contentWidth,
+                        height: PlaybackSubtitleFocusMetrics.cueSlotHeight
+                    )
+                    let menuOrigin = PlaybackSubtitleFocusActionMenuPlacement.origin(
+                        cueFrame: selectedCueFrame,
+                        overlayBounds: CGRect(origin: .zero, size: viewportSize)
+                    )
+                    PlaybackSubtitleFocusActionMenu(
+                        state: actionMenuState,
+                        onHover: { action in
+                            _ = onHoverActionMenuItem(action)
+                        },
+                        onExecute: { action in
+                            _ = onExecuteAction(action)
+                        }
+                    )
+                    .position(
+                        x: menuOrigin.x
+                            + PlaybackSubtitleFocusActionMenuMetrics.width / 2,
+                        y: menuOrigin.y
+                            + PlaybackSubtitleFocusActionMenuMetrics.height / 2
+                    )
+                }
             }
             .frame(width: viewportSize.width, height: viewportSize.height)
             .clipped()
@@ -289,6 +396,10 @@ struct PlaybackSubtitleFocusOverlay: View {
         .onDisappear {
             wheelSettleTask?.cancel()
             wheelSettleTask = nil
+            cueReelMotionTask?.cancel()
+            cueReelMotionTask = nil
+            updateCueReelMotion(false)
+            onScrollbarDraggingChanged(false)
         }
         .onAppear {
             drainPendingKeyboardNavigation()
@@ -296,29 +407,65 @@ struct PlaybackSubtitleFocusOverlay: View {
         .onChange(of: keyboardNavigationRequest) { _ in
             drainPendingKeyboardNavigation()
         }
-    }
-
-    private func drainPendingKeyboardNavigation() {
-        for direction in takePendingKeyboardNavigationDirections() {
-            handleKeyboardNavigation(direction)
+        .onChange(of: actionMenuState?.generation) { generation in
+            guard generation != nil else {
+                return
+            }
+            wheelSettleTask?.cancel()
+            wheelSettleTask = nil
+            withTransaction(Transaction(animation: nil)) {
+                wheelAccumulator.finishSettling()
+            }
+            cueReelMotionTask?.cancel()
+            cueReelMotionTask = nil
+            updateCueReelMotion(false)
+        }
+        .onChange(of: targetWindowCommit?.sequence) { sequence in
+            guard sequence != nil, actionMenuState == nil else {
+                return
+            }
+            beginCueReelMotion()
+            finishCueReelMotionAfterAnimation()
         }
     }
 
-    private func handleKeyboardNavigation(
-        _ direction: SubtitleFocusNavigationDirection
-    ) {
+    private func drainPendingKeyboardNavigation() {
+        guard actionMenuState == nil else {
+            return
+        }
+        let directions = takePendingKeyboardNavigationDirections()
+        guard !directions.isEmpty else {
+            if !isCueReelMotionActive {
+                openDeferredActionMenuIfReady()
+            }
+            return
+        }
+
         wheelSettleTask?.cancel()
         wheelSettleTask = nil
+        beginCueReelMotion()
+        var didMoveAnyCue = false
         withAnimation(
             reduceMotion ? nil : PlaybackSubtitleFocusMetrics.reelTransitionAnimation
         ) {
             wheelAccumulator.finishSettling()
-            _ = onMoveSelection(direction)
+            for direction in directions {
+                didMoveAnyCue = onMoveSelection(direction) || didMoveAnyCue
+            }
+        }
+        if didMoveAnyCue {
+            finishCueReelMotionAfterAnimation()
+        } else {
+            finishCueReelMotionImmediately()
         }
     }
 
     private func handleScroll(_ output: PlaybackSubtitleFocusScrollOutput) {
+        guard actionMenuState == nil, !isActionMenuOpening else {
+            return
+        }
         if output.deltaY != 0 {
+            beginCueReelMotion()
             onNavigationIntent(output.deltaY > 0 ? .backward : .forward)
             wheelSettleTask?.cancel()
             wheelSettleTask = nil
@@ -335,9 +482,10 @@ struct PlaybackSubtitleFocusOverlay: View {
         case .none:
             break
         case .cancel:
-            wheelSettleTask?.cancel()
-            wheelSettleTask = nil
+            beginCueReelMotion()
+            scheduleWheelSettle()
         case .debounce:
+            beginCueReelMotion()
             scheduleWheelSettle()
         case .immediate:
             settleWheel()
@@ -359,6 +507,7 @@ struct PlaybackSubtitleFocusOverlay: View {
         wheelSettleTask?.cancel()
         wheelSettleTask = nil
 
+        beginCueReelMotion()
         withTransaction(Transaction(animation: nil)) {
             wheelAccumulator.prepareToSettle(
                 canMoveSelection: canMoveSelection,
@@ -370,24 +519,89 @@ struct PlaybackSubtitleFocusOverlay: View {
         ) {
             wheelAccumulator.finishSettling()
         }
+        finishCueReelMotionAfterAnimation()
     }
 
-    private func selectCue(
+    private func openActionMenu(
         _ cue: SubtitleFocusCue,
         focusAnchorY: CGFloat
     ) {
-        guard cue.ordinal != snapshot.selectedOrdinal else {
+        guard actionMenuState == nil,
+              !isActionMenuOpening,
+              !targetWindowState.isLoading,
+              !isCueReelMotionActive
+        else {
             return
         }
 
         wheelSettleTask?.cancel()
         wheelSettleTask = nil
         withTransaction(Transaction(animation: nil)) {
-            guard onSelectCue(cue.ordinal, focusAnchorY) else {
+            guard onOpenActionMenu(cue, focusAnchorY) else {
                 return
             }
             wheelAccumulator.finishSettling()
         }
+    }
+
+    private func beginCueReelMotion() {
+        cueReelMotionTask?.cancel()
+        cueReelMotionTask = nil
+        updateCueReelMotion(true)
+    }
+
+    private func finishCueReelMotionAfterAnimation(
+        opensDeferredMenu: Bool = true
+    ) {
+        cueReelMotionTask?.cancel()
+        guard !reduceMotion else {
+            finishCueReelMotionImmediately(
+                opensDeferredMenu: opensDeferredMenu
+            )
+            return
+        }
+        cueReelMotionTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(
+                PlaybackSubtitleFocusMetrics.reelTransitionDuration
+                    * 1_000_000_000
+            ))
+            guard !Task.isCancelled else {
+                return
+            }
+            cueReelMotionTask = nil
+            updateCueReelMotion(false)
+            if opensDeferredMenu {
+                openDeferredActionMenuIfReady()
+            }
+        }
+    }
+
+    private func finishCueReelMotionImmediately(
+        opensDeferredMenu: Bool = true
+    ) {
+        cueReelMotionTask?.cancel()
+        cueReelMotionTask = nil
+        updateCueReelMotion(false)
+        if opensDeferredMenu {
+            openDeferredActionMenuIfReady()
+        }
+    }
+
+    private func updateCueReelMotion(_ isActive: Bool) {
+        guard isCueReelMotionActive != isActive else {
+            return
+        }
+        isCueReelMotionActive = isActive
+        onCueReelMotionChanged(isActive)
+    }
+
+    private func openDeferredActionMenuIfReady() {
+        guard actionMenuState == nil,
+              consumeDeferredActionMenuOpen()
+        else {
+            return
+        }
+        _ = onOpenSelectedActionMenu()
     }
 }
 
@@ -637,6 +851,12 @@ struct PlaybackSubtitleFocusScrollOutput: Equatable {
         deltaY: 0,
         settleDirective: .none
     )
+
+    static let consumedNoop = PlaybackSubtitleFocusScrollOutput(
+        shouldConsume: true,
+        deltaY: 0,
+        settleDirective: .none
+    )
 }
 
 struct PlaybackSubtitleFocusScrollSample: Equatable {
@@ -658,11 +878,19 @@ struct PlaybackSubtitleFocusScrollSample: Equatable {
 struct PlaybackSubtitleFocusScrollSequence: Equatable {
     private var ownsSequence = false
     private var awaitsMomentum = false
+    private var requiresNewGesture = false
 
     mutating func consume(
         _ sample: PlaybackSubtitleFocusScrollSample
     ) -> PlaybackSubtitleFocusScrollOutput {
         let isLegacyWheel = sample.phase == .none && sample.momentumPhase == .none
+        if requiresNewGesture {
+            if isLegacyWheel || sample.phase == .began {
+                requiresNewGesture = false
+            } else {
+                return .consumedNoop
+            }
+        }
         if isLegacyWheel {
             guard sample.isInside else {
                 return .passThrough
@@ -705,9 +933,10 @@ struct PlaybackSubtitleFocusScrollSequence: Equatable {
         return output(for: sample, settleDirective: .debounce)
     }
 
-    mutating func reset() {
+    mutating func reset(requiresNewGesture: Bool = false) {
         ownsSequence = false
         awaitsMomentum = false
+        self.requiresNewGesture = requiresNewGesture
     }
 
     private func output(
@@ -725,10 +954,12 @@ struct PlaybackSubtitleFocusScrollSequence: Equatable {
 }
 
 private struct PlaybackSubtitleFocusScrollCapture: NSViewRepresentable {
+    let suppressesNavigation: Bool
     let onScroll: (PlaybackSubtitleFocusScrollOutput) -> Void
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusScrollCaptureView {
         let view = PlaybackSubtitleFocusScrollCaptureView()
+        view.suppressesNavigation = suppressesNavigation
         view.onScroll = onScroll
         return view
     }
@@ -737,6 +968,7 @@ private struct PlaybackSubtitleFocusScrollCapture: NSViewRepresentable {
         _ nsView: PlaybackSubtitleFocusScrollCaptureView,
         context: Context
     ) {
+        nsView.suppressesNavigation = suppressesNavigation
         nsView.onScroll = onScroll
     }
 
@@ -750,6 +982,14 @@ private struct PlaybackSubtitleFocusScrollCapture: NSViewRepresentable {
 
 private final class PlaybackSubtitleFocusScrollCaptureView: NSView {
     var onScroll: (PlaybackSubtitleFocusScrollOutput) -> Void = { _ in }
+    var suppressesNavigation = false {
+        didSet {
+            guard suppressesNavigation != oldValue else {
+                return
+            }
+            sequence.reset(requiresNewGesture: true)
+        }
+    }
 
     nonisolated(unsafe) private var eventMonitor: Any?
     private var sequence = PlaybackSubtitleFocusScrollSequence()
@@ -791,6 +1031,10 @@ private final class PlaybackSubtitleFocusScrollCaptureView: NSView {
                   event.window === window
             else {
                 return event
+            }
+            guard !self.suppressesNavigation else {
+                self.sequence.reset(requiresNewGesture: true)
+                return nil
             }
 
             let point = self.convert(event.locationInWindow, from: nil)

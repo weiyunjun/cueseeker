@@ -178,8 +178,7 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: result))
         }
-        cancelAutoPlayCueSequenceTask()
-        currentCueSegmentFinished = false
+        clearCueSegmentPlayback()
         activePlaybackSource = .search
         workbenchLayout.selectPanelMode(.search)
         search.selectedSearchResult = result
@@ -213,9 +212,7 @@ extension AppCoordinator {
             return
         }
 
-        cancelAutoPlayCueSequenceTask()
-        currentCueSegmentFinished = false
-        clearCueSubtitlePresentationHold()
+        clearCueSegmentPlayback()
         playbackViewModel.seek(to: Double(max(0, milliseconds)) / 1_000)
     }
 
@@ -254,6 +251,7 @@ extension AppCoordinator {
                 startMilliseconds: result.startMilliseconds,
                 endMilliseconds: result.endMilliseconds
             )
+            activateCueSegmentPlayback(segment)
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
                 startMilliseconds: result.startMilliseconds,
@@ -284,6 +282,7 @@ extension AppCoordinator {
                 videoPath: result.videoPath
             )
         } catch {
+            clearCueSegmentPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
@@ -346,6 +345,7 @@ extension AppCoordinator {
             return
         }
 
+        activeCueSegmentEndMilliseconds = nil
         currentCueSegmentFinished = true
         playback.playbackStatus = .paused
 
@@ -359,6 +359,7 @@ extension AppCoordinator {
 
     func beginCueSegmentPlayback() {
         cueSegmentPlaybackGeneration += 1
+        activeCueSegmentEndMilliseconds = nil
         currentCueSegmentFinished = false
         clearCueSubtitlePresentationHold()
         cancelAutoPlayCueSequenceTask()
@@ -366,6 +367,7 @@ extension AppCoordinator {
 
     func clearCueSegmentPlayback() {
         cueSegmentPlaybackGeneration += 1
+        activeCueSegmentEndMilliseconds = nil
         currentCueSegmentFinished = false
         clearCueSubtitlePresentationHold()
         cancelAutoPlayCueSequenceTask()
@@ -376,15 +378,12 @@ extension AppCoordinator {
         autoPlayCueSequenceTask = nil
     }
 
+    func activateCueSegmentPlayback(_ segment: PlaybackSegment?) {
+        activeCueSegmentEndMilliseconds = segment?.endMilliseconds
+    }
+
     private func isCurrentCueSegmentEnd(_ endMilliseconds: Int) -> Bool {
-        switch activePlaybackSource {
-        case .search:
-            return search.selectedSearchResult?.endMilliseconds == endMilliseconds
-        case .shiori:
-            return shiori.selectedShiori?.endMilliseconds == endMilliseconds
-        case .library, .none:
-            return false
-        }
+        activeCueSegmentEndMilliseconds == endMilliseconds
     }
 
     func cueSubtitlePresentationHoldMilliseconds(
@@ -883,7 +882,8 @@ extension AppCoordinator {
     @discardableResult
     func handlePlaybackKeyDown(
         keyCode: UInt16,
-        modifierFlagsRawValue: UInt
+        modifierFlagsRawValue: UInt,
+        isRepeat: Bool = false
     ) -> Bool {
         let isPlaybackInterfaceVisible = currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen
 
@@ -895,7 +895,7 @@ extension AppCoordinator {
             return false
         }
 
-        if playback.subtitleFocusSession != nil {
+        if let subtitleFocusSession = playback.subtitleFocusSession {
             guard !Self.isEditableTextInputFocused() else {
                 return false
             }
@@ -908,12 +908,46 @@ extension AppCoordinator {
 
             switch keyCode {
             case 53:
+                guard !isRepeat else {
+                    return true
+                }
+                if subtitleFocusSession.isActionMenuOpen {
+                    _ = dismissPlaybackSubtitleFocusActionMenuFromUser()
+                    return true
+                }
+                if subtitleFocusSession.cancelDeferredActionMenuOpen() {
+                    return true
+                }
                 return dismissPlaybackSubtitleFocusFromUser()
             case 126:
-                _ = playback.subtitleFocusSession?.requestKeyboardNavigation(.backward)
+                if subtitleFocusSession.isActionMenuOpen {
+                    _ = subtitleFocusSession.moveActionMenuSelection(.backward)
+                } else {
+                    _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
+                }
                 return true
             case 125:
-                _ = playback.subtitleFocusSession?.requestKeyboardNavigation(.forward)
+                if subtitleFocusSession.isActionMenuOpen {
+                    _ = subtitleFocusSession.moveActionMenuSelection(.forward)
+                } else {
+                    _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
+                }
+                return true
+            case 36, 76:
+                guard !isRepeat else {
+                    return true
+                }
+                if subtitleFocusSession.isActionMenuOpen {
+                    _ = executePlaybackSubtitleFocusAction()
+                } else if subtitleFocusSession.isActionMenuOpening {
+                    return true
+                } else {
+                    let opened = openPlaybackSubtitleFocusActionMenuFromKeyboard()
+                    if !opened {
+                        _ = subtitleFocusSession
+                            .deferActionMenuOpenUntilNavigationCompletes()
+                    }
+                }
                 return true
             default:
                 return true
@@ -931,6 +965,9 @@ extension AppCoordinator {
 
             switch keyCode {
             case 36, 76:
+                guard !isRepeat else {
+                    return true
+                }
                 return submitPlaybackQuickSearchFromUser()
             case 126:
                 return movePlaybackQuickSearchFocus(by: -1)
@@ -985,6 +1022,9 @@ extension AppCoordinator {
             togglePlaybackFromUser()
             return true
         case 36, 76:
+            guard !isRepeat else {
+                return true
+            }
             return openPlaybackSubtitleFocusFromUser()
         case 123:
             viewModel.seekRelative(by: -5)

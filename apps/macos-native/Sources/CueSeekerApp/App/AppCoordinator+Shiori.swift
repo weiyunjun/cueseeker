@@ -285,8 +285,7 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
         }
-        cancelAutoPlayCueSequenceTask()
-        currentCueSegmentFinished = false
+        clearCueSegmentPlayback()
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil
@@ -323,6 +322,7 @@ extension AppCoordinator {
                 startMilliseconds: shiori.startMilliseconds,
                 endMilliseconds: shiori.endMilliseconds
             )
+            activateCueSegmentPlayback(segment)
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: shiori.videoPath),
                 startMilliseconds: shiori.startMilliseconds,
@@ -353,6 +353,7 @@ extension AppCoordinator {
                 videoPath: shiori.videoPath
             )
         } catch {
+            clearCueSegmentPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))

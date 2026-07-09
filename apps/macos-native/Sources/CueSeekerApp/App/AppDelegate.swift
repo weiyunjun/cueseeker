@@ -96,7 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let handled = MainActor.assumeIsolated {
                 self.appState.handlePlaybackKeyDown(
                     keyCode: keyCode,
-                    modifierFlagsRawValue: modifierFlags
+                    modifierFlagsRawValue: modifierFlags,
+                    isRepeat: event.isARepeat
                 )
             }
 

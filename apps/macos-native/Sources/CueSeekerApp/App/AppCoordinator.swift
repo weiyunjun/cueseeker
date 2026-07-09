@@ -405,6 +405,10 @@ final class AppCoordinator: ObservableObject {
     var playbackSubtitleCuesTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusWindowLoadTask: Task<Void, Never>?
+    var playbackSubtitleFocusShioriLookupTask: Task<Void, Never>?
+    var playbackSubtitleFocusActionTask: Task<Void, Never>?
+    var playbackSubtitleFocusShioriLookupGeneration = 0
+    var playbackSubtitleFocusActionGeneration = 0
     var databaseStorageStatsTask: Task<Void, Never>?
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?
@@ -423,6 +427,7 @@ final class AppCoordinator: ObservableObject {
     var playbackOriginatingPanelMode: WorkbenchPanelMode?
     var currentCueSegmentFinished = false
     var cueSegmentPlaybackGeneration = 0
+    var activeCueSegmentEndMilliseconds: Int?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var autoPlayCueSequenceTask: Task<Void, Never>?

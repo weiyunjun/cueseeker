@@ -1,3 +1,4 @@
+import AppKit
 import CueSeekerCore
 import Foundation
 
@@ -53,6 +54,7 @@ extension AppCoordinator {
             return false
         }
 
+        cancelPlaybackSubtitleFocusMenuTasks()
         playbackSubtitleFocusInitialLoadTask?.cancel()
         playbackSubtitleFocusInitialLoadTask = nil
         playbackSubtitleFocusWindowLoadTask?.cancel()
@@ -70,6 +72,7 @@ extension AppCoordinator {
     }
 
     func invalidatePlaybackSubtitleFocusForSourceReplacement() {
+        cancelPlaybackSubtitleFocusMenuTasks()
         playbackSubtitleFocusInitialLoadTask?.cancel()
         playbackSubtitleFocusInitialLoadTask = nil
         playbackSubtitleFocusWindowLoadTask?.cancel()
@@ -130,6 +133,275 @@ extension AppCoordinator {
             session.windowLoadRequestForScrollbarTarget(ordinal: ordinal),
             session: session
         )
+    }
+
+    @discardableResult
+    func openPlaybackSubtitleFocusActionMenuFromKeyboard() -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              let cue = session.actionMenuCandidateForKeyboard()
+        else {
+            return false
+        }
+        guard session.openActionMenuFromKeyboard(for: cue) else {
+            return false
+        }
+        startPlaybackSubtitleFocusShioriLookup(for: session)
+        return true
+    }
+
+    @discardableResult
+    func openPlaybackSubtitleFocusActionMenu(
+        for cue: SubtitleFocusCue,
+        focusAnchorY: CGFloat
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              session.canOpenActionMenuFromPointer(for: cue)
+        else {
+            return false
+        }
+        guard session.openActionMenuFromPointer(
+            for: cue,
+            focusAnchorY: focusAnchorY
+        ) else {
+            return false
+        }
+        startPlaybackSubtitleFocusShioriLookup(for: session)
+        return true
+    }
+
+    @discardableResult
+    func dismissPlaybackSubtitleFocusActionMenuFromUser() -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              session.dismissActionMenu()
+        else {
+            return false
+        }
+        cancelPlaybackSubtitleFocusShioriLookup()
+        return true
+    }
+
+    @discardableResult
+    func executePlaybackSubtitleFocusAction(
+        _ requestedAction: PlaybackSubtitleFocusAction? = nil
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              let execution = session.beginActionMenuExecution(
+                  action: requestedAction
+              )
+        else {
+            return false
+        }
+
+        switch execution.action {
+        case .shiori:
+            startPlaybackSubtitleFocusShioriSave(
+                execution,
+                session: session
+            )
+            return true
+        case .copyCueText:
+            guard copyPlaybackSubtitleFocusCueText(execution.context.cue.text) else {
+                _ = session.failActionMenuExecution(
+                    menuGeneration: execution.menuGeneration
+                )
+                return true
+            }
+        case .playFromThisCue:
+            guard playContinuouslyFromPlaybackSubtitleFocusCue(execution.context) else {
+                _ = session.failActionMenuExecution(
+                    menuGeneration: execution.menuGeneration
+                )
+                return true
+            }
+        }
+
+        completePlaybackSubtitleFocusAction(execution, session: session)
+        return true
+    }
+
+    private func completePlaybackSubtitleFocusAction(
+        _ execution: PlaybackSubtitleFocusActionExecution,
+        session: PlaybackSubtitleFocusSessionStore
+    ) {
+        cancelPlaybackSubtitleFocusMenuTasks()
+        playbackSubtitleFocusInitialLoadTask?.cancel()
+        playbackSubtitleFocusInitialLoadTask = nil
+        playbackSubtitleFocusWindowLoadTask?.cancel()
+        playbackSubtitleFocusWindowLoadTask = nil
+        guard let shouldResume = session.completeActionMenuExecution(
+            menuGeneration: execution.menuGeneration
+        ) else {
+            return
+        }
+        playback.releaseSubtitleFocusSession(session)
+
+        if execution.action != .playFromThisCue, shouldResume {
+            resumePlayback()
+        }
+    }
+
+    private func startPlaybackSubtitleFocusShioriLookup(
+        for session: PlaybackSubtitleFocusSessionStore
+    ) {
+        guard let request = session.actionMenuShioriLookupRequest else {
+            return
+        }
+        cancelPlaybackSubtitleFocusShioriLookup()
+        let taskGeneration = playbackSubtitleFocusShioriLookupGeneration
+        let databaseReader = playbackSubtitleFocusDatabaseReader
+        playbackSubtitleFocusShioriLookupTask = Task { @MainActor [weak self, weak session] in
+            guard let self, let session else {
+                return
+            }
+
+            do {
+                let isSaved = try await databaseReader.isShioriSaved(
+                    context: request.context
+                )
+                try Task.checkCancellation()
+                guard self.playbackSubtitleFocusShioriLookupGeneration == taskGeneration,
+                      self.playback.subtitleFocusSession === session
+                else {
+                    return
+                }
+                self.playbackSubtitleFocusShioriLookupTask = nil
+                _ = session.resolveActionMenuShioriAvailability(
+                    isSaved ? .alreadySaved : .available,
+                    request: request
+                )
+            } catch is CancellationError {
+                if self.playbackSubtitleFocusShioriLookupGeneration == taskGeneration {
+                    self.playbackSubtitleFocusShioriLookupTask = nil
+                }
+            } catch {
+                guard self.playbackSubtitleFocusShioriLookupGeneration == taskGeneration,
+                      self.playback.subtitleFocusSession === session
+                else {
+                    return
+                }
+                self.playbackSubtitleFocusShioriLookupTask = nil
+                print("Failed to resolve Playback Subtitle Focus Shiori state: \(error)")
+                _ = session.resolveActionMenuShioriAvailability(
+                    .unavailable,
+                    request: request
+                )
+            }
+        }
+    }
+
+    private func startPlaybackSubtitleFocusShioriSave(
+        _ execution: PlaybackSubtitleFocusActionExecution,
+        session: PlaybackSubtitleFocusSessionStore
+    ) {
+        guard !execution.context.cue.text.isEmpty else {
+            _ = session.failActionMenuExecution(
+                menuGeneration: execution.menuGeneration
+            )
+            return
+        }
+        cancelPlaybackSubtitleFocusActionTask()
+        let taskGeneration = playbackSubtitleFocusActionGeneration
+        let databaseReader = playbackSubtitleFocusDatabaseReader
+        let videoName = currentPlaybackTitle
+        playbackSubtitleFocusActionTask = Task { @MainActor [weak self, weak session] in
+            guard let self, let session else {
+                return
+            }
+
+            do {
+                let result = try await databaseReader.saveShiori(
+                    context: execution.context,
+                    videoName: videoName
+                )
+                self.finishPlaybackSubtitleFocusShioriSave(
+                    result,
+                    execution,
+                    session: session,
+                    taskGeneration: taskGeneration
+                )
+            } catch is CancellationError {
+                if self.playbackSubtitleFocusActionGeneration == taskGeneration {
+                    self.playbackSubtitleFocusActionTask = nil
+                }
+            } catch {
+                guard self.playbackSubtitleFocusActionGeneration == taskGeneration,
+                      self.playback.subtitleFocusSession === session
+                else {
+                    return
+                }
+                self.playbackSubtitleFocusActionTask = nil
+                print("Failed to save Playback Subtitle Focus Shiori: \(error)")
+                _ = session.failActionMenuExecution(
+                    menuGeneration: execution.menuGeneration
+                )
+            }
+        }
+    }
+
+    func finishPlaybackSubtitleFocusShioriSave(
+        _: PlaybackSubtitleFocusShioriWriteResult,
+        _ execution: PlaybackSubtitleFocusActionExecution,
+        session: PlaybackSubtitleFocusSessionStore,
+        taskGeneration: Int
+    ) {
+        shiori.invalidateTableRows()
+        guard playbackSubtitleFocusActionGeneration == taskGeneration,
+              playback.subtitleFocusSession === session
+        else {
+            return
+        }
+        playbackSubtitleFocusActionTask = nil
+        _ = session.markActionMenuShioriSaved(
+            menuGeneration: execution.menuGeneration
+        )
+        completePlaybackSubtitleFocusAction(
+            execution,
+            session: session
+        )
+    }
+
+    private func copyPlaybackSubtitleFocusCueText(_ text: String) -> Bool {
+        PlaybackSubtitleFocusClipboard.copy(text, to: .general)
+    }
+
+    private func playContinuouslyFromPlaybackSubtitleFocusCue(
+        _ context: PlaybackSubtitleFocusActionContext
+    ) -> Bool {
+        guard let playbackViewModel = playback.playbackViewModel,
+              currentPlaybackVideoPath.map({
+                  URL(fileURLWithPath: $0).standardizedFileURL.path
+              }) == context.source.videoPath,
+              currentPlaybackSubtitlePath.map({
+                  URL(fileURLWithPath: $0).standardizedFileURL.path
+              }) == context.source.subtitlePath,
+              currentPlaybackSubtitleFormat == context.source.subtitleFormat,
+              playbackViewModel.playContinuously(
+                  from: Double(context.cue.startMilliseconds) / 1_000
+              )
+        else {
+            return false
+        }
+
+        clearCueSegmentPlayback()
+        playback.playbackStatus = .playing
+        return true
+    }
+
+    private func cancelPlaybackSubtitleFocusMenuTasks() {
+        cancelPlaybackSubtitleFocusShioriLookup()
+        cancelPlaybackSubtitleFocusActionTask()
+    }
+
+    private func cancelPlaybackSubtitleFocusShioriLookup() {
+        playbackSubtitleFocusShioriLookupGeneration += 1
+        playbackSubtitleFocusShioriLookupTask?.cancel()
+        playbackSubtitleFocusShioriLookupTask = nil
+    }
+
+    private func cancelPlaybackSubtitleFocusActionTask() {
+        playbackSubtitleFocusActionGeneration += 1
+        playbackSubtitleFocusActionTask?.cancel()
+        playbackSubtitleFocusActionTask = nil
     }
 
     private func startPlaybackSubtitleFocusInitialLoad(

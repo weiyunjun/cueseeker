@@ -46,7 +46,15 @@ struct PlaybackPageView: View {
                         onCommitCachedScrollbarTarget:
                             appState.commitPlaybackSubtitleFocusCachedScrollbarTarget,
                         onRequestScrollbarTarget:
-                            appState.requestPlaybackSubtitleFocusScrollbarTarget
+                            appState.requestPlaybackSubtitleFocusScrollbarTarget,
+                        onOpenActionMenu:
+                            appState.openPlaybackSubtitleFocusActionMenu,
+                        onOpenSelectedActionMenu:
+                            appState.openPlaybackSubtitleFocusActionMenuFromKeyboard,
+                        onDismissActionMenu:
+                            appState.dismissPlaybackSubtitleFocusActionMenuFromUser,
+                        onExecuteAction:
+                            appState.executePlaybackSubtitleFocusAction
                     )
                         .frame(width: geometry.size.width, height: geometry.size.height)
                 }

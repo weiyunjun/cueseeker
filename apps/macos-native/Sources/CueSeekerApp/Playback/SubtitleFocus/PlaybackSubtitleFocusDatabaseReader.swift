@@ -1,6 +1,11 @@
 import CueSeekerCore
 import Foundation
 
+enum PlaybackSubtitleFocusShioriWriteResult: Equatable, Sendable {
+    case saved
+    case alreadySaved
+}
+
 actor PlaybackSubtitleFocusDatabaseReader {
     private let databaseURL: URL
     private var database: SubtitleDatabase?
@@ -35,6 +40,56 @@ actor PlaybackSubtitleFocusDatabaseReader {
         )
         try Task.checkCancellation()
         return batch
+    }
+
+    func isShioriSaved(
+        context: PlaybackSubtitleFocusActionContext
+    ) throws -> Bool {
+        try Task.checkCancellation()
+        let saved = try resolvedDatabase().shiori(
+            subtitleFile: URL(fileURLWithPath: context.source.subtitlePath),
+            startMilliseconds: context.cue.startMilliseconds,
+            endMilliseconds: context.cue.endMilliseconds
+        ) != nil
+        try Task.checkCancellation()
+        return saved
+    }
+
+    func saveShiori(
+        context: PlaybackSubtitleFocusActionContext,
+        videoName: String
+    ) throws -> PlaybackSubtitleFocusShioriWriteResult {
+        try Task.checkCancellation()
+        let database = try resolvedDatabase()
+        let subtitleFile = URL(fileURLWithPath: context.source.subtitlePath)
+        if try database.shiori(
+            subtitleFile: subtitleFile,
+            startMilliseconds: context.cue.startMilliseconds,
+            endMilliseconds: context.cue.endMilliseconds
+        ) != nil {
+            try Task.checkCancellation()
+            return .alreadySaved
+        }
+
+        try Task.checkCancellation()
+        do {
+            _ = try database.upsertShiori(
+                subtitleFile: subtitleFile,
+                subtitleFormat: context.source.subtitleFormat,
+                videoFile: URL(fileURLWithPath: context.source.videoPath),
+                videoName: videoName,
+                selection: context.cueTextSelection
+            )
+        } catch {
+            guard try database.shiori(
+                subtitleFile: subtitleFile,
+                startMilliseconds: context.cue.startMilliseconds,
+                endMilliseconds: context.cue.endMilliseconds
+            ) != nil else {
+                throw error
+            }
+        }
+        return .saved
     }
 
     private func resolvedDatabase() throws -> SubtitleDatabase {

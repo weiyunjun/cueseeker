@@ -69,11 +69,59 @@ func appCoordinatorMarksSearchCueSegmentFinishedAsPaused() async throws {
             content: "hello",
             cueLines: ["hello"]
         )
+        app.activateCueSegmentPlayback(PlaybackSegment(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
 
         app.handlePlaybackSegmentFinished(endMilliseconds: 2_500)
 
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueSegmentFinished)
+    }
+}
+
+@MainActor
+@Test
+func appCoordinatorConsumesCueSegmentCompletionOnlyOnce() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.playback.playbackStatus = .playing
+        app.activateCueSegmentPlayback(PlaybackSegment(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
+
+        app.handlePlaybackSegmentFinished(endMilliseconds: 2_500)
+        #expect(app.activeCueSegmentEndMilliseconds == nil)
+
+        app.playback.playbackStatus = .playing
+        app.currentCueSegmentFinished = false
+        app.handlePlaybackSegmentFinished(endMilliseconds: 2_500)
+
+        #expect(app.playback.playbackStatus == .playing)
+        #expect(!app.currentCueSegmentFinished)
+    }
+}
+
+@MainActor
+@Test
+func clearedCueSegmentRejectsLateCompletionDuringContinuousPlayback() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.activePlaybackSource = .search
+        app.playback.playbackStatus = .playing
+        app.settings.autoPlayCueSequenceEnabled = true
+        app.activateCueSegmentPlayback(PlaybackSegment(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
+
+        app.clearCueSegmentPlayback()
+        app.handlePlaybackSegmentFinished(endMilliseconds: 2_500)
+
+        #expect(app.activeCueSegmentEndMilliseconds == nil)
+        #expect(app.playback.playbackStatus == .playing)
+        #expect(!app.currentCueSegmentFinished)
+        #expect(app.autoPlayCueSequenceTask == nil)
     }
 }
 
@@ -97,6 +145,10 @@ func appCoordinatorHoldsSearchCueSubtitleDuringAutoSwitchGap() async throws {
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
         app.search.selectedSearchResult = result
+        app.activateCueSegmentPlayback(PlaybackSegment(
+            startMilliseconds: result.startMilliseconds,
+            endMilliseconds: result.endMilliseconds
+        ))
         app.playback.playbackViewModel?.setSubtitleCues(
             [
                 PlaybackSubtitleCue(
