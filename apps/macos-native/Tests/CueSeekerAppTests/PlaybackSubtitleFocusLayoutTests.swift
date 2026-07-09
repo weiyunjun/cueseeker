@@ -110,6 +110,357 @@ func subtitleFocusShortReelKeepsSelectionNearestCenterWithinBoundaries() {
     ) == 56)
 }
 
+@Test
+func subtitleFocusAnchorRemainsFixedDuringBoundaryNavigation() {
+    let stageHeight: CGFloat = 720
+    let firstAnchor = PlaybackSubtitleFocusMetrics.initialFocusAnchorY(
+        stageHeight: stageHeight,
+        totalCount: 20,
+        selectedOrdinal: 0
+    )
+    let firstOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: firstAnchor,
+        selectedOrdinal: 0,
+        loadedStartOrdinal: 0
+    )
+    let secondOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: firstAnchor,
+        selectedOrdinal: 1,
+        loadedStartOrdinal: 0
+    )
+
+    #expect(firstAnchor == PlaybackSubtitleFocusMetrics.contentInset)
+    #expect(firstOffset == 0)
+    #expect(secondOffset - firstOffset == -PlaybackSubtitleFocusMetrics.cueSlotPitch)
+    #expect(
+        PlaybackSubtitleFocusMetrics.contentInset
+            + secondOffset
+            + PlaybackSubtitleFocusMetrics.cueSlotPitch
+            == firstAnchor
+    )
+
+    let lastAnchor = PlaybackSubtitleFocusMetrics.initialFocusAnchorY(
+        stageHeight: stageHeight,
+        totalCount: 20,
+        selectedOrdinal: 19
+    )
+    let lastOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: lastAnchor,
+        selectedOrdinal: 19,
+        loadedStartOrdinal: 10
+    )
+    let previousOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: lastAnchor,
+        selectedOrdinal: 18,
+        loadedStartOrdinal: 10
+    )
+
+    #expect(lastAnchor == 584)
+    #expect(previousOffset - lastOffset == PlaybackSubtitleFocusMetrics.cueSlotPitch)
+    #expect(
+        PlaybackSubtitleFocusMetrics.contentInset
+            + previousOffset
+            + 8 * PlaybackSubtitleFocusMetrics.cueSlotPitch
+            == lastAnchor
+    )
+}
+
+@Test
+func subtitleFocusPointerSelectionMovesAnchorWithoutMovingReel() {
+    let originalAnchor = PlaybackSubtitleFocusMetrics.initialFocusAnchorY(
+        stageHeight: 720,
+        totalCount: 20,
+        selectedOrdinal: 12
+    )
+    let originalOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: originalAnchor,
+        selectedOrdinal: 12,
+        loadedStartOrdinal: 6
+    )
+    let clickedOrdinal = 11
+    let clickedAnchor = PlaybackSubtitleFocusMetrics.contentInset
+        + originalOffset
+        + CGFloat(clickedOrdinal - 6) * PlaybackSubtitleFocusMetrics.cueSlotPitch
+    let clickedOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: clickedAnchor,
+        selectedOrdinal: clickedOrdinal,
+        loadedStartOrdinal: 6
+    )
+
+    #expect(originalAnchor == 360)
+    #expect(clickedAnchor == 224)
+    #expect(clickedOffset == originalOffset)
+}
+
+@Test
+func subtitleFocusCacheWindowChangesPreserveCueScreenPosition() {
+    let anchor: CGFloat = 360
+    let oldOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: anchor,
+        selectedOrdinal: 12,
+        loadedStartOrdinal: 6
+    )
+    let newOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: anchor,
+        selectedOrdinal: 12,
+        loadedStartOrdinal: 2
+    )
+    let oldSelectedY = PlaybackSubtitleFocusMetrics.contentInset
+        + oldOffset
+        + CGFloat(12 - 6) * PlaybackSubtitleFocusMetrics.cueSlotPitch
+    let newSelectedY = PlaybackSubtitleFocusMetrics.contentInset
+        + newOffset
+        + CGFloat(12 - 2) * PlaybackSubtitleFocusMetrics.cueSlotPitch
+
+    #expect(oldSelectedY == anchor)
+    #expect(newSelectedY == anchor)
+}
+
+@Test
+func subtitleFocusWheelAccumulatorKeepsContinuousReelPosition() {
+    var selectedOrdinal = 12
+    var accumulator = PlaybackSubtitleFocusWheelAccumulator()
+    let canMove: (SubtitleFocusNavigationDirection) -> Bool = { direction in
+        direction == .backward ? selectedOrdinal > 0 : selectedOrdinal < 19
+    }
+    let move: (SubtitleFocusNavigationDirection) -> Bool = { direction in
+        selectedOrdinal += direction == .backward ? -1 : 1
+        return true
+    }
+
+    accumulator.apply(
+        deltaY: 60,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    #expect(selectedOrdinal == 12)
+    #expect(accumulator.translation == 60)
+
+    accumulator.apply(
+        deltaY: 76,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    #expect(selectedOrdinal == 11)
+    #expect(accumulator.translation == 0)
+
+    accumulator.apply(
+        deltaY: -300,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    #expect(selectedOrdinal == 13)
+    #expect(accumulator.translation == -28)
+}
+
+@Test
+func subtitleFocusWheelAccumulatorSettlesNearestCueAndClampsBoundary() {
+    var selectedOrdinal = 12
+    var accumulator = PlaybackSubtitleFocusWheelAccumulator()
+    let canMove: (SubtitleFocusNavigationDirection) -> Bool = { direction in
+        direction == .backward ? selectedOrdinal > 0 : selectedOrdinal < 19
+    }
+    let move: (SubtitleFocusNavigationDirection) -> Bool = { direction in
+        selectedOrdinal += direction == .backward ? -1 : 1
+        return true
+    }
+
+    accumulator.apply(
+        deltaY: -100,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    accumulator.prepareToSettle(
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    #expect(selectedOrdinal == 13)
+    #expect(accumulator.translation == 36)
+    accumulator.finishSettling()
+    #expect(accumulator.translation == 0)
+
+    selectedOrdinal = 0
+    accumulator.apply(
+        deltaY: 30,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    #expect(selectedOrdinal == 0)
+    #expect(accumulator.translation == 0)
+}
+
+@Test
+func subtitleFocusWheelTieUsesNetTranslationDirection() {
+    var selectedOrdinal = 12
+    var accumulator = PlaybackSubtitleFocusWheelAccumulator()
+    let canMove: (SubtitleFocusNavigationDirection) -> Bool = { _ in true }
+    let move: (SubtitleFocusNavigationDirection) -> Bool = { direction in
+        selectedOrdinal += direction == .backward ? -1 : 1
+        return true
+    }
+
+    accumulator.apply(
+        deltaY: 100,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    accumulator.apply(
+        deltaY: -32,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    #expect(accumulator.translation == 68)
+
+    accumulator.prepareToSettle(
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    #expect(selectedOrdinal == 11)
+    #expect(accumulator.translation == -68)
+    accumulator.finishSettling()
+    #expect(accumulator.translation == 0)
+}
+
+@Test
+func subtitleFocusCueHitShapeContainsOnlyVisibleTextFragments() {
+    let shape = PlaybackSubtitleFocusCueHitShape(
+        text: "first\nsecond\nthird"
+    )
+    let path = shape.path(in: CGRect(
+        x: 0,
+        y: 0,
+        width: 400,
+        height: PlaybackSubtitleFocusMetrics.cueSlotHeight
+    ))
+
+    #expect(path.contains(CGPoint(x: 20, y: 20)))
+    #expect(path.contains(CGPoint(x: 20, y: 70)))
+    #expect(!path.contains(CGPoint(x: 390, y: 20)))
+    #expect(path.boundingRect.maxY < PlaybackSubtitleFocusMetrics.cueSlotHeight)
+}
+
+@Test
+func subtitleFocusAnimatedPointerAnchorUsesPresentationOffset() {
+    let presentation = PlaybackSubtitleFocusReelPresentation()
+    let effect = PlaybackSubtitleFocusReelOffsetEffect(
+        offset: -420,
+        presentation: presentation
+    )
+    _ = effect.effectValue(size: CGSize(width: 960, height: 1_328))
+    let currentOffset = presentation.offset ?? 0
+    let clickedOrdinal = 11
+    let clickedAnchor = PlaybackSubtitleFocusMetrics.contentInset
+        + currentOffset
+        + CGFloat(clickedOrdinal - 6) * PlaybackSubtitleFocusMetrics.cueSlotPitch
+    let selectedOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
+        focusAnchorY: clickedAnchor,
+        selectedOrdinal: clickedOrdinal,
+        loadedStartOrdinal: 6
+    )
+
+    #expect(currentOffset == -420)
+    #expect(selectedOffset == currentOffset)
+}
+
+@Test
+func subtitleFocusScrollSequenceLatchesInsideGestureThroughMomentum() {
+    var sequence = PlaybackSubtitleFocusScrollSequence()
+    let began = sequence.consume(focusScrollSample(
+        deltaY: -10,
+        phase: .began,
+        isInside: true
+    ))
+    let changedOutside = sequence.consume(focusScrollSample(
+        deltaY: -20,
+        phase: .changed,
+        isInside: false
+    ))
+    let ended = sequence.consume(focusScrollSample(
+        deltaY: 0,
+        phase: .ended,
+        isInside: false
+    ))
+    let momentumBegan = sequence.consume(focusScrollSample(
+        deltaY: -8,
+        momentumPhase: .began,
+        isInside: false
+    ))
+    let momentumEnded = sequence.consume(focusScrollSample(
+        deltaY: 0,
+        momentumPhase: .ended,
+        isInside: false
+    ))
+
+    #expect(began.shouldConsume)
+    #expect(began.deltaY == -10)
+    #expect(changedOutside.shouldConsume)
+    #expect(ended.settleDirective == .debounce)
+    #expect(momentumBegan.settleDirective == .cancel)
+    #expect(momentumEnded.settleDirective == .immediate)
+}
+
+@Test
+func subtitleFocusScrollSequencePassesOutsideStartAndScalesLegacyWheel() {
+    var sequence = PlaybackSubtitleFocusScrollSequence()
+    let outside = sequence.consume(focusScrollSample(
+        deltaY: -1,
+        phase: .began,
+        isInside: false
+    ))
+    let legacy = sequence.consume(focusScrollSample(
+        deltaY: 1,
+        isPrecise: false,
+        isInside: true
+    ))
+
+    #expect(!outside.shouldConsume)
+    #expect(legacy.shouldConsume)
+    #expect(legacy.deltaY == PlaybackSubtitleFocusMetrics.cueSlotPitch)
+    #expect(legacy.settleDirective == .debounce)
+}
+
+@Test
+func subtitleFocusMomentumEndAppliesFinalDeltaBeforeSettling() {
+    var sequence = PlaybackSubtitleFocusScrollSequence()
+    _ = sequence.consume(focusScrollSample(
+        deltaY: -40,
+        phase: .began,
+        isInside: true
+    ))
+    let finalOutput = sequence.consume(focusScrollSample(
+        deltaY: -30,
+        momentumPhase: .ended,
+        isInside: false
+    ))
+    var selectedOrdinal = 12
+    var accumulator = PlaybackSubtitleFocusWheelAccumulator()
+    let canMove: (SubtitleFocusNavigationDirection) -> Bool = { _ in true }
+    let move: (SubtitleFocusNavigationDirection) -> Bool = { direction in
+        selectedOrdinal += direction == .backward ? -1 : 1
+        return true
+    }
+
+    accumulator.apply(
+        deltaY: -40,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    accumulator.apply(
+        deltaY: finalOutput.deltaY,
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    accumulator.prepareToSettle(
+        canMoveSelection: canMove,
+        moveSelection: move
+    )
+    accumulator.finishSettling()
+
+    #expect(finalOutput.settleDirective == .immediate)
+    #expect(selectedOrdinal == 13)
+    #expect(accumulator.translation == 0)
+}
+
 @MainActor
 @Test
 func subtitleFocusCueTextUsesFiftyTwoPointLinePitch() {
@@ -180,4 +531,20 @@ private func subtitleFocusCueTextHeight(lineCount: Int) -> CGFloat {
     )
     hostingView.layoutSubtreeIfNeeded()
     return hostingView.fittingSize.height
+}
+
+private func focusScrollSample(
+    deltaY: CGFloat,
+    isPrecise: Bool = true,
+    phase: PlaybackSubtitleFocusScrollSample.Phase = .none,
+    momentumPhase: PlaybackSubtitleFocusScrollSample.Phase = .none,
+    isInside: Bool
+) -> PlaybackSubtitleFocusScrollSample {
+    PlaybackSubtitleFocusScrollSample(
+        deltaY: deltaY,
+        isPrecise: isPrecise,
+        phase: phase,
+        momentumPhase: momentumPhase,
+        isInside: isInside
+    )
 }

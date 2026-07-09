@@ -29,15 +29,26 @@ enum PlaybackSubtitleFocusState: Equatable, Sendable {
     case cueSelection(SubtitleFocusSnapshot)
 }
 
+struct PlaybackSubtitleFocusKeyboardNavigationRequest: Equatable, Sendable {
+    let sequence: Int
+    let direction: SubtitleFocusNavigationDirection
+}
+
 @MainActor
 final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     let openSnapshot: PlaybackSubtitleFocusOpenSnapshot
     let token: PlaybackSubtitleFocusSessionToken
 
     @Published private(set) var state: PlaybackSubtitleFocusState = .opening
+    @Published private(set) var keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
+        = nil
 
     private var cueCache = SubtitleFocusCueCache()
     private var isSessionActive = true
+    private var keyboardNavigationSequence = 0
+    private var pendingKeyboardNavigationDirections: [SubtitleFocusNavigationDirection] = []
+    private(set) var initialSelectedOrdinal: Int?
+    private(set) var focusAnchorY: CGFloat?
 
     init(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
@@ -89,8 +100,83 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
 
         cueCache = nextCache
+        initialSelectedOrdinal = snapshot.selectedOrdinal
+        focusAnchorY = nil
         state = .cueSelection(snapshot)
         return true
+    }
+
+    @discardableResult
+    func moveSelection(
+        _ direction: SubtitleFocusNavigationDirection
+    ) -> Bool {
+        guard isSessionActive,
+              let snapshot = currentSnapshot
+        else {
+            return false
+        }
+
+        let targetOrdinal: Int
+        switch direction {
+        case .backward:
+            targetOrdinal = snapshot.selectedOrdinal - 1
+        case .forward:
+            targetOrdinal = snapshot.selectedOrdinal + 1
+        }
+        return selectCachedCue(ordinal: targetOrdinal, focusAnchorY: nil)
+    }
+
+    @discardableResult
+    func requestKeyboardNavigation(
+        _ direction: SubtitleFocusNavigationDirection
+    ) -> Bool {
+        guard isSessionActive, currentSnapshot != nil else {
+            return false
+        }
+        keyboardNavigationSequence += 1
+        pendingKeyboardNavigationDirections.append(direction)
+        keyboardNavigationRequest = PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: keyboardNavigationSequence,
+            direction: direction
+        )
+        return true
+    }
+
+    func takePendingKeyboardNavigationDirections() -> [SubtitleFocusNavigationDirection] {
+        let directions = pendingKeyboardNavigationDirections
+        pendingKeyboardNavigationDirections.removeAll(keepingCapacity: true)
+        return directions
+    }
+
+    func canMoveSelection(
+        _ direction: SubtitleFocusNavigationDirection
+    ) -> Bool {
+        guard isSessionActive,
+              let snapshot = currentSnapshot
+        else {
+            return false
+        }
+
+        let targetOrdinal = direction == .backward
+            ? snapshot.selectedOrdinal - 1
+            : snapshot.selectedOrdinal + 1
+        return targetOrdinal >= 0
+            && targetOrdinal < snapshot.totalCount
+            && cueCache[targetOrdinal] != nil
+    }
+
+    @discardableResult
+    func selectCue(
+        ordinal: Int,
+        focusAnchorY: CGFloat
+    ) -> Bool {
+        guard focusAnchorY.isFinite else {
+            return false
+        }
+        guard currentSnapshot?.selectedOrdinal != ordinal else {
+            return true
+        }
+        return selectCachedCue(ordinal: ordinal, focusAnchorY: focusAnchorY)
     }
 
     @discardableResult
@@ -122,10 +208,37 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isSessionActive && requestToken == token
     }
 
+    private func selectCachedCue(
+        ordinal: Int,
+        focusAnchorY nextFocusAnchorY: CGFloat?
+    ) -> Bool {
+        guard let snapshot = currentSnapshot,
+              ordinal >= 0,
+              ordinal < snapshot.totalCount,
+              cueCache[ordinal] != nil
+        else {
+            return false
+        }
+
+        if let nextFocusAnchorY {
+            focusAnchorY = nextFocusAnchorY
+        }
+        state = .cueSelection(SubtitleFocusSnapshot(
+            totalCount: snapshot.totalCount,
+            selectedOrdinal: ordinal,
+            cues: cueCache.cues
+        ))
+        return true
+    }
+
     private func closeSession() -> Bool {
         let wasPlaying = openSnapshot.wasPlaying
         isSessionActive = false
         cueCache.removeAll()
+        pendingKeyboardNavigationDirections.removeAll(keepingCapacity: false)
+        keyboardNavigationRequest = nil
+        initialSelectedOrdinal = nil
+        focusAnchorY = nil
         state = .closed
         return wasPlaying
     }

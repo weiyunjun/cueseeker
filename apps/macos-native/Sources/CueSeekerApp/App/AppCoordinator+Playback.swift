@@ -909,6 +909,12 @@ extension AppCoordinator {
             switch keyCode {
             case 53:
                 return dismissPlaybackSubtitleFocusFromUser()
+            case 126:
+                _ = playback.subtitleFocusSession?.requestKeyboardNavigation(.backward)
+                return true
+            case 125:
+                _ = playback.subtitleFocusSession?.requestKeyboardNavigation(.forward)
+                return true
             default:
                 return true
             }

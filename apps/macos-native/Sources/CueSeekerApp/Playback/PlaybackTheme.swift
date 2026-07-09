@@ -247,6 +247,38 @@ enum PlaybackSubtitleFocusMetrics {
             selectedIndex: selectedOrdinal
         ) + CGFloat(max(0, loadedStartOrdinal)) * cueSlotPitch
     }
+
+    static func initialFocusAnchorY(
+        stageHeight: CGFloat,
+        totalCount: Int,
+        selectedOrdinal: Int
+    ) -> CGFloat {
+        let count = max(0, totalCount)
+        guard count > 0 else {
+            return contentInset
+        }
+
+        let boundedSelectedOrdinal = min(max(0, selectedOrdinal), count - 1)
+        let viewportHeight = max(0, stageHeight - contentInset * 2)
+        return contentInset
+            + reelOffset(
+                viewportHeight: viewportHeight,
+                cueCount: count,
+                selectedIndex: boundedSelectedOrdinal
+            )
+            + CGFloat(boundedSelectedOrdinal) * cueSlotPitch
+    }
+
+    static func anchoredLoadedReelOffset(
+        focusAnchorY: CGFloat,
+        selectedOrdinal: Int,
+        loadedStartOrdinal: Int
+    ) -> CGFloat {
+        focusAnchorY
+            - contentInset
+            - CGFloat(max(0, selectedOrdinal)) * cueSlotPitch
+            + CGFloat(max(0, loadedStartOrdinal)) * cueSlotPitch
+    }
 }
 
 enum PlaybackChromeMetrics {
