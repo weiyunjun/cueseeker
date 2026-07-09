@@ -493,6 +493,8 @@ extension AppCoordinator {
         recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil
     ) {
+        invalidatePlaybackSubtitleFocusForSourceReplacement()
+        playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
             "ACTION UI.LibraryVideo.opened",
             details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"

@@ -111,6 +111,7 @@ final class PlaybackTimelineInteractionStore: ObservableObject {
 final class PlaybackStore: ObservableObject {
     let timeline = PlaybackTimelineInteractionStore()
 
+    @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = false
@@ -153,6 +154,7 @@ final class PlaybackStore: ObservableObject {
     var quickSearchPlaybackWasPlayingOnOpen = false
     private var isApplyingQuickSearchDraftUpdate = false
     private var quickSearchAIOptionsSnapshot: PlaybackQuickSearchAIOptionsSnapshot?
+    private var subtitleFocusSessionGeneration = 0
 
     init(userDefaults _: UserDefaults) {}
 
@@ -164,6 +166,33 @@ final class PlaybackStore: ObservableObject {
     var timelineScrubTime: Double? {
         get { timeline.scrubTime }
         set { timeline.scrubTime = newValue }
+    }
+
+    func beginSubtitleFocusSession(
+        openSnapshot: PlaybackSubtitleFocusOpenSnapshot
+    ) -> PlaybackSubtitleFocusSessionStore? {
+        guard subtitleFocusSession == nil else {
+            return nil
+        }
+
+        subtitleFocusSessionGeneration += 1
+        let session = PlaybackSubtitleFocusSessionStore(
+            openSnapshot: openSnapshot,
+            sessionGeneration: subtitleFocusSessionGeneration
+        )
+        subtitleFocusSession = session
+        return session
+    }
+
+    func releaseSubtitleFocusSession(
+        _ session: PlaybackSubtitleFocusSessionStore
+    ) {
+        guard subtitleFocusSession === session else {
+            return
+        }
+
+        session.invalidateForSourceReplacement()
+        subtitleFocusSession = nil
     }
 
     func setChromeSnapshot(_ snapshot: PlaybackChromeSnapshot) {

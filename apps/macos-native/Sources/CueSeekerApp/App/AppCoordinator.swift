@@ -402,6 +402,7 @@ final class AppCoordinator: ObservableObject {
     var searchExactCompletionTask: Task<Void, Never>?
     var searchNavigationTask: Task<Void, Never>?
     var playbackSubtitleCuesTask: Task<Void, Never>?
+    var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var databaseStorageStatsTask: Task<Void, Never>?
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?

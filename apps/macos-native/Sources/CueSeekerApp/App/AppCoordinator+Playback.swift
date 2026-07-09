@@ -165,6 +165,8 @@ extension AppCoordinator {
         recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil
     ) {
+        invalidatePlaybackSubtitleFocusForSourceReplacement()
+        playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResult.opened",
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
@@ -302,17 +304,25 @@ extension AppCoordinator {
         )
     }
 
-    func pausePlayback() {
+    @discardableResult
+    func pausePlayback() -> Bool {
+        guard let player else {
+            playback.playbackStatus = .failed(Self.errorMessage(for: PlaybackError.playbackPlayerUnavailable))
+            return false
+        }
+
         do {
             cancelAutoPlayCueSequenceTask()
             clearCueSubtitlePresentationHold()
-            try player?.setPaused(true)
+            try player.setPaused(true)
             if hasPlaybackSelection {
                 playback.playbackStatus = .paused
             }
             saveCurrentLibraryPlaybackHistory()
+            return true
         } catch {
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            return false
         }
     }
 
@@ -885,6 +895,21 @@ extension AppCoordinator {
             return false
         }
 
+        if playback.subtitleFocusSession != nil {
+            guard !Self.isEditableTextInputFocused() else {
+                return false
+            }
+
+            switch keyCode {
+            case 53:
+                return dismissPlaybackSubtitleFocusFromUser()
+            case 36, 76, 125, 126:
+                return true
+            default:
+                return false
+            }
+        }
+
         if playback.isQuickSearchOverlayVisible {
             if keyCode == 53 {
                 return handlePlaybackQuickSearchEscapeFromUser()
@@ -1325,6 +1350,7 @@ extension AppCoordinator {
     }
 
     func stopPlayback() {
+        invalidatePlaybackSubtitleFocusForSourceReplacement()
         do {
             cancelPlaybackQuickSearchAIChunking()
             cancelPlaybackQuickSearchChunkCount()

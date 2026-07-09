@@ -270,6 +270,8 @@ extension AppCoordinator {
         navigationScopeIDs: [Int64]? = nil,
         displayTitle: String? = nil
     ) {
+        invalidatePlaybackSubtitleFocusForSourceReplacement()
+        playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
             "ACTION UI.Shiori.opened",
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
