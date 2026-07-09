@@ -900,13 +900,17 @@ extension AppCoordinator {
                 return false
             }
 
+            let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
+            let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
+            guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
+                return false
+            }
+
             switch keyCode {
             case 53:
                 return dismissPlaybackSubtitleFocusFromUser()
-            case 36, 76, 125, 126:
-                return true
             default:
-                return false
+                return true
             }
         }
 
@@ -975,7 +979,7 @@ extension AppCoordinator {
             togglePlaybackFromUser()
             return true
         case 36, 76:
-            return openPlaybackQuickSearchFromUser()
+            return openPlaybackSubtitleFocusFromUser()
         case 123:
             viewModel.seekRelative(by: -5)
             return true

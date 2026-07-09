@@ -10,6 +10,9 @@ struct PlaybackPageView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let subtitleFocusSession = playback.subtitleFocusSession
+            let isSubtitleFocusActive = subtitleFocusSession != nil
+
             // The video stage fills the whole window so playback geometry is
             // independent from auxiliary overlays.
             ZStack(alignment: .top) {
@@ -20,6 +23,8 @@ struct PlaybackPageView: View {
                     onClose: onClose
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                .allowsHitTesting(!isSubtitleFocusActive)
+                .accessibilityHidden(isSubtitleFocusActive)
 
                 // The feedback HUD is centered within the full-window black video base
                 // (doc 12 §11/§13.4). It is the SwiftUI feedback layer only;
@@ -31,6 +36,11 @@ struct PlaybackPageView: View {
                 }
 
                 quickSearchOverlay(in: geometry.size)
+
+                if let subtitleFocusSession {
+                    PlaybackSubtitleFocusLayer(session: subtitleFocusSession)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }

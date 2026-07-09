@@ -1,8 +1,31 @@
+import AppKit
 import SwiftUI
 
 /// Defines the global cinematic theme parameters and styles for CueSeeker playback interface.
 /// Discards standard system light/dark color scheme variation in favor of a cohesive, high-contrast dark theater environment.
 public enum PlaybackTheme {
+
+    // MARK: - Subtitle Focus Colors
+
+    /// --color-subtitle-focus-overlay-bg
+    public static var subtitleFocusOverlayBackground: Color {
+        Color(red: 36 / 255, green: 36 / 255, blue: 38 / 255)
+    }
+
+    /// --color-subtitle-focus-cue-selected
+    public static var subtitleFocusCueSelected: Color {
+        Color.white.opacity(0.94)
+    }
+
+    /// --color-subtitle-focus-cue-hover
+    public static var subtitleFocusCueHover: Color {
+        Color.white.opacity(0.62)
+    }
+
+    /// --color-subtitle-focus-cue-unselected
+    public static var subtitleFocusCueUnselected: Color {
+        Color.white.opacity(0.34)
+    }
 
     // MARK: - Player Chrome Colors
 
@@ -150,6 +173,79 @@ public enum PlaybackTheme {
     /// Background track color for the scrubber timeline.
     public static var scrubberTrackBackground: Color {
         progressTrack
+    }
+}
+
+enum PlaybackSubtitleFocusMetrics {
+    /// --height-subtitle-focus-cue-slot
+    static let cueSlotHeight: CGFloat = 104
+    /// --spacing-8
+    static let cueGap: CGFloat = 32
+    static let cueSlotPitch = cueSlotHeight + cueGap
+    /// --width-subtitle-focus-content-max
+    static let contentMaxWidth: CGFloat = 960
+    /// --spacing-8
+    static let contentInset: CGFloat = 32
+    /// --font-size-subtitle-focus-cue
+    static let cueFontSize: CGFloat = 40
+    /// --line-height-subtitle-focus-cue: 1.30
+    static let cueLineHeight: CGFloat = 52
+    static let cueLineSpacing: CGFloat = {
+        let font = NSFont.systemFont(ofSize: cueFontSize, weight: .semibold)
+        let glyphLineHeight = font.ascender - font.descender + font.leading
+        return max(0, cueLineHeight - glyphLineHeight)
+    }()
+    /// --duration-subtitle-focus-scroll
+    static let reelTransitionDuration = 0.22
+    /// --easing-subtitle-focus-scroll: cubic-bezier(0.22, 1, 0.36, 1)
+    static var reelTransitionAnimation: Animation {
+        .timingCurve(
+            0.22,
+            1,
+            0.36,
+            1,
+            duration: reelTransitionDuration
+        )
+    }
+
+    static func reelHeight(cueCount: Int) -> CGFloat {
+        let count = max(0, cueCount)
+        guard count > 0 else {
+            return 0
+        }
+        return CGFloat(count) * cueSlotHeight + CGFloat(count - 1) * cueGap
+    }
+
+    static func reelOffset(
+        viewportHeight: CGFloat,
+        cueCount: Int,
+        selectedIndex: Int
+    ) -> CGFloat {
+        let height = max(0, viewportHeight)
+        let count = max(0, cueCount)
+        guard height > 0, count > 0 else {
+            return 0
+        }
+
+        let boundedSelectedIndex = min(max(0, selectedIndex), count - 1)
+        let preferredOffset = height / 2 - CGFloat(boundedSelectedIndex) * cueSlotPitch
+        let remainingSpace = height - reelHeight(cueCount: count)
+        let minimumOffset = min(0, remainingSpace)
+        let maximumOffset = max(0, remainingSpace)
+        return min(max(preferredOffset, minimumOffset), maximumOffset)
+    }
+
+    static func loadedReelOffset(
+        viewportHeight: CGFloat,
+        totalCount: Int,
+        selectedOrdinal: Int,
+        loadedStartOrdinal: Int
+    ) -> CGFloat {
+        reelOffset(
+            viewportHeight: viewportHeight,
+            cueCount: totalCount,
+            selectedIndex: selectedOrdinal
+        ) + CGFloat(max(0, loadedStartOrdinal)) * cueSlotPitch
     }
 }
 
