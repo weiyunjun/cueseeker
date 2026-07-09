@@ -36,10 +36,10 @@ enum SubtitleTableMetrics {
     static let tableCellHoverPaddingX = WorkbenchControlMetrics.redesignTableCellHoverPaddingX
     static let tableCellHoverPaddingY = WorkbenchControlMetrics.redesignTableCellHoverPaddingY
     static let tableCellHoverRadius = WorkbenchControlMetrics.redesignTableCellHoverRadius
-    static let scrollbarSize: CGFloat = 8
-    static let scrollbarInset: CGFloat = 4
-    static let scrollbarMinThumbLength: CGFloat = 24
-    static let scrollbarHitSlop: CGFloat = 6
+    static let scrollbarSize = TableScrollbarPrimitiveMetrics.size
+    static let scrollbarInset = TableScrollbarPrimitiveMetrics.inset
+    static let scrollbarMinThumbLength = TableScrollbarPrimitiveMetrics.minimumThumbLength
+    static let scrollbarHitSlop = TableScrollbarPrimitiveMetrics.hitSlop
     static let interactiveTextUnderlineThickness = WorkbenchControlMetrics.redesignInteractiveTextUnderlineThickness
     static let interactiveTextUnderlineOffset = WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset
 }
@@ -1053,142 +1053,50 @@ final class SubtitleTableContainerView: NSView {
 }
 
 struct SubtitleTableScrollbarMetrics {
-    enum Axis {
-        case vertical
-        case horizontal
-    }
+    typealias Axis = TableScrollbarAxis
 
     var viewportSize: CGSize
     var contentSize: CGSize
     var contentOffset: CGPoint
 
-    private var size: CGFloat { SubtitleTableMetrics.scrollbarSize }
-    private var inset: CGFloat { SubtitleTableMetrics.scrollbarInset }
-    private var minThumbLength: CGFloat { SubtitleTableMetrics.scrollbarMinThumbLength }
-    private var hitSlop: CGFloat { SubtitleTableMetrics.scrollbarHitSlop }
+    var presentation: TableScrollbarPresentation {
+        TableScrollbarPresentation(
+            vertical: axisPresentation(for: .vertical),
+            horizontal: axisPresentation(for: .horizontal)
+        )
+    }
 
     func isVisible(_ axis: Axis) -> Bool {
-        switch axis {
-        case .vertical:
-            contentSize.height > viewportSize.height + 0.5
-        case .horizontal:
-            contentSize.width > viewportSize.width + 0.5
-        }
+        contentLength(for: axis) > viewportLength(for: axis) + 0.5
     }
 
     func trackRect(for axis: Axis, in bounds: CGRect) -> CGRect? {
-        guard isVisible(axis) else { return nil }
-        let verticalReserve = isVisible(.vertical) ? size + inset : 0
-        let horizontalReserve = isVisible(.horizontal) ? size + inset : 0
-
-        switch axis {
-        case .vertical:
-            let height = bounds.height - 2 * inset - horizontalReserve
-            guard height > 0 else { return nil }
-            return CGRect(
-                x: bounds.maxX - inset - size,
-                y: bounds.minY + inset,
-                width: size,
-                height: height
-            )
-        case .horizontal:
-            let width = bounds.width - 2 * inset - verticalReserve
-            guard width > 0 else { return nil }
-            return CGRect(
-                x: bounds.minX + inset,
-                y: bounds.maxY - inset - size,
-                width: width,
-                height: size
-            )
-        }
+        TableScrollbarGeometry(presentation: presentation)
+            .trackRect(for: axis, in: bounds)
     }
 
     func thumbRect(for axis: Axis, in bounds: CGRect) -> CGRect? {
-        guard let track = trackRect(for: axis, in: bounds) else { return nil }
-        let viewportLength: CGFloat
-        let contentLength: CGFloat
-        let contentOffsetLength: CGFloat
-        let trackLength: CGFloat
-
-        switch axis {
-        case .vertical:
-            viewportLength = viewportSize.height
-            contentLength = contentSize.height
-            contentOffsetLength = contentOffset.y
-            trackLength = track.height
-        case .horizontal:
-            viewportLength = viewportSize.width
-            contentLength = contentSize.width
-            contentOffsetLength = contentOffset.x
-            trackLength = track.width
-        }
-
-        let maxScroll = max(0, contentLength - viewportLength)
-        guard maxScroll > 0, trackLength > 0 else { return nil }
-
-        let proportionalLength = trackLength * min(1, max(0, viewportLength / contentLength))
-        let thumbLength = min(trackLength, max(minThumbLength, proportionalLength))
-        let travelLength = max(0, trackLength - thumbLength)
-        let scrollFraction = maxScroll > 0 ? min(1, max(0, contentOffsetLength / maxScroll)) : 0
-        let thumbOffset = travelLength * scrollFraction
-
-        switch axis {
-        case .vertical:
-            return CGRect(
-                x: track.minX,
-                y: track.minY + thumbOffset,
-                width: track.width,
-                height: thumbLength
-            )
-        case .horizontal:
-            return CGRect(
-                x: track.minX + thumbOffset,
-                y: track.minY,
-                width: thumbLength,
-                height: track.height
-            )
-        }
+        TableScrollbarGeometry(presentation: presentation)
+            .thumbRect(for: axis, in: bounds)
     }
 
     func interactiveThumbRect(for axis: Axis, in bounds: CGRect) -> CGRect? {
-        guard let thumb = thumbRect(for: axis, in: bounds) else { return nil }
-        switch axis {
-        case .vertical:
-            return thumb.insetBy(dx: -hitSlop, dy: -2)
-        case .horizontal:
-            return thumb.insetBy(dx: -2, dy: -hitSlop)
-        }
+        TableScrollbarGeometry(presentation: presentation)
+            .interactiveThumbRect(for: axis, in: bounds)
     }
 
-    func scrollOffset(for axis: Axis, thumbPosition: CGFloat, in bounds: CGRect) -> CGFloat {
-        guard let track = trackRect(for: axis, in: bounds),
-              let thumb = thumbRect(for: axis, in: bounds)
-        else {
-            return 0
-        }
-
-        let trackStart: CGFloat
-        let trackLength: CGFloat
-        let thumbLength: CGFloat
-        let maxScroll: CGFloat
-
-        switch axis {
-        case .vertical:
-            trackStart = track.minY
-            trackLength = track.height
-            thumbLength = thumb.height
-            maxScroll = max(0, contentSize.height - viewportSize.height)
-        case .horizontal:
-            trackStart = track.minX
-            trackLength = track.width
-            thumbLength = thumb.width
-            maxScroll = max(0, contentSize.width - viewportSize.width)
-        }
-
-        let travelLength = max(0, trackLength - thumbLength)
-        guard travelLength > 0, maxScroll > 0 else { return 0 }
-        let thumbTravel = min(travelLength, max(0, thumbPosition - trackStart))
-        return maxScroll * thumbTravel / travelLength
+    func scrollOffset(
+        for axis: Axis,
+        thumbPosition: CGFloat,
+        in bounds: CGRect
+    ) -> CGFloat {
+        let fraction = TableScrollbarGeometry(presentation: presentation)
+            .positionFraction(
+                for: axis,
+                thumbPosition: thumbPosition,
+                in: bounds
+            )
+        return scrollOffset(for: axis, positionFraction: fraction)
     }
 
     func scrollOffset(
@@ -1197,147 +1105,100 @@ struct SubtitleTableScrollbarMetrics {
         dragDelta: CGFloat,
         in bounds: CGRect
     ) -> CGFloat {
-        scrollOffset(for: axis, thumbPosition: dragStartThumbOrigin + dragDelta, in: bounds)
+        let fraction = TableScrollbarGeometry(presentation: presentation)
+            .positionFraction(
+                for: axis,
+                dragStartThumbOrigin: dragStartThumbOrigin,
+                dragDelta: dragDelta,
+                in: bounds
+            )
+        return scrollOffset(for: axis, positionFraction: fraction)
+    }
+
+    func scrollOffset(
+        for axis: Axis,
+        positionFraction: CGFloat
+    ) -> CGFloat {
+        maxScroll(for: axis) * min(1, max(0, positionFraction))
+    }
+
+    private func axisPresentation(
+        for axis: Axis
+    ) -> TableScrollbarAxisPresentation? {
+        guard isVisible(axis) else {
+            return nil
+        }
+        let viewportLength = viewportLength(for: axis)
+        let contentLength = contentLength(for: axis)
+        let maxScroll = maxScroll(for: axis)
+        let offset = axis == .vertical ? contentOffset.y : contentOffset.x
+        return TableScrollbarAxisPresentation(
+            visibleFraction: contentLength > 0 ? viewportLength / contentLength : 1,
+            positionFraction: maxScroll > 0 ? offset / maxScroll : 0
+        )
+    }
+
+    private func viewportLength(for axis: Axis) -> CGFloat {
+        axis == .vertical ? viewportSize.height : viewportSize.width
+    }
+
+    private func contentLength(for axis: Axis) -> CGFloat {
+        axis == .vertical ? contentSize.height : contentSize.width
+    }
+
+    private func maxScroll(for axis: Axis) -> CGFloat {
+        max(0, contentLength(for: axis) - viewportLength(for: axis))
     }
 }
 
-final class SubtitleTableScrollbarOverlayView: NSView {
+final class SubtitleTableScrollbarOverlayView: TableScrollbarOverlayView {
     weak var scrollView: NSScrollView? {
         didSet {
-            lastMetrics = nil
-            needsDisplay = true
+            scrollbarMetricsDidChange()
         }
     }
 
-    var onDragStateChanged: ((Bool) -> Void)?
-
-    var isRedesign: Bool = false {
-        didSet {
-            isHidden = !isRedesign
-            lastMetrics = nil
-            needsDisplay = true
-        }
+    var isRedesign: Bool {
+        get { isPresented }
+        set { isPresented = newValue }
     }
-
-    private var trackingArea: NSTrackingArea?
-    private var hoveredAxis: SubtitleTableScrollbarMetrics.Axis? {
-        didSet {
-            guard hoveredAxis != oldValue else { return }
-            invalidateInteractiveStateChange(from: oldValue, to: hoveredAxis)
-        }
-    }
-    private var draggingAxis: SubtitleTableScrollbarMetrics.Axis? {
-        didSet {
-            guard draggingAxis != oldValue else { return }
-            invalidateInteractiveStateChange(from: oldValue, to: draggingAxis)
-            if (oldValue == nil) != (draggingAxis == nil) {
-                onDragStateChanged?(draggingAxis != nil)
-            }
-        }
-    }
-    private var dragStartPoint: CGPoint = .zero
-    private var dragStartThumbOrigin: CGFloat = 0
-    private var lastMetrics: SubtitleTableScrollbarMetrics?
-
-    override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        isHidden = true
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+        presentationProvider = { [weak self] in
+            self?.metrics()?.presentation
+        }
+        onDrag = { [weak self] event in
+            self?.handleDrag(event)
+        }
+        onScrollWheel = { [weak self] event in
+            self?.scrollView?.scrollWheel(with: event)
+        }
     }
 
     @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
-            owner: self
-        )
-        addTrackingArea(area)
-        trackingArea = area
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        needsDisplay = true
+    func scrollMetricsDidChange() {
+        scrollbarMetricsDidChange()
     }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let localPoint = superview.map { convert(point, from: $0) } ?? point
-        guard isRedesign,
-              !isHidden,
-              axis(at: localPoint) != nil
-        else {
-            return nil
-        }
-        return self
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        guard isRedesign, let currentMetrics = metrics() else {
-            lastMetrics = nil
-            return
-        }
-        lastMetrics = currentMetrics
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            drawThumb(axis: .vertical, metrics: currentMetrics)
-            drawThumb(axis: .horizontal, metrics: currentMetrics)
-        }
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        super.mouseMoved(with: event)
-        hoveredAxis = axis(at: convert(event.locationInWindow, from: nil))
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        super.mouseExited(with: event)
-        guard draggingAxis == nil else { return }
-        hoveredAxis = nil
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        let point = convert(event.locationInWindow, from: nil)
-        guard let axis = axis(at: point),
-              let metrics = metrics(),
-              let thumb = metrics.thumbRect(for: axis, in: bounds)
+    private func handleDrag(_ event: TableScrollbarDragEvent) {
+        guard event.phase == .changed,
+              let scrollView,
+              let metrics = metrics()
         else {
             return
         }
-        draggingAxis = axis
-        hoveredAxis = axis
-        dragStartPoint = point
-        dragStartThumbOrigin = axis == .vertical ? thumb.minY : thumb.minX
-    }
 
-    override func mouseDragged(with event: NSEvent) {
-        guard let draggingAxis,
-              let metrics = metrics(),
-              let scrollView
-        else {
-            return
-        }
-        let point = convert(event.locationInWindow, from: nil)
-        let dragDelta = draggingAxis == .vertical
-            ? point.y - dragStartPoint.y
-            : point.x - dragStartPoint.x
         let nextOffset = metrics.scrollOffset(
-            for: draggingAxis,
-            dragStartThumbOrigin: dragStartThumbOrigin,
-            dragDelta: dragDelta,
-            in: bounds
+            for: event.axis,
+            positionFraction: event.positionFraction
         )
         var origin = scrollView.contentView.bounds.origin
-        switch draggingAxis {
+        switch event.axis {
         case .vertical:
             origin.y = nextOffset
         case .horizontal:
@@ -1345,30 +1206,7 @@ final class SubtitleTableScrollbarOverlayView: NSView {
         }
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
-        let newMetrics = self.metrics()
-        invalidateThumbs(oldMetrics: metrics, newMetrics: newMetrics, axes: [draggingAxis])
-        lastMetrics = newMetrics
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        super.mouseUp(with: event)
-        draggingAxis = nil
-        hoveredAxis = axis(at: convert(event.locationInWindow, from: nil))
-    }
-
-    override func scrollWheel(with event: NSEvent) {
-        if let scrollView {
-            scrollView.scrollWheel(with: event)
-        } else {
-            super.scrollWheel(with: event)
-        }
-    }
-
-    func scrollMetricsDidChange() {
-        guard isRedesign else { return }
-        let newMetrics = metrics()
-        invalidateThumbs(oldMetrics: lastMetrics, newMetrics: newMetrics)
-        lastMetrics = newMetrics
+        scrollbarMetricsDidChange()
     }
 
     private func metrics() -> SubtitleTableScrollbarMetrics? {
@@ -1382,71 +1220,6 @@ final class SubtitleTableScrollbarOverlayView: NSView {
             contentSize: documentView.frame.size,
             contentOffset: scrollView.contentView.bounds.origin
         )
-    }
-
-    private func axis(at point: CGPoint) -> SubtitleTableScrollbarMetrics.Axis? {
-        guard let metrics = metrics() else { return nil }
-        if let verticalThumb = metrics.interactiveThumbRect(for: .vertical, in: bounds),
-           verticalThumb.contains(point) {
-            return .vertical
-        }
-        if let horizontalThumb = metrics.interactiveThumbRect(for: .horizontal, in: bounds),
-           horizontalThumb.contains(point) {
-            return .horizontal
-        }
-        return nil
-    }
-
-    private func invalidateInteractiveStateChange(
-        from oldAxis: SubtitleTableScrollbarMetrics.Axis?,
-        to newAxis: SubtitleTableScrollbarMetrics.Axis?
-    ) {
-        guard isRedesign else { return }
-        var axes = [SubtitleTableScrollbarMetrics.Axis]()
-        if let oldAxis {
-            axes.append(oldAxis)
-        }
-        if let newAxis, newAxis != oldAxis {
-            axes.append(newAxis)
-        }
-        guard !axes.isEmpty else { return }
-        let currentMetrics = metrics()
-        invalidateThumbs(oldMetrics: currentMetrics, newMetrics: currentMetrics, axes: axes)
-    }
-
-    private func invalidateThumbs(
-        oldMetrics: SubtitleTableScrollbarMetrics?,
-        newMetrics: SubtitleTableScrollbarMetrics?,
-        axes: [SubtitleTableScrollbarMetrics.Axis] = [.vertical, .horizontal]
-    ) {
-        var dirtyRect = CGRect.null
-        for axis in axes {
-            if let oldRect = oldMetrics?.thumbRect(for: axis, in: bounds) {
-                dirtyRect = dirtyRect.union(oldRect)
-            }
-            if let newRect = newMetrics?.thumbRect(for: axis, in: bounds) {
-                dirtyRect = dirtyRect.union(newRect)
-            }
-        }
-        guard !dirtyRect.isNull else { return }
-        setNeedsDisplay(dirtyRect.insetBy(dx: -2, dy: -2))
-    }
-
-    private func drawThumb(axis: SubtitleTableScrollbarMetrics.Axis, metrics: SubtitleTableScrollbarMetrics) {
-        guard let rect = metrics.thumbRect(for: axis, in: bounds)
-        else {
-            return
-        }
-        let isInteractive = hoveredAxis == axis || draggingAxis == axis
-        let color = isInteractive
-            ? WorkbenchRedesignColors.NS.scrollbarThumbInteractive
-            : WorkbenchRedesignColors.NS.scrollbarThumbDefault
-        color.setFill()
-        NSBezierPath(
-            roundedRect: rect,
-            xRadius: SubtitleTableMetrics.scrollbarSize / 2,
-            yRadius: SubtitleTableMetrics.scrollbarSize / 2
-        ).fill()
     }
 }
 

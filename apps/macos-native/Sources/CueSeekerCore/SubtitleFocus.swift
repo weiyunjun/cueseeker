@@ -304,6 +304,13 @@ public struct SubtitleFocusRequestGate: Equatable, Sendable {
             && token.requestGeneration == latestRequestGeneration
     }
 
+    public mutating func supersedeRequests() {
+        guard isActive else {
+            return
+        }
+        latestRequestGeneration += 1
+    }
+
     public mutating func invalidate() {
         isActive = false
         latestRequestGeneration += 1

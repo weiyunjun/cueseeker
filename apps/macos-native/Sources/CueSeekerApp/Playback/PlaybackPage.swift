@@ -38,7 +38,16 @@ struct PlaybackPageView: View {
                 quickSearchOverlay(in: geometry.size)
 
                 if let subtitleFocusSession {
-                    PlaybackSubtitleFocusLayer(session: subtitleFocusSession)
+                    PlaybackSubtitleFocusLayer(
+                        session: subtitleFocusSession,
+                        onMoveSelection: appState.movePlaybackSubtitleFocusSelection,
+                        onNavigationIntent: appState.notePlaybackSubtitleFocusNavigationIntent,
+                        onScrollbarPreview: appState.notePlaybackSubtitleFocusScrollbarPreview,
+                        onCommitCachedScrollbarTarget:
+                            appState.commitPlaybackSubtitleFocusCachedScrollbarTarget,
+                        onRequestScrollbarTarget:
+                            appState.requestPlaybackSubtitleFocusScrollbarTarget
+                    )
                         .frame(width: geometry.size.width, height: geometry.size.height)
                 }
             }

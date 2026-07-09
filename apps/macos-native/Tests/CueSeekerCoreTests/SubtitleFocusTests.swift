@@ -107,6 +107,9 @@ func subtitleFocusRequestGateAcceptsOnlyLatestActiveSessionRequest() throws {
     #expect(!gate.accepts(first))
     #expect(gate.accepts(second))
 
+    gate.supersedeRequests()
+    #expect(!gate.accepts(second))
+
     gate.invalidate()
     #expect(!gate.accepts(second))
 

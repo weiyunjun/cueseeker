@@ -55,6 +55,8 @@ extension AppCoordinator {
 
         playbackSubtitleFocusInitialLoadTask?.cancel()
         playbackSubtitleFocusInitialLoadTask = nil
+        playbackSubtitleFocusWindowLoadTask?.cancel()
+        playbackSubtitleFocusWindowLoadTask = nil
         guard let shouldResume = session.dismissByUser() else {
             playback.releaseSubtitleFocusSession(session)
             return false
@@ -70,6 +72,8 @@ extension AppCoordinator {
     func invalidatePlaybackSubtitleFocusForSourceReplacement() {
         playbackSubtitleFocusInitialLoadTask?.cancel()
         playbackSubtitleFocusInitialLoadTask = nil
+        playbackSubtitleFocusWindowLoadTask?.cancel()
+        playbackSubtitleFocusWindowLoadTask = nil
         guard let session = playback.subtitleFocusSession else {
             return
         }
@@ -78,14 +82,64 @@ extension AppCoordinator {
         playback.releaseSubtitleFocusSession(session)
     }
 
+    @discardableResult
+    func movePlaybackSubtitleFocusSelection(
+        _ direction: SubtitleFocusNavigationDirection
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession else {
+            return false
+        }
+        let moved = session.moveSelection(direction)
+        startPlaybackSubtitleFocusWindowLoadIfNeeded(
+            session.windowLoadRequestAfterNavigation(direction),
+            session: session
+        )
+        return moved
+    }
+
+    func notePlaybackSubtitleFocusNavigationIntent(
+        _ direction: SubtitleFocusNavigationDirection
+    ) {
+        guard let session = playback.subtitleFocusSession else {
+            return
+        }
+        startPlaybackSubtitleFocusWindowLoadIfNeeded(
+            session.windowLoadRequestAfterNavigation(direction),
+            session: session
+        )
+    }
+
+    func notePlaybackSubtitleFocusScrollbarPreview(ordinal: Int) {
+        playback.subtitleFocusSession?.noteScrollbarPreviewChanged(ordinal: ordinal)
+    }
+
+    @discardableResult
+    func commitPlaybackSubtitleFocusCachedScrollbarTarget(
+        ordinal: Int
+    ) -> Bool {
+        playback.subtitleFocusSession?.commitCachedScrollbarTarget(
+            ordinal: ordinal
+        ) ?? false
+    }
+
+    func requestPlaybackSubtitleFocusScrollbarTarget(ordinal: Int) {
+        guard let session = playback.subtitleFocusSession else {
+            return
+        }
+        startPlaybackSubtitleFocusWindowLoadIfNeeded(
+            session.windowLoadRequestForScrollbarTarget(ordinal: ordinal),
+            session: session
+        )
+    }
+
     private func startPlaybackSubtitleFocusInitialLoad(
         for session: PlaybackSubtitleFocusSessionStore
     ) {
         playbackSubtitleFocusInitialLoadTask?.cancel()
-        let databaseURL = databaseURL
         let subtitlePath = session.openSnapshot.source.subtitlePath
         let timestampMilliseconds = session.openSnapshot.timestampMilliseconds
         let token = session.token
+        let databaseReader = playbackSubtitleFocusDatabaseReader
 
         playbackSubtitleFocusInitialLoadTask = Task { @MainActor [weak self, weak session] in
             guard let self, let session else {
@@ -93,8 +147,7 @@ extension AppCoordinator {
             }
 
             do {
-                let snapshot = try await Self.loadPlaybackSubtitleFocusInitialSnapshot(
-                    databaseURL: databaseURL,
+                let snapshot = try await databaseReader.initialSnapshot(
                     subtitlePath: subtitlePath,
                     timestampMilliseconds: timestampMilliseconds
                 )
@@ -130,6 +183,69 @@ extension AppCoordinator {
         }
     }
 
+    private func startPlaybackSubtitleFocusWindowLoadIfNeeded(
+        _ request: PlaybackSubtitleFocusWindowLoadRequest?,
+        session: PlaybackSubtitleFocusSessionStore
+    ) {
+        guard let request,
+              playbackSubtitleFocusWindowLoadTask == nil,
+              playback.subtitleFocusSession === session,
+              session.isActiveWindowLoad(request)
+        else {
+            return
+        }
+
+        let databaseReader = playbackSubtitleFocusDatabaseReader
+        let subtitlePath = session.openSnapshot.source.subtitlePath
+        playbackSubtitleFocusWindowLoadTask = Task { @MainActor [weak self, weak session] in
+            guard let self, let session else {
+                return
+            }
+
+            do {
+                let batch = try await databaseReader.cueBatch(
+                    subtitlePath: subtitlePath,
+                    request: request
+                )
+                try Task.checkCancellation()
+                guard self.playback.subtitleFocusSession === session,
+                      session.isActiveWindowLoad(request)
+                else {
+                    return
+                }
+
+                self.playbackSubtitleFocusWindowLoadTask = nil
+                let nextRequest = session.completeWindowLoad(
+                    request,
+                    batch: batch
+                )
+                self.startPlaybackSubtitleFocusWindowLoadIfNeeded(
+                    nextRequest,
+                    session: session
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.playback.subtitleFocusSession === session,
+                      session.isActiveWindowLoad(request)
+                else {
+                    return
+                }
+
+                self.playbackSubtitleFocusWindowLoadTask = nil
+                print("Failed to load Playback Subtitle Focus window: \(error)")
+                let nextRequest = session.completeWindowLoad(
+                    request,
+                    batch: nil
+                )
+                self.startPlaybackSubtitleFocusWindowLoadIfNeeded(
+                    nextRequest,
+                    session: session
+                )
+            }
+        }
+    }
+
     private func finishPlaybackSubtitleFocusOpeningFailure(
         session: PlaybackSubtitleFocusSessionStore,
         token: PlaybackSubtitleFocusSessionToken,
@@ -150,22 +266,4 @@ extension AppCoordinator {
         }
     }
 
-    private nonisolated static func loadPlaybackSubtitleFocusInitialSnapshot(
-        databaseURL: URL,
-        subtitlePath: String,
-        timestampMilliseconds: Int
-    ) async throws -> SubtitleFocusSnapshot? {
-        let task = Task.detached(priority: .userInitiated) {
-            let database = try SubtitleDatabase(path: databaseURL)
-            return try database.subtitleFocusInitialSnapshot(
-                forSubtitleFile: URL(fileURLWithPath: subtitlePath),
-                atMilliseconds: timestampMilliseconds
-            )
-        }
-        return try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
-        }
-    }
 }

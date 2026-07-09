@@ -37,6 +37,7 @@ final class AppCoordinator: ObservableObject {
     var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
+    let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var subtitleDatabase: SubtitleDatabase?
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
@@ -403,6 +404,7 @@ final class AppCoordinator: ObservableObject {
     var searchNavigationTask: Task<Void, Never>?
     var playbackSubtitleCuesTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
+    var playbackSubtitleFocusWindowLoadTask: Task<Void, Never>?
     var databaseStorageStatsTask: Task<Void, Never>?
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?
@@ -433,7 +435,11 @@ final class AppCoordinator: ObservableObject {
         databaseURL: URL? = nil
     ) {
         self.userDefaults = userDefaults
-        self.databaseURL = databaseURL ?? Self.defaultDatabaseURL()
+        let resolvedDatabaseURL = databaseURL ?? Self.defaultDatabaseURL()
+        self.databaseURL = resolvedDatabaseURL
+        playbackSubtitleFocusDatabaseReader = PlaybackSubtitleFocusDatabaseReader(
+            databaseURL: resolvedDatabaseURL
+        )
 
         userDefaults.register(defaults: [
             "workbenchPanelMode": WorkbenchPanelMode.search.rawValue,

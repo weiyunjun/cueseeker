@@ -2,8 +2,83 @@ import AppKit
 import CueSeekerCore
 import SwiftUI
 
+enum PlaybackSubtitleFocusTargetCommitMotion {
+    static func insertionOffset(
+        for direction: SubtitleFocusNavigationDirection
+    ) -> CGFloat {
+        direction == .backward
+            ? -PlaybackSubtitleFocusMetrics.cueSlotPitch
+            : PlaybackSubtitleFocusMetrics.cueSlotPitch
+    }
+}
+
+enum PlaybackSubtitleFocusProtectedRange {
+    static func resolve(
+        loadedOrdinals: [Int],
+        selectedOrdinal: Int,
+        focusAnchorY: CGFloat,
+        viewportMinY: CGFloat,
+        viewportMaxY: CGFloat,
+        presentationTranslation: CGFloat
+    ) -> Range<Int>? {
+        guard let loadedFirst = loadedOrdinals.first,
+              let loadedLast = loadedOrdinals.last,
+              viewportMaxY > viewportMinY
+        else {
+            return nil
+        }
+
+        let visibleOrdinals = loadedOrdinals.filter { ordinal in
+            let cueTop = focusAnchorY
+                + presentationTranslation
+                + CGFloat(ordinal - selectedOrdinal)
+                    * PlaybackSubtitleFocusMetrics.cueSlotPitch
+            let cueBottom = cueTop + PlaybackSubtitleFocusMetrics.cueSlotHeight
+            return cueTop < viewportMaxY && cueBottom > viewportMinY
+        }
+        guard let visibleFirst = visibleOrdinals.first,
+              let visibleLast = visibleOrdinals.last
+        else {
+            guard loadedOrdinals.contains(selectedOrdinal) else {
+                return nil
+            }
+            return max(loadedFirst, selectedOrdinal - 2)..<min(
+                loadedLast + 1,
+                selectedOrdinal + 3
+            )
+        }
+
+        return max(loadedFirst, visibleFirst - 2)..<min(
+            loadedLast + 1,
+            visibleLast + 3
+        )
+    }
+}
+
 struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
+    let onMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
+    let onNavigationIntent: (SubtitleFocusNavigationDirection) -> Void
+    let onScrollbarPreview: (Int) -> Void
+    let onCommitCachedScrollbarTarget: (Int) -> Bool
+    let onRequestScrollbarTarget: (Int) -> Void
+
+    init(
+        session: PlaybackSubtitleFocusSessionStore,
+        onMoveSelection: ((SubtitleFocusNavigationDirection) -> Bool)? = nil,
+        onNavigationIntent: ((SubtitleFocusNavigationDirection) -> Void)? = nil,
+        onScrollbarPreview: ((Int) -> Void)? = nil,
+        onCommitCachedScrollbarTarget: ((Int) -> Bool)? = nil,
+        onRequestScrollbarTarget: ((Int) -> Void)? = nil
+    ) {
+        self.session = session
+        self.onMoveSelection = onMoveSelection ?? session.moveSelection
+        self.onNavigationIntent = onNavigationIntent ?? { _ in }
+        self.onScrollbarPreview = onScrollbarPreview ?? session.noteScrollbarPreviewChanged
+        self.onCommitCachedScrollbarTarget = onCommitCachedScrollbarTarget
+            ?? session.commitCachedScrollbarTarget
+        self.onRequestScrollbarTarget = onRequestScrollbarTarget ?? { _ in }
+    }
 
     var body: some View {
         switch session.state {
@@ -15,11 +90,20 @@ struct PlaybackSubtitleFocusLayer: View {
                 initialSelectedOrdinal: session.initialSelectedOrdinal,
                 focusAnchorY: session.focusAnchorY,
                 keyboardNavigationRequest: session.keyboardNavigationRequest,
+                targetWindowState: session.targetWindowState,
+                targetWindowCommit: session.targetWindowCommit,
+                onProtectedVisibleRangeChanged:
+                    session.updateProtectedVisibleOrdinalRange,
                 takePendingKeyboardNavigationDirections:
                     session.takePendingKeyboardNavigationDirections,
                 canMoveSelection: session.canMoveSelection,
-                onMoveSelection: session.moveSelection,
-                onSelectCue: session.selectCue
+                isCueCached: session.isCueCached,
+                onMoveSelection: onMoveSelection,
+                onNavigationIntent: onNavigationIntent,
+                onSelectCue: session.selectCue,
+                onScrollbarPreview: onScrollbarPreview,
+                onCommitCachedScrollbarTarget: onCommitCachedScrollbarTarget,
+                onRequestScrollbarTarget: onRequestScrollbarTarget
             )
         }
     }
@@ -30,15 +114,22 @@ struct PlaybackSubtitleFocusOverlay: View {
     let initialSelectedOrdinal: Int?
     let focusAnchorY: CGFloat?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
+    let targetWindowState: PlaybackSubtitleFocusTargetWindowState
+    let targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit?
+    let onProtectedVisibleRangeChanged: (Range<Int>?) -> Void
     let takePendingKeyboardNavigationDirections: () -> [SubtitleFocusNavigationDirection]
     let canMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
+    let isCueCached: (Int) -> Bool
     let onMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
+    let onNavigationIntent: (SubtitleFocusNavigationDirection) -> Void
     let onSelectCue: (Int, CGFloat) -> Bool
+    let onScrollbarPreview: (Int) -> Void
+    let onCommitCachedScrollbarTarget: (Int) -> Bool
+    let onRequestScrollbarTarget: (Int) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var wheelAccumulator = PlaybackSubtitleFocusWheelAccumulator()
     @State private var wheelSettleTask: Task<Void, Never>?
-    @State private var isWheelInteracting = false
     @State private var reelPresentation = PlaybackSubtitleFocusReelPresentation()
 
     init(
@@ -46,20 +137,36 @@ struct PlaybackSubtitleFocusOverlay: View {
         initialSelectedOrdinal: Int? = nil,
         focusAnchorY: CGFloat? = nil,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
+        targetWindowState: PlaybackSubtitleFocusTargetWindowState = .idle,
+        targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit? = nil,
+        onProtectedVisibleRangeChanged: @escaping (Range<Int>?) -> Void = { _ in },
         takePendingKeyboardNavigationDirections: @escaping () -> [SubtitleFocusNavigationDirection]
             = { [] },
         canMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
+        isCueCached: @escaping (Int) -> Bool = { _ in false },
         onMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
-        onSelectCue: @escaping (Int, CGFloat) -> Bool = { _, _ in false }
+        onNavigationIntent: @escaping (SubtitleFocusNavigationDirection) -> Void = { _ in },
+        onSelectCue: @escaping (Int, CGFloat) -> Bool = { _, _ in false },
+        onScrollbarPreview: @escaping (Int) -> Void = { _ in },
+        onCommitCachedScrollbarTarget: @escaping (Int) -> Bool = { _ in false },
+        onRequestScrollbarTarget: @escaping (Int) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self.initialSelectedOrdinal = initialSelectedOrdinal
         self.focusAnchorY = focusAnchorY
         self.keyboardNavigationRequest = keyboardNavigationRequest
+        self.targetWindowState = targetWindowState
+        self.targetWindowCommit = targetWindowCommit
+        self.onProtectedVisibleRangeChanged = onProtectedVisibleRangeChanged
         self.takePendingKeyboardNavigationDirections = takePendingKeyboardNavigationDirections
         self.canMoveSelection = canMoveSelection
+        self.isCueCached = isCueCached
         self.onMoveSelection = onMoveSelection
+        self.onNavigationIntent = onNavigationIntent
         self.onSelectCue = onSelectCue
+        self.onScrollbarPreview = onScrollbarPreview
+        self.onCommitCachedScrollbarTarget = onCommitCachedScrollbarTarget
+        self.onRequestScrollbarTarget = onRequestScrollbarTarget
     }
 
     var body: some View {
@@ -88,6 +195,18 @@ struct PlaybackSubtitleFocusOverlay: View {
                 selectedOrdinal: snapshot.selectedOrdinal,
                 loadedStartOrdinal: loadedStartOrdinal
             )
+            let targetCommitSequence = targetWindowCommit?.sequence ?? 0
+            let targetCommitOffset = PlaybackSubtitleFocusTargetCommitMotion.insertionOffset(
+                for: targetWindowCommit?.direction ?? .forward
+            )
+            let protectedVisibleRange = PlaybackSubtitleFocusProtectedRange.resolve(
+                loadedOrdinals: snapshot.cues.map(\.ordinal),
+                selectedOrdinal: snapshot.selectedOrdinal,
+                focusAnchorY: resolvedFocusAnchorY,
+                viewportMinY: PlaybackSubtitleFocusMetrics.contentInset,
+                viewportMaxY: viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset,
+                presentationTranslation: wheelAccumulator.translation
+            )
 
             ZStack(alignment: .top) {
                 PlaybackTheme.subtitleFocusOverlayBackground
@@ -113,17 +232,20 @@ struct PlaybackSubtitleFocusOverlay: View {
                         }
                     }
                     .frame(width: contentWidth, alignment: .topLeading)
+                    .id(targetCommitSequence)
+                    .transition(.asymmetric(
+                        insertion: .offset(y: targetCommitOffset),
+                        removal: .offset(y: -targetCommitOffset)
+                    ))
                     .modifier(PlaybackSubtitleFocusReelOffsetEffect(
                         offset: reelOffset + wheelAccumulator.translation,
                         presentation: reelPresentation
                     ))
-                    .animation(
-                        reduceMotion || isWheelInteracting
-                            ? nil
-                            : PlaybackSubtitleFocusMetrics.reelTransitionAnimation,
-                        value: reelOffset
-                    )
                 }
+                .animation(
+                    reduceMotion ? nil : PlaybackSubtitleFocusMetrics.reelTransitionAnimation,
+                    value: targetCommitSequence
+                )
                 .frame(
                     width: contentWidth,
                     height: cueViewportHeight,
@@ -137,6 +259,27 @@ struct PlaybackSubtitleFocusOverlay: View {
                 }
                 .frame(width: viewportSize.width, height: viewportSize.height)
                 .opacity(0.001)
+
+                PlaybackSubtitleFocusScrollbar(
+                    totalCount: snapshot.totalCount,
+                    cueViewportHeight: cueViewportHeight,
+                    committedOrdinal: snapshot.selectedOrdinal,
+                    targetWindowState: targetWindowState,
+                    isCueCached: isCueCached,
+                    onPreviewChanged: onScrollbarPreview,
+                    onCommitCachedTarget: onCommitCachedScrollbarTarget,
+                    onRequestTarget: onRequestScrollbarTarget
+                )
+                .frame(
+                    width: viewportSize.width,
+                    height: cueViewportHeight
+                )
+                .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
+
+                PlaybackSubtitleFocusProtectedRangeReporter(
+                    range: protectedVisibleRange,
+                    onChange: onProtectedVisibleRangeChanged
+                )
             }
             .frame(width: viewportSize.width, height: viewportSize.height)
             .clipped()
@@ -170,17 +313,16 @@ struct PlaybackSubtitleFocusOverlay: View {
             reduceMotion ? nil : PlaybackSubtitleFocusMetrics.reelTransitionAnimation
         ) {
             wheelAccumulator.finishSettling()
-            isWheelInteracting = false
             _ = onMoveSelection(direction)
         }
     }
 
     private func handleScroll(_ output: PlaybackSubtitleFocusScrollOutput) {
         if output.deltaY != 0 {
+            onNavigationIntent(output.deltaY > 0 ? .backward : .forward)
             wheelSettleTask?.cancel()
             wheelSettleTask = nil
             withTransaction(Transaction(animation: nil)) {
-                isWheelInteracting = true
                 wheelAccumulator.apply(
                     deltaY: output.deltaY,
                     canMoveSelection: canMoveSelection,
@@ -227,7 +369,6 @@ struct PlaybackSubtitleFocusOverlay: View {
             reduceMotion ? nil : PlaybackSubtitleFocusMetrics.reelTransitionAnimation
         ) {
             wheelAccumulator.finishSettling()
-            isWheelInteracting = false
         }
     }
 
@@ -246,8 +387,27 @@ struct PlaybackSubtitleFocusOverlay: View {
                 return
             }
             wheelAccumulator.finishSettling()
-            isWheelInteracting = false
         }
+    }
+}
+
+private struct PlaybackSubtitleFocusProtectedRangeReporter: View {
+    let range: Range<Int>?
+    let onChange: (Range<Int>?) -> Void
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .onAppear {
+                onChange(range)
+            }
+            .onChange(of: range) { nextRange in
+                onChange(nextRange)
+            }
+            .onDisappear {
+                onChange(nil)
+            }
     }
 }
 
