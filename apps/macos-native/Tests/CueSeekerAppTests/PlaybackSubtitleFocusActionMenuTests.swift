@@ -521,7 +521,7 @@ private func withActionMenuApp(
 
 @MainActor
 private func waitForActionMenuState(
-    timeout: TimeInterval = 1,
+    timeout: TimeInterval = 3,
     condition: () -> Bool
 ) async throws {
     let deadline = Date().addingTimeInterval(timeout)

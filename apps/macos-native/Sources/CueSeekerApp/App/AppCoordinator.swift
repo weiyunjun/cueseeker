@@ -416,11 +416,6 @@ final class AppCoordinator: ObservableObject {
     var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     var activeSearchPerformanceRun: SearchPerformanceRun?
     var pendingSearchVisibleEntryIDs: Set<Int64> = []
-    var quickSearchAIChunkingTask: Task<Void, Never>?
-    var quickSearchChunkCountTask: Task<Void, Never>?
-    var quickSearchChunkCountTaskRequestID: Int?
-    var quickSearchSearchContextSnapshot: PlaybackQuickSearchSearchContextSnapshot?
-    var quickSearchSearchContextWasMutated = false
     var shioriPlaybackNavigationScopeIDs: [Int64]?
     var shioriPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none

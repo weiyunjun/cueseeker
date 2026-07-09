@@ -1,6 +1,11 @@
 import Foundation
 import CueSeekerCore
 
+enum PlaybackNavigationCommand: Equatable {
+    case back
+    case forward
+}
+
 @MainActor
 extension AppCoordinator {
     static let playbackNavigationHistoryLimit = 10_000
@@ -76,8 +81,8 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func executePlaybackQuickSearchNavigationCommand(
-        _ command: PlaybackQuickSearchNavigationCommand
+    func executePlaybackNavigationCommand(
+        _ command: PlaybackNavigationCommand
     ) -> Bool {
         guard let database = subtitleDatabase else {
             return false
@@ -105,8 +110,6 @@ extension AppCoordinator {
             }
 
             let target = entries[targetIndex]
-            playback.isQuickSearchOverlayVisible = false
-
             switch target.payload {
             case .library(let payload):
                 return restoreLibraryNavigationEntry(payload, targetEntryID: target.id)

@@ -159,7 +159,7 @@ func recordingPrunesWhenEntriesExceedLimit() async throws {
 
 @MainActor
 @Test
-func quickSearchBackResumesLibraryEntry() async throws {
+func playbackNavigationBackRestoresLibraryEntry() async throws {
     try await withTemporaryNavigationApp { app, database in
         try indexFakeLibraryVideo(in: database, basename: "A")
         try indexFakeLibraryVideo(in: database, basename: "B")
@@ -179,16 +179,44 @@ func quickSearchBackResumesLibraryEntry() async throws {
         try database.setPlaybackNavigationCurrentEntryID(entryB.id)
         app.activePlaybackSource = .library(videoPath: videoBPath)
 
-        app.playback.isQuickSearchOverlayVisible = true
-        app.playback.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: false)
-        #expect(app.playback.moveQuickSearchAIOptionFocus(by: 1))
-        #expect(app.playback.quickSearchFocusTarget == .navigation)
-
-        let dispatched = app.submitPlaybackQuickSearchFromUser()
-        #expect(dispatched)
+        #expect(app.executePlaybackNavigationCommand(.back))
         #expect(app.library.selectedLibraryVideo?.videoPath == videoAPath)
-        #expect(!app.playback.isQuickSearchOverlayVisible)
         #expect(try database.playbackNavigationCurrentEntryID() == entryA.id)
+    }
+}
+
+@MainActor
+@Test
+func playbackNavigationForwardRestoresLibraryEntryWithoutRecordingHistory() async throws {
+    try await withTemporaryNavigationApp { app, database in
+        try indexFakeLibraryVideo(in: database, basename: "A")
+        try indexFakeLibraryVideo(in: database, basename: "B")
+        app.library.libraryVideos = try database.libraryVideos(
+            under: [URL(fileURLWithPath: "/Media")]
+        )
+        let videoAPath = "/Media/A.mkv"
+        let videoBPath = "/Media/B.mkv"
+        let entryA = try database.appendPlaybackNavigationEntry(
+            .library(PlaybackNavigationLibraryPayload(videoPath: videoAPath))
+        )
+        let entryB = try database.appendPlaybackNavigationEntry(
+            .library(PlaybackNavigationLibraryPayload(videoPath: videoBPath))
+        )
+        try database.setPlaybackNavigationCurrentEntryID(entryA.id)
+        app.activePlaybackSource = .library(videoPath: videoAPath)
+
+        #expect(app.playbackNavigationAvailability().canMoveBack == false)
+        #expect(app.playbackNavigationAvailability().canMoveForward)
+        #expect(app.executePlaybackNavigationCommand(.forward))
+        #expect(app.library.selectedLibraryVideo?.videoPath == videoBPath)
+        #expect(try database.playbackNavigationCurrentEntryID() == entryB.id)
+
+        let entries = try database.playbackNavigationEntries()
+        #expect(entries.map(\.id) == [entryA.id, entryB.id])
+        #expect(app.playbackNavigationAvailability().canMoveBack)
+        #expect(app.playbackNavigationAvailability().canMoveForward == false)
+        #expect(!app.executePlaybackNavigationCommand(.forward))
+        #expect(try database.playbackNavigationCurrentEntryID() == entryB.id)
     }
 }
 
@@ -300,7 +328,7 @@ func playbackEntryClearsWorkbenchFocusAcrossSources() async throws {
 
 @MainActor
 @Test
-func quickSearchBackResumesShioriEntry() async throws {
+func playbackNavigationBackRestoresShioriEntry() async throws {
     try await withTemporaryNavigationApp { app, database in
         try indexFakeLibraryVideo(in: database, basename: "Next")
         app.library.libraryVideos = try database.libraryVideos(
@@ -336,14 +364,8 @@ func quickSearchBackResumesShioriEntry() async throws {
         )
         try database.setPlaybackNavigationCurrentEntryID(nextEntry.id)
 
-        app.playback.isQuickSearchOverlayVisible = true
-        app.playback.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: false)
-        #expect(app.playback.moveQuickSearchAIOptionFocus(by: 1))
-
-        let dispatched = app.submitPlaybackQuickSearchFromUser()
-        #expect(dispatched)
+        #expect(app.executePlaybackNavigationCommand(.back))
         #expect(app.shiori.selectedShiori?.id == shioriRow.id)
-        #expect(!app.playback.isQuickSearchOverlayVisible)
         #expect(try database.playbackNavigationCurrentEntryID() == shioriEntry.id)
     }
 }
@@ -493,7 +515,7 @@ func shioriPlaybackNavigationAvailabilityUsesCachedDatabaseSnapshot() async thro
 
 @MainActor
 @Test
-func quickSearchBackResumesSearchEntryWithUnchangedRevision() async throws {
+func playbackNavigationBackRestoresSavedSearchResultWhenIndexRevisionIsUnchanged() async throws {
     try await withTemporaryNavigationApp { app, database in
         let subtitleURL = URL(fileURLWithPath: "/Media/Movie.srt")
         let videoURL = URL(fileURLWithPath: "/Media/Movie.mkv")
@@ -548,22 +570,16 @@ func quickSearchBackResumesSearchEntryWithUnchangedRevision() async throws {
         )
         try database.setPlaybackNavigationCurrentEntryID(nextEntry.id)
 
-        app.playback.isQuickSearchOverlayVisible = true
-        app.playback.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: false)
-        #expect(app.playback.moveQuickSearchAIOptionFocus(by: 1))
-
-        let dispatched = app.submitPlaybackQuickSearchFromUser()
-        #expect(dispatched)
+        #expect(app.executePlaybackNavigationCommand(.back))
         #expect(app.search.searchQuery == "telegram")
         #expect(app.search.selectedSearchResult?.entryID == savedEntryID)
-        #expect(!app.playback.isQuickSearchOverlayVisible)
         #expect(try database.playbackNavigationCurrentEntryID() == searchEntry.id)
     }
 }
 
 @MainActor
 @Test
-func quickSearchBackResumesSearchEntryReplaysFirstResultWhenIndexChanged() async throws {
+func playbackNavigationBackRestoresFirstSearchResultWhenIndexRevisionChanges() async throws {
     try await withTemporaryNavigationApp { app, database in
         let subtitleURL = URL(fileURLWithPath: "/Media/Movie.srt")
         let videoURL = URL(fileURLWithPath: "/Media/Movie.mkv")
@@ -611,12 +627,7 @@ func quickSearchBackResumesSearchEntryReplaysFirstResultWhenIndexChanged() async
         )
         try database.setPlaybackNavigationCurrentEntryID(nextEntry.id)
 
-        app.playback.isQuickSearchOverlayVisible = true
-        app.playback.configureQuickSearchNavigation(canMoveBack: true, canMoveForward: false)
-        #expect(app.playback.moveQuickSearchAIOptionFocus(by: 1))
-
-        let dispatched = app.submitPlaybackQuickSearchFromUser()
-        #expect(dispatched)
+        #expect(app.executePlaybackNavigationCommand(.back))
         #expect(app.search.searchQuery == "telegram")
         #expect(app.search.selectedSearchResult?.entryID == firstResultEntryID)
         #expect(try database.playbackNavigationCurrentEntryID() == searchEntry.id)

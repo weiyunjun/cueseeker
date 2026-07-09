@@ -145,19 +145,9 @@ public enum PlaybackTheme {
         menuBackground
     }
 
-    /// Dark translucent capsule fill for buttons and time display labels.
-    public static var capsuleFill: Color {
-        controlBackground
-    }
-
     /// Dark translucent capsule fill when hovered.
     public static var capsuleHoverFill: Color {
         controlHoverBackground
-    }
-
-    /// Unified background highlight for selected and hovered menu items.
-    public static var menuItemHighlight: Color {
-        menuItemHoverBackground
     }
 
     /// Compatibility alias for active playback progress track.

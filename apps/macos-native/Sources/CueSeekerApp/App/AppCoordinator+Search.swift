@@ -680,10 +680,6 @@ extension AppCoordinator {
 
                 let rebuildStart = SearchPerformanceLogger.now()
                 rebuildSearchResultGroups()
-                updatePlaybackQuickSearchDefaultResultSelectionIfNeeded(
-                    query: trimmedQuery,
-                    appending: appending
-                )
                 let groupRebuildMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: rebuildStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -801,20 +797,6 @@ extension AppCoordinator {
                 clearSearchPerformanceRunIfActive(searchPerformanceRun)
             }
         }
-    }
-
-    func updatePlaybackQuickSearchDefaultResultSelectionIfNeeded(
-        query trimmedQuery: String,
-        appending: Bool
-    ) {
-        guard playback.isQuickSearchOverlayVisible,
-              playback.quickSearchSubmittedQuery == trimmedQuery,
-              !appending
-        else {
-            return
-        }
-
-        playback.selectDefaultQuickSearchResultIfNeeded(resultCount: search.searchResults.count)
     }
 
     func applySearchCountProgress(

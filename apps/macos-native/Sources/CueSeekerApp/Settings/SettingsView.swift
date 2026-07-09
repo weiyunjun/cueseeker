@@ -8,7 +8,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case decode
     case maintenance
     case developer
-    case experimentalFeatures
 
     var id: String { rawValue }
 
@@ -28,8 +27,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Maintenance"
         case .developer:
             "Developer"
-        case .experimentalFeatures:
-            "Experimental Features"
         }
     }
 
@@ -49,8 +46,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "externaldrive"
         case .developer:
             "hammer"
-        case .experimentalFeatures:
-            "sparkles"
         }
     }
 }
@@ -132,9 +127,6 @@ struct SettingsView: View {
             SettingsMaintenanceCategory()
         case .developer:
             SettingsDeveloperCategory()
-        case .experimentalFeatures:
-            SettingsExperimentalCategory()
         }
     }
-
 }
