@@ -321,7 +321,7 @@ func subtitleFocusSessionCloseClearsAnchorAndRejectsNavigation() throws {
 
 @MainActor
 @Test
-func subtitleFocusSessionQueuesEveryKeyboardNavigationRequest() throws {
+func subtitleFocusSessionKeepsOneCumulativeKeyboardTarget() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
@@ -334,14 +334,49 @@ func subtitleFocusSessionQueuesEveryKeyboardNavigationRequest() throws {
     #expect(session.requestKeyboardNavigation(.backward))
     #expect(session.requestKeyboardNavigation(.forward))
     #expect(session.keyboardNavigationRequest?.sequence == 2)
+    #expect(session.keyboardNavigationRequest?.targetOrdinal == 12)
     #expect(session.currentSnapshot?.selectedOrdinal == 12)
-    #expect(session.takePendingKeyboardNavigationDirections() == [.backward, .forward])
-    #expect(session.takePendingKeyboardNavigationDirections().isEmpty)
+    let request = try #require(session.keyboardNavigationRequest)
+    #expect(session.commitKeyboardNavigation(request))
+    #expect(session.keyboardNavigationRequest == nil)
 }
 
 @MainActor
 @Test
-func subtitleFocusOverlayDrainsKeyboardRequestQueuedBeforeMount() throws {
+func subtitleFocusKeyboardRepeatUsesConstantPendingState() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(session.publishInitialSnapshot(
+        SubtitleFocusSnapshot(
+            totalCount: 200,
+            selectedOrdinal: 12,
+            cues: focusCues(6..<16)
+        ),
+        token: session.token
+    ))
+    #expect(session.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(totalCount: 200, cues: focusCues(0..<200)),
+        token: session.token
+    ))
+
+    for _ in 0..<100 {
+        #expect(session.requestKeyboardNavigation(.forward))
+    }
+
+    let request = try #require(session.keyboardNavigationRequest)
+    #expect(request.sequence == 100)
+    #expect(request.targetOrdinal == 112)
+    #expect(session.currentSnapshot?.selectedOrdinal == 12)
+    #expect(session.commitKeyboardNavigation(request))
+    #expect(session.currentSnapshot?.selectedOrdinal == 112)
+    #expect(session.keyboardNavigationRequest == nil)
+}
+
+@MainActor
+@Test
+func subtitleFocusOverlayCommitsKeyboardTargetQueuedBeforeMount() throws {
     _ = NSApplication.shared
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
@@ -360,10 +395,10 @@ func subtitleFocusOverlayDrainsKeyboardRequestQueuedBeforeMount() throws {
     )
     hostingView.frame = CGRect(x: 0, y: 0, width: 1_280, height: 720)
     hostingView.layoutSubtreeIfNeeded()
-    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+    RunLoop.main.run(until: Date().addingTimeInterval(0.35))
 
     #expect(session.currentSnapshot?.selectedOrdinal == 13)
-    #expect(session.takePendingKeyboardNavigationDirections().isEmpty)
+    #expect(session.keyboardNavigationRequest == nil)
     withExtendedLifetime(hostingView) {}
 }
 

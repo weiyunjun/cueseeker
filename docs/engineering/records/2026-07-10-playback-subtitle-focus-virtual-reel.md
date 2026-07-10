@@ -35,6 +35,15 @@ remain out of scope.
    scrollbar checks no longer consult the superseded bounded cache. Preserved
    negative row-top anchors for partially visible cues so pointer activation
    cannot shift the reel.
+9. Replaced the keyboard direction queue with one cumulative target ordinal.
+   A single AppKit timer now retargets the in-progress 220-millisecond motion
+   from its current offset, while the Session publishes only the final settled
+   selection.
+10. Kept Enter deterministic during keyboard motion: the deferred menu remains
+    blocked by the pending target and opens only after the latest target commits.
+    Rejected stale animation completions retain motion ownership until the newer
+    request arrives, and generation-gated motion callbacks cannot outlive the
+    native reel.
 
 ## Verification
 
@@ -46,6 +55,9 @@ remain out of scope.
     50,000-cue document still computes at most 15 visible-plus-overscan cues.
   - Passed 87 tests after complete-collection selection and negative-anchor
     boundary corrections.
+  - Passed 90 tests after keyboard retargeting, including 100 repeated key
+    requests held in constant pending state, queued-before-mount handling, and
+    stale-completion protection for deferred Enter.
 - `git diff --check`
   - Passed.
 

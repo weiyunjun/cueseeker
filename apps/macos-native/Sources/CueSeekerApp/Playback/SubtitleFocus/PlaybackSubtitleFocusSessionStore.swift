@@ -32,6 +32,7 @@ enum PlaybackSubtitleFocusState: Equatable, Sendable {
 struct PlaybackSubtitleFocusKeyboardNavigationRequest: Equatable, Sendable {
     let sequence: Int
     let direction: SubtitleFocusNavigationDirection
+    let targetOrdinal: Int
 }
 
 struct PlaybackSubtitleFocusTargetWindowState: Equatable, Sendable {
@@ -77,7 +78,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var isScrollbarDragging = false
     private var isCueReelMotionActive = false
     private var keyboardNavigationSequence = 0
-    private var pendingKeyboardNavigationDirections: [SubtitleFocusNavigationDirection] = []
+    private var pendingKeyboardNavigationTargetOrdinal: Int?
     private(set) var initialSelectedOrdinal: Int?
     private(set) var focusAnchorY: CGFloat?
 
@@ -222,6 +223,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     ) -> Bool {
         guard isSessionActive,
               actionMenuState == nil,
+              pendingKeyboardNavigationTargetOrdinal == nil,
               let snapshot = currentSnapshot
         else {
             return false
@@ -244,24 +246,47 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard isSessionActive,
               actionMenuState == nil,
               !isActionMenuOpening,
-              currentSnapshot != nil
+              let snapshot = currentSnapshot
         else {
             return false
         }
         supersedeTargetWindowLoadForNavigationIfNeeded()
+        let currentTarget = pendingKeyboardNavigationTargetOrdinal
+            ?? snapshot.selectedOrdinal
+        let targetOrdinal = direction == .backward
+            ? currentTarget - 1
+            : currentTarget + 1
+        guard targetOrdinal >= 0,
+              targetOrdinal < snapshot.totalCount,
+              cue(at: targetOrdinal) != nil
+        else {
+            return false
+        }
         keyboardNavigationSequence += 1
-        pendingKeyboardNavigationDirections.append(direction)
+        pendingKeyboardNavigationTargetOrdinal = targetOrdinal
         keyboardNavigationRequest = PlaybackSubtitleFocusKeyboardNavigationRequest(
             sequence: keyboardNavigationSequence,
-            direction: direction
+            direction: direction,
+            targetOrdinal: targetOrdinal
         )
         return true
     }
 
-    func takePendingKeyboardNavigationDirections() -> [SubtitleFocusNavigationDirection] {
-        let directions = pendingKeyboardNavigationDirections
-        pendingKeyboardNavigationDirections.removeAll(keepingCapacity: true)
-        return directions
+    @discardableResult
+    func commitKeyboardNavigation(
+        _ request: PlaybackSubtitleFocusKeyboardNavigationRequest
+    ) -> Bool {
+        guard isSessionActive,
+              keyboardNavigationRequest == request,
+              pendingKeyboardNavigationTargetOrdinal == request.targetOrdinal,
+              actionMenuState == nil,
+              selectCachedCue(ordinal: request.targetOrdinal, focusAnchorY: nil)
+        else {
+            return false
+        }
+        pendingKeyboardNavigationTargetOrdinal = nil
+        keyboardNavigationRequest = nil
+        return true
     }
 
     func canMoveSelection(
@@ -491,7 +516,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
               !isActionMenuOpening,
               !targetWindowState.isLoading,
               !isScrollbarDragging,
-              (!pendingKeyboardNavigationDirections.isEmpty || isCueReelMotionActive)
+              (pendingKeyboardNavigationTargetOrdinal != nil || isCueReelMotionActive)
         else {
             return false
         }
@@ -564,8 +589,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
 
-        pendingKeyboardNavigationDirections.removeAll(keepingCapacity: true)
-        keyboardNavigationRequest = nil
+        cancelKeyboardNavigationIntent()
         isActionMenuOpening = false
         if snapshot.selectedOrdinal != cue.ordinal {
             guard clickedFocusAnchorY.isFinite,
@@ -722,7 +746,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             && !targetWindowState.isLoading
             && !isScrollbarDragging
             && !isCueReelMotionActive
-            && (!requiresEmptyKeyboardQueue || pendingKeyboardNavigationDirections.isEmpty)
+            && (!requiresEmptyKeyboardQueue
+                || pendingKeyboardNavigationTargetOrdinal == nil)
     }
 
     private func publishActionMenu(
@@ -735,6 +760,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
         supersedeWindowLoads(resolvesScrollbar: true)
+        cancelKeyboardNavigationIntent()
         isActionMenuOpening = false
         actionMenuGeneration += 1
         actionMenuState = PlaybackSubtitleFocusActionMenuState(
@@ -778,6 +804,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             cues: cues
         ))
         return true
+    }
+
+    private func cancelKeyboardNavigationIntent() {
+        pendingKeyboardNavigationTargetOrdinal = nil
+        keyboardNavigationRequest = nil
     }
 
     private func applyWindowLoad(
@@ -939,8 +970,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isActionMenuOpening = false
         cueCache.removeAll()
         completeCueBatch = nil
-        pendingKeyboardNavigationDirections.removeAll(keepingCapacity: false)
-        keyboardNavigationRequest = nil
+        cancelKeyboardNavigationIntent()
         targetWindowState = PlaybackSubtitleFocusTargetWindowState(
             loadingTargetOrdinal: nil,
             resolutionGeneration: targetWindowState.resolutionGeneration + 1

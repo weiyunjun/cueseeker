@@ -312,7 +312,7 @@ func subtitleFocusKeyboardIntentRejectsFarResultBeforeViewDrain() throws {
     )
 
     #expect(session.currentSnapshot == initial)
-    #expect(session.takePendingKeyboardNavigationDirections() == [.forward])
+    #expect(session.keyboardNavigationRequest?.targetOrdinal == 7)
 }
 
 @MainActor

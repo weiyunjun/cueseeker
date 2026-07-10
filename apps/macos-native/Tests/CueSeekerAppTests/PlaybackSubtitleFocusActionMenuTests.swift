@@ -195,7 +195,7 @@ func subtitleFocusPointerMenuSupersedesQueuedKeyboardNavigation() throws {
     #expect(session.currentSnapshot?.selectedOrdinal == 9)
     #expect(session.focusAnchorY == 224)
     #expect(session.actionMenuState?.context.cue == clickedCue)
-    #expect(session.takePendingKeyboardNavigationDirections().isEmpty)
+    #expect(session.keyboardNavigationRequest == nil)
 }
 
 @MainActor
@@ -220,7 +220,8 @@ func subtitleFocusMenuOpeningHonorsLoadingDragWheelAndPendingBlockers() throws {
     let pendingSession = actionSession()
     #expect(pendingSession.requestKeyboardNavigation(.forward))
     #expect(pendingSession.actionMenuCandidateForKeyboard() == nil)
-    _ = pendingSession.takePendingKeyboardNavigationDirections()
+    let request = try #require(pendingSession.keyboardNavigationRequest)
+    #expect(pendingSession.commitKeyboardNavigation(request))
     #expect(pendingSession.actionMenuCandidateForKeyboard() != nil)
 
     pendingSession.noteScrollbarDragging(true)
@@ -262,6 +263,27 @@ func subtitleFocusDeferredMenuOwnsNavigationUntilOpenedOrCancelled() throws {
     #expect(!blockedSession.consumeDeferredActionMenuOpen())
     #expect(!blockedSession.isActionMenuOpening)
     #expect(!blockedSession.consumeDeferredActionMenuOpen())
+}
+
+@MainActor
+@Test
+func subtitleFocusStaleKeyboardCompletionPreservesDeferredMenu() throws {
+    let session = actionSession()
+    #expect(session.requestKeyboardNavigation(.forward))
+    let staleRequest = try #require(session.keyboardNavigationRequest)
+    #expect(session.requestKeyboardNavigation(.forward))
+    let latestRequest = try #require(session.keyboardNavigationRequest)
+    #expect(session.deferActionMenuOpenUntilNavigationCompletes())
+    session.noteCueReelMotion(true)
+
+    #expect(!session.commitKeyboardNavigation(staleRequest))
+    #expect(session.keyboardNavigationRequest == latestRequest)
+    #expect(session.isActionMenuOpening)
+
+    #expect(session.commitKeyboardNavigation(latestRequest))
+    session.noteCueReelMotion(false)
+    #expect(session.consumeDeferredActionMenuOpen())
+    #expect(session.currentSnapshot?.selectedOrdinal == 14)
 }
 
 @MainActor
@@ -360,7 +382,7 @@ func subtitleFocusDownThenEnterOpensMenuForFinalNavigatedCue() async throws {
 
 @MainActor
 @Test
-func subtitleFocusDeferredMenuWaitsWhenOnlyEarlierBatchStepMoves() async throws {
+func subtitleFocusDeferredMenuClampsKeyboardTargetAtDocumentBoundary() async throws {
     try await withActionMenuApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: actionOpenSnapshot(wasPlaying: false)
@@ -372,7 +394,7 @@ func subtitleFocusDeferredMenuWaitsWhenOnlyEarlierBatchStepMoves() async throws 
         )
         #expect(session.publishInitialSnapshot(boundarySnapshot, token: session.token))
         #expect(session.requestKeyboardNavigation(.forward))
-        #expect(session.requestKeyboardNavigation(.forward))
+        #expect(!session.requestKeyboardNavigation(.forward))
         #expect(session.deferActionMenuOpenUntilNavigationCompletes())
 
         let hostingView = NSHostingView(
@@ -387,13 +409,10 @@ func subtitleFocusDeferredMenuWaitsWhenOnlyEarlierBatchStepMoves() async throws 
         hostingView.layoutSubtreeIfNeeded()
 
         try await waitForActionMenuState {
-            session.currentSnapshot?.selectedOrdinal == 13
-        }
-        #expect(session.actionMenuState == nil)
-        #expect(session.isActionMenuOpening)
-        try await waitForActionMenuState {
             session.actionMenuState?.context.cue.ordinal == 13
         }
+        #expect(session.currentSnapshot?.selectedOrdinal == 13)
+        #expect(!session.isActionMenuOpening)
         withExtendedLifetime(hostingView) {}
     }
 }

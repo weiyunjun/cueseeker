@@ -126,8 +126,8 @@ struct PlaybackSubtitleFocusLayer: View {
                 isActionMenuOpening: session.isActionMenuOpening,
                 onProtectedVisibleRangeChanged:
                     session.updateProtectedVisibleOrdinalRange,
-                takePendingKeyboardNavigationDirections:
-                    session.takePendingKeyboardNavigationDirections,
+                onCommitKeyboardNavigation:
+                    session.commitKeyboardNavigation,
                 consumeDeferredActionMenuOpen:
                     session.consumeDeferredActionMenuOpen,
                 canMoveSelection: session.canMoveSelection,
@@ -160,7 +160,7 @@ struct PlaybackSubtitleFocusOverlay: View {
     let actionMenuState: PlaybackSubtitleFocusActionMenuState?
     let isActionMenuOpening: Bool
     let onProtectedVisibleRangeChanged: (Range<Int>?) -> Void
-    let takePendingKeyboardNavigationDirections: () -> [SubtitleFocusNavigationDirection]
+    let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let consumeDeferredActionMenuOpen: () -> Bool
     let canMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
     let isCueCached: (Int) -> Bool
@@ -194,8 +194,9 @@ struct PlaybackSubtitleFocusOverlay: View {
         actionMenuState: PlaybackSubtitleFocusActionMenuState? = nil,
         isActionMenuOpening: Bool = false,
         onProtectedVisibleRangeChanged: @escaping (Range<Int>?) -> Void = { _ in },
-        takePendingKeyboardNavigationDirections: @escaping () -> [SubtitleFocusNavigationDirection]
-            = { [] },
+        onCommitKeyboardNavigation: @escaping (
+            PlaybackSubtitleFocusKeyboardNavigationRequest
+        ) -> Bool = { _ in false },
         consumeDeferredActionMenuOpen: @escaping () -> Bool = { false },
         canMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
         isCueCached: @escaping (Int) -> Bool = { _ in false },
@@ -222,7 +223,7 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.actionMenuState = actionMenuState
         self.isActionMenuOpening = isActionMenuOpening
         self.onProtectedVisibleRangeChanged = onProtectedVisibleRangeChanged
-        self.takePendingKeyboardNavigationDirections = takePendingKeyboardNavigationDirections
+        self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         self.consumeDeferredActionMenuOpen = consumeDeferredActionMenuOpen
         self.canMoveSelection = canMoveSelection
         self.isCueCached = isCueCached
@@ -264,7 +265,10 @@ struct PlaybackSubtitleFocusOverlay: View {
                 viewportMaxY: viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset,
                 presentationTranslation: wheelAccumulator.translation
             )
-            let suppressesNavigation = actionMenuState != nil || isActionMenuOpening
+            let suppressesNavigation = actionMenuState != nil
+                || isActionMenuOpening
+                || keyboardNavigationRequest != nil
+                || isCueReelMotionActive
 
             ZStack(alignment: .top) {
                 PlaybackTheme.subtitleFocusOverlayBackground
@@ -276,12 +280,24 @@ struct PlaybackSubtitleFocusOverlay: View {
                     focusAnchorY: resolvedFocusAnchorY
                         - PlaybackSubtitleFocusMetrics.contentInset,
                     presentationTranslation: wheelAccumulator.translation,
+                    keyboardNavigationRequest: keyboardNavigationRequest,
+                    reducesMotion: reduceMotion,
                     isInteractionEnabled: !suppressesNavigation,
                     onActivateCue: { cue, viewportY in
                         openActionMenu(
                             cue,
                             focusAnchorY: PlaybackSubtitleFocusMetrics.contentInset + viewportY
                         )
+                    },
+                    onCommitKeyboardNavigation: { request in
+                        onCommitKeyboardNavigation(request)
+                    },
+                    onKeyboardMotionChanged: { isActive in
+                        if isActive {
+                            beginCueReelMotion()
+                        } else {
+                            finishCueReelMotionImmediately()
+                        }
                     }
                 )
                 .frame(
@@ -369,12 +385,6 @@ struct PlaybackSubtitleFocusOverlay: View {
             updateCueReelMotion(false)
             onScrollbarDraggingChanged(false)
         }
-        .onAppear {
-            drainPendingKeyboardNavigation()
-        }
-        .onChange(of: keyboardNavigationRequest) { _ in
-            drainPendingKeyboardNavigation()
-        }
         .onChange(of: actionMenuState?.generation) { generation in
             guard generation != nil else {
                 return
@@ -394,37 +404,6 @@ struct PlaybackSubtitleFocusOverlay: View {
             }
             beginCueReelMotion()
             finishCueReelMotionAfterAnimation()
-        }
-    }
-
-    private func drainPendingKeyboardNavigation() {
-        guard actionMenuState == nil else {
-            return
-        }
-        let directions = takePendingKeyboardNavigationDirections()
-        guard !directions.isEmpty else {
-            if !isCueReelMotionActive {
-                openDeferredActionMenuIfReady()
-            }
-            return
-        }
-
-        wheelSettleTask?.cancel()
-        wheelSettleTask = nil
-        beginCueReelMotion()
-        var didMoveAnyCue = false
-        withAnimation(
-            reduceMotion ? nil : PlaybackSubtitleFocusMetrics.reelTransitionAnimation
-        ) {
-            wheelAccumulator.finishSettling()
-            for direction in directions {
-                didMoveAnyCue = onMoveSelection(direction) || didMoveAnyCue
-            }
-        }
-        if didMoveAnyCue {
-            finishCueReelMotionAfterAnimation()
-        } else {
-            finishCueReelMotionImmediately()
         }
     }
 

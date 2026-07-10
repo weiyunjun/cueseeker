@@ -84,6 +84,19 @@ func subtitleFocusVirtualReelVisibleRangeIsIndependentOfTotalCount() {
     #expect(visibleRange.count <= 15)
 }
 
+@MainActor
+@Test
+func subtitleFocusKeyboardAnimatorUsesDocumentedEaseOutCurve() {
+    let samples = stride(from: CGFloat(0), through: 1, by: 0.1).map {
+        PlaybackSubtitleFocusKeyboardOffsetAnimator.easedProgress($0)
+    }
+
+    #expect(samples.first == 0)
+    #expect(samples.last == 1)
+    #expect(samples == samples.sorted())
+    #expect(PlaybackSubtitleFocusKeyboardOffsetAnimator.easedProgress(0.5) > 0.8)
+}
+
 @Test
 func subtitleFocusSelectedCueAlignsToCenterWhenBoundariesAllow() {
     let stageHeight: CGFloat = 720

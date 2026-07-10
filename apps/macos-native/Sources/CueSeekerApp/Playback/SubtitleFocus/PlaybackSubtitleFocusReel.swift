@@ -102,8 +102,12 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let selectedOrdinal: Int
     let focusAnchorY: CGFloat
     let presentationTranslation: CGFloat
+    let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
+    let reducesMotion: Bool
     let isInteractionEnabled: Bool
     let onActivateCue: (SubtitleFocusCue, CGFloat) -> Void
+    let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
+    let onKeyboardMotionChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusReelContainerView {
         let view = PlaybackSubtitleFocusReelContainerView()
@@ -127,12 +131,16 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
 
     private func update(_ view: PlaybackSubtitleFocusReelContainerView) {
         view.onActivateCue = onActivateCue
+        view.onCommitKeyboardNavigation = onCommitKeyboardNavigation
+        view.onKeyboardMotionChanged = onKeyboardMotionChanged
         view.update(
             cues: cues,
             totalCount: totalCount,
             selectedOrdinal: selectedOrdinal,
             focusAnchorY: focusAnchorY,
             presentationTranslation: presentationTranslation,
+            keyboardNavigationRequest: keyboardNavigationRequest,
+            reducesMotion: reducesMotion,
             isInteractionEnabled: isInteractionEnabled
         )
     }
@@ -140,6 +148,10 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
 
 final class PlaybackSubtitleFocusReelContainerView: NSView {
     var onActivateCue: (SubtitleFocusCue, CGFloat) -> Void = { _, _ in }
+    var onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool = {
+        _ in false
+    }
+    var onKeyboardMotionChanged: (Bool) -> Void = { _ in }
 
     private let scrollView = PlaybackSubtitleFocusNativeScrollView()
     private let documentView = PlaybackSubtitleFocusReelDocumentView()
@@ -147,6 +159,19 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private var selectedOrdinal = 0
     private var focusAnchorY: CGFloat = 0
     private var presentationTranslation: CGFloat = 0
+    private var lastHandledKeyboardSequence = 0
+    private var activeKeyboardRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
+    private var isKeyboardMotionActive = false
+    private var motionCallbackGeneration = 0
+    private var motionCallbackTask: Task<Void, Never>?
+    private lazy var keyboardAnimator = PlaybackSubtitleFocusKeyboardOffsetAnimator(
+        onUpdate: { [weak self] offset in
+            self?.setContentOffsetY(offset)
+        },
+        onCompletion: { [weak self] in
+            self?.completeKeyboardMotion()
+        }
+    )
 
     override var isFlipped: Bool {
         true
@@ -181,7 +206,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     override func layout() {
         super.layout()
         scrollView.frame = bounds
-        updateDocumentGeometryAndOffset()
+        updateDocumentGeometry()
+        if activeKeyboardRequest == nil {
+            synchronizeContentOffsetIfIdle()
+        }
     }
 
     func update(
@@ -190,6 +218,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedOrdinal: Int,
         focusAnchorY: CGFloat,
         presentationTranslation: CGFloat,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?,
+        reducesMotion: Bool,
         isInteractionEnabled: Bool
     ) {
         self.totalCount = max(0, totalCount)
@@ -202,18 +232,33 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             ? presentationTranslation
             : 0
         documentView.updateContent(cues: cues, totalCount: totalCount)
-        documentView.updateSelection(self.selectedOrdinal)
         documentView.isInteractionEnabled = isInteractionEnabled
-        updateDocumentGeometryAndOffset()
+        updateDocumentGeometry()
+        if activeKeyboardRequest == nil {
+            documentView.updateSelection(self.selectedOrdinal)
+            synchronizeContentOffsetIfIdle()
+        }
+        handleKeyboardNavigation(
+            keyboardNavigationRequest,
+            reducesMotion: reducesMotion
+        )
     }
 
     func invalidate() {
         onActivateCue = { _, _ in }
+        motionCallbackGeneration += 1
+        motionCallbackTask?.cancel()
+        motionCallbackTask = nil
+        onCommitKeyboardNavigation = { _ in false }
+        onKeyboardMotionChanged = { _ in }
+        keyboardAnimator.cancel()
+        activeKeyboardRequest = nil
+        isKeyboardMotionActive = false
         documentView.invalidate()
         scrollView.documentView = nil
     }
 
-    private func updateDocumentGeometryAndOffset() {
+    private func updateDocumentGeometry() {
         let layout = PlaybackSubtitleFocusVirtualReelLayout(
             viewportSize: scrollView.contentSize,
             totalCount: totalCount,
@@ -223,16 +268,93 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         if documentView.frame.size != layout.documentSize {
             documentView.frame = CGRect(origin: .zero, size: layout.documentSize)
         }
+    }
+
+    private func synchronizeContentOffsetIfIdle() {
+        guard !keyboardAnimator.isRunning else {
+            return
+        }
+        let layout = currentLayout
 
         let requestedOffset = layout.contentOffsetY(for: selectedOrdinal)
             - presentationTranslation
         let offset = min(max(0, requestedOffset), layout.maximumContentOffsetY)
+        setContentOffsetY(offset)
+    }
+
+    private var currentLayout: PlaybackSubtitleFocusVirtualReelLayout {
+        PlaybackSubtitleFocusVirtualReelLayout(
+            viewportSize: scrollView.contentSize,
+            totalCount: totalCount,
+            focusAnchorY: focusAnchorY
+        )
+    }
+
+    private func setContentOffsetY(_ offset: CGFloat) {
         let currentOrigin = scrollView.contentView.bounds.origin
         guard abs(currentOrigin.y - offset) > 0.01 else {
             return
         }
         scrollView.contentView.scroll(to: CGPoint(x: 0, y: offset))
         scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    private func handleKeyboardNavigation(
+        _ request: PlaybackSubtitleFocusKeyboardNavigationRequest?,
+        reducesMotion: Bool
+    ) {
+        guard let request,
+              request.sequence > lastHandledKeyboardSequence,
+              request.targetOrdinal >= 0,
+              request.targetOrdinal < totalCount
+        else {
+            return
+        }
+
+        lastHandledKeyboardSequence = request.sequence
+        activeKeyboardRequest = request
+        documentView.updateSelection(request.targetOrdinal)
+        setKeyboardMotionActive(true)
+        keyboardAnimator.retarget(
+            from: scrollView.contentView.bounds.minY,
+            to: currentLayout.contentOffsetY(for: request.targetOrdinal),
+            duration: reducesMotion
+                ? 0
+                : PlaybackSubtitleFocusMetrics.reelTransitionDuration
+        )
+    }
+
+    private func completeKeyboardMotion() {
+        guard let request = activeKeyboardRequest else {
+            return
+        }
+        guard onCommitKeyboardNavigation(request) else {
+            return
+        }
+        activeKeyboardRequest = nil
+        selectedOrdinal = request.targetOrdinal
+        setKeyboardMotionActive(false)
+    }
+
+    private func setKeyboardMotionActive(_ isActive: Bool) {
+        guard isKeyboardMotionActive != isActive else {
+            return
+        }
+        isKeyboardMotionActive = isActive
+        motionCallbackGeneration += 1
+        let generation = motionCallbackGeneration
+        motionCallbackTask?.cancel()
+        motionCallbackTask = Task { @MainActor [weak self] in
+            guard let self,
+                  !Task.isCancelled,
+                  self.motionCallbackGeneration == generation,
+                  self.isKeyboardMotionActive == isActive
+            else {
+                return
+            }
+            self.motionCallbackTask = nil
+            self.onKeyboardMotionChanged(isActive)
+        }
     }
 }
 
@@ -560,5 +682,139 @@ private final class PlaybackSubtitleFocusNativeTextLayout {
             }
         }
         return hitRects
+    }
+}
+
+@MainActor
+final class PlaybackSubtitleFocusKeyboardOffsetAnimator: NSObject {
+    let onUpdate: (CGFloat) -> Void
+    let onCompletion: () -> Void
+
+    private(set) var isRunning = false
+    private var timer: Timer?
+    private var generation = 0
+    private var startTime: TimeInterval = 0
+    private var duration: TimeInterval = 0
+    private var startOffset: CGFloat = 0
+    private var targetOffset: CGFloat = 0
+
+    init(
+        onUpdate: @escaping (CGFloat) -> Void,
+        onCompletion: @escaping () -> Void
+    ) {
+        self.onUpdate = onUpdate
+        self.onCompletion = onCompletion
+    }
+
+    func retarget(
+        from currentOffset: CGFloat,
+        to targetOffset: CGFloat,
+        duration: TimeInterval
+    ) {
+        generation += 1
+        startTime = ProcessInfo.processInfo.systemUptime
+        self.duration = max(0, duration)
+        startOffset = currentOffset
+        self.targetOffset = targetOffset
+        isRunning = true
+
+        guard self.duration > 0, abs(targetOffset - currentOffset) > 0.01 else {
+            finishImmediately(generation: generation)
+            return
+        }
+        if timer == nil {
+            let timer = Timer(
+                timeInterval: 1 / 120,
+                target: self,
+                selector: #selector(handleTimer),
+                userInfo: nil,
+                repeats: true
+            )
+            timer.tolerance = 1 / 240
+            RunLoop.main.add(timer, forMode: .common)
+            self.timer = timer
+        }
+    }
+
+    func cancel() {
+        generation += 1
+        timer?.invalidate()
+        timer = nil
+        isRunning = false
+    }
+
+    static func easedProgress(_ linearProgress: CGFloat) -> CGFloat {
+        let x = min(1, max(0, linearProgress))
+        guard x > 0, x < 1 else {
+            return x
+        }
+
+        var lower: CGFloat = 0
+        var upper: CGFloat = 1
+        var parameter = x
+        for _ in 0..<10 {
+            let estimatedX = cubicBezierValue(
+                parameter,
+                firstControl: 0.22,
+                secondControl: 0.36
+            )
+            if estimatedX < x {
+                lower = parameter
+            } else {
+                upper = parameter
+            }
+            parameter = (lower + upper) / 2
+        }
+        return cubicBezierValue(
+            parameter,
+            firstControl: 1,
+            secondControl: 1
+        )
+    }
+
+    @objc
+    private func handleTimer() {
+        let elapsed = ProcessInfo.processInfo.systemUptime - startTime
+        let linearProgress = CGFloat(min(1, max(0, elapsed / duration)))
+        let easedProgress = Self.easedProgress(linearProgress)
+        onUpdate(
+            startOffset + (targetOffset - startOffset) * easedProgress
+        )
+        guard linearProgress >= 1 else {
+            return
+        }
+
+        timer?.invalidate()
+        timer = nil
+        isRunning = false
+        onUpdate(targetOffset)
+        onCompletion()
+    }
+
+    private func finishImmediately(generation expectedGeneration: Int) {
+        timer?.invalidate()
+        timer = nil
+        onUpdate(targetOffset)
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.generation == expectedGeneration,
+                  self.isRunning
+            else {
+                return
+            }
+            self.isRunning = false
+            self.onCompletion()
+        }
+    }
+
+    private static func cubicBezierValue(
+        _ parameter: CGFloat,
+        firstControl: CGFloat,
+        secondControl: CGFloat
+    ) -> CGFloat {
+        let inverse = 1 - parameter
+        return 3 * inverse * inverse * parameter * firstControl
+            + 3 * inverse * parameter * parameter * secondControl
+            + parameter * parameter * parameter
     }
 }
