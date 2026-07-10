@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Replaced the Playback Subtitle Focus action menu and cue pointer actions with
+  direct keyboard commands: `S` saves the exact settled cue idempotently, `C`
+  copies its complete text, and Space starts continuous playback from its exact
+  cue start. S/C feedback now remains visible above the paused focus overlay,
+  actions accepted during reel motion run once against the final settled cue,
+  and Enter is a no-op. Normal playback no longer exposes current-time Shiori
+  or copy commands; `Q` now toggles subtitles through a standalone circular
+  bottom-player button.
 - Replaced Playback Quick Search with the Playback Subtitle Focus experience:
   Enter now presents the initial 6 + current + 3 cues, then retains the
   complete current-video cue collection behind an AppKit virtual reel with

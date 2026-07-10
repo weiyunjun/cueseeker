@@ -467,3 +467,128 @@ The gate passes only if:
   skipped rows, stale rows, or an unintended global load caused by `Collapse All`.
 - Search-performance diagnostics remain in logs or benchmark output unless a
   front-end diagnostic surface has already been explicitly accepted.
+
+## 5. Playback Subtitle Focus Keyboard Actions
+
+### Goal
+
+Verify the owner-visible behavior introduced by
+`docs/human/requirements/20260710-Feature-Playback Subtitle Focus Keyboard Actions.md`:
+normal playback exposes only the circular subtitle control and `Q` shortcut,
+while Playback Subtitle Focus uses exact-cue `S`, `C`, and Space actions with no
+cue pointer actions or action menu.
+
+### Build And Launch
+
+Repository:
+
+`/Users/weiyunjun/Documents/Code/CueSeeker`
+
+Run in a terminal:
+
+```sh
+cd /Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native
+swift build
+printf 'CueSeeker E2E sentinel' | pbcopy
+swift run CueSeeker 2>&1 | tee /tmp/cueseeker-subtitle-focus-keyboard-actions.log
+```
+
+No diagnostic probe flag is required. Keep the launch terminal open. If any
+step fails, preserve `/tmp/cueseeker-subtitle-focus-keyboard-actions.log` and
+the terminal output from the failing action through two seconds afterward.
+
+### Preconditions
+
+- Use an indexed video with at least fifteen subtitle cue groups.
+- Include one cue containing two or more source lines so exact clipboard line
+  breaks can be checked.
+- Start from a cue that has not yet been saved as Shiori for this run.
+- Keep a second terminal available for `pbpaste` checks.
+- Record the commit under test with `git rev-parse --short HEAD`.
+
+### Actions
+
+#### Normal Playback
+
+1. Open the indexed video from a Search result and leave Playback Subtitle
+   Focus closed.
+2. Inspect the bottom-player right group. It must contain the standalone
+   circular subtitle button, speed capsule, and fullscreen button. It must not
+   contain Shiori or copy-subtitle buttons, and the subtitle button must not be
+   embedded in their former capsule group.
+3. Press `S`, then `C`. Wait one second after each key.
+4. In the second terminal run `pbpaste`. It must still print
+   `CueSeeker E2E sentinel`. No Shiori/copy feedback or Shiori record may be
+   created by either normal-playback key.
+5. Press `Q` once. Confirm subtitle visibility changes, the circular button
+   selected state follows the new visibility state, and the HUD shows
+   `Subtitles On` or `Subtitles Off` as appropriate.
+6. Press `Q` again and confirm subtitle visibility and button state return to
+   their starting values.
+
+#### Playback Subtitle Focus
+
+1. Press Enter to open Playback Subtitle Focus. Confirm playback pauses and the
+   focus overlay appears without an action menu.
+2. Move the pointer across selected and unselected cue text. Confirm there is no
+   hover color or pointing-hand cue cursor. Click selected and unselected cue
+   text and confirm selection, Focus Anchor, reel position, playback state, and
+   overlay state do not change.
+3. Navigate with Up, Down, wheel or trackpad, and the scrollbar. Confirm each
+   mechanism still changes the focused cue and settles it at the Focus Anchor.
+4. Focus the known multi-line cue and press `C`. Confirm `Subtitle Copied`
+   appears above the focus overlay, the overlay remains visible, playback stays
+   paused, and cue/reel/scrollbar positions do not change. Run `pbpaste` in the
+   second terminal and compare the complete text and line breaks with the
+   focused cue.
+5. On an unsaved focused cue, press `S`. Confirm `Shiori Saved` appears above
+   the focus overlay, the overlay remains visible, playback stays paused, and
+   selection/reel/scrollbar state does not move.
+6. Press `S` again on the same cue. Confirm `Shiori Already Saved` appears and
+   no duplicate Shiori is created.
+7. Press Down and immediately press `C` before the reel transition finishes.
+   After settlement, run `pbpaste`. Confirm the copied text belongs to the new
+   cue settled at the Focus Anchor, not the previous cue, and that the action
+   executes only once.
+8. Press Enter while the focus overlay is visible. Confirm it performs no
+   action, opens no menu, and leaves the paused focus state unchanged.
+9. Focus a cue with an identifiable start and press Space. Confirm the focus
+   overlay closes, playback begins continuously from that cue's start, and the
+   HUD shows `Play`.
+10. Reopen Playback Subtitle Focus, navigate with the scrollbar, and press
+    Escape. Confirm the overlay closes without an implicit seek and restores
+    the playback state captured when this focus Session opened.
+
+### Evidence To Paste Back
+
+- The short commit hash under test.
+- Pass/fail for every numbered action above.
+- The `pbpaste` result after normal `S`/`C`, focused-cue `C`, and immediate
+  Down-then-`C`.
+- A screenshot of the normal bottom-player right group.
+- Screenshots showing `Shiori Saved`, `Shiori Already Saved`, and
+  `Subtitle Copied` above the still-visible focus overlay.
+- A short screen recording or precise written observation for Down-then-`C`
+  settlement and Space continuous playback.
+- On failure, the relevant block from
+  `/tmp/cueseeker-subtitle-focus-keyboard-actions.log` and the exact action that
+  produced it.
+
+### Acceptance Criteria
+
+The gate passes only if:
+
+- Normal playback has no Shiori/copy buttons or current-time Shiori/copy key
+  commands; `Q` alone toggles subtitle visibility and its circular button state.
+- Cue hover and click create no visual, selection, action, menu, playback, or
+  cursor response while Up, Down, wheel, and scrollbar navigation still work.
+- Focus `S` saves the exact settled cue idempotently, shows the correct saved or
+  already-saved HUD, and keeps the paused overlay and navigation state intact.
+- Focus `C` copies the exact complete cue text with source line breaks, shows
+  `Subtitle Copied`, and keeps the paused overlay and navigation state intact.
+- An action accepted during motion runs once against the final settled cue.
+- Enter is a no-op inside the focus overlay.
+- Focus Space closes the overlay, starts continuous playback from the exact
+  focused cue start, and shows `Play`.
+- No crash, duplicate action, hidden feedback, stale Session action, unexpected
+  seek, or unrelated workbench reset occurs.

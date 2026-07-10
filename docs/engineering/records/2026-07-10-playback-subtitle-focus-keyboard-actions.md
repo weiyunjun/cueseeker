@@ -78,14 +78,25 @@ a standalone circular bottom-player button.
 - `swift test --filter 'normalPlayback|ShioriPresentation'`
   - Passed 2 tests covering the Q subtitle toggle, no normal S/C command or
     Shiori write, and the remaining table-owned Shiori removal presentation.
+- `swift test`
+  - Passed all 7 XCTest tests and 466 Swift Testing tests.
+- Independent read-only implementation reviews
+  - Found no P0, P1, or P2 issue in the focus action state machine, async Shiori
+    lifecycle, native reel settlement, feedback stacking, normal shortcut map,
+    removed backend commands, or bottom-player control structure.
+- Static residual audit and `git diff --check`
+  - Found no active Subtitle Focus action-menu, cue hover/click, normal
+    current-time Shiori/copy command, or old Q/C shortcut implementation; passed
+    whitespace validation.
 
 ## Outcome
 
 The Subtitle Focus keyboard actions, pointer removal, normal-playback command
 cleanup, Q shortcut, and standalone circular subtitle button are implemented.
-Full-suite verification and owner end-to-end acceptance remain pending.
+Automated full-suite verification is complete. Native-player and visible UI
+behavior remain for owner end-to-end acceptance.
 
 ## Follow-ups
 
-- The owner will run the documented end-to-end procedure after all implementation
-  commits are complete.
+- The owner will run `docs/engineering/08_end_to_end_testing.md` §5 after all
+  implementation commits are complete and report the listed evidence.
