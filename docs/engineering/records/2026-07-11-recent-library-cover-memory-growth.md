@@ -59,6 +59,16 @@ verification must include the full Swift test suite and a debug build. Runtime
 verification must inspect physical footprint, decoded raster regions, render
 surfaces, cache accounting, in-flight decode count, and ordinary leaks.
 
+Data-model verification:
+
+- `swift test --filter libraryCoverRecordsStoreVideoSnapshotAndFolderReference`
+  passed.
+- `swift test --filter migrationAddsDisplayCoverFieldsWithoutReplacingMaster`
+  passed, including a repeated migration call.
+- `swift test --filter libraryCover` passed with three selected tests.
+- The focused test build compiled the complete macOS application and test
+  targets successfully.
+
 The owner will perform the final Activity Monitor UI acceptance flow. Its final
 stable physical footprint must not exceed 75 MB, with no more than 5 MB growth
 after repeated Library navigation and no more than 10 MB growth after window
@@ -66,5 +76,12 @@ resize relative to the first completed flow.
 
 ## Outcome
 
-Implementation has not started. The diagnostic baseline and implementation
-boundaries are recorded before code changes.
+The diagnostic baseline and implementation boundaries were recorded before
+code changes.
+
+Schema version 27 now separates the existing original-resolution master path
+from an optional display-cover path and profile version. The migration preserves
+all legacy master and folder-cover rows and deliberately leaves display fields
+empty so a master can never be mistaken for a bounded display rendition. The
+database API validates that display path and profile version are stored or
+cleared together.

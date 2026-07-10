@@ -117,7 +117,7 @@ public struct LibraryCoverIndexer: Sendable {
         for result in results.sorted(by: { $0.order < $1.order }) {
             try database.upsertLibraryVideoCover(
                 videoFileID: result.video.videoFileID,
-                coverPath: result.coverURL.path,
+                masterCoverPath: result.coverURL.path,
                 sourceTimeMilliseconds: result.sourceTimeMilliseconds,
                 score: result.score,
                 algorithmVersion: Self.algorithmVersion,
@@ -476,7 +476,7 @@ public struct LibraryCoverIndexer: Sendable {
             if let selected = firstGeneratedCoverByFolder[folderPath] {
                 try database.upsertLibraryFolderCover(
                     folderPath: folderPath,
-                    coverPath: selected.cover.coverPath,
+                    masterCoverPath: selected.cover.masterCoverPath,
                     sourceVideoFileID: selected.video.videoFileID
                 )
             } else {
@@ -491,7 +491,7 @@ public struct LibraryCoverIndexer: Sendable {
     ) -> Bool {
         guard let cover,
               cover.status == .generated,
-              FileManager.default.fileExists(atPath: cover.coverPath),
+              FileManager.default.fileExists(atPath: cover.masterCoverPath),
               cover.generatedFileSize == video.fileSize,
               Self.durationsMatch(cover.generatedDuration, video.duration)
         else {

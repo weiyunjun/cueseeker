@@ -2289,7 +2289,9 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
     let video = try #require(videos.first)
     try database.upsertLibraryVideoCover(
         videoFileID: video.videoFileID,
-        coverPath: "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg",
+        masterCoverPath: "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg",
+        displayCoverPath: "/Library/Application Support/CueSeeker/Covers/Display/v1/example.jpg",
+        displayProfileVersion: 1,
         sourceTimeMilliseconds: 432_000,
         score: 82.5,
         algorithmVersion: 1,
@@ -2301,7 +2303,9 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
 
     let storedCover = try database.libraryVideoCover(forVideoFileID: video.videoFileID)
     let cover = try #require(storedCover)
-    #expect(cover.coverPath == "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg")
+    #expect(cover.masterCoverPath == "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg")
+    #expect(cover.displayCoverPath == "/Library/Application Support/CueSeeker/Covers/Display/v1/example.jpg")
+    #expect(cover.displayProfileVersion == 1)
     #expect(cover.sourceTimeMilliseconds == 432_000)
     #expect(cover.score == 82.5)
     #expect(cover.algorithmVersion == 1)
@@ -2312,15 +2316,27 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
 
     try database.upsertLibraryFolderCover(
         folderPath: video.folderPath,
-        coverPath: cover.coverPath,
+        masterCoverPath: cover.masterCoverPath,
         sourceVideoFileID: video.videoFileID
     )
 
     let storedFolderCover = try database.libraryFolderCover(folderPath: video.folderPath)
     let folderCover = try #require(storedFolderCover)
     #expect(folderCover.folderPath == "/Media/Show")
-    #expect(folderCover.coverPath == cover.coverPath)
+    #expect(folderCover.masterCoverPath == cover.masterCoverPath)
     #expect(folderCover.sourceVideoFileID == video.videoFileID)
+
+    try database.updateLibraryVideoDisplayCover(
+        videoFileID: video.videoFileID,
+        displayCoverPath: nil,
+        displayProfileVersion: nil
+    )
+    let clearedDisplayCover = try #require(
+        try database.libraryVideoCover(forVideoFileID: video.videoFileID)
+    )
+    #expect(clearedDisplayCover.masterCoverPath == cover.masterCoverPath)
+    #expect(clearedDisplayCover.displayCoverPath == nil)
+    #expect(clearedDisplayCover.displayProfileVersion == nil)
 }
 
 @Test
@@ -2828,7 +2844,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     let showA1CoverCandidate = try #require(eligibleVideos.first { $0.videoPath == showA1.path })
     try database.upsertLibraryVideoCover(
         videoFileID: showA1CoverCandidate.videoFileID,
-        coverPath: "/Covers/show-a-episode-1.jpg",
+        masterCoverPath: "/Covers/show-a-episode-1.jpg",
         sourceTimeMilliseconds: 120_000,
         score: 90,
         algorithmVersion: 1,
@@ -3821,6 +3837,37 @@ func migrationBackfillsLibraryPlaybackHistoryWatchStateColumns() throws {
         startedAt: completedHistory.startedAt,
         completedAt: completedHistory.completedAt
     ) == .finished)
+}
+
+@Test
+func migrationAddsDisplayCoverFieldsWithoutReplacingMaster() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+    }
+
+    try createVersionTwentySixDatabaseWithLibraryCover(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+
+    let cover = try #require(try database.libraryVideoCover(forVideoFileID: 1))
+    #expect(cover.masterCoverPath == "/Covers/Videos/legacy-master.jpg")
+    #expect(cover.displayCoverPath == nil)
+    #expect(cover.displayProfileVersion == nil)
+    #expect(cover.sourceTimeMilliseconds == 120_000)
+    #expect(cover.status == .generated)
+
+    let folderCover = try #require(
+        try database.libraryFolderCover(folderPath: "/Media/Legacy Show")
+    )
+    #expect(folderCover.masterCoverPath == cover.masterCoverPath)
+    #expect(folderCover.sourceVideoFileID == 1)
 }
 
 @Test
@@ -5776,6 +5823,103 @@ private func createVersionTwentyFiveDatabaseWithShiori(at url: URL) throws {
         );
 
         PRAGMA user_version = 25;
+        """
+    )
+}
+
+private func createVersionTwentySixDatabaseWithLibraryCover(at url: URL) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        CREATE TABLE video_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            video_name TEXT NOT NULL,
+            file_size INTEGER,
+            modified_at REAL,
+            duration REAL,
+            video_width INTEGER,
+            video_height INTEGER,
+            frame_rate REAL,
+            video_codec TEXT,
+            audio_codec TEXT,
+            native_video_candidate INTEGER,
+            native_audio_candidate INTEGER,
+            native_compatibility_reason TEXT,
+            native_failure_reason TEXT,
+            compatibility_evaluated_at TEXT
+        );
+
+        CREATE TABLE video_covers (
+            video_file_id INTEGER PRIMARY KEY,
+            cover_path TEXT NOT NULL,
+            source_time_ms INTEGER NOT NULL,
+            score REAL,
+            algorithm_version INTEGER NOT NULL,
+            generated_file_size INTEGER,
+            generated_duration REAL,
+            status TEXT NOT NULL,
+            error_message TEXT,
+            generated_at TEXT NOT NULL,
+            FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE folder_covers (
+            folder_path TEXT PRIMARY KEY,
+            cover_path TEXT NOT NULL,
+            source_video_file_id INTEGER NOT NULL,
+            generated_at TEXT NOT NULL,
+            FOREIGN KEY(source_video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO video_files(id, path, video_name, file_size, duration)
+        VALUES (1, '/Media/Legacy Show/Episode 1.mkv', 'Episode 1.mkv', 2048, 1400.0);
+
+        INSERT INTO video_covers(
+            video_file_id,
+            cover_path,
+            source_time_ms,
+            score,
+            algorithm_version,
+            generated_file_size,
+            generated_duration,
+            status,
+            error_message,
+            generated_at
+        )
+        VALUES (
+            1,
+            '/Covers/Videos/legacy-master.jpg',
+            120000,
+            88.0,
+            1,
+            2048,
+            1400.0,
+            'generated',
+            NULL,
+            '2026-07-10T00:00:00Z'
+        );
+
+        INSERT INTO folder_covers(folder_path, cover_path, source_video_file_id, generated_at)
+        VALUES (
+            '/Media/Legacy Show',
+            '/Covers/Videos/legacy-master.jpg',
+            1,
+            '2026-07-10T00:00:00Z'
+        );
+
+        PRAGMA user_version = 26;
         """
     )
 }

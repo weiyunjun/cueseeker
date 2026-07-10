@@ -386,7 +386,9 @@ public struct LibraryCoverEligibleVideo: Equatable, Sendable, Identifiable {
 
 public struct LibraryVideoCover: Equatable, Sendable {
     public let videoFileID: Int64
-    public let coverPath: String
+    public let masterCoverPath: String
+    public let displayCoverPath: String?
+    public let displayProfileVersion: Int?
     public let sourceTimeMilliseconds: Int
     public let score: Double?
     public let algorithmVersion: Int
@@ -399,7 +401,7 @@ public struct LibraryVideoCover: Equatable, Sendable {
 
 public struct LibraryFolderCover: Equatable, Sendable {
     public let folderPath: String
-    public let coverPath: String
+    public let masterCoverPath: String
     public let sourceVideoFileID: Int64
     public let generatedAt: String
 }
@@ -1181,7 +1183,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 26
+    public static let currentSchemaVersion: Int = 27
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1514,6 +1516,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             CREATE TABLE IF NOT EXISTS video_covers (
                 video_file_id INTEGER PRIMARY KEY,
                 cover_path TEXT NOT NULL,
+                display_cover_path TEXT,
+                display_profile_version INTEGER,
                 source_time_ms INTEGER NOT NULL,
                 score REAL,
                 algorithm_version INTEGER NOT NULL,
@@ -1786,6 +1790,25 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     """
                     ALTER TABLE video_files
                     ADD COLUMN frame_rate REAL;
+                    """
+                )
+            }
+        }
+
+        if previousVersion < 27 {
+            if try !columnExists(table: "video_covers", column: "display_cover_path") {
+                try database.execute(
+                    """
+                    ALTER TABLE video_covers
+                    ADD COLUMN display_cover_path TEXT;
+                    """
+                )
+            }
+            if try !columnExists(table: "video_covers", column: "display_profile_version") {
+                try database.execute(
+                    """
+                    ALTER TABLE video_covers
+                    ADD COLUMN display_profile_version INTEGER;
                     """
                 )
             }
@@ -5136,8 +5159,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func libraryVideoCover(forVideoFileID videoFileID: Int64) throws -> LibraryVideoCover? {
         let statement = try database.prepare(
             """
-            SELECT video_file_id, cover_path, source_time_ms, score, algorithm_version,
-                   generated_file_size, generated_duration, status, error_message, generated_at
+            SELECT video_file_id, cover_path, display_cover_path, display_profile_version,
+                   source_time_ms, score, algorithm_version, generated_file_size,
+                   generated_duration, status, error_message, generated_at
             FROM video_covers
             WHERE video_file_id = ?;
             """
@@ -5153,7 +5177,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func upsertLibraryVideoCover(
         videoFileID: Int64,
-        coverPath: String,
+        masterCoverPath: String,
+        displayCoverPath: String? = nil,
+        displayProfileVersion: Int? = nil,
         sourceTimeMilliseconds: Int,
         score: Double?,
         algorithmVersion: Int,
@@ -5162,11 +5188,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
         status: LibraryCoverStatus,
         errorMessage: String?
     ) throws {
+        try Self.validateDisplayCover(
+            path: displayCoverPath,
+            profileVersion: displayProfileVersion
+        )
         let statement = try database.prepare(
             """
             INSERT INTO video_covers(
                 video_file_id,
                 cover_path,
+                display_cover_path,
+                display_profile_version,
                 source_time_ms,
                 score,
                 algorithm_version,
@@ -5176,9 +5208,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 error_message,
                 generated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(video_file_id) DO UPDATE SET
                 cover_path = excluded.cover_path,
+                display_cover_path = excluded.display_cover_path,
+                display_profile_version = excluded.display_profile_version,
                 source_time_ms = excluded.source_time_ms,
                 score = excluded.score,
                 algorithm_version = excluded.algorithm_version,
@@ -5191,31 +5225,74 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
 
         try statement.bind(videoFileID, at: 1)
-        try statement.bind(coverPath, at: 2)
-        try statement.bind(max(0, sourceTimeMilliseconds), at: 3)
-        if let score, score.isFinite {
-            try statement.bind(score, at: 4)
+        try statement.bind(masterCoverPath, at: 2)
+        if let displayCoverPath {
+            try statement.bind(displayCoverPath, at: 3)
+        } else {
+            try statement.bindNull(at: 3)
+        }
+        if let displayProfileVersion {
+            try statement.bind(displayProfileVersion, at: 4)
         } else {
             try statement.bindNull(at: 4)
         }
-        try statement.bind(algorithmVersion, at: 5)
-        if let generatedFileSize {
-            try statement.bind(generatedFileSize, at: 6)
+        try statement.bind(max(0, sourceTimeMilliseconds), at: 5)
+        if let score, score.isFinite {
+            try statement.bind(score, at: 6)
         } else {
             try statement.bindNull(at: 6)
         }
-        if let generatedDuration, generatedDuration.isFinite, generatedDuration >= 0 {
-            try statement.bind(generatedDuration, at: 7)
+        try statement.bind(algorithmVersion, at: 7)
+        if let generatedFileSize {
+            try statement.bind(generatedFileSize, at: 8)
         } else {
-            try statement.bindNull(at: 7)
+            try statement.bindNull(at: 8)
         }
-        try statement.bind(status.rawValue, at: 8)
-        if let errorMessage, !errorMessage.isEmpty {
-            try statement.bind(errorMessage, at: 9)
+        if let generatedDuration, generatedDuration.isFinite, generatedDuration >= 0 {
+            try statement.bind(generatedDuration, at: 9)
         } else {
             try statement.bindNull(at: 9)
         }
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 10)
+        try statement.bind(status.rawValue, at: 10)
+        if let errorMessage, !errorMessage.isEmpty {
+            try statement.bind(errorMessage, at: 11)
+        } else {
+            try statement.bindNull(at: 11)
+        }
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 12)
+        try statement.run()
+    }
+
+    public func updateLibraryVideoDisplayCover(
+        videoFileID: Int64,
+        displayCoverPath: String?,
+        displayProfileVersion: Int?
+    ) throws {
+        try Self.validateDisplayCover(
+            path: displayCoverPath,
+            profileVersion: displayProfileVersion
+        )
+        let statement = try database.prepare(
+            """
+            UPDATE video_covers
+            SET display_cover_path = ?,
+                display_profile_version = ?,
+                generated_at = ?
+            WHERE video_file_id = ?;
+            """
+        )
+        if let displayCoverPath {
+            try statement.bind(displayCoverPath, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+        if let displayProfileVersion {
+            try statement.bind(displayProfileVersion, at: 2)
+        } else {
+            try statement.bindNull(at: 2)
+        }
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 3)
+        try statement.bind(videoFileID, at: 4)
         try statement.run()
     }
 
@@ -5235,7 +5312,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         return LibraryFolderCover(
             folderPath: statement.stringColumn(0),
-            coverPath: statement.stringColumn(1),
+            masterCoverPath: statement.stringColumn(1),
             sourceVideoFileID: statement.int64Column(2),
             generatedAt: statement.stringColumn(3)
         )
@@ -5243,7 +5320,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func upsertLibraryFolderCover(
         folderPath: String,
-        coverPath: String,
+        masterCoverPath: String,
         sourceVideoFileID: Int64
     ) throws {
         let statement = try database.prepare(
@@ -5258,7 +5335,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
 
         try statement.bind(folderPath, at: 1)
-        try statement.bind(coverPath, at: 2)
+        try statement.bind(masterCoverPath, at: 2)
         try statement.bind(sourceVideoFileID, at: 3)
         try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 4)
         try statement.run()
@@ -9214,19 +9291,37 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
+    private static func validateDisplayCover(
+        path: String?,
+        profileVersion: Int?
+    ) throws {
+        guard (path == nil) == (profileVersion == nil) else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Display cover path and profile version must be stored together"
+            )
+        }
+        if let profileVersion, profileVersion <= 0 {
+            throw SQLiteDatabaseError.stepFailed(
+                "Display cover profile version must be positive"
+            )
+        }
+    }
+
     private static func libraryVideoCover(from statement: SQLiteStatement) -> LibraryVideoCover {
-        let status = LibraryCoverStatus(rawValue: statement.stringColumn(7)) ?? .failed
+        let status = LibraryCoverStatus(rawValue: statement.stringColumn(9)) ?? .failed
         return LibraryVideoCover(
             videoFileID: statement.int64Column(0),
-            coverPath: statement.stringColumn(1),
-            sourceTimeMilliseconds: max(0, statement.intColumn(2)),
-            score: statement.nullableDoubleColumn(3),
-            algorithmVersion: statement.intColumn(4),
-            generatedFileSize: statement.nullableInt64Column(5),
-            generatedDuration: statement.nullableDoubleColumn(6),
+            masterCoverPath: statement.stringColumn(1),
+            displayCoverPath: statement.nullableStringColumn(2),
+            displayProfileVersion: statement.nullableIntColumn(3),
+            sourceTimeMilliseconds: max(0, statement.intColumn(4)),
+            score: statement.nullableDoubleColumn(5),
+            algorithmVersion: statement.intColumn(6),
+            generatedFileSize: statement.nullableInt64Column(7),
+            generatedDuration: statement.nullableDoubleColumn(8),
             status: status,
-            errorMessage: statement.nullableStringColumn(8),
-            generatedAt: statement.stringColumn(9)
+            errorMessage: statement.nullableStringColumn(10),
+            generatedAt: statement.stringColumn(11)
         )
     }
 
