@@ -53,6 +53,90 @@ func subtitleFocusInitialSnapshotPublishesOnlyThroughChildStore() throws {
 
 @MainActor
 @Test
+func subtitleFocusCompleteCueBatchPublishesAfterInitialWindow() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    let initial = focusPresentationSnapshot()
+    #expect(session.publishInitialSnapshot(initial, token: session.token))
+    #expect(session.completeCueLoadTotalCount == 20)
+
+    let anchorY: CGFloat = 224
+    #expect(session.selectCue(ordinal: 10, focusAnchorY: anchorY))
+    let complete = SubtitleFocusCueBatch(
+        totalCount: 20,
+        cues: focusCues(0..<20)
+    )
+    #expect(session.publishCompleteCueBatch(complete, token: session.token))
+
+    #expect(session.completeCueLoadTotalCount == nil)
+    #expect(session.retainedCueCount == 20)
+    #expect(session.completeCueBatch == complete)
+    #expect(session.cue(at: 0)?.text == "cue 0")
+    #expect(session.cue(at: 19)?.text == "cue 19")
+    #expect(session.currentSnapshot?.selectedOrdinal == 10)
+    #expect(session.focusAnchorY == anchorY)
+    #expect(session.windowLoadRequestAfterNavigation(.forward) == nil)
+}
+
+@MainActor
+@Test
+func subtitleFocusCompleteCueBatchRejectsMalformedAndLateResults() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+
+    let wrongTotal = SubtitleFocusCueBatch(
+        totalCount: 19,
+        cues: focusCues(0..<19)
+    )
+    let missingCue = SubtitleFocusCueBatch(
+        totalCount: 20,
+        cues: focusCues(0..<19)
+    )
+    #expect(!session.publishCompleteCueBatch(wrongTotal, token: session.token))
+    #expect(!session.publishCompleteCueBatch(missingCue, token: session.token))
+    #expect(session.retainedCueCount == 10)
+
+    let token = session.token
+    _ = session.dismissByUser()
+    #expect(!session.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
+        token: token
+    ))
+    #expect(session.retainedCueCount == 0)
+}
+
+@MainActor
+@Test
+func subtitleFocusShortInitialWindowIsAlreadyComplete() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    let snapshot = SubtitleFocusSnapshot(
+        totalCount: 7,
+        selectedOrdinal: 3,
+        cues: focusCues(0..<7)
+    )
+
+    #expect(session.publishInitialSnapshot(snapshot, token: session.token))
+    #expect(session.completeCueLoadTotalCount == nil)
+    #expect(session.completeCueBatch == SubtitleFocusCueBatch(
+        totalCount: 7,
+        cues: focusCues(0..<7)
+    ))
+    #expect(session.retainedCueCount == 7)
+}
+
+@MainActor
+@Test
 func subtitleFocusSessionRejectsStaleGenerationAndSource() throws {
     let playback = PlaybackStore(userDefaults: .standard)
     let firstSession = try #require(playback.beginSubtitleFocusSession(

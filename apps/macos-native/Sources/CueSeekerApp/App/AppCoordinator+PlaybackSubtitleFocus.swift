@@ -55,10 +55,7 @@ extension AppCoordinator {
         }
 
         cancelPlaybackSubtitleFocusMenuTasks()
-        playbackSubtitleFocusInitialLoadTask?.cancel()
-        playbackSubtitleFocusInitialLoadTask = nil
-        playbackSubtitleFocusWindowLoadTask?.cancel()
-        playbackSubtitleFocusWindowLoadTask = nil
+        cancelPlaybackSubtitleFocusCueLoadTasks()
         guard let shouldResume = session.dismissByUser() else {
             playback.releaseSubtitleFocusSession(session)
             return false
@@ -73,10 +70,7 @@ extension AppCoordinator {
 
     func invalidatePlaybackSubtitleFocusForSourceReplacement() {
         cancelPlaybackSubtitleFocusMenuTasks()
-        playbackSubtitleFocusInitialLoadTask?.cancel()
-        playbackSubtitleFocusInitialLoadTask = nil
-        playbackSubtitleFocusWindowLoadTask?.cancel()
-        playbackSubtitleFocusWindowLoadTask = nil
+        cancelPlaybackSubtitleFocusCueLoadTasks()
         guard let session = playback.subtitleFocusSession else {
             return
         }
@@ -224,10 +218,7 @@ extension AppCoordinator {
         session: PlaybackSubtitleFocusSessionStore
     ) {
         cancelPlaybackSubtitleFocusMenuTasks()
-        playbackSubtitleFocusInitialLoadTask?.cancel()
-        playbackSubtitleFocusInitialLoadTask = nil
-        playbackSubtitleFocusWindowLoadTask?.cancel()
-        playbackSubtitleFocusWindowLoadTask = nil
+        cancelPlaybackSubtitleFocusCueLoadTasks()
         guard let shouldResume = session.completeActionMenuExecution(
             menuGeneration: execution.menuGeneration
         ) else {
@@ -439,6 +430,7 @@ extension AppCoordinator {
                     )
                     return
                 }
+                self.startPlaybackSubtitleFocusCompleteLoadIfNeeded(for: session)
             } catch is CancellationError {
                 return
             } catch {
@@ -451,6 +443,45 @@ extension AppCoordinator {
                     token: token,
                     error: error
                 )
+            }
+        }
+    }
+
+    private func startPlaybackSubtitleFocusCompleteLoadIfNeeded(
+        for session: PlaybackSubtitleFocusSessionStore
+    ) {
+        guard let totalCount = session.completeCueLoadTotalCount else {
+            return
+        }
+
+        playbackSubtitleFocusCompleteLoadTask?.cancel()
+        let subtitlePath = session.openSnapshot.source.subtitlePath
+        let token = session.token
+        let databaseReader = playbackSubtitleFocusDatabaseReader
+        playbackSubtitleFocusCompleteLoadTask = Task { @MainActor [weak self, weak session] in
+            guard let self, let session else {
+                return
+            }
+
+            do {
+                let batch = try await databaseReader.completeCueBatch(
+                    subtitlePath: subtitlePath,
+                    totalCount: totalCount
+                )
+                try Task.checkCancellation()
+                guard self.playback.subtitleFocusSession === session else {
+                    return
+                }
+                self.playbackSubtitleFocusCompleteLoadTask = nil
+                _ = session.publishCompleteCueBatch(batch, token: token)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.playback.subtitleFocusSession === session else {
+                    return
+                }
+                self.playbackSubtitleFocusCompleteLoadTask = nil
+                print("Failed to load complete Playback Subtitle Focus cues: \(error)")
             }
         }
     }
@@ -536,6 +567,15 @@ extension AppCoordinator {
         if shouldResume {
             resumePlayback()
         }
+    }
+
+    private func cancelPlaybackSubtitleFocusCueLoadTasks() {
+        playbackSubtitleFocusInitialLoadTask?.cancel()
+        playbackSubtitleFocusInitialLoadTask = nil
+        playbackSubtitleFocusCompleteLoadTask?.cancel()
+        playbackSubtitleFocusCompleteLoadTask = nil
+        playbackSubtitleFocusWindowLoadTask?.cancel()
+        playbackSubtitleFocusWindowLoadTask = nil
     }
 
 }

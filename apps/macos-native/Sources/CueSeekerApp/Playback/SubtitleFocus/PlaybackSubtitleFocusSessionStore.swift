@@ -65,6 +65,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit? = nil
     @Published private(set) var actionMenuState: PlaybackSubtitleFocusActionMenuState? = nil
     @Published private(set) var isActionMenuOpening = false
+    @Published private(set) var completeCueBatch: SubtitleFocusCueBatch? = nil
 
     private var cueCache = SubtitleFocusCueCache()
     private var loadScheduler: PlaybackSubtitleFocusLoadScheduler
@@ -107,7 +108,26 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     }
 
     var retainedCueCount: Int {
-        cueCache.count
+        completeCueBatch?.cues.count ?? cueCache.count
+    }
+
+    var completeCueLoadTotalCount: Int? {
+        guard completeCueBatch == nil,
+              let snapshot = currentSnapshot,
+              snapshot.cues.count < snapshot.totalCount
+        else {
+            return nil
+        }
+        return snapshot.totalCount
+    }
+
+    func cue(at ordinal: Int) -> SubtitleFocusCue? {
+        guard let completeCueBatch,
+              completeCueBatch.cues.indices.contains(ordinal)
+        else {
+            return cueCache[ordinal]
+        }
+        return completeCueBatch.cues[ordinal]
     }
 
     var activeWindowLoadRequest: PlaybackSubtitleFocusWindowLoadRequest? {
@@ -150,9 +170,49 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
 
         cueCache = nextCache
+        if snapshot.cues.count == snapshot.totalCount,
+           snapshot.cues.map(\.ordinal) == Array(0..<snapshot.totalCount) {
+            completeCueBatch = SubtitleFocusCueBatch(
+                totalCount: snapshot.totalCount,
+                cues: snapshot.cues
+            )
+            loadScheduler.invalidate()
+        }
         initialSelectedOrdinal = snapshot.selectedOrdinal
         focusAnchorY = nil
         state = .cueSelection(snapshot)
+        return true
+    }
+
+    @discardableResult
+    func publishCompleteCueBatch(
+        _ batch: SubtitleFocusCueBatch,
+        token requestToken: PlaybackSubtitleFocusSessionToken
+    ) -> Bool {
+        guard accepts(requestToken),
+              completeCueBatch == nil,
+              let snapshot = currentSnapshot,
+              batch.totalCount == snapshot.totalCount,
+              batch.cues.count == snapshot.totalCount,
+              batch.cues.map(\.ordinal) == Array(0..<snapshot.totalCount),
+              snapshot.cues.allSatisfy({ cue in
+                  batch.cues.indices.contains(cue.ordinal)
+                      && batch.cues[cue.ordinal] == cue
+              }),
+              batch.cues.indices.contains(snapshot.selectedOrdinal),
+              batch.cues[snapshot.selectedOrdinal] == snapshot.selectedCue
+        else {
+            return false
+        }
+
+        loadScheduler.invalidate()
+        pendingScrollbarPreviewOrdinal = nil
+        protectedVisibleOrdinalRange = nil
+        targetWindowState = PlaybackSubtitleFocusTargetWindowState(
+            loadingTargetOrdinal: nil,
+            resolutionGeneration: targetWindowState.resolutionGeneration + 1
+        )
+        completeCueBatch = batch
         return true
     }
 
@@ -237,6 +297,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         _ direction: SubtitleFocusNavigationDirection
     ) -> PlaybackSubtitleFocusWindowLoadRequest? {
         guard isSessionActive,
+              completeCueBatch == nil,
               actionMenuState == nil,
               !isActionMenuOpening,
               let snapshot = currentSnapshot,
@@ -322,6 +383,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         ordinal: Int
     ) -> PlaybackSubtitleFocusWindowLoadRequest? {
         guard actionMenuState == nil,
+              completeCueBatch == nil,
               !isActionMenuOpening,
               let snapshot = currentSnapshot,
               ordinal >= 0,
@@ -866,6 +928,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isCueReelMotionActive = false
         isActionMenuOpening = false
         cueCache.removeAll()
+        completeCueBatch = nil
         pendingKeyboardNavigationDirections.removeAll(keepingCapacity: false)
         keyboardNavigationRequest = nil
         targetWindowState = PlaybackSubtitleFocusTargetWindowState(

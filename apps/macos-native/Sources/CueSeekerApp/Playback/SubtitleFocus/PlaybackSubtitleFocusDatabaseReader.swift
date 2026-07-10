@@ -42,6 +42,21 @@ actor PlaybackSubtitleFocusDatabaseReader {
         return batch
     }
 
+    func completeCueBatch(
+        subtitlePath: String,
+        totalCount: Int
+    ) throws -> SubtitleFocusCueBatch {
+        try Task.checkCancellation()
+        let batch = try resolvedDatabase().subtitleFocusCueBatch(
+            forSubtitleFile: URL(fileURLWithPath: subtitlePath),
+            totalCount: totalCount,
+            startingAtOrdinal: 0,
+            limit: totalCount
+        )
+        try Task.checkCancellation()
+        return batch
+    }
+
     func isShioriSaved(
         context: PlaybackSubtitleFocusActionContext
     ) throws -> Bool {

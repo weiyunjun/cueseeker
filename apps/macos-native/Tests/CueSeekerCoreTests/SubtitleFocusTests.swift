@@ -285,6 +285,36 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
 }
 
 @Test
+func subtitleFocusDatabaseBatchReadsCompleteCurrentVideoCollection() throws {
+    let databaseURL = subtitleFocusTemporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    let subtitleFile = URL(fileURLWithPath: "/Media/Complete-Focus.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Complete-Focus.mkv")
+    let cueCount = 2_500
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: focusEntries(count: cueCount)
+    )
+
+    let batch = try database.subtitleFocusCueBatch(
+        forSubtitleFile: subtitleFile,
+        totalCount: cueCount,
+        startingAtOrdinal: 0,
+        limit: cueCount
+    )
+
+    #expect(batch.totalCount == cueCount)
+    #expect(batch.cues.count == cueCount)
+    #expect(batch.cues.map(\.ordinal) == Array(0..<cueCount))
+    #expect(batch.cues.first?.text == "cue 0")
+    #expect(batch.cues.last?.text == "cue 2499")
+}
+
+@Test
 func subtitleFocusDatabaseUsesOneStableOrderForSelectionAndWindow() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
     defer { try? FileManager.default.removeItem(at: databaseURL) }
