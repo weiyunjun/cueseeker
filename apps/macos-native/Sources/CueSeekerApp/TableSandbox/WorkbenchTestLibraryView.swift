@@ -5,7 +5,6 @@ import SwiftUI
 
 struct WorkbenchTestRecentWatchingView: View {
     @EnvironmentObject private var appState: AppCoordinator
-    @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var library: LibraryStore
 
     var body: some View {
@@ -20,9 +19,6 @@ struct WorkbenchTestRecentWatchingView: View {
         .background(WorkbenchRedesignColors.bgSurface)
         .task {
             appState.hydrateTestRecentWatchingAsync()
-        }
-        .onChange(of: indexing.selectedFolders) { _ in
-            appState.refreshTestRecentWatching()
         }
     }
 
@@ -83,7 +79,6 @@ struct WorkbenchTestLibraryView: View {
         }
         .onChange(of: indexing.selectedFolders) { _ in
             closeFolderDetail()
-            appState.refreshCompleteLibrary()
         }
         .onChange(of: library.completeLibraryRevision) { _ in
             reconcileSelectedFolder()

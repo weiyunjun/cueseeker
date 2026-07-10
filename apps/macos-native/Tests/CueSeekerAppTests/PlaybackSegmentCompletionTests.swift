@@ -225,6 +225,7 @@ func closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision() async throws {
         await Task.yield()
 
         let revisionBeforeSave = app.library.libraryPlaybackHistoryRevision
+        let completeRevisionBeforeSave = app.library.completeLibraryRevision
 
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
 
@@ -232,6 +233,8 @@ func closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision() async throws {
         #expect(history.positionMilliseconds == 42_500)
         #expect(history.duration == 100.0)
         #expect(app.library.libraryPlaybackHistoryRevision == revisionBeforeSave + 1)
+        #expect(app.library.completeLibraryRevision == completeRevisionBeforeSave)
+        #expect(app.completeLibraryTask == nil)
     }
 }
 

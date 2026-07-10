@@ -194,6 +194,45 @@ View-integration verification:
   `WorkbenchTestLibraryView.swift`. Remaining `GeometryReader` instances are
   unrelated progress or menu layout helpers.
 
+Route snapshot reuse:
+
+- Route hydration now loads Library, Recent, test Recent, and complete Library
+  only while their presentation is idle or failed. Once a snapshot reaches
+  `completed`, leaving and re-entering the route reuses it without starting a
+  database task or incrementing its presentation revision.
+- An empty selected-folder scope is also idempotent. Repeated route entry does
+  not keep applying another empty snapshot; a stale nonempty snapshot is still
+  cleared once if the scope becomes empty.
+- Recent and Library hydration still asks the lazy display-rendition backfill
+  to run before the completed-snapshot guard. A legacy database can therefore
+  receive its bounded display renditions even when its presentation snapshot
+  was already loaded.
+- Folder indexing, folder removal, display-rendition publication, and explicit
+  refresh continue to call the force-refresh methods. The view-level folder
+  observers no longer start duplicate Recent or complete-Library refreshes;
+  the Library observer only closes a detail whose selected scope changed.
+- Playback-history and manual watch-state changes no longer rebuild the
+  complete-Library folder summary because that query contains no playback
+  state. They increment `libraryPlaybackHistoryRevision`, refresh Recent, and
+  let an open folder detail reload from the existing history-aware task ID.
+
+Route-snapshot verification:
+
+- `swift test --filter libraryRouteHydrationReusesCompletedSnapshotsUntilExplicitRefresh`
+  passed. It covers an idempotent empty scope, the first real load of all four
+  presentations, completed route re-entry with no task or revision change, and
+  an explicit refresh that increments every revision once.
+- `swift test --filter playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary`
+  passed for both direct history recording and asynchronous manual watch-state
+  changes. Recent data reloaded, the history revision advanced, and no complete
+  Library task or summary revision was created.
+- `swift test --filter closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision`
+  passed with the added assertion that playback close does not start or revise
+  a complete-Library summary.
+- `swift test --filter libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance`
+  passed after the completed-snapshot guard, confirming that lazy display
+  backfill remains compatible with route snapshot reuse.
+
 The owner will perform the final Activity Monitor UI acceptance flow. Its final
 stable physical footprint must not exceed 75 MB, with no more than 5 MB growth
 after repeated Library navigation and no more than 10 MB growth after window
@@ -223,3 +262,8 @@ views. Its budget, request coalescing, decode concurrency, and cancellation
 rules are deterministic. All current Recent and Library cover surfaces now use
 that pipeline, and view-owned decoded images are released when their cards leave
 the viewport or route.
+
+Completed Recent and Library snapshots are now stable across route-only
+navigation. Explicit data changes retain their force-refresh path, while
+playback-only changes reload Recent and an open history-aware folder detail
+without rebuilding the unchanged cover-bearing Library summary.

@@ -158,13 +158,21 @@ extension AppCoordinator {
 
 
     func hydrateLibraryAsync() {
-        guard let database = subtitleDatabase, library.libraryStatus != .loading else {
-            return
-        }
         let folders = indexing.selectedFolders
         guard !folders.isEmpty else {
-            applyLibraryPresentation([])
-            library.libraryStatus = .idle
+            if library.libraryStatus != .idle
+                || !library.libraryVideos.isEmpty
+                || !library.libraryFolderGroups.isEmpty
+            {
+                applyLibraryPresentation([])
+                library.libraryStatus = .idle
+            }
+            return
+        }
+        guard library.libraryStatus != .completed,
+              let database = subtitleDatabase,
+              library.libraryStatus != .loading
+        else {
             return
         }
 
@@ -190,6 +198,15 @@ extension AppCoordinator {
 
     func hydrateRecentWatchingAsync() {
         ensureLibraryDisplayRenditionsAsync()
+        if indexing.selectedFolders.isEmpty {
+            if library.recentWatchingStatus != .idle || !library.recentWatchingItems.isEmpty {
+                refreshRecentWatching()
+            }
+            return
+        }
+        guard library.recentWatchingStatus != .completed else {
+            return
+        }
         if case .loading = library.recentWatchingStatus, recentWatchingTask != nil {
             return
         }
@@ -198,6 +215,15 @@ extension AppCoordinator {
 
     func hydrateTestRecentWatchingAsync() {
         ensureLibraryDisplayRenditionsAsync()
+        if indexing.selectedFolders.isEmpty {
+            if library.testRecentWatchingStatus != .idle || !library.testRecentWatchingItems.isEmpty {
+                refreshTestRecentWatching()
+            }
+            return
+        }
+        guard library.testRecentWatchingStatus != .completed else {
+            return
+        }
         if case .loading = library.testRecentWatchingStatus, testRecentWatchingTask != nil {
             return
         }
@@ -206,6 +232,17 @@ extension AppCoordinator {
 
     func hydrateCompleteLibraryAsync() {
         ensureLibraryDisplayRenditionsAsync()
+        if indexing.selectedFolders.isEmpty {
+            if library.completeLibraryStatus != .idle
+                || !library.completeLibraryFolderSummaries.isEmpty
+            {
+                refreshCompleteLibrary()
+            }
+            return
+        }
+        guard library.completeLibraryStatus != .completed else {
+            return
+        }
         if case .loading = library.completeLibraryStatus, completeLibraryTask != nil {
             return
         }
@@ -503,16 +540,15 @@ extension AppCoordinator {
             }.value
 
             await MainActor.run {
-                self?.refreshLibraryAfterManualWatchStateChange()
+                self?.refreshLibraryPlaybackHistoryPresentations()
             }
         }
     }
 
-    private func refreshLibraryAfterManualWatchStateChange() {
+    private func refreshLibraryPlaybackHistoryPresentations() {
         library.libraryPlaybackHistoryRevision += 1
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
-        refreshCompleteLibrary()
     }
 
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
@@ -641,9 +677,7 @@ extension AppCoordinator {
             )
             return
         }
-        refreshRecentWatching()
-        refreshLoadedTestRecentWatching()
-        refreshCompleteLibrary()
+        refreshLibraryPlaybackHistoryPresentations()
     }
 
     func play(_ video: LibraryVideo) {
@@ -748,10 +782,7 @@ extension AppCoordinator {
         let savedHistory = saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
         if savedHistory || library.hasDeferredPlaybackHistoryPresentationRefresh {
             library.hasDeferredPlaybackHistoryPresentationRefresh = false
-            library.libraryPlaybackHistoryRevision += 1
-            refreshRecentWatching()
-            refreshLoadedTestRecentWatching()
-            refreshCompleteLibrary()
+            refreshLibraryPlaybackHistoryPresentations()
         }
     }
 
