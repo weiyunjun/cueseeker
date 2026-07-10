@@ -127,6 +127,44 @@ Display-rendition verification:
 - `swift test --filter libraryCover` passed seven selected tests after the
   display-rendition changes.
 
+Decoded-image pipeline implementation:
+
+- Cache identity is the display path, database-provided display revision, and
+  display profile version. It deliberately excludes the SwiftUI frame or
+  window size, so resizing cannot create another decoded variant.
+- Recent, complete Library, folder-summary, and folder-detail presentations
+  now carry the matching `video_covers.generated_at` value as `coverRevision`.
+  Display updates use a fractional-second timestamp, and path/revision fallback
+  selection is kept paired in folder-summary queries.
+- The actor-owned cache is a deterministic cost-LRU with a hard 16 MiB budget,
+  a 64-entry ceiling, and `CGImage` byte cost. A single decoded entry larger
+  than the budget is returned to its caller but never cached.
+- Same-key callers share one decode. The internal scheduler permits at most
+  four actual ImageIO decodes, keeps cancelled running work in the active count
+  until it finishes, and resumes queued work only when a real slot becomes
+  free.
+- Each waiter has a synchronous cancellation flag plus actor cleanup. The last
+  waiter cancels the decode; a late result is discarded and cannot enter the
+  cache or update a caller. A new waiter arriving during cancellation receives
+  a fresh decode after the old task has actually exited.
+- The production decoder reads the already-bounded display JPEG directly into
+  `CGImage`; it rejects a file larger than `512 x 288`, preventing accidental
+  Master decoding even if an invalid path reaches the pipeline.
+
+Decoded-image pipeline verification:
+
+- `swift test --filter LibraryCoverImagePipeline` passed nine tests covering
+  deterministic LRU eviction, the 16 MiB-style cost contract, same-key request
+  coalescing, hard decode concurrency, partial waiter cancellation, late-result
+  rejection and restart, immediate pre-registration cancellation, oversize
+  cache exclusion, full cache/in-flight removal with late completion, and the
+  production decoder's Master-size guard.
+- `swift test --filter libraryCoverPresentationsNeverFallBackToMasterRendition`
+  passed with path/revision pairing for master-only, current-profile, and stale
+  profile states.
+- `swift test --filter completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData`
+  passed with matching fallback path and revision in folder and episode data.
+
 The owner will perform the final Activity Monitor UI acceptance flow. Its final
 stable physical footprint must not exceed 75 MB, with no more than 5 MB growth
 after repeated Library navigation and no more than 10 MB growth after window
@@ -150,3 +188,9 @@ same bounded display-only generator, and all Recent/Library presentation
 queries are now unable to expose a master path. This establishes one fixed
 on-disk rendition identity before the decoded-image cache and SwiftUI ownership
 changes.
+
+The decoded-image pipeline is implemented and covered independently of the
+views. Its budget, request coalescing, decode concurrency, and cancellation
+rules are deterministic; the following integration step will replace the old
+geometry-keyed `NSImage` view loader and release per-view image ownership when
+items leave the viewport.

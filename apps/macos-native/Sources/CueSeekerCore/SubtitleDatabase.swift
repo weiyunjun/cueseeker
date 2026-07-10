@@ -580,6 +580,7 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
     public let completedAt: String?
     public let updatedAt: String
     public let coverPath: String?
+    public let coverRevision: String?
 
     public var id: String {
         videoPath
@@ -625,6 +626,7 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
     public let completedAt: String?
     public let historyUpdatedAt: String?
     public let coverPath: String?
+    public let coverRevision: String?
 
     public var id: String {
         videoPath
@@ -654,6 +656,7 @@ public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Ide
     public let folderPath: String
     public let folderTitle: String
     public let coverPath: String?
+    public let coverRevision: String?
     public let episodeCount: Int
 
     public var id: String {
@@ -675,6 +678,7 @@ public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiab
     public let folderPath: String
     public let folderTitle: String
     public let folderCoverPath: String?
+    public let folderCoverRevision: String?
     public let lastWatchedEpisodeNumber: Int?
     public let lastWatchedVideoPath: String?
     public let videos: [CompleteLibraryVideoPresentation]
@@ -5330,7 +5334,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         } else {
             try statement.bindNull(at: 11)
         }
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 12)
+        try statement.bind(Self.libraryCoverRevisionTimestamp(), at: 12)
         try statement.run()
     }
 
@@ -5362,7 +5366,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         } else {
             try statement.bindNull(at: 2)
         }
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 3)
+        try statement.bind(Self.libraryCoverRevisionTimestamp(), at: 3)
         try statement.bind(videoFileID, at: 4)
         try statement.run()
     }
@@ -5528,7 +5532,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        WHEN ws.state = 'unwatched' THEN NULL
                        ELSE h.completed_at
                    END,
-                   h.updated_at, vc.display_cover_path
+                   h.updated_at, vc.display_cover_path, vc.generated_at
             FROM library_playback_history h
             JOIN library_video_rows lvr ON lvr.video_path = h.video_path
             LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
@@ -5579,7 +5583,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     startedAt: statement.nullableStringColumn(12),
                     completedAt: statement.nullableStringColumn(13),
                     updatedAt: statement.stringColumn(14),
-                    coverPath: statement.nullableStringColumn(15)
+                    coverPath: statement.nullableStringColumn(15),
+                    coverRevision: statement.nullableStringColumn(16)
                 )
             )
         }
@@ -5617,7 +5622,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    h.updated_at, julianday(h.updated_at),
                    vc.display_cover_path, fvc.display_cover_path,
                    vf.file_size, vf.video_codec,
-                   vf.video_width, vf.video_height, vf.frame_rate
+                   vf.video_width, vf.video_height, vf.frame_rate,
+                   vc.generated_at, fvc.generated_at
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
@@ -5652,6 +5658,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var currentFolderPath: String?
         var currentFolderTitle = ""
         var currentFolderCoverPath: String?
+        var currentFolderCoverRevision: String?
         var currentVideos: [CompleteLibraryVideoPresentation] = []
         var currentLastWatchedEpisodeNumber: Int?
         var currentLastWatchedVideoPath: String?
@@ -5668,6 +5675,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     folderPath: currentFolderPath,
                     folderTitle: currentFolderTitle,
                     folderCoverPath: currentFolderCoverPath,
+                    folderCoverRevision: currentFolderCoverRevision,
                     lastWatchedEpisodeNumber: currentLastWatchedEpisodeNumber,
                     lastWatchedVideoPath: currentLastWatchedVideoPath,
                     videos: currentVideos
@@ -5679,6 +5687,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             currentFolderPath = folderPath
             currentFolderTitle = statement.stringColumn(1)
             currentFolderCoverPath = statement.nullableStringColumn(17)
+            currentFolderCoverRevision = statement.nullableStringColumn(24)
             currentVideos = []
             currentLastWatchedEpisodeNumber = nil
             currentLastWatchedVideoPath = nil
@@ -5736,7 +5745,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     startedAt: statement.nullableStringColumn(12),
                     completedAt: statement.nullableStringColumn(13),
                     historyUpdatedAt: historyUpdatedAt,
-                    coverPath: statement.nullableStringColumn(16)
+                    coverPath: statement.nullableStringColumn(16),
+                    coverRevision: statement.nullableStringColumn(23)
                 )
             )
         }
@@ -5768,13 +5778,26 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        WHERE first_lvr.folder_path = lvr.folder_path
                        ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
                        LIMIT 1
-                   ) AS first_video_cover_path
+                   ) AS first_video_cover_path,
+                   fvc.generated_at,
+                   (
+                       SELECT vc.generated_at
+                       FROM library_video_rows first_lvr
+                       LEFT JOIN video_files first_vf ON first_vf.path = first_lvr.video_path
+                       LEFT JOIN video_covers vc ON vc.video_file_id = first_vf.id
+                           AND vc.status = 'generated'
+                           AND vc.display_profile_version = \(LibraryCoverDisplayProfileVersion.current)
+                       WHERE first_lvr.folder_path = lvr.folder_path
+                       ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
+                       LIMIT 1
+                   ) AS first_video_cover_revision
             FROM library_video_rows lvr
             LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
             LEFT JOIN video_covers fvc ON fvc.video_file_id = fc.source_video_file_id
                 AND fvc.status = ? AND fvc.display_profile_version = ?
             WHERE \(scopeCondition)
-            GROUP BY lvr.folder_path, lvr.folder_title, fvc.display_cover_path
+            GROUP BY lvr.folder_path, lvr.folder_title,
+                     fvc.display_cover_path, fvc.generated_at
             ORDER BY MIN(lvr.folder_order) ASC, lvr.folder_path ASC;
             """
         )
@@ -5797,11 +5820,26 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var summaries: [CompleteLibraryFolderSummaryPresentation] = []
         while try statement.step() {
+            let folderCoverPath = statement.nullableStringColumn(3)
+            let fallbackCoverPath = statement.nullableStringColumn(4)
+            let coverPath: String?
+            let coverRevision: String?
+            if let folderCoverPath {
+                coverPath = folderCoverPath
+                coverRevision = statement.nullableStringColumn(5)
+            } else if let fallbackCoverPath {
+                coverPath = fallbackCoverPath
+                coverRevision = statement.nullableStringColumn(6)
+            } else {
+                coverPath = nil
+                coverRevision = nil
+            }
             summaries.append(
                 CompleteLibraryFolderSummaryPresentation(
                     folderPath: statement.stringColumn(0),
                     folderTitle: statement.stringColumn(1),
-                    coverPath: statement.nullableStringColumn(3) ?? statement.nullableStringColumn(4),
+                    coverPath: coverPath,
+                    coverRevision: coverRevision,
                     episodeCount: max(0, statement.intColumn(2))
                 )
             )
@@ -5831,7 +5869,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    END,
                    h.updated_at, vc.display_cover_path,
                    vf.file_size, vf.video_codec, vf.video_width, vf.video_height,
-                   vf.frame_rate
+                   vf.frame_rate, vc.generated_at
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
@@ -5876,7 +5914,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     startedAt: statement.nullableStringColumn(12),
                     completedAt: statement.nullableStringColumn(13),
                     historyUpdatedAt: statement.nullableStringColumn(14),
-                    coverPath: statement.nullableStringColumn(15)
+                    coverPath: statement.nullableStringColumn(15),
+                    coverRevision: statement.nullableStringColumn(21)
                 )
             )
         }
@@ -9400,6 +9439,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 "Display cover profile version must be positive"
             )
         }
+    }
+
+    private static func libraryCoverRevisionTimestamp() -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: Date())
     }
 
     private static func libraryVideoCover(from statement: SQLiteStatement) -> LibraryVideoCover {

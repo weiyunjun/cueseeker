@@ -2300,7 +2300,6 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
         status: .generated,
         errorMessage: nil
     )
-
     let storedCover = try database.libraryVideoCover(forVideoFileID: video.videoFileID)
     let cover = try #require(storedCover)
     #expect(cover.masterCoverPath == "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg")
@@ -2313,6 +2312,7 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
     #expect(cover.generatedDuration == 1440.25)
     #expect(cover.status == .generated)
     #expect(cover.errorMessage == nil)
+    #expect(cover.generatedAt.contains("."))
 
     try database.upsertLibraryFolderCover(
         folderPath: video.folderPath,
@@ -2855,6 +2855,9 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
         status: .generated,
         errorMessage: nil
     )
+    let showACoverRevision = try #require(
+        try database.libraryVideoCover(forVideoFileID: showA1CoverCandidate.videoFileID)
+    ).generatedAt
 
     try database.upsertLibraryPlaybackHistory(
         videoFile: showA2,
@@ -2868,6 +2871,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     let showASummary = try #require(summaries.first { $0.folderTitle == "Show A" })
     #expect(showASummary.episodeCount == 2)
     #expect(showASummary.coverPath == "/Covers/Display/v1/show-a-episode-1.jpg")
+    #expect(showASummary.coverRevision == showACoverRevision)
 
     let detail = try #require(try database.completeLibraryFolderDetail(folderPath: showASummary.folderPath))
     #expect(detail.folderTitle == "Show A")
@@ -2879,6 +2883,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     #expect(detail.videos.first?.frameRate == 23.976)
     #expect(detail.videos.first?.videoCodec == "hevc")
     #expect(detail.videos.first?.coverPath == "/Covers/Display/v1/show-a-episode-1.jpg")
+    #expect(detail.videos.first?.coverRevision == showACoverRevision)
 }
 
 @Test
@@ -2927,39 +2932,67 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
         sourceVideoFileID: candidate.videoFileID
     )
 
-    #expect(try database.recentLibraryWatching(under: [root]).first?.coverPath == nil)
+    let masterOnlyRecent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    #expect(masterOnlyRecent.coverPath == nil)
+    #expect(masterOnlyRecent.coverRevision == nil)
     let masterOnlyFull = try #require(try database.completeLibraryPresentation(under: [root]).first)
     #expect(masterOnlyFull.folderCoverPath == nil)
+    #expect(masterOnlyFull.folderCoverRevision == nil)
     #expect(masterOnlyFull.videos.first?.coverPath == nil)
-    #expect(try database.completeLibraryFolderSummaries(under: [root]).first?.coverPath == nil)
-    #expect(
-        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)?
-            .videos.first?.coverPath == nil
+    #expect(masterOnlyFull.videos.first?.coverRevision == nil)
+    let masterOnlySummary = try #require(
+        try database.completeLibraryFolderSummaries(under: [root]).first
     )
+    #expect(masterOnlySummary.coverPath == nil)
+    #expect(masterOnlySummary.coverRevision == nil)
+    let masterOnlyDetail = try #require(
+        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)
+    )
+    #expect(masterOnlyDetail.videos.first?.coverPath == nil)
+    #expect(masterOnlyDetail.videos.first?.coverRevision == nil)
 
     try database.updateLibraryVideoDisplayCover(
         videoFileID: candidate.videoFileID,
         displayCoverPath: displayPath,
         displayProfileVersion: LibraryCoverDisplayProfileVersion.current
     )
+    let displayRevision = try #require(
+        try database.libraryVideoCover(forVideoFileID: candidate.videoFileID)
+    ).generatedAt
+    #expect(displayRevision.contains("."))
 
-    #expect(try database.recentLibraryWatching(under: [root]).first?.coverPath == displayPath)
+    let displayRecent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    #expect(displayRecent.coverPath == displayPath)
+    #expect(displayRecent.coverRevision == displayRevision)
     let displayFull = try #require(try database.completeLibraryPresentation(under: [root]).first)
     #expect(displayFull.folderCoverPath == displayPath)
+    #expect(displayFull.folderCoverRevision == displayRevision)
     #expect(displayFull.videos.first?.coverPath == displayPath)
-    #expect(try database.completeLibraryFolderSummaries(under: [root]).first?.coverPath == displayPath)
-    #expect(
-        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)?
-            .videos.first?.coverPath == displayPath
+    #expect(displayFull.videos.first?.coverRevision == displayRevision)
+    let displaySummary = try #require(
+        try database.completeLibraryFolderSummaries(under: [root]).first
     )
+    #expect(displaySummary.coverPath == displayPath)
+    #expect(displaySummary.coverRevision == displayRevision)
+    let displayDetail = try #require(
+        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)
+    )
+    #expect(displayDetail.videos.first?.coverPath == displayPath)
+    #expect(displayDetail.videos.first?.coverRevision == displayRevision)
 
     try database.updateLibraryVideoDisplayCover(
         videoFileID: candidate.videoFileID,
         displayCoverPath: "/Covers/Display/v2/stale-profile.jpg",
         displayProfileVersion: LibraryCoverDisplayProfileVersion.current + 1
     )
-    #expect(try database.recentLibraryWatching(under: [root]).first?.coverPath == nil)
-    #expect(try database.completeLibraryFolderSummaries(under: [root]).first?.coverPath == nil)
+    let staleRecent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    #expect(staleRecent.coverPath == nil)
+    #expect(staleRecent.coverRevision == nil)
+    let staleSummary = try #require(
+        try database.completeLibraryFolderSummaries(under: [root]).first
+    )
+    #expect(staleSummary.coverPath == nil)
+    #expect(staleSummary.coverRevision == nil)
 }
 
 @Test
