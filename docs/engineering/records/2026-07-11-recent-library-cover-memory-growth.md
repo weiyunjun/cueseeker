@@ -233,6 +233,38 @@ Route-snapshot verification:
   passed after the completed-snapshot guard, confirming that lazy display
   backfill remains compatible with route snapshot reuse.
 
+Full-suite stabilization:
+
+- The first full `swift test` run passed 485 of 486 Swift Testing tests and all
+  seven XCTest rendering probes. The sole failure was the new same-key decode
+  coalescing test under full-suite executor contention, not a second decode.
+- The test had waited for the pipeline actor to reserve one active slot, then
+  immediately asserted that the detached decoder had started. Those events are
+  intentionally separate; under contention, the assertion could observe the
+  valid interval between them. Its wait condition now also requires the decode
+  probe to report exactly one actual start before evaluating coalescing.
+
+Final automated and runtime verification:
+
+- `swift test --filter LibraryCoverImagePipeline` passed all ten selected
+  decoded-image key, cache, coalescing, cancellation, concurrency, and decoder
+  tests after the wait-condition stabilization.
+- A second full `swift test` run passed all 486 Swift Testing tests and all
+  seven XCTest rendering probes with zero failures.
+- `swift build` completed the standalone debug build successfully.
+- The current debug executable was launched with an isolated temporary user
+  home so it could not read or mutate the owner's active Library. At stable
+  Search idle, `vmmap -summary` reported a 25.3 MB physical footprint and a
+  25.4 MB peak, including 96 KB of `CG image` regions and 992 KB of
+  `CoreAnimation` regions. This is consistent with the owner's approximately
+  26 MB Search baseline.
+- A second isolated launch was inspected with `leaks -quiet`: 63,396 malloc
+  nodes used 10,946 KB and the tool reported zero ordinary leaked allocations.
+- Live cover-cache accounting and hard decode concurrency are covered by the
+  pipeline diagnostics tests. Automated runtime inspection deliberately did
+  not open the owner's real folders, so it does not substitute for the required
+  Recent/Library Activity Monitor acceptance flow.
+
 The owner will perform the final Activity Monitor UI acceptance flow. Its final
 stable physical footprint must not exceed 75 MB, with no more than 5 MB growth
 after repeated Library navigation and no more than 10 MB growth after window
@@ -267,3 +299,9 @@ Completed Recent and Library snapshots are now stable across route-only
 navigation. Explicit data changes retain their force-refresh path, while
 playback-only changes reload Recent and an open history-aware folder detail
 without rebuilding the unchanged cover-bearing Library summary.
+
+All automated tests, the debug build, isolated Search-footprint inspection, and
+ordinary-leak inspection pass. Final acceptance remains pending the owner's
+five-round Recent/Library navigation and resize measurements in Activity
+Monitor; no automated result is recorded as satisfying those owner-observed
+thresholds.

@@ -66,7 +66,9 @@ func libraryCoverImagePipelineCoalescesSameKeyWaiters() async throws {
     let second = Task { try await pipeline.image(for: key) }
     try await waitForCoverPipelineCondition {
         let diagnostics = await pipeline.diagnostics()
-        return diagnostics.activeDecodeCount == 1 && diagnostics.waiterCount == 2
+        return probe.snapshot().started == 1
+            && diagnostics.activeDecodeCount == 1
+            && diagnostics.waiterCount == 2
     }
     #expect(probe.snapshot().started == 1)
 
