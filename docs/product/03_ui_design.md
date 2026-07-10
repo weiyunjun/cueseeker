@@ -73,8 +73,9 @@ First implementation requirements:
 - The overlay side panel uses a light glass surface with compact row cards.
   Selected rows use a white glass card with accent emphasis instead of a
   full-width accent fill.
-- The bottom-player right controls include Shiori, copy current subtitle,
-  subtitle visibility, side-panel visibility, playback speed, and fullscreen.
+- The bottom-player right controls include a standalone circular subtitle
+  visibility toggle, playback speed, and fullscreen. Shiori and copy commands
+  are not present in normal playback chrome.
 - Compact operation buttons use circular icon buttons. Active toggle state is
   shown by a white circular button background and pressed state, while the
   semantic glyph remains stable across selected and unselected states.
@@ -244,7 +245,6 @@ Current component classification:
 | Playback time labels | Time labels |
 | Previous, skip, play, and next controls | Transport icon buttons |
 | Primary play/pause control | Primary transport icon button |
-| Shiori playback control | Ordinary circular icon command button |
 | Subtitle visibility control | Circular icon toggle button |
 | Side panel visibility control | Circular icon toggle button |
 | Fullscreen control | Circular icon button |
@@ -698,9 +698,9 @@ Playback Area required content:
 - A `Subtitle Folder` button.
 - For Search-launched playback, previous and next result navigation plus a
   right side panel containing `Search Results` and `Subtitles` tabs.
-- The bottom-player right-side control group includes Shiori, copy current
-  subtitle, subtitle visibility, side-panel visibility, playback speed, and
-  fullscreen.
+- The bottom-player right-side control group includes subtitle visibility,
+  playback speed, and fullscreen. Subtitle visibility is a standalone circular
+  button rather than part of a multi-action capsule.
 
 Search-launched playback result navigation:
 
@@ -754,10 +754,14 @@ Behavior:
   expanded in Search mode.
 - Clicking the embedded video toggles play/pause.
 - Clicking the playback operation controls should not toggle play/pause unless the play/pause control is targeted.
-- The playback Shiori control should sit immediately to the left of the
-  pencil-tip copy-current-subtitle control.
-- Saving a Shiori should show transient playback feedback with the Shiori icon
-  and `Shiori Saved`.
+- Playback Subtitle Focus has no cue hover state, cue click action, or cue
+  action menu. Up, Down, wheel, and scrollbar navigation remain available.
+- In Playback Subtitle Focus, `S` saves the exact focused cue and shows
+  `Shiori Saved` or `Shiori Already Saved`; `C` copies the exact focused cue and
+  shows `Subtitle Copied`; `Space` plays continuously from that cue and shows
+  `Play`.
+- Subtitle Focus feedback renders above the focus overlay. `S` and `C` keep the
+  focus overlay visible and playback paused; `Space` closes it.
 - Removing a Shiori should show transient playback feedback with the Shiori icon
   and `Shiori Removed`.
 - Collapsing the Shared Content Panel hides the active mode content.
@@ -779,7 +783,9 @@ Behavior:
   workbench shell.
 - Playback fullscreen should follow standard macOS Space, Dock, menu bar, app
   switching, and system overlay behavior.
-- Transient playback feedback overlays appear above the video for play/pause, subtitle visibility, seek, volume, and speed changes.
+- Transient playback feedback overlays appear above the video for play/pause,
+  subtitle visibility, seek, volume, speed, and Subtitle Focus actions. The
+  feedback layer remains above Playback Subtitle Focus.
 - The playback speed selector is an app-drawn menu that opens upward from the
   speed control.
 - The speed control must display fractional presets without truncation and must

@@ -233,9 +233,20 @@ Required M2 playback interaction checks:
 - Embedded controls, fullscreen controls, subtitles, and feedback overlays do not
   render in duplicate during entry, active fullscreen, or exit.
 - Fullscreen keyboard shortcuts execute playback commands without revealing the playback operation controls.
-- The `Q` shortcut copies the current subtitle without interfering with editable
+- The `Q` shortcut toggles subtitle visibility without interfering with editable
   text input.
-- The copy-current-subtitle button copies the same text as the `Q` shortcut.
+- The normal bottom player has no Shiori or copy-current-subtitle button, and
+  normal-playback `S` and `C` do not execute those removed commands.
+- Playback Subtitle Focus `S` saves the exact settled cue idempotently and keeps
+  the overlay visible and playback paused.
+- Playback Subtitle Focus `C` copies the exact settled cue's complete multi-line
+  text and keeps the overlay visible and playback paused.
+- Playback Subtitle Focus `Space` seeks to the exact settled cue start, closes
+  the overlay, and starts continuous playback.
+- Subtitle Focus action feedback renders above the focus overlay. Cue hover and
+  click do nothing; Up, Down, wheel, and scrollbar navigation still work.
+- A focus action accepted during cue motion executes once against the final
+  settled cue, and stale deferred actions cannot run after Session dismissal.
 - Mouse movement inside the player area reveals fullscreen player UI and cursor
   and restarts the idle timer. Mouse clicks and keyboard shortcuts do not reveal
   player UI.

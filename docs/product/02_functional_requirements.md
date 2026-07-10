@@ -445,12 +445,13 @@ Requirements:
 - The bottom player uses a fixed narrower maximum width and stays centered
   within the current video column. Detailed responsive scaling rules are
   deferred.
-- Provide a subtitle visibility toggle.
-- Provide a copy-current-subtitle command from playback controls and keyboard.
+- Provide a standalone circular subtitle visibility toggle in the bottom player.
 - Provide playback speed control with preset choices from `0.5x` through `2.0x`.
-- Provide keyboard shortcuts for copying the current subtitle, subtitle
-  visibility, fullscreen, play or pause, Search-result navigation, relative
-  seek, volume, and speed adjustment.
+- Provide normal-playback keyboard shortcuts for subtitle visibility,
+  fullscreen, play or pause, Search-result navigation, relative seek, volume,
+  and speed adjustment.
+- Provide cue-scoped Shiori, copy, and continuous-play keyboard actions only
+  while Playback Subtitle Focus is visible.
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
@@ -464,24 +465,28 @@ Requirements:
 Persistence rule:
 
 - Non-one-shot user preferences that affect future playback or app behavior
-  must be persisted by default. One-shot commands such as copying current
-  subtitle text to the clipboard are not themselves persisted, while durable
-  user-authored data created by a command, such as Shiori records, must remain
-  persisted.
+  must be persisted by default. One-shot commands such as copying a focused cue
+  to the clipboard are not themselves persisted, while durable user-authored
+  data created by a command, such as Shiori records, must remain persisted.
 - Muting volume should preserve the previous nonzero volume so unmuting restores
   the user's last listening level rather than jumping to a generic default.
 
-Current subtitle copy requirements:
+Playback Subtitle Focus cue action requirements:
 
-- Copy the cue group whose time range contains the current playback timestamp.
-- If multiple cue groups contain the current timestamp, choose the shortest
-  duration.
-- If multiple cue groups have the same duration but different time ranges,
-  choose the cue group with the later end timestamp.
-- If no cue group contains the current playback timestamp, search backward to
-  the nearest previous cue range and apply the same selection rules there.
-- Copy all lines in the selected cue group, separated by line breaks, using the
-  same line order as Search result display.
+- `S`, `C`, and `Space` act on the exact cue settled at the Subtitle Focus
+  anchor, never on the current playback timestamp.
+- `S` saves that cue idempotently. It shows `Shiori Saved` after a new write or
+  `Shiori Already Saved` when the durable record already exists.
+- `C` copies the complete cue group, preserving source line order and line
+  breaks, and shows `Subtitle Copied`.
+- `S` and `C` keep Playback Subtitle Focus visible, keep playback paused, and
+  preserve cue selection and reel position.
+- `Space` closes Playback Subtitle Focus, seeks to the focused cue start, begins
+  continuous playback, and shows `Play`.
+- Cue hover and click have no cue-specific visual or command behavior. Up,
+  Down, wheel, and scrollbar navigation remain available.
+- If an action key is accepted while cue motion is settling, execute it once
+  against the final settled cue.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 
@@ -568,25 +573,20 @@ When implemented, the app should support:
 
 Initial Shiori save behavior:
 
-- The initial visible save action belongs in playback controls.
-- The playback Shiori button should appear immediately to the left of the
-  pencil-tip copy-current-subtitle button.
-- The `S` playback shortcut should trigger the same command as the playback
-  Shiori button.
+- The normal playback bottom bar has no Shiori command button, and normal
+  playback has no current-timestamp Shiori save shortcut.
+- While Playback Subtitle Focus is visible, `S` saves the exact focused cue.
 - Shiori shortcut handling must preserve native text input behavior and must not
   intercept editable text fields or modified shortcuts such as `Command-S`.
-- The save command should resolve the current subtitle cue through the indexed
-  database projection, using the current playback subtitle file and current
-  playback timestamp. This should follow the same cue-selection semantics as
-  current-subtitle copy: prefer the active cue at the playback time, then fall
-  back to the previous cue when no active cue exists.
-- If no subtitle cue can be resolved, the app should show a concise feedback
-  overlay rather than creating an empty Shiori record.
+- The save command uses the stable focused-cue identity and indexed cue-group
+  projection captured by the active Subtitle Focus Session.
 - If the resolved cue is not already saved, the app should persist it and show a
   playback feedback overlay with the Shiori icon and `Shiori Saved`.
-- If the resolved cue is already saved, the playback Shiori button and `S`
-  shortcut must not remove it and should show a playback feedback overlay with
-  the Shiori icon and `Shiori Already Saved`.
+- If the resolved cue is already saved, `S` must not remove or duplicate it and
+  should show a playback feedback overlay with the Shiori icon and
+  `Shiori Already Saved`.
+- Shiori feedback must remain visible above Playback Subtitle Focus while the
+  focus overlay stays open.
 - Shiori deletion must be available only from the Shiori table removal action.
 - When playback is opened from the Shiori table, previous and next Shiori
   navigation follows the table row order that was active at open time, including

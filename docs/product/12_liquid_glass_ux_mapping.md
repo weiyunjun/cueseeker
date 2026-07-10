@@ -364,8 +364,9 @@ Rules:
   rebuild Library rows.
 - Shiori group collapse state is presentation state and must not rebuild Search
   or Library rows.
-- Shiori playback control feedback uses the same transient playback feedback
-  system as other playback commands.
+- Playback Subtitle Focus Shiori feedback uses the same transient playback
+  feedback system as other playback commands and renders above the focus
+  overlay.
 - Shiori page state (condition → state; verbatim from `SearchView.swift`):
   `shioris` empty → "No Shiori"; shioris present → grouped card list. The App
   has no Shiori loading or failed state and the demo must not invent one. The
@@ -389,7 +390,7 @@ Rules:
 | Bottom player uses three zones: volume, transport, operations. | `.player-hud` | `LiquidGlassBottomPlayer` | Active playback state |
 | Left zone contains volume only in the active target UI. | volume control | Bottom player left cluster | Current playback volume |
 | Center zone contains five transport controls. | `.transport-controls` | Bottom player transport cluster | Playback navigation |
-| Right zone contains Shiori, copy, subtitles, overlay-panel toggle, speed, fullscreen. | `.right-controls` | Bottom player operations cluster | Playback and App commands |
+| Right zone contains subtitle visibility, speed, and fullscreen. | `.right-controls` | Bottom player operations cluster | Playback and App commands |
 | Progress scrubber spans the bottom-player width above the control row. | `ui-slider--progress` | `LiquidGlassSlider.Kind.progress` | `PlaybackViewModel` |
 
 Rules:
@@ -442,14 +443,10 @@ Rules:
   result having no previous target.
 - Play or pause toggles current playback and must not be blocked by unavailable
   navigation commands.
-- The Shiori control sits immediately before the copy-current-subtitle control
-  in the right operation cluster.
-- The bottom-player Shiori control is a plain command button, not a selected
-  visual toggle and not a stateful command button. Saving and removing Shiori
-  may show feedback animation, but the button itself keeps the same outline
-  bookmark glyph and ordinary circular icon-button styling.
+- The right operation cluster contains subtitle visibility, playback speed, and
+  fullscreen. It has no normal-playback Shiori or copy-current-subtitle control.
 - Subtitle visibility toggles the current player's subtitle overlay without
-  resizing the bottom player.
+  resizing the bottom player and uses a standalone circular button.
 - The panel toggle shows or hides the right-aligned overlay panel without moving or
   resizing the video or the bottom-player controls.
 - Fullscreen enters or exits playback fullscreen through the existing playback
@@ -821,8 +818,7 @@ Rules:
 - The fullscreen chrome uses the same non-fullscreen bottom-player visual
   family. The old dark gradient fullscreen control bar is not the target UI.
 - Fullscreen chrome includes the playback controls needed for video review:
-  progress, volume, transport, Shiori, copy, subtitle visibility, speed, and
-  exit fullscreen.
+  progress, volume, transport, subtitle visibility, speed, and exit fullscreen.
 - Fullscreen state and overlay-panel visibility are independent. Entering or
   exiting fullscreen must not hide, show, reset, or otherwise mutate the
   overlay-panel visibility state.
@@ -887,6 +883,8 @@ Rules:
 - `Shift` is accepted only for the speed shortcuts defined below.
 - Playback shortcuts dispatch through the same command model as playback
   buttons, mouse video clicks, menu selections, and slider gestures.
+- While Playback Subtitle Focus is visible, its `S`, `C`, `Space`, and `Enter`
+  routing takes precedence over normal playback shortcuts.
 - Commands that are unavailable for the current playback state must not mutate
   selection, playback, Search data, or Shiori data.
 
@@ -896,19 +894,30 @@ Rules:
 | --- | --- | --- | --- | --- | --- | --- |
 | `Space` | Toggle play/pause | `#playBtn`, `ui-feedback-hud` | Bottom-player transport button, `LiquidGlassFeedbackOverlay` | `PlaybackViewModel.togglePlayback` | `Play` or `Pause` | Keyboard/click: none. Mouse movement follows player UI rules. |
 | Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Does not reveal player UI. |
-| `C` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard/click: none. Mouse movement follows player UI rules. |
+| `Q` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard/click: none. Mouse movement follows player UI rules. |
 | `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen player UI | Existing fullscreen manager | Text-only `Enter Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal player UI; fullscreen entry follows fullscreen rules. |
 | `Esc` | Exit playback fullscreen when active | Prototype fullscreen class, `ui-feedback-hud` | Fullscreen lifecycle handler | Existing fullscreen manager | Text-only `Exit Fullscreen` | Keyboard does not reveal player UI. No-op outside fullscreen. |
 | `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` on the leading side, or `No Result` | Keyboard/click: none. Mouse movement follows player UI rules. |
 | `D` | Next Search result | `#nextResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport next-result button | Search navigation snapshot | `Next Result` on the trailing side, or `No Result` | Keyboard/click: none. Mouse movement follows player UI rules. |
-| `Q` | Copy current subtitle | Copy button, `ui-feedback-hud` | Copy subtitle button | Clipboard command | `Subtitle Copied` or `No Subtitle` | Keyboard/click: none. Mouse movement follows player UI rules. |
-| `S` | Save or remove Shiori | `#shioriButton`, `ui-feedback-hud` | Shiori toggle button | Shiori command model | `Shiori Saved` or `Shiori Removed` after final state | Keyboard/click: none. Mouse movement follows player UI rules. |
 | `Left Arrow` | Seek backward 5 seconds | Progress slider, `ui-feedback-hud` | Progress slider and feedback overlay | Playback seek command | Accumulated rewind total, such as `- 15s` | Keyboard: none. |
 | `Right Arrow` | Seek forward 5 seconds | Progress slider, `ui-feedback-hud` | Progress slider and feedback overlay | Playback seek command | Accumulated forward total, such as `+ 15s` | Keyboard: none. |
 | `Up Arrow` | Increase volume by 5 | Volume control, `ui-feedback-hud` | Volume button/slider and feedback overlay | Playback volume state | `Volume NN%` | Keyboard: none. |
 | `Down Arrow` | Decrease volume by 5 | Volume control, `ui-feedback-hud` | Volume button/slider and feedback overlay | Playback volume state | `Volume NN%` or `Muted` | Keyboard: none. |
 | `Shift+,` | Decrease speed by 0.25x | `#speedButton`, `ui-feedback-hud` | Speed value capsule and feedback overlay | Playback speed state | Current speed, such as `0.75×` | Keyboard: none. |
 | `Shift+.` | Increase speed by 0.25x | `#speedButton`, `ui-feedback-hud` | Speed value capsule and feedback overlay | Playback speed state | Current speed, such as `1.25×` | Keyboard: none. |
+
+Playback Subtitle Focus scoped mapping:
+
+| Input | Command | Target | Feedback HUD | Overlay result |
+| --- | --- | --- | --- | --- |
+| `S` | Save Shiori idempotently | Exact cue settled at the Focus Anchor | `Shiori Saved` or `Shiori Already Saved` | Remains visible; playback remains paused. |
+| `C` | Copy cue text | Exact cue's complete retained text | `Subtitle Copied` | Remains visible; playback remains paused. |
+| `Space` | Play from cue | Exact cue's retained start time | `Play` | Closes; continuous playback begins. |
+| `Enter` | Consume without action | None | None | Remains visible; no menu opens. |
+
+If `S`, `C`, or `Space` is accepted while the reel is settling, the command is
+executed once against the final settled cue. Cue hover and click have no
+cue-specific response; Up, Down, wheel, and scrollbar navigation are unchanged.
 
 ### 13.3 Video Surface Mouse Rules
 

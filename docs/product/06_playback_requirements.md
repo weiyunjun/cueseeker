@@ -401,10 +401,11 @@ Required behavior:
 - The playback speed menu and secondary-actions menu should appear directly above their source buttons.
 - The playback speed button hover and click area should remain stable while the menu is open.
 - The subtitle button should toggle subtitle visibility through the playback engine.
+- The subtitle button should be a standalone circular bottom-player button.
 - Playback keyboard shortcuts should be available when a playback result is selected, the playback interface is visible, and the user is not typing into an editable text field.
 - Read-only selectable metadata text must not disable playback keyboard shortcuts.
-- `Q` should copy the current subtitle to the clipboard.
-- `C` should show or hide subtitles.
+- `Q` should show or hide subtitles during normal playback.
+- `S` and `C` should have no normal-playback command.
 - `F` should enter or exit playback fullscreen.
 - `Space` should play or pause.
 - `Left Arrow` should seek backward by 5 seconds.
@@ -449,14 +450,14 @@ Required behavior:
   are not part of the current Phase 1.5 implementation because the project has
   not accepted a memory, latency, and decoder-lifecycle tradeoff that is worth
   blocking the UI restructure.
-- Playback commands should show transient feedback for Shiori save or removal,
-  subtitle copy, subtitle visibility, play or pause, seek direction and amount,
-  volume, and playback speed.
+- Playback commands should show transient feedback for subtitle visibility,
+  play or pause, seek direction and amount, volume, playback speed, Shiori
+  removal, and cue-scoped Subtitle Focus actions.
 - Continuous playback preferences must persist across app restarts. This
   includes volume, the last nonzero volume used when restoring from mute,
   subtitle visibility, and playback speed.
-- One-shot playback commands are not persisted as commands. Copying the current
-  subtitle to the clipboard is transient. Saving Shiori creates durable
+- One-shot playback commands are not persisted as commands. Copying a focused
+  cue to the clipboard is transient. Saving Shiori creates durable
   user-authored data and therefore remains persisted.
 - Continuous playback time updates used by visible SwiftUI controls should be
   rate-limited enough to avoid invalidating unrelated workbench UI. Native video
@@ -490,11 +491,19 @@ Current implementation notes and accepted fullscreen correction:
 - Read-only selectable metadata text does not count as editable text input for playback shortcut suppression.
 - Relative seek feedback accumulates repeated left or right arrow presses within the feedback timeout.
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
-- Current subtitle copy uses the indexed cue-group projection for clipboard text
-  and preserves the same line ordering as Search result display.
-- Shiori save should use the same indexed cue-group projection and current
-  playback timestamp semantics as current-subtitle copy. Saving should show
-  `Shiori Saved`; confirmed removal should show `Shiori Removed`.
+- Normal playback exposes no current-timestamp Shiori or subtitle-copy command
+  through either the bottom player or `S` / `C`.
+- Playback Subtitle Focus uses the exact settled cue-group projection for
+  Shiori, clipboard text, and continuous playback. Clipboard text preserves
+  source line order and line breaks.
+- In Playback Subtitle Focus, `S` shows `Shiori Saved` or
+  `Shiori Already Saved` and `C` shows `Subtitle Copied` without dismissing the
+  overlay or resuming playback. `Space` dismisses the overlay, seeks to the
+  focused cue start, begins continuous playback, and shows `Play`.
+- Cue hover, cue click, and the cue action menu are absent. Enter is consumed
+  without action; Up, Down, wheel, and scrollbar navigation remain available.
+- An action accepted during unresolved reel motion runs exactly once against
+  the final settled focused cue and is cancelled if the Session closes first.
 
 ## 9. Learning Session Playback
 

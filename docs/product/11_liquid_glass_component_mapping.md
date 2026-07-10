@@ -109,8 +109,8 @@ live in that owner, not in individual call sites.
 | `ui-capsule--test` | Prototype-only test capsule | No production App component | HTML review controls only. |
 | `ui-prototype-control` | Prototype-only review control | No production App component | Must not appear in production App UI. |
 | `ui-icon-button` | Icon button base | `LiquidGlassIconButton` / icon `ButtonStyle` | Shared base for icon-only controls. |
-| `ui-icon-button--circle` | Circular icon button | `LiquidGlassIconButton.Kind.circle` | Bottom-player utility controls such as volume, Shiori, copy, fullscreen. |
-| `ui-icon-button--toggle` | Circular icon toggle button | `LiquidGlassIconButton.Kind.toggle` | Subtitle visibility, side-panel visibility, and topbar mode toggles when selected state applies. |
+| `ui-icon-button--circle` | Circular icon button | `LiquidGlassIconButton.Kind.circle` | Bottom-player utility controls such as volume, subtitle visibility, and fullscreen. |
+| `ui-icon-button--toggle` | Circular icon toggle button | `LiquidGlassIconButton.Kind.toggle` | Side-panel visibility and topbar mode toggles when selected state applies. |
 | `ui-icon-button--topbar` | Topbar circular icon button | `LiquidGlassIconButton.Kind.topbar` | Library and Shiori topbar buttons. |
 | `ui-icon-button--embedded` | Embedded circular icon button | `LiquidGlassIconButton.Kind.embedded` | Search-field clear action. |
 | `ui-icon-button--transport` | Transport icon button | `LiquidGlassIconButton.Kind.transport` | Previous episode, previous result, next result, next episode. |
@@ -173,7 +173,7 @@ Retired active-target components:
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
 | Shiori page | `.shiori-state`, grouped cards | Shiori page view plus `LiquidGlassSelectableCard` | Existing Shiori persistence and open behavior. |
 | Info-page empty / loading / failed / no-results states | State demo `.state-view`, `.state-spinner`, `.load-more` (separate `ui/state-demos/info-page-card-states/` prototype, outside `ui/prototypes/`) | Shared info-page state views (`SearchStatus`-driven Search states; Library `selectedFolders`/`libraryStatus`; Shiori empty) | `SearchStore` / `LibraryStore` / `ShioriStore` status; see doc 12 §6.1/§7.1/§8. Provisional state authority only (condition→state + whether it animates), not final visual. |
-| Bottom player | `.player-dock`, `.player-hud` | `BottomPlaybackBar`, `LiquidGlassBottomPlayer` | Active playback session visibility, playback view model, seek, volume, speed, navigation, Shiori, copy, subtitles. |
+| Bottom player | `.player-dock`, `.player-hud` | `BottomPlaybackBar`, `LiquidGlassBottomPlayer` | Active playback session visibility, playback view model, seek, volume, speed, navigation, and subtitle visibility. Normal playback chrome has no Shiori or copy command. |
 | Video page | `.video-state`, `.video-stage`, `.video-frame`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Dedicated full-window presentation layered above a live info page; real video aspect ratio; playback render view lifecycle; playback close lifecycle (returns to the originating info page); playback input feedback. The feedback overlay renders above the playback overlay panel. |
 | Video page top bar | `.video-topbar`, `.video-traffic`, `.vt-dot`, `.vt-close`, `.vt-min`, `.vt-zoom`, `.video-title` | `LiquidGlassVideoTopBar`, `LiquidGlassWindowControlButton` | Player UI; shares `player-chrome-visible` show/hide with the bottom player. Close returns to the originating info page; zoom enters fullscreen. Native NSWindow traffic lights are suppressed on the video page. |
 | Video page overlay panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Overlay-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. Right-aligned floating overlay over the video; does NOT squeeze the video stage; visibility is independent of `player-chrome-visible` and is driven only by the bottom-bar panel toggle; never auto-hides. The native scrollbar may show a fixed-width light thumb with transparent track/gutter. |
@@ -201,7 +201,7 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `:active` | `ButtonStyle.Configuration.isPressed` or drag state | Pressed state should be local and transient. |
 | `:focus-within` | focus binding or AppKit text-view focus callback | Used by the Search field capsule. |
 | `[disabled]` | `Environment(\.isEnabled)` | Disabled visual treatment must be owned by the component style. |
-| `aria-pressed="true"` | Boolean binding such as `isSelected` | Used by toggle controls. It does not imply `ui-is-selected` unless the component mapping explicitly uses selected visual styling. The playback Shiori button is not a pressed-state control. |
+| `aria-pressed="true"` | Boolean binding such as `isSelected` | Used by toggle controls. It does not imply `ui-is-selected` unless the component mapping explicitly uses selected visual styling. |
 | `aria-expanded="true"` | Boolean binding such as `isExpanded` | Used by menus and disclosure controls. The retired source/title capsule must not be reintroduced as the expanded-playback toggle. |
 | `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state for playback side-panel rows and selected controls only. Main Search, Library, and Shiori cards should not retain selected visuals after activation. |
 | `ui-is-active` | `LiquidGlassControlState.active` | Active tab or active transient selection. |
@@ -219,9 +219,9 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 
 Icon asset rule:
 
-- The copy-current-subtitle command uses the prototype `#copy` glyph, not a
-  platform substitute. SwiftUI should implement it as a mapped custom symbol or
-  shared vector asset so the button and feedback HUD match the HTML icon.
+- The copy glyph remains available to the shared feedback HUD for cue-scoped
+  Playback Subtitle Focus feedback; it is not a normal-playback bottom-player
+  button.
 - Playback command feedback uses the same HUD component when its content
   changes repeatedly. Repeated commands may update text and run a small update
   pulse, but must not remount the HUD or replay the full entry animation.

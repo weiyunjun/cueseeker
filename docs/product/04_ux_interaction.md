@@ -509,8 +509,10 @@ M2 playback interaction model:
 - The speed button's hover area and click area should be identical and should stay stable while the menu is open.
 - Clicking outside an open speed or secondary-actions menu should close that menu.
 - Keyboard shortcuts in fullscreen should not reveal the playback operation controls.
-- A copy-current-subtitle button should appear immediately before the subtitle visibility button.
-- The subtitle button should toggle the current player's subtitle visibility when the playback engine exposes a subtitle track or subtitle display state.
+- The normal bottom player has no Shiori or copy-current-subtitle button.
+- The subtitle button is a standalone circular control and toggles the current
+  player's subtitle visibility when the playback engine exposes a subtitle
+  track or subtitle display state.
 - Playback interaction design should remain focused on subtitle context review, not a full media-player feature set.
 
 Current M2 implementation and accepted fullscreen correction:
@@ -542,11 +544,16 @@ Current M2 implementation and accepted fullscreen correction:
 - Close playback should stop the current native playback session. It should
   preserve reusable playback infrastructure, persisted playback preferences,
   Search result cache, and Library playback history rules.
-- Shortcut and control actions show transient feedback overlays for copying the current subtitle, subtitle visibility, play/pause, relative seek, volume, and speed.
+- Shortcut and control actions show transient feedback overlays for subtitle
+  visibility, play/pause, relative seek, volume, speed, and cue-scoped Subtitle
+  Focus actions.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - The speed button hover area, speed button click area, and speed menu width are aligned to the same horizontal bounds.
 - Keyboard shortcuts adjust speed in `0.25x` steps and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
-- The previous Flutter shortcut model was used as a reference, but the native M2 map intentionally changes subtitles to `C`, removes the bottom-mask shortcut, and changes speed adjustment to `Shift+,` and `Shift+.`.
+- The previous Flutter shortcut model was used as a reference, but the native
+  M2 map uses `Q` for normal-playback subtitle visibility, reserves `S` and `C`
+  for Playback Subtitle Focus, removes the bottom-mask shortcut, and changes
+  speed adjustment to `Shift+,` and `Shift+.`.
 
 ## 8. Library And Timeline Interaction
 
@@ -720,17 +727,24 @@ M2 keyboard shortcut model:
   exists, the playback interface is visible, and editable text input is not
   focused.
 - Read-only selectable text in playback metadata should not suppress playback shortcuts.
-- `Q` should copy the current subtitle to the clipboard.
-- `S` should save the current subtitle as Shiori, or ask whether to remove the
-  existing Shiori when the current subtitle is already saved.
-- `C` should show or hide subtitles.
+- `Q` should show or hide subtitles during normal playback.
+- `S` and `C` have no normal-playback command.
 - `F` should enter or exit playback fullscreen.
 - `Space` should toggle play or pause.
 - `A` and `D` should trigger Previous Result and Next Result.
 - `Left Arrow` and `Right Arrow` should seek backward or forward by 5 seconds.
 - `Up Arrow` and `Down Arrow` should adjust volume by 5 percentage points.
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.
-- Playback shortcut commands should show lightweight feedback overlays for subtitle copy, subtitle visibility, play or pause, relative seek, volume, and speed changes.
+- While Playback Subtitle Focus is visible, it consumes `S`, `C`, `Space`, and
+  `Enter` before normal playback shortcut routing. `S` saves the exact settled
+  cue, `C` copies its complete text, `Space` plays continuously from its start,
+  and `Enter` performs no action.
+- `S` and `C` keep Playback Subtitle Focus visible and playback paused;
+  `Space` closes it. Accepted actions during reel motion execute once against
+  the final settled cue.
+- Playback shortcut commands should show lightweight feedback overlays for
+  subtitle visibility, play or pause, relative seek, volume, speed, and
+  Subtitle Focus actions.
 
 ## 13. Settings Interaction
 

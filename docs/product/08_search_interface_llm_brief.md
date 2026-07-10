@@ -608,8 +608,7 @@ Available controls include:
 - Timeline / seek.
 - Volume.
 - Current time / duration.
-- Copy current subtitle.
-- Subtitle visibility toggle.
+- Standalone circular subtitle visibility toggle.
 - Playback speed.
 - Fullscreen.
 
@@ -749,10 +748,10 @@ Playback keyboard shortcuts are handled only when:
 - No editable text input is focused.
 - Command, Control, and Option modifiers are not used.
 
-Relevant playback shortcuts:
+Relevant normal-playback shortcuts:
 
-- `Q`: copy current subtitle.
-- `C`: toggle subtitles.
+- `Q`: toggle subtitles.
+- `S` and `C`: no normal-playback command.
 - `F`: fullscreen.
 - Space: play/pause.
 - Left arrow: seek back 5 seconds.
@@ -761,6 +760,11 @@ Relevant playback shortcuts:
 - Down arrow: volume down.
 - Shift + comma: speed down by 0.25.
 - Shift + period: speed up by 0.25.
+
+While Playback Subtitle Focus is visible, it consumes `S`, `C`, Space, and
+Enter before normal playback routing. `S` saves the exact settled cue, `C`
+copies its complete text, Space plays continuously from its start, and Enter
+performs no action.
 
 Design implication:
 
