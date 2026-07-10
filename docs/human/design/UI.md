@@ -1963,7 +1963,6 @@ Background / Border / Shadow: none in every state
 
 #### Status
 Unselected
-Unselected Hover
 Selected
 
 #### Interaction
