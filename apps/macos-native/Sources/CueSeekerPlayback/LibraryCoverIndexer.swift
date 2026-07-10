@@ -7,6 +7,8 @@ public struct LibraryCoverIndexingResult: Equatable, Sendable {
     public let skippedFreshCoverCount: Int
     public let generatedCoverCount: Int
     public let failedCoverCount: Int
+    public let generatedDisplayCoverCount: Int
+    public let failedDisplayCoverCount: Int
     public let elapsedSeconds: Double
 }
 
@@ -20,6 +22,7 @@ public struct LibraryCoverIndexer: Sendable {
         public let maxConcurrentVideos: Int
         public let coverDirectory: URL
         public let ffmpegPath: String?
+        public let displayRenditionCommitToken: LibraryCoverDisplayRenditionCommitToken?
 
         public init(
             candidatePercentages: [Double] = [0.20, 0.30, 0.40, 0.50, 0.60],
@@ -27,7 +30,8 @@ public struct LibraryCoverIndexer: Sendable {
             scoringHeight: Int = 180,
             maxConcurrentVideos: Int = 32,
             coverDirectory: URL,
-            ffmpegPath: String? = nil
+            ffmpegPath: String? = nil,
+            displayRenditionCommitToken: LibraryCoverDisplayRenditionCommitToken? = nil
         ) {
             self.candidatePercentages = candidatePercentages
                 .filter { $0.isFinite && $0 > 0 && $0 < 1 }
@@ -37,6 +41,7 @@ public struct LibraryCoverIndexer: Sendable {
             self.maxConcurrentVideos = max(1, maxConcurrentVideos)
             self.coverDirectory = coverDirectory
             self.ffmpegPath = ffmpegPath
+            self.displayRenditionCommitToken = displayRenditionCommitToken
         }
     }
 
@@ -128,6 +133,12 @@ public struct LibraryCoverIndexer: Sendable {
             )
         }
 
+        let displayBackfillResult = try await LibraryCoverDisplayRenditionIndexer(
+            configuration: .init(
+                coverDirectory: configuration.coverDirectory,
+                commitToken: configuration.displayRenditionCommitToken
+            )
+        ).backfillDisplayRenditions(under: [folder], into: database)
         try refreshFolderCoverReferences(for: videos, in: database)
 
         let generatedCoverCount = results.filter { $0.status == .generated }.count
@@ -137,6 +148,8 @@ public struct LibraryCoverIndexer: Sendable {
             skippedFreshCoverCount: skippedFreshCoverCount,
             generatedCoverCount: generatedCoverCount,
             failedCoverCount: failedCoverCount,
+            generatedDisplayCoverCount: displayBackfillResult.generatedDisplayCoverCount,
+            failedDisplayCoverCount: displayBackfillResult.failedDisplayCoverCount,
             elapsedSeconds: Date().timeIntervalSince(startedAt)
         )
     }

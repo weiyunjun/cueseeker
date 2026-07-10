@@ -34,6 +34,7 @@ extension AppCoordinator {
             startupError = "Database is not initialized"
             return
         }
+        cancelLibraryDisplayRenditionTask()
         cancelStartupDatabaseTask()
         do {
             try database.removeIndexedFolder(folder)
@@ -60,6 +61,7 @@ extension AppCoordinator {
 
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         clearSearchAndPlaybackState(under: folder)
         indexing.indexingStatus = .indexing(folder)
 
@@ -75,7 +77,10 @@ extension AppCoordinator {
                     let result = try indexer.index(folder: folder, into: database)
                     _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
                     let coverIndexer = LibraryCoverIndexer(
-                        configuration: .init(coverDirectory: coverDirectory)
+                        configuration: .init(
+                            coverDirectory: coverDirectory,
+                            displayRenditionCommitToken: displayRenditionCommitToken
+                        )
                     )
                     _ = try await coverIndexer.indexCovers(under: folder, into: database)
                     try database.rebuildLibraryPresentationSnapshot()
@@ -116,6 +121,7 @@ extension AppCoordinator {
 
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         for folder in folders {
             clearSearchAndPlaybackState(under: folder)
         }
@@ -150,7 +156,10 @@ extension AppCoordinator {
                         let result = try indexer.index(folder: folder, into: database)
                         _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
                         let coverIndexer = LibraryCoverIndexer(
-                            configuration: .init(coverDirectory: coverDirectory)
+                            configuration: .init(
+                                coverDirectory: coverDirectory,
+                                displayRenditionCommitToken: displayRenditionCommitToken
+                            )
                         )
                         _ = try await coverIndexer.indexCovers(under: folder, into: database)
                         return result
@@ -367,6 +376,7 @@ extension AppCoordinator {
     }
 
     func cancelDatabaseReadTasksBeforeIndexing() {
+        cancelLibraryDisplayRenditionTask()
         cancelStartupDatabaseTask()
         libraryTask?.cancel()
         libraryTask = nil

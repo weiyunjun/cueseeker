@@ -397,6 +397,10 @@ final class AppCoordinator: ObservableObject {
     var recentWatchingTask: Task<Void, Never>?
     var testRecentWatchingTask: Task<Void, Never>?
     var completeLibraryTask: Task<Void, Never>?
+    let libraryDisplayRenditionCommitGate = LibraryCoverDisplayRenditionCommitGate()
+    var libraryDisplayRenditionTask: Task<Void, Never>?
+    var libraryDisplayRenditionAttemptedScopeKey: String?
+    var libraryDisplayRenditionGeneration = 0
     var shiorisTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?

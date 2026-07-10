@@ -189,6 +189,7 @@ extension AppCoordinator {
     }
 
     func hydrateRecentWatchingAsync() {
+        ensureLibraryDisplayRenditionsAsync()
         if case .loading = library.recentWatchingStatus, recentWatchingTask != nil {
             return
         }
@@ -196,6 +197,7 @@ extension AppCoordinator {
     }
 
     func hydrateTestRecentWatchingAsync() {
+        ensureLibraryDisplayRenditionsAsync()
         if case .loading = library.testRecentWatchingStatus, testRecentWatchingTask != nil {
             return
         }
@@ -203,10 +205,103 @@ extension AppCoordinator {
     }
 
     func hydrateCompleteLibraryAsync() {
+        ensureLibraryDisplayRenditionsAsync()
         if case .loading = library.completeLibraryStatus, completeLibraryTask != nil {
             return
         }
         refreshCompleteLibrary()
+    }
+
+    func ensureLibraryDisplayRenditionsAsync() {
+        let folders = indexing.selectedFolders
+        guard !folders.isEmpty,
+              let database = subtitleDatabase,
+              !indexing.indexingStatus.isIndexing,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let scopeKey = libraryDisplayRenditionScopeKey(for: folders)
+        guard libraryDisplayRenditionAttemptedScopeKey != scopeKey,
+              libraryDisplayRenditionTask == nil
+        else {
+            return
+        }
+
+        let commitToken = libraryDisplayRenditionCommitGate.beginGeneration()
+        libraryDisplayRenditionGeneration += 1
+        let generation = libraryDisplayRenditionGeneration
+        let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
+        libraryDisplayRenditionTask = Task { [weak self] in
+            let worker = Task.detached(priority: .utility) {
+                try await LibraryCoverDisplayRenditionIndexer(
+                    configuration: .init(
+                        coverDirectory: coverDirectory,
+                        maxConcurrentRenditions: 4,
+                        commitToken: commitToken
+                    )
+                ).backfillDisplayRenditions(under: folders, into: database)
+            }
+
+            do {
+                let result = try await withTaskCancellationHandler {
+                    try await worker.value
+                } onCancel: {
+                    worker.cancel()
+                }
+
+                guard let self,
+                      !Task.isCancelled,
+                      self.libraryDisplayRenditionGeneration == generation
+                else {
+                    return
+                }
+                self.libraryDisplayRenditionTask = nil
+                self.libraryDisplayRenditionAttemptedScopeKey = scopeKey
+                let presentationChangeCount = result.generatedDisplayCoverCount
+                    + result.clearedInvalidDisplayCoverCount
+                guard presentationChangeCount > 0 else {
+                    return
+                }
+                if self.library.recentWatchingStatus != .idle {
+                    self.refreshRecentWatching()
+                }
+                if self.library.testRecentWatchingStatus != .idle {
+                    self.refreshTestRecentWatching()
+                }
+                if self.library.completeLibraryStatus != .idle {
+                    self.refreshCompleteLibrary()
+                }
+            } catch {
+                guard let self,
+                      self.libraryDisplayRenditionGeneration == generation
+                else {
+                    return
+                }
+                self.libraryDisplayRenditionTask = nil
+                guard !(error is CancellationError) else {
+                    return
+                }
+                print("Failed to backfill Library display renditions: \(error)")
+            }
+        }
+    }
+
+    func cancelLibraryDisplayRenditionTask() {
+        libraryDisplayRenditionTask?.cancel()
+        libraryDisplayRenditionCommitGate.invalidateCurrentGeneration()
+        libraryDisplayRenditionGeneration += 1
+        libraryDisplayRenditionTask = nil
+        libraryDisplayRenditionAttemptedScopeKey = nil
+    }
+
+    private func libraryDisplayRenditionScopeKey(for folders: [URL]) -> String {
+        let paths = folders
+            .map { $0.standardizedFileURL.path }
+            .sorted()
+            .joined(separator: "\n")
+        return "v\(LibraryCoverDisplayProfile.current.version)\n\(paths)"
     }
 
     func refreshRecentWatching() {

@@ -359,6 +359,10 @@ public enum LibraryCoverStatus: String, Sendable {
     case failed
 }
 
+public enum LibraryCoverDisplayProfileVersion: Sendable {
+    public static let current = 1
+}
+
 public struct LibraryCoverEligibleVideo: Equatable, Sendable, Identifiable {
     public let videoFileID: Int64
     public let videoPath: String
@@ -397,6 +401,18 @@ public struct LibraryVideoCover: Equatable, Sendable {
     public let status: LibraryCoverStatus
     public let errorMessage: String?
     public let generatedAt: String
+}
+
+public struct LibraryCoverDisplayCandidate: Equatable, Sendable, Identifiable {
+    public let videoFileID: Int64
+    public let videoPath: String
+    public let masterCoverPath: String
+    public let displayCoverPath: String?
+    public let displayProfileVersion: Int?
+
+    public var id: Int64 {
+        videoFileID
+    }
 }
 
 public struct LibraryFolderCover: Equatable, Sendable {
@@ -5156,6 +5172,61 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
+    public func libraryCoverDisplayCandidates(
+        under folders: [URL]
+    ) throws -> [LibraryCoverDisplayCandidate] {
+        let pathPrefixes = Self.folderPathPrefixes(for: folders)
+        guard !pathPrefixes.isEmpty else {
+            return []
+        }
+
+        let scopeCondition = pathPrefixes.map { _ in
+            "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)"
+        }
+            .joined(separator: " OR ")
+        let statement = try database.prepare(
+            """
+            SELECT vc.video_file_id, vf.path, vc.cover_path,
+                   vc.display_cover_path, vc.display_profile_version
+            FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
+            WHERE \(scopeCondition)
+            ORDER BY vf.path ASC, sf.subtitle_path ASC;
+            """
+        )
+
+        var bindIndex: Int32 = 1
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        for prefix in pathPrefixes {
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+            bindIndex += 1
+        }
+
+        var candidatesByID: [Int64: LibraryCoverDisplayCandidate] = [:]
+        while try statement.step() {
+            let videoFileID = statement.int64Column(0)
+            guard candidatesByID[videoFileID] == nil else {
+                continue
+            }
+            candidatesByID[videoFileID] = LibraryCoverDisplayCandidate(
+                videoFileID: videoFileID,
+                videoPath: statement.stringColumn(1),
+                masterCoverPath: statement.stringColumn(2),
+                displayCoverPath: statement.nullableStringColumn(3),
+                displayProfileVersion: statement.nullableIntColumn(4)
+            )
+        }
+
+        return candidatesByID.values.sorted {
+            $0.videoPath.localizedStandardCompare($1.videoPath) == .orderedAscending
+        }
+    }
+
     public func libraryVideoCover(forVideoFileID videoFileID: Int64) throws -> LibraryVideoCover? {
         let statement = try database.prepare(
             """
@@ -5457,12 +5528,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        WHEN ws.state = 'unwatched' THEN NULL
                        ELSE h.completed_at
                    END,
-                   h.updated_at, vc.cover_path
+                   h.updated_at, vc.display_cover_path
             FROM library_playback_history h
             JOIN library_video_rows lvr ON lvr.video_path = h.video_path
             LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
-            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
+            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
+                AND vc.status = ? AND vc.display_profile_version = ?
             WHERE \(scopeCondition)
             ORDER BY julianday(h.updated_at) DESC, h.updated_at DESC,
                      lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
@@ -5471,6 +5543,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var bindIndex: Int32 = 1
         try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(LibraryCoverDisplayProfileVersion.current, at: bindIndex)
         bindIndex += 1
         for prefix in pathPrefixes {
             try statement.bind(prefix, at: bindIndex)
@@ -5541,14 +5615,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        ELSE h.completed_at
                    END,
                    h.updated_at, julianday(h.updated_at),
-                   vc.cover_path, fc.cover_path, vf.file_size, vf.video_codec,
+                   vc.display_cover_path, fvc.display_cover_path,
+                   vf.file_size, vf.video_codec,
                    vf.video_width, vf.video_height, vf.frame_rate
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
-            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
+            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
+                AND vc.status = ? AND vc.display_profile_version = ?
             LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
+            LEFT JOIN video_covers fvc ON fvc.video_file_id = fc.source_video_file_id
+                AND fvc.status = ? AND fvc.display_profile_version = ?
             WHERE \(scopeCondition)
             ORDER BY lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
             """
@@ -5556,6 +5634,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var bindIndex: Int32 = 1
         try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(LibraryCoverDisplayProfileVersion.current, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(LibraryCoverDisplayProfileVersion.current, at: bindIndex)
         bindIndex += 1
         for prefix in pathPrefixes {
             try statement.bind(prefix, at: bindIndex)
@@ -5674,26 +5758,35 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT lvr.folder_path, lvr.folder_title, COUNT(*) AS episode_count,
-                   fc.cover_path,
+                   fvc.display_cover_path,
                    (
-                       SELECT vc.cover_path
+                       SELECT vc.display_cover_path
                        FROM library_video_rows first_lvr
                        LEFT JOIN video_files first_vf ON first_vf.path = first_lvr.video_path
-                       LEFT JOIN video_covers vc ON vc.video_file_id = first_vf.id AND vc.status = ?
+                       LEFT JOIN video_covers vc ON vc.video_file_id = first_vf.id
+                           AND vc.status = ? AND vc.display_profile_version = ?
                        WHERE first_lvr.folder_path = lvr.folder_path
                        ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
                        LIMIT 1
                    ) AS first_video_cover_path
             FROM library_video_rows lvr
             LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
+            LEFT JOIN video_covers fvc ON fvc.video_file_id = fc.source_video_file_id
+                AND fvc.status = ? AND fvc.display_profile_version = ?
             WHERE \(scopeCondition)
-            GROUP BY lvr.folder_path, lvr.folder_title, fc.cover_path
+            GROUP BY lvr.folder_path, lvr.folder_title, fvc.display_cover_path
             ORDER BY MIN(lvr.folder_order) ASC, lvr.folder_path ASC;
             """
         )
 
         var bindIndex: Int32 = 1
         try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(LibraryCoverDisplayProfileVersion.current, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: bindIndex)
+        bindIndex += 1
+        try statement.bind(LibraryCoverDisplayProfileVersion.current, at: bindIndex)
         bindIndex += 1
         for prefix in pathPrefixes {
             try statement.bind(prefix, at: bindIndex)
@@ -5736,20 +5829,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        WHEN ws.state = 'unwatched' THEN NULL
                        ELSE h.completed_at
                    END,
-                   h.updated_at, vc.cover_path,
+                   h.updated_at, vc.display_cover_path,
                    vf.file_size, vf.video_codec, vf.video_width, vf.video_height,
                    vf.frame_rate
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
             LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
             LEFT JOIN video_files vf ON vf.path = lvr.video_path
-            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id AND vc.status = ?
+            LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
+                AND vc.status = ? AND vc.display_profile_version = ?
             WHERE lvr.folder_path = ?
             ORDER BY lvr.video_order ASC, lvr.video_path ASC;
             """
         )
         try statement.bind(LibraryCoverStatus.generated.rawValue, at: 1)
-        try statement.bind(folderPath, at: 2)
+        try statement.bind(LibraryCoverDisplayProfileVersion.current, at: 2)
+        try statement.bind(folderPath, at: 3)
 
         var resolvedFolderPath: String?
         var folderTitle = ""

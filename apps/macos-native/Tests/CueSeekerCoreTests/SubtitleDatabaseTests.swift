@@ -2845,6 +2845,8 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     try database.upsertLibraryVideoCover(
         videoFileID: showA1CoverCandidate.videoFileID,
         masterCoverPath: "/Covers/show-a-episode-1.jpg",
+        displayCoverPath: "/Covers/Display/v1/show-a-episode-1.jpg",
+        displayProfileVersion: LibraryCoverDisplayProfileVersion.current,
         sourceTimeMilliseconds: 120_000,
         score: 90,
         algorithmVersion: 1,
@@ -2865,7 +2867,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
 
     let showASummary = try #require(summaries.first { $0.folderTitle == "Show A" })
     #expect(showASummary.episodeCount == 2)
-    #expect(showASummary.coverPath == "/Covers/show-a-episode-1.jpg")
+    #expect(showASummary.coverPath == "/Covers/Display/v1/show-a-episode-1.jpg")
 
     let detail = try #require(try database.completeLibraryFolderDetail(folderPath: showASummary.folderPath))
     #expect(detail.folderTitle == "Show A")
@@ -2876,6 +2878,88 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     #expect(detail.videos.first?.videoHeight == 1080)
     #expect(detail.videos.first?.frameRate == 23.976)
     #expect(detail.videos.first?.videoCodec == "hevc")
+    #expect(detail.videos.first?.coverPath == "/Covers/Display/v1/show-a-episode-1.jpg")
+}
+
+@Test
+func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let root = URL(fileURLWithPath: "/Media")
+    let videoFile = root.appendingPathComponent("Show/Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: videoFile.deletingPathExtension().appendingPathExtension("srt"),
+        videoFile: videoFile,
+        entries: [databaseTestEntry(text: "display only")]
+    )
+    try database.rebuildLibraryPresentationSnapshot()
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 1_000,
+        duration: 100
+    )
+
+    let candidate = try #require(
+        try database.libraryCoverEligibleVideos(under: [root]).first
+    )
+    let masterPath = "/Covers/Videos/master-must-not-render.jpg"
+    let displayPath = "/Covers/Display/v1/display.jpg"
+    try database.upsertLibraryVideoCover(
+        videoFileID: candidate.videoFileID,
+        masterCoverPath: masterPath,
+        sourceTimeMilliseconds: 1_000,
+        score: 75,
+        algorithmVersion: 1,
+        generatedFileSize: candidate.fileSize,
+        generatedDuration: candidate.duration,
+        status: .generated,
+        errorMessage: nil
+    )
+    try database.upsertLibraryFolderCover(
+        folderPath: candidate.folderPath,
+        masterCoverPath: masterPath,
+        sourceVideoFileID: candidate.videoFileID
+    )
+
+    #expect(try database.recentLibraryWatching(under: [root]).first?.coverPath == nil)
+    let masterOnlyFull = try #require(try database.completeLibraryPresentation(under: [root]).first)
+    #expect(masterOnlyFull.folderCoverPath == nil)
+    #expect(masterOnlyFull.videos.first?.coverPath == nil)
+    #expect(try database.completeLibraryFolderSummaries(under: [root]).first?.coverPath == nil)
+    #expect(
+        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)?
+            .videos.first?.coverPath == nil
+    )
+
+    try database.updateLibraryVideoDisplayCover(
+        videoFileID: candidate.videoFileID,
+        displayCoverPath: displayPath,
+        displayProfileVersion: LibraryCoverDisplayProfileVersion.current
+    )
+
+    #expect(try database.recentLibraryWatching(under: [root]).first?.coverPath == displayPath)
+    let displayFull = try #require(try database.completeLibraryPresentation(under: [root]).first)
+    #expect(displayFull.folderCoverPath == displayPath)
+    #expect(displayFull.videos.first?.coverPath == displayPath)
+    #expect(try database.completeLibraryFolderSummaries(under: [root]).first?.coverPath == displayPath)
+    #expect(
+        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)?
+            .videos.first?.coverPath == displayPath
+    )
+
+    try database.updateLibraryVideoDisplayCover(
+        videoFileID: candidate.videoFileID,
+        displayCoverPath: "/Covers/Display/v2/stale-profile.jpg",
+        displayProfileVersion: LibraryCoverDisplayProfileVersion.current + 1
+    )
+    #expect(try database.recentLibraryWatching(under: [root]).first?.coverPath == nil)
+    #expect(try database.completeLibraryFolderSummaries(under: [root]).first?.coverPath == nil)
 }
 
 @Test
