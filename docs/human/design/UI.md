@@ -1992,7 +1992,7 @@ Action Menu Open / Close:
 
 Selection Change from Keyboard / Wheel / Scrollbar:
   Update only the previous and next selected cue visual states
-  The enclosing layout owns cue reel movement and lazy loading
+  The native virtual reel owns cue movement and visible cue rendering
 
 #### Cursor
 Cue Text: pointer
@@ -3370,6 +3370,8 @@ Subtitle Focus Cue Reel:
   Position: centered within the overlay
   Width: min(available inset width, --width-subtitle-focus-content-max)
   Orientation: vertical
+  Rendering Model: native virtual document
+  Rendering Scope: layout and draw only viewport-visible cue slots plus overscan
   Cue Slot Height: --height-subtitle-focus-cue-slot
   Cue Gap: --spacing-8
   Cue Slot Pitch: --height-subtitle-focus-cue-slot + --spacing-8 = 136px
@@ -3382,7 +3384,8 @@ Subtitle Focus Cue Reel:
 
 Focus Anchor:
   Type: logical screen-space first-line origin anchor; no visible line, indicator, background, or marker
-  Initial Position: place the default selected cue first-line origin as close to the vertical center as available cue boundaries allow
+  Initial Position: fixed at the vertical center of the Subtitle Focus Cue Reel viewport
+  Boundary Behavior: virtual leading and trailing space keeps the first and last cue aligned to the same Focus Anchor
   Geometry Independence: cue line count and clipping must not move the Focus Anchor
   Navigation Behavior: remain fixed while keyboard, wheel, or scrollbar navigation moves the cue reel by fixed Cue Slot Pitch increments
   Pointer Selection Behavior: move to the clicked cue's current first-line origin without moving the cue reel
@@ -3393,6 +3396,8 @@ Subtitle Focus Scrollbar Region:
   Contains: Table Scrollbar
   Orientation: vertical
   Visibility: persistent when cue groups exist
+  Before Complete Collection Load: visible but noninteractive
+  After Complete Collection Load: interactive
 
 Subtitle Focus Action Menu Region:
   Position: overlay-local floating layer anchored to the selected cue
@@ -3418,21 +3423,22 @@ Down:
 
 Pointer Wheel / Trackpad Scroll:
   Move the fixed-height cue slots through the Focus Anchor
-  Update selection when another fixed cue slot crosses the Focus Anchor
-  On scroll end, settle the nearest cue slot first-line origin onto the Focus Anchor
+  Discrete Wheel: any nonzero input moves at least one cue group when the corresponding document boundary permits
+  Precise Scroll: follow continuous gesture and momentum movement
+  Update the local focused cue when another fixed cue slot crosses the Focus Anchor
+  On scroll end, settle the final cue slot first-line origin onto the Focus Anchor
+  If nonzero applied movement is smaller than one Cue Slot Pitch, settle one cue group in the net movement direction
+  At the first and last cue boundaries, use only movement that was actually applied
+  Publish only the settled cue selection to the Subtitle Focus Session
   Do not seek or update playback time
-
-Sequential Prefetch:
-  Trigger only after the user navigates toward a loaded-window boundary
-  When two loaded cue slots remain in that direction, request the next ten cue groups
-  Do not trigger only because the initial selected cue has three following cue groups
 
 Scrollbar Drag:
   Keep the Focus Anchor fixed
-  Map the scrollbar position to a cue group ordinal in the complete subtitle
-  Use cached targets immediately
-  For uncached targets, use the Fast Scrollbar Drag behavior defined in Lazy Loading
-  Commit and align only the latest loaded target cue
+  Enable dragging only after the complete current-video cue collection is available
+  Map the scrollbar position directly to the complete virtual document
+  Update the native reel position and local focused cue continuously while dragging
+  Do not issue database requests or publish intermediate Session selections during dragging
+  On drag end, settle the nearest cue slot onto the Focus Anchor and publish the final cue selection once
   Do not seek or update playback time
 
 Pointer Hover on Unselected Cue:
@@ -3475,7 +3481,7 @@ Excluded Front-end Content:
 #### State Model
 Closed:
   Subtitle Focus Overlay is not rendered
-  Subtitle Focus content cache and pending requests do not exist
+  Subtitle Focus cue collections, native reel state, and pending load tasks do not exist
   Playback owns normal keyboard and pointer interaction
 
 Opening:
@@ -3493,12 +3499,15 @@ Cue Selection:
   Selected cue uses --color-subtitle-focus-cue-selected
   Action menu is closed
 
-Target Window Loading:
-  Overlay remains visible
+Complete Cue Loading:
+  Overlay remains visible with the initial cue window
   Playback remains paused
-  The last valid cue window remains visible
-  Scrollbar preview position may change
-  Action menu opening is suppressed
+  Keyboard, wheel, pointer, and action-menu interaction remain available within the initial cue window
+  Scrollbar remains visible but noninteractive
+  Complete current-video cue loading runs outside the main thread without a progress indicator
+  Successful completion atomically publishes the complete cue collection and enables full-document navigation
+  Completion must not change the selected cue, Focus Anchor, active reel motion, or open action menu
+  On failure, keep the initial cue window visible and the scrollbar noninteractive
   Escape remains available
 
 Action Menu Open:
@@ -3524,10 +3533,11 @@ Default Cue:
 
 Initial Position:
   Align the default selected cue first-line origin with the initial Focus Anchor
-  Keep the Focus Anchor as close to the vertical center as first / last cue boundaries permit
+  Keep the Focus Anchor fixed at the vertical center
+  Use virtual leading and trailing space so the first and last cue use the same Focus Anchor
   Do not derive position from cue text height or line count
 
-Initial Lazy-loaded Window:
+Initial Cue Window:
   Cue Group Count: exactly 10 total when at least 10 cue groups exist; otherwise load all available cue groups
   Preferred Distribution: 6 cue groups before the selected cue, the selected cue, and 3 cue groups after it
   Selected Cue Position: seventh item when at least 6 preceding cue groups exist
@@ -3578,16 +3588,16 @@ Escape During Opening:
 
 Escape in Cue Selection:
   Close the Subtitle Focus Overlay
-  Cancel pending prefetch and scrollbar target requests
-  Release the Subtitle Focus cue-text cache and layout state
+  Cancel any pending complete current-video cue request
+  Release the initial cue window, complete cue collection, and native reel layout and motion state
   Restore the playback state captured when the overlay opened
   Restore normal Playback Page keyboard and pointer interaction
 
 Dismissal After Action:
   Complete the selected action handoff using the exact selected cue data required by the action
   Close the Subtitle Focus Overlay
-  Cancel remaining Subtitle Focus requests
-  Release the Subtitle Focus cue-text cache and layout state
+  Cancel any remaining initial or complete cue request
+  Release the initial cue window, complete cue collection, and native reel layout and motion state
 
 Dismissal Stability:
   Closing the overlay must not perform an implicit seek
@@ -3595,67 +3605,43 @@ Dismissal Stability:
   A dismissed or superseded Subtitle Focus Session must reject all late results
   The captured playback state is discarded only after dismissal or action handoff completes
 
-#### Lazy Loading
+#### Data Loading and Virtualization
 Activation:
-  Do not create Subtitle Focus requests, content caches, cue views, or layout measurements during normal video playback
+  Do not create Subtitle Focus requests, cue collections, cue views, or layout measurements during normal video playback
   Begin Subtitle Focus loading only after the user presses Enter
   Run database reads outside the main thread
-  Publish loaded cue content as one stable snapshot
 
-Initial Text Load:
+Initial Cue Window:
   Load exactly 10 cue groups around the default selected cue when at least 10 cue groups exist
   Load all available cue groups when the subtitle contains fewer than 10 cue groups
   Prefer 6 preceding cue groups and 3 following cue groups
   Place the selected cue seventh when available
   Fill missing boundary slots from the opposite side
   Give every cue one fixed --height-subtitle-focus-cue-slot slot
+  Publish the complete initial cue window as one stable snapshot
 
-Sequential Prefetch:
-  Trigger only after user navigation
-  When two loaded cue slots remain in the navigation direction, request the next ten cue groups
-  Append the new batch without replacing or moving the current cue reel
-  Deduplicate equivalent pending range requests
-  Keyboard and ordinary wheel prefetch do not use the scrollbar drag debounce
+Complete Current-video Load:
+  Begin one background complete-cue read after the initial cue window is published
+  Load and retain the complete ordered cue-content collection for the current subtitle source
+  Publish the complete collection atomically only when the playback source, subtitle source, and Subtitle Focus Session still match
+  Do not use ten-cue prefetch batches, a thirty-cue retention limit, eviction, target-window reads, or scrollbar debounce
+  If complete loading fails, keep the initial cue window visible and the scrollbar noninteractive
 
-Text Cache:
-  Default Initial Count: 10 cue groups
-  Batch Size: 10 cue groups
-  Maximum Retained Count: 30 cue groups
-  Forward Navigation Eviction: when adding a new batch would exceed Maximum Retained Count, release the earliest and farthest ten cue groups in the same cache update
-  Backward Navigation Eviction: when adding a new batch would exceed Maximum Retained Count, release the latest and farthest ten cue groups in the same cache update
-  Far Scrollbar Jump: after the target window commits, release all cue-text cache entries belonging only to the old distant position
-  Eviction Safety: never release the current visible cue window or cue slots required by an active reel animation
-
-Fast Scrollbar Drag:
-  Update the preview cue ordinal continuously without querying every crossed cue
-  If the preview target is cached, commit it immediately
-  If the preview target is not cached, request it only after the target remains stable for 100ms
-  On drag end, immediately request the final target without waiting for the 100ms delay
-  Load the final target using 6 preceding cue groups, the target cue group, and 3 following cue groups
-  Keep the last valid cue window visible until the latest target commits
-  Suppress action-menu opening until the final target commits
-
-Request Coordination:
-  Allow at most one active Subtitle Focus database window read
-  Track one latest pending target
-  Assign every request a Subtitle Focus Session generation
-  Publish only results matching the current playback source, subtitle source, session generation, and latest target
-  Ignore stale results even when the underlying database operation cannot be cancelled immediately
-
-Complete-document Metadata:
-  Load only the total cue group count and stable ordinal information required by the scrollbar after Enter
-  Do not load the complete cue-text collection for Subtitle Focus
-  Cue text remains lazy-loaded
+Virtual Rendering:
+  Define the complete virtual document from total cue count and fixed Cue Slot Pitch
+  Retaining the complete cue-content collection must not create one cue view or text-layout object per cue
+  Layout and draw only viewport-visible cue slots plus overscan
+  Total cue count must not increase the number of cue slots actually laid out or drawn
 
 Loading Presentation:
   Do not show a progress bar or spinner
   During initial loading, keep the paused video frame visible until the complete initial snapshot is ready
-  During subsequent loading, keep the current valid cue window visible
-  On target-window failure, keep the previous cue window and restore the last committed scrollbar position
+  During complete current-video loading, keep the initial cue window visible and interactive
 
 Lifecycle:
-  Scope every Subtitle Focus cache and request to one playback session, video source, subtitle source, and overlay lifetime
-  On overlay close, release all Subtitle Focus cue text, measurements, ordinals, targets, and request state
+  Scope the initial cue window, complete cue collection, native reel state, and load requests to one playback session, video source, subtitle source, and overlay lifetime
+  Assign initial and complete requests to the current Subtitle Focus Session generation
+  On overlay close, release the initial cue window, complete cue collection, native document state, measurements, ordinals, and interaction state
   On video change, subtitle change, playback close, or playback-session replacement, cancel pending requests and release all Subtitle Focus state before the new source becomes active
   Late results from a released or superseded lifecycle must not publish
 
@@ -3664,9 +3650,11 @@ Cue Reel Transition Duration: --duration-subtitle-focus-scroll
 Cue Reel Transition Easing: --easing-subtitle-focus-scroll
 Cue Reel Step Distance: --height-subtitle-focus-cue-slot + --spacing-8 = 136px
 Cue Reel Geometry: line count and clipping must not alter transition distance
+Keyboard / Discrete Wheel Alignment: animate the final fixed-slot target alignment
+Precise Wheel / Scrollbar Drag: follow continuous native reel offset directly
+Scrollbar Release Settlement: align only the final nearest cue slot, not every skipped cue
 Pointer Click Focus Transfer: immediate; no cue reel animation
-Scrollbar Far Jump: animate only the final fixed-slot target alignment, not every skipped cue
-Reduce Motion: align immediately while preserving focus and selection semantics
+Reduce Motion: resolve final alignment immediately while preserving focus, selection, and continuous drag semantics
 
 #### Cursor
 Cue Text: pointer
@@ -3679,21 +3667,24 @@ Overlay Background: default
 #### Refresh Scope
 Owner:
 - Playback Subtitle Focus Overlay presentation and local interaction state.
-- Subtitle Focus Cue Reel fixed-slot geometry and lazy-loaded text window.
-- Table Scrollbar presentation and overlay-local preview and committed target state.
+- Subtitle Focus native virtual document and fixed-slot cue geometry.
+- The active Subtitle Focus Session's initial cue window and complete current-video cue collection.
+- Table Scrollbar presentation, native clip offset, local focused-cue preview, and drag state.
 - Subtitle Focus Action Menu.
 - Captured pre-overlay playback state for the lifetime of the overlay.
 - Subtitle Focus Session generation and lifecycle cleanup.
 
 Allowed invalidation:
 - Enter may capture playback state, pause playback, and start one background initial-window request.
-- Initial-window completion may publish one complete overlay cue snapshot.
+- Initial-window completion may publish one complete overlay cue snapshot and start one complete current-video cue request.
+- Complete-cue completion may atomically publish the complete cue collection and enable scrollbar interaction.
+- Complete-cue publication must preserve the selected cue, Focus Anchor, active reel motion, and open action menu.
 - Opening and closing may update only overlay visibility, playback pause / resume command state, playback chrome visibility, keyboard focus, and dismiss monitors.
-- Cue hover may update only the hovered cue.
-- Cue selection may update only the previous cue, new cue, fixed-step cue reel transform, and scrollbar thumb.
-- Cue reel animation may update only the cue reel compositing layer.
-- A sequential prefetch completion may append one ten-cue batch and evict the farthest retained batch.
-- The latest scrollbar target completion may replace only the overlay cue-window snapshot, committed target, and scrollbar state.
+- Cue hover may redraw only the hovered visible cue.
+- Keyboard and discrete-wheel navigation may update only the native reel offset, previous and new focused cue rows, and scrollbar thumb before publishing the settled cue once.
+- Precise wheel and scrollbar drag frames may update only the native reel offset, visible dirty cue rows, local focused-cue preview, and scrollbar thumb.
+- Scrollbar mouse-up may publish only one final settled cue selection.
+- Text layout and drawing may process only viewport-visible cue slots plus overscan.
 - Menu open / close may update only the menu overlay and menu dismiss monitor.
 - Menu item hover and keyboard selection may update only the affected menu items.
 - Shiori may update only persistence for the selected cue and its local saved-state result.
@@ -3702,16 +3693,17 @@ Allowed invalidation:
 - Overlay close or playback-source replacement may cancel requests and release only Subtitle Focus state.
 
 Forbidden invalidation:
-- Normal playback before Enter must not create Subtitle Focus queries, caches, cue views, measurements, or observable subscriptions.
+- Normal playback before Enter must not create Subtitle Focus queries, cue collections, cue views, measurements, or observable subscriptions.
 - Subtitle Focus database reads must not execute on the main thread.
 - Cue text line count, wrapping, and clipping must not change the fixed 104px slot height, 136px navigation step, or Focus Anchor position.
 - Menu open / close must not invalidate the selected cue text color, typography, geometry, or position.
-- Overlay opening, closing, cue navigation, hover, scrollbar interaction, menu interaction, and lazy loading must not resize, recreate, redraw, detach, or reattach Playback render host.
+- Overlay opening, closing, cue navigation, hover, scrollbar interaction, menu interaction, and data loading must not resize, recreate, redraw, detach, or reattach Playback render host.
+- Wheel navigation and scrollbar drag must not issue cue-window database requests.
 - Cue navigation and scrollbar interaction must not seek playback or write high-frequency playback time state.
-- Overlay-local selection, anchor, scroll, hover, menu, cache, and loading state must not be stored in SearchStore, ShioriStore, LibraryStore, or an unrelated global playback presentation store.
-- Lazy loading must not materialize or render the complete cue-text collection.
-- More than 30 cue groups must not remain in the Subtitle Focus text cache after a cache update commits.
-- A stale request generation, old video source, old subtitle source, dismissed overlay, or superseded target must not publish.
+- Overlay-local selection, anchor, scroll, hover, menu, collection, and loading state must not be stored in SearchStore, ShioriStore, LibraryStore, or an unrelated global playback presentation store.
+- Retaining the complete cue-content collection must not create View, text-layout, or draw work proportional to the complete cue count.
+- Complete-cue publication must not reset the selected cue, Focus Anchor, active motion, or open action menu.
+- A stale initial or complete result from an old Session, video source, subtitle source, or dismissed overlay must not publish.
 - Overlay interaction must not rebuild Search, Shiori, Library, tables, App Sidebar, App Topbar, normal playback chrome, or hidden workbench surfaces.
 
 Probe / verification:
@@ -3720,9 +3712,11 @@ Probe / verification:
 - Every cue slot remains 104px high regardless of whether its text contains 1, 2, or more lines.
 - Every one-cue keyboard navigation moves the cue reel by exactly 136px.
 - Cue text beyond two visible lines is clipped without changing cue reel geometry.
-- Retained Subtitle Focus cue-text count remains at or below 30 after each committed cache update.
-- Overlay close and playback-source replacement reduce retained Subtitle Focus cue-text count to 0.
-- Stale request publish count remains 0 during rapid scrollbar dragging and rapid Search video switching.
+- After complete-cue publication, retained cue count equals the current subtitle's total cue count and scrollbar interaction is enabled.
+- Increasing the virtual document to 50,000 cue groups does not increase visible-plus-overscan layout or draw count.
+- Continuous scrollbar drag updates the reel without intermediate Session selection commits; mouse-up publishes exactly one final selection.
+- Overlay close and playback-source replacement reduce retained Subtitle Focus cue count to 0.
+- Late initial or complete result publish count remains 0 during rapid video switching.
 
 ## 4. Refresh Scope Contract
 
