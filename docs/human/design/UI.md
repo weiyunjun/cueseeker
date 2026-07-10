@@ -288,9 +288,6 @@
 --color-subtitle-focus-cue-selected:
   Light: rgba(255,255,255,0.94)
   Dark: rgba(255,255,255,0.94)
---color-subtitle-focus-cue-hover:
-  Light: rgba(255,255,255,0.62)
-  Dark: rgba(255,255,255,0.62)
 --color-subtitle-focus-cue-unselected:
   Light: rgba(255,255,255,0.34)
   Dark: rgba(255,255,255,0.34)
@@ -1941,8 +1938,10 @@ Border: none
 Overflow: hidden
 Clip: cue text at fixed slot bounds
 Visual Alignment: top-leading
-Hit Testing: visible cue text union bounds inside the fixed slot
-Layout Stability: every cue uses identical fixed geometry regardless of line count, selection, hover, or menu state
+Hit Testing: no cue-specific pointer hover or click action
+Pointer Click Routing: consume within the overlay; do not pass through to the underlying Playback video surface
+Wheel Event Routing: continue to the Subtitle Focus Cue Reel
+Layout Stability: every cue uses identical fixed geometry regardless of line count or selection
 
 #### Content
 Text: one complete cue group
@@ -1953,13 +1952,12 @@ First Line Origin: fixed relative to the cue slot top edge
 Visible Line Capacity: two complete lines at the declared font size and line height
 Overflow Content: clip at the cue slot bounds without expanding the slot
 Truncation Indicator: none
-Full Cue Group Value: retain complete unclipped text for Shiori, Copy Cue Text, and Play From This Cue
+Full Cue Group Value: retain complete unclipped text for S-key Shiori, C-key Copy Cue Text, and Space-key Play From This Cue
 Font Family: --font-family-base
 Font Size: --font-size-subtitle-focus-cue
 Line Height: --line-height-subtitle-focus-cue
 Font Weight: --font-weight-subtitle-focus-cue
 Selected Text Color: --color-subtitle-focus-cue-selected
-Hover Text Color: --color-subtitle-focus-cue-hover
 Unselected Text Color: --color-subtitle-focus-cue-unselected
 Background / Border / Shadow: none in every state
 
@@ -1969,33 +1967,26 @@ Unselected Hover
 Selected
 
 #### Interaction
-Pointer Enter on Unselected Cue:
-  Apply Hover text color only
-  Do not change the selected cue
-  Do not move the cue reel
+Pointer Hover / Click:
+  No cue-specific visual or action response
+  Do not change the selected cue or Focus Anchor
+  Do not move the cue reel or open pointer action UI
+  Consume pointer clicks within the overlay; do not pass them to the underlying Playback video surface
 
-Pointer Exit:
-  Restore Unselected text color
-
-Pointer Click on Unselected Cue:
-  Select the clicked cue
-  Move the focus anchor to the clicked cue's current screen-space position
-  Do not scroll, recenter, or animate the cue reel
-  Open Subtitle Focus Action Menu for the clicked cue
-
-Pointer Click on Selected Cue:
-  Keep the current selection and focus anchor
-  Open Subtitle Focus Action Menu for the selected cue
-
-Action Menu Open / Close:
-  Keep the selected cue identity, text color, typography, and position unchanged
-
-Selection Change from Keyboard / Wheel / Scrollbar:
+Selection Change from Up / Down / Wheel / Scrollbar:
   Update only the previous and next selected cue visual states
   The native virtual reel owns cue movement and visible cue rendering
 
+Keyboard Action Target:
+  S, C, and Space act on the selected cue's complete retained cue group value
+  Action lifecycle and feedback are owned by Playback Subtitle Focus Overlay Layout
+
+Enter:
+  No cue component action
+  Do not open an action menu
+
 #### Cursor
-Cue Text: pointer
+Cue Text: default
 Non-text Area: default
 
 #### Refresh Scope
@@ -2003,217 +1994,16 @@ Owner:
 - Individual Subtitle Focus Cue visual state.
 
 Allowed invalidation:
-- Cue hover may redraw only the hovered cue text.
 - Cue selection changes may redraw only the previous selected cue and the new selected cue.
 - Text replacement may redraw only the affected fixed cue slot.
 
 Forbidden invalidation:
 - Cue text line count, wrapping, and clipping must not change cue slot height or cue reel geometry.
 - Cue text line count must not move the selected cue first-line origin or Focus Anchor.
-- Opening or closing the action menu must not invalidate the selected cue visual state.
-- Cue hover must not update playback state, selected cue identity, scrollbar metrics, or loaded cue data.
+- Pointer hover and click must not update cue visual state, playback state, selected cue identity, Focus Anchor, cue reel position, scrollbar metrics, or loaded cue data.
+- Cue pointer clicks must not pass through to the underlying Playback video surface.
 - Cue selection must not seek playback or resume playback.
-- Cue hover and selection must not invalidate Playback render host, playback chrome, Search, Shiori, Library, table surfaces, App Sidebar, or App Topbar.
-
-### 2.45 Subtitle Focus Action Menu Item
-
-#### Container
-Display: flex
-Align Items: center
-Width: 100%
-Height: --height-player-speed-menu-item
-Radius: --radius-player-speed-menu-item
-Padding X: --padding-player-speed-menu-item-x
-Gap: --spacing-2
-Background Default: transparent
-Background Hover / Keyboard Selected: --color-player-menu-item-hover-bg
-Background Disabled: transparent
-
-#### Content
-Leading Icon Slot: fixed action icon
-Leading Icon Size: --size-control-icon
-Label: action label
-Font Family: --font-family-base
-Font Size: --font-size-player-speed-menu-item
-Text Color Default: --color-player-text-primary
-Text Color Disabled: --color-player-text-tertiary
-Icon Color Default: --color-player-text-primary
-Icon Color Disabled: --color-player-text-tertiary
-Trailing Checkmark: none
-
-Shiori:
-  Icon: bookmark
-  Label: Shiori
-
-Shiori Already Saved:
-  Icon: bookmark.fill
-  Label: Shiori Already Saved
-  State: Disabled
-
-Copy Cue Text:
-  Icon: copy
-  Label: Copy Cue Text
-
-Play From This Cue:
-  Icon: play.fill
-  Label: Play From This Cue
-
-#### Status
-Default
-Hover
-Keyboard Selected
-Pressed
-Disabled
-
-#### Interaction
-Pointer Enter:
-  Apply Hover background when enabled
-  Move menu keyboard selection to this item
-
-Pointer Click:
-  Execute the item action when enabled
-  Ignore the interaction when disabled
-
-Keyboard Selection:
-  Up / Down moves between enabled items
-  Disabled items are skipped
-
-Keyboard Enter:
-  Execute the selected enabled item
-
-#### Cursor
-Enabled: pointer
-Disabled: default
-
-#### Refresh Scope
-Owner:
-- Individual Subtitle Focus Action Menu Item visual state.
-
-Allowed invalidation:
-- Pointer hover and keyboard selection may redraw only the previous and next active menu items.
-- Disabled-state resolution may update only the Shiori item label, icon, color, and keyboard eligibility.
-
-Forbidden invalidation:
-- Menu item hover and keyboard selection must not update cue selection, cue reel position, scrollbar state, playback time, or loaded cue data.
-- Disabled item interaction must not issue a Shiori command.
-- Menu item visual state must not invalidate Playback render host, playback chrome, Search, Shiori, Library, table surfaces, App Sidebar, or App Topbar.
-
-### 2.46 Subtitle Focus Action Menu
-
-#### Container
-Width: --width-player-speed-menu
-Height: intrinsic content height
-Radius: --radius-player-speed-menu
-Padding: --padding-player-speed-menu
-Background: --color-player-menu-bg
-Border: --color-player-text-tertiary
-Shadow: --shadow-player-overlay
-Appearance: use the Player Speed Menu dark overlay visual in both Light and Dark app appearances
-Orientation: vertical
-System Popover Arrow: none
-
-#### Content
-Items:
-  Subtitle Focus Action Menu Item: Shiori or Shiori Already Saved
-  Subtitle Focus Action Menu Item: Copy Cue Text
-  Subtitle Focus Action Menu Item: Play From This Cue
-
-Item Height: --height-player-speed-menu-item
-Item Radius: --radius-player-speed-menu-item
-Item Padding X: --padding-player-speed-menu-item-x
-Item Background Hover / Keyboard Selected: --color-player-menu-item-hover-bg
-Item Text Size: --font-size-player-speed-menu-item
-Item Text Color: --color-player-text-primary
-Item Disabled Color: --color-player-text-tertiary
-Item Icon Size: --size-control-icon
-Item Icon / Text Gap: --spacing-2
-Divider: none
-
-#### Anchor
-Anchor: selected Subtitle Focus Cue bounds
-Preferred Position: below the selected cue
-Gap from Cue: --spacing-3
-Edge Handling: clamp to the Subtitle Focus Overlay bounds; flip above the cue when there is insufficient space below
-Cue Layout: menu positioning must not move, resize, or reflow the selected cue or cue reel
-
-#### Status
-Closed
-Open
-Item Default
-Item Hover
-Item Keyboard Selected
-Shiori Available
-Shiori Already Saved / Disabled
-Interaction Suppressed
-
-#### Interaction
-Open from Keyboard:
-  Enter in cue-selection state opens the menu for the selected cue
-
-Open from Pointer:
-  Clicking a cue opens the menu for that cue
-
-Selected Cue Appearance:
-  Opening and closing the menu do not change the selected cue text color, typography, or position
-
-Initial Keyboard Selection:
-  Select the first enabled item
-  If Shiori Already Saved is disabled, select Copy Cue Text
-
-Up / Down:
-  Move selection between enabled menu items
-  Do not navigate the cue reel while the menu is open
-
-Enter:
-  Execute the selected enabled item
-  Close the Subtitle Focus Overlay after execution
-
-Pointer Hover:
-  Move menu selection to the hovered enabled item
-
-Pointer Click:
-  Execute the clicked enabled item
-  Close the Subtitle Focus Overlay after execution
-
-Escape:
-  Close only the action menu
-  Keep the Subtitle Focus Overlay open
-  Keep the selected cue and focus anchor unchanged
-
-Click Outside Menu:
-  Close only the action menu
-  Keep the Subtitle Focus Overlay open
-  Keep the selected cue and focus anchor unchanged
-
-Disabled Item:
-  Ignore pointer click and Enter
-  Skip during keyboard navigation
-
-#### Cursor
-Enabled Menu Item: pointer
-Disabled Menu Item: default
-Menu Background: default
-
-#### Refresh Scope
-Owner:
-- Subtitle Focus Action Menu overlay.
-- Menu-local keyboard selection and dismiss monitor.
-
-Allowed invalidation:
-- Menu open / close may update only the menu overlay, menu anchor measurement, and dismiss monitor.
-- Menu item hover and keyboard selection may update only the affected menu items.
-- Shiori existence lookup completion may update only the first menu item.
-- Shiori execution may update only Shiori persistence and the affected cue's saved state before the overlay closes.
-- Copy Cue Text may write only the selected cue group's full text to the system pasteboard.
-- Play From This Cue may hand off the selected cue start time to the playback seek-and-play command.
-
-Forbidden invalidation:
-- Menu open / close must not invalidate the selected Subtitle Focus Cue visual state.
-- Menu open, close, hover, keyboard navigation, measurement, and dismissal must not reload cue text or move the cue reel.
-- Menu-local state must not be written into a global playback or workbench store.
-- Shiori execution must not rebuild a hidden Shiori presentation.
-- Copy Cue Text must not change playback state or cue selection.
-- Menu interaction must not invalidate Playback render host, playback chrome, Search, Library, table surfaces, App Sidebar, or App Topbar.
+- Cue selection and cue-local pointer input must not invalidate Playback render host, playback chrome, Search, Shiori, Library, table surfaces, App Sidebar, or App Topbar.
 
 ## 3. Layout
 
@@ -3059,7 +2849,7 @@ Right Control Group:
   Alignment: trailing
   Gap: --gap-player-bottom-right-controls
   Contains:
-    Player Circle Button Group: Shiori / copy / subtitles
+    Player Circle Button: show / hide subtitles
     Player Capsule Button: speed
     Player Circle Button: fullscreen
 
@@ -3358,12 +3148,13 @@ Probe / verification:
 Container: full-stage overlay inside Playback Page
 Presentation: overlay, not a separate native window
 Position: fill the complete playback stage
-Z Order: above video content and playback chrome
+Z Order: above video content and playback chrome; below the existing Playback Feedback Overlay
 Background: --color-subtitle-focus-overlay-bg
 Appearance: fixed dark appearance in both Light and Dark app appearances
 Content Insets: --spacing-8
-Clipping: clip cue reel and action menu to overlay bounds
+Clipping: clip the cue reel to overlay bounds
 Playback Render Host: remain attached and geometrically unchanged behind the overlay
+Playback Feedback Overlay: remain noninteractive and render above the Subtitle Focus Overlay so keyboard-action feedback stays visible while the overlay remains open
 
 #### Regions
 Subtitle Focus Cue Reel:
@@ -3388,7 +3179,6 @@ Focus Anchor:
   Boundary Behavior: virtual leading and trailing space keeps the first and last cue aligned to the same Focus Anchor
   Geometry Independence: cue line count and clipping must not move the Focus Anchor
   Navigation Behavior: remain fixed while keyboard, wheel, or scrollbar navigation moves the cue reel by fixed Cue Slot Pitch increments
-  Pointer Selection Behavior: move to the clicked cue's current first-line origin without moving the cue reel
 
 Subtitle Focus Scrollbar Region:
   Position: trailing edge of the overlay
@@ -3399,10 +3189,13 @@ Subtitle Focus Scrollbar Region:
   Before Complete Collection Load: visible but noninteractive
   After Complete Collection Load: interactive
 
-Subtitle Focus Action Menu Region:
-  Position: overlay-local floating layer anchored to the selected cue
-  Contains: Subtitle Focus Action Menu
-  Layout Effect: none; must not alter cue reel geometry or Focus Anchor position
+Playback Feedback Overlay:
+  Relationship: existing Playback Page sibling overlay, not Subtitle Focus child content
+  Position: fill the complete playback stage
+  Z Order: above the Subtitle Focus Overlay
+  Contains: existing transient playback command feedback HUD
+  Hit Testing: none
+  Layout Effect: none; feedback presentation must not alter cue reel geometry, Focus Anchor position, or scrollbar geometry
 
 #### Cue Navigation
 Fixed Navigation Step:
@@ -3441,19 +3234,13 @@ Scrollbar Drag:
   On drag end, settle the nearest cue slot onto the Focus Anchor and publish the final cue selection once
   Do not seek or update playback time
 
-Pointer Hover on Unselected Cue:
-  Apply --color-subtitle-focus-cue-hover
-  Do not change selection or move the cue reel
-
-Pointer Click on Unselected Cue:
-  Do not scroll, recenter, or animate the cue reel
-  Move the Focus Anchor to the clicked cue's current first-line origin
-  Select the clicked cue
-  Open Subtitle Focus Action Menu immediately
-
-Pointer Click on Selected Cue:
-  Keep the selected cue and Focus Anchor unchanged
-  Open Subtitle Focus Action Menu immediately
+Cue Pointer Hover / Click:
+  Cue text and cue slots provide no hover visual response
+  Cue text and cue slots provide no click action
+  Pointer hover or click must not change the focused cue, Focus Anchor, cue reel position, or playback state
+  Pointer hover or click must not open an action menu or other action UI
+  Pointer clicks are consumed by the Subtitle Focus Overlay and must not reach the underlying Playback video surface
+  Pointer wheel / trackpad scrolling and Subtitle Focus Scrollbar interaction remain enabled
 
 #### Content
 Overlay Background:
@@ -3462,26 +3249,31 @@ Overlay Background:
 
 Cue Text:
   Selected: --color-subtitle-focus-cue-selected
-  Unselected Hover: --color-subtitle-focus-cue-hover
   Unselected: --color-subtitle-focus-cue-unselected
   Typography: identical across visual states
   Cue Group Integrity: render and act on one complete cue group as one item
 
-Action Menu:
-  Style: Player Speed Menu visual with leading action icons
-  Items: Shiori / Copy Cue Text / Play From This Cue
-  Saved State: replace Shiori with disabled Shiori Already Saved
+Keyboard Action Feedback:
+  Component: existing playback command feedback HUD
+  Animation and Timeout: reuse existing playback feedback behavior
+  Shiori New Save Text: Shiori Saved
+  Shiori Existing Save Text: Shiori Already Saved
+  Copy Text: Subtitle Copied
+  Play From Focused Cue Text: Play
+  Placement: render in the existing Playback Feedback Overlay above the Subtitle Focus Overlay
+  Hit Testing: none
 
 Excluded Front-end Content:
   Old Quick Search input, command rows, result rows, AI chunk rows, /back, and /forward
   Player topbar and bottom playback chrome while the overlay is visible
   Playback progress bar, extra toolbar, cards, cue backgrounds, borders, and visible focus marker
+  Subtitle Focus Action Menu, cue hover styling, cue click actions, and cue action buttons
   Loading progress bar and loading spinner
 
 #### State Model
 Closed:
   Subtitle Focus Overlay is not rendered
-  Subtitle Focus cue collections, native reel state, and pending load tasks do not exist
+  Subtitle Focus cue collections, native reel state, deferred keyboard-action targets, and pending load tasks do not exist
   Playback owns normal keyboard and pointer interaction
 
 Opening:
@@ -3495,28 +3287,22 @@ Opening:
 Cue Selection:
   Overlay is visible
   Playback is paused
-  Cue reel navigation is enabled
+  Up / Down, pointer wheel / trackpad scroll, and scrollbar cue reel navigation are enabled according to their loading state
   Selected cue uses --color-subtitle-focus-cue-selected
-  Action menu is closed
+  S, C, and Space act on the exact settled focused cue
+  Enter is consumed and performs no action
+  Cue hover and click do not create visual, selection, or action state
 
 Complete Cue Loading:
   Overlay remains visible with the initial cue window
   Playback remains paused
-  Keyboard, wheel, pointer, and action-menu interaction remain available within the initial cue window
+  Up / Down, pointer wheel / trackpad scroll, and S / C / Space remain available within the initial cue window
   Scrollbar remains visible but noninteractive
   Complete current-video cue loading runs outside the main thread without a progress indicator
   Successful completion atomically publishes the complete cue collection and enables full-document navigation
-  Completion must not change the selected cue, Focus Anchor, active reel motion, or open action menu
+  Completion must not change the selected cue, Focus Anchor, active reel motion, deferred keyboard-action target, or active playback feedback
   On failure, keep the initial cue window visible and the scrollbar noninteractive
   Escape remains available
-
-Action Menu Open:
-  Overlay remains visible
-  Playback remains paused
-  Selected cue identity, position, and visual style remain unchanged
-  Selected cue continues to use --color-subtitle-focus-cue-selected
-  Cue reel keyboard, wheel, scrollbar, and cue-pointer navigation is suppressed
-  Action menu owns Up, Down, Enter, Escape, Hover, Click, and outside-click dismissal
 
 #### Initial Selection
 Preload Before Open Trigger: none
@@ -3546,38 +3332,53 @@ Initial Cue Window:
   Viewport Clipping: clip the fixed ten-slot reel to the available viewport; partial leading and trailing slots are allowed
   Selection Stability: identify the selected cue by stable cue group identity and stable ordinal, not transient loaded-window index
 
-#### Action Menu Interaction
-Enter in Cue Selection:
-  Open Subtitle Focus Action Menu for the selected cue
-  Keep the selected cue visual style unchanged
+#### Keyboard Action Interaction
+Input Routing:
+  Apply these keyboard meanings only while the Subtitle Focus Overlay is visible in Cue Selection
+  S, C, Space, and Enter are consumed before normal Playback Page shortcut handling
+  After the overlay closes, normal Playback Page shortcut meanings resume
 
-Up / Down in Action Menu:
-  Move between enabled menu items
-  Skip Shiori Already Saved when disabled
+Action Target:
+  Use the exact focused cue group after its first-line origin is settled on the Focus Anchor
+  Identify the target by stable cue group identity and stable ordinal
+  Retain the exact cue text and start time required by the accepted action
+  Do not resolve the action target from current playback time or a transient loaded-window index
+  If cue reel navigation or settlement is active, defer the accepted action until the existing final target settles, then execute the action once against that settled cue
+  Complete-cue publication must not retarget an accepted action
+  Cancel a deferred action if the Subtitle Focus Session closes or is superseded before settlement
 
-Enter or Pointer Click on Shiori:
-  Save the exact selected cue group
-  Close the Subtitle Focus Overlay
-  Restore the playback state captured when the overlay opened
+S in Cue Selection:
+  Save the exact focused cue group without toggling or removing an existing Shiori
+  If the cue is not saved, persist it once and show Shiori Saved
+  If the cue is already saved, do not write a duplicate and show Shiori Already Saved
+  Keep the Subtitle Focus Overlay visible
+  Keep playback paused
+  Keep the focused cue, Focus Anchor, cue reel position, and scrollbar position unchanged
 
-Enter or Pointer Click on Copy Cue Text:
-  Copy the exact selected cue group's full text, preserving line order
-  Close the Subtitle Focus Overlay
-  Restore the playback state captured when the overlay opened
+C in Cue Selection:
+  Copy the exact focused cue group's complete multi-line text, preserving source line order and line breaks
+  Show Subtitle Copied
+  Keep the Subtitle Focus Overlay visible
+  Keep playback paused
+  Keep the focused cue, Focus Anchor, cue reel position, and scrollbar position unchanged
 
-Enter or Pointer Click on Play From This Cue:
-  Seek to the selected cue group's start time
+Space in Cue Selection:
+  Seek to the exact focused cue group's start time
   Close the Subtitle Focus Overlay
   Begin continuous playback from that time regardless of the captured playback state
+  Show Play
 
-Escape in Action Menu:
-  Close only the menu
-  Return to Cue Selection
+Enter in Cue Selection:
+  Consume the key without performing an action
+  Do not open a menu or other action UI
+  Keep the Subtitle Focus Overlay visible
   Keep playback paused
-  Keep the selected cue, Focus Anchor, and selected cue visual style unchanged
+  Keep the focused cue, Focus Anchor, cue reel position, and scrollbar position unchanged
 
-Click Outside Action Menu:
-  Same behavior as Escape in Action Menu
+Feedback Presentation:
+  Reuse the existing playback command feedback HUD, animation, replacement behavior, and timeout
+  Render feedback in the Playback Feedback Overlay above the Subtitle Focus Overlay
+  Feedback remains noninteractive and must not intercept keyboard, wheel, or scrollbar interaction
 
 #### Overlay Dismissal
 Escape During Opening:
@@ -3588,22 +3389,34 @@ Escape During Opening:
 
 Escape in Cue Selection:
   Close the Subtitle Focus Overlay
-  Cancel any pending complete current-video cue request
+  Cancel any pending complete current-video cue request and deferred keyboard action
   Release the initial cue window, complete cue collection, and native reel layout and motion state
   Restore the playback state captured when the overlay opened
   Restore normal Playback Page keyboard and pointer interaction
 
-Dismissal After Action:
-  Complete the selected action handoff using the exact selected cue data required by the action
+Non-Dismissal After S or C:
+  Keep the Subtitle Focus Overlay visible
+  Keep the current Subtitle Focus Session and any complete current-video cue request alive
+  Keep playback paused
+  Keep the captured pre-overlay playback state for a later Escape or Space action
+  Do not release or rebuild the cue collection, Focus Anchor, native reel state, or scrollbar state
+
+Dismissal After Space:
+  Complete the seek-and-play handoff using the exact settled focused cue start time
   Close the Subtitle Focus Overlay
-  Cancel any remaining initial or complete cue request
+  Cancel any remaining initial or complete cue request and deferred keyboard action
   Release the initial cue window, complete cue collection, and native reel layout and motion state
+  Do not restore the captured pre-overlay playback state
+  Begin continuous playback from the focused cue start time
+  Keep the shared Play feedback presentation independent from Subtitle Focus state release
 
 Dismissal Stability:
-  Closing the overlay must not perform an implicit seek
+  Escape or external lifecycle dismissal must not perform an implicit seek
+  Space is the only Subtitle Focus keyboard action that performs an explicit seek during dismissal
   Closing the overlay must not resolve a new cue from current playback time
-  A dismissed or superseded Subtitle Focus Session must reject all late results
-  The captured playback state is discarded only after dismissal or action handoff completes
+  A dismissed or superseded Subtitle Focus Session must reject all late load results and deferred action dispatches
+  Closing the Subtitle Focus Overlay must not reset or recreate the existing Playback Feedback Overlay
+  The captured playback state is discarded only after Escape restoration, Space handoff, or external lifecycle dismissal completes
 
 #### Data Loading and Virtualization
 Activation:
@@ -3653,15 +3466,14 @@ Cue Reel Geometry: line count and clipping must not alter transition distance
 Keyboard / Discrete Wheel Alignment: animate the final fixed-slot target alignment
 Precise Wheel / Scrollbar Drag: follow continuous native reel offset directly
 Scrollbar Release Settlement: align only the final nearest cue slot, not every skipped cue
-Pointer Click Focus Transfer: immediate; no cue reel animation
-Reduce Motion: resolve final alignment immediately while preserving focus, selection, and continuous drag semantics
+Keyboard Action Settlement: if S, C, or Space is accepted while cue motion has an unresolved final target, complete the existing settlement first and execute once against the resulting settled focused cue
+Cue Pointer Hover / Click: no visual transition, focus transfer, selection transition, or cue reel animation
+Reduce Motion: resolve final alignment and any accepted deferred keyboard action immediately while preserving focus, selection, and continuous drag semantics
 
 #### Cursor
-Cue Text: pointer
+Cue Text: default
 Cue Reel Empty Area: default
 Scrollbar Thumb: pointer
-Action Menu Enabled Item: pointer
-Action Menu Disabled Item: default
 Overlay Background: default
 
 #### Refresh Scope
@@ -3670,40 +3482,48 @@ Owner:
 - Subtitle Focus native virtual document and fixed-slot cue geometry.
 - The active Subtitle Focus Session's initial cue window and complete current-video cue collection.
 - Table Scrollbar presentation, native clip offset, local focused-cue preview, and drag state.
-- Subtitle Focus Action Menu.
+- Subtitle Focus keyboard-action routing and immutable focused-cue action targets.
 - Captured pre-overlay playback state for the lifetime of the overlay.
 - Subtitle Focus Session generation and lifecycle cleanup.
+- The existing Playback Feedback Overlay remains playback-owned and is only invoked by Subtitle Focus keyboard actions.
 
 Allowed invalidation:
 - Enter may capture playback state, pause playback, and start one background initial-window request.
 - Initial-window completion may publish one complete overlay cue snapshot and start one complete current-video cue request.
 - Complete-cue completion may atomically publish the complete cue collection and enable scrollbar interaction.
-- Complete-cue publication must preserve the selected cue, Focus Anchor, active reel motion, and open action menu.
-- Opening and closing may update only overlay visibility, playback pause / resume command state, playback chrome visibility, keyboard focus, and dismiss monitors.
-- Cue hover may redraw only the hovered visible cue.
+- Complete-cue publication must preserve the selected cue, Focus Anchor, active reel motion, deferred keyboard-action target, and active playback feedback.
+- Opening and closing may update only overlay visibility, playback pause / resume command state, playback chrome visibility, keyboard focus, and keyboard-action routing state.
 - Keyboard and discrete-wheel navigation may update only the native reel offset, previous and new focused cue rows, and scrollbar thumb before publishing the settled cue once.
 - Precise wheel and scrollbar drag frames may update only the native reel offset, visible dirty cue rows, local focused-cue preview, and scrollbar thumb.
 - Scrollbar mouse-up may publish only one final settled cue selection.
+- S, C, or Space accepted during unresolved cue motion may first publish the existing final settled cue selection, capture its immutable action payload, and then dispatch the action once.
 - Text layout and drawing may process only viewport-visible cue slots plus overscan.
-- Menu open / close may update only the menu overlay and menu dismiss monitor.
-- Menu item hover and keyboard selection may update only the affected menu items.
-- Shiori may update only persistence for the selected cue and its local saved-state result.
-- Copy Cue Text may update only the system pasteboard.
-- Play From This Cue may update only playback seek / play state and overlay dismissal.
-- Overlay close or playback-source replacement may cancel requests and release only Subtitle Focus state.
+- S may perform one idempotent save-only Shiori command for the exact focused cue, invalidate only affected Shiori data, and publish only Shiori Saved or Shiori Already Saved to the shared playback feedback surface.
+- C may write only the exact focused cue group's complete text to the system pasteboard and publish Subtitle Copied to the shared playback feedback surface.
+- Space may update only playback seek / play state, overlay dismissal, and Play feedback.
+- Playback feedback publication may update only the existing noninteractive feedback HUD above the Subtitle Focus Overlay.
+- Overlay close or playback-source replacement may cancel requests and deferred actions and release only Subtitle Focus state.
 
 Forbidden invalidation:
 - Normal playback before Enter must not create Subtitle Focus queries, cue collections, cue views, measurements, or observable subscriptions.
 - Subtitle Focus database reads must not execute on the main thread.
 - Cue text line count, wrapping, and clipping must not change the fixed 104px slot height, 136px navigation step, or Focus Anchor position.
-- Menu open / close must not invalidate the selected cue text color, typography, geometry, or position.
-- Overlay opening, closing, cue navigation, hover, scrollbar interaction, menu interaction, and data loading must not resize, recreate, redraw, detach, or reattach Playback render host.
+- Cue text hover or click must not publish hover, selection, anchor, action, menu, playback, or cursor state.
+- Cue text pointer clicks must not pass through to the underlying Playback video surface.
+- Enter while the Subtitle Focus Overlay is visible must not open a menu, dismiss the overlay, or fall through to normal Playback Page handling.
+- Normal Playback Page S, C, and Space handlers must not also execute while Subtitle Focus keyboard-action routing is active.
+- Overlay opening, closing, cue navigation, scrollbar interaction, keyboard-action dispatch, feedback presentation, and data loading must not resize, recreate, redraw, detach, or reattach Playback render host.
 - Wheel navigation and scrollbar drag must not issue cue-window database requests.
 - Cue navigation and scrollbar interaction must not seek playback or write high-frequency playback time state.
-- Overlay-local selection, anchor, scroll, hover, menu, collection, and loading state must not be stored in SearchStore, ShioriStore, LibraryStore, or an unrelated global playback presentation store.
+- S and C must not dismiss the Subtitle Focus Overlay, resume playback, seek playback, move the cue reel, or change the focused cue.
+- S on an already saved cue must not remove the Shiori or create a duplicate.
+- Shiori execution must not rebuild a hidden Shiori presentation.
+- Keyboard-action targeting must not resolve a different cue from current playback time or a transient loaded-window index.
+- Playback feedback presentation must not intercept hit testing or alter Subtitle Focus layout, Focus Anchor, cue reel, or scrollbar geometry.
+- Overlay-local selection, anchor, scroll, deferred-action, collection, and loading state must not be stored in SearchStore, ShioriStore, LibraryStore, or an unrelated global playback presentation store.
 - Retaining the complete cue-content collection must not create View, text-layout, or draw work proportional to the complete cue count.
-- Complete-cue publication must not reset the selected cue, Focus Anchor, active motion, or open action menu.
-- A stale initial or complete result from an old Session, video source, subtitle source, or dismissed overlay must not publish.
+- Complete-cue publication must not reset the selected cue, Focus Anchor, active motion, deferred keyboard-action target, or active playback feedback.
+- A stale initial or complete result or deferred keyboard action from an old Session, video source, subtitle source, or dismissed overlay must not publish or dispatch.
 - Overlay interaction must not rebuild Search, Shiori, Library, tables, App Sidebar, App Topbar, normal playback chrome, or hidden workbench surfaces.
 
 Probe / verification:
@@ -3712,11 +3532,18 @@ Probe / verification:
 - Every cue slot remains 104px high regardless of whether its text contains 1, 2, or more lines.
 - Every one-cue keyboard navigation moves the cue reel by exactly 136px.
 - Cue text beyond two visible lines is clipped without changing cue reel geometry.
+- Cue hover and click produce no cue redraw, selection change, Focus Anchor change, action UI, playback command, or pointer-event pass-through while wheel and scrollbar navigation remain available.
+- Enter while Cue Selection is visible produces no menu, dismissal, playback command, or selection change.
+- Down followed immediately by S saves the cue that settles on the Focus Anchor, not the previously settled cue.
+- S on an unsaved focused cue keeps the overlay visible and playback paused and shows Shiori Saved above the overlay.
+- S on an already saved focused cue creates no duplicate, keeps the overlay visible and playback paused, and shows Shiori Already Saved above the overlay.
+- C copies the focused cue's complete multi-line text, keeps the overlay visible and playback paused, and shows Subtitle Copied above the overlay.
+- Space seeks to the exact focused cue start time, closes the overlay, begins continuous playback, and shows Play.
 - After complete-cue publication, retained cue count equals the current subtitle's total cue count and scrollbar interaction is enabled.
 - Increasing the virtual document to 50,000 cue groups does not increase visible-plus-overscan layout or draw count.
 - Continuous scrollbar drag updates the reel without intermediate Session selection commits; mouse-up publishes exactly one final selection.
 - Overlay close and playback-source replacement reduce retained Subtitle Focus cue count to 0.
-- Late initial or complete result publish count remains 0 during rapid video switching.
+- Late initial or complete result publish count and stale deferred-action dispatch count remain 0 during rapid video switching.
 
 ## 4. Refresh Scope Contract
 
