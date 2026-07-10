@@ -35,13 +35,45 @@ a standalone circular bottom-player button.
   implementations; map normal subtitle visibility to `Q`.
 - Add focused regression coverage and run the complete macOS-native suite.
 
+## Changes
+
+- Replaced the menu-open lifecycle with one Session-owned pending/active
+  keyboard-action state machine. An action accepted during keyboard, wheel, or
+  scrollbar motion freezes new navigation, captures the final settled cue, and
+  is consumed atomically once.
+- Routed focus-scoped `S`, `C`, and `Space` ahead of normal playback commands;
+  repeated key-down events are consumed without issuing duplicate actions and
+  Enter is consumed without opening UI.
+- Kept Shiori save and exact cue copy inside the paused focus Session. Shiori is
+  idempotent and reports saved versus already saved; copy preserves complete
+  cue text and line breaks.
+- Reused the existing continuous-play handoff for Space and added a dedicated
+  close path that does not restore the pre-focus playback state.
+- Removed the action-menu view, menu lookup state, cue hover rendering, cue hit
+  rectangles, cue click activation, and pointer cursor changes while retaining
+  native Up, Down, wheel, and scrollbar navigation.
+- Moved the existing playback feedback layer above Subtitle Focus so S/C
+  feedback remains visible without intercepting input.
+
 ## Verification
 
-- Pending implementation.
+- `swift build`
+  - Passed after the focus action, overlay, reel, and coordinator changes.
+- `swift test --filter SubtitleFocus`
+  - Passed 57 Swift Testing tests covering exact cue clipboard and Shiori
+    behavior, idempotent persistence, feedback, keyboard and native motion
+    settlement, single deferred dispatch, Down-then-S final-cue persistence,
+    Space exact-target continuous-play handoff, Session cleanup, and existing
+    virtual reel navigation.
+- `swift test --filter SegmentCompletion`
+  - Passed 11 tests, including rejection of late bounded-cue completion during
+    continuous playback.
 
 ## Outcome
 
-Pending implementation and owner end-to-end acceptance.
+The Subtitle Focus keyboard-action and pointer-removal portion is implemented.
+Normal-playback command and chrome cleanup, full-suite verification, and owner
+end-to-end acceptance remain pending.
 
 ## Follow-ups
 

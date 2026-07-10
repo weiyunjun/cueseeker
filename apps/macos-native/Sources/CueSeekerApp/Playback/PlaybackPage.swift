@@ -24,28 +24,21 @@ struct PlaybackPageView: View {
                 .allowsHitTesting(!isSubtitleFocusActive)
                 .accessibilityHidden(isSubtitleFocusActive)
 
-                // The feedback HUD is centered within the full-window black video base
-                // (doc 12 §11/§13.4). It is the SwiftUI feedback layer only;
-                // the native render/seek path is untouched.
-                if let viewModel = playback.playbackViewModel {
-                    PlaybackFeedbackLayer(viewModel: viewModel)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .allowsHitTesting(false)
-                }
-
                 if let subtitleFocusSession {
                     PlaybackSubtitleFocusLayer(
                         session: subtitleFocusSession,
-                        onOpenActionMenu:
-                            appState.openPlaybackSubtitleFocusActionMenu,
-                        onOpenSelectedActionMenu:
-                            appState.openPlaybackSubtitleFocusActionMenuFromKeyboard,
-                        onDismissActionMenu:
-                            appState.dismissPlaybackSubtitleFocusActionMenuFromUser,
                         onExecuteAction:
                             appState.executePlaybackSubtitleFocusAction
                     )
                         .frame(width: geometry.size.width, height: geometry.size.height)
+                }
+
+                // Keep command feedback above every playback-local overlay so
+                // Subtitle Focus S/C feedback remains visible while focus stays open.
+                if let viewModel = playback.playbackViewModel {
+                    PlaybackFeedbackLayer(viewModel: viewModel)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .allowsHitTesting(false)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)

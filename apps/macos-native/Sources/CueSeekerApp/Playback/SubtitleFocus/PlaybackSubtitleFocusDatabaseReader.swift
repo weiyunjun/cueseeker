@@ -42,19 +42,6 @@ actor PlaybackSubtitleFocusDatabaseReader {
         return batch
     }
 
-    func isShioriSaved(
-        context: PlaybackSubtitleFocusActionContext
-    ) throws -> Bool {
-        try Task.checkCancellation()
-        let saved = try resolvedDatabase().shiori(
-            subtitleFile: URL(fileURLWithPath: context.source.subtitlePath),
-            startMilliseconds: context.cue.startMilliseconds,
-            endMilliseconds: context.cue.endMilliseconds
-        ) != nil
-        try Task.checkCancellation()
-        return saved
-    }
-
     func saveShiori(
         context: PlaybackSubtitleFocusActionContext,
         videoName: String

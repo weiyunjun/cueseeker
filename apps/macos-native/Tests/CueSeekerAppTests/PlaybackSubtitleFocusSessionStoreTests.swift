@@ -75,7 +75,6 @@ func subtitleFocusCompleteCueBatchPublishesAfterInitialWindow() throws {
     #expect(session.cue(at: 0)?.text == "cue 0")
     #expect(session.cue(at: 19)?.text == "cue 19")
     #expect(session.currentSnapshot?.selectedOrdinal == 10)
-    #expect(session.focusAnchorY == nil)
     #expect(session.commitNativeReelSelection(ordinal: 19))
     #expect(session.currentSnapshot?.selectedOrdinal == 19)
     #expect(session.currentSnapshot?.selectedCue == complete.cues[19])
@@ -83,7 +82,7 @@ func subtitleFocusCompleteCueBatchPublishesAfterInitialWindow() throws {
 
 @MainActor
 @Test
-func subtitleFocusCompleteBatchPreservesPendingNavigationAndMenuOwnership() throws {
+func subtitleFocusCompleteBatchPreservesPendingNavigationAndKeyboardAction() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
@@ -95,6 +94,7 @@ func subtitleFocusCompleteBatchPreservesPendingNavigationAndMenuOwnership() thro
     #expect(session.requestKeyboardNavigation(.forward))
     let request = try #require(session.keyboardNavigationRequest)
     session.noteCueReelMotion(true)
+    #expect(session.requestKeyboardAction(.shiori) == .deferred)
 
     #expect(session.publishCompleteCueBatch(
         SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
@@ -103,29 +103,20 @@ func subtitleFocusCompleteBatchPreservesPendingNavigationAndMenuOwnership() thro
 
     #expect(session.currentSnapshot?.selectedOrdinal == 12)
     #expect(session.keyboardNavigationRequest == request)
+    #expect(session.pendingKeyboardAction == .shiori)
     #expect(!session.allowsNativeWheelInput())
     #expect(session.commitKeyboardNavigation(request))
     #expect(session.currentSnapshot?.selectedOrdinal == 13)
+    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
     session.noteCueReelMotion(false)
-
-    let menuSession = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: focusOpenSnapshot(wasPlaying: false),
-        sessionGeneration: 2
-    )
-    #expect(menuSession.publishInitialSnapshot(
-        focusPresentationSnapshot(),
-        token: menuSession.token
-    ))
-    let cue = try #require(menuSession.actionMenuCandidateForKeyboard())
-    #expect(menuSession.openActionMenuFromKeyboard(for: cue))
-    let menuState = try #require(menuSession.actionMenuState)
-    #expect(menuSession.publishCompleteCueBatch(
-        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
-        token: menuSession.token
-    ))
-    #expect(menuSession.currentSnapshot?.selectedOrdinal == 12)
-    #expect(menuSession.completeCueBatch?.cues.count == 20)
-    #expect(menuSession.actionMenuState == menuState)
+    let execution = try #require(session.consumeDeferredKeyboardActionIfReady())
+    #expect(execution.action == .shiori)
+    #expect(execution.context.cue.ordinal == 13)
+    #expect(execution.context.cue == session.currentSnapshot?.selectedCue)
+    #expect(session.pendingKeyboardAction == nil)
+    #expect(session.activeKeyboardAction == execution)
+    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
+    #expect(session.finishKeyboardAction(execution))
 }
 
 @MainActor
@@ -305,7 +296,7 @@ func subtitleFocusOpeningFailureRestoresOnlyOriginallyPlayingSession() throws {
 
 @MainActor
 @Test
-func subtitleFocusSessionNavigatesAvailableCuesAndPreservesPointerAnchor() throws {
+func subtitleFocusSessionNavigatesOnlyThroughReelSelection() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: true),
         sessionGeneration: 1
@@ -314,26 +305,12 @@ func subtitleFocusSessionNavigatesAvailableCuesAndPreservesPointerAnchor() throw
         focusPresentationSnapshot(),
         token: session.token
     ))
-    #expect(session.focusAnchorY == nil)
-
     #expect(session.commitNativeReelSelection(ordinal: 13))
     #expect(session.currentSnapshot?.selectedOrdinal == 13)
-    #expect(session.focusAnchorY == nil)
-
-    let clickedCue = try #require(session.cue(at: 10))
-    #expect(session.openActionMenuFromPointer(
-        for: clickedCue,
-        focusAnchorY: 224
-    ))
-    #expect(session.currentSnapshot?.selectedOrdinal == 10)
-    #expect(session.focusAnchorY == 224)
-    #expect(session.dismissActionMenu())
     #expect(session.commitNativeReelSelection(ordinal: 9))
     #expect(session.currentSnapshot?.selectedOrdinal == 9)
-    #expect(session.focusAnchorY == 224)
     #expect(!session.commitNativeReelSelection(ordinal: 5))
     #expect(session.currentSnapshot?.selectedOrdinal == 9)
-    #expect(session.focusAnchorY == 224)
 }
 
 @MainActor
@@ -383,7 +360,7 @@ func subtitleFocusSessionStopsAtDocumentAndInitialWindowBoundaries() throws {
 
 @MainActor
 @Test
-func subtitleFocusSessionCloseClearsAnchorAndRejectsNavigation() throws {
+func subtitleFocusSessionCloseClearsKeyboardActionsAndRejectsNavigation() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: true),
         sessionGeneration: 1
@@ -392,15 +369,14 @@ func subtitleFocusSessionCloseClearsAnchorAndRejectsNavigation() throws {
         focusPresentationSnapshot(),
         token: session.token
     ))
-    let clickedCue = try #require(session.cue(at: 10))
-    #expect(session.openActionMenuFromPointer(
-        for: clickedCue,
-        focusAnchorY: 224
-    ))
-    #expect(session.dismissActionMenu())
+    session.noteCueReelMotion(true)
+    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
+    #expect(session.pendingKeyboardAction == .copyCueText)
 
     #expect(session.dismissByUser() == true)
-    #expect(session.focusAnchorY == nil)
+    #expect(session.pendingKeyboardAction == nil)
+    #expect(session.activeKeyboardAction == nil)
+    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
     #expect(!session.requestKeyboardNavigation(.forward))
     #expect(!session.commitNativeReelSelection(ordinal: 11))
 }
@@ -495,7 +471,40 @@ func subtitleFocusKeyboardRepeatContinuesOnlyItsOwnNativeMotion() throws {
 
 @MainActor
 @Test
-func subtitleFocusNativeWheelCommitsBeforeDeferredMenuOpens() throws {
+func subtitleFocusImmediateKeyboardActionFreezesNavigationUntilFinished() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+
+    guard case .ready(let execution) = session.requestKeyboardAction(.shiori) else {
+        Issue.record("Expected the idle keyboard action to be ready")
+        return
+    }
+    #expect(execution.action == .shiori)
+    #expect(execution.context.cue.ordinal == 12)
+    #expect(execution.generation == 1)
+    #expect(session.activeKeyboardAction == execution)
+    #expect(session.requestKeyboardAction(.copyCueText) == .rejected)
+    #expect(!session.requestKeyboardNavigation(.forward))
+    #expect(!session.commitNativeReelSelection(ordinal: 13))
+    #expect(!session.allowsNativeWheelInput())
+    #expect(!session.allowsNativeScrollbarInput())
+
+    #expect(session.finishKeyboardAction(execution))
+    #expect(session.activeKeyboardAction == nil)
+    #expect(session.currentSnapshot?.selectedOrdinal == 12)
+    #expect(session.state != .closed)
+    #expect(session.requestKeyboardNavigation(.forward))
+}
+
+@MainActor
+@Test
+func subtitleFocusNativeWheelCommitsBeforeDeferredActionExecutesOnce() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
@@ -505,13 +514,57 @@ func subtitleFocusNativeWheelCommitsBeforeDeferredMenuOpens() throws {
         token: session.token
     ))
     session.noteCueReelMotion(true)
-    #expect(session.deferActionMenuOpenUntilNavigationCompletes())
+    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
+    #expect(session.pendingKeyboardAction == .copyCueText)
     #expect(!session.allowsNativeWheelInput())
+    #expect(!session.requestKeyboardNavigation(.forward))
 
     #expect(session.commitNativeReelSelection(ordinal: 13))
     #expect(session.currentSnapshot?.selectedOrdinal == 13)
+    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
     session.noteCueReelMotion(false)
-    #expect(session.consumeDeferredActionMenuOpen())
+    let execution = try #require(session.consumeDeferredKeyboardActionIfReady())
+    #expect(execution.action == .copyCueText)
+    #expect(execution.context.cue.ordinal == 13)
+    #expect(session.pendingKeyboardAction == nil)
+    #expect(session.activeKeyboardAction == execution)
+    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
+    #expect(session.finishKeyboardAction(execution))
+}
+
+@MainActor
+@Test
+func subtitleFocusScrollbarSettlesBeforeDeferredPlayClosesSession() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: true),
+        sessionGeneration: 1
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    session.noteScrollbarDragging(true)
+    session.noteCueReelMotion(true)
+    #expect(session.requestKeyboardAction(.playFromThisCue) == .deferred)
+
+    #expect(session.commitNativeReelSelection(ordinal: 14))
+    session.noteScrollbarDragging(false)
+    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
+    session.noteCueReelMotion(false)
+    let execution = try #require(session.consumeDeferredKeyboardActionIfReady())
+    #expect(execution.action == .playFromThisCue)
+    #expect(execution.context.cue.ordinal == 14)
+    #expect(!session.closeAfterPlay(PlaybackSubtitleFocusActionExecution(
+        action: .copyCueText,
+        context: execution.context,
+        generation: execution.generation
+    )))
+    #expect(session.closeAfterPlay(execution))
+    #expect(session.state == .closed)
+    #expect(session.pendingKeyboardAction == nil)
+    #expect(session.activeKeyboardAction == nil)
+    #expect(session.retainedCueCount == 0)
+    #expect(!session.finishKeyboardAction(execution))
 }
 
 @MainActor

@@ -411,7 +411,6 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let reducesMotion: Bool
     let isInteractionEnabled: Bool
     let cancelsWheelMotion: Bool
-    let onActivateCue: (SubtitleFocusCue, CGFloat) -> Void
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
     let allowsNativeWheelInput: () -> Bool
@@ -441,7 +440,6 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     }
 
     private func update(_ view: PlaybackSubtitleFocusReelContainerView) {
-        view.onActivateCue = onActivateCue
         view.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         view.onCommitNativeReelSelection = onCommitNativeReelSelection
         view.allowsNativeWheelInput = allowsNativeWheelInput
@@ -464,7 +462,6 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
 }
 
 final class PlaybackSubtitleFocusReelContainerView: NSView {
-    var onActivateCue: (SubtitleFocusCue, CGFloat) -> Void = { _, _ in }
     var onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool = {
         _ in false
     }
@@ -552,13 +549,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         }
         addSubview(scrollbarView)
 
-        documentView.onActivateCue = { [weak self] cue, documentY in
-            guard let self else {
-                return
-            }
-            let viewportY = documentY - self.scrollView.contentView.bounds.minY
-            self.onActivateCue(cue, viewportY)
-        }
     }
 
     @available(*, unavailable)
@@ -632,7 +622,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             suspendWheelInputForSuppression()
         }
         documentView.updateContent(cues: cues, totalCount: totalCount)
-        documentView.isInteractionEnabled = isInteractionEnabled
         updateDocumentGeometry()
         updateScrollbarPresentation()
         if !hasActiveNativeMotion {
@@ -646,7 +635,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     }
 
     func invalidate() {
-        onActivateCue = { _, _ in }
         if reportedNativeMotionActive {
             onNativeMotionGateChanged(false)
         }
@@ -841,13 +829,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             resetWheelInteraction(requiresNewGesture: true)
             isScrollbarDragging = true
             scrollbarDragStartOffsetY = scrollView.contentView.bounds.minY
-            documentView.isInteractionEnabled = false
             onScrollbarDraggingChanged(true)
             setScrollbarMotionActive(true)
         } else {
             isScrollbarDragging = false
             scrollbarDragStartOffsetY = nil
-            documentView.isInteractionEnabled = isInteractionEnabled
             onScrollbarDraggingChanged(false)
             setScrollbarMotionActive(false)
             updateScrollbarInteractionAvailability()
@@ -1267,18 +1253,6 @@ private final class PlaybackSubtitleFocusNativeScrollbarView:
 }
 
 final class PlaybackSubtitleFocusReelDocumentView: NSView {
-    var onActivateCue: (SubtitleFocusCue, CGFloat) -> Void = { _, _ in }
-    var isInteractionEnabled = true {
-        didSet {
-            guard isInteractionEnabled != oldValue else {
-                return
-            }
-            if !isInteractionEnabled {
-                updateHoveredOrdinal(nil)
-            }
-        }
-    }
-
     private let textLayout = PlaybackSubtitleFocusNativeTextLayout()
     private var layout = PlaybackSubtitleFocusVirtualReelLayout(
         viewportSize: .zero,
@@ -1289,9 +1263,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     private var firstLoadedOrdinal = 0
     private var contentIdentity: ContentIdentity?
     private var selectedOrdinal = 0
-    private var hoveredOrdinal: Int?
-    private var hitRectsByOrdinal: [Int: [CGRect]] = [:]
-    private var trackingAreaReference: NSTrackingArea?
 
     override var isFlipped: Bool {
         true
@@ -1309,8 +1280,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         contentIdentity = identity
         self.cues = cues
         firstLoadedOrdinal = cues.first?.ordinal ?? 0
-        hitRectsByOrdinal.removeAll(keepingCapacity: true)
-        updateHoveredOrdinal(nil)
         needsDisplay = true
     }
 
@@ -1322,9 +1291,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         selectedOrdinal = ordinal
         invalidateRow(previousOrdinal)
         invalidateRow(selectedOrdinal)
-        if hoveredOrdinal == selectedOrdinal {
-            updateHoveredOrdinal(nil)
-        }
     }
 
     func updateLayout(_ layout: PlaybackSubtitleFocusVirtualReelLayout) {
@@ -1332,20 +1298,12 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             return
         }
         self.layout = layout
-        hitRectsByOrdinal.removeAll(keepingCapacity: true)
         needsDisplay = true
     }
 
     func invalidate() {
-        onActivateCue = { _, _ in }
         cues.removeAll(keepingCapacity: false)
-        hitRectsByOrdinal.removeAll(keepingCapacity: false)
         contentIdentity = nil
-        updateHoveredOrdinal(nil)
-        if let trackingAreaReference {
-            removeTrackingArea(trackingAreaReference)
-            self.trackingAreaReference = nil
-        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1355,12 +1313,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         guard !visibleDirtyRect.isNull, !visibleDirtyRect.isEmpty else {
             return
         }
-        let retainedRange = layout.visibleOrdinalRange(
-            in: visibleRect,
-            overscan: 1
-        )
-        hitRectsByOrdinal = hitRectsByOrdinal.filter { retainedRange.contains($0.key) }
-
         let drawRange = layout.visibleOrdinalRange(in: visibleDirtyRect)
         for ordinal in drawRange {
             guard let cue = cue(at: ordinal) else {
@@ -1370,12 +1322,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             let color: NSColor
             if ordinal == selectedOrdinal {
                 color = PlaybackTheme.subtitleFocusCueSelectedNative
-            } else if ordinal == hoveredOrdinal {
-                color = PlaybackTheme.subtitleFocusCueHoverNative
             } else {
                 color = PlaybackTheme.subtitleFocusCueUnselectedNative
             }
-            hitRectsByOrdinal[ordinal] = textLayout.draw(
+            textLayout.draw(
                 text: cue.text,
                 color: color,
                 in: rowRect
@@ -1383,65 +1333,9 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         }
     }
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingAreaReference {
-            removeTrackingArea(trackingAreaReference)
-        }
-        let trackingArea = NSTrackingArea(
-            rect: .zero,
-            options: [
-                .activeInKeyWindow,
-                .inVisibleRect,
-                .mouseMoved,
-                .mouseEnteredAndExited,
-                .cursorUpdate,
-            ],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(trackingArea)
-        trackingAreaReference = trackingArea
-    }
-
-    override func mouseMoved(with event: NSEvent) {
-        guard isInteractionEnabled else {
-            return
-        }
-        let point = convert(event.locationInWindow, from: nil)
-        updateHoveredOrdinal(hitOrdinal(at: point))
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        updateHoveredOrdinal(nil)
-    }
-
-    override func cursorUpdate(with event: NSEvent) {
-        guard isInteractionEnabled else {
-            NSCursor.arrow.set()
-            return
-        }
-        let point = convert(event.locationInWindow, from: nil)
-        if hitOrdinal(at: point) == nil {
-            NSCursor.arrow.set()
-        } else {
-            NSCursor.pointingHand.set()
-        }
-    }
-
     override func mouseDown(with event: NSEvent) {
-        guard isInteractionEnabled,
-              event.buttonNumber == 0
-        else {
-            return
-        }
-        let point = convert(event.locationInWindow, from: nil)
-        guard let ordinal = hitOrdinal(at: point),
-              let cue = cue(at: ordinal)
-        else {
-            return
-        }
-        onActivateCue(cue, layout.rowRect(for: ordinal).minY)
+        // Cue-specific pointer activation is intentionally absent. Keep the
+        // event inside the focus overlay so it cannot reach the video surface.
     }
 
     private func cue(at ordinal: Int) -> SubtitleFocusCue? {
@@ -1450,45 +1344,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             return nil
         }
         return cues[index]
-    }
-
-    private func hitOrdinal(at point: CGPoint) -> Int? {
-        let approximateOrdinal = Int(floor(
-            (point.y - layout.focusAnchorY)
-                / PlaybackSubtitleFocusMetrics.cueSlotPitch
-        ))
-        for ordinal in (approximateOrdinal - 1)...(approximateOrdinal + 1) {
-            guard ordinal != selectedOrdinal,
-                  let hitRects = hitRectsByOrdinal[ordinal],
-                  hitRects.contains(where: { $0.contains(point) })
-            else {
-                continue
-            }
-            return ordinal
-        }
-        if let hitRects = hitRectsByOrdinal[selectedOrdinal],
-           hitRects.contains(where: { $0.contains(point) }) {
-            return selectedOrdinal
-        }
-        return nil
-    }
-
-    private func updateHoveredOrdinal(_ ordinal: Int?) {
-        let nextOrdinal = ordinal == selectedOrdinal ? nil : ordinal
-        guard hoveredOrdinal != nextOrdinal else {
-            return
-        }
-        let previousOrdinal = hoveredOrdinal
-        hoveredOrdinal = nextOrdinal
-        if let previousOrdinal {
-            invalidateRow(previousOrdinal)
-        }
-        if let nextOrdinal {
-            invalidateRow(nextOrdinal)
-            NSCursor.pointingHand.set()
-        } else {
-            NSCursor.arrow.set()
-        }
     }
 
     private func invalidateRow(_ ordinal: Int) {
@@ -1540,20 +1395,19 @@ final class PlaybackSubtitleFocusNativeTextLayout {
         text: String,
         color: NSColor,
         in rect: CGRect
-    ) -> [CGRect] {
+    ) {
         guard let glyphRange = prepare(
             text: text,
             color: color,
             in: rect
         ) else {
-            return []
+            return
         }
 
         layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: rect.origin)
-        return hitRects(for: glyphRange, in: rect)
     }
 
-    func hitRects(
+    func visibleLineRects(
         text: String,
         in rect: CGRect
     ) -> [CGRect] {

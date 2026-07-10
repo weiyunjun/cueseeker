@@ -37,17 +37,17 @@ func subtitleFocusNativeTextLayoutUsesFixedPitchAndTwoLineClip() throws {
         width: 400,
         height: PlaybackSubtitleFocusMetrics.cueSlotHeight
     )
-    let hitRects = layout.hitRects(
+    let visibleLineRects = layout.visibleLineRects(
         text: "first\nsecond\nthird",
         in: bounds
     )
 
-    #expect(hitRects.count == 2)
-    let first = try #require(hitRects.first)
-    let second = try #require(hitRects.last)
+    #expect(visibleLineRects.count == 2)
+    let first = try #require(visibleLineRects.first)
+    let second = try #require(visibleLineRects.last)
     #expect(abs((second.minY - first.minY) - 52) < 0.75)
-    #expect(hitRects.allSatisfy { bounds.contains($0) })
-    #expect(hitRects.allSatisfy { $0.maxX < bounds.maxX })
+    #expect(visibleLineRects.allSatisfy { bounds.contains($0) })
+    #expect(visibleLineRects.allSatisfy { $0.maxX < bounds.maxX })
 }
 
 @Test

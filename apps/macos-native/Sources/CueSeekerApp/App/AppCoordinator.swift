@@ -405,9 +405,7 @@ final class AppCoordinator: ObservableObject {
     var playbackSubtitleCuesTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
-    var playbackSubtitleFocusShioriLookupTask: Task<Void, Never>?
     var playbackSubtitleFocusActionTask: Task<Void, Never>?
-    var playbackSubtitleFocusShioriLookupGeneration = 0
     var playbackSubtitleFocusActionGeneration = 0
     var databaseStorageStatsTask: Task<Void, Never>?
     var databaseCompactionTask: Task<Void, Never>?

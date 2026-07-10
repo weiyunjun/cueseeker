@@ -8,7 +8,6 @@ public enum PlaybackTheme {
     // MARK: - Subtitle Focus Colors
 
     private static let subtitleFocusCueSelectedOpacity = 0.94
-    private static let subtitleFocusCueHoverOpacity = 0.62
     private static let subtitleFocusCueUnselectedOpacity = 0.34
 
     /// --color-subtitle-focus-overlay-bg
@@ -21,11 +20,6 @@ public enum PlaybackTheme {
         Color.white.opacity(subtitleFocusCueSelectedOpacity)
     }
 
-    /// --color-subtitle-focus-cue-hover
-    public static var subtitleFocusCueHover: Color {
-        Color.white.opacity(subtitleFocusCueHoverOpacity)
-    }
-
     /// --color-subtitle-focus-cue-unselected
     public static var subtitleFocusCueUnselected: Color {
         Color.white.opacity(subtitleFocusCueUnselectedOpacity)
@@ -33,9 +27,6 @@ public enum PlaybackTheme {
 
     static let subtitleFocusCueSelectedNative = NSColor.white.withAlphaComponent(
         CGFloat(subtitleFocusCueSelectedOpacity)
-    )
-    static let subtitleFocusCueHoverNative = NSColor.white.withAlphaComponent(
-        CGFloat(subtitleFocusCueHoverOpacity)
     )
     static let subtitleFocusCueUnselectedNative = NSColor.white.withAlphaComponent(
         CGFloat(subtitleFocusCueUnselectedOpacity)

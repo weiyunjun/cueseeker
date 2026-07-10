@@ -580,43 +580,33 @@ extension AppCoordinator {
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.isActionMenuOpen {
-                    _ = dismissPlaybackSubtitleFocusActionMenuFromUser()
-                    return true
-                }
-                if subtitleFocusSession.cancelDeferredActionMenuOpen() {
-                    return true
-                }
                 return dismissPlaybackSubtitleFocusFromUser()
             case 126:
-                if subtitleFocusSession.isActionMenuOpen {
-                    _ = subtitleFocusSession.moveActionMenuSelection(.backward)
-                } else {
-                    _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
-                }
+                _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
                 return true
             case 125:
-                if subtitleFocusSession.isActionMenuOpen {
-                    _ = subtitleFocusSession.moveActionMenuSelection(.forward)
-                } else {
-                    _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
-                }
+                _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
                 return true
-            case 36, 76:
+            case 1:
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.isActionMenuOpen {
-                    _ = executePlaybackSubtitleFocusAction()
-                } else if subtitleFocusSession.isActionMenuOpening {
+                _ = requestPlaybackSubtitleFocusAction(.shiori)
+                return true
+            case 8:
+                guard !isRepeat else {
                     return true
-                } else {
-                    let opened = openPlaybackSubtitleFocusActionMenuFromKeyboard()
-                    if !opened {
-                        _ = subtitleFocusSession
-                            .deferActionMenuOpenUntilNavigationCompletes()
-                    }
                 }
+                _ = requestPlaybackSubtitleFocusAction(.copyCueText)
+                return true
+            case 49:
+                guard !isRepeat else {
+                    return true
+                }
+                _ = requestPlaybackSubtitleFocusAction(.playFromThisCue)
+                return true
+            case 36, 76:
+                // Enter is intentionally consumed without opening action UI.
                 return true
             default:
                 return true
