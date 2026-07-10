@@ -68,6 +68,13 @@ remain out of scope.
     keyboard ownership cancel an active drag without a late commit. Removed the
     superseded SwiftUI scrollbar, debounce state, tests, and AppCoordinator
     entry points.
+13. Removed the superseded 30-cue cache, sequential prefetch, target-window
+    scheduler, database window reads, protected-range reporting, and old
+    SwiftUI cue, wheel, and scroll-capture paths. The Session now owns only the
+    initial ten-cue fallback and the matching current-video complete batch.
+14. Routed native cue drawing through the existing Subtitle Focus color tokens
+    and moved fixed-pitch, two-line text-layout coverage onto the active TextKit
+    renderer.
 
 ## Verification
 
@@ -91,6 +98,13 @@ remain out of scope.
     selection. Continuous fraction/offset mapping was also verified against a
     50,000-cue virtual document, with partial-to-complete enablement, stale
     keyboard ownership, and resize cancellation covered separately.
+  - Passed 65 tests after obsolete-path cleanup, including strict initial-window
+    validation, full-batch ownership races, lifecycle release, and native
+    TextKit geometry.
+- `swift test`
+  - Passed 475 Swift Testing tests and 7 XCTest tests.
+- `swift build`
+  - Passed.
 - `git diff --check`
   - Passed.
 
@@ -101,10 +115,13 @@ video read. Complete results are retained only by the matching active session,
 and the measured full read did not introduce an opening-path regression because
 it starts only after the initial presentation publishes. Rendering cost is now
 bounded by the viewport rather than the complete cue count, and the reel uses
-one immutable compact cue collection without creating a view per cue.
+one immutable compact cue collection without creating a view per cue. No
+bounded-cache or target-window frontend path remains.
 
 ## Follow-ups
 
-- Replace the SwiftUI cue stack with the AppKit virtual reel.
-- Remove the superseded bounded cache, sequential prefetch, and target-window
-  loading paths after the virtual reel owns navigation.
+- Run physical mouse, trackpad, repeated-key, and scrollbar-drag acceptance
+  checks in the app.
+- The human-owned `docs/human/design/UI.md` still contains the superseded
+  30-cue and target-window loading rules; align that text with the newer
+  requirement before treating the design document as current.

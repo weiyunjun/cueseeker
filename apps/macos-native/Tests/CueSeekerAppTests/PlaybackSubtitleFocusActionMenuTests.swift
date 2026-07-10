@@ -148,6 +148,14 @@ func subtitleFocusActionContextPreservesExactCueGroupData() {
 @Test
 func subtitleFocusSessionMenuPreservesCueAndGatesExecution() throws {
     let session = actionSession()
+    #expect(session.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(
+            totalCount: 20,
+            cues: (0..<20).map { actionCue(ordinal: $0) }
+        ),
+        token: session.token
+    ))
+    #expect(session.retainedCueCount == 20)
     let originalSnapshot = try #require(session.currentSnapshot)
 
     let cue = try #require(session.actionMenuCandidateForKeyboard())
@@ -157,7 +165,6 @@ func subtitleFocusSessionMenuPreservesCueAndGatesExecution() throws {
     #expect(session.currentSnapshot == originalSnapshot)
     #expect(session.focusAnchorY == nil)
     #expect(session.actionMenuState?.context.cue == cue)
-    #expect(!session.moveSelection(.forward))
     #expect(!session.requestKeyboardNavigation(.forward))
 
     #expect(session.moveActionMenuSelection(.forward))
@@ -216,7 +223,7 @@ func subtitleFocusDismissedMenuRejectsLateShioriLookup() throws {
 
 @MainActor
 @Test
-func subtitleFocusMenuOpeningHonorsLoadingDragWheelAndPendingBlockers() throws {
+func subtitleFocusMenuOpeningHonorsDragWheelAndPendingBlockers() throws {
     let pendingSession = actionSession()
     #expect(pendingSession.requestKeyboardNavigation(.forward))
     #expect(pendingSession.actionMenuCandidateForKeyboard() == nil)
@@ -231,11 +238,6 @@ func subtitleFocusMenuOpeningHonorsLoadingDragWheelAndPendingBlockers() throws {
     #expect(pendingSession.actionMenuCandidateForKeyboard() == nil)
     pendingSession.noteCueReelMotion(false)
     #expect(pendingSession.actionMenuCandidateForKeyboard() != nil)
-
-    let loadingSession = actionSession()
-    loadingSession.noteScrollbarPreviewChanged(ordinal: 18)
-    #expect(loadingSession.isTargetWindowLoading)
-    #expect(loadingSession.actionMenuCandidateForKeyboard() == nil)
 }
 
 @MainActor
@@ -247,10 +249,7 @@ func subtitleFocusDeferredMenuOwnsNavigationUntilOpenedOrCancelled() throws {
     #expect(session.isActionMenuOpening)
 
     #expect(!session.requestKeyboardNavigation(.forward))
-    #expect(!session.commitCachedScrollbarTarget(ordinal: 13))
-    #expect(!session.selectCue(ordinal: 13, focusAnchorY: 224))
-    session.noteScrollbarPreviewChanged(ordinal: 18)
-    #expect(!session.isTargetWindowLoading)
+    #expect(!session.commitNativeReelSelection(ordinal: 13))
     #expect(session.currentSnapshot?.selectedOrdinal == 12)
 
     #expect(session.cancelDeferredActionMenuOpen())
@@ -390,7 +389,7 @@ func subtitleFocusDeferredMenuClampsKeyboardTargetAtDocumentBoundary() async thr
         let boundarySnapshot = SubtitleFocusSnapshot(
             totalCount: 14,
             selectedOrdinal: 12,
-            cues: (6..<14).map { actionCue(ordinal: $0) }
+            cues: (4..<14).map { actionCue(ordinal: $0) }
         )
         #expect(session.publishInitialSnapshot(boundarySnapshot, token: session.token))
         #expect(session.requestKeyboardNavigation(.forward))

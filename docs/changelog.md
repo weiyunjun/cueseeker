@@ -7,11 +7,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 ## Unreleased
 
 - Replaced Playback Quick Search with the Playback Subtitle Focus experience:
-  Enter now opens the fixed-anchor dark cue reel with bounded lazy loading,
-  persistent document navigation, and exact Shiori, copy, and continuous-play
-  actions. The old search, AI chunk, result, `/back`, and `/forward` playback
-  UI and its settings entry were removed, while the durable Library, Search,
-  and Shiori playback-navigation history backend remains available.
+  Enter now presents the initial 6 + current + 3 cues, then retains the
+  complete current-video cue collection behind an AppKit virtual reel with
+  viewport-bounded drawing and native keyboard, wheel, and scrollbar motion.
+  Exact Shiori, copy, and continuous-play actions remain available. The old
+  search, AI chunk, result, `/back`, and `/forward` playback UI and its
+  settings entry were removed, while the durable Library, Search, and Shiori
+  playback-navigation history backend remains available.
 - Accepted the ASS bilingual physical ordering fix: same-timestamp ASS cue
   groups now determine their libass-like physical line order during indexing,
   so `search_content`, cue line display order, sidebar subtitles, and search

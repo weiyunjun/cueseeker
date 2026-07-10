@@ -2,6 +2,29 @@ import AppKit
 import CueSeekerCore
 import SwiftUI
 
+enum PlaybackSubtitleFocusScrollSettleDirective: Equatable {
+    case none
+    case cancel
+    case debounce
+    case immediate
+}
+
+struct PlaybackSubtitleFocusScrollSample: Equatable {
+    enum Phase: Equatable {
+        case none
+        case began
+        case changed
+        case ended
+        case cancelled
+    }
+
+    let deltaY: CGFloat
+    let isPrecise: Bool
+    let phase: Phase
+    let momentumPhase: Phase
+    let isInside: Bool
+}
+
 struct PlaybackSubtitleFocusVirtualReelLayout: Equatable {
     static let overscanCueCount = 4
 
@@ -1346,11 +1369,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             let rowRect = layout.rowRect(for: ordinal)
             let color: NSColor
             if ordinal == selectedOrdinal {
-                color = NSColor.white.withAlphaComponent(0.94)
+                color = PlaybackTheme.subtitleFocusCueSelectedNative
             } else if ordinal == hoveredOrdinal {
-                color = NSColor.white.withAlphaComponent(0.62)
+                color = PlaybackTheme.subtitleFocusCueHoverNative
             } else {
-                color = NSColor.white.withAlphaComponent(0.34)
+                color = PlaybackTheme.subtitleFocusCueUnselectedNative
             }
             hitRectsByOrdinal[ordinal] = textLayout.draw(
                 text: cue.text,
@@ -1494,7 +1517,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     }
 }
 
-private final class PlaybackSubtitleFocusNativeTextLayout {
+final class PlaybackSubtitleFocusNativeTextLayout {
     private let textStorage = NSTextStorage()
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
@@ -1518,10 +1541,40 @@ private final class PlaybackSubtitleFocusNativeTextLayout {
         color: NSColor,
         in rect: CGRect
     ) -> [CGRect] {
-        guard rect.width > 0, rect.height > 0, !text.isEmpty else {
+        guard let glyphRange = prepare(
+            text: text,
+            color: color,
+            in: rect
+        ) else {
             return []
         }
 
+        layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: rect.origin)
+        return hitRects(for: glyphRange, in: rect)
+    }
+
+    func hitRects(
+        text: String,
+        in rect: CGRect
+    ) -> [CGRect] {
+        guard let glyphRange = prepare(
+            text: text,
+            color: .white,
+            in: rect
+        ) else {
+            return []
+        }
+        return hitRects(for: glyphRange, in: rect)
+    }
+
+    private func prepare(
+        text: String,
+        color: NSColor,
+        in rect: CGRect
+    ) -> NSRange? {
+        guard rect.width > 0, rect.height > 0, !text.isEmpty else {
+            return nil
+        }
         textContainer.size = rect.size
         textStorage.beginEditing()
         textStorage.replaceCharacters(
@@ -1541,10 +1594,13 @@ private final class PlaybackSubtitleFocusNativeTextLayout {
         )
         textStorage.endEditing()
         layoutManager.ensureLayout(for: textContainer)
+        return layoutManager.glyphRange(for: textContainer)
+    }
 
-        let glyphRange = layoutManager.glyphRange(for: textContainer)
-        layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: rect.origin)
-
+    private func hitRects(
+        for glyphRange: NSRange,
+        in rect: CGRect
+    ) -> [CGRect] {
         var hitRects: [CGRect] = []
         layoutManager.enumerateLineFragments(
             forGlyphRange: glyphRange

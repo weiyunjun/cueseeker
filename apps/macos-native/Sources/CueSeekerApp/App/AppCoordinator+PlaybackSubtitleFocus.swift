@@ -80,33 +80,6 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func movePlaybackSubtitleFocusSelection(
-        _ direction: SubtitleFocusNavigationDirection
-    ) -> Bool {
-        guard let session = playback.subtitleFocusSession else {
-            return false
-        }
-        let moved = session.moveSelection(direction)
-        startPlaybackSubtitleFocusWindowLoadIfNeeded(
-            session.windowLoadRequestAfterNavigation(direction),
-            session: session
-        )
-        return moved
-    }
-
-    func notePlaybackSubtitleFocusNavigationIntent(
-        _ direction: SubtitleFocusNavigationDirection
-    ) {
-        guard let session = playback.subtitleFocusSession else {
-            return
-        }
-        startPlaybackSubtitleFocusWindowLoadIfNeeded(
-            session.windowLoadRequestAfterNavigation(direction),
-            session: session
-        )
-    }
-
-    @discardableResult
     func openPlaybackSubtitleFocusActionMenuFromKeyboard() -> Bool {
         guard let session = playback.subtitleFocusSession,
               let cue = session.actionMenuCandidateForKeyboard()
@@ -463,69 +436,6 @@ extension AppCoordinator {
         }
     }
 
-    private func startPlaybackSubtitleFocusWindowLoadIfNeeded(
-        _ request: PlaybackSubtitleFocusWindowLoadRequest?,
-        session: PlaybackSubtitleFocusSessionStore
-    ) {
-        guard let request,
-              playbackSubtitleFocusWindowLoadTask == nil,
-              playback.subtitleFocusSession === session,
-              session.isActiveWindowLoad(request)
-        else {
-            return
-        }
-
-        let databaseReader = playbackSubtitleFocusDatabaseReader
-        let subtitlePath = session.openSnapshot.source.subtitlePath
-        playbackSubtitleFocusWindowLoadTask = Task { @MainActor [weak self, weak session] in
-            guard let self, let session else {
-                return
-            }
-
-            do {
-                let batch = try await databaseReader.cueBatch(
-                    subtitlePath: subtitlePath,
-                    request: request
-                )
-                try Task.checkCancellation()
-                guard self.playback.subtitleFocusSession === session,
-                      session.isActiveWindowLoad(request)
-                else {
-                    return
-                }
-
-                self.playbackSubtitleFocusWindowLoadTask = nil
-                let nextRequest = session.completeWindowLoad(
-                    request,
-                    batch: batch
-                )
-                self.startPlaybackSubtitleFocusWindowLoadIfNeeded(
-                    nextRequest,
-                    session: session
-                )
-            } catch is CancellationError {
-                return
-            } catch {
-                guard self.playback.subtitleFocusSession === session,
-                      session.isActiveWindowLoad(request)
-                else {
-                    return
-                }
-
-                self.playbackSubtitleFocusWindowLoadTask = nil
-                print("Failed to load Playback Subtitle Focus window: \(error)")
-                let nextRequest = session.completeWindowLoad(
-                    request,
-                    batch: nil
-                )
-                self.startPlaybackSubtitleFocusWindowLoadIfNeeded(
-                    nextRequest,
-                    session: session
-                )
-            }
-        }
-    }
-
     private func finishPlaybackSubtitleFocusOpeningFailure(
         session: PlaybackSubtitleFocusSessionStore,
         token: PlaybackSubtitleFocusSessionToken,
@@ -551,8 +461,6 @@ extension AppCoordinator {
         playbackSubtitleFocusInitialLoadTask = nil
         playbackSubtitleFocusCompleteLoadTask?.cancel()
         playbackSubtitleFocusCompleteLoadTask = nil
-        playbackSubtitleFocusWindowLoadTask?.cancel()
-        playbackSubtitleFocusWindowLoadTask = nil
     }
 
 }

@@ -36,8 +36,6 @@ struct PlaybackPageView: View {
                 if let subtitleFocusSession {
                     PlaybackSubtitleFocusLayer(
                         session: subtitleFocusSession,
-                        onMoveSelection: appState.movePlaybackSubtitleFocusSelection,
-                        onNavigationIntent: appState.notePlaybackSubtitleFocusNavigationIntent,
                         onOpenActionMenu:
                             appState.openPlaybackSubtitleFocusActionMenu,
                         onOpenSelectedActionMenu:

@@ -102,30 +102,18 @@ public struct SubtitleFocusSnapshot: Equatable, Sendable {
 public struct SubtitleFocusWindowPolicy: Equatable, Sendable {
     public static let standard = SubtitleFocusWindowPolicy(
         precedingCount: 6,
-        followingCount: 3,
-        batchSize: 10,
-        maximumRetainedCount: 30,
-        prefetchThreshold: 2
+        followingCount: 3
     )
 
     public let precedingCount: Int
     public let followingCount: Int
-    public let batchSize: Int
-    public let maximumRetainedCount: Int
-    public let prefetchThreshold: Int
 
     public init(
         precedingCount: Int,
-        followingCount: Int,
-        batchSize: Int,
-        maximumRetainedCount: Int,
-        prefetchThreshold: Int
+        followingCount: Int
     ) {
         self.precedingCount = max(0, precedingCount)
         self.followingCount = max(0, followingCount)
-        self.batchSize = max(1, batchSize)
-        self.maximumRetainedCount = max(1, maximumRetainedCount)
-        self.prefetchThreshold = max(0, prefetchThreshold)
     }
 
     public var initialCount: Int {
@@ -144,175 +132,5 @@ public struct SubtitleFocusWindowPolicy: Equatable, Sendable {
         let maximumStart = boundedTotalCount - count
         let start = min(max(0, preferredStart), maximumStart)
         return start..<(start + count)
-    }
-
-    public func shouldPrefetch(
-        selectedOrdinal: Int,
-        loadedRange: Range<Int>,
-        direction: SubtitleFocusNavigationDirection
-    ) -> Bool {
-        guard !loadedRange.isEmpty, loadedRange.contains(selectedOrdinal) else {
-            return false
-        }
-
-        switch direction {
-        case .backward:
-            return selectedOrdinal - loadedRange.lowerBound <= prefetchThreshold
-        case .forward:
-            return loadedRange.upperBound - selectedOrdinal - 1 <= prefetchThreshold
-        }
-    }
-
-    public func prefetchRange(
-        totalCount: Int,
-        loadedRange: Range<Int>,
-        direction: SubtitleFocusNavigationDirection
-    ) -> Range<Int>? {
-        let boundedTotalCount = max(0, totalCount)
-        switch direction {
-        case .backward:
-            guard loadedRange.lowerBound > 0 else {
-                return nil
-            }
-            let end = min(loadedRange.lowerBound, boundedTotalCount)
-            return max(0, end - batchSize)..<end
-        case .forward:
-            let start = min(max(0, loadedRange.upperBound), boundedTotalCount)
-            guard start < boundedTotalCount else {
-                return nil
-            }
-            return start..<min(boundedTotalCount, start + batchSize)
-        }
-    }
-}
-
-public struct SubtitleFocusCueCache: Equatable, Sendable {
-    public let policy: SubtitleFocusWindowPolicy
-    private var cuesByOrdinal: [Int: SubtitleFocusCue]
-
-    public init(policy: SubtitleFocusWindowPolicy = .standard) {
-        self.policy = policy
-        cuesByOrdinal = [:]
-    }
-
-    public var count: Int {
-        cuesByOrdinal.count
-    }
-
-    public var cues: [SubtitleFocusCue] {
-        cuesByOrdinal.values.sorted { lhs, rhs in
-            if lhs.ordinal == rhs.ordinal {
-                return lhs.id < rhs.id
-            }
-            return lhs.ordinal < rhs.ordinal
-        }
-    }
-
-    public var ordinalRange: Range<Int>? {
-        SubtitleFocusCueBatch(totalCount: count, cues: cues).ordinalRange
-    }
-
-    public subscript(ordinal: Int) -> SubtitleFocusCue? {
-        cuesByOrdinal[ordinal]
-    }
-
-    public mutating func replace(with batch: SubtitleFocusCueBatch) {
-        cuesByOrdinal = Dictionary(
-            batch.cues.prefix(policy.maximumRetainedCount).map { ($0.ordinal, $0) },
-            uniquingKeysWith: { _, replacement in replacement }
-        )
-    }
-
-    @discardableResult
-    public mutating func merge(
-        _ batch: SubtitleFocusCueBatch,
-        direction: SubtitleFocusNavigationDirection
-    ) -> [Int] {
-        for cue in batch.cues {
-            cuesByOrdinal[cue.ordinal] = cue
-        }
-
-        guard cuesByOrdinal.count > policy.maximumRetainedCount else {
-            return []
-        }
-
-        let candidates = cuesByOrdinal.keys.sorted { lhs, rhs in
-            switch direction {
-            case .backward:
-                return lhs > rhs
-            case .forward:
-                return lhs < rhs
-            }
-        }
-        let overflowCount = cuesByOrdinal.count - policy.maximumRetainedCount
-        let removalCount = min(
-            candidates.count,
-            max(overflowCount, policy.batchSize)
-        )
-        let removedOrdinals = Array(candidates.prefix(removalCount))
-        for ordinal in removedOrdinals {
-            cuesByOrdinal.removeValue(forKey: ordinal)
-        }
-        return removedOrdinals
-    }
-
-    public mutating func removeAll() {
-        cuesByOrdinal.removeAll(keepingCapacity: false)
-    }
-}
-
-public struct SubtitleFocusRequestToken: Equatable, Sendable {
-    public let source: SubtitleFocusSourceIdentity
-    public let sessionGeneration: Int
-    public let requestGeneration: Int
-    public let targetOrdinal: Int
-}
-
-public struct SubtitleFocusRequestGate: Equatable, Sendable {
-    public let source: SubtitleFocusSourceIdentity
-    public let sessionGeneration: Int
-    public private(set) var latestRequestGeneration: Int
-    public private(set) var isActive: Bool
-
-    public init(
-        source: SubtitleFocusSourceIdentity,
-        sessionGeneration: Int
-    ) {
-        self.source = source
-        self.sessionGeneration = sessionGeneration
-        latestRequestGeneration = 0
-        isActive = true
-    }
-
-    public mutating func issueRequest(targetOrdinal: Int) -> SubtitleFocusRequestToken? {
-        guard isActive else {
-            return nil
-        }
-        latestRequestGeneration += 1
-        return SubtitleFocusRequestToken(
-            source: source,
-            sessionGeneration: sessionGeneration,
-            requestGeneration: latestRequestGeneration,
-            targetOrdinal: max(0, targetOrdinal)
-        )
-    }
-
-    public func accepts(_ token: SubtitleFocusRequestToken) -> Bool {
-        isActive
-            && token.source == source
-            && token.sessionGeneration == sessionGeneration
-            && token.requestGeneration == latestRequestGeneration
-    }
-
-    public mutating func supersedeRequests() {
-        guard isActive else {
-            return
-        }
-        latestRequestGeneration += 1
-    }
-
-    public mutating func invalidate() {
-        isActive = false
-        latestRequestGeneration += 1
     }
 }

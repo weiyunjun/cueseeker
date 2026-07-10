@@ -7,6 +7,10 @@ public enum PlaybackTheme {
 
     // MARK: - Subtitle Focus Colors
 
+    private static let subtitleFocusCueSelectedOpacity = 0.94
+    private static let subtitleFocusCueHoverOpacity = 0.62
+    private static let subtitleFocusCueUnselectedOpacity = 0.34
+
     /// --color-subtitle-focus-overlay-bg
     public static var subtitleFocusOverlayBackground: Color {
         Color(red: 36 / 255, green: 36 / 255, blue: 38 / 255)
@@ -14,18 +18,28 @@ public enum PlaybackTheme {
 
     /// --color-subtitle-focus-cue-selected
     public static var subtitleFocusCueSelected: Color {
-        Color.white.opacity(0.94)
+        Color.white.opacity(subtitleFocusCueSelectedOpacity)
     }
 
     /// --color-subtitle-focus-cue-hover
     public static var subtitleFocusCueHover: Color {
-        Color.white.opacity(0.62)
+        Color.white.opacity(subtitleFocusCueHoverOpacity)
     }
 
     /// --color-subtitle-focus-cue-unselected
     public static var subtitleFocusCueUnselected: Color {
-        Color.white.opacity(0.34)
+        Color.white.opacity(subtitleFocusCueUnselectedOpacity)
     }
+
+    static let subtitleFocusCueSelectedNative = NSColor.white.withAlphaComponent(
+        CGFloat(subtitleFocusCueSelectedOpacity)
+    )
+    static let subtitleFocusCueHoverNative = NSColor.white.withAlphaComponent(
+        CGFloat(subtitleFocusCueHoverOpacity)
+    )
+    static let subtitleFocusCueUnselectedNative = NSColor.white.withAlphaComponent(
+        CGFloat(subtitleFocusCueUnselectedOpacity)
+    )
 
     // MARK: - Player Chrome Colors
 
@@ -191,88 +205,6 @@ enum PlaybackSubtitleFocusMetrics {
         reducesMotion: Bool
     ) -> TimeInterval {
         reducesMotion ? 0 : reelTransitionDuration
-    }
-    /// --easing-subtitle-focus-scroll: cubic-bezier(0.22, 1, 0.36, 1)
-    static var reelTransitionAnimation: Animation {
-        .timingCurve(
-            0.22,
-            1,
-            0.36,
-            1,
-            duration: reelTransitionDuration
-        )
-    }
-
-    static func reelHeight(cueCount: Int) -> CGFloat {
-        let count = max(0, cueCount)
-        guard count > 0 else {
-            return 0
-        }
-        return CGFloat(count) * cueSlotHeight + CGFloat(count - 1) * cueGap
-    }
-
-    static func reelOffset(
-        viewportHeight: CGFloat,
-        cueCount: Int,
-        selectedIndex: Int
-    ) -> CGFloat {
-        let height = max(0, viewportHeight)
-        let count = max(0, cueCount)
-        guard height > 0, count > 0 else {
-            return 0
-        }
-
-        let boundedSelectedIndex = min(max(0, selectedIndex), count - 1)
-        let preferredOffset = height / 2 - CGFloat(boundedSelectedIndex) * cueSlotPitch
-        let remainingSpace = height - reelHeight(cueCount: count)
-        let minimumOffset = min(0, remainingSpace)
-        let maximumOffset = max(0, remainingSpace)
-        return min(max(preferredOffset, minimumOffset), maximumOffset)
-    }
-
-    static func loadedReelOffset(
-        viewportHeight: CGFloat,
-        totalCount: Int,
-        selectedOrdinal: Int,
-        loadedStartOrdinal: Int
-    ) -> CGFloat {
-        reelOffset(
-            viewportHeight: viewportHeight,
-            cueCount: totalCount,
-            selectedIndex: selectedOrdinal
-        ) + CGFloat(max(0, loadedStartOrdinal)) * cueSlotPitch
-    }
-
-    static func initialFocusAnchorY(
-        stageHeight: CGFloat,
-        totalCount: Int,
-        selectedOrdinal: Int
-    ) -> CGFloat {
-        let count = max(0, totalCount)
-        guard count > 0 else {
-            return contentInset
-        }
-
-        let boundedSelectedOrdinal = min(max(0, selectedOrdinal), count - 1)
-        let viewportHeight = max(0, stageHeight - contentInset * 2)
-        return contentInset
-            + reelOffset(
-                viewportHeight: viewportHeight,
-                cueCount: count,
-                selectedIndex: boundedSelectedOrdinal
-            )
-            + CGFloat(boundedSelectedOrdinal) * cueSlotPitch
-    }
-
-    static func anchoredLoadedReelOffset(
-        focusAnchorY: CGFloat,
-        selectedOrdinal: Int,
-        loadedStartOrdinal: Int
-    ) -> CGFloat {
-        focusAnchorY
-            - contentInset
-            - CGFloat(max(0, selectedOrdinal)) * cueSlotPitch
-            + CGFloat(max(0, loadedStartOrdinal)) * cueSlotPitch
     }
 }
 

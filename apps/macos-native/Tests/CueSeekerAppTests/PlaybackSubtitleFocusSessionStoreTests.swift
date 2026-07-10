@@ -62,8 +62,7 @@ func subtitleFocusCompleteCueBatchPublishesAfterInitialWindow() throws {
     #expect(session.publishInitialSnapshot(initial, token: session.token))
     #expect(session.completeCueLoadTotalCount == 20)
 
-    let anchorY: CGFloat = 224
-    #expect(session.selectCue(ordinal: 10, focusAnchorY: anchorY))
+    #expect(session.commitNativeReelSelection(ordinal: 10))
     let complete = SubtitleFocusCueBatch(
         totalCount: 20,
         cues: focusCues(0..<20)
@@ -76,19 +75,15 @@ func subtitleFocusCompleteCueBatchPublishesAfterInitialWindow() throws {
     #expect(session.cue(at: 0)?.text == "cue 0")
     #expect(session.cue(at: 19)?.text == "cue 19")
     #expect(session.currentSnapshot?.selectedOrdinal == 10)
-    #expect(session.focusAnchorY == anchorY)
-    #expect(session.windowLoadRequestAfterNavigation(.forward) == nil)
-
-    session.noteScrollbarPreviewChanged(ordinal: 19)
-    #expect(!session.isTargetWindowLoading)
-    #expect(session.commitCachedScrollbarTarget(ordinal: 19))
+    #expect(session.focusAnchorY == nil)
+    #expect(session.commitNativeReelSelection(ordinal: 19))
     #expect(session.currentSnapshot?.selectedOrdinal == 19)
     #expect(session.currentSnapshot?.selectedCue == complete.cues[19])
 }
 
 @MainActor
 @Test
-func subtitleFocusCompleteBatchCommitsPendingFinalScrollbarTarget() throws {
+func subtitleFocusCompleteBatchPreservesPendingNavigationAndMenuOwnership() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
@@ -97,32 +92,9 @@ func subtitleFocusCompleteBatchCommitsPendingFinalScrollbarTarget() throws {
         focusPresentationSnapshot(),
         token: session.token
     ))
-    session.noteScrollbarPreviewChanged(ordinal: 18)
-    #expect(session.isTargetWindowLoading)
-
-    #expect(session.publishCompleteCueBatch(
-        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
-        token: session.token
-    ))
-
-    #expect(session.currentSnapshot?.selectedOrdinal == 18)
-    #expect(!session.isTargetWindowLoading)
-}
-
-@MainActor
-@Test
-func subtitleFocusCompleteBatchPreservesActiveScrollbarPreviewUntilMouseUp() throws {
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: focusOpenSnapshot(wasPlaying: false),
-        sessionGeneration: 1
-    )
-    #expect(session.publishInitialSnapshot(
-        focusPresentationSnapshot(),
-        token: session.token
-    ))
-    session.noteScrollbarDragging(true)
-    session.noteScrollbarPreviewChanged(ordinal: 18)
-    let resolutionGeneration = session.targetWindowState.resolutionGeneration
+    #expect(session.requestKeyboardNavigation(.forward))
+    let request = try #require(session.keyboardNavigationRequest)
+    session.noteCueReelMotion(true)
 
     #expect(session.publishCompleteCueBatch(
         SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
@@ -130,14 +102,30 @@ func subtitleFocusCompleteBatchPreservesActiveScrollbarPreviewUntilMouseUp() thr
     ))
 
     #expect(session.currentSnapshot?.selectedOrdinal == 12)
-    #expect(!session.isTargetWindowLoading)
-    #expect(
-        session.targetWindowState.resolutionGeneration
-            == resolutionGeneration
+    #expect(session.keyboardNavigationRequest == request)
+    #expect(!session.allowsNativeWheelInput())
+    #expect(session.commitKeyboardNavigation(request))
+    #expect(session.currentSnapshot?.selectedOrdinal == 13)
+    session.noteCueReelMotion(false)
+
+    let menuSession = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 2
     )
-    session.noteScrollbarDragging(false)
-    #expect(session.commitCachedScrollbarTarget(ordinal: 18))
-    #expect(session.currentSnapshot?.selectedOrdinal == 18)
+    #expect(menuSession.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: menuSession.token
+    ))
+    let cue = try #require(menuSession.actionMenuCandidateForKeyboard())
+    #expect(menuSession.openActionMenuFromKeyboard(for: cue))
+    let menuState = try #require(menuSession.actionMenuState)
+    #expect(menuSession.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
+        token: menuSession.token
+    ))
+    #expect(menuSession.currentSnapshot?.selectedOrdinal == 12)
+    #expect(menuSession.completeCueBatch?.cues.count == 20)
+    #expect(menuSession.actionMenuState == menuState)
 }
 
 @MainActor
@@ -160,8 +148,24 @@ func subtitleFocusCompleteCueBatchRejectsMalformedAndLateResults() throws {
         totalCount: 20,
         cues: focusCues(0..<19)
     )
+    var mismatchedCues = focusCues(0..<20)
+    mismatchedCues[12] = SubtitleFocusCue(
+        id: 13,
+        ordinal: 12,
+        startMilliseconds: 12_000,
+        endMilliseconds: 12_900,
+        lines: ["changed cue"]
+    )
+    let mismatchedInitialCue = SubtitleFocusCueBatch(
+        totalCount: 20,
+        cues: mismatchedCues
+    )
     #expect(!session.publishCompleteCueBatch(wrongTotal, token: session.token))
     #expect(!session.publishCompleteCueBatch(missingCue, token: session.token))
+    #expect(!session.publishCompleteCueBatch(
+        mismatchedInitialCue,
+        token: session.token
+    ))
     #expect(session.retainedCueCount == 10)
 
     let token = session.token
@@ -170,6 +174,27 @@ func subtitleFocusCompleteCueBatchRejectsMalformedAndLateResults() throws {
         SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
         token: token
     ))
+    #expect(session.retainedCueCount == 0)
+}
+
+@MainActor
+@Test
+func subtitleFocusInitialSnapshotRequiresCompleteExpectedWindow() {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    let partialSnapshot = SubtitleFocusSnapshot(
+        totalCount: 20,
+        selectedOrdinal: 12,
+        cues: focusCues(7..<16)
+    )
+
+    #expect(!session.publishInitialSnapshot(
+        partialSnapshot,
+        token: session.token
+    ))
+    #expect(session.state == .opening)
     #expect(session.retainedCueCount == 0)
 }
 
@@ -227,13 +252,21 @@ func subtitleFocusSessionRejectsStaleGenerationAndSource() throws {
         focusPresentationSnapshot(),
         token: otherSourceToken
     ))
-    #expect(secondSession.state == .opening)
-    #expect(secondSession.retainedCueCount == 0)
+    #expect(secondSession.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: secondSession.token
+    ))
+    #expect(!secondSession.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
+        token: firstToken
+    ))
+    #expect(secondSession.completeCueBatch == nil)
+    #expect(secondSession.retainedCueCount == 10)
 }
 
 @MainActor
 @Test
-func subtitleFocusDismissalReturnsCapturedPlaybackDecisionAndClearsCache() throws {
+func subtitleFocusDismissalReturnsCapturedPlaybackDecisionAndReleasesCues() throws {
     let playback = PlaybackStore(userDefaults: .standard)
     let session = try #require(playback.beginSubtitleFocusSession(
         openSnapshot: focusOpenSnapshot(wasPlaying: true)
@@ -272,7 +305,7 @@ func subtitleFocusOpeningFailureRestoresOnlyOriginallyPlayingSession() throws {
 
 @MainActor
 @Test
-func subtitleFocusSessionNavigatesCachedCuesAndPreservesFocusAnchor() throws {
+func subtitleFocusSessionNavigatesAvailableCuesAndPreservesPointerAnchor() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: true),
         sessionGeneration: 1
@@ -281,34 +314,31 @@ func subtitleFocusSessionNavigatesCachedCuesAndPreservesFocusAnchor() throws {
         focusPresentationSnapshot(),
         token: session.token
     ))
-    #expect(session.initialSelectedOrdinal == 12)
     #expect(session.focusAnchorY == nil)
-    #expect(session.canMoveSelection(.backward))
-    #expect(session.canMoveSelection(.forward))
 
-    #expect(session.moveSelection(.forward))
+    #expect(session.commitNativeReelSelection(ordinal: 13))
     #expect(session.currentSnapshot?.selectedOrdinal == 13)
-    #expect(session.initialSelectedOrdinal == 12)
     #expect(session.focusAnchorY == nil)
 
-    #expect(session.selectCue(ordinal: 10, focusAnchorY: 224))
+    let clickedCue = try #require(session.cue(at: 10))
+    #expect(session.openActionMenuFromPointer(
+        for: clickedCue,
+        focusAnchorY: 224
+    ))
     #expect(session.currentSnapshot?.selectedOrdinal == 10)
     #expect(session.focusAnchorY == 224)
-    #expect(session.selectCue(ordinal: 10, focusAnchorY: 999))
-    #expect(session.focusAnchorY == 224)
-
-    #expect(session.moveSelection(.backward))
+    #expect(session.dismissActionMenu())
+    #expect(session.commitNativeReelSelection(ordinal: 9))
     #expect(session.currentSnapshot?.selectedOrdinal == 9)
     #expect(session.focusAnchorY == 224)
-    #expect(!session.selectCue(ordinal: 5, focusAnchorY: 88))
-    #expect(!session.selectCue(ordinal: 11, focusAnchorY: .nan))
+    #expect(!session.commitNativeReelSelection(ordinal: 5))
     #expect(session.currentSnapshot?.selectedOrdinal == 9)
     #expect(session.focusAnchorY == 224)
 }
 
 @MainActor
 @Test
-func subtitleFocusSessionStopsAtDocumentAndCacheBoundaries() throws {
+func subtitleFocusSessionStopsAtDocumentAndInitialWindowBoundaries() throws {
     let firstSession = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
@@ -319,23 +349,22 @@ func subtitleFocusSessionStopsAtDocumentAndCacheBoundaries() throws {
         cues: focusCues(0..<10)
     )
     #expect(firstSession.publishInitialSnapshot(firstSnapshot, token: firstSession.token))
-    #expect(!firstSession.canMoveSelection(.backward))
-    #expect(!firstSession.moveSelection(.backward))
+    #expect(!firstSession.requestKeyboardNavigation(.backward))
+    #expect(!firstSession.commitNativeReelSelection(ordinal: -1))
     #expect(firstSession.currentSnapshot?.selectedOrdinal == 0)
 
-    let cacheEndSession = PlaybackSubtitleFocusSessionStore(
+    let initialWindowEndSession = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 2
     )
-    let cacheEndSnapshot = SubtitleFocusSnapshot(
-        totalCount: 20,
-        selectedOrdinal: 9,
-        cues: focusCues(0..<10)
-    )
-    #expect(cacheEndSession.publishInitialSnapshot(cacheEndSnapshot, token: cacheEndSession.token))
-    #expect(!cacheEndSession.canMoveSelection(.forward))
-    #expect(!cacheEndSession.moveSelection(.forward))
-    #expect(cacheEndSession.currentSnapshot?.selectedOrdinal == 9)
+    #expect(initialWindowEndSession.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: initialWindowEndSession.token
+    ))
+    #expect(initialWindowEndSession.commitNativeReelSelection(ordinal: 15))
+    #expect(!initialWindowEndSession.requestKeyboardNavigation(.forward))
+    #expect(!initialWindowEndSession.commitNativeReelSelection(ordinal: 16))
+    #expect(initialWindowEndSession.currentSnapshot?.selectedOrdinal == 15)
 
     let lastSession = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
@@ -347,8 +376,8 @@ func subtitleFocusSessionStopsAtDocumentAndCacheBoundaries() throws {
         cues: focusCues(10..<20)
     )
     #expect(lastSession.publishInitialSnapshot(lastSnapshot, token: lastSession.token))
-    #expect(!lastSession.canMoveSelection(.forward))
-    #expect(!lastSession.moveSelection(.forward))
+    #expect(!lastSession.requestKeyboardNavigation(.forward))
+    #expect(!lastSession.commitNativeReelSelection(ordinal: 20))
     #expect(lastSession.currentSnapshot?.selectedOrdinal == 19)
 }
 
@@ -363,14 +392,17 @@ func subtitleFocusSessionCloseClearsAnchorAndRejectsNavigation() throws {
         focusPresentationSnapshot(),
         token: session.token
     ))
-    #expect(session.selectCue(ordinal: 10, focusAnchorY: 224))
+    let clickedCue = try #require(session.cue(at: 10))
+    #expect(session.openActionMenuFromPointer(
+        for: clickedCue,
+        focusAnchorY: 224
+    ))
+    #expect(session.dismissActionMenu())
 
     #expect(session.dismissByUser() == true)
-    #expect(session.initialSelectedOrdinal == nil)
     #expect(session.focusAnchorY == nil)
-    #expect(!session.canMoveSelection(.forward))
-    #expect(!session.moveSelection(.forward))
-    #expect(!session.selectCue(ordinal: 11, focusAnchorY: 360))
+    #expect(!session.requestKeyboardNavigation(.forward))
+    #expect(!session.commitNativeReelSelection(ordinal: 11))
 }
 
 @MainActor
@@ -459,18 +491,6 @@ func subtitleFocusKeyboardRepeatContinuesOnlyItsOwnNativeMotion() throws {
     keyboardSession.noteCueReelMotion(true)
     #expect(keyboardSession.requestKeyboardNavigation(.forward))
     #expect(keyboardSession.keyboardNavigationRequest?.targetOrdinal == 14)
-
-    let targetLoadingSession = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: focusOpenSnapshot(wasPlaying: false),
-        sessionGeneration: 3
-    )
-    #expect(targetLoadingSession.publishInitialSnapshot(
-        focusPresentationSnapshot(),
-        token: targetLoadingSession.token
-    ))
-    targetLoadingSession.noteScrollbarPreviewChanged(ordinal: 18)
-    #expect(targetLoadingSession.isTargetWindowLoading)
-    #expect(!targetLoadingSession.allowsNativeWheelInput())
 }
 
 @MainActor
@@ -524,7 +544,7 @@ func subtitleFocusOverlayCommitsKeyboardTargetQueuedBeforeMount() throws {
 
 @MainActor
 @Test
-func playbackSourceReplacementReleasesSubtitleFocusSessionAndCache() async throws {
+func playbackSourceReplacementReleasesCompleteSubtitleFocusCollection() async throws {
     let suiteName = "CueSeekerSubtitleFocusLifecycleTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
@@ -547,7 +567,11 @@ func playbackSourceReplacementReleasesSubtitleFocusSessionAndCache() async throw
         focusPresentationSnapshot(),
         token: session.token
     ))
-    #expect(session.retainedCueCount == 10)
+    #expect(session.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
+        token: session.token
+    ))
+    #expect(session.retainedCueCount == 20)
 
     app.invalidatePlaybackSubtitleFocusForSourceReplacement()
 

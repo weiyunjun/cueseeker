@@ -1,64 +1,8 @@
-import AppKit
 import CueSeekerCore
 import SwiftUI
 
-enum PlaybackSubtitleFocusTargetCommitMotion {
-    static func insertionOffset(
-        for direction: SubtitleFocusNavigationDirection
-    ) -> CGFloat {
-        direction == .backward
-            ? -PlaybackSubtitleFocusMetrics.cueSlotPitch
-            : PlaybackSubtitleFocusMetrics.cueSlotPitch
-    }
-}
-
-enum PlaybackSubtitleFocusProtectedRange {
-    static func resolve(
-        loadedOrdinals: [Int],
-        selectedOrdinal: Int,
-        focusAnchorY: CGFloat,
-        viewportMinY: CGFloat,
-        viewportMaxY: CGFloat,
-        presentationTranslation: CGFloat
-    ) -> Range<Int>? {
-        guard let loadedFirst = loadedOrdinals.first,
-              let loadedLast = loadedOrdinals.last,
-              viewportMaxY > viewportMinY
-        else {
-            return nil
-        }
-
-        let visibleOrdinals = loadedOrdinals.filter { ordinal in
-            let cueTop = focusAnchorY
-                + presentationTranslation
-                + CGFloat(ordinal - selectedOrdinal)
-                    * PlaybackSubtitleFocusMetrics.cueSlotPitch
-            let cueBottom = cueTop + PlaybackSubtitleFocusMetrics.cueSlotHeight
-            return cueTop < viewportMaxY && cueBottom > viewportMinY
-        }
-        guard let visibleFirst = visibleOrdinals.first,
-              let visibleLast = visibleOrdinals.last
-        else {
-            guard loadedOrdinals.contains(selectedOrdinal) else {
-                return nil
-            }
-            return max(loadedFirst, selectedOrdinal - 2)..<min(
-                loadedLast + 1,
-                selectedOrdinal + 3
-            )
-        }
-
-        return max(loadedFirst, visibleFirst - 2)..<min(
-            loadedLast + 1,
-            visibleLast + 3
-        )
-    }
-}
-
 struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
-    let onMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
-    let onNavigationIntent: (SubtitleFocusNavigationDirection) -> Void
     let onOpenActionMenu: (SubtitleFocusCue, CGFloat) -> Bool
     let onOpenSelectedActionMenu: () -> Bool
     let onDismissActionMenu: () -> Bool
@@ -66,16 +10,12 @@ struct PlaybackSubtitleFocusLayer: View {
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
-        onMoveSelection: ((SubtitleFocusNavigationDirection) -> Bool)? = nil,
-        onNavigationIntent: ((SubtitleFocusNavigationDirection) -> Void)? = nil,
         onOpenActionMenu: ((SubtitleFocusCue, CGFloat) -> Bool)? = nil,
         onOpenSelectedActionMenu: (() -> Bool)? = nil,
         onDismissActionMenu: (() -> Bool)? = nil,
         onExecuteAction: ((PlaybackSubtitleFocusAction) -> Bool)? = nil
     ) {
         self.session = session
-        self.onMoveSelection = onMoveSelection ?? session.moveSelection
-        self.onNavigationIntent = onNavigationIntent ?? { _ in }
         self.onOpenActionMenu = onOpenActionMenu ?? { cue, focusAnchorY in
             session.openActionMenuFromPointer(
                 for: cue,
@@ -107,15 +47,10 @@ struct PlaybackSubtitleFocusLayer: View {
             PlaybackSubtitleFocusOverlay(
                 snapshot: snapshot,
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
-                initialSelectedOrdinal: session.initialSelectedOrdinal,
                 focusAnchorY: session.focusAnchorY,
                 keyboardNavigationRequest: session.keyboardNavigationRequest,
-                targetWindowState: session.targetWindowState,
-                targetWindowCommit: session.targetWindowCommit,
                 actionMenuState: session.actionMenuState,
                 isActionMenuOpening: session.isActionMenuOpening,
-                onProtectedVisibleRangeChanged:
-                    session.updateProtectedVisibleOrdinalRange,
                 onCommitKeyboardNavigation:
                     session.commitKeyboardNavigation,
                 onCommitNativeReelSelection:
@@ -126,9 +61,6 @@ struct PlaybackSubtitleFocusLayer: View {
                     session.allowsNativeScrollbarInput,
                 consumeDeferredActionMenuOpen:
                     session.consumeDeferredActionMenuOpen,
-                canMoveSelection: session.canMoveSelection,
-                onMoveSelection: onMoveSelection,
-                onNavigationIntent: onNavigationIntent,
                 onScrollbarDraggingChanged: session.noteScrollbarDragging,
                 onCueReelMotionChanged: session.noteCueReelMotion,
                 onOpenActionMenu: onOpenActionMenu,
@@ -144,22 +76,15 @@ struct PlaybackSubtitleFocusLayer: View {
 struct PlaybackSubtitleFocusOverlay: View {
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
-    let initialSelectedOrdinal: Int?
     let focusAnchorY: CGFloat?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
-    let targetWindowState: PlaybackSubtitleFocusTargetWindowState
-    let targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit?
     let actionMenuState: PlaybackSubtitleFocusActionMenuState?
     let isActionMenuOpening: Bool
-    let onProtectedVisibleRangeChanged: (Range<Int>?) -> Void
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let consumeDeferredActionMenuOpen: () -> Bool
-    let canMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
-    let onMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
-    let onNavigationIntent: (SubtitleFocusNavigationDirection) -> Void
     let onScrollbarDraggingChanged: (Bool) -> Void
     let onCueReelMotionChanged: (Bool) -> Void
     let onOpenActionMenu: (SubtitleFocusCue, CGFloat) -> Bool
@@ -170,19 +95,14 @@ struct PlaybackSubtitleFocusOverlay: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isCueReelMotionActive = false
-    @State private var cueReelMotionTask: Task<Void, Never>?
 
     init(
         snapshot: SubtitleFocusSnapshot,
         cues: [SubtitleFocusCue]? = nil,
-        initialSelectedOrdinal: Int? = nil,
         focusAnchorY: CGFloat? = nil,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
-        targetWindowState: PlaybackSubtitleFocusTargetWindowState = .idle,
-        targetWindowCommit: PlaybackSubtitleFocusTargetWindowCommit? = nil,
         actionMenuState: PlaybackSubtitleFocusActionMenuState? = nil,
         isActionMenuOpening: Bool = false,
-        onProtectedVisibleRangeChanged: @escaping (Range<Int>?) -> Void = { _ in },
         onCommitKeyboardNavigation: @escaping (
             PlaybackSubtitleFocusKeyboardNavigationRequest
         ) -> Bool = { _ in false },
@@ -190,9 +110,6 @@ struct PlaybackSubtitleFocusOverlay: View {
         allowsNativeWheelInput: @escaping () -> Bool = { false },
         allowsNativeScrollbarInput: @escaping () -> Bool = { false },
         consumeDeferredActionMenuOpen: @escaping () -> Bool = { false },
-        canMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
-        onMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
-        onNavigationIntent: @escaping (SubtitleFocusNavigationDirection) -> Void = { _ in },
         onScrollbarDraggingChanged: @escaping (Bool) -> Void = { _ in },
         onCueReelMotionChanged: @escaping (Bool) -> Void = { _ in },
         onOpenActionMenu: @escaping (SubtitleFocusCue, CGFloat) -> Bool = { _, _ in false },
@@ -203,22 +120,15 @@ struct PlaybackSubtitleFocusOverlay: View {
     ) {
         self.snapshot = snapshot
         self.cues = cues ?? snapshot.cues
-        self.initialSelectedOrdinal = initialSelectedOrdinal
         self.focusAnchorY = focusAnchorY
         self.keyboardNavigationRequest = keyboardNavigationRequest
-        self.targetWindowState = targetWindowState
-        self.targetWindowCommit = targetWindowCommit
         self.actionMenuState = actionMenuState
         self.isActionMenuOpening = isActionMenuOpening
-        self.onProtectedVisibleRangeChanged = onProtectedVisibleRangeChanged
         self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         self.onCommitNativeReelSelection = onCommitNativeReelSelection
         self.allowsNativeWheelInput = allowsNativeWheelInput
         self.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         self.consumeDeferredActionMenuOpen = consumeDeferredActionMenuOpen
-        self.canMoveSelection = canMoveSelection
-        self.onMoveSelection = onMoveSelection
-        self.onNavigationIntent = onNavigationIntent
         self.onScrollbarDraggingChanged = onScrollbarDraggingChanged
         self.onCueReelMotionChanged = onCueReelMotionChanged
         self.onOpenActionMenu = onOpenActionMenu
@@ -244,14 +154,6 @@ struct PlaybackSubtitleFocusOverlay: View {
             )
             let resolvedFocusAnchorY = focusAnchorY
                 ?? viewportSize.height / 2
-            let protectedVisibleRange = PlaybackSubtitleFocusProtectedRange.resolve(
-                loadedOrdinals: snapshot.cues.map(\.ordinal),
-                selectedOrdinal: snapshot.selectedOrdinal,
-                focusAnchorY: resolvedFocusAnchorY,
-                viewportMinY: PlaybackSubtitleFocusMetrics.contentInset,
-                viewportMaxY: viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset,
-                presentationTranslation: 0
-            )
             let blocksNavigation = actionMenuState != nil
                 || isActionMenuOpening
                 || keyboardNavigationRequest != nil
@@ -301,11 +203,6 @@ struct PlaybackSubtitleFocusOverlay: View {
                 .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
                 .allowsHitTesting(!blocksNavigation)
 
-                PlaybackSubtitleFocusProtectedRangeReporter(
-                    range: protectedVisibleRange,
-                    onChange: onProtectedVisibleRangeChanged
-                )
-
                 if let actionMenuState {
                     Color.clear
                         .contentShape(Rectangle())
@@ -346,24 +243,13 @@ struct PlaybackSubtitleFocusOverlay: View {
             .environment(\.colorScheme, .dark)
         }
         .onDisappear {
-            cueReelMotionTask?.cancel()
-            cueReelMotionTask = nil
             updateCueReelMotion(false)
         }
         .onChange(of: actionMenuState?.generation) { generation in
             guard generation != nil else {
                 return
             }
-            cueReelMotionTask?.cancel()
-            cueReelMotionTask = nil
             updateCueReelMotion(false)
-        }
-        .onChange(of: targetWindowCommit?.sequence) { sequence in
-            guard sequence != nil, actionMenuState == nil else {
-                return
-            }
-            beginCueReelMotion()
-            finishCueReelMotionAfterAnimation()
         }
     }
 
@@ -373,7 +259,6 @@ struct PlaybackSubtitleFocusOverlay: View {
     ) {
         guard actionMenuState == nil,
               !isActionMenuOpening,
-              !targetWindowState.isLoading,
               !isCueReelMotionActive
         else {
             return
@@ -385,42 +270,12 @@ struct PlaybackSubtitleFocusOverlay: View {
     }
 
     private func beginCueReelMotion() {
-        cueReelMotionTask?.cancel()
-        cueReelMotionTask = nil
         updateCueReelMotion(true)
-    }
-
-    private func finishCueReelMotionAfterAnimation(
-        opensDeferredMenu: Bool = true
-    ) {
-        cueReelMotionTask?.cancel()
-        guard !reduceMotion else {
-            finishCueReelMotionImmediately(
-                opensDeferredMenu: opensDeferredMenu
-            )
-            return
-        }
-        cueReelMotionTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(
-                PlaybackSubtitleFocusMetrics.reelTransitionDuration
-                    * 1_000_000_000
-            ))
-            guard !Task.isCancelled else {
-                return
-            }
-            cueReelMotionTask = nil
-            updateCueReelMotion(false)
-            if opensDeferredMenu {
-                openDeferredActionMenuIfReady()
-            }
-        }
     }
 
     private func finishCueReelMotionImmediately(
         opensDeferredMenu: Bool = true
     ) {
-        cueReelMotionTask?.cancel()
-        cueReelMotionTask = nil
         updateCueReelMotion(false)
         if opensDeferredMenu {
             openDeferredActionMenuIfReady()
@@ -442,471 +297,5 @@ struct PlaybackSubtitleFocusOverlay: View {
             return
         }
         _ = onOpenSelectedActionMenu()
-    }
-}
-
-private struct PlaybackSubtitleFocusProtectedRangeReporter: View {
-    let range: Range<Int>?
-    let onChange: (Range<Int>?) -> Void
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .allowsHitTesting(false)
-            .onAppear {
-                onChange(range)
-            }
-            .onChange(of: range) { nextRange in
-                onChange(nextRange)
-            }
-            .onDisappear {
-                onChange(nil)
-            }
-    }
-}
-
-private struct PlaybackSubtitleFocusCue: View {
-    let cue: SubtitleFocusCue
-    let isSelected: Bool
-    let onClick: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        PlaybackSubtitleFocusCueText(
-            text: cue.text,
-            isSelected: isSelected,
-            isHovered: isHovered
-        )
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(
-            height: PlaybackSubtitleFocusMetrics.cueSlotHeight,
-            alignment: .topLeading
-        )
-        .clipped()
-        .contentShape(PlaybackSubtitleFocusCueHitShape(text: cue.text))
-        .onTapGesture(perform: onClick)
-        .onHover { isInside in
-            isHovered = !isSelected && isInside
-            if isInside {
-                NSCursor.pointingHand.set()
-            } else {
-                NSCursor.arrow.set()
-            }
-        }
-        .accessibilityLabel(cue.text)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .onChange(of: isSelected) { selected in
-            if selected {
-                isHovered = false
-            }
-        }
-    }
-}
-
-struct PlaybackSubtitleFocusCueText: View {
-    let text: String
-    let isSelected: Bool
-    var isHovered = false
-
-    var body: some View {
-        Text(text)
-            .font(.system(
-                size: PlaybackSubtitleFocusMetrics.cueFontSize,
-                weight: .semibold
-            ))
-            .lineSpacing(PlaybackSubtitleFocusMetrics.cueLineSpacing)
-            .foregroundStyle(cueColor)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var cueColor: Color {
-        if isSelected {
-            return PlaybackTheme.subtitleFocusCueSelected
-        }
-        if isHovered {
-            return PlaybackTheme.subtitleFocusCueHover
-        }
-        return PlaybackTheme.subtitleFocusCueUnselected
-    }
-}
-
-struct PlaybackSubtitleFocusWheelAccumulator: Equatable {
-    private(set) var translation: CGFloat = 0
-
-    mutating func apply(
-        deltaY: CGFloat,
-        canMoveSelection: (SubtitleFocusNavigationDirection) -> Bool,
-        moveSelection: (SubtitleFocusNavigationDirection) -> Bool
-    ) {
-        guard deltaY.isFinite, deltaY != 0 else {
-            return
-        }
-
-        translation += deltaY
-
-        if translation > 0, !canMoveSelection(.backward) {
-            translation = 0
-            return
-        }
-        if translation < 0, !canMoveSelection(.forward) {
-            translation = 0
-            return
-        }
-
-        while translation >= PlaybackSubtitleFocusMetrics.cueSlotPitch {
-            guard moveSelection(.backward) else {
-                translation = 0
-                return
-            }
-            translation -= PlaybackSubtitleFocusMetrics.cueSlotPitch
-        }
-        while translation <= -PlaybackSubtitleFocusMetrics.cueSlotPitch {
-            guard moveSelection(.forward) else {
-                translation = 0
-                return
-            }
-            translation += PlaybackSubtitleFocusMetrics.cueSlotPitch
-        }
-    }
-
-    mutating func prepareToSettle(
-        canMoveSelection: (SubtitleFocusNavigationDirection) -> Bool,
-        moveSelection: (SubtitleFocusNavigationDirection) -> Bool
-    ) {
-        let threshold = PlaybackSubtitleFocusMetrics.cueSlotPitch / 2
-        let direction: SubtitleFocusNavigationDirection?
-        if translation >= threshold {
-            direction = .backward
-        } else if translation <= -threshold {
-            direction = .forward
-        } else {
-            direction = nil
-        }
-
-        guard let direction,
-              canMoveSelection(direction),
-              moveSelection(direction)
-        else {
-            return
-        }
-
-        switch direction {
-        case .backward:
-            translation -= PlaybackSubtitleFocusMetrics.cueSlotPitch
-        case .forward:
-            translation += PlaybackSubtitleFocusMetrics.cueSlotPitch
-        }
-    }
-
-    mutating func finishSettling() {
-        translation = 0
-    }
-}
-
-final class PlaybackSubtitleFocusReelPresentation {
-    var offset: CGFloat?
-}
-
-struct PlaybackSubtitleFocusReelOffsetEffect: GeometryEffect {
-    var offset: CGFloat
-    let presentation: PlaybackSubtitleFocusReelPresentation
-
-    var animatableData: CGFloat {
-        get { offset }
-        set { offset = newValue }
-    }
-
-    func effectValue(size: CGSize) -> ProjectionTransform {
-        presentation.offset = offset
-        return ProjectionTransform(CGAffineTransform(translationX: 0, y: offset))
-    }
-}
-
-struct PlaybackSubtitleFocusCueHitShape: Shape {
-    let text: String
-
-    func path(in rect: CGRect) -> Path {
-        guard rect.width > 0, rect.height > 0, !text.isEmpty else {
-            return Path()
-        }
-
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineSpacing = PlaybackSubtitleFocusMetrics.cueLineSpacing
-        paragraphStyle.lineBreakMode = .byWordWrapping
-        let textStorage = NSTextStorage(
-            string: text,
-            attributes: [
-                .font: NSFont.systemFont(
-                    ofSize: PlaybackSubtitleFocusMetrics.cueFontSize,
-                    weight: .semibold
-                ),
-                .paragraphStyle: paragraphStyle,
-            ]
-        )
-        let layoutManager = NSLayoutManager()
-        layoutManager.usesFontLeading = true
-        let textContainer = NSTextContainer(
-            size: CGSize(width: rect.width, height: .greatestFiniteMagnitude)
-        )
-        textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = 2
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-        layoutManager.ensureLayout(for: textContainer)
-
-        var result = Path()
-        let glyphRange = layoutManager.glyphRange(for: textContainer)
-        layoutManager.enumerateLineFragments(
-            forGlyphRange: glyphRange
-        ) { _, usedRect, _, _, stop in
-            guard usedRect.minY < rect.height else {
-                stop.pointee = true
-                return
-            }
-            let visibleRect = usedRect.intersection(
-                CGRect(origin: .zero, size: rect.size)
-            )
-            if !visibleRect.isNull, visibleRect.width > 0, visibleRect.height > 0 {
-                result.addRect(visibleRect)
-            }
-        }
-        return result
-    }
-}
-
-enum PlaybackSubtitleFocusScrollSettleDirective: Equatable {
-    case none
-    case cancel
-    case debounce
-    case immediate
-}
-
-struct PlaybackSubtitleFocusScrollOutput: Equatable {
-    let shouldConsume: Bool
-    let deltaY: CGFloat
-    let settleDirective: PlaybackSubtitleFocusScrollSettleDirective
-
-    static let passThrough = PlaybackSubtitleFocusScrollOutput(
-        shouldConsume: false,
-        deltaY: 0,
-        settleDirective: .none
-    )
-
-    static let consumedNoop = PlaybackSubtitleFocusScrollOutput(
-        shouldConsume: true,
-        deltaY: 0,
-        settleDirective: .none
-    )
-}
-
-struct PlaybackSubtitleFocusScrollSample: Equatable {
-    enum Phase: Equatable {
-        case none
-        case began
-        case changed
-        case ended
-        case cancelled
-    }
-
-    let deltaY: CGFloat
-    let isPrecise: Bool
-    let phase: Phase
-    let momentumPhase: Phase
-    let isInside: Bool
-}
-
-struct PlaybackSubtitleFocusScrollSequence: Equatable {
-    private var ownsSequence = false
-    private var awaitsMomentum = false
-    private var requiresNewGesture = false
-
-    mutating func consume(
-        _ sample: PlaybackSubtitleFocusScrollSample
-    ) -> PlaybackSubtitleFocusScrollOutput {
-        let isLegacyWheel = sample.phase == .none && sample.momentumPhase == .none
-        if requiresNewGesture {
-            if isLegacyWheel || sample.phase == .began {
-                requiresNewGesture = false
-            } else {
-                return .consumedNoop
-            }
-        }
-        if isLegacyWheel {
-            guard sample.isInside else {
-                return .passThrough
-            }
-            return output(for: sample, settleDirective: .debounce)
-        }
-
-        if sample.phase == .began {
-            ownsSequence = sample.isInside
-            awaitsMomentum = false
-        } else if sample.momentumPhase == .began, awaitsMomentum {
-            ownsSequence = true
-            awaitsMomentum = false
-        } else if !ownsSequence, !awaitsMomentum, sample.phase == .changed {
-            ownsSequence = sample.isInside
-        }
-
-        guard ownsSequence else {
-            return .passThrough
-        }
-
-        if sample.phase == .cancelled || sample.momentumPhase == .cancelled {
-            ownsSequence = false
-            awaitsMomentum = false
-            return output(for: sample, settleDirective: .immediate)
-        }
-        if sample.momentumPhase == .ended {
-            ownsSequence = false
-            awaitsMomentum = false
-            return output(for: sample, settleDirective: .immediate)
-        }
-        if sample.phase == .ended {
-            ownsSequence = false
-            awaitsMomentum = true
-            return output(for: sample, settleDirective: .debounce)
-        }
-        if sample.momentumPhase == .began {
-            return output(for: sample, settleDirective: .cancel)
-        }
-        return output(for: sample, settleDirective: .debounce)
-    }
-
-    mutating func reset(requiresNewGesture: Bool = false) {
-        ownsSequence = false
-        awaitsMomentum = false
-        self.requiresNewGesture = requiresNewGesture
-    }
-
-    private func output(
-        for sample: PlaybackSubtitleFocusScrollSample,
-        settleDirective: PlaybackSubtitleFocusScrollSettleDirective
-    ) -> PlaybackSubtitleFocusScrollOutput {
-        PlaybackSubtitleFocusScrollOutput(
-            shouldConsume: true,
-            deltaY: sample.isPrecise
-                ? sample.deltaY
-                : sample.deltaY * PlaybackSubtitleFocusMetrics.cueSlotPitch,
-            settleDirective: settleDirective
-        )
-    }
-}
-
-private struct PlaybackSubtitleFocusScrollCapture: NSViewRepresentable {
-    let suppressesNavigation: Bool
-    let onScroll: (PlaybackSubtitleFocusScrollOutput) -> Void
-
-    func makeNSView(context: Context) -> PlaybackSubtitleFocusScrollCaptureView {
-        let view = PlaybackSubtitleFocusScrollCaptureView()
-        view.suppressesNavigation = suppressesNavigation
-        view.onScroll = onScroll
-        return view
-    }
-
-    func updateNSView(
-        _ nsView: PlaybackSubtitleFocusScrollCaptureView,
-        context: Context
-    ) {
-        nsView.suppressesNavigation = suppressesNavigation
-        nsView.onScroll = onScroll
-    }
-
-    static func dismantleNSView(
-        _ nsView: PlaybackSubtitleFocusScrollCaptureView,
-        coordinator: Void
-    ) {
-        nsView.invalidate()
-    }
-}
-
-private final class PlaybackSubtitleFocusScrollCaptureView: NSView {
-    var onScroll: (PlaybackSubtitleFocusScrollOutput) -> Void = { _ in }
-    var suppressesNavigation = false {
-        didSet {
-            guard suppressesNavigation != oldValue else {
-                return
-            }
-            sequence.reset(requiresNewGesture: true)
-        }
-    }
-
-    nonisolated(unsafe) private var eventMonitor: Any?
-    private var sequence = PlaybackSubtitleFocusScrollSequence()
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window == nil {
-            invalidate()
-        } else {
-            installMonitorIfNeeded()
-        }
-    }
-
-    func invalidate() {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
-            self.eventMonitor = nil
-        }
-        sequence.reset()
-    }
-
-    deinit {
-        if let eventMonitor {
-            NSEvent.removeMonitor(eventMonitor)
-        }
-    }
-
-    private func installMonitorIfNeeded() {
-        guard eventMonitor == nil else {
-            return
-        }
-        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self,
-                  let window = self.window,
-                  event.window === window
-            else {
-                return event
-            }
-            guard !self.suppressesNavigation else {
-                self.sequence.reset(requiresNewGesture: true)
-                return nil
-            }
-
-            let point = self.convert(event.locationInWindow, from: nil)
-            let sample = PlaybackSubtitleFocusScrollSample(
-                deltaY: event.scrollingDeltaY,
-                isPrecise: event.hasPreciseScrollingDeltas,
-                phase: Self.phase(from: event.phase),
-                momentumPhase: Self.phase(from: event.momentumPhase),
-                isInside: self.bounds.contains(point)
-            )
-            let output = self.sequence.consume(sample)
-            guard output.shouldConsume else {
-                return event
-            }
-            self.onScroll(output)
-            return nil
-        }
-    }
-
-    private static func phase(from phase: NSEvent.Phase) -> PlaybackSubtitleFocusScrollSample.Phase {
-        if phase.contains(.began) {
-            return .began
-        }
-        if phase.contains(.changed) || phase.contains(.mayBegin) || phase.contains(.stationary) {
-            return .changed
-        }
-        if phase.contains(.ended) {
-            return .ended
-        }
-        if phase.contains(.cancelled) {
-            return .cancelled
-        }
-        return .none
     }
 }
