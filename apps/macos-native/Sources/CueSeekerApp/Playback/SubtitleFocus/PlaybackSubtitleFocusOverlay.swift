@@ -116,6 +116,7 @@ struct PlaybackSubtitleFocusLayer: View {
         case .cueSelection(let snapshot):
             PlaybackSubtitleFocusOverlay(
                 snapshot: snapshot,
+                cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 initialSelectedOrdinal: session.initialSelectedOrdinal,
                 focusAnchorY: session.focusAnchorY,
                 keyboardNavigationRequest: session.keyboardNavigationRequest,
@@ -150,6 +151,7 @@ struct PlaybackSubtitleFocusLayer: View {
 
 struct PlaybackSubtitleFocusOverlay: View {
     let snapshot: SubtitleFocusSnapshot
+    let cues: [SubtitleFocusCue]
     let initialSelectedOrdinal: Int?
     let focusAnchorY: CGFloat?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
@@ -180,10 +182,10 @@ struct PlaybackSubtitleFocusOverlay: View {
     @State private var wheelSettleTask: Task<Void, Never>?
     @State private var isCueReelMotionActive = false
     @State private var cueReelMotionTask: Task<Void, Never>?
-    @State private var reelPresentation = PlaybackSubtitleFocusReelPresentation()
 
     init(
         snapshot: SubtitleFocusSnapshot,
+        cues: [SubtitleFocusCue]? = nil,
         initialSelectedOrdinal: Int? = nil,
         focusAnchorY: CGFloat? = nil,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
@@ -211,6 +213,7 @@ struct PlaybackSubtitleFocusOverlay: View {
         onExecuteAction: @escaping (PlaybackSubtitleFocusAction) -> Bool = { _ in false }
     ) {
         self.snapshot = snapshot
+        self.cues = cues ?? snapshot.cues
         self.initialSelectedOrdinal = initialSelectedOrdinal
         self.focusAnchorY = focusAnchorY
         self.keyboardNavigationRequest = keyboardNavigationRequest
@@ -251,22 +254,8 @@ struct PlaybackSubtitleFocusOverlay: View {
                 0,
                 viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset * 2
             )
-            let loadedStartOrdinal = snapshot.cues.first?.ordinal ?? 0
             let resolvedFocusAnchorY = focusAnchorY
-                ?? PlaybackSubtitleFocusMetrics.initialFocusAnchorY(
-                    stageHeight: viewportSize.height,
-                    totalCount: snapshot.totalCount,
-                    selectedOrdinal: initialSelectedOrdinal ?? snapshot.selectedOrdinal
-                )
-            let reelOffset = PlaybackSubtitleFocusMetrics.anchoredLoadedReelOffset(
-                focusAnchorY: resolvedFocusAnchorY,
-                selectedOrdinal: snapshot.selectedOrdinal,
-                loadedStartOrdinal: loadedStartOrdinal
-            )
-            let targetCommitSequence = targetWindowCommit?.sequence ?? 0
-            let targetCommitOffset = PlaybackSubtitleFocusTargetCommitMotion.insertionOffset(
-                for: targetWindowCommit?.direction ?? .forward
-            )
+                ?? viewportSize.height / 2
             let protectedVisibleRange = PlaybackSubtitleFocusProtectedRange.resolve(
                 loadedOrdinals: snapshot.cues.map(\.ordinal),
                 selectedOrdinal: snapshot.selectedOrdinal,
@@ -280,47 +269,28 @@ struct PlaybackSubtitleFocusOverlay: View {
             ZStack(alignment: .top) {
                 PlaybackTheme.subtitleFocusOverlayBackground
 
-                ZStack(alignment: .topLeading) {
-                    VStack(alignment: .leading, spacing: PlaybackSubtitleFocusMetrics.cueGap) {
-                        ForEach(snapshot.cues) { cue in
-                            PlaybackSubtitleFocusCue(
-                                cue: cue,
-                                isSelected: cue.ordinal == snapshot.selectedOrdinal,
-                                onClick: {
-                                    let clickedAnchorY = PlaybackSubtitleFocusMetrics.contentInset
-                                        + (reelPresentation.offset
-                                            ?? reelOffset + wheelAccumulator.translation)
-                                        + CGFloat(cue.ordinal - loadedStartOrdinal)
-                                            * PlaybackSubtitleFocusMetrics.cueSlotPitch
-                                    openActionMenu(
-                                        cue,
-                                        focusAnchorY: clickedAnchorY
-                                    )
-                                }
-                            )
-                        }
+                PlaybackSubtitleFocusReelRepresentable(
+                    cues: cues,
+                    totalCount: snapshot.totalCount,
+                    selectedOrdinal: snapshot.selectedOrdinal,
+                    focusAnchorY: max(
+                        0,
+                        resolvedFocusAnchorY - PlaybackSubtitleFocusMetrics.contentInset
+                    ),
+                    presentationTranslation: wheelAccumulator.translation,
+                    isInteractionEnabled: !suppressesNavigation,
+                    onActivateCue: { cue, viewportY in
+                        openActionMenu(
+                            cue,
+                            focusAnchorY: PlaybackSubtitleFocusMetrics.contentInset + viewportY
+                        )
                     }
-                    .frame(width: contentWidth, alignment: .topLeading)
-                    .id(targetCommitSequence)
-                    .transition(.asymmetric(
-                        insertion: .offset(y: targetCommitOffset),
-                        removal: .offset(y: -targetCommitOffset)
-                    ))
-                    .modifier(PlaybackSubtitleFocusReelOffsetEffect(
-                        offset: reelOffset + wheelAccumulator.translation,
-                        presentation: reelPresentation
-                    ))
-                }
-                .animation(
-                    reduceMotion ? nil : PlaybackSubtitleFocusMetrics.reelTransitionAnimation,
-                    value: targetCommitSequence
                 )
                 .frame(
-                    width: contentWidth,
+                    width: viewportSize.width,
                     height: cueViewportHeight,
-                    alignment: .topLeading
+                    alignment: .top
                 )
-                .clipped()
                 .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
                 .allowsHitTesting(!suppressesNavigation)
 

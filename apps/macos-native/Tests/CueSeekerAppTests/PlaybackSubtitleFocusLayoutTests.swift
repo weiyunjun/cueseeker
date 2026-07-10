@@ -19,6 +19,57 @@ func subtitleFocusMetricsMatchDocumentedFixedGeometry() {
 }
 
 @Test
+func subtitleFocusVirtualReelUsesViewportPaddingForDocumentHeight() {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 20,
+        focusAnchorY: 328
+    )
+
+    #expect(layout.documentSize == CGSize(width: 1_280, height: 3_240))
+    #expect(layout.maximumContentOffsetY == 2_584)
+    #expect(layout.contentWidth == 960)
+}
+
+@Test
+func subtitleFocusVirtualReelAlignsFirstAndLastCueToOneAnchor() {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 20,
+        focusAnchorY: 328
+    )
+
+    let firstScreenY = layout.rowRect(for: 0).minY
+        - layout.contentOffsetY(for: 0)
+    let lastScreenY = layout.rowRect(for: 19).minY
+        - layout.contentOffsetY(for: 19)
+
+    #expect(firstScreenY == 328)
+    #expect(lastScreenY == 328)
+}
+
+@Test
+func subtitleFocusVirtualReelVisibleRangeIsIndependentOfTotalCount() {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 50_000,
+        focusAnchorY: 328
+    )
+    let targetOffset = layout.contentOffsetY(for: 25_000)
+    let visibleRange = layout.visibleOrdinalRange(
+        in: CGRect(
+            x: 0,
+            y: targetOffset,
+            width: 1_280,
+            height: 656
+        )
+    )
+
+    #expect(visibleRange.contains(25_000))
+    #expect(visibleRange.count <= 15)
+}
+
+@Test
 func subtitleFocusSelectedCueAlignsToCenterWhenBoundariesAllow() {
     let stageHeight: CGFloat = 720
     let viewportHeight = stageHeight - PlaybackSubtitleFocusMetrics.contentInset * 2
