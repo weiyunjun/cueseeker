@@ -31,6 +31,10 @@ remain out of scope.
    activation are handled locally and invalidate only the affected rows.
 7. Reused one TextKit layout stack for visible cue drawing instead of creating
    one layout graph per cue view.
+8. Corrected the transition boundary so complete-collection selection and
+   scrollbar checks no longer consult the superseded bounded cache. Preserved
+   negative row-top anchors for partially visible cues so pointer activation
+   cannot shift the reel.
 
 ## Verification
 
@@ -40,6 +44,8 @@ remain out of scope.
   - Passed 86 tests after the virtual-reel step.
   - Verified that first and last cues resolve to the same anchor and that a
     50,000-cue document still computes at most 15 visible-plus-overscan cues.
+  - Passed 87 tests after complete-collection selection and negative-anchor
+    boundary corrections.
 - `git diff --check`
   - Passed.
 

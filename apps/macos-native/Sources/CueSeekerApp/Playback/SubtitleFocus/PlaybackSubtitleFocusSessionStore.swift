@@ -279,11 +279,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             : snapshot.selectedOrdinal + 1
         return targetOrdinal >= 0
             && targetOrdinal < snapshot.totalCount
-            && cueCache[targetOrdinal] != nil
+            && cue(at: targetOrdinal) != nil
     }
 
     func isCueCached(ordinal: Int) -> Bool {
-        cueCache[ordinal] != nil
+        cue(at: ordinal) != nil
     }
 
     func updateProtectedVisibleOrdinalRange(_ range: Range<Int>?) {
@@ -358,7 +358,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return
         }
         loadScheduler.supersede()
-        if cueCache[ordinal] == nil {
+        if cue(at: ordinal) == nil {
             pendingScrollbarPreviewOrdinal = ordinal
             guard targetWindowState.loadingTargetOrdinal == nil else {
                 return
@@ -411,7 +411,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard actionMenuState == nil,
               !isActionMenuOpening,
               currentSnapshot != nil,
-              cueCache[ordinal] != nil
+              cue(at: ordinal) != nil
         else {
             return false
         }
@@ -528,7 +528,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard canOpenActionMenu(requiresEmptyKeyboardQueue: false) else {
             return false
         }
-        return cueCache[cue.ordinal] == cue
+        return self.cue(at: cue.ordinal) == cue
     }
 
     var actionMenuShioriLookupRequest: PlaybackSubtitleFocusShioriLookupRequest? {
@@ -754,7 +754,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard let snapshot = currentSnapshot,
               ordinal >= 0,
               ordinal < snapshot.totalCount,
-              cueCache[ordinal] != nil
+              cue(at: ordinal) != nil
         else {
             return false
         }
@@ -762,10 +762,20 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         if let nextFocusAnchorY {
             focusAnchorY = nextFocusAnchorY
         }
+        let cues: [SubtitleFocusCue]
+        if let completeCueBatch {
+            let range = SubtitleFocusWindowPolicy.standard.windowRange(
+                totalCount: snapshot.totalCount,
+                selectedOrdinal: ordinal
+            )
+            cues = Array(completeCueBatch.cues[range])
+        } else {
+            cues = cueCache.cues
+        }
         state = .cueSelection(SubtitleFocusSnapshot(
             totalCount: snapshot.totalCount,
             selectedOrdinal: ordinal,
-            cues: cueCache.cues
+            cues: cues
         ))
         return true
     }

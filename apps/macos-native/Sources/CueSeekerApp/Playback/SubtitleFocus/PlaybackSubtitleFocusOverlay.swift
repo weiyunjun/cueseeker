@@ -273,10 +273,8 @@ struct PlaybackSubtitleFocusOverlay: View {
                     cues: cues,
                     totalCount: snapshot.totalCount,
                     selectedOrdinal: snapshot.selectedOrdinal,
-                    focusAnchorY: max(
-                        0,
-                        resolvedFocusAnchorY - PlaybackSubtitleFocusMetrics.contentInset
-                    ),
+                    focusAnchorY: resolvedFocusAnchorY
+                        - PlaybackSubtitleFocusMetrics.contentInset,
                     presentationTranslation: wheelAccumulator.translation,
                     isInteractionEnabled: !suppressesNavigation,
                     onActivateCue: { cue, viewportY in

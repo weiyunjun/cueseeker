@@ -49,6 +49,21 @@ func subtitleFocusVirtualReelAlignsFirstAndLastCueToOneAnchor() {
 }
 
 @Test
+func subtitleFocusVirtualReelPreservesPartiallyVisibleNegativeAnchor() {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 20,
+        focusAnchorY: -24
+    )
+
+    #expect(layout.focusAnchorY == -24)
+    #expect(
+        layout.rowRect(for: 8).minY - layout.contentOffsetY(for: 8)
+            == -24
+    )
+}
+
+@Test
 func subtitleFocusVirtualReelVisibleRangeIsIndependentOfTotalCount() {
     let layout = PlaybackSubtitleFocusVirtualReelLayout(
         viewportSize: CGSize(width: 1_280, height: 656),

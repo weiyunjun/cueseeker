@@ -78,6 +78,12 @@ func subtitleFocusCompleteCueBatchPublishesAfterInitialWindow() throws {
     #expect(session.currentSnapshot?.selectedOrdinal == 10)
     #expect(session.focusAnchorY == anchorY)
     #expect(session.windowLoadRequestAfterNavigation(.forward) == nil)
+
+    session.noteScrollbarPreviewChanged(ordinal: 19)
+    #expect(!session.isTargetWindowLoading)
+    #expect(session.commitCachedScrollbarTarget(ordinal: 19))
+    #expect(session.currentSnapshot?.selectedOrdinal == 19)
+    #expect(session.currentSnapshot?.selectedCue == complete.cues[19])
 }
 
 @MainActor

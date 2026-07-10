@@ -19,7 +19,7 @@ struct PlaybackSubtitleFocusVirtualReelLayout: Equatable {
             height: max(0, viewportSize.height)
         )
         self.totalCount = max(0, totalCount)
-        self.focusAnchorY = max(0, focusAnchorY)
+        self.focusAnchorY = focusAnchorY.isFinite ? focusAnchorY : 0
     }
 
     var documentSize: CGSize {
@@ -197,7 +197,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             max(0, selectedOrdinal),
             max(0, totalCount - 1)
         )
-        self.focusAnchorY = max(0, focusAnchorY)
+        self.focusAnchorY = focusAnchorY.isFinite ? focusAnchorY : 0
         self.presentationTranslation = presentationTranslation.isFinite
             ? presentationTranslation
             : 0
