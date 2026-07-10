@@ -119,6 +119,38 @@ struct PlaybackSubtitleFocusVirtualReelLayout: Equatable {
     }
 }
 
+struct PlaybackSubtitleFocusNativeScrollbarMetrics: Equatable {
+    let layout: PlaybackSubtitleFocusVirtualReelLayout
+    let contentOffsetY: CGFloat
+
+    var presentation: TableScrollbarPresentation {
+        guard layout.totalCount > 0 else {
+            return TableScrollbarPresentation()
+        }
+        let documentHeight = layout.documentSize.height
+        let viewportHeight = layout.viewportSize.height
+        let maximumOffset = layout.maximumContentOffsetY
+        let boundedOffset = min(max(0, contentOffsetY), maximumOffset)
+        return TableScrollbarPresentation(
+            vertical: TableScrollbarAxisPresentation(
+                visibleFraction: documentHeight > 0
+                    ? viewportHeight / documentHeight
+                    : 1,
+                positionFraction: maximumOffset > 0
+                    ? boundedOffset / maximumOffset
+                    : 0
+            )
+        )
+    }
+
+    func contentOffsetY(for positionFraction: CGFloat) -> CGFloat {
+        let fraction = positionFraction.isFinite
+            ? min(1, max(0, positionFraction))
+            : 0
+        return layout.maximumContentOffsetY * fraction
+    }
+}
+
 enum PlaybackSubtitleFocusNativeWheelMode: Equatable {
     case none
     case discrete(direction: SubtitleFocusNavigationDirection, stepCount: Int)
@@ -360,6 +392,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
     let allowsNativeWheelInput: () -> Bool
+    let allowsNativeScrollbarInput: () -> Bool
+    let onScrollbarDraggingChanged: (Bool) -> Void
     let onNativeMotionGateChanged: (Bool) -> Void
     let onKeyboardMotionChanged: (Bool) -> Void
 
@@ -388,6 +422,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
         view.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         view.onCommitNativeReelSelection = onCommitNativeReelSelection
         view.allowsNativeWheelInput = allowsNativeWheelInput
+        view.allowsNativeScrollbarInput = allowsNativeScrollbarInput
+        view.onScrollbarDraggingChanged = onScrollbarDraggingChanged
         view.onNativeMotionGateChanged = onNativeMotionGateChanged
         view.onKeyboardMotionChanged = onKeyboardMotionChanged
         view.update(
@@ -411,11 +447,14 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     }
     var onCommitNativeReelSelection: (Int) -> Bool = { _ in false }
     var allowsNativeWheelInput: () -> Bool = { false }
+    var allowsNativeScrollbarInput: () -> Bool = { false }
+    var onScrollbarDraggingChanged: (Bool) -> Void = { _ in }
     var onNativeMotionGateChanged: (Bool) -> Void = { _ in }
     var onKeyboardMotionChanged: (Bool) -> Void = { _ in }
 
     private let scrollView = PlaybackSubtitleFocusNativeScrollView()
     private let documentView = PlaybackSubtitleFocusReelDocumentView()
+    private let scrollbarView = PlaybackSubtitleFocusNativeScrollbarView()
     private var totalCount = 0
     private var selectedOrdinal = 0
     private var focusAnchorY: CGFloat = 0
@@ -423,6 +462,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private var loadedOrdinalRange: Range<Int> = 0..<0
     private var isInteractionEnabled = true
     private var reducesMotion = false
+    private var hasCompleteCueCollection = false
+    private var lastViewportSize: CGSize = .zero
     private var lastHandledKeyboardSequence = 0
     private var activeKeyboardRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     private var isKeyboardMotionActive = false
@@ -433,6 +474,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private var preciseSettleTask: Task<Void, Never>?
     nonisolated(unsafe) private var eventMonitor: Any?
     private var isWheelMotionActive = false
+    private var isScrollbarDragging = false
+    private var isScrollbarMotionActive = false
+    private var scrollbarDragStartOffsetY: CGFloat?
     private var reportedNativeMotionActive = false
     private var motionCallbackGeneration = 0
     private var motionCallbackTask: Task<Void, Never>?
@@ -469,6 +513,22 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         scrollView.documentView = documentView
         addSubview(scrollView)
 
+        scrollbarView.appearanceMode = .fixedDark
+        scrollbarView.cursorPolicy = .pointingHand
+        scrollbarView.presentationProvider = { [weak self] in
+            self?.scrollbarMetrics.presentation
+        }
+        scrollbarView.allowsInteraction = { [weak self] in
+            self?.allowsNativeScrollbarInput() == true
+        }
+        scrollbarView.onDrag = { [weak self] event in
+            self?.handleScrollbarDrag(event)
+        }
+        scrollbarView.onDragStateChanged = { [weak self] isDragging in
+            self?.handleScrollbarDraggingChanged(isDragging)
+        }
+        addSubview(scrollbarView)
+
         documentView.onActivateCue = { [weak self] cue, documentY in
             guard let self else {
                 return
@@ -485,11 +545,20 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     override func layout() {
         super.layout()
+        let nextViewportSize = bounds.size
+        if isScrollbarDragging,
+           lastViewportSize != .zero,
+           nextViewportSize != lastViewportSize {
+            cancelActiveScrollbarDrag()
+        }
+        lastViewportSize = nextViewportSize
         scrollView.frame = bounds
+        scrollbarView.frame = bounds
         updateDocumentGeometry()
         if !hasActiveNativeMotion {
             synchronizeContentOffsetIfIdle()
         }
+        updateScrollbarPresentation()
     }
 
     override func viewDidMoveToWindow() {
@@ -528,10 +597,13 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         } else {
             loadedOrdinalRange = 0..<0
         }
+        hasCompleteCueCollection = cues.count == self.totalCount
+            && loadedOrdinalRange == 0..<self.totalCount
         self.reducesMotion = reducesMotion
         let wasInteractionEnabled = self.isInteractionEnabled
         self.isInteractionEnabled = isInteractionEnabled
         if cancelsWheelMotion {
+            cancelActiveScrollbarDrag()
             resetWheelInteraction(requiresNewGesture: true)
         } else if wasInteractionEnabled, !isInteractionEnabled {
             suspendWheelInputForSuppression()
@@ -539,6 +611,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.updateContent(cues: cues, totalCount: totalCount)
         documentView.isInteractionEnabled = isInteractionEnabled
         updateDocumentGeometry()
+        updateScrollbarPresentation()
         if !hasActiveNativeMotion {
             documentView.updateSelection(self.selectedOrdinal)
             synchronizeContentOffsetIfIdle()
@@ -560,6 +633,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         onCommitKeyboardNavigation = { _ in false }
         onCommitNativeReelSelection = { _ in false }
         allowsNativeWheelInput = { false }
+        allowsNativeScrollbarInput = { false }
+        if isScrollbarDragging {
+            onScrollbarDraggingChanged(false)
+        }
+        onScrollbarDraggingChanged = { _ in }
         onNativeMotionGateChanged = { _ in }
         onKeyboardMotionChanged = { _ in }
         keyboardAnimator.cancel()
@@ -571,11 +649,32 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         activeKeyboardRequest = nil
         activeWheelTargetOrdinal = nil
         preciseGestureStartOrdinal = nil
+        scrollbarView.onDrag = { _ in }
+        scrollbarView.onDragStateChanged = nil
+        scrollbarView.presentationProvider = { nil }
+        scrollbarView.allowsInteraction = { false }
+        scrollbarView.isPresented = false
+        isScrollbarDragging = false
+        scrollbarDragStartOffsetY = nil
         isKeyboardMotionActive = false
         isWheelMotionActive = false
+        isScrollbarMotionActive = false
+        lastViewportSize = .zero
         reportedNativeMotionActive = false
         documentView.invalidate()
         scrollView.documentView = nil
+    }
+
+    var contentOffsetYForTesting: CGFloat {
+        scrollView.contentView.bounds.minY
+    }
+
+    var scrollbarPresentationForTesting: TableScrollbarPresentation {
+        scrollbarMetrics.presentation
+    }
+
+    var acceptsScrollbarInteractionForTesting: Bool {
+        scrollbarView.acceptsInteraction && allowsNativeScrollbarInput()
     }
 
     private func updateDocumentGeometry() {
@@ -613,13 +712,60 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         )
     }
 
-    private func setContentOffsetY(_ offset: CGFloat) {
+    private var scrollbarMetrics: PlaybackSubtitleFocusNativeScrollbarMetrics {
+        PlaybackSubtitleFocusNativeScrollbarMetrics(
+            layout: currentLayout,
+            contentOffsetY: scrollView.contentView.bounds.minY
+        )
+    }
+
+    private func updateScrollbarPresentation() {
+        scrollbarView.isPresented = totalCount > 0
+        updateScrollbarInteractionAvailability()
+        scrollbarView.scrollbarMetricsDidChange()
+    }
+
+    private func updateScrollbarInteractionAvailability() {
+        scrollbarView.acceptsInteraction = isInteractionEnabled
+            && hasCompleteCueCollection
+            && !isKeyboardMotionActive
+            && !isWheelMotionActive
+    }
+
+    private func cancelActiveScrollbarDrag() {
+        guard isScrollbarDragging else {
+            return
+        }
+        let restoresPresentation = totalCount > 0
+        scrollbarView.isPresented = false
+        if isScrollbarDragging {
+            handleScrollbarDrag(TableScrollbarDragEvent(
+                axis: .vertical,
+                phase: .cancelled,
+                positionFraction: scrollbarMetrics.presentation.vertical?
+                    .positionFraction ?? 0
+            ))
+            handleScrollbarDraggingChanged(false)
+        }
+        scrollbarView.isPresented = restoresPresentation
+    }
+
+    private func setContentOffsetY(
+        _ offset: CGFloat,
+        refreshesScrollbar: Bool = true
+    ) {
         let currentOrigin = scrollView.contentView.bounds.origin
         guard abs(currentOrigin.y - offset) > 0.01 else {
+            if refreshesScrollbar {
+                scrollbarView.scrollbarMetricsDidChange()
+            }
             return
         }
         scrollView.contentView.scroll(to: CGPoint(x: 0, y: offset))
         scrollView.reflectScrolledClipView(scrollView.contentView)
+        if refreshesScrollbar {
+            scrollbarView.scrollbarMetricsDidChange()
+        }
     }
 
     private func handleKeyboardNavigation(
@@ -656,6 +802,96 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         activeKeyboardRequest = nil
         selectedOrdinal = request.targetOrdinal
         setKeyboardMotionActive(false)
+    }
+
+    func handleScrollbarDraggingChanged(_ isDragging: Bool) {
+        guard isScrollbarDragging != isDragging else {
+            return
+        }
+        if isDragging {
+            guard scrollbarView.acceptsInteraction else {
+                return
+            }
+            guard allowsNativeScrollbarInput() else {
+                return
+            }
+            resetWheelInteraction(requiresNewGesture: true)
+            isScrollbarDragging = true
+            scrollbarDragStartOffsetY = scrollView.contentView.bounds.minY
+            documentView.isInteractionEnabled = false
+            onScrollbarDraggingChanged(true)
+            setScrollbarMotionActive(true)
+        } else {
+            isScrollbarDragging = false
+            scrollbarDragStartOffsetY = nil
+            documentView.isInteractionEnabled = isInteractionEnabled
+            onScrollbarDraggingChanged(false)
+            setScrollbarMotionActive(false)
+            updateScrollbarInteractionAvailability()
+            scrollbarView.scrollbarMetricsDidChange()
+        }
+    }
+
+    func handleScrollbarDrag(_ event: TableScrollbarDragEvent) {
+        guard event.axis == .vertical,
+              hasCompleteCueCollection,
+              isScrollbarDragging
+        else {
+            return
+        }
+
+        switch event.phase {
+        case .began:
+            break
+        case .changed:
+            applyScrollbarPositionFraction(
+                event.positionFraction,
+                refreshesScrollbar: false
+            )
+        case .ended:
+            applyScrollbarPositionFraction(
+                event.positionFraction,
+                refreshesScrollbar: true
+            )
+            settleScrollbarDrag()
+        case .cancelled:
+            wheelAnimator.cancel()
+            activeWheelTargetOrdinal = nil
+            documentView.updateSelection(selectedOrdinal)
+            synchronizeContentOffsetIfIdle()
+        }
+    }
+
+    private func applyScrollbarPositionFraction(
+        _ positionFraction: CGFloat,
+        refreshesScrollbar: Bool
+    ) {
+        let metrics = scrollbarMetrics
+        let offset = metrics.contentOffsetY(for: positionFraction)
+        setContentOffsetY(offset, refreshesScrollbar: refreshesScrollbar)
+        documentView.updateSelection(
+            currentLayout.nearestOrdinal(toContentOffsetY: offset)
+        )
+    }
+
+    private func settleScrollbarDrag() {
+        let layout = currentLayout
+        let currentOffset = scrollView.contentView.bounds.minY
+        let netDeltaY = (scrollbarDragStartOffsetY ?? currentOffset)
+            - currentOffset
+        let targetOrdinal = layout.nearestOrdinal(
+            toContentOffsetY: currentOffset,
+            netDeltaY: netDeltaY
+        )
+        activeWheelTargetOrdinal = targetOrdinal
+        documentView.updateSelection(targetOrdinal)
+        setWheelMotionActive(true)
+        wheelAnimator.retarget(
+            from: currentOffset,
+            to: layout.contentOffsetY(for: targetOrdinal),
+            duration: PlaybackSubtitleFocusMetrics
+                .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
+        )
     }
 
     private func installEventMonitorIfNeeded() {
@@ -916,6 +1152,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             return
         }
         isKeyboardMotionActive = isActive
+        updateScrollbarInteractionAvailability()
         updateReportedNativeMotion()
     }
 
@@ -924,6 +1161,15 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             return
         }
         isWheelMotionActive = isActive
+        updateScrollbarInteractionAvailability()
+        updateReportedNativeMotion()
+    }
+
+    private func setScrollbarMotionActive(_ isActive: Bool) {
+        guard isScrollbarMotionActive != isActive else {
+            return
+        }
+        isScrollbarMotionActive = isActive
         updateReportedNativeMotion()
     }
 
@@ -931,12 +1177,15 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         activeKeyboardRequest != nil
             || activeWheelTargetOrdinal != nil
             || preciseGestureStartOrdinal != nil
+            || isScrollbarDragging
             || keyboardAnimator.isRunning
             || wheelAnimator.isRunning
     }
 
     private func updateReportedNativeMotion() {
-        let isActive = isKeyboardMotionActive || isWheelMotionActive
+        let isActive = isKeyboardMotionActive
+            || isWheelMotionActive
+            || isScrollbarMotionActive
         guard reportedNativeMotionActive != isActive else {
             return
         }
@@ -962,6 +1211,35 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 private final class PlaybackSubtitleFocusNativeScrollView: NSScrollView {
     override func scrollWheel(with event: NSEvent) {
         nextResponder?.scrollWheel(with: event)
+    }
+}
+
+private final class PlaybackSubtitleFocusNativeScrollbarView:
+    TableScrollbarOverlayView
+{
+    var allowsInteraction: () -> Bool = { false }
+    var acceptsInteraction = false {
+        didSet {
+            guard acceptsInteraction != oldValue else {
+                return
+            }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard acceptsInteraction, allowsInteraction() else {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
+    override func resetCursorRects() {
+        guard acceptsInteraction, allowsInteraction() else {
+            discardCursorRects()
+            return
+        }
+        super.resetCursorRects()
     }
 }
 

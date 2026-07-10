@@ -544,6 +544,17 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             && !targetWindowState.isLoading
     }
 
+    func allowsNativeScrollbarInput() -> Bool {
+        isSessionActive
+            && currentSnapshot != nil
+            && actionMenuState == nil
+            && !isActionMenuOpening
+            && pendingKeyboardNavigationTargetOrdinal == nil
+            && !isScrollbarDragging
+            && !isCueReelMotionActive
+            && !targetWindowState.isLoading
+    }
+
     @discardableResult
     func deferActionMenuOpenUntilNavigationCompletes() -> Bool {
         guard isSessionActive,

@@ -38,11 +38,6 @@ struct PlaybackPageView: View {
                         session: subtitleFocusSession,
                         onMoveSelection: appState.movePlaybackSubtitleFocusSelection,
                         onNavigationIntent: appState.notePlaybackSubtitleFocusNavigationIntent,
-                        onScrollbarPreview: appState.notePlaybackSubtitleFocusScrollbarPreview,
-                        onCommitCachedScrollbarTarget:
-                            appState.commitPlaybackSubtitleFocusCachedScrollbarTarget,
-                        onRequestScrollbarTarget:
-                            appState.requestPlaybackSubtitleFocusScrollbarTarget,
                         onOpenActionMenu:
                             appState.openPlaybackSubtitleFocusActionMenu,
                         onOpenSelectedActionMenu:

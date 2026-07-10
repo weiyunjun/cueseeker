@@ -94,6 +94,253 @@ func subtitleFocusVirtualReelVisibleRangeIsIndependentOfTotalCount() {
     #expect(visibleRange.count <= 15)
 }
 
+@Test
+func subtitleFocusNativeScrollbarUsesContinuousClipOffsetMapping() throws {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 50_000,
+        focusAnchorY: 328
+    )
+    let metrics = PlaybackSubtitleFocusNativeScrollbarMetrics(
+        layout: layout,
+        contentOffsetY: layout.contentOffsetY(for: 25_000)
+    )
+    let vertical = try #require(metrics.presentation.vertical)
+
+    #expect(
+        abs(vertical.positionFraction - CGFloat(25_000) / 49_999)
+            < 0.000_001
+    )
+    #expect(
+        abs(
+            metrics.contentOffsetY(for: 0.75)
+                / layout.maximumContentOffsetY - 0.75
+        ) < 0.000_001
+    )
+    #expect(
+        vertical.visibleFraction
+            == layout.viewportSize.height / layout.documentSize.height
+    )
+}
+
+@MainActor
+@Test
+func subtitleFocusNativeScrollbarPublishesOnlyOneMouseUpCommit() async {
+    _ = NSApplication.shared
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    var committedOrdinals: [Int] = []
+    var dragStates: [Bool] = []
+    view.onCommitNativeReelSelection = { ordinal in
+        committedOrdinals.append(ordinal)
+        return true
+    }
+    view.allowsNativeScrollbarInput = { true }
+    view.onScrollbarDraggingChanged = { dragStates.append($0) }
+    view.update(
+        cues: focusLayoutCues(0..<200),
+        totalCount: 200,
+        selectedOrdinal: 12,
+        focusAnchorY: 328,
+        presentationTranslation: 0,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .began,
+        positionFraction: CGFloat(12) / 199
+    ))
+    for step in 1...1_000 {
+        view.handleScrollbarDrag(TableScrollbarDragEvent(
+            axis: .vertical,
+            phase: .changed,
+            positionFraction: 0.75 * CGFloat(step) / 1_000
+        ))
+    }
+
+    #expect(committedOrdinals.isEmpty)
+    #expect(
+        abs(
+            view.scrollbarPresentationForTesting.vertical!.positionFraction
+                - 0.75
+        ) < 0.000_001
+    )
+
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.75
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    await Task.yield()
+    await Task.yield()
+
+    #expect(committedOrdinals == [149])
+    #expect(dragStates == [true, false])
+    #expect(view.contentOffsetYForTesting == CGFloat(149) * 136)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func subtitleFocusNativeScrollbarEnablesOnlyAfterCompleteBatch() {
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    view.update(
+        cues: focusLayoutCues(6..<16),
+        totalCount: 20,
+        selectedOrdinal: 12,
+        focusAnchorY: 328,
+        presentationTranslation: 0,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    #expect(view.scrollbarPresentationForTesting.vertical != nil)
+    #expect(!view.acceptsScrollbarInteractionForTesting)
+    let offsetBeforeFullBatch = view.contentOffsetYForTesting
+
+    view.update(
+        cues: focusLayoutCues(0..<20),
+        totalCount: 20,
+        selectedOrdinal: 12,
+        focusAnchorY: 328,
+        presentationTranslation: 0,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+
+    #expect(view.acceptsScrollbarInteractionForTesting)
+    #expect(view.contentOffsetYForTesting == offsetBeforeFullBatch)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func subtitleFocusPendingKeyboardUpdateCancelsStaleNativeScrollbarDrag() async {
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var nativeCommits: [Int] = []
+    var keyboardCommits: [Int] = []
+    var dragStates: [Bool] = []
+    view.onCommitNativeReelSelection = { ordinal in
+        nativeCommits.append(ordinal)
+        return true
+    }
+    view.onCommitKeyboardNavigation = { request in
+        keyboardCommits.append(request.targetOrdinal)
+        return true
+    }
+    view.onScrollbarDraggingChanged = { dragStates.append($0) }
+    view.update(
+        cues: focusLayoutCues(0..<200),
+        totalCount: 200,
+        selectedOrdinal: 12,
+        focusAnchorY: 328,
+        presentationTranslation: 0,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .changed,
+        positionFraction: 0.75
+    ))
+
+    let request = PlaybackSubtitleFocusKeyboardNavigationRequest(
+        sequence: 1,
+        direction: .forward,
+        targetOrdinal: 13
+    )
+    view.update(
+        cues: focusLayoutCues(0..<200),
+        totalCount: 200,
+        selectedOrdinal: 12,
+        focusAnchorY: 328,
+        presentationTranslation: 0,
+        keyboardNavigationRequest: request,
+        reducesMotion: true,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.9
+    ))
+    await Task.yield()
+    await Task.yield()
+
+    #expect(nativeCommits.isEmpty)
+    #expect(keyboardCommits == [13])
+    #expect(dragStates == [true, false])
+    #expect(view.contentOffsetYForTesting == CGFloat(13) * 136)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func subtitleFocusResizeCancelsNativeScrollbarDragWithoutCommit() {
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var nativeCommits: [Int] = []
+    var dragStates: [Bool] = []
+    view.onCommitNativeReelSelection = { ordinal in
+        nativeCommits.append(ordinal)
+        return true
+    }
+    view.onScrollbarDraggingChanged = { dragStates.append($0) }
+    view.update(
+        cues: focusLayoutCues(0..<200),
+        totalCount: 200,
+        selectedOrdinal: 12,
+        focusAnchorY: 328,
+        presentationTranslation: 0,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .changed,
+        positionFraction: 0.75
+    ))
+
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 720)
+    view.layoutSubtreeIfNeeded()
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.9
+    ))
+
+    #expect(nativeCommits.isEmpty)
+    #expect(dragStates == [true, false])
+    #expect(view.contentOffsetYForTesting == CGFloat(12) * 136)
+    view.invalidate()
+}
+
 @MainActor
 @Test
 func subtitleFocusKeyboardAnimatorUsesDocumentedEaseOutCurve() {
@@ -882,4 +1129,16 @@ private func focusScrollSample(
         momentumPhase: momentumPhase,
         isInside: isInside
     )
+}
+
+private func focusLayoutCues(_ range: Range<Int>) -> [SubtitleFocusCue] {
+    range.map { ordinal in
+        SubtitleFocusCue(
+            id: Int64(ordinal + 1),
+            ordinal: ordinal,
+            startMilliseconds: ordinal * 1_000,
+            endMilliseconds: ordinal * 1_000 + 900,
+            lines: ["cue \(ordinal)"]
+        )
+    }
 }

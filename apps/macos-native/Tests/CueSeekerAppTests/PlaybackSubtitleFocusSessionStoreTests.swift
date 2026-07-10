@@ -440,8 +440,10 @@ func subtitleFocusKeyboardRepeatContinuesOnlyItsOwnNativeMotion() throws {
         token: wheelSession.token
     ))
     #expect(wheelSession.allowsNativeWheelInput())
+    #expect(wheelSession.allowsNativeScrollbarInput())
     wheelSession.noteCueReelMotion(true)
     #expect(!wheelSession.requestKeyboardNavigation(.forward))
+    #expect(!wheelSession.allowsNativeScrollbarInput())
 
     let keyboardSession = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
@@ -453,6 +455,7 @@ func subtitleFocusKeyboardRepeatContinuesOnlyItsOwnNativeMotion() throws {
     ))
     #expect(keyboardSession.requestKeyboardNavigation(.forward))
     #expect(!keyboardSession.allowsNativeWheelInput())
+    #expect(!keyboardSession.allowsNativeScrollbarInput())
     keyboardSession.noteCueReelMotion(true)
     #expect(keyboardSession.requestKeyboardNavigation(.forward))
     #expect(keyboardSession.keyboardNavigationRequest?.targetOrdinal == 14)

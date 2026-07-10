@@ -60,6 +60,14 @@ remain out of scope.
     resolves. If the complete batch wins that race, a released scrollbar target
     commits immediately while an active drag keeps its preview until mouse-up.
     Reduce Motion resolves all native alignment animations to zero duration.
+12. Embedded the shared table scrollbar primitive directly above the reel's
+    native scroll view. Drag updates now change only the clip offset and local
+    cue highlight; mouse-up snaps once and publishes one final Session ordinal.
+    The initial partial collection keeps the complete-document thumb visible
+    but noninteractive until all current-video cues arrive. Resize and stale
+    keyboard ownership cancel an active drag without a late commit. Removed the
+    superseded SwiftUI scrollbar, debounce state, tests, and AppCoordinator
+    entry points.
 
 ## Verification
 
@@ -78,6 +86,11 @@ remain out of scope.
     steps, precise momentum ownership, sub-pitch and boundary settlement,
     combined phase events, partial-window bounds, deferred Enter, suppression
     reset, Reduce Motion, and keyboard/wheel motion ownership.
+  - Passed 102 tests after native scrollbar migration. A 1,000-update drag test
+    published zero intermediate Session selections and exactly one mouse-up
+    selection. Continuous fraction/offset mapping was also verified against a
+    50,000-cue virtual document, with partial-to-complete enablement, stale
+    keyboard ownership, and resize cancellation covered separately.
 - `git diff --check`
   - Passed.
 

@@ -106,29 +106,6 @@ extension AppCoordinator {
         )
     }
 
-    func notePlaybackSubtitleFocusScrollbarPreview(ordinal: Int) {
-        playback.subtitleFocusSession?.noteScrollbarPreviewChanged(ordinal: ordinal)
-    }
-
-    @discardableResult
-    func commitPlaybackSubtitleFocusCachedScrollbarTarget(
-        ordinal: Int
-    ) -> Bool {
-        playback.subtitleFocusSession?.commitCachedScrollbarTarget(
-            ordinal: ordinal
-        ) ?? false
-    }
-
-    func requestPlaybackSubtitleFocusScrollbarTarget(ordinal: Int) {
-        guard let session = playback.subtitleFocusSession else {
-            return
-        }
-        startPlaybackSubtitleFocusWindowLoadIfNeeded(
-            session.windowLoadRequestForScrollbarTarget(ordinal: ordinal),
-            session: session
-        )
-    }
-
     @discardableResult
     func openPlaybackSubtitleFocusActionMenuFromKeyboard() -> Bool {
         guard let session = playback.subtitleFocusSession,
