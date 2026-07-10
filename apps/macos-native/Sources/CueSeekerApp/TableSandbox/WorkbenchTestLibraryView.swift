@@ -1,6 +1,6 @@
 import AppKit
+import CoreGraphics
 import CueSeekerCore
-import ImageIO
 import SwiftUI
 
 struct WorkbenchTestRecentWatchingView: View {
@@ -386,6 +386,7 @@ private struct RecentWatchingCard: View {
     private var cover: some View {
         LibraryCoverWithProgress(
             coverPath: item.coverPath,
+            coverRevision: item.coverRevision,
             positionMilliseconds: item.positionMilliseconds,
             duration: item.playbackDuration ?? item.duration
         )
@@ -524,6 +525,7 @@ private struct LibraryFolderCard: View {
     private var cover: some View {
         LibraryCoverWithBadge(
             coverPath: folder.coverPath,
+            coverRevision: folder.coverRevision,
             badgeText: episodeCountText
         )
         .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
@@ -673,6 +675,7 @@ private struct LibraryEpisodeCard: View {
     private var cover: some View {
         LibraryCoverWithProgress(
             coverPath: video.coverPath,
+            coverRevision: video.coverRevision,
             positionMilliseconds: video.positionMilliseconds,
             duration: video.playbackDuration ?? video.duration
         )
@@ -1215,6 +1218,7 @@ private extension View {
 
 private struct LibraryCoverWithProgress: View {
     let coverPath: String?
+    let coverRevision: String?
     let positionMilliseconds: Int
     let duration: Double?
 
@@ -1264,12 +1268,10 @@ private struct LibraryCoverWithProgress: View {
     }
 
     private var coverImage: some View {
-        GeometryReader { proxy in
-            LibraryDownsampledCoverImage(
-                coverPath: coverPath,
-                displaySize: proxy.size
-            )
-        }
+        LibraryCachedCoverImage(
+            coverPath: coverPath,
+            coverRevision: coverRevision
+        )
     }
 
     private func progressTrack(progressFraction: Double) -> some View {
@@ -1338,16 +1340,15 @@ struct LibraryCoverProgressPresentation: Equatable {
 
 private struct LibraryCoverWithBadge: View {
     let coverPath: String?
+    let coverRevision: String?
     let badgeText: String
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            GeometryReader { proxy in
-                LibraryDownsampledCoverImage(
-                    coverPath: coverPath,
-                    displaySize: proxy.size
-                )
-            }
+            LibraryCachedCoverImage(
+                coverPath: coverPath,
+                coverRevision: coverRevision
+            )
 
             Text(badgeText)
                 .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
@@ -1375,16 +1376,24 @@ private struct LibraryCoverWithBadge: View {
     }
 }
 
-private struct LibraryDownsampledCoverImage: View {
+private struct LibraryCachedCoverImage: View {
     let coverPath: String?
-    let displaySize: CGSize
+    let coverRevision: String?
 
-    @State private var image: NSImage?
+    @State private var loadedImage: LoadedImage?
+    @State private var activeRequestID: UUID?
+
+    private struct LoadedImage {
+        let key: LibraryCoverImageKey
+        let image: CGImage
+    }
 
     var body: some View {
         Group {
-            if let image {
-                Image(nsImage: image)
+            if let key,
+               let loadedImage,
+               loadedImage.key == key {
+                Image(decorative: loadedImage.image, scale: 1)
                     .resizable()
                     .scaledToFill()
             } else {
@@ -1394,171 +1403,47 @@ private struct LibraryDownsampledCoverImage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .task(id: request?.cacheKey) {
-            await loadImage()
+        .task(id: key) {
+            await loadImage(for: key)
+        }
+        .onDisappear {
+            activeRequestID = nil
+            loadedImage = nil
         }
     }
 
-    private var request: LibraryCoverImageRequest? {
-        guard let coverPath else {
-            return nil
-        }
-        guard displaySize.width.isFinite,
-              displaySize.height.isFinite,
-              displaySize.width > 1,
-              displaySize.height > 1 else {
-            return nil
-        }
-
-        let scale = NSScreen.main?.backingScaleFactor ?? 2
-        let maxDimension = max(displaySize.width, displaySize.height)
-        let maxPixelSize = max(1, Int((maxDimension * scale).rounded(.up)))
-        return LibraryCoverImageRequest(
-            path: coverPath,
-            maxPixelSize: maxPixelSize,
-            fileVersion: LibraryCoverImageFileVersion.current(forPath: coverPath)
-        )
+    private var key: LibraryCoverImageKey? {
+        LibraryCoverImageKey.current(path: coverPath, revision: coverRevision)
     }
 
     @MainActor
-    private func loadImage() async {
-        guard let request else {
-            image = nil
+    private func loadImage(for key: LibraryCoverImageKey?) async {
+        guard let key else {
+            activeRequestID = nil
+            loadedImage = nil
             return
         }
+        let requestID = UUID()
+        activeRequestID = requestID
+        if loadedImage?.key != key {
+            loadedImage = nil
+        }
 
-        if let cachedImage = LibraryCoverImageCache.shared.image(for: request.cacheKey) {
-            image = cachedImage
+        do {
+            let image = try await LibraryCoverImagePipeline.shared.image(for: key)
+            try Task.checkCancellation()
+            guard activeRequestID == requestID else {
+                return
+            }
+            loadedImage = image.map { LoadedImage(key: key, image: $0) }
+        } catch is CancellationError {
             return
+        } catch {
+            guard activeRequestID == requestID else {
+                return
+            }
+            loadedImage = nil
         }
-
-        image = nil
-
-        let loadedImage = await Task.detached(priority: .utility) {
-            LibraryCoverImageLoader.load(
-                path: request.path,
-                maxPixelSize: request.maxPixelSize
-            )
-        }.value
-
-        guard self.request == request else {
-            return
-        }
-        guard let loadedImage else {
-            image = nil
-            return
-        }
-
-        LibraryCoverImageCache.shared.insert(
-            loadedImage.image,
-            cost: loadedImage.cost,
-            for: request.cacheKey
-        )
-        image = loadedImage.image
-    }
-}
-
-private struct LibraryCoverImageRequest: Equatable, Sendable {
-    let path: String
-    let maxPixelSize: Int
-    let fileVersion: LibraryCoverImageFileVersion
-
-    var cacheKey: String {
-        "\(path)|\(maxPixelSize)|\(fileVersion.cacheKeyComponent)"
-    }
-}
-
-private struct LibraryCoverImageFileVersion: Equatable, Sendable {
-    let byteCount: UInt64?
-    let modificationTimeNanoseconds: Int64?
-
-    static func current(forPath path: String) -> LibraryCoverImageFileVersion {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else {
-            return LibraryCoverImageFileVersion(
-                byteCount: nil,
-                modificationTimeNanoseconds: nil
-            )
-        }
-
-        let byteCount = (attributes[.size] as? NSNumber)?.uint64Value
-        let modificationTimeNanoseconds = (attributes[.modificationDate] as? Date).map { date in
-            Int64((date.timeIntervalSince1970 * 1_000_000_000).rounded())
-        }
-
-        return LibraryCoverImageFileVersion(
-            byteCount: byteCount,
-            modificationTimeNanoseconds: modificationTimeNanoseconds
-        )
-    }
-
-    var cacheKeyComponent: String {
-        let byteCountComponent = byteCount.map(String.init) ?? "missing-size"
-        let modificationTimeComponent = modificationTimeNanoseconds.map(String.init) ?? "missing-mtime"
-        return "\(byteCountComponent)|\(modificationTimeComponent)"
-    }
-}
-
-private struct LibraryLoadedCoverImage: @unchecked Sendable {
-    let image: NSImage
-    let cost: Int
-}
-
-@MainActor
-private final class LibraryCoverImageCache {
-    static let shared = LibraryCoverImageCache()
-
-    private let cache = NSCache<NSString, NSImage>()
-
-    private init() {
-        cache.totalCostLimit = 48 * 1_024 * 1_024
-        cache.countLimit = 256
-    }
-
-    func image(for key: String) -> NSImage? {
-        cache.object(forKey: key as NSString)
-    }
-
-    func insert(_ image: NSImage, cost: Int, for key: String) {
-        cache.setObject(image, forKey: key as NSString, cost: cost)
-    }
-}
-
-private enum LibraryCoverImageLoader {
-    static func load(path: String, maxPixelSize: Int) -> LibraryLoadedCoverImage? {
-        guard maxPixelSize > 0 else {
-            return nil
-        }
-
-        let sourceOptions: [CFString: Any] = [
-            kCGImageSourceShouldCache: false
-        ]
-        guard let imageSource = CGImageSourceCreateWithURL(
-            URL(fileURLWithPath: path) as CFURL,
-            sourceOptions as CFDictionary
-        ) else {
-            return nil
-        }
-
-        let thumbnailOptions: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(
-            imageSource,
-            0,
-            thumbnailOptions as CFDictionary
-        ) else {
-            return nil
-        }
-
-        let image = NSImage(
-            cgImage: cgImage,
-            size: NSSize(width: cgImage.width, height: cgImage.height)
-        )
-        let cost = max(1, cgImage.bytesPerRow * cgImage.height)
-        return LibraryLoadedCoverImage(image: image, cost: cost)
     }
 }
 

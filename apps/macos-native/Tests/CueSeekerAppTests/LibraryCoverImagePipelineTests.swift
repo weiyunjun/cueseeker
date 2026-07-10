@@ -6,6 +6,20 @@ import UniformTypeIdentifiers
 @testable import CueSeekerApp
 
 @Test
+func libraryCoverImageKeyRequiresPathAndRevisionPair() {
+    #expect(LibraryCoverImageKey.current(path: nil, revision: "revision") == nil)
+    #expect(LibraryCoverImageKey.current(path: "/display.jpg", revision: nil) == nil)
+    #expect(LibraryCoverImageKey.current(path: "", revision: "revision") == nil)
+    #expect(LibraryCoverImageKey.current(path: "/display.jpg", revision: "") == nil)
+
+    let first = LibraryCoverImageKey.current(path: "/display.jpg", revision: "revision-1")
+    let same = LibraryCoverImageKey.current(path: "/display.jpg", revision: "revision-1")
+    let updated = LibraryCoverImageKey.current(path: "/display.jpg", revision: "revision-2")
+    #expect(first == same)
+    #expect(first != updated)
+}
+
+@Test
 func libraryCoverImagePipelineUsesDeterministicCostLRU() async throws {
     #expect(LibraryCoverImagePipelineConfiguration.production.costLimitBytes == 16 * 1_024 * 1_024)
     #expect(LibraryCoverImagePipelineConfiguration.production.countLimit == 64)

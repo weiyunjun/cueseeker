@@ -19,6 +19,15 @@ struct LibraryCoverImageKey: Hashable, Sendable {
         self.profileVersion = profileVersion
     }
 
+    static func current(path: String?, revision: String?) -> LibraryCoverImageKey? {
+        guard let path, !path.isEmpty,
+              let revision, !revision.isEmpty
+        else {
+            return nil
+        }
+        return LibraryCoverImageKey(path: path, revision: revision)
+    }
+
     fileprivate var deterministicSortKey: String {
         "\(path)\n\(revision)\n\(profileVersion)"
     }

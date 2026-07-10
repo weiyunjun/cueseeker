@@ -165,6 +165,35 @@ Decoded-image pipeline verification:
 - `swift test --filter completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData`
   passed with matching fallback path and revision in folder and episode data.
 
+View integration:
+
+- Recent cards, Library folder cards, and Library episode rows now pass their
+  paired display path and revision into one `LibraryCachedCoverImage` view.
+- The view task identity is only the pipeline key. Window size, backing scale,
+  and card geometry are absent, so resizing changes the SwiftUI frame without
+  restarting or creating another decode.
+- The former cover `GeometryReader`, per-render file-attribute reads,
+  size-keyed ImageIO thumbnail decode, `NSImage` state, and 48 MiB `NSCache`
+  were removed. SwiftUI now renders the pipeline's bounded `CGImage` directly.
+- Per-card state stores the key with the image and tracks a request UUID. It
+  checks cancellation and request identity after every await; disappearance
+  invalidates the request UUID before clearing the image, so a late task cannot
+  restore an offscreen reference. Lazy-grid scrolling, route changes, and
+  Library level transitions therefore release view-owned image references
+  while the shared cache remains capped at 16 MiB.
+
+View-integration verification:
+
+- `swift test --filter libraryCoverImage` passed ten tests, including the
+  path/revision-pair requirement used by the view.
+- `swift test --filter LibraryCoverProgressPresentation` passed and compiled
+  the complete App target with the new cover view.
+- A source audit found no remaining `LibraryDownsampledCoverImage`,
+  `LibraryCoverImageFileVersion`, old `LibraryCoverImageCache`, old
+  `LibraryCoverImageLoader`, size-keyed cover request, or `NSImage` use in
+  `WorkbenchTestLibraryView.swift`. Remaining `GeometryReader` instances are
+  unrelated progress or menu layout helpers.
+
 The owner will perform the final Activity Monitor UI acceptance flow. Its final
 stable physical footprint must not exceed 75 MB, with no more than 5 MB growth
 after repeated Library navigation and no more than 10 MB growth after window
@@ -191,6 +220,6 @@ changes.
 
 The decoded-image pipeline is implemented and covered independently of the
 views. Its budget, request coalescing, decode concurrency, and cancellation
-rules are deterministic; the following integration step will replace the old
-geometry-keyed `NSImage` view loader and release per-view image ownership when
-items leave the viewport.
+rules are deterministic. All current Recent and Library cover surfaces now use
+that pipeline, and view-owned decoded images are released when their cards leave
+the viewport or route.
