@@ -187,6 +187,11 @@ enum PlaybackSubtitleFocusMetrics {
     }()
     /// --duration-subtitle-focus-scroll
     static let reelTransitionDuration = 0.22
+    static func resolvedReelTransitionDuration(
+        reducesMotion: Bool
+    ) -> TimeInterval {
+        reducesMotion ? 0 : reelTransitionDuration
+    }
     /// --easing-subtitle-focus-scroll: cubic-bezier(0.22, 1, 0.36, 1)
     static var reelTransitionAnimation: Animation {
         .timingCurve(

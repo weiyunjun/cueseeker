@@ -88,6 +88,60 @@ func subtitleFocusCompleteCueBatchPublishesAfterInitialWindow() throws {
 
 @MainActor
 @Test
+func subtitleFocusCompleteBatchCommitsPendingFinalScrollbarTarget() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    session.noteScrollbarPreviewChanged(ordinal: 18)
+    #expect(session.isTargetWindowLoading)
+
+    #expect(session.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
+        token: session.token
+    ))
+
+    #expect(session.currentSnapshot?.selectedOrdinal == 18)
+    #expect(!session.isTargetWindowLoading)
+}
+
+@MainActor
+@Test
+func subtitleFocusCompleteBatchPreservesActiveScrollbarPreviewUntilMouseUp() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    session.noteScrollbarDragging(true)
+    session.noteScrollbarPreviewChanged(ordinal: 18)
+    let resolutionGeneration = session.targetWindowState.resolutionGeneration
+
+    #expect(session.publishCompleteCueBatch(
+        SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
+        token: session.token
+    ))
+
+    #expect(session.currentSnapshot?.selectedOrdinal == 12)
+    #expect(!session.isTargetWindowLoading)
+    #expect(
+        session.targetWindowState.resolutionGeneration
+            == resolutionGeneration
+    )
+    session.noteScrollbarDragging(false)
+    #expect(session.commitCachedScrollbarTarget(ordinal: 18))
+    #expect(session.currentSnapshot?.selectedOrdinal == 18)
+}
+
+@MainActor
+@Test
 func subtitleFocusCompleteCueBatchRejectsMalformedAndLateResults() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
@@ -372,6 +426,69 @@ func subtitleFocusKeyboardRepeatUsesConstantPendingState() throws {
     #expect(session.commitKeyboardNavigation(request))
     #expect(session.currentSnapshot?.selectedOrdinal == 112)
     #expect(session.keyboardNavigationRequest == nil)
+}
+
+@MainActor
+@Test
+func subtitleFocusKeyboardRepeatContinuesOnlyItsOwnNativeMotion() throws {
+    let wheelSession = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(wheelSession.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: wheelSession.token
+    ))
+    #expect(wheelSession.allowsNativeWheelInput())
+    wheelSession.noteCueReelMotion(true)
+    #expect(!wheelSession.requestKeyboardNavigation(.forward))
+
+    let keyboardSession = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 2
+    )
+    #expect(keyboardSession.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: keyboardSession.token
+    ))
+    #expect(keyboardSession.requestKeyboardNavigation(.forward))
+    #expect(!keyboardSession.allowsNativeWheelInput())
+    keyboardSession.noteCueReelMotion(true)
+    #expect(keyboardSession.requestKeyboardNavigation(.forward))
+    #expect(keyboardSession.keyboardNavigationRequest?.targetOrdinal == 14)
+
+    let targetLoadingSession = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 3
+    )
+    #expect(targetLoadingSession.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: targetLoadingSession.token
+    ))
+    targetLoadingSession.noteScrollbarPreviewChanged(ordinal: 18)
+    #expect(targetLoadingSession.isTargetWindowLoading)
+    #expect(!targetLoadingSession.allowsNativeWheelInput())
+}
+
+@MainActor
+@Test
+func subtitleFocusNativeWheelCommitsBeforeDeferredMenuOpens() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    session.noteCueReelMotion(true)
+    #expect(session.deferActionMenuOpenUntilNavigationCompletes())
+    #expect(!session.allowsNativeWheelInput())
+
+    #expect(session.commitNativeReelSelection(ordinal: 13))
+    #expect(session.currentSnapshot?.selectedOrdinal == 13)
+    session.noteCueReelMotion(false)
+    #expect(session.consumeDeferredActionMenuOpen())
 }
 
 @MainActor

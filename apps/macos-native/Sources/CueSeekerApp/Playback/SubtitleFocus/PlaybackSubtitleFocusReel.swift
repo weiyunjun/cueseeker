@@ -50,6 +50,29 @@ struct PlaybackSubtitleFocusVirtualReelLayout: Equatable {
         CGFloat(boundedOrdinal(ordinal)) * PlaybackSubtitleFocusMetrics.cueSlotPitch
     }
 
+    func nearestOrdinal(
+        toContentOffsetY offset: CGFloat,
+        netDeltaY: CGFloat = 0
+    ) -> Int {
+        guard totalCount > 0 else {
+            return 0
+        }
+        let position = min(max(0, offset), maximumContentOffsetY)
+            / PlaybackSubtitleFocusMetrics.cueSlotPitch
+        let lower = Int(floor(position))
+        let upper = min(totalCount - 1, lower + 1)
+        let fraction = position - CGFloat(lower)
+        if abs(fraction - 0.5) < 0.0001 {
+            if netDeltaY > 0 {
+                return lower
+            }
+            if netDeltaY < 0 {
+                return upper
+            }
+        }
+        return boundedOrdinal(Int(position.rounded()))
+    }
+
     func rowRect(for ordinal: Int) -> CGRect {
         CGRect(
             x: (viewportSize.width - contentWidth) / 2,
@@ -96,6 +119,233 @@ struct PlaybackSubtitleFocusVirtualReelLayout: Equatable {
     }
 }
 
+enum PlaybackSubtitleFocusNativeWheelMode: Equatable {
+    case none
+    case discrete(direction: SubtitleFocusNavigationDirection, stepCount: Int)
+    case precise(deltaY: CGFloat, beginsGesture: Bool)
+}
+
+struct PlaybackSubtitleFocusNativeWheelOutput: Equatable {
+    let shouldConsume: Bool
+    let mode: PlaybackSubtitleFocusNativeWheelMode
+    let settleDirective: PlaybackSubtitleFocusScrollSettleDirective
+
+    static let passThrough = PlaybackSubtitleFocusNativeWheelOutput(
+        shouldConsume: false,
+        mode: .none,
+        settleDirective: .none
+    )
+
+    static let consumedNoop = PlaybackSubtitleFocusNativeWheelOutput(
+        shouldConsume: true,
+        mode: .none,
+        settleDirective: .none
+    )
+}
+
+struct PlaybackSubtitleFocusNativeWheelState: Equatable {
+    private var ownsPreciseGesture = false
+    private var awaitsMomentum = false
+    private var requiresNewGesture = false
+
+    mutating func consume(
+        _ sample: PlaybackSubtitleFocusScrollSample,
+        isEnabled: Bool
+    ) -> PlaybackSubtitleFocusNativeWheelOutput {
+        guard isEnabled else {
+            reset(requiresNewGesture: true)
+            return .consumedNoop
+        }
+
+        let hasNoPhases = sample.phase == .none && sample.momentumPhase == .none
+        let isDiscrete = !sample.isPrecise
+        if requiresNewGesture {
+            let startsFreshGesture = isDiscrete
+                || sample.phase == .began
+                || (sample.isPrecise && hasNoPhases && sample.isInside)
+            guard startsFreshGesture else {
+                return .consumedNoop
+            }
+            requiresNewGesture = false
+        }
+
+        if isDiscrete {
+            guard sample.isInside else {
+                return .passThrough
+            }
+            guard sample.deltaY.isFinite, sample.deltaY != 0 else {
+                return .consumedNoop
+            }
+            let direction: SubtitleFocusNavigationDirection = sample.deltaY > 0
+                ? .backward
+                : .forward
+            return PlaybackSubtitleFocusNativeWheelOutput(
+                shouldConsume: true,
+                mode: .discrete(
+                    direction: direction,
+                    stepCount: max(1, Int(abs(sample.deltaY).rounded(.up)))
+                ),
+                settleDirective: .none
+            )
+        }
+
+        if sample.isPrecise && hasNoPhases {
+            guard sample.isInside || ownsPreciseGesture else {
+                return .passThrough
+            }
+            let beginsGesture = !ownsPreciseGesture
+            ownsPreciseGesture = true
+            return preciseOutput(
+                sample,
+                beginsGesture: beginsGesture,
+                settleDirective: .debounce
+            )
+        }
+
+        var beginsGesture = false
+        if sample.phase == .began {
+            ownsPreciseGesture = sample.isInside
+            awaitsMomentum = false
+            beginsGesture = ownsPreciseGesture
+        } else if sample.momentumPhase == .began, awaitsMomentum {
+            ownsPreciseGesture = true
+            awaitsMomentum = false
+        } else if !ownsPreciseGesture,
+                  !awaitsMomentum,
+                  sample.phase == .changed,
+                  sample.isInside {
+            ownsPreciseGesture = true
+            beginsGesture = true
+        }
+
+        guard ownsPreciseGesture else {
+            return .passThrough
+        }
+        if sample.phase == .cancelled || sample.momentumPhase == .cancelled {
+            ownsPreciseGesture = false
+            awaitsMomentum = false
+            return preciseOutput(
+                sample,
+                beginsGesture: beginsGesture,
+                settleDirective: .immediate
+            )
+        }
+        if sample.momentumPhase == .ended {
+            ownsPreciseGesture = false
+            awaitsMomentum = false
+            return preciseOutput(
+                sample,
+                beginsGesture: beginsGesture,
+                settleDirective: .immediate
+            )
+        }
+        if sample.momentumPhase == .began {
+            ownsPreciseGesture = true
+            awaitsMomentum = false
+            return preciseOutput(
+                sample,
+                beginsGesture: beginsGesture,
+                settleDirective: .cancel
+            )
+        }
+        if sample.phase == .ended {
+            ownsPreciseGesture = false
+            awaitsMomentum = true
+            return preciseOutput(
+                sample,
+                beginsGesture: beginsGesture,
+                settleDirective: .debounce
+            )
+        }
+        return preciseOutput(
+            sample,
+            beginsGesture: beginsGesture,
+            settleDirective: .cancel
+        )
+    }
+
+    mutating func finishPreciseGesture() {
+        ownsPreciseGesture = false
+        awaitsMomentum = false
+    }
+
+    mutating func reset(requiresNewGesture: Bool = false) {
+        ownsPreciseGesture = false
+        awaitsMomentum = false
+        self.requiresNewGesture = requiresNewGesture
+    }
+
+    private func preciseOutput(
+        _ sample: PlaybackSubtitleFocusScrollSample,
+        beginsGesture: Bool,
+        settleDirective: PlaybackSubtitleFocusScrollSettleDirective
+    ) -> PlaybackSubtitleFocusNativeWheelOutput {
+        let deltaY = sample.deltaY.isFinite ? sample.deltaY : 0
+        return PlaybackSubtitleFocusNativeWheelOutput(
+            shouldConsume: true,
+            mode: .precise(
+                deltaY: deltaY,
+                beginsGesture: beginsGesture
+            ),
+            settleDirective: settleDirective
+        )
+    }
+}
+
+enum PlaybackSubtitleFocusPreciseWheelSettlement {
+    static func accumulatingAppliedDeltaY(
+        _ netDeltaY: CGFloat,
+        from previousOffsetY: CGFloat,
+        to currentOffsetY: CGFloat
+    ) -> CGFloat {
+        netDeltaY + previousOffsetY - currentOffsetY
+    }
+
+    static func targetOrdinal(
+        layout: PlaybackSubtitleFocusVirtualReelLayout,
+        currentOffsetY: CGFloat,
+        startOrdinal: Int,
+        netDeltaY: CGFloat,
+        availableRange: Range<Int>
+    ) -> Int {
+        guard !availableRange.isEmpty else {
+            return startOrdinal
+        }
+        func bounded(_ ordinal: Int) -> Int {
+            min(
+                max(availableRange.lowerBound, ordinal),
+                availableRange.upperBound - 1
+            )
+        }
+
+        var target = bounded(layout.nearestOrdinal(
+            toContentOffsetY: currentOffsetY,
+            netDeltaY: netDeltaY
+        ))
+        if target == startOrdinal, netDeltaY != 0 {
+            target = bounded(startOrdinal + (netDeltaY > 0 ? -1 : 1))
+        }
+        return target
+    }
+
+    static func boundedContentOffsetY(
+        layout: PlaybackSubtitleFocusVirtualReelLayout,
+        requestedOffsetY: CGFloat,
+        availableRange: Range<Int>
+    ) -> CGFloat {
+        guard !availableRange.isEmpty else {
+            return min(max(0, requestedOffsetY), layout.maximumContentOffsetY)
+        }
+        let minimumOffset = layout.contentOffsetY(
+            for: availableRange.lowerBound
+        )
+        let maximumOffset = layout.contentOffsetY(
+            for: availableRange.upperBound - 1
+        )
+        return min(max(minimumOffset, requestedOffsetY), maximumOffset)
+    }
+}
+
 struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let cues: [SubtitleFocusCue]
     let totalCount: Int
@@ -105,8 +355,12 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let reducesMotion: Bool
     let isInteractionEnabled: Bool
+    let cancelsWheelMotion: Bool
     let onActivateCue: (SubtitleFocusCue, CGFloat) -> Void
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
+    let onCommitNativeReelSelection: (Int) -> Bool
+    let allowsNativeWheelInput: () -> Bool
+    let onNativeMotionGateChanged: (Bool) -> Void
     let onKeyboardMotionChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusReelContainerView {
@@ -132,6 +386,9 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     private func update(_ view: PlaybackSubtitleFocusReelContainerView) {
         view.onActivateCue = onActivateCue
         view.onCommitKeyboardNavigation = onCommitKeyboardNavigation
+        view.onCommitNativeReelSelection = onCommitNativeReelSelection
+        view.allowsNativeWheelInput = allowsNativeWheelInput
+        view.onNativeMotionGateChanged = onNativeMotionGateChanged
         view.onKeyboardMotionChanged = onKeyboardMotionChanged
         view.update(
             cues: cues,
@@ -141,7 +398,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
             presentationTranslation: presentationTranslation,
             keyboardNavigationRequest: keyboardNavigationRequest,
             reducesMotion: reducesMotion,
-            isInteractionEnabled: isInteractionEnabled
+            isInteractionEnabled: isInteractionEnabled,
+            cancelsWheelMotion: cancelsWheelMotion
         )
     }
 }
@@ -151,6 +409,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     var onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool = {
         _ in false
     }
+    var onCommitNativeReelSelection: (Int) -> Bool = { _ in false }
+    var allowsNativeWheelInput: () -> Bool = { false }
+    var onNativeMotionGateChanged: (Bool) -> Void = { _ in }
     var onKeyboardMotionChanged: (Bool) -> Void = { _ in }
 
     private let scrollView = PlaybackSubtitleFocusNativeScrollView()
@@ -159,9 +420,20 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private var selectedOrdinal = 0
     private var focusAnchorY: CGFloat = 0
     private var presentationTranslation: CGFloat = 0
+    private var loadedOrdinalRange: Range<Int> = 0..<0
+    private var isInteractionEnabled = true
+    private var reducesMotion = false
     private var lastHandledKeyboardSequence = 0
     private var activeKeyboardRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     private var isKeyboardMotionActive = false
+    private var activeWheelTargetOrdinal: Int?
+    private var preciseGestureStartOrdinal: Int?
+    private var preciseGestureNetDeltaY: CGFloat = 0
+    private var wheelState = PlaybackSubtitleFocusNativeWheelState()
+    private var preciseSettleTask: Task<Void, Never>?
+    nonisolated(unsafe) private var eventMonitor: Any?
+    private var isWheelMotionActive = false
+    private var reportedNativeMotionActive = false
     private var motionCallbackGeneration = 0
     private var motionCallbackTask: Task<Void, Never>?
     private lazy var keyboardAnimator = PlaybackSubtitleFocusKeyboardOffsetAnimator(
@@ -170,6 +442,14 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         },
         onCompletion: { [weak self] in
             self?.completeKeyboardMotion()
+        }
+    )
+    private lazy var wheelAnimator = PlaybackSubtitleFocusKeyboardOffsetAnimator(
+        onUpdate: { [weak self] offset in
+            self?.setContentOffsetY(offset)
+        },
+        onCompletion: { [weak self] in
+            self?.completeWheelMotion()
         }
     )
 
@@ -207,8 +487,18 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         super.layout()
         scrollView.frame = bounds
         updateDocumentGeometry()
-        if activeKeyboardRequest == nil {
+        if !hasActiveNativeMotion {
             synchronizeContentOffsetIfIdle()
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            removeEventMonitor()
+            resetWheelInteraction(requiresNewGesture: true)
+        } else {
+            installEventMonitorIfNeeded()
         }
     }
 
@@ -220,7 +510,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         presentationTranslation: CGFloat,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?,
         reducesMotion: Bool,
-        isInteractionEnabled: Bool
+        isInteractionEnabled: Bool,
+        cancelsWheelMotion: Bool
     ) {
         self.totalCount = max(0, totalCount)
         self.selectedOrdinal = min(
@@ -231,10 +522,24 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         self.presentationTranslation = presentationTranslation.isFinite
             ? presentationTranslation
             : 0
+        if let firstOrdinal = cues.first?.ordinal,
+           let lastOrdinal = cues.last?.ordinal {
+            loadedOrdinalRange = firstOrdinal..<(lastOrdinal + 1)
+        } else {
+            loadedOrdinalRange = 0..<0
+        }
+        self.reducesMotion = reducesMotion
+        let wasInteractionEnabled = self.isInteractionEnabled
+        self.isInteractionEnabled = isInteractionEnabled
+        if cancelsWheelMotion {
+            resetWheelInteraction(requiresNewGesture: true)
+        } else if wasInteractionEnabled, !isInteractionEnabled {
+            suspendWheelInputForSuppression()
+        }
         documentView.updateContent(cues: cues, totalCount: totalCount)
         documentView.isInteractionEnabled = isInteractionEnabled
         updateDocumentGeometry()
-        if activeKeyboardRequest == nil {
+        if !hasActiveNativeMotion {
             documentView.updateSelection(self.selectedOrdinal)
             synchronizeContentOffsetIfIdle()
         }
@@ -246,14 +551,29 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     func invalidate() {
         onActivateCue = { _, _ in }
+        if reportedNativeMotionActive {
+            onNativeMotionGateChanged(false)
+        }
         motionCallbackGeneration += 1
         motionCallbackTask?.cancel()
         motionCallbackTask = nil
         onCommitKeyboardNavigation = { _ in false }
+        onCommitNativeReelSelection = { _ in false }
+        allowsNativeWheelInput = { false }
+        onNativeMotionGateChanged = { _ in }
         onKeyboardMotionChanged = { _ in }
         keyboardAnimator.cancel()
+        wheelAnimator.cancel()
+        preciseSettleTask?.cancel()
+        preciseSettleTask = nil
+        removeEventMonitor()
+        wheelState.reset()
         activeKeyboardRequest = nil
+        activeWheelTargetOrdinal = nil
+        preciseGestureStartOrdinal = nil
         isKeyboardMotionActive = false
+        isWheelMotionActive = false
+        reportedNativeMotionActive = false
         documentView.invalidate()
         scrollView.documentView = nil
     }
@@ -271,7 +591,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     }
 
     private func synchronizeContentOffsetIfIdle() {
-        guard !keyboardAnimator.isRunning else {
+        guard !keyboardAnimator.isRunning,
+              !wheelAnimator.isRunning,
+              preciseGestureStartOrdinal == nil
+        else {
             return
         }
         let layout = currentLayout
@@ -318,9 +641,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         keyboardAnimator.retarget(
             from: scrollView.contentView.bounds.minY,
             to: currentLayout.contentOffsetY(for: request.targetOrdinal),
-            duration: reducesMotion
-                ? 0
-                : PlaybackSubtitleFocusMetrics.reelTransitionDuration
+            duration: PlaybackSubtitleFocusMetrics
+                .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
         )
     }
 
@@ -336,11 +658,290 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         setKeyboardMotionActive(false)
     }
 
+    private func installEventMonitorIfNeeded() {
+        guard eventMonitor == nil else {
+            return
+        }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) {
+            [weak self] event in
+            guard let self,
+                  let window = self.window,
+                  event.window === window
+            else {
+                return event
+            }
+            let point = self.convert(event.locationInWindow, from: nil)
+            let isInside = self.bounds.contains(point)
+            guard self.allowsNativeWheelInput() else {
+                if self.isWheelMotionActive {
+                    self.suspendWheelInputForSuppression()
+                    return nil
+                }
+                return isInside ? nil : event
+            }
+            let sample = PlaybackSubtitleFocusScrollSample(
+                deltaY: event.scrollingDeltaY,
+                isPrecise: event.hasPreciseScrollingDeltas,
+                phase: Self.scrollPhase(from: event.phase),
+                momentumPhase: Self.scrollPhase(from: event.momentumPhase),
+                isInside: isInside
+            )
+            let output = self.wheelState.consume(
+                sample,
+                isEnabled: self.isInteractionEnabled
+            )
+            guard output.shouldConsume else {
+                return event
+            }
+            self.handleWheelOutput(output)
+            return nil
+        }
+    }
+
+    private func removeEventMonitor() {
+        guard let eventMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(eventMonitor)
+        self.eventMonitor = nil
+    }
+
+    private func handleWheelOutput(
+        _ output: PlaybackSubtitleFocusNativeWheelOutput
+    ) {
+        switch output.mode {
+        case .none:
+            break
+        case .discrete(let direction, let stepCount):
+            handleDiscreteWheel(direction: direction, stepCount: stepCount)
+        case .precise(let deltaY, let beginsGesture):
+            handlePreciseWheel(deltaY: deltaY, beginsGesture: beginsGesture)
+        }
+
+        switch output.settleDirective {
+        case .none:
+            break
+        case .cancel:
+            cancelPreciseSettle()
+        case .debounce:
+            schedulePreciseSettle()
+        case .immediate:
+            settlePreciseWheel()
+        }
+    }
+
+    private func handleDiscreteWheel(
+        direction: SubtitleFocusNavigationDirection,
+        stepCount: Int
+    ) {
+        cancelPreciseSettle()
+        wheelState.finishPreciseGesture()
+        let startOrdinal = activeWheelTargetOrdinal ?? selectedOrdinal
+        let delta = direction == .backward ? -stepCount : stepCount
+        let targetOrdinal = boundedLoadedOrdinal(startOrdinal + delta)
+        guard targetOrdinal != startOrdinal else {
+            return
+        }
+
+        preciseGestureStartOrdinal = nil
+        preciseGestureNetDeltaY = 0
+        activeWheelTargetOrdinal = targetOrdinal
+        documentView.updateSelection(targetOrdinal)
+        setWheelMotionActive(true)
+        wheelAnimator.retarget(
+            from: scrollView.contentView.bounds.minY,
+            to: currentLayout.contentOffsetY(for: targetOrdinal),
+            duration: PlaybackSubtitleFocusMetrics
+                .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
+        )
+    }
+
+    private func handlePreciseWheel(
+        deltaY: CGFloat,
+        beginsGesture: Bool
+    ) {
+        if beginsGesture || preciseGestureStartOrdinal == nil {
+            cancelPreciseSettle()
+            wheelAnimator.cancel()
+            activeWheelTargetOrdinal = nil
+            preciseGestureStartOrdinal = boundedLoadedOrdinal(
+                currentLayout.nearestOrdinal(
+                    toContentOffsetY: scrollView.contentView.bounds.minY
+                )
+            )
+            preciseGestureNetDeltaY = 0
+        }
+
+        let layout = currentLayout
+        let previousOffset = scrollView.contentView.bounds.minY
+        let requestedOffset = previousOffset - deltaY
+        let offset = PlaybackSubtitleFocusPreciseWheelSettlement
+            .boundedContentOffsetY(
+                layout: layout,
+                requestedOffsetY: requestedOffset,
+                availableRange: loadedOrdinalRange
+            )
+        preciseGestureNetDeltaY = PlaybackSubtitleFocusPreciseWheelSettlement
+            .accumulatingAppliedDeltaY(
+                preciseGestureNetDeltaY,
+                from: previousOffset,
+                to: offset
+            )
+        setContentOffsetY(offset)
+        let previewOrdinal = boundedLoadedOrdinal(
+            layout.nearestOrdinal(
+                toContentOffsetY: offset,
+                netDeltaY: preciseGestureNetDeltaY
+            )
+        )
+        documentView.updateSelection(previewOrdinal)
+        setWheelMotionActive(true)
+    }
+
+    private func schedulePreciseSettle() {
+        preciseSettleTask?.cancel()
+        preciseSettleTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard let self, !Task.isCancelled else {
+                return
+            }
+            self.preciseSettleTask = nil
+            self.settlePreciseWheel()
+        }
+    }
+
+    private func cancelPreciseSettle() {
+        preciseSettleTask?.cancel()
+        preciseSettleTask = nil
+    }
+
+    private func settlePreciseWheel() {
+        cancelPreciseSettle()
+        wheelState.finishPreciseGesture()
+        guard let startOrdinal = preciseGestureStartOrdinal else {
+            return
+        }
+
+        let layout = currentLayout
+        let currentOffset = scrollView.contentView.bounds.minY
+        let targetOrdinal = PlaybackSubtitleFocusPreciseWheelSettlement.targetOrdinal(
+            layout: layout,
+            currentOffsetY: currentOffset,
+            startOrdinal: startOrdinal,
+            netDeltaY: preciseGestureNetDeltaY,
+            availableRange: loadedOrdinalRange
+        )
+
+        preciseGestureStartOrdinal = nil
+        preciseGestureNetDeltaY = 0
+        activeWheelTargetOrdinal = targetOrdinal
+        documentView.updateSelection(targetOrdinal)
+        wheelAnimator.retarget(
+            from: currentOffset,
+            to: layout.contentOffsetY(for: targetOrdinal),
+            duration: PlaybackSubtitleFocusMetrics
+                .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
+        )
+    }
+
+    private func completeWheelMotion() {
+        guard let targetOrdinal = activeWheelTargetOrdinal else {
+            return
+        }
+        let didCommit = onCommitNativeReelSelection(targetOrdinal)
+        activeWheelTargetOrdinal = nil
+        if didCommit {
+            selectedOrdinal = targetOrdinal
+        } else {
+            documentView.updateSelection(selectedOrdinal)
+        }
+        setWheelMotionActive(false)
+        if !didCommit {
+            synchronizeContentOffsetIfIdle()
+        }
+    }
+
+    private func resetWheelInteraction(requiresNewGesture: Bool) {
+        cancelPreciseSettle()
+        wheelState.reset(requiresNewGesture: requiresNewGesture)
+        wheelAnimator.cancel()
+        activeWheelTargetOrdinal = nil
+        preciseGestureStartOrdinal = nil
+        preciseGestureNetDeltaY = 0
+        documentView.updateSelection(selectedOrdinal)
+        setWheelMotionActive(false)
+        synchronizeContentOffsetIfIdle()
+    }
+
+    private func suspendWheelInputForSuppression() {
+        cancelPreciseSettle()
+        wheelState.reset(requiresNewGesture: true)
+        if preciseGestureStartOrdinal != nil {
+            settlePreciseWheel()
+        }
+    }
+
+    private func boundedLoadedOrdinal(_ ordinal: Int) -> Int {
+        guard !loadedOrdinalRange.isEmpty else {
+            return selectedOrdinal
+        }
+        return min(
+            max(loadedOrdinalRange.lowerBound, ordinal),
+            loadedOrdinalRange.upperBound - 1
+        )
+    }
+
+    private static func scrollPhase(
+        from phase: NSEvent.Phase
+    ) -> PlaybackSubtitleFocusScrollSample.Phase {
+        if phase.contains(.began) {
+            return .began
+        }
+        if phase.contains(.changed)
+            || phase.contains(.mayBegin)
+            || phase.contains(.stationary) {
+            return .changed
+        }
+        if phase.contains(.ended) {
+            return .ended
+        }
+        if phase.contains(.cancelled) {
+            return .cancelled
+        }
+        return .none
+    }
+
     private func setKeyboardMotionActive(_ isActive: Bool) {
         guard isKeyboardMotionActive != isActive else {
             return
         }
         isKeyboardMotionActive = isActive
+        updateReportedNativeMotion()
+    }
+
+    private func setWheelMotionActive(_ isActive: Bool) {
+        guard isWheelMotionActive != isActive else {
+            return
+        }
+        isWheelMotionActive = isActive
+        updateReportedNativeMotion()
+    }
+
+    private var hasActiveNativeMotion: Bool {
+        activeKeyboardRequest != nil
+            || activeWheelTargetOrdinal != nil
+            || preciseGestureStartOrdinal != nil
+            || keyboardAnimator.isRunning
+            || wheelAnimator.isRunning
+    }
+
+    private func updateReportedNativeMotion() {
+        let isActive = isKeyboardMotionActive || isWheelMotionActive
+        guard reportedNativeMotionActive != isActive else {
+            return
+        }
+        reportedNativeMotionActive = isActive
+        onNativeMotionGateChanged(isActive)
         motionCallbackGeneration += 1
         let generation = motionCallbackGeneration
         motionCallbackTask?.cancel()
@@ -348,7 +949,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             guard let self,
                   !Task.isCancelled,
                   self.motionCallbackGeneration == generation,
-                  self.isKeyboardMotionActive == isActive
+                  self.reportedNativeMotionActive == isActive
             else {
                 return
             }

@@ -128,6 +128,10 @@ struct PlaybackSubtitleFocusLayer: View {
                     session.updateProtectedVisibleOrdinalRange,
                 onCommitKeyboardNavigation:
                     session.commitKeyboardNavigation,
+                onCommitNativeReelSelection:
+                    session.commitNativeReelSelection,
+                allowsNativeWheelInput:
+                    session.allowsNativeWheelInput,
                 consumeDeferredActionMenuOpen:
                     session.consumeDeferredActionMenuOpen,
                 canMoveSelection: session.canMoveSelection,
@@ -161,6 +165,8 @@ struct PlaybackSubtitleFocusOverlay: View {
     let isActionMenuOpening: Bool
     let onProtectedVisibleRangeChanged: (Range<Int>?) -> Void
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
+    let onCommitNativeReelSelection: (Int) -> Bool
+    let allowsNativeWheelInput: () -> Bool
     let consumeDeferredActionMenuOpen: () -> Bool
     let canMoveSelection: (SubtitleFocusNavigationDirection) -> Bool
     let isCueCached: (Int) -> Bool
@@ -178,9 +184,8 @@ struct PlaybackSubtitleFocusOverlay: View {
     let onExecuteAction: (PlaybackSubtitleFocusAction) -> Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var wheelAccumulator = PlaybackSubtitleFocusWheelAccumulator()
-    @State private var wheelSettleTask: Task<Void, Never>?
     @State private var isCueReelMotionActive = false
+    @State private var isScrollbarDragging = false
     @State private var cueReelMotionTask: Task<Void, Never>?
 
     init(
@@ -197,6 +202,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         onCommitKeyboardNavigation: @escaping (
             PlaybackSubtitleFocusKeyboardNavigationRequest
         ) -> Bool = { _ in false },
+        onCommitNativeReelSelection: @escaping (Int) -> Bool = { _ in false },
+        allowsNativeWheelInput: @escaping () -> Bool = { false },
         consumeDeferredActionMenuOpen: @escaping () -> Bool = { false },
         canMoveSelection: @escaping (SubtitleFocusNavigationDirection) -> Bool = { _ in false },
         isCueCached: @escaping (Int) -> Bool = { _ in false },
@@ -224,6 +231,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.isActionMenuOpening = isActionMenuOpening
         self.onProtectedVisibleRangeChanged = onProtectedVisibleRangeChanged
         self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
+        self.onCommitNativeReelSelection = onCommitNativeReelSelection
+        self.allowsNativeWheelInput = allowsNativeWheelInput
         self.consumeDeferredActionMenuOpen = consumeDeferredActionMenuOpen
         self.canMoveSelection = canMoveSelection
         self.isCueCached = isCueCached
@@ -263,12 +272,13 @@ struct PlaybackSubtitleFocusOverlay: View {
                 focusAnchorY: resolvedFocusAnchorY,
                 viewportMinY: PlaybackSubtitleFocusMetrics.contentInset,
                 viewportMaxY: viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset,
-                presentationTranslation: wheelAccumulator.translation
+                presentationTranslation: 0
             )
-            let suppressesNavigation = actionMenuState != nil
+            let blocksNavigation = actionMenuState != nil
                 || isActionMenuOpening
                 || keyboardNavigationRequest != nil
-                || isCueReelMotionActive
+            let suppressesReelNavigation = blocksNavigation
+                || isScrollbarDragging
 
             ZStack(alignment: .top) {
                 PlaybackTheme.subtitleFocusOverlayBackground
@@ -279,10 +289,13 @@ struct PlaybackSubtitleFocusOverlay: View {
                     selectedOrdinal: snapshot.selectedOrdinal,
                     focusAnchorY: resolvedFocusAnchorY
                         - PlaybackSubtitleFocusMetrics.contentInset,
-                    presentationTranslation: wheelAccumulator.translation,
+                    presentationTranslation: 0,
                     keyboardNavigationRequest: keyboardNavigationRequest,
                     reducesMotion: reduceMotion,
-                    isInteractionEnabled: !suppressesNavigation,
+                    isInteractionEnabled: !suppressesReelNavigation,
+                    cancelsWheelMotion: actionMenuState != nil
+                        || keyboardNavigationRequest != nil
+                        || isScrollbarDragging,
                     onActivateCue: { cue, viewportY in
                         openActionMenu(
                             cue,
@@ -292,6 +305,9 @@ struct PlaybackSubtitleFocusOverlay: View {
                     onCommitKeyboardNavigation: { request in
                         onCommitKeyboardNavigation(request)
                     },
+                    onCommitNativeReelSelection: onCommitNativeReelSelection,
+                    allowsNativeWheelInput: allowsNativeWheelInput,
+                    onNativeMotionGateChanged: onCueReelMotionChanged,
                     onKeyboardMotionChanged: { isActive in
                         if isActive {
                             beginCueReelMotion()
@@ -306,14 +322,7 @@ struct PlaybackSubtitleFocusOverlay: View {
                     alignment: .top
                 )
                 .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
-                .allowsHitTesting(!suppressesNavigation)
-
-                PlaybackSubtitleFocusScrollCapture(
-                    suppressesNavigation: suppressesNavigation,
-                    onScroll: handleScroll
-                )
-                .frame(width: viewportSize.width, height: viewportSize.height)
-                .opacity(0.001)
+                .allowsHitTesting(!suppressesReelNavigation)
 
                 PlaybackSubtitleFocusScrollbar(
                     totalCount: snapshot.totalCount,
@@ -324,14 +333,20 @@ struct PlaybackSubtitleFocusOverlay: View {
                     onPreviewChanged: onScrollbarPreview,
                     onCommitCachedTarget: onCommitCachedScrollbarTarget,
                     onRequestTarget: onRequestScrollbarTarget,
-                    onDraggingChanged: onScrollbarDraggingChanged
+                    onDraggingChanged: { isDragging in
+                        isScrollbarDragging = isDragging
+                        onScrollbarDraggingChanged(isDragging)
+                    }
                 )
                 .frame(
                     width: viewportSize.width,
                     height: cueViewportHeight
                 )
                 .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
-                .allowsHitTesting(!suppressesNavigation)
+                .allowsHitTesting(
+                    !blocksNavigation
+                        && (!isCueReelMotionActive || isScrollbarDragging)
+                )
 
                 PlaybackSubtitleFocusProtectedRangeReporter(
                     range: protectedVisibleRange,
@@ -378,21 +393,15 @@ struct PlaybackSubtitleFocusOverlay: View {
             .environment(\.colorScheme, .dark)
         }
         .onDisappear {
-            wheelSettleTask?.cancel()
-            wheelSettleTask = nil
             cueReelMotionTask?.cancel()
             cueReelMotionTask = nil
             updateCueReelMotion(false)
+            isScrollbarDragging = false
             onScrollbarDraggingChanged(false)
         }
         .onChange(of: actionMenuState?.generation) { generation in
             guard generation != nil else {
                 return
-            }
-            wheelSettleTask?.cancel()
-            wheelSettleTask = nil
-            withTransaction(Transaction(animation: nil)) {
-                wheelAccumulator.finishSettling()
             }
             cueReelMotionTask?.cancel()
             cueReelMotionTask = nil
@@ -407,68 +416,6 @@ struct PlaybackSubtitleFocusOverlay: View {
         }
     }
 
-    private func handleScroll(_ output: PlaybackSubtitleFocusScrollOutput) {
-        guard actionMenuState == nil, !isActionMenuOpening else {
-            return
-        }
-        if output.deltaY != 0 {
-            beginCueReelMotion()
-            onNavigationIntent(output.deltaY > 0 ? .backward : .forward)
-            wheelSettleTask?.cancel()
-            wheelSettleTask = nil
-            withTransaction(Transaction(animation: nil)) {
-                wheelAccumulator.apply(
-                    deltaY: output.deltaY,
-                    canMoveSelection: canMoveSelection,
-                    moveSelection: onMoveSelection
-                )
-            }
-        }
-
-        switch output.settleDirective {
-        case .none:
-            break
-        case .cancel:
-            beginCueReelMotion()
-            scheduleWheelSettle()
-        case .debounce:
-            beginCueReelMotion()
-            scheduleWheelSettle()
-        case .immediate:
-            settleWheel()
-        }
-    }
-
-    private func scheduleWheelSettle() {
-        wheelSettleTask?.cancel()
-        wheelSettleTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
-            settleWheel()
-        }
-    }
-
-    private func settleWheel() {
-        wheelSettleTask?.cancel()
-        wheelSettleTask = nil
-
-        beginCueReelMotion()
-        withTransaction(Transaction(animation: nil)) {
-            wheelAccumulator.prepareToSettle(
-                canMoveSelection: canMoveSelection,
-                moveSelection: onMoveSelection
-            )
-        }
-        withAnimation(
-            reduceMotion ? nil : PlaybackSubtitleFocusMetrics.reelTransitionAnimation
-        ) {
-            wheelAccumulator.finishSettling()
-        }
-        finishCueReelMotionAfterAnimation()
-    }
-
     private func openActionMenu(
         _ cue: SubtitleFocusCue,
         focusAnchorY: CGFloat
@@ -481,13 +428,8 @@ struct PlaybackSubtitleFocusOverlay: View {
             return
         }
 
-        wheelSettleTask?.cancel()
-        wheelSettleTask = nil
-        withTransaction(Transaction(animation: nil)) {
-            guard onOpenActionMenu(cue, focusAnchorY) else {
-                return
-            }
-            wheelAccumulator.finishSettling()
+        guard onOpenActionMenu(cue, focusAnchorY) else {
+            return
         }
     }
 

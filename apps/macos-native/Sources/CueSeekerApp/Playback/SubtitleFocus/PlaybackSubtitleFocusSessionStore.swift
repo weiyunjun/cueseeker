@@ -206,14 +206,24 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
 
+        let pendingScrollbarTarget = pendingScrollbarPreviewOrdinal
+        let preservesActiveDragPreview = pendingScrollbarTarget != nil
+            && isScrollbarDragging
         loadScheduler.invalidate()
         pendingScrollbarPreviewOrdinal = nil
         protectedVisibleOrdinalRange = nil
+        completeCueBatch = batch
+        if let pendingScrollbarTarget, !isScrollbarDragging {
+            _ = selectCachedCue(
+                ordinal: pendingScrollbarTarget,
+                focusAnchorY: nil
+            )
+        }
         targetWindowState = PlaybackSubtitleFocusTargetWindowState(
             loadingTargetOrdinal: nil,
-            resolutionGeneration: targetWindowState.resolutionGeneration + 1
+            resolutionGeneration: targetWindowState.resolutionGeneration
+                + (preservesActiveDragPreview ? 0 : 1)
         )
-        completeCueBatch = batch
         return true
     }
 
@@ -246,6 +256,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard isSessionActive,
               actionMenuState == nil,
               !isActionMenuOpening,
+              (!isCueReelMotionActive
+                  || pendingKeyboardNavigationTargetOrdinal != nil),
               let snapshot = currentSnapshot
         else {
             return false
@@ -287,6 +299,21 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         pendingKeyboardNavigationTargetOrdinal = nil
         keyboardNavigationRequest = nil
         return true
+    }
+
+    @discardableResult
+    func commitNativeReelSelection(ordinal: Int) -> Bool {
+        guard isSessionActive,
+              actionMenuState == nil,
+              (!isActionMenuOpening || isCueReelMotionActive),
+              pendingKeyboardNavigationTargetOrdinal == nil
+        else {
+            return false
+        }
+        if currentSnapshot?.selectedOrdinal == ordinal {
+            return true
+        }
+        return selectCachedCue(ordinal: ordinal, focusAnchorY: nil)
     }
 
     func canMoveSelection(
@@ -506,6 +533,15 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return
         }
         isCueReelMotionActive = isActive
+    }
+
+    func allowsNativeWheelInput() -> Bool {
+        isSessionActive
+            && actionMenuState == nil
+            && !isActionMenuOpening
+            && pendingKeyboardNavigationTargetOrdinal == nil
+            && !isScrollbarDragging
+            && !targetWindowState.isLoading
     }
 
     @discardableResult

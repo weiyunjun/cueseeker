@@ -14,6 +14,16 @@ func subtitleFocusMetricsMatchDocumentedFixedGeometry() {
     #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 40)
     #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 52)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
+            reducesMotion: false
+        ) == 0.22
+    )
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
+            reducesMotion: true
+        ) == 0
+    )
     #expect(PlaybackSubtitleFocusMetrics.reelHeight(cueCount: 10) == 1_328)
     #expect(PlaybackSubtitleFocusMetrics.reelHeight(cueCount: 0) == 0)
 }
@@ -95,6 +105,220 @@ func subtitleFocusKeyboardAnimatorUsesDocumentedEaseOutCurve() {
     #expect(samples.last == 1)
     #expect(samples == samples.sorted())
     #expect(PlaybackSubtitleFocusKeyboardOffsetAnimator.easedProgress(0.5) > 0.8)
+}
+
+@Test
+func subtitleFocusNativeDiscreteWheelAlwaysMovesAtLeastOneCue() {
+    var state = PlaybackSubtitleFocusNativeWheelState()
+
+    let tinyBackward = state.consume(
+        focusScrollSample(deltaY: 0.1, isPrecise: false, isInside: true),
+        isEnabled: true
+    )
+    let tinyForward = state.consume(
+        focusScrollSample(deltaY: -0.1, isPrecise: false, isInside: true),
+        isEnabled: true
+    )
+    let accelerated = state.consume(
+        focusScrollSample(deltaY: -3, isPrecise: false, isInside: true),
+        isEnabled: true
+    )
+
+    #expect(tinyBackward.mode == .discrete(direction: .backward, stepCount: 1))
+    #expect(tinyForward.mode == .discrete(direction: .forward, stepCount: 1))
+    #expect(accelerated.mode == .discrete(direction: .forward, stepCount: 3))
+}
+
+@Test
+func subtitleFocusNativePreciseWheelOwnsGestureThroughMomentum() {
+    var state = PlaybackSubtitleFocusNativeWheelState()
+    let began = state.consume(
+        focusScrollSample(deltaY: -12, phase: .began, isInside: true),
+        isEnabled: true
+    )
+    let ended = state.consume(
+        focusScrollSample(deltaY: -4, phase: .ended, isInside: false),
+        isEnabled: true
+    )
+    let momentumBegan = state.consume(
+        focusScrollSample(
+            deltaY: -3,
+            momentumPhase: .began,
+            isInside: false
+        ),
+        isEnabled: true
+    )
+    let momentumEnded = state.consume(
+        focusScrollSample(
+            deltaY: -2,
+            momentumPhase: .ended,
+            isInside: false
+        ),
+        isEnabled: true
+    )
+
+    #expect(began.mode == .precise(deltaY: -12, beginsGesture: true))
+    #expect(began.settleDirective == .cancel)
+    #expect(ended.shouldConsume)
+    #expect(ended.settleDirective == .debounce)
+    #expect(momentumBegan.shouldConsume)
+    #expect(momentumBegan.settleDirective == .cancel)
+    #expect(momentumEnded.mode == .precise(deltaY: -2, beginsGesture: false))
+    #expect(momentumEnded.settleDirective == .immediate)
+}
+
+@Test
+func subtitleFocusNativePreciseWheelDoesNotSettleWhileGestureIsActive() {
+    var state = PlaybackSubtitleFocusNativeWheelState()
+    let began = state.consume(
+        focusScrollSample(deltaY: -12, phase: .began, isInside: true),
+        isEnabled: true
+    )
+    let changed = state.consume(
+        focusScrollSample(deltaY: -4, phase: .changed, isInside: true),
+        isEnabled: true
+    )
+    let ended = state.consume(
+        focusScrollSample(deltaY: 0, phase: .ended, isInside: true),
+        isEnabled: true
+    )
+
+    #expect(began.settleDirective == .cancel)
+    #expect(changed.settleDirective == .cancel)
+    #expect(ended.settleDirective == .debounce)
+}
+
+@Test
+func subtitleFocusNativePreciseWheelPrioritizesCombinedMomentumBegin() {
+    var state = PlaybackSubtitleFocusNativeWheelState()
+    _ = state.consume(
+        focusScrollSample(deltaY: -12, phase: .began, isInside: true),
+        isEnabled: true
+    )
+
+    let combined = state.consume(
+        focusScrollSample(
+            deltaY: -3,
+            phase: .ended,
+            momentumPhase: .began,
+            isInside: false
+        ),
+        isEnabled: true
+    )
+
+    #expect(combined.mode == .precise(deltaY: -3, beginsGesture: false))
+    #expect(combined.settleDirective == .cancel)
+}
+
+@Test
+func subtitleFocusNativePreciseWheelSettlesSubPitchGestureByNetDirection() {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 20,
+        focusAnchorY: 328
+    )
+    let startOffset = layout.contentOffsetY(for: 12)
+
+    let forward = PlaybackSubtitleFocusPreciseWheelSettlement.targetOrdinal(
+        layout: layout,
+        currentOffsetY: startOffset + 1,
+        startOrdinal: 12,
+        netDeltaY: -1,
+        availableRange: 0..<20
+    )
+    let backward = PlaybackSubtitleFocusPreciseWheelSettlement.targetOrdinal(
+        layout: layout,
+        currentOffsetY: startOffset - 1,
+        startOrdinal: 12,
+        netDeltaY: 1,
+        availableRange: 0..<20
+    )
+    let firstBoundary = PlaybackSubtitleFocusPreciseWheelSettlement.targetOrdinal(
+        layout: layout,
+        currentOffsetY: 0,
+        startOrdinal: 0,
+        netDeltaY: 1,
+        availableRange: 0..<20
+    )
+
+    #expect(forward == 13)
+    #expect(backward == 11)
+    #expect(firstBoundary == 0)
+}
+
+@Test
+func subtitleFocusNativePreciseWheelUsesOnlyAppliedDeltaAtBoundary() {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 20,
+        focusAnchorY: 328
+    )
+    var netDeltaY: CGFloat = 0
+    netDeltaY = PlaybackSubtitleFocusPreciseWheelSettlement
+        .accumulatingAppliedDeltaY(netDeltaY, from: 0, to: 0)
+    netDeltaY = PlaybackSubtitleFocusPreciseWheelSettlement
+        .accumulatingAppliedDeltaY(netDeltaY, from: 0, to: 10)
+
+    let target = PlaybackSubtitleFocusPreciseWheelSettlement.targetOrdinal(
+        layout: layout,
+        currentOffsetY: 10,
+        startOrdinal: 0,
+        netDeltaY: netDeltaY,
+        availableRange: 0..<20
+    )
+
+    #expect(netDeltaY == -10)
+    #expect(target == 1)
+}
+
+@Test
+func subtitleFocusNativePreciseWheelStaysInsideInitialLoadedWindow() {
+    let layout = PlaybackSubtitleFocusVirtualReelLayout(
+        viewportSize: CGSize(width: 1_280, height: 656),
+        totalCount: 50_000,
+        focusAnchorY: 328
+    )
+    let availableRange = 6..<16
+
+    let beforeWindow = PlaybackSubtitleFocusPreciseWheelSettlement
+        .boundedContentOffsetY(
+            layout: layout,
+            requestedOffsetY: -10_000,
+            availableRange: availableRange
+        )
+    let afterWindow = PlaybackSubtitleFocusPreciseWheelSettlement
+        .boundedContentOffsetY(
+            layout: layout,
+            requestedOffsetY: layout.maximumContentOffsetY,
+            availableRange: availableRange
+        )
+
+    #expect(beforeWindow == layout.contentOffsetY(for: 6))
+    #expect(afterWindow == layout.contentOffsetY(for: 15))
+}
+
+@Test
+func subtitleFocusNativeWheelRequiresFreshGestureAfterSuppression() {
+    var state = PlaybackSubtitleFocusNativeWheelState()
+    _ = state.consume(
+        focusScrollSample(deltaY: -10, phase: .began, isInside: true),
+        isEnabled: true
+    )
+    _ = state.consume(
+        focusScrollSample(deltaY: -5, phase: .changed, isInside: true),
+        isEnabled: false
+    )
+    let stale = state.consume(
+        focusScrollSample(deltaY: -5, phase: .changed, isInside: true),
+        isEnabled: true
+    )
+    let fresh = state.consume(
+        focusScrollSample(deltaY: -5, phase: .began, isInside: true),
+        isEnabled: true
+    )
+
+    #expect(stale == .consumedNoop)
+    #expect(fresh.mode == .precise(deltaY: -5, beginsGesture: true))
 }
 
 @Test

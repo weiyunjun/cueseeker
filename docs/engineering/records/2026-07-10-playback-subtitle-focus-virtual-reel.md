@@ -3,6 +3,7 @@
 ## Requirement
 
 - `docs/human/requirements/20260710-Feature-Playback Subtitle Focus Virtual Reel Architecture.md`
+- `docs/human/design/UI.md`
 
 ## Scope
 
@@ -44,6 +45,21 @@ remain out of scope.
     Rejected stale animation completions retain motion ownership until the newer
     request arrives, and generation-gated motion callbacks cannot outlive the
     native reel.
+11. Moved wheel ownership into the native reel. Discrete nonzero deltas now
+    target at least one cue, while precise gestures update the clip offset
+    continuously through phase and momentum events. A nonzero sub-pitch gesture
+    settles one cue in its net direction, and Session receives one final ordinal
+    only after snap completion. A synchronous motion gate keeps Enter and
+    keyboard input aligned with the native presentation state. Precise gestures
+    settle only after their active phase ends; detach, menu suppression, and the
+    temporary SwiftUI scrollbar handoff cancel or finalize native ownership
+    without leaving a stale target or motion gate. The initial ten-cue window
+    also bounds precise offsets until the complete batch arrives. Keyboard,
+    menu, and scrollbar ownership is arbitrated before a new wheel event starts,
+    unresolved legacy scrollbar targets gate wheel takeover until their request
+    resolves. If the complete batch wins that race, a released scrollbar target
+    commits immediately while an active drag keeps its preview until mouse-up.
+    Reduce Motion resolves all native alignment animations to zero duration.
 
 ## Verification
 
@@ -58,6 +74,10 @@ remain out of scope.
   - Passed 90 tests after keyboard retargeting, including 100 repeated key
     requests held in constant pending state, queued-before-mount handling, and
     stale-completion protection for deferred Enter.
+  - Passed 102 tests after native wheel migration, covering minimum discrete
+    steps, precise momentum ownership, sub-pitch and boundary settlement,
+    combined phase events, partial-window bounds, deferred Enter, suppression
+    reset, Reduce Motion, and keyboard/wheel motion ownership.
 - `git diff --check`
   - Passed.
 
