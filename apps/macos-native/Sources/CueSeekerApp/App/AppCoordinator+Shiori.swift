@@ -360,64 +360,6 @@ extension AppCoordinator {
         }
     }
 
-    func toggleCurrentShiori() -> Bool {
-        guard let currentPlaybackSubtitlePath,
-              let currentPlaybackSubtitleFormat,
-              let currentPlaybackVideoPath,
-              let playbackViewModel = playback.playbackViewModel
-        else {
-            playback.playbackViewModel?.showShioriFeedback(.unavailable)
-            return false
-        }
-
-        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
-        let videoFile = URL(fileURLWithPath: currentPlaybackVideoPath)
-        let videoName = library.selectedLibraryVideo?.videoName
-            ?? search.selectedSearchResult?.videoName
-            ?? shiori.selectedShiori?.videoName
-            ?? videoFile.lastPathComponent
-        let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
-
-        guard let database = subtitleDatabase else {
-            playbackViewModel.showShioriFeedback(.unavailable)
-            return false
-        }
-
-        do {
-            guard let selection = try database.cueTextSelection(
-                forSubtitleFile: subtitleFile,
-                atMilliseconds: milliseconds
-            ), !selection.text.isEmpty else {
-                playbackViewModel.showShioriFeedback(.unavailable)
-                return false
-            }
-
-            if try database.shiori(
-                subtitleFile: subtitleFile,
-                startMilliseconds: selection.startMilliseconds,
-                endMilliseconds: selection.endMilliseconds
-            ) != nil {
-                playbackViewModel.showShioriFeedback(.alreadySaved)
-                return true
-            }
-
-            _ = try database.upsertShiori(
-                subtitleFile: subtitleFile,
-                subtitleFormat: currentPlaybackSubtitleFormat,
-                videoFile: videoFile,
-                videoName: videoName,
-                selection: selection
-            )
-            try refreshShioriPresentationAfterMutation(database: database)
-            playbackViewModel.showShioriFeedback(.saved)
-            return true
-        } catch {
-            print("Failed to toggle Shiori: \(error)")
-            playbackViewModel.showShioriFeedback(.unavailable)
-            return false
-        }
-    }
-
     func refreshShioriPresentationAfterMutation(database: SubtitleDatabase) throws {
         let hasLegacyPresentation = !shiori.shioris.isEmpty || !shiori.shioriFileGroups.isEmpty
         shiori.invalidateTableRows()

@@ -8,8 +8,6 @@ struct PlaybackChromeControls {
     let togglePlayPause: () -> Void
     let canGoNext: Bool
     let goNext: () -> Void
-    let toggleShiori: () -> Void
-    let copySubtitle: () -> Void
     let isFullscreen: Bool
     let isFullscreenToggleDisabled: Bool
     let toggleFullscreen: () -> Void
@@ -30,12 +28,6 @@ extension PlaybackChromeControls {
             togglePlayPause: appState.togglePlaybackFromUser,
             canGoNext: snapshot.canGoNext,
             goNext: { appState.goNext() },
-            toggleShiori: {
-                _ = appState.toggleCurrentShiori()
-            },
-            copySubtitle: {
-                _ = appState.copyCurrentSubtitleToClipboard()
-            },
             isFullscreen: isFullscreen,
             isFullscreenToggleDisabled: isFullscreenToggleDisabled,
             toggleFullscreen: fullscreenAction ?? {
@@ -204,32 +196,10 @@ struct PlaybackChromeView: View {
 
     private var rightGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.rightControlsGap) {
-            HStack(spacing: 0) {
-                PlaybackTimelineChromeIconButton(
-                    timeline: timeline,
-                    systemName: "bookmark",
-                    kind: .transport,
-                    hasPersistentBase: false,
-                    accessibilityLabel: "Shiori",
-                    action: controls.toggleShiori
-                )
-
-                PlaybackTimelineChromeIconButton(
-                    timeline: timeline,
-                    icon: .copy,
-                    kind: .transport,
-                    hasPersistentBase: false,
-                    accessibilityLabel: "Copy current subtitle",
-                    action: controls.copySubtitle
-                )
-
-                PlaybackSubtitleChromeButton(
-                    viewModel: viewModel,
-                    timeline: timeline
-                )
-            }
-            .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
-            .background(Capsule().fill(PlaybackTheme.controlBackground))
+            PlaybackSubtitleChromeButton(
+                viewModel: viewModel,
+                timeline: timeline
+            )
 
             speedControl
 
@@ -307,7 +277,7 @@ private struct PlaybackChromeTimelineResetter: View {
 
 private struct PlaybackTimelineChromeIconButton: View {
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
-    let icon: PlaybackChromeIcon
+    let systemName: String
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
     var isDisabled = false
@@ -326,27 +296,7 @@ private struct PlaybackTimelineChromeIconButton: View {
         action: @escaping () -> Void
     ) {
         self.timeline = timeline
-        self.icon = .system(systemName)
-        self.kind = kind
-        self.isSelected = isSelected
-        self.isDisabled = isDisabled
-        self.hasPersistentBase = hasPersistentBase
-        self.accessibilityLabel = accessibilityLabel
-        self.action = action
-    }
-
-    init(
-        timeline: PlaybackTimelineInteractionStore,
-        icon: PlaybackChromeIcon,
-        kind: PlaybackChromeButtonKind = .circle,
-        isSelected: Bool = false,
-        isDisabled: Bool = false,
-        hasPersistentBase: Bool = true,
-        accessibilityLabel: String,
-        action: @escaping () -> Void
-    ) {
-        self.timeline = timeline
-        self.icon = icon
+        self.systemName = systemName
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
@@ -357,7 +307,7 @@ private struct PlaybackTimelineChromeIconButton: View {
 
     var body: some View {
         PlaybackChromeIconButton(
-            icon: icon,
+            systemName: systemName,
             kind: kind,
             isSelected: isSelected,
             isDisabled: isDisabled,
@@ -392,10 +342,9 @@ private struct PlaybackSubtitleChromeButton: View {
     var body: some View {
         PlaybackChromeIconButton(
             systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
-            kind: .transport,
-            isSelected: false,
+            kind: .circle,
+            isSelected: viewModel.areSubtitlesVisible,
             suppressesInteraction: timeline.isScrubbing,
-            hasPersistentBase: false,
             accessibilityLabel: "Subtitles",
             action: viewModel.toggleSubtitles
         )

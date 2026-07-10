@@ -54,6 +54,13 @@ a standalone circular bottom-player button.
   native Up, Down, wheel, and scrollbar navigation.
 - Moved the existing playback feedback layer above Subtitle Focus so S/C
   feedback remains visible without intercepting input.
+- Removed the normal-playback current-timestamp Shiori and subtitle-copy
+  coordinator commands, their bottom-player control closures, and their Shiori
+  presentation tests. Focus-scoped persistence and clipboard primitives remain.
+- Remapped normal-playback `Q` to subtitle visibility and left normal `S` and
+  `C` unhandled. Removed both normal Shiori/copy buttons and their grouped
+  capsule, then rendered subtitle visibility as a standalone selected-capable
+  circular button.
 
 ## Verification
 
@@ -68,12 +75,15 @@ a standalone circular bottom-player button.
 - `swift test --filter SegmentCompletion`
   - Passed 11 tests, including rejection of late bounded-cue completion during
     continuous playback.
+- `swift test --filter 'normalPlayback|ShioriPresentation'`
+  - Passed 2 tests covering the Q subtitle toggle, no normal S/C command or
+    Shiori write, and the remaining table-owned Shiori removal presentation.
 
 ## Outcome
 
-The Subtitle Focus keyboard-action and pointer-removal portion is implemented.
-Normal-playback command and chrome cleanup, full-suite verification, and owner
-end-to-end acceptance remain pending.
+The Subtitle Focus keyboard actions, pointer removal, normal-playback command
+cleanup, Q shortcut, and standalone circular subtitle button are implemented.
+Full-suite verification and owner end-to-end acceptance remain pending.
 
 ## Follow-ups
 

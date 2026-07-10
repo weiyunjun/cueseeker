@@ -524,31 +524,6 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func copyCurrentSubtitleToClipboard() -> Bool {
-        guard let playbackViewModel = playback.playbackViewModel else {
-            playback.playbackViewModel?.showSubtitleCopyFeedback(copied: false)
-            return false
-        }
-
-        do {
-            guard let selection = try currentPlaybackCueTextSelection(), !selection.text.isEmpty else {
-                playbackViewModel.showSubtitleCopyFeedback(copied: false)
-                return false
-            }
-
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            let copied = pasteboard.setString(selection.text, forType: .string)
-            playbackViewModel.showSubtitleCopyFeedback(copied: copied)
-            return copied
-        } catch {
-            print("Failed to copy current subtitle: \(error)")
-            playbackViewModel.showSubtitleCopyFeedback(copied: false)
-            return false
-        }
-    }
-
-    @discardableResult
     func handlePlaybackKeyDown(
         keyCode: UInt16,
         modifierFlagsRawValue: UInt,
@@ -638,12 +613,6 @@ extension AppCoordinator {
             goNext()
             return true
         case 12:
-            copyCurrentSubtitleToClipboard()
-            return true
-        case 1:
-            _ = toggleCurrentShiori()
-            return true
-        case 8:
             viewModel.toggleSubtitles()
             return true
         case 3:
@@ -682,7 +651,7 @@ extension AppCoordinator {
 
     private static func isPlaybackShortcutKey(keyCode: UInt16, hasShift: Bool) -> Bool {
         switch keyCode {
-        case 0, 1, 2, 3, 8, 12, 36, 49, 76, 123, 124, 125, 126:
+        case 0, 2, 3, 12, 36, 49, 76, 123, 124, 125, 126:
             return true
         case 43, 47:
             return hasShift
@@ -690,22 +659,6 @@ extension AppCoordinator {
             return false
         }
     }
-
-    private func currentPlaybackCueTextSelection() throws -> SubtitleCueTextSelection? {
-        guard let currentPlaybackSubtitlePath,
-              let playbackViewModel = playback.playbackViewModel,
-              let database = subtitleDatabase
-        else {
-            return nil
-        }
-
-        let milliseconds = max(0, Int((playbackViewModel.currentTime * 1_000).rounded(.down)))
-        return try database.cueTextSelection(
-            forSubtitleFile: URL(fileURLWithPath: currentPlaybackSubtitlePath),
-            atMilliseconds: milliseconds
-        )
-    }
-
 
     func stopPlayback() {
         invalidatePlaybackSubtitleFocusForSourceReplacement()

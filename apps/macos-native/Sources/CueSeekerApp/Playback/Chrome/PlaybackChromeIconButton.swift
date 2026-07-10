@@ -28,13 +28,8 @@ enum PlaybackChromeButtonKind {
     }
 }
 
-enum PlaybackChromeIcon {
-    case system(String)
-    case copy
-}
-
 struct PlaybackChromeIconButton: View {
-    let icon: PlaybackChromeIcon
+    let systemName: String
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
     var isDisabled = false
@@ -53,27 +48,7 @@ struct PlaybackChromeIconButton: View {
         accessibilityLabel: String,
         action: @escaping () -> Void
     ) {
-        self.icon = .system(systemName)
-        self.kind = kind
-        self.isSelected = isSelected
-        self.isDisabled = isDisabled
-        self.suppressesInteraction = suppressesInteraction
-        self.hasPersistentBase = hasPersistentBase
-        self.accessibilityLabel = accessibilityLabel
-        self.action = action
-    }
-
-    init(
-        icon: PlaybackChromeIcon,
-        kind: PlaybackChromeButtonKind = .circle,
-        isSelected: Bool = false,
-        isDisabled: Bool = false,
-        suppressesInteraction: Bool = false,
-        hasPersistentBase: Bool = true,
-        accessibilityLabel: String,
-        action: @escaping () -> Void
-    ) {
-        self.icon = icon
+        self.systemName = systemName
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
@@ -90,7 +65,8 @@ struct PlaybackChromeIconButton: View {
             }
             action()
         } label: {
-            PlaybackChromeIconView(icon: icon, size: kind.symbolSize)
+            Image(systemName: systemName)
+                .font(.system(size: kind.symbolSize, weight: .semibold))
                 .frame(width: kind.size, height: kind.size)
                 .contentShape(Circle())
         }
@@ -104,22 +80,6 @@ struct PlaybackChromeIconButton: View {
         )
         .disabled(isDisabled)
         .accessibilityLabel(accessibilityLabel)
-    }
-}
-
-private struct PlaybackChromeIconView: View {
-    let icon: PlaybackChromeIcon
-    let size: CGFloat
-
-    var body: some View {
-        switch icon {
-        case .system(let systemName):
-            Image(systemName: systemName)
-                .font(.system(size: size, weight: .semibold))
-        case .copy:
-            Image(systemName: "doc.on.doc")
-                .font(.system(size: size, weight: .semibold))
-        }
     }
 }
 
