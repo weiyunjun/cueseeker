@@ -15,7 +15,7 @@ struct SubtitleTableClipboardColumn {
         case "time":
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.timeRange }
         case "cues":
-            return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.cues }
+            return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.primaryCueText }
         case "speaker":
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { row in
                 row.speakerTags.map(\.label).joined(separator: ", ")

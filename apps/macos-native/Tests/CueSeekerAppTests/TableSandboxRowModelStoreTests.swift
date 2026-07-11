@@ -477,30 +477,102 @@ func tableSandboxRowModelStoreRejectsNonContiguousSearchRows() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreLimitsTableDisplayTextBudget() {
+func tableSandboxRowModelStorePreservesCompletePrimaryCueText() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/effects.ass"
-    let longLine = String(repeating: "x", count: TableSandboxDisplayTextBudget.maximumCharactersPerLine + 20)
-    let cueLines = (0..<(TableSandboxDisplayTextBudget.maximumLines + 4)).map { index in
-        index == 0 ? longLine : "line \(index)"
-    }
+    let longLine = String(repeating: "x", count: 520)
+    let sourceLines = [
+        "line 0",
+        "",
+        longLine,
+        "line 3",
+        "line 4",
+        "line 5",
+        "line 6",
+        "line 7",
+        "line 8",
+    ]
+    let content = sourceLines.joined(separator: "\n")
 
     store.updateSearchRows(
         [
             searchResult(
                 id: 1,
                 path: path,
-                content: cueLines.joined(separator: "\n"),
-                cueLines: cueLines
+                content: content,
+                cueLines: [content],
+                cueGroupLines: [content]
             )
         ],
         tableName: "test-search"
     )
 
     let row = store.snapshot.row(at: 0)
-    let displayLines = row?.cues.components(separatedBy: "\n") ?? []
-    #expect(displayLines.count == TableSandboxDisplayTextBudget.maximumLines)
-    #expect(displayLines.first?.count == TableSandboxDisplayTextBudget.maximumCharactersPerLine + 3)
+    #expect(row?.primaryCueText == content)
+    #expect(row?.cues == content)
+    #expect(row?.cues.components(separatedBy: "\n") == sourceLines)
+    #expect(row?.cueGroupTexts == [content])
+    #expect(row?.additionalCueTexts.isEmpty == true)
+    #expect(row?.cueGroupCopyText == content)
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreSeparatesDuplicateSiblingByPrimaryIndex() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/duplicates.ass"
+    let repeatedText = "same subtitle"
+    let trailingText = "tail line one\n\ntail line three"
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 91,
+                cueGroupID: 12,
+                path: path,
+                content: repeatedText,
+                cueLines: [repeatedText],
+                primaryGroupIndex: 1,
+                cueGroupLines: [repeatedText, repeatedText, trailingText]
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    let row = store.snapshot.row(at: 0)
+    #expect(row?.id == 91)
+    #expect(row?.primaryCueText == repeatedText)
+    #expect(row?.primaryGroupIndex == 1)
+    #expect(row?.additionalCueTexts == [repeatedText, trailingText])
+    #expect(row?.cueGroupCopyText == "\(repeatedText)\n\(repeatedText)\n\(trailingText)")
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreTrustsResolvedPrimaryIndexWhenSnapshotTextDiffers() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let primarySnapshot = "persisted primary snapshot"
+
+    store.updateSearchRows(
+        [
+            searchResult(
+                id: 92,
+                cueGroupID: 13,
+                path: "/tmp/CueSeeker/Series/changed.ass",
+                content: primarySnapshot,
+                cueLines: [primarySnapshot],
+                primaryGroupIndex: 1,
+                cueGroupLines: ["upper sibling", "currently indexed primary", "lower sibling"]
+            )
+        ],
+        tableName: "test-search"
+    )
+
+    let row = store.snapshot.row(at: 0)
+    #expect(row?.primaryCueText == primarySnapshot)
+    #expect(row?.primaryGroupIndex == 1)
+    #expect(row?.cueGroupTexts == ["upper sibling", "currently indexed primary", "lower sibling"])
+    #expect(row?.additionalCueTexts == ["upper sibling", "lower sibling"])
 }
 
 @MainActor
@@ -582,6 +654,81 @@ func tableSandboxRowModelStoreMapsShioriTagsToNeutralTags() {
     #expect(row?.shioriTags.map(\.colorID) == [.gray, .gray])
 }
 
+@MainActor
+@Test
+func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let repeatedText = "same subtitle"
+    let cuePresentation = ShioriCuePresentation(
+        cueID: 901,
+        cueGroupID: 77,
+        primaryGroupIndex: 1,
+        cueGroupTexts: [repeatedText, repeatedText, "lower sibling"],
+        languages: [.japanese],
+        speakers: ["高松灯"]
+    )
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(
+                id: 41,
+                content: repeatedText,
+                languages: [.unknown],
+                cuePresentation: cuePresentation
+            ),
+        ],
+        startIndex: 0,
+        totalRowCount: 1,
+        tableName: "shiori"
+    )
+
+    let row = store.snapshot.row(at: 0)
+    #expect(row?.id == 41)
+    #expect(row?.primaryCueText == repeatedText)
+    #expect(row?.cueGroupTexts == cuePresentation.cueGroupTexts)
+    #expect(row?.primaryGroupIndex == 1)
+    #expect(row?.additionalCueTexts == [repeatedText, "lower sibling"])
+    #expect(row?.tags.map(\.key) == ["jp"])
+    #expect(row?.speakerTags.map(\.key) == ["高松灯"])
+}
+
+@MainActor
+@Test
+func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let content = "orphan line one\n\norphan line three"
+    let cuePresentation = ShioriCuePresentation(
+        cueID: nil,
+        cueGroupID: nil,
+        primaryGroupIndex: nil,
+        cueGroupTexts: [content],
+        languages: [.unknown],
+        speakers: []
+    )
+
+    store.hydrateShioriRows(
+        [
+            shioriSource(
+                id: 42,
+                content: content,
+                languages: [.unknown],
+                cuePresentation: cuePresentation
+            ),
+        ],
+        startIndex: 0,
+        totalRowCount: 1,
+        tableName: "shiori"
+    )
+
+    let row = store.snapshot.row(at: 0)
+    #expect(row?.id == 42)
+    #expect(row?.primaryCueText == content)
+    #expect(row?.cueGroupTexts == [content])
+    #expect(row?.primaryGroupIndex == nil)
+    #expect(row?.additionalCueTexts.isEmpty == true)
+    #expect(row?.cueGroupCopyText == content)
+}
+
 @Test
 func shioriTagComposerInputRulesFilterInvalidCharactersAndCapLength() {
     #expect(
@@ -599,16 +746,30 @@ func shioriTagComposerInputRulesFilterInvalidCharactersAndCapLength() {
 @Test
 func tableSandboxRowModelStorePatchesShioriTagCells() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let cuePresentation = ShioriCuePresentation(
+        cueID: 101,
+        cueGroupID: 11,
+        primaryGroupIndex: 1,
+        cueGroupTexts: ["upper sibling", "saved row"],
+        languages: [.japanese],
+        speakers: ["speaker"]
+    )
 
     store.hydrateShioriRows(
         [
-            shioriSource(id: 1, content: "saved row", languages: [.japanese]),
+            shioriSource(
+                id: 1,
+                content: "saved row",
+                languages: [.japanese],
+                cuePresentation: cuePresentation
+            ),
         ],
         startIndex: 0,
         totalRowCount: 1,
         tableName: "shiori"
     )
 
+    let rowBeforePatch = store.snapshot.row(at: 0)
     let patched = store.updateShioriTags(
         [
             ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z"),
@@ -618,7 +779,15 @@ func tableSandboxRowModelStorePatchesShioriTagCells() {
     )
 
     #expect(patched)
-    #expect(store.snapshot.row(at: 0)?.shioriTags.map(\.label) == ["Review"])
+    let rowAfterPatch = store.snapshot.row(at: 0)
+    #expect(rowAfterPatch?.shioriTags.map(\.label) == ["Review"])
+    #expect(rowAfterPatch?.id == rowBeforePatch?.id)
+    #expect(rowAfterPatch?.primaryCueText == rowBeforePatch?.primaryCueText)
+    #expect(rowAfterPatch?.cueGroupTexts == rowBeforePatch?.cueGroupTexts)
+    #expect(rowAfterPatch?.primaryGroupIndex == rowBeforePatch?.primaryGroupIndex)
+    #expect(rowAfterPatch?.additionalCueTexts == rowBeforePatch?.additionalCueTexts)
+    #expect(rowAfterPatch?.cueGroupCopyText == rowBeforePatch?.cueGroupCopyText)
+    #expect(rowAfterPatch?.speakerTags == rowBeforePatch?.speakerTags)
     #expect(store.snapshot.update == .cells([TableSandboxCellInvalidation(row: 0, columnID: "tags")]))
 }
 
@@ -745,10 +914,13 @@ func shioriStoreInvalidatesTableRowsWithoutResettingControls() {
 
 private func searchResult(
     id: Int64,
+    cueGroupID: Int64? = nil,
     path: String,
     displayTitle: String = "",
     content: String,
     cueLines: [String],
+    primaryGroupIndex: Int = 0,
+    cueGroupLines: [String]? = nil,
     languages: Set<SubtitleLanguageCode> = [.unknown],
     speakers: Set<String> = [],
     timeRange: String = "",
@@ -757,6 +929,8 @@ private func searchResult(
 ) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: id,
+        cueGroupID: cueGroupID,
+        primaryGroupIndex: primaryGroupIndex,
         subtitlePath: path,
         subtitleFormat: .ass,
         videoPath: path.replacingOccurrences(of: ".ass", with: ".mkv"),
@@ -767,6 +941,7 @@ private func searchResult(
         endMilliseconds: endMilliseconds,
         content: content,
         cueLines: cueLines,
+        cueGroupLines: cueGroupLines ?? [content],
         languages: languages,
         speakers: speakers
     )
@@ -777,6 +952,7 @@ private func shioriSource(
     content: String,
     languages: Set<SubtitleLanguageCode>,
     shioriTags: [ShioriTag] = [],
+    cuePresentation: ShioriCuePresentation? = nil,
     startMilliseconds: Int = 1_000,
     endMilliseconds: Int = 2_000
 ) -> TableSandboxShioriRowSource {
@@ -796,6 +972,7 @@ private func shioriSource(
         displayTitle: "Episode \(id)",
         dateAddedText: "26-06-23 12:00",
         languages: languages,
-        shioriTags: shioriTags
+        shioriTags: shioriTags,
+        cuePresentation: cuePresentation
     )
 }

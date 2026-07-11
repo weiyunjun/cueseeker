@@ -1,8 +1,6 @@
 import Foundation
 
-/// Row view-model for the table sandbox. Phase B feeds this from static sample
-/// data; Phase C will map it from real search results / Shiori entries
-/// (displayTitle = user-facing subtitle title, cues = merged same-timestamp subtitle text).
+/// Row view-model shared by the Search, Shiori, and Context table surfaces.
 struct SubtitleTableRow: Identifiable, Equatable {
     let id: Int
     let subtitlePath: String
@@ -11,12 +9,41 @@ struct SubtitleTableRow: Identifiable, Equatable {
     let startTime: String
     let endTime: String
     let timeRange: String
-    /// Merged subtitle text for one timestamp. Bilingual entries keep one line
-    /// per language, joined with "\n", so the cell wraps to multiple lines.
-    let cues: String
+    /// Exact source text for the Cue that owns the row and all default actions.
+    let primaryCueText: String
+    /// Exact Cue texts in stable source display order for the owning Cue Group.
+    let cueGroupTexts: [String]
+    /// Position of the primary Cue in `cueGroupTexts`, or `nil` for unresolved
+    /// legacy Shiori snapshots that have no durable Cue identity.
+    let primaryGroupIndex: Int?
     let tags: [WorkbenchTag]
     let speakerTags: [WorkbenchTag]
     let shioriTags: [WorkbenchTag]
+
+    /// Compatibility alias used by existing table drawing and clipboard paths.
+    /// It intentionally never expands when Show Cue Group is enabled.
+    var cues: String {
+        primaryCueText
+    }
+
+    /// Additional Cue texts keep their stable source order. Index-based removal
+    /// is required because two sibling Cues may contain identical text.
+    var additionalCueTexts: [String] {
+        guard let primaryGroupIndex,
+              cueGroupTexts.indices.contains(primaryGroupIndex)
+        else {
+            return []
+        }
+
+        return cueGroupTexts.enumerated().compactMap { index, text in
+            index == primaryGroupIndex ? nil : text
+        }
+    }
+
+    /// Clipboard payload for the complete Cue Group in stable source order.
+    var cueGroupCopyText: String {
+        cueGroupTexts.joined(separator: "\n")
+    }
 
     init(
         id: Int,
@@ -26,7 +53,9 @@ struct SubtitleTableRow: Identifiable, Equatable {
         startTime: String = "",
         endTime: String = "",
         timeRange: String? = nil,
-        cues: String,
+        primaryCueText: String,
+        cueGroupTexts: [String],
+        primaryGroupIndex: Int?,
         tags: [WorkbenchTag] = [],
         speakerTags: [WorkbenchTag] = [],
         shioriTags: [WorkbenchTag] = []
@@ -41,10 +70,51 @@ struct SubtitleTableRow: Identifiable, Equatable {
             startTime: startTime,
             endTime: endTime
         )
-        self.cues = cues
+        let candidateCueGroupTexts = cueGroupTexts.isEmpty ? [primaryCueText] : cueGroupTexts
+        let resolvedPrimaryGroupIndex = primaryGroupIndex.flatMap { index in
+            candidateCueGroupTexts.indices.contains(index) ? index : nil
+        }
+        let resolvedCueGroupTexts = primaryGroupIndex != nil && resolvedPrimaryGroupIndex == nil
+            ? [primaryCueText]
+            : candidateCueGroupTexts
+        self.primaryCueText = primaryCueText
+        self.cueGroupTexts = resolvedCueGroupTexts
+        self.primaryGroupIndex = resolvedPrimaryGroupIndex
         self.tags = tags
         self.speakerTags = speakerTags
         self.shioriTags = shioriTags
+    }
+
+    /// Compatibility initializer for fixtures and call sites that model only a
+    /// single Cue. Production Search/Shiori mappings use the explicit group form.
+    init(
+        id: Int,
+        subtitlePath: String = "",
+        dateAdded: String = "",
+        displayTitle: String,
+        startTime: String = "",
+        endTime: String = "",
+        timeRange: String? = nil,
+        cues: String,
+        tags: [WorkbenchTag] = [],
+        speakerTags: [WorkbenchTag] = [],
+        shioriTags: [WorkbenchTag] = []
+    ) {
+        self.init(
+            id: id,
+            subtitlePath: subtitlePath,
+            dateAdded: dateAdded,
+            displayTitle: displayTitle,
+            startTime: startTime,
+            endTime: endTime,
+            timeRange: timeRange,
+            primaryCueText: cues,
+            cueGroupTexts: [cues],
+            primaryGroupIndex: 0,
+            tags: tags,
+            speakerTags: speakerTags,
+            shioriTags: shioriTags
+        )
     }
 
     func replacingShioriTags(_ nextShioriTags: [WorkbenchTag]) -> SubtitleTableRow {
@@ -56,7 +126,9 @@ struct SubtitleTableRow: Identifiable, Equatable {
             startTime: startTime,
             endTime: endTime,
             timeRange: timeRange,
-            cues: cues,
+            primaryCueText: primaryCueText,
+            cueGroupTexts: cueGroupTexts,
+            primaryGroupIndex: primaryGroupIndex,
             tags: tags,
             speakerTags: speakerTags,
             shioriTags: nextShioriTags

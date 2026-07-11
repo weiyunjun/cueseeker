@@ -174,3 +174,35 @@ func subtitleTableClipboardSanitizesTabsAndCarriageReturns() {
 
     #expect(text == expected)
 }
+
+@Test
+func subtitleTableClipboardAlwaysUsesCompletePrimaryCueInsteadOfCueGroup() {
+    let columns = SubtitleTableClipboard.columns(from: [
+        WorkbenchTableColumn(id: "cues", title: "Cues", kind: .text, width: .flexible(min: 580)),
+    ])
+    let longLine = String(repeating: "x", count: 520)
+    let primaryLines = [
+        "primary line 0",
+        "",
+        longLine,
+        "primary line 3",
+        "primary line 4",
+        "primary line 5",
+        "primary line 6",
+        "primary line 7",
+    ]
+    let primaryText = primaryLines.joined(separator: "\n")
+    let row = SubtitleTableRow(
+        id: 1,
+        displayTitle: "Episode 01",
+        primaryCueText: primaryText,
+        cueGroupTexts: ["extra upper", primaryText, "extra lower"],
+        primaryGroupIndex: 1
+    )
+
+    let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
+
+    #expect(text == (["Cues"] + primaryLines).joined(separator: "\n"))
+    #expect(!text.contains("extra upper"))
+    #expect(!text.contains("extra lower"))
+}
