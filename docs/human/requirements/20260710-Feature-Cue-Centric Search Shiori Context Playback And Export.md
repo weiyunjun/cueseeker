@@ -7,12 +7,12 @@ main
 3. Shiori界面，当前已经收藏的内容，全部为包含了日语+中文的Cue Group，数据迁移后只保留日语的部分。后续Shiori收藏的内容也不是Cue Group，而是单个Cue。tag也需要挂在对应的Cue上（目前我已经删除所有tag）。
 4. Context界面，默认显示Cue，而非完整Cue Group。
 5. 导出Anki，导出Screenshot，导出Collage，均针对单个或多个Cue，而非单个或多个Cue Group。Collage，需要选中的Cue位于一个字幕文件中的限制仍然成立。Copy Cue Text，是复制单个Cue的文本。回到Context的选项，回到的是对应的Cue而非Cue Group。
-6. 需要在Settings - Search中，Search Scope下面提供Show Cue Group的选项，该选项默认关闭。Cue Group多出的内容，字体大小要调小，颜色也要更次级一些，与默认的Cue形成差异。
+6. 需要在Settings - Search中，Search Scope下面提供Show Cue Group的选项，该选项默认关闭。Cue Group多出的内容，字体大小要调小，颜色也要更次级一些，与默认的Cue形成差异。当Show Cue Group选项开启时，右键菜单增加一个Copy Cue Group Text的选项，图标和Copy Cue Text的一样，点击后会复制整个Cue Group的文本内容。并且，hover的范围和点击的范围也是整个Cue Group，不要在交互上显式区分主字幕和副字幕，因为在字体颜色和大小上已经区分了。
 7. Search界面，Shiori界面，Context界面，高度改为动态高度，需要强制显示所有字幕内容。Cue Group多出的内容，应该显示在默认文字的上面（不要觉得奇怪，几乎所有国家的双语字幕，都是原语言显示在下面的）。
-8. 播放器内的字幕焦点窗口的UI需要做额外调整：1. 显示单位从Cue Group改为Cue。2. 默认焦点选择的是当前时间戳所在Cue Group中最下面一条字幕。如果当前时间戳不位于任何字幕时间戳中，焦点选择之前的最近一条Cue。如果之前没有任何Cue，默认选中第一条Cue。3. 所有交互的对象，从Cue Group调整为Cue，例如收藏，复制文本，播放等。4. 允许焦点包含多行字幕，例如焦点字幕本身很长，或者自带换行等。5. 需要尽量保持焦点字幕在中间，类似笔记软件的打字机模式。6. 需要强制显示所有字幕内容。
-9. UI详细改动见# UI文档改动
+8. 播放器内的字幕焦点窗口的UI需要做额外调整：1. 显示单位从Cue Group改为Cue。2. 默认焦点选择的是当前时间戳所在Cue Group中最下面一条字幕。如果当前时间戳不位于任何字幕时间戳中，焦点选择之前的最近一条Cue。如果之前没有任何Cue，默认选中第一条Cue。3. 所有交互的对象，从Cue Group调整为Cue，例如收藏，复制文本，播放等。4. 允许焦点包含多行字幕，例如焦点字幕本身很长，或者自带换行等。5. 需要尽量保持焦点字幕在中间，类似笔记软件的打字机模式。6. 需要尽量显示所有字幕内容，如果一个Cue高于整个窗口，从头开始显示，多出的部分不显示，任何时候焦点在这种超多行字幕时均优先显示头部。
+9. UI详细改动见# UI文档改动（第一次讨论）和# UI文档改动（第二次讨论）
 
-# UI文档改动
+# UI文档改动（第一次讨论）
 
 ## 1. Table Row 高度 Token
 
@@ -1150,4 +1150,608 @@ Probe / verification:
 - Record table snapshot rebuilds, row hydration, dynamic row measurement, scroll-anchor correction, Subtitle Focus Cue measurement, library snapshot rebuilds, playback render host updates, and high-frequency playback chrome updates.
 - Verify that width-dependent reflow and Show Cue Group changes preserve the anchored primary Cue's screen-space position.
 - Verify that Subtitle Focus width-dependent reflow preserves stable selected Cue identity and restores its accepted Focus Placement.
+```
+
+# UI文档改动（第二次讨论）
+
+## 1. Table Row 的交互范围改为可配置
+
+修改前
+
+```text
+Cell Content Hover Scope: one rounded rectangle around the union bounds of the interactive primary content
+Interactive Cell Region: same bounds as Cell Content Hover Scope
+Cell Content Hit Testing: hover, pointer, left-click action, and right-click menu only apply inside Interactive Cell Region
+```
+
+修改后
+
+```text
+Cell Content Hover Scope: one rounded rectangle around the union bounds of the interaction content declared by the owning table layout
+Cues Cell Interaction Content / Show Cue Group Off: the complete primary Cue text
+Cues Cell Interaction Content / Show Cue Group On: the complete displayed Cue Group text, including the primary Cue and every additional Cue
+Interactive Cell Region: same bounds as Cell Content Hover Scope
+Cell Content Hit Testing: hover, pointer, left-click action, and right-click menu only apply inside Interactive Cell Region
+```
+
+修改前
+
+```text
+Extra Cue Interaction: noninteractive context only
+```
+
+修改后
+
+```text
+Extra Cue Interaction / Show Cue Group Off: not rendered
+Extra Cue Interaction / Show Cue Group On: participate in the shared Cues Cell hover, pointer, left-click, and right-click region without becoming an independent action target
+```
+
+## 2. Show Cue Group 设置增加整体交互规则
+
+修改前
+
+```text
+Show Cue Group Preference:
+  Location: Settings / Search, immediately below Search Scope
+  Control: native macOS switch
+  Label: Show Cue Group
+  Default: Off
+  Persistence: persist across App launches
+  Applies To: Search, Shiori, and Context
+  Presentation Only: changing the preference must not rerun Search, rebuild Context scope, change Shiori data, or change result count
+  Off: render only the primary Cue
+  On: render every additional Cue from the primary Cue's Cue Group above the primary Cue
+  Primary Cue Identity: unchanged by the preference
+  Selection and Action Identity: always use the primary Cue
+```
+
+修改后
+
+```text
+Show Cue Group Preference:
+  Location: Settings / Search, immediately below Search Scope
+  Control: native macOS switch
+  Label: Show Cue Group
+  Default: Off
+  Persistence: persist across App launches
+  Applies To: Search, Shiori, and Context
+  Presentation Only: changing the preference must not rerun Search, rebuild Context scope, change Shiori data, or change result count
+  Off: render only the primary Cue
+  On: render every additional Cue from the primary Cue's Cue Group above the primary Cue
+  Primary Cue Identity: unchanged by the preference
+  Selection and Default Action Identity: always use the primary Cue
+  Interaction Scope / Off: only the complete primary Cue text
+  Interaction Scope / On: the complete displayed Cue Group text
+  Shared Interaction: do not give the primary Cue and additional Cues different hover, pointer, left-click, or right-click behavior
+  Context Distinction: font size, font weight, and text color remain the only explicit distinction between the primary Cue and additional Cues
+  Additional Menu Item / On: Copy Cue Group Text
+  Additional Menu Item Icon: same copy icon as Copy Cue Text
+```
+
+## 3. 额外 Cue 不再标记为无交互
+
+修改前
+
+```text
+  Cues / Extra Cues:
+    Role: optional secondary Cue Group context
+    Applies To: Search / Shiori / Context when Show Cue Group is On
+    Text Color: --color-text-muted
+    Font Size: --font-size-caption
+    Line Height: --line-height-table-cue-secondary
+    Font Weight: 400
+    Placement: above the primary Cue
+    Interaction: none
+```
+
+修改后
+
+```text
+  Cues / Extra Cues:
+    Role: optional secondary Cue Group context
+    Applies To: Search / Shiori / Context when Show Cue Group is On
+    Text Color: --color-text-muted
+    Font Size: --font-size-caption
+    Line Height: --line-height-table-cue-secondary
+    Font Weight: 400
+    Placement: above the primary Cue
+    Interaction: participate in the shared complete Cue Group interaction region
+    Independent Action Target: none; shared default actions continue to use the primary Cue
+```
+
+## 4. Cues Column 改为整个 Cue Group 共用交互区域
+
+修改前
+
+```text
+Cues Column:
+  Contains: the complete primary Cue text and, when Show Cue Group is On, the complete additional Cue texts
+  Primary Cue Placement: below all additional Cues
+  Primary Cue Content: preserve source line breaks and automatic wrapping without clipping or truncation
+  Extra Cue Content: preserve source line breaks and automatic wrapping without clipping or truncation
+  Primary Cue Cell Hover: one rounded rectangle around the complete primary Cue text bounds using --color-bg-hover
+  Primary Cue Cell Hover Padding X: --padding-table-cell-hover-x
+  Primary Cue Cell Hover Padding Y: --padding-table-cell-hover-y
+  Primary Cue Text Hover: underline the primary Cue text
+  Primary Cue Left Click Behavior: play video from the primary Cue
+  Primary Cue Right Click Behavior: open the primary Cue Row Action Menu
+  Extra Cue Hover: none
+  Extra Cue Pointer: default
+  Extra Cue Left Click Behavior: treat as noninteractive cell area
+  Extra Cue Right Click Behavior: none
+```
+
+修改后
+
+```text
+Cues Column:
+  Contains: the complete primary Cue text and, when Show Cue Group is On, the complete additional Cue texts
+  Primary Cue Placement: below all additional Cues
+  Primary Cue Content: preserve source line breaks and automatic wrapping without clipping or truncation
+  Extra Cue Content: preserve source line breaks and automatic wrapping without clipping or truncation
+  Interaction Content / Show Cue Group Off: the complete primary Cue text
+  Interaction Content / Show Cue Group On: the union bounds of the complete displayed Cue Group text
+  Cell Hover: one rounded rectangle around the complete Interaction Content using --color-bg-hover
+  Cell Hover Padding X: --padding-table-cell-hover-x
+  Cell Hover Padding Y: --padding-table-cell-hover-y
+  Text Hover: underline every displayed Cue text inside the Interaction Content
+  Pointer: pointer across the complete Interaction Content
+  Left Click Behavior: play video from the primary Cue
+  Right Click Behavior: open the primary Cue Row Action Menu
+  Additional Cue Action Identity: never replace the primary Cue as the row action target
+```
+
+## 5. 修改 Cues 交互和右键菜单
+
+修改前
+
+```text
+Interactive Cell Hover: pointer cursor for Display Title, primary Cue text, Time, Date Added, and Tags; underline for Display Title, primary Cue text, Time, and Date Added only
+Primary Cue Text Left Click: Play
+Primary Cue Text Right Click: open Cues Row Action Menu for the primary Cue
+Extra Cue Text Hover / Left Click / Right Click: no Cue action
+```
+
+修改后
+
+```text
+Interactive Cell Hover: pointer cursor for Display Title, the complete Cues Interaction Content, Time, Date Added, and Tags; underline for Display Title, every displayed Cue inside the Cues Interaction Content, Time, and Date Added only
+Cues Interaction Content Left Click: Play using the primary Cue
+Cues Interaction Content Right Click: open Cues Row Action Menu using the primary Cue
+Primary and Extra Cue Interaction Difference: none
+```
+
+修改前
+
+```text
+Cues Row Action Menu: Play / Context / Copy Cue Text
+Display Title Cell Action Menu: Open Folder / Copy Text
+Time Cell Action Menu: Copy Text
+Date Added Cell Action Menu: Copy Text
+Open Folder Action: open the subtitle file's containing folder and select the subtitle file
+Copy Cue Text Action: copy only the exact primary Cue text, preserving its source line order and line breaks; never include additional Cue Group context
+Copy Text Action: copy the triggering non-Cues cell's displayed text to the clipboard
+```
+
+修改后
+
+```text
+Cues Row Action Menu / Show Cue Group Off: Play / Context / Copy Cue Text
+Cues Row Action Menu / Show Cue Group On: Play / Context / Copy Cue Text / Copy Cue Group Text
+Copy Cue Text Icon: copy
+Copy Cue Group Text Icon: same icon as Copy Cue Text
+Display Title Cell Action Menu: Open Folder / Copy Text
+Time Cell Action Menu: Copy Text
+Date Added Cell Action Menu: Copy Text
+Open Folder Action: open the subtitle file's containing folder and select the subtitle file
+Copy Cue Text Action: copy only the exact primary Cue text, preserving its source line order and line breaks
+Copy Cue Group Text Action: copy the complete displayed Cue Group text, preserving stable source display order and the source line order and line breaks of every Cue
+Copy Text Action: copy the triggering non-Cues cell's displayed text to the clipboard
+```
+
+## 6. 新增 Scrollbar 最小 Thumb 长度 Token
+
+修改前
+
+```text
+--scrollbar-size: 8px
+--width-app-sidebar: 240px
+```
+
+修改后
+
+```text
+--scrollbar-size: 8px
+--scrollbar-min-thumb-length: 24px
+--width-app-sidebar: 240px
+```
+
+修改前
+
+```text
+#### Container
+Size: --scrollbar-size
+Radius: --scrollbar-radius
+Track: transparent
+```
+
+修改后
+
+```text
+#### Container
+Size: --scrollbar-size
+Radius: --scrollbar-radius
+Minimum Thumb Length: --scrollbar-min-thumb-length
+Track: transparent
+```
+
+## 7. Subtitle Focus Cue 区分自然高度和最终显示高度
+
+修改前
+
+```text
+Height: content-driven
+Margin: 0
+Padding Y: --padding-subtitle-focus-cue-y
+Cue Height: (L × --line-height-subtitle-focus-cue) + (2 × --padding-subtitle-focus-cue-y) = 52L + 24px, where L is the visual line count and L >= 1
+Minimum Cue Height: 76px
+Background: transparent
+Border: none
+Overflow: visible inside the cue reel document; clip only at the Subtitle Focus Cue Reel viewport
+```
+
+修改后
+
+```text
+Height: content-driven with viewport clamp
+Margin: 0
+Padding Y: --padding-subtitle-focus-cue-y
+Natural Cue Height: (L × --line-height-subtitle-focus-cue) + (2 × --padding-subtitle-focus-cue-y) = 52L + 24px, where L is the visual line count and L >= 1
+Resolved Cue Height: min(Natural Cue Height, Subtitle Focus Cue Reel viewport height)
+Minimum Cue Height: 76px
+Oversized Cue: Natural Cue Height is greater than the Subtitle Focus Cue Reel viewport height
+Background: transparent
+Border: none
+Overflow / Fit Cue: visible inside the resolved Cue bounds
+Overflow / Oversized Cue: clip at the resolved Cue bounds and preserve the first visual line as the visible origin
+```
+
+修改前
+
+```text
+Visible Content: render every visual line
+Cue-bound Clipping: none
+Truncation Indicator: none
+Complete Cue Value: retain the exact complete text for S-key Shiori, C-key Copy Cue Text, and Space-key Play From This Cue
+```
+
+修改后
+
+```text
+Visible Content / Fit Cue: render every visual line
+Visible Content / Oversized Cue: render from the first visual line to the resolved Cue bottom; do not expose content below the viewport
+Cue-bound Clipping / Fit Cue: none
+Cue-bound Clipping / Oversized Cue: clip trailing content at the resolved Cue bottom
+Truncation Indicator: none
+Complete Cue Value: retain the exact complete unclipped text for S-key Shiori, C-key Copy Cue Text, and Space-key Play From This Cue
+```
+
+## 8. Focus Reel 使用 Resolved Cue Height
+
+修改前
+
+```text
+  Cue Height: 52L + 24px, where L is the Cue's visual line count
+  Adjacent Cue Center Distance: current Cue Height / 2 + --gap-subtitle-focus-cue + target Cue Height / 2
+  Cue Geometry: every Cue occupies one content-driven item
+  Cue Overflow: expand the item to contain every visual line; clip only at the reel viewport
+```
+
+修改后
+
+```text
+  Natural Cue Height: 52L + 24px, where L is the Cue's visual line count
+  Resolved Cue Height: min(Natural Cue Height, Subtitle Focus Cue Reel viewport height)
+  Adjacent Cue Center Distance: current Resolved Cue Height / 2 + --gap-subtitle-focus-cue + target Resolved Cue Height / 2
+  Cue Geometry: every Cue occupies one content-driven item using its Resolved Cue Height
+  Cue Overflow / Fit Cue: display every visual line
+  Cue Overflow / Oversized Cue: display from the first visual line and clip remaining trailing content at the reel viewport
+```
+
+修改前
+
+```text
+  Fit Cue Placement: align the center of the complete selected Cue with the Focus Anchor when the Cue fits within the reel viewport
+  Oversized Cue Placement: when the selected Cue is taller than the reel viewport, align its top edge with the reel viewport top when entering it, then allow continuous in-Cue reading without forcing its center onto the Focus Anchor
+  Boundary Behavior: virtual leading and trailing space lets the first and last fitting Cue use the same Focus Anchor
+  Geometry Response: width-dependent wrapping remeasures Cue Height and restores the selected fitting Cue to the Focus Anchor; an oversized Cue preserves its readable in-Cue position
+```
+
+修改后
+
+```text
+  Fit Cue Placement: align the center of the complete selected Cue with the Focus Anchor when the Cue fits within the reel viewport
+  Oversized Cue Placement: align the selected Cue's top edge with the reel viewport top and keep its first visual line as the visible origin
+  Oversized Cue Stability: whenever an oversized Cue is the settled focused Cue, restore Oversized Cue Placement instead of preserving an internal content offset
+  Boundary Behavior: virtual leading and trailing space lets the first and last fitting Cue use the same Focus Anchor
+  Geometry Response: width-dependent wrapping remeasures Natural and Resolved Cue Height, then restores the selected Cue to its accepted Focus Placement
+```
+
+## 9. Focus Scrollbar 增加连续拖动和 Thumb 长度
+
+修改前
+
+```text
+  Value Mapping: map normalized scrollbar position to stable Cue ordinal, not cumulative rendered pixel height
+  Height Independence: a long Cue and a short Cue consume the same ordinal share of scrollbar progress
+  Before Complete Collection Load: visible but noninteractive
+  After Complete Collection Load: interactive
+```
+
+修改后
+
+```text
+  Value Mapping: map normalized scrollbar position to fractional stable Cue ordinal, not cumulative rendered pixel height
+  Fractional Ordinal Range: 0...(Cue Count - 1)
+  Continuous Drag Preview: interpolate continuously between the accepted Focus Placements of the lower and upper neighboring Cue ordinals
+  Drag Release: select the nearest stable Cue ordinal and restore that Cue's accepted Focus Placement
+  Height Independence: a long Cue and a short Cue consume the same ordinal share of scrollbar progress
+  Visible Cue Capacity: the number of Cue centers that can fit inside the current reel viewport; minimum 1
+  Thumb Length Ratio: min(1, Visible Cue Capacity / Total Cue Count)
+  Thumb Length: max(--scrollbar-min-thumb-length, Scrollbar Track Length × Thumb Length Ratio)
+  Before Complete Collection Load: visible but noninteractive
+  After Complete Collection Load: interactive
+```
+
+## 10. Focus 导航不再进入超高 Cue 内部阅读
+
+修改前
+
+```text
+Variable Navigation Distance:
+  Fit Cue Center Distance: current Cue Height / 2 + --gap-subtitle-focus-cue + target Cue Height / 2
+  Cue text line count and wrapping determine the actual movement distance
+  Oversized Cue Exception: use the target Cue's Oversized Cue Placement instead of center alignment
+```
+
+修改后
+
+```text
+Variable Navigation Distance:
+  Cue Placement Distance: move from the current reel offset to the target Cue's accepted Focus Placement
+  Fit Cue Center Distance: current Resolved Cue Height / 2 + --gap-subtitle-focus-cue + target Resolved Cue Height / 2
+  Cue text line count and wrapping determine Natural and Resolved Cue Height
+  Oversized Cue Exception: use Oversized Cue Placement and never preserve or enter an internal Cue reading offset
+```
+
+修改前
+
+```text
+Pointer Wheel / Trackpad Scroll:
+  Move the content-driven Cue items through the reel viewport
+  Discrete Wheel for a Fit Cue: any nonzero input moves at least one Cue when the corresponding document boundary permits
+  Discrete Wheel for an Oversized Cue: move through the Cue's complete content first and change Cue only after the readable boundary is crossed
+  Precise Scroll: follow continuous gesture and momentum movement
+  Fit Cue Focus Update: update the local focused Cue when another Cue center becomes the nearest eligible target to the Focus Anchor
+  Oversized Cue Focus Update: retain the current focused Cue while continuously reading within its bounds and change Cue only after crossing its boundary
+  Fit Cue Scroll End: settle the nearest Cue center onto the Focus Anchor
+  Oversized Cue Scroll End: preserve the current readable in-Cue offset and do not force center settlement
+  At the first and last Cue boundaries, use only movement that was actually applied
+  Publish only a settled Cue selection to the Subtitle Focus Session
+  Do not seek or update playback time
+```
+
+修改后
+
+```text
+Pointer Wheel / Trackpad Scroll:
+  Move the content-driven Cue items through the reel viewport
+  Discrete Wheel: any nonzero input moves at least one Cue when the corresponding document boundary permits
+  Precise Scroll: follow continuous gesture and momentum movement between neighboring accepted Focus Placements
+  Local Focus Preview: use the Cue whose accepted Focus Placement is nearest the current reel offset
+  Fit Cue Scroll End: settle the nearest Cue center onto the Focus Anchor
+  Oversized Cue Scroll End: settle the nearest oversized Cue using Oversized Cue Placement with its first visual line visible
+  Oversized Cue Internal Reading: unsupported; do not preserve or settle an internal content offset
+  At the first and last Cue boundaries, use only movement that was actually applied
+  Publish only a settled Cue selection to the Subtitle Focus Session
+  Do not seek or update playback time
+```
+
+## 11. Scrollbar Drag 使用小数 Cue 序号
+
+修改前
+
+```text
+Scrollbar Drag:
+  Keep the Focus Anchor fixed
+  Enable dragging only after the complete current-video Cue collection is available
+  Map normalized scrollbar position to the complete ordered Cue ordinal range, not cumulative pixel height
+  Update the local target Cue and native reel preview as the mapped ordinal changes
+  Do not issue database requests or publish intermediate Session selections during dragging
+  On drag end, place the mapped Cue using its accepted Focus Placement and publish the final Cue selection once
+  Do not seek or update playback time
+```
+
+修改后
+
+```text
+Scrollbar Drag:
+  Keep the Focus Anchor fixed
+  Enable dragging only after the complete current-video Cue collection is available
+  Map normalized scrollbar position continuously to the fractional Cue ordinal range 0...(Cue Count - 1)
+  Interpolate the native reel preview between the accepted Focus Placements of the neighboring Cue ordinals
+  Do not issue database requests or publish intermediate Session selections during dragging
+  On drag end, select the nearest stable Cue ordinal, restore its accepted Focus Placement, and publish the final Cue selection once
+  Do not seek or update playback time
+```
+
+## 12. Initial Position 和初始窗口使用 Resolved Cue Height
+
+修改前
+
+```text
+Initial Position:
+  Keep the Focus Anchor fixed at the vertical center
+  If the default selected Cue fits within the reel viewport, align the center of the complete Cue with the Focus Anchor
+  If the default selected Cue is taller than the reel viewport, align its top edge with the reel viewport top
+  Use virtual leading and trailing space so the first and last fitting Cue use the same Focus Anchor
+  Derive Cue Height and initial reel position from the current visual line count and content width
+```
+
+修改后
+
+```text
+Initial Position:
+  Keep the Focus Anchor fixed at the vertical center
+  If the default selected Cue fits within the reel viewport, align the center of the complete Cue with the Focus Anchor
+  If the default selected Cue is oversized, align its top edge with the reel viewport top and display from its first visual line
+  Use virtual leading and trailing space so the first and last fitting Cue use the same Focus Anchor
+  Derive Natural Cue Height, Resolved Cue Height, and initial reel position from the current visual line count, content width, and reel viewport height
+```
+
+修改前
+
+```text
+  Cue Geometry: every loaded Cue uses its content-driven 52L + 24px height
+  Viewport Clipping: clip only at the available reel viewport; partial leading and trailing Cues are allowed and no Cue text is truncated
+```
+
+修改后
+
+```text
+  Cue Geometry: every loaded Cue uses Natural Cue Height 52L + 24px and Resolved Cue Height min(Natural Cue Height, reel viewport height)
+  Viewport Clipping / Fit Cue: partial leading and trailing Cues are allowed and no Cue text is truncated
+  Viewport Clipping / Oversized Cue: show content from the first visual line and clip all trailing content below the reel viewport
+```
+
+## 13. Motion 删除超高 Cue 内部位置
+
+修改前
+
+```text
+Cue Reel Step Distance: content-dependent; for two fitting Cues, use current Cue Height / 2 + --gap-subtitle-focus-cue + target Cue Height / 2
+Cue Reel Geometry: visual line count and wrapping determine Cue Height and transition distance
+Keyboard / Discrete Wheel Alignment: animate the final target to its accepted Focus Placement
+Precise Wheel: follow continuous native reel offset directly
+Scrollbar Drag: preview the Cue mapped from normalized stable ordinal rather than cumulative pixel height
+Fit Cue Scrollbar Release Settlement: align only the final mapped Cue center with the Focus Anchor
+Oversized Cue Settlement: preserve the readable in-Cue offset during continuous reading and do not force center settlement
+Width-dependent Reflow: preserve stable selected Cue identity, then restore its accepted Focus Placement
+```
+
+修改后
+
+```text
+Cue Reel Step Distance: content-dependent; use the distance between the current and target accepted Focus Placements calculated from Resolved Cue Height
+Cue Reel Geometry: visual line count, wrapping, and reel viewport height determine Natural Cue Height, Resolved Cue Height, and transition distance
+Keyboard / Discrete Wheel Alignment: animate the final target to its accepted Focus Placement
+Precise Wheel: follow continuous native reel offset between neighboring accepted Focus Placements
+Scrollbar Drag: preview the fractional Cue ordinal using continuous interpolation between neighboring accepted Focus Placements
+Fit Cue Scrollbar Release Settlement: align the final selected Cue center with the Focus Anchor
+Oversized Cue Settlement: align the final selected Cue top edge with the reel viewport top and display from its first visual line
+Width-dependent Reflow: preserve stable selected Cue identity, then restore its accepted Focus Placement
+```
+
+## 14. 更新 Focus 验收规则
+
+修改前
+
+```text
+- A one-line Cue is 76px high, a two-line Cue is 128px high, and a three-line Cue is 180px high.
+- Center-to-center navigation distance is 84px for one-line to one-line, 110px for one-line to two-line, and 162px for two-line to three-line Cues.
+- Source line breaks and automatic wrapping both increase visual line count, and every resulting line remains available without Cue-bound clipping or truncation.
+- A selected Cue that fits within the reel viewport has its complete Cue center aligned with the Focus Anchor.
+- Resizing the overlay preserves stable selected Cue identity, recomputes visual line count, and restores the selected fitting Cue to the Focus Anchor.
+- Entering a Cue taller than the reel viewport aligns its top edge to the reel viewport top.
+- Continuous wheel or trackpad scrolling can traverse every line of an oversized Cue without forced center settlement, and selection changes only after the Cue boundary is crossed.
+```
+
+修改后
+
+```text
+- When the reel viewport is tall enough, a one-line Cue has Natural and Resolved Cue Height 76px, a two-line Cue 128px, and a three-line Cue 180px.
+- For fitting Cues, center-to-center navigation distance is 84px for one-line to one-line, 110px for one-line to two-line, and 162px for two-line to three-line Cues.
+- Source line breaks and automatic wrapping both increase Natural Cue Height.
+- A selected fitting Cue has its complete Cue center aligned with the Focus Anchor and displays every visual line.
+- An oversized Cue has Resolved Cue Height equal to the reel viewport height, aligns its top edge with the reel viewport top, displays from its first visual line, and clips trailing content.
+- Whenever an oversized Cue is the settled focused Cue, its first visual line remains the visible origin; internal Cue reading offsets are not preserved.
+- Resizing the overlay preserves stable selected Cue identity, recomputes Natural and Resolved Cue Height, and restores the selected Cue to its accepted Focus Placement.
+- Dragging the Scrollbar continuously interpolates between fractional Cue ordinals; mouse-up selects the nearest stable Cue ordinal.
+- Scrollbar Thumb Length uses the visible Cue capacity divided by total Cue count and never becomes shorter than --scrollbar-min-thumb-length.
+```
+
+### 第 1 处
+
+修改前：
+
+```text
+- Cue text line count and wrapping must not clip, truncate, omit, or replace Cue content.
+```
+
+修改后：
+
+```text
+- Fit Cue text line count and wrapping must not clip, truncate, omit, or replace Cue content.
+- Oversized Cue clipping must follow Oversized Cue Placement, may hide only trailing visual content below the resolved Cue bounds, and must preserve the first visual line as the visible origin and the complete Cue value for actions.
+```
+
+### 第 2 处
+
+修改前：
+
+```text
+Reduce Motion: resolve final placement and any accepted deferred keyboard action immediately while preserving focus, selection, in-Cue reading, and continuous drag semantics
+```
+
+修改后：
+
+```text
+Reduce Motion: resolve final placement and any accepted deferred keyboard action immediately while preserving focus, selection, Oversized Cue head-first placement, and continuous drag semantics
+```
+
+### 第 3 处
+
+修改前：
+
+```text
+- Cue text line count and wrapping may change dynamic Cue Height and navigation distance, but must not move the screen-space Focus Anchor, change stable Cue identity, clip text, truncate text, or retarget an accepted keyboard action.
+```
+
+修改后：
+
+```text
+- Cue text line count and wrapping may change Natural Cue Height, Resolved Cue Height, and navigation distance, but must not move the screen-space Focus Anchor, change stable Cue identity, or retarget an accepted keyboard action.
+- Fit Cue content must not be clipped or truncated.
+- Oversized Cue content may be clipped only below the resolved Cue bounds while preserving the first visual line as the visible origin and retaining the complete Cue value for actions.
+```
+
+### 1. `UI.md` 的刷新范围遗漏 Context
+
+该章节已经覆盖 Search / Shiori / Context，但刷新规则仍只覆盖前两者，可能导致实现遗漏 Context。
+
+修改前：
+
+```text
+Owner:
+- Search / Shiori table surface.
+```
+
+修改后：
+
+```text
+Owner:
+- Search / Shiori / Context table surfaces.
+```
+
+修改前：
+
+```text
+- Search or Shiori row snapshot changes may update table rows and table summary.
+```
+
+修改后：
+
+```text
+- Search, Shiori, or Context row snapshot changes may update table rows and table summary.
 ```

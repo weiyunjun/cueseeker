@@ -329,6 +329,7 @@
 --size-icon-button: 32px
 --size-row-action-button: 36px
 --scrollbar-size: 8px
+--scrollbar-min-thumb-length: 24px
 --width-app-sidebar: 240px
 --size-app-sidebar-item-icon: 18px
 --size-player-circle-button: 40px
@@ -1074,7 +1075,9 @@ Cell Content Hover Bg: --color-bg-hover
 Cell Content Hover Radius: --radius-table-cell-hover
 Cell Content Hover Padding X: --padding-table-cell-hover-x
 Cell Content Hover Padding Y: --padding-table-cell-hover-y
-Cell Content Hover Scope: one rounded rectangle around the union bounds of the interactive primary content
+Cell Content Hover Scope: one rounded rectangle around the union bounds of the interaction content declared by the owning table layout
+Cues Cell Interaction Content / Show Cue Group Off: the complete primary Cue text
+Cues Cell Interaction Content / Show Cue Group On: the complete displayed Cue Group text, including the primary Cue and every additional Cue
 Interactive Cell Region: same bounds as Cell Content Hover Scope
 Cell Content Hit Testing: hover, pointer, left-click action, and right-click menu only apply inside Interactive Cell Region
 Non-interactive Cell Area: no cell hover, no pointer, no cell action; left click can toggle row checkbox selection
@@ -1097,7 +1100,8 @@ Extra Cue Text Line Height: --line-height-table-cue-secondary
 Extra Cue Text Font Weight: 400
 Extra Cue Placement: above the primary Cue
 Extra Cue Ordering: preserve stable source display order among the additional Cues
-Extra Cue Interaction: noninteractive context only
+Extra Cue Interaction / Show Cue Group Off: not rendered
+Extra Cue Interaction / Show Cue Group On: participate in the shared Cues Cell hover, pointer, left-click, and right-click region without becoming an independent action target
 Primary Cue Top: Row Top + --padding-table-row-y + (S × --line-height-table-cue-secondary)
 Metadata Alignment: align Display Title, Time, Date Added, Checkbox, and the first Tags row to the primary Cue's first visual line instead of the complete row center
 Metadata Text Color: --color-text-secondary
@@ -1256,6 +1260,7 @@ Interactive Text Hover: pointer
 #### Container
 Size: --scrollbar-size
 Radius: --scrollbar-radius
+Minimum Thumb Length: --scrollbar-min-thumb-length
 Track: transparent
 
 #### Content
@@ -1965,14 +1970,17 @@ Forbidden invalidation:
 #### Container
 Display: block
 Width: 100%
-Height: content-driven
+Height: content-driven with viewport clamp
 Margin: 0
 Padding Y: --padding-subtitle-focus-cue-y
-Cue Height: (L × --line-height-subtitle-focus-cue) + (2 × --padding-subtitle-focus-cue-y) = 52L + 24px, where L is the visual line count and L >= 1
+Natural Cue Height: (L × --line-height-subtitle-focus-cue) + (2 × --padding-subtitle-focus-cue-y) = 52L + 24px, where L is the visual line count and L >= 1
+Resolved Cue Height: min(Natural Cue Height, Subtitle Focus Cue Reel viewport height)
 Minimum Cue Height: 76px
+Oversized Cue: Natural Cue Height is greater than the Subtitle Focus Cue Reel viewport height
 Background: transparent
 Border: none
-Overflow: visible inside the cue reel document; clip only at the Subtitle Focus Cue Reel viewport
+Overflow / Fit Cue: visible inside the resolved Cue bounds
+Overflow / Oversized Cue: clip at the resolved Cue bounds and preserve the first visual line as the visible origin
 Visual Alignment: top-leading
 Hit Testing: no cue-specific pointer hover or click action
 Pointer Click Routing: consume within the overlay; do not pass through to the underlying Playback video surface
@@ -1985,10 +1993,12 @@ Multi-line Cue: preserve source line order and source line breaks
 Wrapping: wrap within Playback Subtitle Focus Overlay content width
 Visual Line Count: include both source line breaks and automatic wrapping at the current content width
 Text Alignment: top-leading
-Visible Content: render every visual line
-Cue-bound Clipping: none
+Visible Content / Fit Cue: render every visual line
+Visible Content / Oversized Cue: render from the first visual line to the resolved Cue bottom; do not expose content below the viewport
+Cue-bound Clipping / Fit Cue: none
+Cue-bound Clipping / Oversized Cue: clip trailing content at the resolved Cue bottom
 Truncation Indicator: none
-Complete Cue Value: retain the exact complete text for S-key Shiori, C-key Copy Cue Text, and Space-key Play From This Cue
+Complete Cue Value: retain the exact complete unclipped text for S-key Shiori, C-key Copy Cue Text, and Space-key Play From This Cue
 Font Family: --font-family-base
 Font Size: --font-size-subtitle-focus-cue
 Line Height: --line-height-subtitle-focus-cue
@@ -2034,7 +2044,8 @@ Allowed invalidation:
 - Remeasurement of the selected Cue may restore its accepted Focus Placement without changing stable Cue identity.
 
 Forbidden invalidation:
-- Cue text line count and wrapping must not clip, truncate, omit, or replace Cue content.
+- Fit Cue text line count and wrapping must not clip, truncate, omit, or replace Cue content.
+- Oversized Cue clipping must follow Oversized Cue Placement, may hide only trailing visual content below the resolved Cue bounds, and must preserve the first visual line as the visible origin and the complete Cue value for actions.
 - Dynamic remeasurement must not change the selected Cue identity or keyboard-action target.
 - Pointer hover and click must not update cue visual state, playback state, selected Cue identity, Focus Anchor, cue reel position, scrollbar metrics, or loaded cue data.
 - Cue pointer clicks must not pass through to the underlying Playback video surface.
@@ -2365,7 +2376,13 @@ Show Cue Group Preference:
   Off: render only the primary Cue
   On: render every additional Cue from the primary Cue's Cue Group above the primary Cue
   Primary Cue Identity: unchanged by the preference
-  Selection and Action Identity: always use the primary Cue
+  Selection and Default Action Identity: always use the primary Cue
+  Interaction Scope / Off: only the complete primary Cue text
+  Interaction Scope / On: the complete displayed Cue Group text
+  Shared Interaction: do not give the primary Cue and additional Cues different hover, pointer, left-click, or right-click behavior
+  Context Distinction: font size, font weight, and text color remain the only explicit distinction between the primary Cue and additional Cues
+  Additional Menu Item / On: Copy Cue Group Text
+  Additional Menu Item Icon: same copy icon as Copy Cue Text
 
 Search / Context Columns:
   Selection
@@ -2427,7 +2444,8 @@ Column Visual Priority:
     Line Height: --line-height-table-cue-secondary
     Font Weight: 400
     Placement: above the primary Cue
-    Interaction: none
+    Interaction: participate in the shared complete Cue Group interaction region
+    Independent Action Target: none; shared default actions continue to use the primary Cue
 
   Display Title:
     Role: secondary context
@@ -2466,16 +2484,16 @@ Cues Column:
   Primary Cue Placement: below all additional Cues
   Primary Cue Content: preserve source line breaks and automatic wrapping without clipping or truncation
   Extra Cue Content: preserve source line breaks and automatic wrapping without clipping or truncation
-  Primary Cue Cell Hover: one rounded rectangle around the complete primary Cue text bounds using --color-bg-hover
-  Primary Cue Cell Hover Padding X: --padding-table-cell-hover-x
-  Primary Cue Cell Hover Padding Y: --padding-table-cell-hover-y
-  Primary Cue Text Hover: underline the primary Cue text
-  Primary Cue Left Click Behavior: play video from the primary Cue
-  Primary Cue Right Click Behavior: open the primary Cue Row Action Menu
-  Extra Cue Hover: none
-  Extra Cue Pointer: default
-  Extra Cue Left Click Behavior: treat as noninteractive cell area
-  Extra Cue Right Click Behavior: none
+  Interaction Content / Show Cue Group Off: the complete primary Cue text
+  Interaction Content / Show Cue Group On: the union bounds of the complete displayed Cue Group text
+  Cell Hover: one rounded rectangle around the complete Interaction Content using --color-bg-hover
+  Cell Hover Padding X: --padding-table-cell-hover-x
+  Cell Hover Padding Y: --padding-table-cell-hover-y
+  Text Hover: underline every displayed Cue text inside the Interaction Content
+  Pointer: pointer across the complete Interaction Content
+  Left Click Behavior: play video from the primary Cue
+  Right Click Behavior: open the primary Cue Row Action Menu
+  Additional Cue Action Identity: never replace the primary Cue as the row action target
 
 Tags Column:
   Applies To: Shiori
@@ -2504,10 +2522,10 @@ Cell Content: hover shows one rounded rectangle around visible text / content un
 Cell Content Hit Testing: hover, pointer, underline, left-click action, and right-click menu use the same Cell Content hover region
 Non-hover Cell Area Left Click: toggle row checkbox selection
 Non-hover Cell Area Right Click: no cell action menu
-Interactive Cell Hover: pointer cursor for Display Title, primary Cue text, Time, Date Added, and Tags; underline for Display Title, primary Cue text, Time, and Date Added only
-Primary Cue Text Left Click: Play
-Primary Cue Text Right Click: open Cues Row Action Menu for the primary Cue
-Extra Cue Text Hover / Left Click / Right Click: no Cue action
+Interactive Cell Hover: pointer cursor for Display Title, the complete Cues Interaction Content, Time, Date Added, and Tags; underline for Display Title, every displayed Cue inside the Cues Interaction Content, Time, and Date Added only
+Cues Interaction Content Left Click: Play using the primary Cue
+Cues Interaction Content Right Click: open Cues Row Action Menu using the primary Cue
+Primary and Extra Cue Interaction Difference: none
 Display Title Cell Left Click: Open Folder
 Display Title Cell Right Click: open Display Title Cell Action Menu
 Time Cell Left Click: Copy Text
@@ -2519,12 +2537,16 @@ Tags Cell Right Click: no action
 Tags Cell Table Chips: non-removable; no x button
 Other Data Cells: reserved for future cell menus; no action defined yet
 View Menu: Cues is checked + disabled; other data columns can be hidden
-Cues Row Action Menu: Play / Context / Copy Cue Text
+Cues Row Action Menu / Show Cue Group Off: Play / Context / Copy Cue Text
+Cues Row Action Menu / Show Cue Group On: Play / Context / Copy Cue Text / Copy Cue Group Text
+Copy Cue Text Icon: copy
+Copy Cue Group Text Icon: same icon as Copy Cue Text
 Display Title Cell Action Menu: Open Folder / Copy Text
 Time Cell Action Menu: Copy Text
 Date Added Cell Action Menu: Copy Text
 Open Folder Action: open the subtitle file's containing folder and select the subtitle file
-Copy Cue Text Action: copy only the exact primary Cue text, preserving its source line order and line breaks; never include additional Cue Group context
+Copy Cue Text Action: copy only the exact primary Cue text, preserving its source line order and line breaks
+Copy Cue Group Text Action: copy the complete displayed Cue Group text, preserving stable source display order and the source line order and line breaks of every Cue
 Copy Text Action: copy the triggering non-Cues cell's displayed text to the clipboard
 Shiori Row Action Menu Extra Item: Remove Shiori
 Remove Shiori Action: open Confirmation Dialog Layout
@@ -2541,11 +2563,11 @@ Inherited from child components
 
 #### Refresh Scope
 Owner:
-- Search / Shiori table surface.
+- Search / Shiori / Context table surfaces.
 - Table document, header, scrollbar, selection, tag popover, confirmation dialog, and menu subregions own their own local rendering.
 
 Allowed invalidation:
-- Search or Shiori row snapshot changes may update table rows and table summary.
+- Search, Shiori, or Context row snapshot changes may update table rows and table summary.
 - Column visibility changes may update header, column layout, visible rows, and cursor rects.
 - Filter or submitted search changes may reload the owning table data.
 - Visible-row changes may request additional rows only for the owning table.
@@ -3237,10 +3259,12 @@ Subtitle Focus Cue Reel:
   Rendering Scope: measure, layout, and draw only viewport-visible Cues plus overscan and an explicit navigation or scrollbar target when required
   Cue Vertical Padding: --padding-subtitle-focus-cue-y on the top and bottom
   Cue Gap: --gap-subtitle-focus-cue
-  Cue Height: 52L + 24px, where L is the Cue's visual line count
-  Adjacent Cue Center Distance: current Cue Height / 2 + --gap-subtitle-focus-cue + target Cue Height / 2
-  Cue Geometry: every Cue occupies one content-driven item
-  Cue Overflow: expand the item to contain every visual line; clip only at the reel viewport
+  Natural Cue Height: 52L + 24px, where L is the Cue's visual line count
+  Resolved Cue Height: min(Natural Cue Height, Subtitle Focus Cue Reel viewport height)
+  Adjacent Cue Center Distance: current Resolved Cue Height / 2 + --gap-subtitle-focus-cue + target Resolved Cue Height / 2
+  Cue Geometry: every Cue occupies one content-driven item using its Resolved Cue Height
+  Cue Overflow / Fit Cue: display every visual line
+  Cue Overflow / Oversized Cue: display from the first visual line and clip remaining trailing content at the reel viewport
   Viewport Edge Behavior: partially visible leading and trailing Cues are allowed
   Text Alignment: top-leading
   Contains: Subtitle Focus Cue
@@ -3250,9 +3274,10 @@ Focus Anchor:
   Type: logical screen-space Cue-center anchor; no visible line, indicator, background, or marker
   Initial Position: fixed at the vertical center of the Subtitle Focus Cue Reel viewport
   Fit Cue Placement: align the center of the complete selected Cue with the Focus Anchor when the Cue fits within the reel viewport
-  Oversized Cue Placement: when the selected Cue is taller than the reel viewport, align its top edge with the reel viewport top when entering it, then allow continuous in-Cue reading without forcing its center onto the Focus Anchor
+  Oversized Cue Placement: align the selected Cue's top edge with the reel viewport top and keep its first visual line as the visible origin
+  Oversized Cue Stability: whenever an oversized Cue is the settled focused Cue, restore Oversized Cue Placement instead of preserving an internal content offset
   Boundary Behavior: virtual leading and trailing space lets the first and last fitting Cue use the same Focus Anchor
-  Geometry Response: width-dependent wrapping remeasures Cue Height and restores the selected fitting Cue to the Focus Anchor; an oversized Cue preserves its readable in-Cue position
+  Geometry Response: width-dependent wrapping remeasures Natural and Resolved Cue Height, then restores the selected Cue to its accepted Focus Placement
   Navigation Behavior: remain fixed while keyboard, wheel, or scrollbar navigation moves the Cue reel by content-dependent distances
 
 Subtitle Focus Scrollbar Region:
@@ -3261,8 +3286,14 @@ Subtitle Focus Scrollbar Region:
   Contains: Table Scrollbar
   Orientation: vertical
   Visibility: persistent when Cues exist
-  Value Mapping: map normalized scrollbar position to stable Cue ordinal, not cumulative rendered pixel height
+  Value Mapping: map normalized scrollbar position to fractional stable Cue ordinal, not cumulative rendered pixel height
+  Fractional Ordinal Range: 0...(Cue Count - 1)
+  Continuous Drag Preview: interpolate continuously between the accepted Focus Placements of the lower and upper neighboring Cue ordinals
+  Drag Release: select the nearest stable Cue ordinal and restore that Cue's accepted Focus Placement
   Height Independence: a long Cue and a short Cue consume the same ordinal share of scrollbar progress
+  Visible Cue Capacity: the number of Cue centers that can fit inside the current reel viewport; minimum 1
+  Thumb Length Ratio: min(1, Visible Cue Capacity / Total Cue Count)
+  Thumb Length: max(--scrollbar-min-thumb-length, Scrollbar Track Length × Thumb Length Ratio)
   Before Complete Collection Load: visible but noninteractive
   After Complete Collection Load: interactive
 
@@ -3276,9 +3307,10 @@ Playback Feedback Overlay:
 
 #### Cue Navigation
 Variable Navigation Distance:
-  Fit Cue Center Distance: current Cue Height / 2 + --gap-subtitle-focus-cue + target Cue Height / 2
-  Cue text line count and wrapping determine the actual movement distance
-  Oversized Cue Exception: use the target Cue's Oversized Cue Placement instead of center alignment
+  Cue Placement Distance: move from the current reel offset to the target Cue's accepted Focus Placement
+  Fit Cue Center Distance: current Resolved Cue Height / 2 + --gap-subtitle-focus-cue + target Resolved Cue Height / 2
+  Cue text line count and wrapping determine Natural and Resolved Cue Height
+  Oversized Cue Exception: use Oversized Cue Placement and never preserve or enter an internal Cue reading offset
 
 Up:
   Select the immediately preceding Cue
@@ -3294,13 +3326,12 @@ Down:
 
 Pointer Wheel / Trackpad Scroll:
   Move the content-driven Cue items through the reel viewport
-  Discrete Wheel for a Fit Cue: any nonzero input moves at least one Cue when the corresponding document boundary permits
-  Discrete Wheel for an Oversized Cue: move through the Cue's complete content first and change Cue only after the readable boundary is crossed
-  Precise Scroll: follow continuous gesture and momentum movement
-  Fit Cue Focus Update: update the local focused Cue when another Cue center becomes the nearest eligible target to the Focus Anchor
-  Oversized Cue Focus Update: retain the current focused Cue while continuously reading within its bounds and change Cue only after crossing its boundary
+  Discrete Wheel: any nonzero input moves at least one Cue when the corresponding document boundary permits
+  Precise Scroll: follow continuous gesture and momentum movement between neighboring accepted Focus Placements
+  Local Focus Preview: use the Cue whose accepted Focus Placement is nearest the current reel offset
   Fit Cue Scroll End: settle the nearest Cue center onto the Focus Anchor
-  Oversized Cue Scroll End: preserve the current readable in-Cue offset and do not force center settlement
+  Oversized Cue Scroll End: settle the nearest oversized Cue using Oversized Cue Placement with its first visual line visible
+  Oversized Cue Internal Reading: unsupported; do not preserve or settle an internal content offset
   At the first and last Cue boundaries, use only movement that was actually applied
   Publish only a settled Cue selection to the Subtitle Focus Session
   Do not seek or update playback time
@@ -3308,10 +3339,10 @@ Pointer Wheel / Trackpad Scroll:
 Scrollbar Drag:
   Keep the Focus Anchor fixed
   Enable dragging only after the complete current-video Cue collection is available
-  Map normalized scrollbar position to the complete ordered Cue ordinal range, not cumulative pixel height
-  Update the local target Cue and native reel preview as the mapped ordinal changes
+  Map normalized scrollbar position continuously to the fractional Cue ordinal range 0...(Cue Count - 1)
+  Interpolate the native reel preview between the accepted Focus Placements of the neighboring Cue ordinals
   Do not issue database requests or publish intermediate Session selections during dragging
-  On drag end, place the mapped Cue using its accepted Focus Placement and publish the final Cue selection once
+  On drag end, select the nearest stable Cue ordinal, restore its accepted Focus Placement, and publish the final Cue selection once
   Do not seek or update playback time
 
 Cue Pointer Hover / Click:
@@ -3401,17 +3432,18 @@ Default Cue:
 Initial Position:
   Keep the Focus Anchor fixed at the vertical center
   If the default selected Cue fits within the reel viewport, align the center of the complete Cue with the Focus Anchor
-  If the default selected Cue is taller than the reel viewport, align its top edge with the reel viewport top
+  If the default selected Cue is oversized, align its top edge with the reel viewport top and display from its first visual line
   Use virtual leading and trailing space so the first and last fitting Cue use the same Focus Anchor
-  Derive Cue Height and initial reel position from the current visual line count and content width
+  Derive Natural Cue Height, Resolved Cue Height, and initial reel position from the current visual line count, content width, and reel viewport height
 
 Initial Cue Window:
   Cue Count: exactly 10 total when at least 10 Cues exist; otherwise load all available Cues
   Preferred Distribution: 6 Cues before the selected Cue, the selected Cue, and 3 Cues after it
   Selected Cue Position: seventh item when at least 6 preceding Cues exist
   Boundary Distribution: when either boundary lacks enough Cues, fill the remaining items from the opposite side
-  Cue Geometry: every loaded Cue uses its content-driven 52L + 24px height
-  Viewport Clipping: clip only at the available reel viewport; partial leading and trailing Cues are allowed and no Cue text is truncated
+  Cue Geometry: every loaded Cue uses Natural Cue Height 52L + 24px and Resolved Cue Height min(Natural Cue Height, reel viewport height)
+  Viewport Clipping / Fit Cue: partial leading and trailing Cues are allowed and no Cue text is truncated
+  Viewport Clipping / Oversized Cue: show content from the first visual line and clip all trailing content below the reel viewport
   Selection Stability: identify the selected Cue by stable Cue identity and stable ordinal, not transient loaded-window index
 
 #### Keyboard Action Interaction
@@ -3545,17 +3577,17 @@ Lifecycle:
 #### Motion
 Cue Reel Transition Duration: --duration-subtitle-focus-scroll
 Cue Reel Transition Easing: --easing-subtitle-focus-scroll
-Cue Reel Step Distance: content-dependent; for two fitting Cues, use current Cue Height / 2 + --gap-subtitle-focus-cue + target Cue Height / 2
-Cue Reel Geometry: visual line count and wrapping determine Cue Height and transition distance
+Cue Reel Step Distance: content-dependent; use the distance between the current and target accepted Focus Placements calculated from Resolved Cue Height
+Cue Reel Geometry: visual line count, wrapping, and reel viewport height determine Natural Cue Height, Resolved Cue Height, and transition distance
 Keyboard / Discrete Wheel Alignment: animate the final target to its accepted Focus Placement
-Precise Wheel: follow continuous native reel offset directly
-Scrollbar Drag: preview the Cue mapped from normalized stable ordinal rather than cumulative pixel height
-Fit Cue Scrollbar Release Settlement: align only the final mapped Cue center with the Focus Anchor
-Oversized Cue Settlement: preserve the readable in-Cue offset during continuous reading and do not force center settlement
+Precise Wheel: follow continuous native reel offset between neighboring accepted Focus Placements
+Scrollbar Drag: preview the fractional Cue ordinal using continuous interpolation between neighboring accepted Focus Placements
+Fit Cue Scrollbar Release Settlement: align the final selected Cue center with the Focus Anchor
+Oversized Cue Settlement: align the final selected Cue top edge with the reel viewport top and display from its first visual line
 Width-dependent Reflow: preserve stable selected Cue identity, then restore its accepted Focus Placement
 Keyboard Action Settlement: if S, C, or Space is accepted while Cue motion has an unresolved final target, complete the existing settlement first and execute once against the resulting settled focused Cue
 Cue Pointer Hover / Click: no visual transition, focus transfer, selection transition, or Cue reel animation
-Reduce Motion: resolve final placement and any accepted deferred keyboard action immediately while preserving focus, selection, in-Cue reading, and continuous drag semantics
+Reduce Motion: resolve final placement and any accepted deferred keyboard action immediately while preserving focus, selection, Oversized Cue head-first placement, and continuous drag semantics
 
 #### Cursor
 Cue Text: default
@@ -3594,7 +3626,9 @@ Allowed invalidation:
 Forbidden invalidation:
 - Normal playback before Enter must not create Subtitle Focus queries, cue collections, cue views, measurements, or observable subscriptions.
 - Subtitle Focus database reads must not execute on the main thread.
-- Cue text line count and wrapping may change dynamic Cue Height and navigation distance, but must not move the screen-space Focus Anchor, change stable Cue identity, clip text, truncate text, or retarget an accepted keyboard action.
+- Cue text line count and wrapping may change Natural Cue Height, Resolved Cue Height, and navigation distance, but must not move the screen-space Focus Anchor, change stable Cue identity, or retarget an accepted keyboard action.
+- Fit Cue content must not be clipped or truncated.
+- Oversized Cue content may be clipped only below the resolved Cue bounds while preserving the first visual line as the visible origin and retaining the complete Cue value for actions.
 - Scrollbar progress must not be derived from cumulative rendered Cue height.
 - Cue text hover or click must not publish hover, selection, anchor, action, menu, playback, or cursor state.
 - Cue text pointer clicks must not pass through to the underlying Playback video surface.
@@ -3617,13 +3651,15 @@ Forbidden invalidation:
 Probe / verification:
 - Before the first Enter press, Subtitle Focus request count and retained Cue count remain 0.
 - When subtitle boundaries allow, the initial snapshot contains 10 Cues with the selected Cue as the seventh item (zero-based index 6).
-- A one-line Cue is 76px high, a two-line Cue is 128px high, and a three-line Cue is 180px high.
-- Center-to-center navigation distance is 84px for one-line to one-line, 110px for one-line to two-line, and 162px for two-line to three-line Cues.
-- Source line breaks and automatic wrapping both increase visual line count, and every resulting line remains available without Cue-bound clipping or truncation.
-- A selected Cue that fits within the reel viewport has its complete Cue center aligned with the Focus Anchor.
-- Resizing the overlay preserves stable selected Cue identity, recomputes visual line count, and restores the selected fitting Cue to the Focus Anchor.
-- Entering a Cue taller than the reel viewport aligns its top edge to the reel viewport top.
-- Continuous wheel or trackpad scrolling can traverse every line of an oversized Cue without forced center settlement, and selection changes only after the Cue boundary is crossed.
+- When the reel viewport is tall enough, a one-line Cue has Natural and Resolved Cue Height 76px, a two-line Cue 128px, and a three-line Cue 180px.
+- For fitting Cues, center-to-center navigation distance is 84px for one-line to one-line, 110px for one-line to two-line, and 162px for two-line to three-line Cues.
+- Source line breaks and automatic wrapping both increase Natural Cue Height.
+- A selected fitting Cue has its complete Cue center aligned with the Focus Anchor and displays every visual line.
+- An oversized Cue has Resolved Cue Height equal to the reel viewport height, aligns its top edge with the reel viewport top, displays from its first visual line, and clips trailing content.
+- Whenever an oversized Cue is the settled focused Cue, its first visual line remains the visible origin; internal Cue reading offsets are not preserved.
+- Resizing the overlay preserves stable selected Cue identity, recomputes Natural and Resolved Cue Height, and restores the selected Cue to its accepted Focus Placement.
+- Dragging the Scrollbar continuously interpolates between fractional Cue ordinals; mouse-up selects the nearest stable Cue ordinal.
+- Scrollbar Thumb Length uses the visible Cue capacity divided by total Cue count and never becomes shorter than --scrollbar-min-thumb-length.
 - Cue hover and click produce no Cue redraw, selection change, Focus Anchor change, action UI, playback command, or pointer-event pass-through while wheel and scrollbar navigation remain available.
 - Enter while Cue Selection is visible produces no menu, dismissal, playback command, or selection change.
 - Down followed immediately by S saves the Cue that settles at its accepted Focus Placement, not the previously settled Cue.
