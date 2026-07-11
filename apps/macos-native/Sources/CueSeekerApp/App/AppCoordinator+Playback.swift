@@ -124,6 +124,7 @@ extension AppCoordinator {
             initialLastNonzeroVolume: Self.loadPlaybackLastNonzeroVolume(from: userDefaults),
             initialPlaybackSpeed: Self.loadPlaybackSpeed(from: userDefaults),
             initialSubtitlesVisible: userDefaults.bool(forKey: Self.playbackSubtitlesVisibleKey),
+            uiProbeScope: uiProbeScope,
             onVolumeChanged: { [weak self] volume in
                 self?.userDefaults.set(volume, forKey: Self.playbackVolumeKey)
             },

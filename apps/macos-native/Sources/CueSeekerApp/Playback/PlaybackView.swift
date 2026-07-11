@@ -6,6 +6,7 @@ import CueSeekerPlayback
 struct PlaybackView: View {
     let player: PlaybackPlayer?
     let viewModel: PlaybackViewModel?
+    let uiProbeScope: String
     let onSurfaceTap: () -> Void
 
     var body: some View {
@@ -13,6 +14,7 @@ struct PlaybackView: View {
             PlaybackVideoView(
                 player: player,
                 viewModel: viewModel,
+                uiProbeScope: uiProbeScope,
                 onSurfaceTap: onSurfaceTap
             )
         } else {
@@ -24,6 +26,7 @@ struct PlaybackView: View {
 struct PlaybackVideoView: View {
     let player: PlaybackPlayer
     let viewModel: PlaybackViewModel
+    let uiProbeScope: String
     let onSurfaceTap: () -> Void
 
     var body: some View {
@@ -32,7 +35,10 @@ struct PlaybackVideoView: View {
             // 69861f2 fullscreen render-sync band-aid unnecessary; the render
             // host is laid out by normal AppKit layout passes. No fullscreen
             // state is threaded into the render wrapper.
-            PlaybackRenderViewWrapper(player: player)
+            PlaybackRenderViewWrapper(
+                player: player,
+                uiProbeScope: uiProbeScope
+            )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -94,22 +100,33 @@ struct PlaybackSubtitleOverlay: View {
 
 struct PlaybackRenderViewWrapper: NSViewRepresentable {
     let player: PlaybackPlayer
+    let uiProbeScope: String
 
     func makeNSView(context: Context) -> NSView {
-        PlaybackRenderHostView(player: player)
+        UIInvalidationProbe.count("playback.render_host_update", scope: uiProbeScope)
+        UIInvalidationProbe.count("playback.render_host_native_make", scope: uiProbeScope)
+        return PlaybackRenderHostView(
+            player: player,
+            uiProbeScope: uiProbeScope
+        )
     }
 
     // S5.2: no fullscreen-transition resync. The singleton render host stays
     // in the one window hierarchy and is laid out by normal AppKit layout
     // passes (ADR-0013 structural resolution); the 69861f2 band-aid is removed.
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        UIInvalidationProbe.count("playback.render_host_update", scope: uiProbeScope)
+        UIInvalidationProbe.count("playback.render_host_native_update", scope: uiProbeScope)
+    }
 }
 
 private final class PlaybackRenderHostView: NSView {
     private let renderView: NSView
+    private let uiProbeScope: String
 
-    init(player: PlaybackPlayer) {
+    init(player: PlaybackPlayer, uiProbeScope: String) {
         self.renderView = player.renderView
+        self.uiProbeScope = uiProbeScope
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
@@ -142,6 +159,8 @@ private final class PlaybackRenderHostView: NSView {
 
         renderView.removeFromSuperview()
         addSubview(renderView)
+        UIInvalidationProbe.count("playback.render_host_update", scope: uiProbeScope)
+        UIInvalidationProbe.count("playback.render_host_attached", scope: uiProbeScope)
         renderView.frame = bounds
         renderView.needsLayout = true
         renderView.layoutSubtreeIfNeeded()
@@ -152,6 +171,9 @@ private final class PlaybackRenderHostView: NSView {
             guard renderView.superview === self else {
                 return
             }
+
+            UIInvalidationProbe.count("playback.render_host_update", scope: uiProbeScope)
+            UIInvalidationProbe.count("playback.render_host_frame_sync", scope: uiProbeScope)
 
             CATransaction.begin()
             CATransaction.setDisableActions(true)

@@ -4,6 +4,29 @@ import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
+private let subtitleTableForbiddenRefreshScopeCounters = SubtitleTableProbeSurface.allCases.flatMap { surface in
+    [
+        surface.counterName("snapshot_rebuild"),
+        surface.counterName("row_hydration_requested"),
+        surface.counterName("row_hydration_applied"),
+    ]
+} + [
+    "UI.SearchPresentation.rebuilt",
+    "UI.ShioriPresentation.rebuilt",
+    "UI.Workbench.body",
+    "UI.ContentView.body",
+    "UI.AppTopBar.body",
+    "UI.AppSidebar.body",
+    "UI.PlaybackPage.body",
+    "playback.subtitle_focus.cue_measurement",
+    "playback.subtitle_focus.native_update",
+    "playback.subtitle_focus.layout_update",
+    "playback.subtitle_focus.cue_draw",
+    "library.snapshot_rebuild",
+    "playback.render_host_update",
+    "playback.high_frequency_chrome_update",
+]
+
 @MainActor
 @Test
 func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
@@ -1052,24 +1075,26 @@ func subtitleTableViewShowCueGroupReflowPreservesPrimaryFirstLineAndPresentation
     visibleNotifications = 0
     fixture.coordinator.resetMeasurementComputeCountForTesting()
 
-    fixture.coordinator.update(
-        tableName: "test-search",
-        rowCount: rows.count,
-        rowProvider: { rows[$0] },
-        rowsVersion: 1,
-        rowsUpdate: .none,
-        displayTitleHeader: "Display Title",
-        showsLanguageColumn: true,
-        showsSpeakerColumn: true,
-        showsCueGroup: true,
-        scrollResetToken: 0,
-        onVisibleRowsChange: { _ in visibleNotifications += 1 },
-        isRowSelected: { $0 == selectedRow },
-        selectionHeaderState: .unchecked,
-        onToggleRowSelection: { _ in },
-        onToggleAllSelection: {},
-        onPlay: { _ in }
-    )
+    let recording = UIInvalidationProbe.recordForTesting {
+        fixture.coordinator.update(
+            tableName: "test-search",
+            rowCount: rows.count,
+            rowProvider: { rows[$0] },
+            rowsVersion: 1,
+            rowsUpdate: .none,
+            displayTitleHeader: "Display Title",
+            showsLanguageColumn: true,
+            showsSpeakerColumn: true,
+            showsCueGroup: true,
+            scrollResetToken: 0,
+            onVisibleRowsChange: { _ in visibleNotifications += 1 },
+            isRowSelected: { $0 == selectedRow },
+            selectionHeaderState: .unchecked,
+            onToggleRowSelection: { _ in },
+            onToggleAllSelection: {},
+            onPlay: { _ in }
+        )
+    }.recording
 
     let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: selectedRow))
     #expect(abs(afterY - beforeY) < 0.5)
@@ -1077,6 +1102,13 @@ func subtitleTableViewShowCueGroupReflowPreservesPrimaryFirstLineAndPresentation
     #expect(fixture.coordinator.rowSelectionStateForTesting(row: selectedRow))
     #expect(visibleNotifications == 0)
     #expect(fixture.coordinator.measurementComputeCountForTesting() <= measurementLimit)
+    #expect(recording.count("table.search.show_cue_group_owner_update") == 1)
+    #expect(recording.count("table.search.dynamic_row_measurement") > 0)
+    #expect(recording.count("table.search.dynamic_row_measurement") <= UInt64(measurementLimit))
+    #expect(recording.count("table.search.dynamic_scroll_anchor_correction") > 0)
+    for counter in subtitleTableForbiddenRefreshScopeCounters {
+        #expect(recording.count(counter) == 0)
+    }
 }
 
 @MainActor
@@ -1097,15 +1129,25 @@ func subtitleTableViewWidthReflowPreservesPrimaryFirstLineAnchor() throws {
     let measurementLimit = (fixture.coordinator.measurementRowRangeForTesting()?.count ?? 0) + 1
     fixture.coordinator.resetMeasurementComputeCountForTesting()
 
-    fixture.container.setFrameSize(CGSize(width: 1_600, height: fixture.container.frame.height))
-    fixture.header.setFrameSize(CGSize(width: 1_600, height: fixture.header.frame.height))
-    fixture.scrollView.setFrameSize(CGSize(width: 1_600, height: fixture.scrollView.frame.height))
-    fixture.overlay.setFrameSize(CGSize(width: 1_600, height: fixture.overlay.frame.height))
-    fixture.coordinator.resizeDocument()
+    let recording = UIInvalidationProbe.recordForTesting {
+        fixture.container.setFrameSize(CGSize(width: 1_600, height: fixture.container.frame.height))
+        fixture.header.setFrameSize(CGSize(width: 1_600, height: fixture.header.frame.height))
+        fixture.scrollView.setFrameSize(CGSize(width: 1_600, height: fixture.scrollView.frame.height))
+        fixture.overlay.setFrameSize(CGSize(width: 1_600, height: fixture.overlay.frame.height))
+        fixture.coordinator.resizeDocument()
+    }.recording
 
     let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
     #expect(abs(afterY - beforeY) < 0.5)
     #expect(fixture.coordinator.measurementComputeCountForTesting() <= measurementLimit)
+    #expect(recording.marks.contains("ACTION UI.SubtitleTable.search.width_reflow"))
+    #expect(recording.count("table.search.width_reflow_owner_update") > 0)
+    #expect(recording.count("table.search.dynamic_row_measurement") > 0)
+    #expect(recording.count("table.search.dynamic_row_measurement") <= UInt64(measurementLimit))
+    #expect(recording.count("table.search.dynamic_scroll_anchor_correction") > 0)
+    for counter in subtitleTableForbiddenRefreshScopeCounters {
+        #expect(recording.count(counter) == 0)
+    }
 }
 
 @MainActor

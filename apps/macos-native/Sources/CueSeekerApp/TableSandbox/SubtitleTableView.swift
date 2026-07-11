@@ -717,6 +717,27 @@ enum SubtitleTableRowActionMenuStyle {
     case shiori
 }
 
+enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
+    case search
+    case context
+    case shiori
+
+    init(tableName: String) {
+        let normalizedName = tableName.lowercased()
+        if normalizedName.contains("shiori") {
+            self = .shiori
+        } else if normalizedName.contains("context") {
+            self = .context
+        } else {
+            self = .search
+        }
+    }
+
+    func counterName(_ event: String) -> String {
+        "table.\(rawValue).\(event)"
+    }
+}
+
 private enum SubtitleTableCellActionMenuKind: Equatable {
     case cues
     case displayTitle
@@ -1781,6 +1802,8 @@ struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.isWorkbenchPopupLayerOpen) var isWorkbenchPopupLayerOpen
     var tableName: String
+    var probeSurface: SubtitleTableProbeSurface = .search
+    var probeScope: String?
     var rowCount: Int
     var rowProvider: (Int) -> SubtitleTableRow?
     var rowsVersion: Int
@@ -1821,6 +1844,8 @@ struct SubtitleTableView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         let coordinator = Coordinator(
             tableName: tableName,
+            probeSurface: probeSurface,
+            probeScope: probeScope,
             rowCount: rowCount,
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
@@ -1858,6 +1883,11 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> SubtitleTableContainerView {
+        UIInvalidationProbe.count(
+            probeSurface.counterName("native_make"),
+            scope: probeScope,
+            details: "table=\(tableName)"
+        )
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
         context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
@@ -1932,12 +1962,19 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: SubtitleTableContainerView, context: Context) {
+        UIInvalidationProbe.count(
+            probeSurface.counterName("native_update"),
+            scope: probeScope,
+            details: "table=\(tableName)"
+        )
         context.coordinator.isRedesign = isRedesign
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
         context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
         context.coordinator.update(
             tableName: tableName,
+            probeSurface: probeSurface,
+            probeScope: probeScope,
             rowCount: rowCount,
             rowProvider: rowProvider,
             rowsVersion: rowsVersion,
@@ -1978,6 +2015,8 @@ struct SubtitleTableView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject {
         private var tableName: String
+        private var probeSurface: SubtitleTableProbeSurface
+        private var probeScope: String?
         private var rowCount: Int
         private var rowProvider: (Int) -> SubtitleTableRow?
         private var rowsVersion: Int
@@ -2150,6 +2189,8 @@ struct SubtitleTableView: NSViewRepresentable {
 
         init(
             tableName: String,
+            probeSurface: SubtitleTableProbeSurface = .search,
+            probeScope: String? = nil,
             rowCount: Int,
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
@@ -2185,6 +2226,8 @@ struct SubtitleTableView: NSViewRepresentable {
             makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
         ) {
             self.tableName = tableName
+            self.probeSurface = probeSurface
+            self.probeScope = probeScope
             self.rowCount = max(0, rowCount)
             self.rowProvider = rowProvider
             self.rowsVersion = rowsVersion
@@ -2266,6 +2309,8 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func update(
             tableName: String,
+            probeSurface: SubtitleTableProbeSurface = .search,
+            probeScope: String? = nil,
             rowCount: Int,
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
@@ -2302,6 +2347,8 @@ struct SubtitleTableView: NSViewRepresentable {
             makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
         ) {
             let tableChanged = tableName != self.tableName
+            self.probeSurface = probeSurface
+            self.probeScope = probeScope
             let cuePresentationInputChanged = showsCueGroup != self.showsCueGroup ||
                 columnOrder != self.columnOrder ||
                 showsDateAddedColumn != self.showsDateAddedColumn ||
@@ -2411,6 +2458,11 @@ struct SubtitleTableView: NSViewRepresentable {
                 resizeDocument(preserving: presentationAnchor)
             }
             if showCueGroupChanged {
+                UIInvalidationProbe.count(
+                    probeSurface.counterName("show_cue_group_owner_update"),
+                    scope: probeScope,
+                    details: "table=\(tableName) enabled=\(showsCueGroup)"
+                )
                 reflowVisibleRows(anchor: presentationAnchor)
             }
             if rowsChanged || columnVisibilityChanged {
@@ -2520,6 +2572,36 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func numberOfRowsForTesting() -> Int {
             rowCount
+        }
+
+        func rowsVersionForTesting() -> Int {
+            rowsVersion
+        }
+
+        func probeSurfaceForTesting() -> SubtitleTableProbeSurface {
+            probeSurface
+        }
+
+        func showsCueGroupForTesting() -> Bool {
+            showsCueGroup
+        }
+
+        func quiesceForTesting() {
+            NotificationCenter.default.removeObserver(self)
+            removeMenuDismissMonitor()
+            if let monitor = keyboardFocusEventMonitor {
+                NSEvent.removeMonitor(monitor)
+                keyboardFocusEventMonitor = nil
+            }
+            container?.onLayout = nil
+        }
+
+        func primaryCueIdentityForTesting(row: Int) -> SubtitleTablePrimaryCueIdentity? {
+            rowProvider(row)?.primaryCueIdentity
+        }
+
+        func primaryCueTextForTesting(row: Int) -> String? {
+            rowProvider(row)?.primaryCueText
         }
 
         func rowSelectionStateForTesting(row: Int) -> Bool {
@@ -2781,6 +2863,16 @@ struct SubtitleTableView: NSViewRepresentable {
                 lastEffectiveCuesWidthKey != nextEffectiveWidthKey
             let anchor = preservedAnchor ?? (effectiveWidthChanged ? captureDynamicScrollAnchor() : nil)
             if effectiveWidthChanged {
+                UIInvalidationProbe.mark(
+                    "ACTION UI.SubtitleTable.\(probeSurface.rawValue).width_reflow",
+                    scope: probeScope,
+                    details: "table=\(tableName)"
+                )
+                UIInvalidationProbe.count(
+                    probeSurface.counterName("width_reflow_owner_update"),
+                    scope: probeScope,
+                    details: "table=\(tableName)"
+                )
                 rowMeasurementCache.removeAll()
                 rowHeightCache.removeAll()
             }
@@ -3020,7 +3112,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 guard rowRect.intersects(viewportDirtyRect) else { continue }
                 drawnRowCount += 1
                 UIInvalidationProbe.count(
-                    "table.dynamic_row_draw",
+                    probeSurface.counterName("dynamic_row_draw"),
+                    scope: probeScope,
                     details: "table=\(tableName) row=\(row)"
                 )
                 drawRowBackground(row: row, rect: rowRect)
@@ -3574,7 +3667,8 @@ struct SubtitleTableView: NSViewRepresentable {
             ) { [cueTextMeasurer] in
                 measurementComputeCount += 1
                 UIInvalidationProbe.count(
-                    "table.dynamic_row_measurement",
+                    probeSurface.counterName("dynamic_row_measurement"),
+                    scope: probeScope,
                     details: "table=\(tableName) row=\(row)"
                 )
                 return cueTextMeasurer.rowMeasurement(
@@ -3644,7 +3738,8 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView.contentView.scroll(to: origin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
             UIInvalidationProbe.count(
-                "table.dynamic_scroll_anchor_correction",
+                probeSurface.counterName("dynamic_scroll_anchor_correction"),
+                scope: probeScope,
                 details: "table=\(tableName) row=\(anchor.row)"
             )
         }

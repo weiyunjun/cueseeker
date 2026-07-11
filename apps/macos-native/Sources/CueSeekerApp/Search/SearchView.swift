@@ -15,7 +15,10 @@ struct SearchView: View {
 
     var body: some View {
         AppPerformanceProbe.measure("SearchView.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count("UI.Workbench.body")
+            UIInvalidationProbe.count(
+                "UI.Workbench.body",
+                scope: appState.uiProbeScope
+            )
 
             return GeometryReader { geometry in
                 let showsPlaybackRoute = appState.isPlaybackPageVisible
@@ -59,6 +62,7 @@ struct SearchView: View {
         AppPerformanceProbe.measure("SearchView.mainContent.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count(
                 "UI.WorkbenchMainContent.body",
+                scope: appState.uiProbeScope,
                 details: "mode=\(routeState.panelMode.rawValue)"
             )
 
@@ -81,7 +85,10 @@ struct SearchView: View {
 
     private var libraryPanel: some View {
         AppPerformanceProbe.measure("SearchView.libraryPanel.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count("UI.LibraryPanel.body")
+            UIInvalidationProbe.count(
+                "UI.LibraryPanel.body",
+                scope: appState.uiProbeScope
+            )
 
             return VStack(alignment: .leading, spacing: 6) {
                 libraryHeader
@@ -202,7 +209,10 @@ struct SearchView: View {
 
     private var shioriPanel: some View {
         AppPerformanceProbe.measure("SearchView.shioriPanel.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count("UI.ShioriPanel.body")
+            UIInvalidationProbe.count(
+                "UI.ShioriPanel.body",
+                scope: appState.uiProbeScope
+            )
 
             return GeometryReader { geometry in
                 VStack(alignment: .leading, spacing: 6) {
@@ -296,6 +306,7 @@ struct SearchView: View {
         PlaybackView(
             player: appState.playbackPlayer,
             viewModel: playback.playbackViewModel,
+            uiProbeScope: appState.uiProbeScope,
             onSurfaceTap: {
                 appState.workbenchLayout.clearSearchFocus()
                 appState.togglePlaybackFromUser()
@@ -308,7 +319,9 @@ struct SearchView: View {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            WorkbenchTestSearchView()
+            WorkbenchTestSearchView(
+                isTableResponseActive: !appState.isPlaybackPageVisible
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -318,7 +331,9 @@ struct SearchView: View {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            WorkbenchShioriTableView()
+            WorkbenchShioriTableView(
+                isTableResponseActive: !appState.isPlaybackPageVisible
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

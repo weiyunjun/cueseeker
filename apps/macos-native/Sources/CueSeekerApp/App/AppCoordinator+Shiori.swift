@@ -257,6 +257,7 @@ extension AppCoordinator {
         )
         UIInvalidationProbe.count(
             "UI.ShioriPresentation.rebuilt",
+            scope: uiProbeScope,
             details: "groups=\(shiori.shioriFileGroups.count) rows=\(shiori.shioris.count)"
         )
     }

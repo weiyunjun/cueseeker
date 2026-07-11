@@ -7,6 +7,10 @@ struct PlaybackPageView: View {
     @EnvironmentObject private var playback: PlaybackStore
 
     var body: some View {
+        let _ = UIInvalidationProbe.count(
+            "UI.PlaybackPage.body",
+            scope: appState.uiProbeScope
+        )
         GeometryReader { geometry in
             let subtitleFocusSession = playback.subtitleFocusSession
             let isSubtitleFocusActive = subtitleFocusSession != nil
@@ -27,6 +31,7 @@ struct PlaybackPageView: View {
                 if let subtitleFocusSession {
                     PlaybackSubtitleFocusLayer(
                         session: subtitleFocusSession,
+                        uiProbeScope: appState.uiProbeScope,
                         onExecuteAction:
                             appState.executePlaybackSubtitleFocusAction
                     )

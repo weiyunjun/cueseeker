@@ -136,6 +136,76 @@ changing primary Cue semantics.
 - The Liquid Glass component and UX mapping documents contain no conflicting
   table-specific contract requiring synchronization for this phase.
 
+## Phase 4D: Refresh Scope Verification
+
+### Implementation
+
+- Added a diagnostic action mark for the persistent Show Cue Group setting and
+  owner counters for Show-state and width-dependent table reflow.
+- Added production counters for table snapshot rebuilds, row hydration,
+  dynamic row measurement, scroll-anchor correction, Subtitle Focus Cue
+  measurement, Library snapshot rebuilds, Playback render-host updates, and
+  high-frequency Playback chrome publication.
+- Added synchronous task-local recording plus an asynchronous multi-session
+  registry. Async events carry an explicit App scope, match that scope exactly,
+  support overlapping scoped and catch-all sessions, and stop recording
+  linearly when a session finishes.
+- Kept every probe behind a non-test/disabled fast path outside tests and made
+  detail construction lazy. The diagnostic flag remains
+  `CUESEEKER_PERF_UI`.
+- Projected Show Cue Group into its own observable store so changing the
+  preference does not publish the complete Settings store. Search, Context,
+  and Shiori consume the value through a visibility gate: a playback-covered
+  table freezes its current presentation and applies the deferred value once
+  when the workbench becomes active again. The persisted On value is used on
+  the first visible table presentation without an intermediate Off reflow.
+- Passed playback visibility from the observing Search owner as a stable Bool
+  instead of making each table observe the complete Playback store.
+- The mounted AppKit integration harness is retained only for the bounded test
+  suite because releasing the complete SwiftUI graph under
+  `swiftpm-testing-helper` crashes in `objc_autoreleasePoolPop` on macOS 15.
+  Before retention it stops playback, orders the window out, and explicitly
+  removes table-global event and notification monitors.
+
+### Verification
+
+- The real native Settings switch records its user action and performs one
+  table-owner reflow in mounted Search, Context, and Shiori. It measures only
+  the union of the before/after visible-plus-overscan rows, preserves the
+  anchored primary Cue below 0.5pt, and leaves row identity, selection,
+  snapshots, hydration, Library, Playback render host, Subtitle Focus, and
+  high-frequency Playback chrome unchanged.
+- With Playback, its render host, and a multi-line Subtitle Focus reel mounted,
+  Show Cue Group leaves both playback surfaces and the covered table unchanged;
+  returning to the workbench applies the deferred value exactly once while
+  preserving primary Cue identity and the anchor below 0.5pt.
+- Mounted width-dependent table reflow records one owner update, preserves the
+  anchor below 0.5pt, and leaves a simultaneously mounted Subtitle Focus
+  body's native inputs, layout, and Cue measurements unchanged. AppKit may
+  redraw already measured Focus pixels during a host-window resize. Table
+  snapshots, hydration, Library snapshots, and Playback render host also stay
+  unchanged.
+- Successful Context hydration records request, snapshot, and applied events;
+  a missing target records the request without a false applied event.
+- Overlapping scope A, scope B, and catch-all async probe sessions remain
+  isolated, and a finished session receives no later event.
+- `swift test --filter SettingsStoreSearchTests` passed 4 tests.
+- `swift test --filter TableSandboxRowModelStoreTests` passed 31 tests.
+- `swift test --filter SubtitleTableVirtualRowTests` passed 52 tests.
+- `swift test --filter CueGroupRefreshScopeIntegrationTests` passed 9 tests.
+- `swift test --filter PlaybackSubtitleFocusLayoutTests` passed 28 tests.
+- `swift test --quiet` passed the complete package suite: 548 Swift Testing
+  tests and 7 XCTest tests, with 0 failures.
+- `git diff --check` passed with no whitespace errors.
+
+### Documentation Follow-up
+
+The final completion audit corrected the earlier Phase 4C statement about
+Liquid Glass mappings: the active mapping documents still described the older
+Search and Shiori card surfaces. That documentation conflict remains a
+separate closeout item and must be synchronized before the complete
+Cue-centric requirement is declared finished.
+
 ## Outcome
 
 Phases 4A through 4C give Search, Shiori, and Context one unambiguous primary

@@ -32,7 +32,10 @@ private struct ContentRootView: View {
 
     var body: some View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count("UI.ContentView.body")
+            UIInvalidationProbe.count(
+                "UI.ContentView.body",
+                scope: appState.uiProbeScope
+            )
 
             let isPlaybackFullscreen = fullscreenManager.isFullscreen
             let hidesWorkbenchChrome = isPlaybackFullscreen || appState.isPlaybackPageVisible
@@ -96,7 +99,10 @@ private struct AppTopBar: View {
     @EnvironmentObject private var routeState: WorkbenchRouteState
 
     var body: some View {
-        UIInvalidationProbe.count("UI.AppTopBar.body")
+        UIInvalidationProbe.count(
+            "UI.AppTopBar.body",
+            scope: appState.uiProbeScope
+        )
 
         return AppTopbarLayout(
             isSidebarVisible: layoutState.isSidebarVisible,
@@ -181,6 +187,7 @@ private struct AppSidebar: View {
     var body: some View {
         UIInvalidationProbe.count(
             "UI.AppSidebar.body",
+            scope: appState.uiProbeScope,
             details: "selection=\(routeState.panelMode.rawValue)"
         )
 

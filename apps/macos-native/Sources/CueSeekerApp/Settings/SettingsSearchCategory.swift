@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsSearchCategory: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -53,9 +54,13 @@ struct SettingsSearchCategory: View {
 
                     Spacer()
 
-                    Toggle("Show Cue Group", isOn: $settingsStore.showCueGroup)
+                    Toggle("Show Cue Group", isOn: Binding(
+                        get: { cueGroupPresentation.isEnabled },
+                        set: { cueGroupPresentation.setFromUser($0) }
+                    ))
                         .labelsHidden()
                         .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.search.show-cue-group")
                 }
             }
 

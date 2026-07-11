@@ -88,6 +88,7 @@ public final class PlaybackViewModel: ObservableObject {
     private let onSubtitlesVisibleChanged: (Bool) -> Void
     private let onPlaybackTimeUpdated: (Double, Double) -> Void
     private let onSegmentFinished: (Int) -> Void
+    private let uiProbeScope: String?
 
     public init(
         player: PlaybackPlayer,
@@ -95,6 +96,7 @@ public final class PlaybackViewModel: ObservableObject {
         initialLastNonzeroVolume: Double = 100,
         initialPlaybackSpeed: Double = 1.0,
         initialSubtitlesVisible: Bool = true,
+        uiProbeScope: String? = nil,
         onVolumeChanged: @escaping (Double) -> Void = { _ in },
         onLastNonzeroVolumeChanged: @escaping (Double) -> Void = { _ in },
         onPlaybackSpeedChanged: @escaping (Double) -> Void = { _ in },
@@ -109,6 +111,7 @@ public final class PlaybackViewModel: ObservableObject {
         self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
         self.onPlaybackTimeUpdated = onPlaybackTimeUpdated
         self.onSegmentFinished = onSegmentFinished
+        self.uiProbeScope = uiProbeScope
 
         volume = Self.clampedVolume(initialVolume)
         lastNonzeroVolume = Self.restorableVolume(
@@ -684,6 +687,11 @@ public final class PlaybackViewModel: ObservableObject {
         lastDisplayedCurrentTimePublishTimestamp = now
         UIInvalidationProbe.count(
             "UI.PlaybackTime.published",
+            details: String(format: "time=%.2f", displayedCurrentTime)
+        )
+        UIInvalidationProbe.count(
+            "playback.high_frequency_chrome_update",
+            scope: uiProbeScope,
             details: String(format: "time=%.2f", displayedCurrentTime)
         )
     }

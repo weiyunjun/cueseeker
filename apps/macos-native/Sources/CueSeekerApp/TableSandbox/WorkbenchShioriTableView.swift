@@ -4,17 +4,27 @@ import CueSeekerPlayback
 
 struct WorkbenchShioriTableView: View {
     @EnvironmentObject private var shioriStore: ShioriStore
+    let isTableResponseActive: Bool
+
+    init(isTableResponseActive: Bool = true) {
+        self.isTableResponseActive = isTableResponseActive
+    }
 
     var body: some View {
-        WorkbenchShioriTableContent(rowStore: shioriStore.tableRowStore)
+        WorkbenchShioriTableContent(
+            isTableResponseActive: isTableResponseActive,
+            rowStore: shioriStore.tableRowStore
+        )
     }
 }
 
 private struct WorkbenchShioriTableContent: View {
+    let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @ObservedObject var rowStore: TableSandboxRowModelStore
+    @State private var appliedShowCueGroup: Bool?
     @State private var tableScrollResetToken = 0
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var lastVisibleRows: Range<Int>?
@@ -30,6 +40,10 @@ private struct WorkbenchShioriTableContent: View {
     private static let continuousPageSize = 1_000
 
     var body: some View {
+        let _ = UIInvalidationProbe.count(
+            SubtitleTableProbeSurface.shiori.counterName("surface_body"),
+            scope: appState.uiProbeScope
+        )
         SchemaWorkbenchSearchShell(
             searchDraft: $shioriStore.tableSearchDraft,
             visibleColumnIDs: $shioriStore.tableVisibleColumnIDs,
@@ -50,6 +64,8 @@ private struct WorkbenchShioriTableContent: View {
             ZStack {
                 SubtitleTableView(
                     tableName: "shiori",
+                    probeSurface: .shiori,
+                    probeScope: appState.uiProbeScope,
                     rowCount: rowStore.snapshot.totalRowCount,
                     rowProvider: { rowStore.snapshot.row(at: $0) },
                     rowsVersion: rowStore.snapshot.version,
@@ -67,7 +83,8 @@ private struct WorkbenchShioriTableContent: View {
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: false,
                     showsTagsColumn: isColumnVisible("tags", in: visibleColumns),
-                    showsCueGroup: settingsStore.showCueGroup,
+                    showsCueGroup: appliedShowCueGroup
+                        ?? (allowsTableResponse && settingsStore.showCueGroup),
                     scrollResetToken: tableScrollResetToken,
                     suspendsMenuOutsideClickDismiss: pendingTagDeletion != nil,
                     onVisibleRowsChange: hydrateVisibleRows,
@@ -152,14 +169,21 @@ private struct WorkbenchShioriTableContent: View {
         .onChange(of: shioriStore.tableFilterRules) { _ in
             reloadRows(resetScroll: true)
         }
-        .onChange(of: appState.isPlaybackPageVisible) { isVisible in
-            if isVisible {
+        .onChange(of: isTableResponseActive) { isActive in
+            if !isActive {
                 resetContinuousRowLoading()
             } else {
                 resumeDeferredTableResponse()
             }
         }
         .onDisappear { resetContinuousRowLoading() }
+        .background(
+            CueGroupPresentationGate(
+                store: settingsStore.cueGroupPresentation,
+                isActive: allowsTableResponse,
+                appliedValue: $appliedShowCueGroup
+            )
+        )
     }
 
     private var tableSummary: SchemaWorkbenchTableSummary {
@@ -224,7 +248,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private var allowsTableResponse: Bool {
-        !appState.isPlaybackPageVisible
+        isTableResponseActive
     }
 
     private func loadInitialRowsIfNeeded() {
@@ -294,7 +318,11 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func loadRows(range: Range<Int>) async -> TableSandboxShioriHydrationPage? {
-        await appState.loadTableSandboxShioriRows(
+        UIInvalidationProbe.count(
+            SubtitleTableProbeSurface.shiori.counterName("row_hydration_requested"),
+            scope: appState.uiProbeScope
+        )
+        return await appState.loadTableSandboxShioriRows(
             range: range,
             searchText: shioriStore.tableSubmittedSearchText,
             filterSet: shioriStore.tableFilterRules.subtitleSearchFilterSet
@@ -371,7 +399,9 @@ private struct WorkbenchShioriTableContent: View {
             page.rows,
             startIndex: page.range.lowerBound,
             totalRowCount: page.range.lowerBound + page.rows.count,
-            tableName: "shiori"
+            tableName: "shiori",
+            probeSurface: .shiori,
+            probeScope: appState.uiProbeScope
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }

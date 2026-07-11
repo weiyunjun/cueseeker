@@ -38,6 +38,29 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
 
 @MainActor
 @Test
+func tableSandboxRowModelStoreRecordsSnapshotAndHydrationProbeOwners() {
+    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let path = "/tmp/CueSeeker/Series/episode-01.ass"
+
+    let recording = UIInvalidationProbe.recordForTesting {
+        store.updateSearchRows(
+            [searchResult(id: 1, path: path, content: "one", cueLines: ["one"])],
+            tableName: "search"
+        )
+        store.hydrateSearchRows(
+            [searchResult(id: 2, path: path, content: "two", cueLines: ["two"])],
+            startIndex: 1,
+            totalRowCount: 2,
+            tableName: "search"
+        )
+    }.recording
+
+    #expect(recording.count("table.search.snapshot_rebuild") == 2)
+    #expect(recording.count("table.search.row_hydration_applied") == 1)
+}
+
+@MainActor
+@Test
 func tableSandboxRowModelStoreFormatsCueTimeColumns() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let path = "/tmp/CueSeeker/Series/episode-01.ass"

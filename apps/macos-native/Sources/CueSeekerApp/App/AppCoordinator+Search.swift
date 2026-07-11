@@ -560,6 +560,11 @@ extension AppCoordinator {
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
             return
         }
+        UIInvalidationProbe.count(
+            "search.query_requested",
+            scope: uiProbeScope,
+            details: "offset=\(offset) appending=\(appending)"
+        )
         searchTask = Task {
             do {
                 if debounce {
@@ -1711,6 +1716,7 @@ extension AppCoordinator {
         }
         UIInvalidationProbe.count(
             "UI.SearchPresentation.rebuilt",
+            scope: uiProbeScope,
             details: "groups=\(search.searchResultGroups.count) rows=\(search.renderedSearchResultCount)"
         )
     }

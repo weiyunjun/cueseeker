@@ -204,7 +204,13 @@ struct ShioriTagPopoverView: View {
 
     private func applyCurrentTags(_ tags: [ShioriTag]) {
         currentTags = tags
-        rowStore.updateShioriTags(tags, forShioriID: shioriID, tableName: "shiori")
+        rowStore.updateShioriTags(
+            tags,
+            forShioriID: shioriID,
+            tableName: "shiori",
+            probeSurface: .shiori,
+            probeScope: appState.uiProbeScope
+        )
         onRequestLayout()
     }
 
@@ -264,7 +270,9 @@ struct ShioriTagPopoverView: View {
         rowStore.removeShioriTagFromVisibleRows(
             tagID: tag.id,
             affectedShioriIDs: outcome.deletionResult.affectedShioriIDs,
-            tableName: "shiori"
+            tableName: "shiori",
+            probeSurface: .shiori,
+            probeScope: appState.uiProbeScope
         )
         onRequestLayout()
     }

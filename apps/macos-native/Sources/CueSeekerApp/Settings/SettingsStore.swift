@@ -4,6 +4,77 @@ import SwiftUI
 import CueSeekerPlayback
 
 @MainActor
+final class CueGroupPresentationStore: ObservableObject {
+    @Published private(set) var isEnabled: Bool
+
+    private let userDefaults: UserDefaults
+    private let userDefaultsKey: String
+    private let uiProbeScope: String
+
+    init(
+        isEnabled: Bool,
+        userDefaults: UserDefaults,
+        userDefaultsKey: String,
+        uiProbeScope: String
+    ) {
+        self.isEnabled = isEnabled
+        self.userDefaults = userDefaults
+        self.userDefaultsKey = userDefaultsKey
+        self.uiProbeScope = uiProbeScope
+    }
+
+    func set(_ isEnabled: Bool) {
+        guard self.isEnabled != isEnabled else {
+            return
+        }
+        self.isEnabled = isEnabled
+        userDefaults.set(isEnabled, forKey: userDefaultsKey)
+    }
+
+    func setFromUser(_ isEnabled: Bool) {
+        guard self.isEnabled != isEnabled else {
+            return
+        }
+        UIInvalidationProbe.mark(
+            "ACTION UI.ShowCueGroup.changed",
+            scope: uiProbeScope,
+            details: "enabled=\(isEnabled)"
+        )
+        set(isEnabled)
+    }
+}
+
+struct CueGroupPresentationGate: View {
+    @ObservedObject var store: CueGroupPresentationStore
+    let isActive: Bool
+    @Binding var appliedValue: Bool?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .onAppear {
+                applyCurrentValueIfActive()
+            }
+            .onChange(of: store.isEnabled) { _ in
+                applyCurrentValueIfActive()
+            }
+            .onChange(of: isActive) { isActive in
+                if isActive {
+                    appliedValue = store.isEnabled
+                }
+            }
+    }
+
+    private func applyCurrentValueIfActive() {
+        guard isActive else {
+            return
+        }
+        appliedValue = store.isEnabled
+    }
+}
+
+@MainActor
 final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
     private static let primarySearchLanguageKey = "primarySearchLanguage"
@@ -44,10 +115,11 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var showCueGroup: Bool {
-        didSet {
-            userDefaults.set(showCueGroup, forKey: Self.showCueGroupKey)
-        }
+    let cueGroupPresentation: CueGroupPresentationStore
+
+    var showCueGroup: Bool {
+        get { cueGroupPresentation.isEnabled }
+        set { cueGroupPresentation.set(newValue) }
     }
 
     @Published var playbackDecodeMode: PlaybackDecodeMode {
@@ -115,7 +187,8 @@ final class SettingsStore: ObservableObject {
 
     init(
         userDefaults: UserDefaults,
-        credentialStore: KeychainCredentialStore = KeychainCredentialStore()
+        credentialStore: KeychainCredentialStore = KeychainCredentialStore(),
+        uiProbeScope: String = UUID().uuidString
     ) {
         self.userDefaults = userDefaults
         self.credentialStore = credentialStore
@@ -134,13 +207,18 @@ final class SettingsStore: ObservableObject {
             Self.aiChunkingTranslationLanguageKey: AIChunkingTranslationLanguage.defaultValue.rawValue,
             Self.aiChunkingPromptTemplateKey: AIChunkingPromptConfiguration.defaultTemplate
         ])
+        self.cueGroupPresentation = CueGroupPresentationStore(
+            isEnabled: userDefaults.bool(forKey: Self.showCueGroupKey),
+            userDefaults: userDefaults,
+            userDefaultsKey: Self.showCueGroupKey,
+            uiProbeScope: uiProbeScope
+        )
         Self.resetAIChunkingPromptTemplateForCurrentDefaultIfNeeded(userDefaults)
 
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.searchScope = Self.loadSearchScope(from: userDefaults)
-        self.showCueGroup = userDefaults.bool(forKey: Self.showCueGroupKey)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.autoPlayCueSequenceEnabled = userDefaults.bool(forKey: Self.autoPlayCueSequenceEnabledKey)
         self.autoPlayCueSequenceGapMilliseconds = Self.loadAutoPlayCueSequenceGapMilliseconds(from: userDefaults)

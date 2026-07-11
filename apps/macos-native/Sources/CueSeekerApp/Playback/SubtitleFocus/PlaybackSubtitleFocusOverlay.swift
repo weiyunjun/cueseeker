@@ -3,13 +3,16 @@ import SwiftUI
 
 struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
+    let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
+        uiProbeScope: String? = nil,
         onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil
     ) {
         self.session = session
+        self.uiProbeScope = uiProbeScope
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
@@ -23,6 +26,7 @@ struct PlaybackSubtitleFocusLayer: View {
             PlaybackSubtitleFocusOverlay(
                 snapshot: snapshot,
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
+                uiProbeScope: uiProbeScope,
                 keyboardNavigationRequest: session.keyboardNavigationRequest,
                 blocksNewNavigation: session.pendingKeyboardAction != nil
                     || session.activeKeyboardAction != nil,
@@ -42,6 +46,7 @@ struct PlaybackSubtitleFocusLayer: View {
 struct PlaybackSubtitleFocusOverlay: View {
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
+    let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let blocksNewNavigation: Bool
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
@@ -58,6 +63,7 @@ struct PlaybackSubtitleFocusOverlay: View {
     init(
         snapshot: SubtitleFocusSnapshot,
         cues: [SubtitleFocusCue]? = nil,
+        uiProbeScope: String? = nil,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
         blocksNewNavigation: Bool = false,
         onCommitKeyboardNavigation: @escaping (
@@ -73,6 +79,7 @@ struct PlaybackSubtitleFocusOverlay: View {
     ) {
         self.snapshot = snapshot
         self.cues = cues ?? snapshot.cues
+        self.uiProbeScope = uiProbeScope
         self.keyboardNavigationRequest = keyboardNavigationRequest
         self.blocksNewNavigation = blocksNewNavigation
         self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
@@ -87,7 +94,8 @@ struct PlaybackSubtitleFocusOverlay: View {
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
-            "UI.PlaybackSubtitleFocusOverlay.body"
+            "UI.PlaybackSubtitleFocusOverlay.body",
+            scope: uiProbeScope
         )
         GeometryReader { geometry in
             let viewportSize = geometry.size
@@ -112,6 +120,7 @@ struct PlaybackSubtitleFocusOverlay: View {
                     cues: cues,
                     totalCount: snapshot.totalCount,
                     selectedOrdinal: snapshot.selectedOrdinal,
+                    uiProbeScope: uiProbeScope,
                     keyboardNavigationRequest: keyboardNavigationRequest,
                     reducesMotion: reduceMotion,
                     isInteractionEnabled: !blocksInteraction,

@@ -28,6 +28,7 @@ final class AppCoordinator: ObservableObject {
     static let aiChunkingPromptAwareCacheClearKey = "aiChunkingPromptAwareCacheCleared"
 
     @Published var startupError: String?
+    let uiProbeScope: String
     let settings: SettingsStore
     let indexing: IndexingStore
     let shiori: ShioriStore
@@ -434,8 +435,10 @@ final class AppCoordinator: ObservableObject {
 
     init(
         userDefaults: UserDefaults = .standard,
-        databaseURL: URL? = nil
+        databaseURL: URL? = nil,
+        uiProbeScope: String = UUID().uuidString
     ) {
+        self.uiProbeScope = uiProbeScope
         self.userDefaults = userDefaults
         let resolvedDatabaseURL = databaseURL ?? Self.defaultDatabaseURL()
         self.databaseURL = resolvedDatabaseURL
@@ -452,9 +455,12 @@ final class AppCoordinator: ObservableObject {
             Self.playbackSubtitlesVisibleKey: true
         ])
         workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
-        settings = SettingsStore(userDefaults: userDefaults)
+        settings = SettingsStore(
+            userDefaults: userDefaults,
+            uiProbeScope: uiProbeScope
+        )
         indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
-        shiori = ShioriStore()
+        shiori = ShioriStore(uiProbeScope: uiProbeScope)
         library = LibraryStore()
         search = SearchStore()
         playback = PlaybackStore(userDefaults: userDefaults)

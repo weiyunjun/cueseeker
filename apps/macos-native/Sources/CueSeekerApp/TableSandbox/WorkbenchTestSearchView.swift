@@ -3,10 +3,12 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 struct WorkbenchTestSearchView: View {
+    let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @StateObject private var rowStore = TableSandboxRowModelStore()
+    @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
     @State private var visibleColumnIDs: Set<String>
     @State private var activeFilterSetID: String?
@@ -43,7 +45,8 @@ struct WorkbenchTestSearchView: View {
         case none
     }
 
-    init() {
+    init(isTableResponseActive: Bool = true) {
+        self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
         _activeFilterSetID = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterSetID)
@@ -51,6 +54,10 @@ struct WorkbenchTestSearchView: View {
     }
 
     var body: some View {
+        let _ = UIInvalidationProbe.count(
+            tableProbeSurface.counterName("surface_body"),
+            scope: appState.uiProbeScope
+        )
         SchemaWorkbenchSearchShell(
             searchDraft: $searchDraft,
             visibleColumnIDs: $visibleColumnIDs,
@@ -70,6 +77,8 @@ struct WorkbenchTestSearchView: View {
             ZStack {
                 SubtitleTableView(
                     tableName: "test-search",
+                    probeSurface: tableProbeSurface,
+                    probeScope: appState.uiProbeScope,
                     rowCount: rowStore.snapshot.totalRowCount,
                     rowProvider: { rowStore.snapshot.row(at: $0) },
                     rowsVersion: rowStore.snapshot.version,
@@ -84,7 +93,8 @@ struct WorkbenchTestSearchView: View {
                     showsTimeColumn: isColumnVisible("time", in: visibleColumns),
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
-                    showsCueGroup: settingsStore.showCueGroup,
+                    showsCueGroup: appliedShowCueGroup
+                        ?? (allowsTableResponse && settingsStore.showCueGroup),
                     scrollResetToken: tableScrollResetToken,
                     scrollTargetRow: tableScrollTargetRow,
                     onVisibleRowsChange: hydrateVisibleRows,
@@ -170,8 +180,8 @@ struct WorkbenchTestSearchView: View {
             }
             _ = applyCueContextSearchRequest(request)
         }
-        .onChange(of: appState.isPlaybackPageVisible) { isVisible in
-            if isVisible {
+        .onChange(of: isTableResponseActive) { isActive in
+            if !isActive {
                 resetCoveredTableLoading()
             } else {
                 resumeDeferredTableResponse()
@@ -180,6 +190,13 @@ struct WorkbenchTestSearchView: View {
         .onDisappear {
             resetContinuousRowLoading()
         }
+        .background(
+            CueGroupPresentationGate(
+                store: settingsStore.cueGroupPresentation,
+                isActive: allowsTableResponse,
+                appliedValue: $appliedShowCueGroup
+            )
+        )
     }
 
     private func isColumnVisible(_ id: String, in visibleColumns: [WorkbenchTableColumn]) -> Bool {
@@ -202,7 +219,11 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var allowsTableResponse: Bool {
-        !appState.isPlaybackPageVisible
+        isTableResponseActive
+    }
+
+    private var tableProbeSurface: SubtitleTableProbeSurface {
+        activeCueContextRequest == nil ? .search : .context
     }
 
     @discardableResult
@@ -366,7 +387,9 @@ struct WorkbenchTestSearchView: View {
         rowStore.updateSearchRows(
             results,
             totalRowCount: results.count,
-            tableName: "test-search"
+            tableName: "test-search",
+            probeSurface: tableProbeSurface,
+            probeScope: appState.uiProbeScope
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         refreshSelectedCollageAvailability()
@@ -384,7 +407,13 @@ struct WorkbenchTestSearchView: View {
         lastVisibleRows = nil
         rowSelection.reset()
         resetSelectedCollageAvailability()
-        rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
+        rowStore.updateSearchRows(
+            [],
+            totalRowCount: 0,
+            tableName: "test-search",
+            probeSurface: tableProbeSurface,
+            probeScope: appState.uiProbeScope
+        )
         if resetScroll {
             tableScrollTargetRow = nil
             tableScrollResetToken += 1
@@ -491,6 +520,10 @@ struct WorkbenchTestSearchView: View {
                 }
                 return
             }
+            UIInvalidationProbe.count(
+                SubtitleTableProbeSurface.search.counterName("row_hydration_requested"),
+                scope: appState.uiProbeScope
+            )
             guard let page = await appState.loadTableSandboxAllCueRows(range: range),
                   generation == continuousLoadGeneration,
                   allowsTableResponse,
@@ -524,7 +557,9 @@ struct WorkbenchTestSearchView: View {
             page.results,
             startIndex: expectedStartIndex,
             totalRowCount: expectedStartIndex + page.results.count,
-            tableName: "test-search"
+            tableName: "test-search",
+            probeSurface: tableProbeSurface,
+            probeScope: appState.uiProbeScope
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         return rowStore.snapshot.totalRowCount > expectedStartIndex
@@ -556,10 +591,20 @@ struct WorkbenchTestSearchView: View {
             guard !search.activeFilterSet.isEffectivelyEmpty else {
                 return
             }
+            UIInvalidationProbe.count(
+                SubtitleTableProbeSurface.search.counterName("row_hydration_requested"),
+                scope: appState.uiProbeScope
+            )
             guard let page = await appState.loadTableSandboxAllCueRows(
                 range: 0..<TableSandboxHydrationPaging.pageSize
             ) else {
-                rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
+                rowStore.updateSearchRows(
+                    [],
+                    totalRowCount: 0,
+                    tableName: "test-search",
+                    probeSurface: tableProbeSurface,
+                    probeScope: appState.uiProbeScope
+                )
                 return
             }
             guard allowsTableResponse else { return }
@@ -567,7 +612,10 @@ struct WorkbenchTestSearchView: View {
             rowStore.updateSearchRows(
                 page.results,
                 totalRowCount: page.results.count,
-                tableName: "test-search"
+                tableName: "test-search",
+                probeSurface: tableProbeSurface,
+                probeScope: appState.uiProbeScope,
+                isHydration: true
             )
             rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
             loadNextContinuousRowsIfNeeded(generation: generation)
@@ -585,13 +633,23 @@ struct WorkbenchTestSearchView: View {
         }
         Task { @MainActor in
             guard allowsTableResponse else { return }
+            UIInvalidationProbe.count(
+                SubtitleTableProbeSurface.context.counterName("row_hydration_requested"),
+                scope: appState.uiProbeScope
+            )
             guard let page = await appState.loadCueContextSearchPage(
                 request: request,
                 range: 0..<TableSandboxHydrationPaging.pageSize,
                 anchorsInitialPage: true
             ) else {
                 guard generation == cueContextLoadGeneration else { return }
-                rowStore.updateSearchRows([], totalRowCount: 0, tableName: "test-search")
+                rowStore.updateSearchRows(
+                    [],
+                    totalRowCount: 0,
+                    tableName: "test-search",
+                    probeSurface: .context,
+                    probeScope: appState.uiProbeScope
+                )
                 return
             }
 
@@ -607,7 +665,10 @@ struct WorkbenchTestSearchView: View {
             rowStore.updateSearchRows(
                 page.results,
                 totalRowCount: page.results.count,
-                tableName: "test-search"
+                tableName: "test-search",
+                probeSurface: .context,
+                probeScope: appState.uiProbeScope,
+                isHydration: true
             )
             cueContextLoadedSourceRange = page.range
             cueContextTotalRowCount = page.totalRowCount
@@ -715,6 +776,10 @@ struct WorkbenchTestSearchView: View {
                 }
                 return
             }
+            UIInvalidationProbe.count(
+                SubtitleTableProbeSurface.context.counterName("row_hydration_requested"),
+                scope: appState.uiProbeScope
+            )
             guard let page = await appState.loadCueContextSearchPage(
                 request: request,
                 range: range,
@@ -740,7 +805,9 @@ struct WorkbenchTestSearchView: View {
                 }
                 let prependedCount = rowStore.prependSearchRows(
                     page.results,
-                    tableName: "test-search"
+                    tableName: "test-search",
+                    probeSurface: .context,
+                    probeScope: appState.uiProbeScope
                 )
                 if prependedCount > 0 {
                     let nextSourceRange = page.range.lowerBound..<sourceRange.upperBound
@@ -763,7 +830,9 @@ struct WorkbenchTestSearchView: View {
                 }
                 let appendedCount = rowStore.appendSearchRows(
                     page.results,
-                    tableName: "test-search"
+                    tableName: "test-search",
+                    probeSurface: .context,
+                    probeScope: appState.uiProbeScope
                 )
                 if appendedCount > 0 {
                     cueContextLoadedSourceRange = sourceRange.lowerBound..<page.range.upperBound

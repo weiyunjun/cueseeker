@@ -547,6 +547,11 @@ extension AppCoordinator {
 
     private func refreshLibraryPlaybackHistoryPresentations() {
         library.libraryPlaybackHistoryRevision += 1
+        UIInvalidationProbe.count(
+            "library.snapshot_rebuild",
+            scope: uiProbeScope,
+            details: "surface=playback_history"
+        )
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
     }
@@ -563,6 +568,11 @@ extension AppCoordinator {
             "UI.LibraryPresentationSnapshot.rebuilt",
             details: "groups=\(groups.count) rows=\(library.libraryVideos.count)"
         )
+        UIInvalidationProbe.count(
+            "library.snapshot_rebuild",
+            scope: uiProbeScope,
+            details: "surface=library"
+        )
     }
 
     func applyRecentWatching(_ snapshot: [RecentLibraryWatchingPresentation]) {
@@ -571,6 +581,11 @@ extension AppCoordinator {
         UIInvalidationProbe.count(
             "UI.RecentWatchingSnapshot.rebuilt",
             details: "rows=\(snapshot.count)"
+        )
+        UIInvalidationProbe.count(
+            "library.snapshot_rebuild",
+            scope: uiProbeScope,
+            details: "surface=recent_watching"
         )
     }
 
@@ -581,6 +596,11 @@ extension AppCoordinator {
             "UI.TestRecentWatchingSnapshot.rebuilt",
             details: "rows=\(snapshot.count)"
         )
+        UIInvalidationProbe.count(
+            "library.snapshot_rebuild",
+            scope: uiProbeScope,
+            details: "surface=test_recent_watching"
+        )
     }
 
     func applyCompleteLibrary(_ snapshot: [CompleteLibraryFolderSummaryPresentation]) {
@@ -589,6 +609,11 @@ extension AppCoordinator {
         UIInvalidationProbe.count(
             "UI.CompleteLibrarySnapshot.rebuilt",
             details: "folders=\(snapshot.count)"
+        )
+        UIInvalidationProbe.count(
+            "library.snapshot_rebuild",
+            scope: uiProbeScope,
+            details: "surface=complete_library"
         )
     }
 
@@ -606,6 +631,11 @@ extension AppCoordinator {
             "UI.LibraryPresentationSnapshot.rebuilt",
             details: "groups=\(groups.count) rows=\(library.libraryVideos.count) reason=remove"
         )
+        UIInvalidationProbe.count(
+            "library.snapshot_rebuild",
+            scope: uiProbeScope,
+            details: "surface=library reason=remove"
+        )
     }
 
     func removeCompleteLibraryPresentation(under folder: URL) {
@@ -616,6 +646,11 @@ extension AppCoordinator {
         UIInvalidationProbe.count(
             "UI.CompleteLibrarySnapshot.rebuilt",
             details: "folders=\(library.completeLibraryFolderSummaries.count) reason=remove"
+        )
+        UIInvalidationProbe.count(
+            "library.snapshot_rebuild",
+            scope: uiProbeScope,
+            details: "surface=complete_library reason=remove"
         )
     }
 

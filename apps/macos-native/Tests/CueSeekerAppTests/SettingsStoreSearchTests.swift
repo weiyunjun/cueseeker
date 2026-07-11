@@ -35,6 +35,24 @@ func settingsStorePersistsShowCueGroupChanges() {
 
 @MainActor
 @Test
+func settingsStoreRecordsShowCueGroupUserAction() {
+    withTemporarySearchSettingsUserDefaults { userDefaults, service in
+        let store = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        let recording = UIInvalidationProbe.recordForTesting {
+            store.cueGroupPresentation.setFromUser(true)
+        }.recording
+
+        #expect(recording.marks == ["ACTION UI.ShowCueGroup.changed"])
+        #expect(recording.counters.isEmpty)
+    }
+}
+
+@MainActor
+@Test
 func settingsStoreLoadsPersistedShowCueGroupValue() {
     withTemporarySearchSettingsUserDefaults { userDefaults, service in
         userDefaults.set(true, forKey: "showCueGroup")

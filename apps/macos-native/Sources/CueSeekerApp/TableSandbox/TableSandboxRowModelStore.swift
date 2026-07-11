@@ -71,7 +71,10 @@ final class TableSandboxRowModelStore: ObservableObject {
     func updateSearchRows(
         _ results: [SubtitleSearchResult],
         totalRowCount: Int? = nil,
-        tableName _: String
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil,
+        isHydration: Bool = false
     ) {
         var prefixUnchanged = results.count >= snapshot.rows.count
         let rows = results.enumerated().map { index, result in
@@ -87,7 +90,12 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchResultsByEntryID: [:],
             shiorisByEntryID: [:],
             totalRowCount: rows.count,
-            prefixUnchanged: prefixUnchanged
+            prefixUnchanged: prefixUnchanged,
+            tableName: tableName,
+            probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+            probeScope: probeScope,
+            reason: "search_update",
+            isHydration: isHydration
         )
     }
 
@@ -95,7 +103,9 @@ final class TableSandboxRowModelStore: ObservableObject {
         _ results: [SubtitleSearchResult],
         startIndex: Int,
         totalRowCount: Int,
-        tableName _: String
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
     ) {
         _ = totalRowCount
         guard startIndex >= 0, !results.isEmpty else { return }
@@ -139,18 +149,27 @@ final class TableSandboxRowModelStore: ObservableObject {
             update = .none
         }
 
-        snapshot = TableSandboxRowsSnapshot(
+        publishSnapshot(TableSandboxRowsSnapshot(
             rows: nextRows,
             searchResultsByEntryID: nextSearchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: nextRows.count
-        )
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "search_hydration",
+           isHydration: true)
     }
 
     @discardableResult
-    func prependSearchRows(_ results: [SubtitleSearchResult], tableName _: String) -> Int {
+    func prependSearchRows(
+        _ results: [SubtitleSearchResult],
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) -> Int {
         let existingEntryIDs = Set(snapshot.rows.map(\.id))
         let prependedResults = results.filter { !existingEntryIDs.contains(Int($0.entryID)) }
         guard !prependedResults.isEmpty else { return 0 }
@@ -160,19 +179,28 @@ final class TableSandboxRowModelStore: ObservableObject {
             nextSearchResultsByEntryID[Int(result.entryID)] = result
         }
 
-        snapshot = TableSandboxRowsSnapshot(
+        publishSnapshot(TableSandboxRowsSnapshot(
             rows: prependedResults.map { searchRow(for: $0) } + snapshot.rows,
             searchResultsByEntryID: nextSearchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
             version: snapshot.version + 1,
             update: .reload,
             totalRowCount: snapshot.rows.count + prependedResults.count
-        )
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "search_prepend",
+           isHydration: true)
         return prependedResults.count
     }
 
     @discardableResult
-    func appendSearchRows(_ results: [SubtitleSearchResult], tableName _: String) -> Int {
+    func appendSearchRows(
+        _ results: [SubtitleSearchResult],
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) -> Int {
         let existingEntryIDs = Set(snapshot.rows.map(\.id))
         let appendedResults = results.filter { !existingEntryIDs.contains(Int($0.entryID)) }
         guard !appendedResults.isEmpty else { return 0 }
@@ -184,18 +212,27 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         let oldRowCount = snapshot.rows.count
         let nextRows = snapshot.rows + appendedResults.map { searchRow(for: $0) }
-        snapshot = TableSandboxRowsSnapshot(
+        publishSnapshot(TableSandboxRowsSnapshot(
             rows: nextRows,
             searchResultsByEntryID: nextSearchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
             version: snapshot.version + 1,
             update: .append(oldRowCount..<nextRows.count),
             totalRowCount: nextRows.count
-        )
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "search_append",
+           isHydration: true)
         return appendedResults.count
     }
 
-    func updateShioriRows(_ shioris: [TableSandboxShioriRowSource], tableName _: String) {
+    func updateShioriRows(
+        _ shioris: [TableSandboxShioriRowSource],
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) {
         var prefixUnchanged = shioris.count >= snapshot.rows.count
         let rows = shioris.enumerated().map { index, item in
             let row = shioriRow(for: item)
@@ -213,7 +250,11 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchResultsByEntryID: [:],
             shiorisByEntryID: shiorisByEntryID,
             totalRowCount: shioris.count,
-            prefixUnchanged: prefixUnchanged
+            prefixUnchanged: prefixUnchanged,
+            tableName: tableName,
+            probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+            probeScope: probeScope,
+            reason: "shiori_update"
         )
     }
 
@@ -221,15 +262,31 @@ final class TableSandboxRowModelStore: ObservableObject {
         _ shioris: [TableSandboxShioriRowSource],
         startIndex: Int,
         totalRowCount: Int,
-        tableName _: String
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
     ) {
-        _ = totalRowCount
         guard startIndex >= 0 else { return }
         guard startIndex <= snapshot.rows.count else { return }
 
         if shioris.isEmpty {
             guard totalRowCount == 0 else { return }
-            updateShioriRows([], tableName: "shiori")
+            let previousVersion = snapshot.version
+            let resolvedProbeSurface = probeSurface
+                ?? SubtitleTableProbeSurface(tableName: tableName)
+            updateShioriRows(
+                [],
+                tableName: tableName,
+                probeSurface: resolvedProbeSurface,
+                probeScope: probeScope
+            )
+            if snapshot.version != previousVersion {
+                UIInvalidationProbe.count(
+                    resolvedProbeSurface.counterName("row_hydration_applied"),
+                    scope: probeScope,
+                    details: "table=\(tableName) reason=shiori_empty"
+                )
+            }
             return
         }
 
@@ -271,21 +328,27 @@ final class TableSandboxRowModelStore: ObservableObject {
             update = .none
         }
 
-        snapshot = TableSandboxRowsSnapshot(
+        publishSnapshot(TableSandboxRowsSnapshot(
             rows: nextRows,
             searchResultsByEntryID: [:],
             shiorisByEntryID: nextShiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: nextRows.count
-        )
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "shiori_hydration",
+           isHydration: true)
     }
 
     @discardableResult
     func updateShioriTags(
         _ tags: [ShioriTag],
         forShioriID shioriID: Int64,
-        tableName _: String
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
     ) -> Bool {
         guard let rowIndex = snapshot.rows.firstIndex(where: { $0.id == Int(shioriID) }) else {
             return false
@@ -300,14 +363,17 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         var nextRows = snapshot.rows
         nextRows[rowIndex] = nextRow
-        snapshot = TableSandboxRowsSnapshot(
+        publishSnapshot(TableSandboxRowsSnapshot(
             rows: nextRows,
             searchResultsByEntryID: snapshot.searchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
             version: snapshot.version + 1,
             update: .cells([TableSandboxCellInvalidation(row: rowIndex, columnID: "tags")]),
             totalRowCount: snapshot.totalRowCount
-        )
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "shiori_tag_update")
         return true
     }
 
@@ -315,7 +381,9 @@ final class TableSandboxRowModelStore: ObservableObject {
     func removeShioriTagFromVisibleRows(
         tagID: Int64,
         affectedShioriIDs: [Int64],
-        tableName _: String
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
     ) -> [Int64] {
         let tagKey = String(tagID)
         let affectedIDs = Set(affectedShioriIDs.map(Int.init))
@@ -335,14 +403,17 @@ final class TableSandboxRowModelStore: ObservableObject {
             return []
         }
 
-        snapshot = TableSandboxRowsSnapshot(
+        publishSnapshot(TableSandboxRowsSnapshot(
             rows: nextRows,
             searchResultsByEntryID: snapshot.searchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
             version: snapshot.version + 1,
             update: .cells(invalidations),
             totalRowCount: snapshot.totalRowCount
-        )
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "shiori_tag_delete")
         return patchedIDs
     }
 
@@ -351,7 +422,12 @@ final class TableSandboxRowModelStore: ObservableObject {
         searchResultsByEntryID: [Int: SubtitleSearchResult],
         shiorisByEntryID: [Int: Shiori],
         totalRowCount: Int,
-        prefixUnchanged: Bool
+        prefixUnchanged: Bool,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface,
+        probeScope: String?,
+        reason: String,
+        isHydration: Bool = false
     ) {
         let rowsUpdate = rowsUpdate(for: rows, prefixUnchanged: prefixUnchanged)
         let metadataChanged = totalRowCount != snapshot.totalRowCount
@@ -364,14 +440,41 @@ final class TableSandboxRowModelStore: ObservableObject {
             return
         }
 
-        snapshot = TableSandboxRowsSnapshot(
+        publishSnapshot(TableSandboxRowsSnapshot(
             rows: rows,
             searchResultsByEntryID: searchResultsByEntryID,
             shiorisByEntryID: shiorisByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: totalRowCount
+        ), tableName: tableName,
+           probeSurface: probeSurface,
+           probeScope: probeScope,
+           reason: reason,
+           isHydration: isHydration)
+    }
+
+    private func publishSnapshot(
+        _ nextSnapshot: TableSandboxRowsSnapshot,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface,
+        probeScope: String?,
+        reason: String,
+        isHydration: Bool = false
+    ) {
+        snapshot = nextSnapshot
+        UIInvalidationProbe.count(
+            probeSurface.counterName("snapshot_rebuild"),
+            scope: probeScope,
+            details: "table=\(tableName) reason=\(reason) version=\(nextSnapshot.version)"
         )
+        if isHydration {
+            UIInvalidationProbe.count(
+                probeSurface.counterName("row_hydration_applied"),
+                scope: probeScope,
+                details: "table=\(tableName) reason=\(reason)"
+            )
+        }
     }
 
     private func rowsUpdate(for rows: [SubtitleTableRow], prefixUnchanged: Bool) -> TableSandboxRowsUpdate {

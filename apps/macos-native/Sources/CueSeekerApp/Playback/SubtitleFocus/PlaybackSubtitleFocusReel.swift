@@ -285,7 +285,8 @@ private final class PlaybackSubtitleFocusCueMeasurementCache {
     func measurement(
         for cue: SubtitleFocusCue,
         width: CGFloat,
-        viewportHeight: CGFloat
+        viewportHeight: CGFloat,
+        uiProbeScope: String? = nil
     ) -> PlaybackSubtitleFocusCueMeasurement {
         accessSequence &+= 1
         let key = Key(
@@ -308,6 +309,7 @@ private final class PlaybackSubtitleFocusCueMeasurementCache {
         )
         UIInvalidationProbe.count(
             "playback.subtitle_focus.cue_measurement",
+            scope: uiProbeScope,
             details: "ordinal=\(cue.ordinal)"
         )
         entries[key] = Entry(
@@ -558,6 +560,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let cues: [SubtitleFocusCue]
     let totalCount: Int
     let selectedOrdinal: Int
+    let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let reducesMotion: Bool
     let isInteractionEnabled: Bool
@@ -572,7 +575,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusReelContainerView {
         UIInvalidationProbe.count(
-            "playback.subtitle_focus.native_make"
+            "playback.subtitle_focus.native_make",
+            scope: uiProbeScope
         )
         let view = PlaybackSubtitleFocusReelContainerView()
         update(view)
@@ -584,7 +588,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
         context: Context
     ) {
         UIInvalidationProbe.count(
-            "playback.subtitle_focus.native_update"
+            "playback.subtitle_focus.native_update",
+            scope: uiProbeScope
         )
         update(nsView)
     }
@@ -597,6 +602,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     }
 
     private func update(_ view: PlaybackSubtitleFocusReelContainerView) {
+        view.uiProbeScope = uiProbeScope
         view.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         view.onCommitNativeReelSelection = onCommitNativeReelSelection
         view.allowsNativeWheelInput = allowsNativeWheelInput
@@ -617,6 +623,11 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
 }
 
 final class PlaybackSubtitleFocusReelContainerView: NSView {
+    var uiProbeScope: String? {
+        didSet {
+            documentView.uiProbeScope = uiProbeScope
+        }
+    }
     var onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool = {
         _ in false
     }
@@ -726,6 +737,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
            nextViewportSize != lastViewportSize {
             UIInvalidationProbe.mark(
                 "ACTION playback.subtitle_focus.reflow",
+                scope: uiProbeScope,
                 details: "width=\(nextViewportSize.width) height=\(nextViewportSize.height)"
             )
         }
@@ -989,6 +1001,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         lastHandledKeyboardSequence = request.sequence
         UIInvalidationProbe.mark(
             "ACTION playback.subtitle_focus.keyboard_navigation",
+            scope: uiProbeScope,
             details: "target=\(request.targetOrdinal)"
         )
         activeKeyboardRequest = request
@@ -1028,6 +1041,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             resetWheelInteraction(requiresNewGesture: true)
             UIInvalidationProbe.mark(
                 "ACTION playback.subtitle_focus.scrollbar_drag",
+                scope: uiProbeScope,
                 details: "phase=began"
             )
             isScrollbarDragging = true
@@ -1181,6 +1195,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         }
         UIInvalidationProbe.mark(
             "ACTION playback.subtitle_focus.wheel",
+            scope: uiProbeScope,
             details: "mode=discrete target=\(targetOrdinal)"
         )
 
@@ -1207,6 +1222,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             preciseGestureStartOrdinal = currentLayout.nearestOrdinal
             UIInvalidationProbe.mark(
                 "ACTION playback.subtitle_focus.wheel",
+                scope: uiProbeScope,
                 details: "mode=precise"
             )
         }
@@ -1427,6 +1443,7 @@ private final class PlaybackSubtitleFocusNativeScrollbarView:
 }
 
 final class PlaybackSubtitleFocusReelDocumentView: NSView {
+    var uiProbeScope: String?
     private let textLayout = PlaybackSubtitleFocusNativeTextLayout()
     private let measurementCache = PlaybackSubtitleFocusCueMeasurementCache()
     private var layout = PlaybackSubtitleFocusVirtualReelLayout(
@@ -1479,6 +1496,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         self.layout = layout
         UIInvalidationProbe.count(
             "playback.subtitle_focus.layout_update",
+            scope: uiProbeScope,
             details: "ordinal=\(layout.fractionalOrdinal)"
         )
         resolveLocalPlacementsIfNeeded()
@@ -1505,6 +1523,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             }
             UIInvalidationProbe.count(
                 "playback.subtitle_focus.cue_draw",
+                scope: uiProbeScope,
                 details: "ordinal=\(placement.ordinal)"
             )
             draw(cue: cue, ordinal: placement.ordinal, in: placement.rect)
@@ -1779,7 +1798,8 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         return measurementCache.measurement(
             for: cue,
             width: layout.contentWidth,
-            viewportHeight: layout.viewportSize.height
+            viewportHeight: layout.viewportSize.height,
+            uiProbeScope: uiProbeScope
         )
     }
 
