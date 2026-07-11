@@ -3610,16 +3610,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
         policy: SubtitleFocusWindowPolicy = .standard
     ) throws -> SubtitleFocusSnapshot? {
         let timestamp = max(0, milliseconds)
-        guard let selection = try activeCueGroupSelection(
+        let activeGroup = try activeCueGroupSelection(
             forSubtitleFile: subtitleFile,
             atMilliseconds: timestamp
-        ) ?? subtitleFocusPreviousCueGroupSelection(
-            forSubtitleFile: subtitleFile,
-            beforeOrAtMilliseconds: timestamp
-        ),
+        )
+        let activeCueID = try activeGroup.flatMap { group in
+            try bottommostCueTextSelection(forCueGroupID: group.cueGroupID)?.cueLineID
+        }
+        guard let selectedCueID = try activeCueID
+            ?? subtitleFocusPreviousCueLineID(
+                forSubtitleFile: subtitleFile,
+                beforeOrAtMilliseconds: timestamp
+            )
+            ?? subtitleFocusFirstCueLineID(forSubtitleFile: subtitleFile),
         let metadata = try subtitleFocusOrdinalMetadata(
             forSubtitleFile: subtitleFile,
-            cueGroupID: selection.cueGroupID
+            cueLineID: selectedCueID
         ) else {
             return nil
         }
@@ -3636,7 +3642,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
         guard batch.cues.count == range.count,
               batch.cues.contains(where: {
-                  $0.id == selection.cueGroupID && $0.ordinal == metadata.ordinal
+                  $0.id == selectedCueID && $0.ordinal == metadata.ordinal
               }) else {
             return nil
         }
@@ -3662,12 +3668,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         let statement = try database.prepare(
             """
-            SELECT g.id, g.start_ms, g.end_ms, g.search_content
-            FROM subtitle_cue_groups g
+            SELECT l.id, l.cue_group_id, l.event_index, l.display_order,
+                   l.start_ms, l.end_ms, l.content
+            FROM subtitle_cue_lines l
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             WHERE sf.subtitle_path = ?
               AND g.end_ms > g.start_ms
-            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC
+            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
+                     l.display_order ASC, l.event_index ASC, l.id ASC
             LIMIT ? OFFSET ?;
             """
         )
@@ -3675,28 +3684,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.bind(limit, at: 2)
         try statement.bind(startOrdinal, at: 3)
 
-        var rows: [(id: Int64, start: Int, end: Int, content: String)] = []
-        rows.reserveCapacity(limit)
+        var cues: [SubtitleFocusCue] = []
+        cues.reserveCapacity(limit)
+        var offset = 0
         while try statement.step() {
-            rows.append((
+            cues.append(SubtitleFocusCue(
                 id: statement.int64Column(0),
-                start: statement.intColumn(1),
-                end: statement.intColumn(2),
-                content: statement.stringColumn(3)
-            ))
-        }
-
-        let linesByCueGroupID = try cueLines(forCueGroupIDs: rows.map(\.id))
-        let cues = rows.enumerated().map { offset, row in
-            let storedLines = linesByCueGroupID[row.id]?.map(\.content) ?? []
-            let fallbackLines = row.content.components(separatedBy: .newlines)
-            return SubtitleFocusCue(
-                id: row.id,
+                cueGroupID: statement.int64Column(1),
                 ordinal: startOrdinal + offset,
-                startMilliseconds: row.start,
-                endMilliseconds: row.end,
-                lines: storedLines.isEmpty ? fallbackLines : storedLines
-            )
+                eventIndex: statement.intColumn(2),
+                displayOrder: statement.intColumn(3),
+                startMilliseconds: statement.intColumn(4),
+                endMilliseconds: statement.intColumn(5),
+                content: statement.stringColumn(6)
+            ))
+            offset += 1
         }
         return SubtitleFocusCueBatch(totalCount: totalCount, cues: cues)
     }
@@ -9626,19 +9628,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return cueGroupSelection(from: statement)
     }
 
-    private func subtitleFocusPreviousCueGroupSelection(
+    private func subtitleFocusPreviousCueLineID(
         forSubtitleFile subtitleFile: URL,
         beforeOrAtMilliseconds milliseconds: Int
-    ) throws -> CueGroupSelection? {
+    ) throws -> Int64? {
         let statement = try database.prepare(
             """
-            SELECT g.id, g.start_ms, g.end_ms, g.search_content
-            FROM subtitle_cue_groups g
+            SELECT l.id
+            FROM subtitle_cue_lines l
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             WHERE sf.subtitle_path = ?
               AND g.start_ms <= ?
               AND g.end_ms > g.start_ms
-            ORDER BY g.start_ms DESC, g.end_ms DESC, g.id DESC
+            ORDER BY g.start_ms DESC, g.end_ms DESC, g.id DESC,
+                     l.display_order DESC, l.event_index DESC, l.id DESC
             LIMIT 1;
             """
         )
@@ -9650,32 +9654,58 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return nil
         }
 
-        return cueGroupSelection(from: statement)
+        return statement.int64Column(0)
+    }
+
+    private func subtitleFocusFirstCueLineID(
+        forSubtitleFile subtitleFile: URL
+    ) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT l.id
+            FROM subtitle_cue_lines l
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND g.end_ms > g.start_ms
+            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
+                     l.display_order ASC, l.event_index ASC, l.id ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+        return statement.int64Column(0)
     }
 
     private func subtitleFocusOrdinalMetadata(
         forSubtitleFile subtitleFile: URL,
-        cueGroupID: Int64
+        cueLineID: Int64
     ) throws -> (ordinal: Int, totalCount: Int)? {
         let statement = try database.prepare(
             """
             SELECT ordinal, total_count
             FROM (
-                SELECT g.id,
+                SELECT l.id AS cue_line_id,
                        ROW_NUMBER() OVER (
-                           ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC
+                           ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
+                                    l.display_order ASC, l.event_index ASC, l.id ASC
                        ) - 1 AS ordinal,
                        COUNT(*) OVER () AS total_count
-                FROM subtitle_cue_groups g
+                FROM subtitle_cue_lines l
+                JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 WHERE sf.subtitle_path = ?
                   AND g.end_ms > g.start_ms
             ) ordered
-            WHERE id = ?;
+            WHERE cue_line_id = ?;
             """
         )
         try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(cueGroupID, at: 2)
+        try statement.bind(cueLineID, at: 2)
 
         guard try statement.step() else {
             return nil

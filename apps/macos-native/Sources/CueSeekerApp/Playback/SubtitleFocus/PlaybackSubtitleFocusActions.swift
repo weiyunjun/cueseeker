@@ -26,10 +26,13 @@ struct PlaybackSubtitleFocusActionContext: Equatable, Sendable {
 
     var cueTextSelection: SubtitleCueTextSelection {
         SubtitleCueTextSelection(
-            cueGroupID: cue.id,
+            cueGroupID: cue.cueGroupID,
+            cueLineID: cue.id,
             startMilliseconds: cue.startMilliseconds,
             endMilliseconds: cue.endMilliseconds,
-            lines: cue.lines
+            cueEventIndex: cue.eventIndex,
+            cueDisplayOrder: cue.displayOrder,
+            content: cue.content
         )
     }
 }

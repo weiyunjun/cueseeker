@@ -90,7 +90,7 @@ func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() thro
 }
 
 @Test
-func subtitleFocusDatabaseBootstrapUsesPreviousStartAndReturnsNilBeforeFirstCue() throws {
+func subtitleFocusDatabaseBootstrapUsesPreviousCueAndFallsBackToFirstCue() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
@@ -119,10 +119,12 @@ func subtitleFocusDatabaseBootstrapUsesPreviousStartAndReturnsNilBeforeFirstCue(
     ))
     #expect(gapSnapshot.selectedOrdinal == 6)
     #expect(gapSnapshot.selectedCue?.text == "gap cue 6")
-    #expect(try database.subtitleFocusInitialSnapshot(
+    let beforeFirstSnapshot = try #require(try database.subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 500
-    ) == nil)
+    ))
+    #expect(beforeFirstSnapshot.selectedOrdinal == 0)
+    #expect(beforeFirstSnapshot.selectedCue?.text == "gap cue 0")
 }
 
 @Test
@@ -142,12 +144,18 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
             SubtitleCueGroup(
                 sequenceNumber: nil,
                 startTimecode: "0:00:01.00",
-                endTimecode: "0:00:02.00",
+                endTimecode: "0:00:03.00",
                 startMilliseconds: 1_000,
-                endMilliseconds: 2_000,
+                endMilliseconds: 3_000,
                 searchContent: "search projection",
                 cueLines: [
-                    focusLine(eventIndex: 9, content: "\tsecond", displayOrder: 1),
+                    focusLine(
+                        eventIndex: 9,
+                        content: "\tsecond",
+                        displayOrder: 1,
+                        startMilliseconds: 1_250,
+                        endMilliseconds: 2_750
+                    ),
                     focusLine(eventIndex: 2, content: "  first  ", displayOrder: 0),
                 ]
             )
@@ -156,13 +164,28 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
 
     let batch = try database.subtitleFocusCueBatch(
         forSubtitleFile: subtitleFile,
-        totalCount: 1,
+        totalCount: 2,
         startingAtOrdinal: 0,
         limit: 10
     )
-    #expect(batch.totalCount == 1)
-    #expect(batch.cues.first?.lines == ["  first  ", "\tsecond"])
-    #expect(batch.cues.first?.text == "  first  \n\tsecond")
+    #expect(batch.totalCount == 2)
+    #expect(batch.cues.map(\.ordinal) == [0, 1])
+    #expect(batch.cues.map(\.text) == ["  first  ", "\tsecond"])
+    #expect(batch.cues.map(\.eventIndex) == [2, 9])
+    #expect(batch.cues.map(\.displayOrder) == [0, 1])
+    #expect(batch.cues.map(\.startMilliseconds) == [1_000, 1_250])
+    #expect(batch.cues.map(\.endMilliseconds) == [2_000, 2_750])
+    #expect(Set(batch.cues.map(\.cueGroupID)).count == 1)
+    #expect(batch.cues[0].id != batch.cues[1].id)
+
+    let snapshot = try #require(try database.subtitleFocusInitialSnapshot(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    #expect(snapshot.totalCount == 2)
+    #expect(snapshot.selectedOrdinal == 1)
+    #expect(snapshot.selectedCue?.id == batch.cues[1].id)
+    #expect(snapshot.selectedCue?.text == "\tsecond")
 }
 
 @Test
@@ -231,10 +254,13 @@ private func focusBatch(_ ordinals: Range<Int>, totalCount: Int) -> SubtitleFocu
         cues: ordinals.map { ordinal in
             SubtitleFocusCue(
                 id: Int64(ordinal + 1),
+                cueGroupID: Int64(ordinal + 10_001),
                 ordinal: ordinal,
+                eventIndex: ordinal,
+                displayOrder: 0,
                 startMilliseconds: ordinal * 1_000,
                 endMilliseconds: ordinal * 1_000 + 900,
-                lines: ["cue \(ordinal)"]
+                content: "cue \(ordinal)"
             )
         }
     )
@@ -277,7 +303,9 @@ private func focusGroup(
 private func focusLine(
     eventIndex: Int,
     content: String,
-    displayOrder: Int
+    displayOrder: Int,
+    startMilliseconds: Int = 1_000,
+    endMilliseconds: Int = 2_000
 ) -> SubtitleCueLine {
     SubtitleCueLine(
         eventIndex: eventIndex,
@@ -286,8 +314,8 @@ private func focusLine(
         sourceLayer: 0,
         startTimecode: "0:00:01.00",
         endTimecode: "0:00:02.00",
-        startMilliseconds: 1_000,
-        endMilliseconds: 2_000,
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: endMilliseconds,
         content: content,
         displayX: nil,
         displayY: nil,

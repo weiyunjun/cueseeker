@@ -51,8 +51,7 @@ actor PlaybackSubtitleFocusDatabaseReader {
         let subtitleFile = URL(fileURLWithPath: context.source.subtitlePath)
         if try database.shiori(
             subtitleFile: subtitleFile,
-            startMilliseconds: context.cue.startMilliseconds,
-            endMilliseconds: context.cue.endMilliseconds
+            cueIdentity: context.cue.cueIdentity
         ) != nil {
             try Task.checkCancellation()
             return .alreadySaved
@@ -70,8 +69,7 @@ actor PlaybackSubtitleFocusDatabaseReader {
         } catch {
             guard try database.shiori(
                 subtitleFile: subtitleFile,
-                startMilliseconds: context.cue.startMilliseconds,
-                endMilliseconds: context.cue.endMilliseconds
+                cueIdentity: context.cue.cueIdentity
             ) != nil else {
                 throw error
             }

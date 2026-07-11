@@ -23,28 +23,45 @@ public struct SubtitleFocusSourceIdentity: Equatable, Hashable, Sendable {
 
 public struct SubtitleFocusCue: Equatable, Sendable, Identifiable {
     public let id: Int64
+    public let cueGroupID: Int64
     public let ordinal: Int
+    public let eventIndex: Int
+    public let displayOrder: Int
     public let startMilliseconds: Int
     public let endMilliseconds: Int
-    public let lines: [String]
+    public let content: String
 
     public init(
         id: Int64,
+        cueGroupID: Int64,
         ordinal: Int,
+        eventIndex: Int,
+        displayOrder: Int,
         startMilliseconds: Int,
         endMilliseconds: Int,
-        lines: [String]
+        content: String
     ) {
         let resolvedStartMilliseconds = max(0, startMilliseconds)
         self.id = id
+        self.cueGroupID = cueGroupID
         self.ordinal = max(0, ordinal)
+        self.eventIndex = eventIndex
+        self.displayOrder = displayOrder
         self.startMilliseconds = resolvedStartMilliseconds
         self.endMilliseconds = max(resolvedStartMilliseconds, endMilliseconds)
-        self.lines = lines
+        self.content = content
     }
 
     public var text: String {
-        lines.joined(separator: "\n")
+        content
+    }
+
+    public var cueIdentity: SubtitleCueIdentity {
+        SubtitleCueIdentity(
+            eventIndex: eventIndex,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
     }
 }
 

@@ -17,17 +17,23 @@ func subtitleFocusClipboardWritesExactCueText() throws {
 }
 
 @Test
-func subtitleFocusActionContextPreservesExactCueGroupData() {
+func subtitleFocusActionContextPreservesExactCueIdentityAndContent() {
     let cue = SubtitleFocusCue(
         id: 42,
+        cueGroupID: 7,
         ordinal: 6,
+        eventIndex: 123,
+        displayOrder: 2,
         startMilliseconds: 1_234,
         endMilliseconds: 2_345,
-        lines: ["  first line  ", "", "third line"]
+        content: "  first line  \n\nthird line"
     )
     let context = keyboardActionContext(cue: cue)
 
-    #expect(context.cueTextSelection.cueGroupID == 42)
+    #expect(context.cueTextSelection.cueGroupID == 7)
+    #expect(context.cueTextSelection.cueLineID == 42)
+    #expect(context.cueTextSelection.cueEventIndex == 123)
+    #expect(context.cueTextSelection.cueDisplayOrder == 2)
     #expect(context.cueTextSelection.startMilliseconds == 1_234)
     #expect(context.cueTextSelection.endMilliseconds == 2_345)
     #expect(context.cueTextSelection.lines == ["  first line  ", "", "third line"])
@@ -131,6 +137,78 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
         #expect(try database.shioriCount() == 1)
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.playback.subtitleFocusSession === session)
+        #expect(app.playback.playbackStatus == .paused)
+    }
+}
+
+@MainActor
+@Test
+func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws {
+    try await withKeyboardActionApp { app, database in
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+        ))
+        var cues = (6..<16).map { keyboardActionCue(ordinal: $0) }
+        let firstCue = keyboardActionSiblingCue(
+            id: 501,
+            ordinal: 12,
+            eventIndex: 120,
+            displayOrder: 0,
+            content: "same-time first"
+        )
+        let secondCue = keyboardActionSiblingCue(
+            id: 502,
+            ordinal: 13,
+            eventIndex: 121,
+            displayOrder: 1,
+            content: "same-time second"
+        )
+        cues[6] = firstCue
+        cues[7] = secondCue
+        let snapshot = SubtitleFocusSnapshot(
+            totalCount: 20,
+            selectedOrdinal: 12,
+            cues: cues
+        )
+        #expect(session.publishInitialSnapshot(snapshot, token: session.token))
+        let tableRevisionBefore = app.shiori.tableDataRevision
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
+        try await waitForKeyboardActionState {
+            session.activeKeyboardAction == nil
+                && app.shiori.tableDataRevision == tableRevisionBefore + 1
+        }
+        #expect(session.commitNativeReelSelection(ordinal: 13))
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
+        try await waitForKeyboardActionState {
+            session.activeKeyboardAction == nil
+                && app.shiori.tableDataRevision == tableRevisionBefore + 2
+        }
+
+        let subtitleFile = URL(fileURLWithPath: keyboardActionSource().subtitlePath)
+        let savedFirst = try #require(try database.shiori(
+            subtitleFile: subtitleFile,
+            cueIdentity: firstCue.cueIdentity
+        ))
+        let savedSecond = try #require(try database.shiori(
+            subtitleFile: subtitleFile,
+            cueIdentity: secondCue.cueIdentity
+        ))
+        #expect(savedFirst.id != savedSecond.id)
+        #expect(savedFirst.content == "same-time first")
+        #expect(savedSecond.content == "same-time second")
+        #expect(try database.shioriCount() == 2)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
+        try await waitForKeyboardActionState {
+            session.activeKeyboardAction == nil
+                && app.playback.playbackViewModel?.feedback?.text
+                    == "Shiori Already Saved"
+        }
+        #expect(try database.shioriCount() == 2)
+        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 2)
+        #expect(session.currentSnapshot?.selectedCue == secondCue)
         #expect(app.playback.playbackStatus == .paused)
     }
 }
@@ -352,10 +430,32 @@ private func keyboardActionCue(
 ) -> SubtitleFocusCue {
     SubtitleFocusCue(
         id: Int64(ordinal + 1),
+        cueGroupID: Int64(ordinal + 1_001),
         ordinal: ordinal,
+        eventIndex: ordinal,
+        displayOrder: 0,
         startMilliseconds: ordinal * 1_000,
         endMilliseconds: ordinal * 1_000 + 900,
-        lines: lines ?? ["keyboard action cue \(ordinal)"]
+        content: lines?.joined(separator: "\n") ?? "keyboard action cue \(ordinal)"
+    )
+}
+
+private func keyboardActionSiblingCue(
+    id: Int64,
+    ordinal: Int,
+    eventIndex: Int,
+    displayOrder: Int,
+    content: String
+) -> SubtitleFocusCue {
+    SubtitleFocusCue(
+        id: id,
+        cueGroupID: 500,
+        ordinal: ordinal,
+        eventIndex: eventIndex,
+        displayOrder: displayOrder,
+        startMilliseconds: 12_000,
+        endMilliseconds: 12_900,
+        content: content
     )
 }
 

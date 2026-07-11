@@ -142,10 +142,13 @@ func subtitleFocusCompleteCueBatchRejectsMalformedAndLateResults() throws {
     var mismatchedCues = focusCues(0..<20)
     mismatchedCues[12] = SubtitleFocusCue(
         id: 13,
+        cueGroupID: 1_013,
         ordinal: 12,
+        eventIndex: 12,
+        displayOrder: 0,
         startMilliseconds: 12_000,
         endMilliseconds: 12_900,
-        lines: ["changed cue"]
+        content: "changed cue"
     )
     let mismatchedInitialCue = SubtitleFocusCueBatch(
         totalCount: 20,
@@ -649,15 +652,7 @@ private func focusPresentationSnapshot() -> SubtitleFocusSnapshot {
     SubtitleFocusSnapshot(
         totalCount: 20,
         selectedOrdinal: 12,
-        cues: (6..<16).map { ordinal in
-            SubtitleFocusCue(
-                id: Int64(ordinal + 1),
-                ordinal: ordinal,
-                startMilliseconds: ordinal * 1_000,
-                endMilliseconds: ordinal * 1_000 + 900,
-                lines: ["cue \(ordinal)"]
-            )
-        }
+        cues: focusCues(6..<16)
     )
 }
 
@@ -665,10 +660,13 @@ private func focusCues(_ range: Range<Int>) -> [SubtitleFocusCue] {
     range.map { ordinal in
         SubtitleFocusCue(
             id: Int64(ordinal + 1),
+            cueGroupID: Int64(ordinal + 1_001),
             ordinal: ordinal,
+            eventIndex: ordinal,
+            displayOrder: 0,
             startMilliseconds: ordinal * 1_000,
             endMilliseconds: ordinal * 1_000 + 900,
-            lines: ["cue \(ordinal)"]
+            content: "cue \(ordinal)"
         )
     }
 }

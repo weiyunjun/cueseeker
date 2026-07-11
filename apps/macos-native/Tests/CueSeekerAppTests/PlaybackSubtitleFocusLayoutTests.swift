@@ -595,18 +595,14 @@ func subtitleFocusNativeWheelRequiresFreshGestureAfterSuppression() {
 func subtitleFocusOverlayRendersCommittedSnapshotAtStageSize() throws {
     _ = NSApplication.shared
     let filledLine = String(repeating: "█", count: 80)
+    let content = [filledLine, filledLine].joined(separator: "\n")
+    let cues: [SubtitleFocusCue] = (6..<16).map { ordinal in
+        focusLayoutCue(ordinal: ordinal, content: content)
+    }
     let snapshot = SubtitleFocusSnapshot(
         totalCount: 20,
         selectedOrdinal: 12,
-        cues: (6..<16).map { ordinal in
-            SubtitleFocusCue(
-                id: Int64(ordinal + 1),
-                ordinal: ordinal,
-                startMilliseconds: ordinal * 1_000,
-                endMilliseconds: ordinal * 1_000 + 900,
-                lines: [filledLine, filledLine]
-            )
-        }
+        cues: cues
     )
     let renderer = ImageRenderer(
         content: PlaybackSubtitleFocusOverlay(snapshot: snapshot)
@@ -655,12 +651,22 @@ private func focusScrollSample(
 
 private func focusLayoutCues(_ range: Range<Int>) -> [SubtitleFocusCue] {
     range.map { ordinal in
-        SubtitleFocusCue(
-            id: Int64(ordinal + 1),
-            ordinal: ordinal,
-            startMilliseconds: ordinal * 1_000,
-            endMilliseconds: ordinal * 1_000 + 900,
-            lines: ["cue \(ordinal)"]
-        )
+        focusLayoutCue(ordinal: ordinal, content: "cue \(ordinal)")
     }
+}
+
+private func focusLayoutCue(
+    ordinal: Int,
+    content: String
+) -> SubtitleFocusCue {
+    SubtitleFocusCue(
+        id: Int64(ordinal + 1),
+        cueGroupID: Int64(ordinal + 1_001),
+        ordinal: ordinal,
+        eventIndex: ordinal,
+        displayOrder: 0,
+        startMilliseconds: ordinal * 1_000,
+        endMilliseconds: ordinal * 1_000 + 900,
+        content: content
+    )
 }
