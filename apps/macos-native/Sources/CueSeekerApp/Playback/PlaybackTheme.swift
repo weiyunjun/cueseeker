@@ -12,7 +12,16 @@ public enum PlaybackTheme {
 
     /// --color-subtitle-focus-overlay-bg
     public static var subtitleFocusOverlayBackground: Color {
-        Color(red: 36 / 255, green: 36 / 255, blue: 38 / 255)
+        Color(nsColor: subtitleFocusOverlayBackgroundNative)
+    }
+
+    static var subtitleFocusOverlayBackgroundNative: NSColor {
+        NSColor(
+            red: 36 / 255,
+            green: 36 / 255,
+            blue: 38 / 255,
+            alpha: 1
+        )
     }
 
     /// --color-subtitle-focus-cue-selected
@@ -172,24 +181,19 @@ public enum PlaybackTheme {
 }
 
 enum PlaybackSubtitleFocusMetrics {
-    /// --height-subtitle-focus-cue-slot
-    static let cueSlotHeight: CGFloat = 104
-    /// --spacing-8
-    static let cueGap: CGFloat = 32
-    static let cueSlotPitch = cueSlotHeight + cueGap
+    /// --padding-subtitle-focus-cue-y
+    static let cueVerticalPadding: CGFloat = 12
+    /// --gap-subtitle-focus-cue
+    static let cueGap: CGFloat = 8
+    static let minimumNaturalCueHeight: CGFloat = 76
     /// --width-subtitle-focus-content-max
     static let contentMaxWidth: CGFloat = 960
     /// --spacing-8
     static let contentInset: CGFloat = 32
     /// --font-size-subtitle-focus-cue
     static let cueFontSize: CGFloat = 40
-    /// --line-height-subtitle-focus-cue: 1.30
+    /// --line-height-subtitle-focus-cue
     static let cueLineHeight: CGFloat = 52
-    static let cueLineSpacing: CGFloat = {
-        let font = NSFont.systemFont(ofSize: cueFontSize, weight: .semibold)
-        let glyphLineHeight = font.ascender - font.descender + font.leading
-        return max(0, cueLineHeight - glyphLineHeight)
-    }()
     /// --duration-subtitle-focus-scroll
     static let reelTransitionDuration = 0.22
     static func resolvedReelTransitionDuration(

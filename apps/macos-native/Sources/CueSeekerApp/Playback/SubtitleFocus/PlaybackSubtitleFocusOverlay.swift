@@ -86,6 +86,9 @@ struct PlaybackSubtitleFocusOverlay: View {
     }
 
     var body: some View {
+        let _ = UIInvalidationProbe.count(
+            "UI.PlaybackSubtitleFocusOverlay.body"
+        )
         GeometryReader { geometry in
             let viewportSize = geometry.size
             let cueViewportHeight = max(
@@ -98,13 +101,17 @@ struct PlaybackSubtitleFocusOverlay: View {
             ZStack(alignment: .top) {
                 PlaybackTheme.subtitleFocusOverlayBackground
 
+                PlaybackSubtitleFocusPointerShield()
+
+                // Keep the native pointer shield visually neutral in SwiftUI
+                // rendering paths that cannot snapshot NSViewRepresentable.
+                PlaybackTheme.subtitleFocusOverlayBackground
+                    .allowsHitTesting(false)
+
                 PlaybackSubtitleFocusReelRepresentable(
                     cues: cues,
                     totalCount: snapshot.totalCount,
                     selectedOrdinal: snapshot.selectedOrdinal,
-                    focusAnchorY: viewportSize.height / 2
-                        - PlaybackSubtitleFocusMetrics.contentInset,
-                    presentationTranslation: 0,
                     keyboardNavigationRequest: keyboardNavigationRequest,
                     reducesMotion: reduceMotion,
                     isInteractionEnabled: !blocksInteraction,
@@ -152,5 +159,32 @@ struct PlaybackSubtitleFocusOverlay: View {
             return
         }
         _ = onExecuteAction(execution)
+    }
+}
+
+private struct PlaybackSubtitleFocusPointerShield: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = PlaybackSubtitleFocusPointerShieldView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = PlaybackTheme
+            .subtitleFocusOverlayBackgroundNative.cgColor
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+private final class PlaybackSubtitleFocusPointerShieldView: NSView {
+    override var isOpaque: Bool {
+        false
+    }
+
+    override var acceptsFirstResponder: Bool {
+        false
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // The complete overlay owns pointer clicks, including its content
+        // insets. Cue navigation remains exclusively wheel/scrollbar driven.
     }
 }
