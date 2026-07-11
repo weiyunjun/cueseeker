@@ -14,7 +14,8 @@ private func tableSandboxShioriRowSources(
                 ?? URL(fileURLWithPath: shiori.subtitlePath).lastPathComponent,
             dateAddedText: shioriDateAddedDisplayText(for: shiori.createdAt),
             languages: page.languagesByShioriID[shiori.id] ?? [.unknown],
-            shioriTags: tagsByShioriID[shiori.id] ?? []
+            shioriTags: tagsByShioriID[shiori.id] ?? [],
+            cuePresentation: page.cuePresentationsByShioriID[shiori.id]
         )
     }
 }

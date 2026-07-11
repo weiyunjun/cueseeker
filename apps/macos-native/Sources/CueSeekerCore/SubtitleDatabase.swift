@@ -31,6 +31,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let cueGroupID: Int64
     public let cueEventIndex: Int
     public let cueDisplayOrder: Int
+    public let primaryGroupIndex: Int
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
     public let videoPath: String
@@ -59,6 +60,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         cueGroupID: Int64? = nil,
         cueEventIndex: Int = 0,
         cueDisplayOrder: Int = 0,
+        primaryGroupIndex: Int = 0,
         subtitlePath: String,
         subtitleFormat: SubtitleFormat,
         videoPath: String,
@@ -78,6 +80,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         self.cueGroupID = cueGroupID ?? entryID
         self.cueEventIndex = cueEventIndex
         self.cueDisplayOrder = cueDisplayOrder
+        self.primaryGroupIndex = max(0, primaryGroupIndex)
         self.subtitlePath = subtitlePath
         self.subtitleFormat = subtitleFormat
         self.videoPath = videoPath
@@ -901,22 +904,50 @@ public struct ShioriTagDeletionResult: Equatable, Sendable {
     }
 }
 
+public struct ShioriCuePresentation: Equatable, Sendable {
+    public let cueID: Int64?
+    public let cueGroupID: Int64?
+    public let primaryGroupIndex: Int?
+    public let cueGroupTexts: [String]
+    public let languages: Set<SubtitleLanguageCode>
+    public let speakers: Set<String>
+
+    public init(
+        cueID: Int64?,
+        cueGroupID: Int64?,
+        primaryGroupIndex: Int?,
+        cueGroupTexts: [String],
+        languages: Set<SubtitleLanguageCode>,
+        speakers: Set<String>
+    ) {
+        self.cueID = cueID
+        self.cueGroupID = cueGroupID
+        self.primaryGroupIndex = primaryGroupIndex
+        self.cueGroupTexts = cueGroupTexts
+        self.languages = languages.isEmpty ? [.unknown] : languages
+        self.speakers = speakers
+    }
+}
+
 public struct ShioriPage: Equatable, Sendable {
     public let shioris: [Shiori]
     public let totalCount: Int
     public let languagesByShioriID: [Int64: Set<SubtitleLanguageCode>]
     public let displayTitlesByShioriID: [Int64: String]
+    public let cuePresentationsByShioriID: [Int64: ShioriCuePresentation]
 
     public init(
         shioris: [Shiori],
         totalCount: Int,
         languagesByShioriID: [Int64: Set<SubtitleLanguageCode>],
-        displayTitlesByShioriID: [Int64: String] = [:]
+        displayTitlesByShioriID: [Int64: String] = [:],
+        cuePresentationsByShioriID: [Int64: ShioriCuePresentation] = [:]
     ) {
         self.shioris = shioris
         self.totalCount = totalCount
         self.languagesByShioriID = languagesByShioriID
         self.displayTitlesByShioriID = displayTitlesByShioriID
+        self.cuePresentationsByShioriID = cuePresentationsByShioriID
     }
 }
 
@@ -2182,22 +2213,43 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        SELECT 1
                        FROM subtitle_language_detections d
                        WHERE d.subtitle_file_id = sf.id
-                         AND (
-                             (d.scope = 'style' AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*'))
-                             OR (d.scope = 'file' AND d.scope_key = '')
-                         )
-                   ) AS has_language_detection,
+                         AND d.scope = 'style'
+                         AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*')
+                   ) AS has_style_detection,
                    EXISTS (
                        SELECT 1
                        FROM subtitle_language_detections d
                        JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
                        WHERE d.subtitle_file_id = sf.id
                          AND dc.language_code = 'ja'
-                         AND (
-                             (d.scope = 'style' AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*'))
-                             OR (d.scope = 'file' AND d.scope_key = '')
-                         )
-                   ) AS is_japanese
+                         AND d.scope = 'style'
+                         AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*')
+                   ) AS style_is_japanese,
+                   (
+                       SELECT COUNT(DISTINCT dc.language_code)
+                       FROM subtitle_language_detections d
+                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
+                       WHERE d.subtitle_file_id = sf.id
+                         AND d.scope = 'style'
+                         AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*')
+                   ) AS style_language_count,
+                   (
+                       SELECT COUNT(DISTINCT dc.language_code)
+                       FROM subtitle_language_detections d
+                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
+                       WHERE d.subtitle_file_id = sf.id
+                         AND d.scope = 'file'
+                         AND d.scope_key = ''
+                   ) AS file_language_count,
+                   EXISTS (
+                       SELECT 1
+                       FROM subtitle_language_detections d
+                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
+                       WHERE d.subtitle_file_id = sf.id
+                         AND d.scope = 'file'
+                         AND d.scope_key = ''
+                         AND dc.language_code = 'ja'
+                   ) AS file_is_japanese
             FROM subtitle_files sf
             JOIN subtitle_cue_groups g ON g.subtitle_file_id = sf.id
             JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
@@ -2211,14 +2263,32 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.bind(shiori.startMilliseconds, at: 2)
         try statement.bind(shiori.endMilliseconds, at: 3)
 
-        let recognizer = SubtitleLanguageRecognizer()
+        let recognizer = SubtitleLanguageRecognizer(minimumEffectiveCharacterCount: 4)
         var candidates: [LegacyShioriCueCandidate] = []
         while try statement.step() {
             let content = statement.stringColumn(4)
-            let hasLanguageDetection = statement.intColumn(5) != 0
+            let hasStyleDetection = statement.intColumn(5) != 0
+            let styleIsJapanese = statement.intColumn(6) != 0
+            let styleLanguageCount = statement.intColumn(7)
+            let fileLanguageCount = statement.intColumn(8)
+            let fileIsJapanese = statement.intColumn(9) != 0
             let isJapanese: Bool
-            if hasLanguageDetection {
-                isJapanese = statement.intColumn(6) != 0
+            if hasStyleDetection, styleLanguageCount == 1 {
+                isJapanese = styleIsJapanese
+            } else if hasStyleDetection, styleLanguageCount > 1, styleIsJapanese {
+                isJapanese = recognizer.detectLanguages(
+                    in: SubtitleLanguageAnalyzer.languageSegments(from: content)
+                ).languages.contains(.japanese)
+            } else if hasStyleDetection {
+                isJapanese = false
+            } else if fileLanguageCount == 1 {
+                isJapanese = fileIsJapanese
+            } else if fileLanguageCount > 1, fileIsJapanese {
+                isJapanese = recognizer.detectLanguages(
+                    in: SubtitleLanguageAnalyzer.languageSegments(from: content)
+                ).languages.contains(.japanese)
+            } else if fileLanguageCount > 0 {
+                isJapanese = false
             } else {
                 isJapanese = recognizer.detectLanguages(
                     in: SubtitleLanguageAnalyzer.languageSegments(from: content)
@@ -3197,6 +3267,56 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return statement.int64Column(0)
     }
 
+    public func firstCueID(forSubtitleFile subtitleFile: URL) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT l.id
+            FROM subtitle_cue_lines l
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
+                     l.display_order ASC, l.event_index ASC, l.id ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+        return statement.int64Column(0)
+    }
+
+    public func cueID(
+        forSubtitlePath subtitlePath: String,
+        cueIdentity: SubtitleCueIdentity
+    ) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT l.id
+            FROM subtitle_cue_lines l
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+              AND l.event_index = ?
+              AND l.start_ms = ?
+              AND l.end_ms = ?
+            ORDER BY l.display_order ASC, l.id ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(subtitlePath, at: 1)
+        try statement.bind(cueIdentity.eventIndex, at: 2)
+        try statement.bind(cueIdentity.startMilliseconds, at: 3)
+        try statement.bind(cueIdentity.endMilliseconds, at: 4)
+
+        guard try statement.step() else {
+            return nil
+        }
+        return statement.int64Column(0)
+    }
+
     private func cueGroupLanguages(
         forCueGroupIDs cueGroupIDs: [Int64]
     ) throws -> [Int64: Set<SubtitleLanguageCode>] {
@@ -3944,7 +4064,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    public func allCueGroupsVisiblePage(
+    public func allCuesVisiblePage(
         limit: Int = 50,
         cursor: SubtitleSearchCursor?,
         under folders: [URL]? = nil,
@@ -3988,6 +4108,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
                    g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
                    sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
+                   l.id, l.cue_group_id, l.event_index, l.source_format,
+                   l.source_style, l.source_layer, l.start_time, l.end_time,
+                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.display_order,
                    (
                        SELECT GROUP_CONCAT(cgl.language_code)
                        FROM subtitle_cue_group_languages cgl
@@ -3998,7 +4122,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        FROM (
                            SELECT speaker
                            FROM subtitle_cue_line_speakers cls
-                           WHERE cls.cue_group_id = g.id
+                           WHERE cls.cue_line_id = l.id
                            GROUP BY speaker_key, speaker
                            ORDER BY speaker_key ASC
                        )
@@ -4008,79 +4132,91 @@ public final class SubtitleDatabase: @unchecked Sendable {
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
             JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
             WHERE 1 = 1
             \(scopeCondition)
-            ORDER BY sor.folder_order ASC, sor.file_order ASC, g.start_ms ASC, g.end_ms ASC, g.id ASC
+            ORDER BY sor.folder_order ASC, sor.file_order ASC,
+                     g.start_ms ASC, g.end_ms ASC, g.id ASC,
+                     l.display_order ASC, l.event_index ASC, l.id ASC
             """
         )
         _ = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: 1)
 
-        var accepted: [OrderedSearchResult] = []
+        var accepted: [AllCuePageCandidate] = []
         var fileSummaryAccumulator = SearchFileSummaryAccumulator()
+        var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
         var acceptedCount = 0
         while try statement.step() {
+            try Task.checkCancellation()
             let candidate = searchCandidate(from: statement)
-            let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(15))
-            let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(16))
+            let cueLineRecord = cueLineRecord(from: statement, startingAt: 15)
+            let languageDetections: SearchLanguageDetections
+            if let cached = languageDetectionsBySubtitleFileID[candidate.subtitleFileID] {
+                languageDetections = cached
+            } else {
+                let loaded = try searchLanguageDetections(
+                    forSubtitleFileID: candidate.subtitleFileID
+                )
+                languageDetectionsBySubtitleFileID[candidate.subtitleFileID] = loaded
+                languageDetections = loaded
+            }
+            let cueGroupLanguages = Self.languageValues(
+                from: statement.nullableStringColumn(29)
+            )
+            let displayLanguages = Self.displayLanguages(
+                for: cueLineRecord.line,
+                candidate: candidate,
+                detections: languageDetections,
+                cueGroupLanguages: cueGroupLanguages
+            )
+            let displaySpeakers = Self.speakerValues(
+                from: statement.nullableStringColumn(30)
+            )
             guard filterSet.isEffectivelyEmpty || filterSet.matches(
                 display: candidate.order.displayTitle,
-                cues: candidate.searchContent,
+                cues: cueLineRecord.line.content,
                 languages: Self.filterSetLanguageValues(displayLanguages),
                 speakers: Self.filterSetSpeakerValues(displaySpeakers)
             ) else {
                 continue
             }
 
-            let summaryResult = OrderedSearchResult(
-                result: SubtitleSearchResult(
-                    entryID: candidate.cueGroupID,
-                    subtitlePath: candidate.subtitlePath,
-                    subtitleFormat: candidate.subtitleFormat,
-                    videoPath: candidate.videoPath,
-                    videoName: candidate.videoName,
-                    displayTitle: candidate.order.displayTitle,
-                    timeRange: candidate.timeRange,
-                    startMilliseconds: candidate.startMilliseconds,
-                    endMilliseconds: candidate.endMilliseconds,
-                    content: candidate.searchContent,
-                    cueLines: [candidate.searchContent],
-                    languages: displayLanguages,
-                    speakers: displaySpeakers
-                ),
-                order: candidate.order
-            )
-            fileSummaryAccumulator.add(summaryResult)
+            fileSummaryAccumulator.add(candidate: candidate)
             if acceptedCount >= offset && accepted.count < requestedLimit {
-                let lines = candidate.lineCount > 1 ? try cueLines(forCueGroupID: candidate.cueGroupID) : []
-                let lineContents = lines.isEmpty ? [candidate.searchContent] : lines.map(\.content)
-                let result = OrderedSearchResult(
-                    result: SubtitleSearchResult(
-                        entryID: candidate.cueGroupID,
-                        subtitlePath: candidate.subtitlePath,
-                        subtitleFormat: candidate.subtitleFormat,
-                        videoPath: candidate.videoPath,
-                        videoName: candidate.videoName,
-                        displayTitle: candidate.order.displayTitle,
-                        timeRange: candidate.timeRange,
-                        startMilliseconds: candidate.startMilliseconds,
-                        endMilliseconds: candidate.endMilliseconds,
-                        content: candidate.searchContent,
-                        cueLines: lineContents,
-                        languages: displayLanguages,
-                        speakers: displaySpeakers
-                    ),
-                    order: candidate.order
+                accepted.append(
+                    AllCuePageCandidate(
+                        candidate: candidate,
+                        cueLineRecord: cueLineRecord,
+                        displayLanguages: displayLanguages,
+                        displaySpeakers: displaySpeakers
+                    )
                 )
-                accepted.append(result)
             }
             acceptedCount += 1
         }
 
         let totalCount = acceptedCount
         let fileSummaries = fileSummaryAccumulator.fileSummaries()
-        var results = accepted.map(\.result)
-        for i in 0..<results.count {
-            results[i].searchRank = offset + i
+        let acceptedCueGroupIDs = Array(Set(accepted.map { $0.candidate.cueGroupID })).sorted()
+        let groupRecordsByID = try cueLineRecords(forCueGroupIDs: acceptedCueGroupIDs)
+        var results: [SubtitleSearchResult] = []
+        results.reserveCapacity(accepted.count)
+        for (index, item) in accepted.enumerated() {
+            let groupRecords = groupRecordsByID[item.candidate.cueGroupID] ?? [item.cueLineRecord]
+            var result = orderedSearchResult(
+                for: item.candidate,
+                match: SearchResultMatch(
+                    cueLineRecord: item.cueLineRecord,
+                    primaryGroupIndex: groupRecords.firstIndex {
+                        $0.id == item.cueLineRecord.id
+                    } ?? 0,
+                    cueGroupLines: groupRecords.map(\.line.content),
+                    displayLanguages: item.displayLanguages,
+                    displaySpeakers: item.displaySpeakers
+                )
+            ).result
+            result.searchRank = offset + index
+            results.append(result)
         }
         let upperBound = min(totalCount, offset + results.count)
 
@@ -4099,7 +4235,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     public func cueContextSearchPage(
         subtitlePath: String,
-        targetCueGroupID: Int64,
+        targetCueID: Int64,
         limit: Int = 50,
         cursor: SubtitleSearchCursor? = nil,
         anchorWindowSize: Int? = nil,
@@ -4155,25 +4291,32 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         let targetStatement = try database.prepare(
             """
-            SELECT row_index, total_count
+            SELECT row_index, total_count, subtitle_file_name, display_title
             FROM (
-                SELECT g.id,
-                       ROW_NUMBER() OVER (ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC) - 1 AS row_index,
-                       COUNT(*) OVER () AS total_count
+                SELECT l.id AS cue_id,
+                       ROW_NUMBER() OVER (
+                           ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
+                                    l.display_order ASC, l.event_index ASC, l.id ASC
+                       ) - 1 AS row_index,
+                       COUNT(*) OVER () AS total_count,
+                       sor.subtitle_file_name,
+                       sor.display_title
                 FROM subtitle_cue_groups g
+                JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
                 WHERE sf.subtitle_path = ?
                 \(scopeCondition)
             ) ordered
-            WHERE id = ?;
+            WHERE cue_id = ?;
             """
         )
         var bindIndex: Int32 = 1
         try targetStatement.bind(subtitlePath, at: bindIndex)
         bindIndex += 1
         bindIndex = try bindPathPrefixes(pathPrefixes, to: targetStatement, startingAt: bindIndex)
-        try targetStatement.bind(targetCueGroupID, at: bindIndex)
+        try targetStatement.bind(targetCueID, at: bindIndex)
 
         guard try targetStatement.step() else {
             return nil
@@ -4181,7 +4324,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         let targetIndex = targetStatement.intColumn(0)
         let fileCueCount = targetStatement.intColumn(1)
-        let resolvedAnchorWindowSize = max(1, anchorWindowSize ?? requestedLimit)
+        let subtitleFileName = targetStatement.stringColumn(2)
+        let subtitleDisplayTitle = targetStatement.stringColumn(3)
+        let resolvedAnchorWindowSize = min(
+            requestedLimit,
+            max(1, anchorWindowSize ?? requestedLimit)
+        )
         let anchorStart = min(targetIndex, max(0, fileCueCount - resolvedAnchorWindowSize))
         let totalCount = fileCueCount
         let requestedOffset = anchorsInitialPage && offset == 0 ? anchorStart : offset
@@ -4191,32 +4339,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         let statement = try database.prepare(
             """
-            SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
-                   sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
-                   (
-                       SELECT GROUP_CONCAT(cgl.language_code)
-                       FROM subtitle_cue_group_languages cgl
-                       WHERE cgl.cue_group_id = g.id
-                   ) AS language_values,
-                   (
-                       SELECT GROUP_CONCAT(speaker, char(31))
-                       FROM (
-                           SELECT speaker
-                           FROM subtitle_cue_line_speakers cls
-                           WHERE cls.cue_group_id = g.id
-                           GROUP BY speaker_key, speaker
-                           ORDER BY speaker_key ASC
-                       )
-                   ) AS speaker_values
+            SELECT l.id
             FROM subtitle_cue_groups g
+            JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
             WHERE sf.subtitle_path = ?
             \(scopeCondition)
-            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC
+            ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
+                     l.display_order ASC, l.event_index ASC, l.id ASC
             LIMIT ? OFFSET ?;
             """
         )
@@ -4228,58 +4359,36 @@ public final class SubtitleDatabase: @unchecked Sendable {
         bindIndex += 1
         try statement.bind(rowOffset, at: bindIndex)
 
-        var results: [SubtitleSearchResult] = []
-        results.reserveCapacity(windowLimit)
-        var fileSummary: SubtitleSearchFileSummary?
+        var cueIDs: [Int64] = []
+        cueIDs.reserveCapacity(windowLimit)
         while try statement.step() {
-            let candidate = searchCandidate(from: statement)
-            let displayLanguages = Self.languageValues(from: statement.nullableStringColumn(15))
-            let displaySpeakers = Self.speakerValues(from: statement.nullableStringColumn(16))
-            if fileSummary == nil {
-                fileSummary = SubtitleSearchFileSummary(
-                    subtitlePath: candidate.subtitlePath,
-                    subtitleFileName: candidate.order.subtitleFileName,
-                    subtitleDisplayTitle: candidate.order.displayTitle,
-                    matchCount: 0
-                )
-            }
-
-            let lines = candidate.lineCount > 1 ? try cueLines(forCueGroupID: candidate.cueGroupID) : []
-            let lineContents = lines.isEmpty ? [candidate.searchContent] : lines.map(\.content)
-            results.append(
-                SubtitleSearchResult(
-                    entryID: candidate.cueGroupID,
-                    subtitlePath: candidate.subtitlePath,
-                    subtitleFormat: candidate.subtitleFormat,
-                    videoPath: candidate.videoPath,
-                    videoName: candidate.videoName,
-                    displayTitle: candidate.order.displayTitle,
-                    timeRange: candidate.timeRange,
-                    startMilliseconds: candidate.startMilliseconds,
-                    endMilliseconds: candidate.endMilliseconds,
-                    content: candidate.searchContent,
-                    cueLines: lineContents,
-                    languages: displayLanguages,
-                    speakers: displaySpeakers,
-                    searchRank: boundedOffset + results.count
-                )
-            )
+            cueIDs.append(statement.int64Column(0))
         }
 
-        let summaries = fileSummary.map {
-            [
-                SubtitleSearchFileSummary(
-                    subtitlePath: $0.subtitlePath,
-                    subtitleFileName: $0.subtitleFileName,
-                    subtitleDisplayTitle: $0.subtitleDisplayTitle,
-                    matchCount: totalCount
-                )
-            ]
-        } ?? []
-        let upperBound = min(totalCount, boundedOffset + results.count)
+        let summaries = [
+            SubtitleSearchFileSummary(
+                subtitlePath: subtitlePath,
+                subtitleFileName: subtitleFileName,
+                subtitleDisplayTitle: subtitleDisplayTitle,
+                matchCount: totalCount
+            )
+        ]
+        let upperBound = min(totalCount, boundedOffset + cueIDs.count)
+        let indexWindow = SubtitleSearchResultIDIndexWindow(
+            cueIDs: cueIDs,
+            offset: boundedOffset,
+            totalCount: totalCount,
+            fileSummaries: summaries,
+            countSnapshot: .exact(totalCount: totalCount, fileSummaryCount: 1),
+            appliedCursor: SubtitleSearchCursor(offset: boundedOffset),
+            nextCursor: upperBound < totalCount ? SubtitleSearchCursor(offset: upperBound) : nil
+        )
+        guard let hydratedPage = try searchIndexedVisiblePage(from: indexWindow) else {
+            return nil
+        }
 
         return SubtitleSearchPage(
-            results: results,
+            results: hydratedPage.results,
             totalCount: totalCount,
             fileSummaries: summaries,
             countSnapshot: .exact(totalCount: totalCount, fileSummaryCount: summaries.count),
@@ -4287,7 +4396,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             nextCursor: upperBound < totalCount ? SubtitleSearchCursor(offset: upperBound) : nil,
             pageMode: .visibleWindow,
             orderSource: "cueContextWindow",
-            materializedOrderRows: results.count
+            materializedOrderRows: hydratedPage.results.count
         )
     }
 
@@ -4464,7 +4573,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 return nil
             }
             let groupRecords = cueRecordsByCueGroupID[cueRecord.cueGroupID] ?? [cueRecord]
-            let lineIndex = groupRecords.firstIndex(where: { $0.id == cueID }) ?? 0
             let languageDetections: SearchLanguageDetections
             if let cached = languageDetectionsBySubtitleFileID[candidate.subtitleFileID] {
                 languageDetections = cached
@@ -4475,21 +4583,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 languageDetectionsBySubtitleFileID[candidate.subtitleFileID] = loaded
                 languageDetections = loaded
             }
-            let languages: Set<SubtitleLanguageCode>
-            if languageDetections.hasAnyDetection {
-                languages = Self.languagesForMatchingLine(
-                    at: lineIndex,
-                    candidate: candidate,
-                    lines: groupRecords.map(\.line),
-                    detections: languageDetections
-                )
-            } else {
-                languages = languagesByCueGroupID[cueRecord.cueGroupID] ?? [.unknown]
-            }
+            let languages = Self.displayLanguages(
+                for: cueRecord.line,
+                candidate: candidate,
+                detections: languageDetections,
+                cueGroupLanguages: languagesByCueGroupID[cueRecord.cueGroupID] ?? [.unknown]
+            )
             var result = orderedSearchResult(
                 for: candidate,
                 match: SearchResultMatch(
                     cueLineRecord: cueRecord,
+                    primaryGroupIndex: groupRecords.firstIndex { $0.id == cueID } ?? 0,
                     cueGroupLines: groupRecords.map(\.line.content),
                     displayLanguages: languages,
                     displaySpeakers: speakersByCueID[cueID] ?? []
@@ -7190,7 +7294,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             guard filterSet.matches(
                 display: candidate.displayTitle,
                 cues: candidate.shiori.content,
-                languages: Self.filterSetLanguageValues(candidate.languages)
+                languages: Self.filterSetLanguageValues(candidate.languages),
+                speakers: Self.filterSetSpeakerValues(candidate.cuePresentation.speakers)
             ) else {
                 continue
             }
@@ -7217,36 +7322,35 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    s.start_ms, s.end_ms, s.cue_event_index, s.cue_display_order,
                    s.content, s.is_valid, s.created_at,
                    sor.display_title,
+                   sf.id,
+                   l.id, l.cue_group_id, l.event_index, l.source_format,
+                   l.source_style, l.source_layer, l.start_time, l.end_time,
+                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.display_order,
+                   resolved_group.line_count,
                    (
-                       SELECT GROUP_CONCAT(language_code)
-                       FROM (
-                           SELECT DISTINCT cgl.language_code AS language_code
-                           FROM subtitle_files sf
-                           JOIN subtitle_cue_groups g ON g.subtitle_file_id = sf.id
-                           JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
-                           LEFT JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
-                           WHERE sf.subtitle_path = s.subtitle_path
-                             AND (
-                                 (
-                                     s.cue_event_index IS NOT NULL
-                                     AND l.event_index = s.cue_event_index
-                                     AND l.start_ms = s.start_ms
-                                     AND l.end_ms = s.end_ms
-                                     AND (
-                                         s.cue_display_order IS NULL
-                                         OR l.display_order = s.cue_display_order
-                                     )
-                                 )
-                                 OR (
-                                     s.cue_event_index IS NULL
-                                     AND g.start_ms = s.start_ms
-                                     AND g.end_ms = s.end_ms
-                                 )
-                             )
-                           ORDER BY cgl.language_code ASC
-                       )
+                       SELECT GROUP_CONCAT(cgl.language_code)
+                       FROM subtitle_cue_group_languages cgl
+                       WHERE cgl.cue_group_id = l.cue_group_id
                    ) AS language_values
             FROM shioris s
+            LEFT JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
+            LEFT JOIN subtitle_cue_lines l ON l.id = (
+                SELECT candidate.id
+                FROM subtitle_cue_lines candidate
+                JOIN subtitle_cue_groups candidate_group
+                  ON candidate_group.id = candidate.cue_group_id
+                JOIN subtitle_files candidate_file
+                  ON candidate_file.id = candidate_group.subtitle_file_id
+                WHERE candidate_file.subtitle_path = s.subtitle_path
+                  AND s.cue_event_index IS NOT NULL
+                  AND candidate.event_index = s.cue_event_index
+                  AND candidate.start_ms = s.start_ms
+                  AND candidate.end_ms = s.end_ms
+                ORDER BY candidate.display_order ASC, candidate.id ASC
+                LIMIT 1
+            )
+            LEFT JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
             LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
             ORDER BY s.created_at DESC, s.id DESC
             \(limitClause);
@@ -7258,21 +7362,104 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try statement.bind(max(0, offset), at: 2)
         }
 
-        var candidates: [ShioriTableCandidate] = []
+        var unresolvedCandidates: [(
+            shiori: Shiori,
+            displayTitle: String,
+            languages: Set<SubtitleLanguageCode>,
+            cueLineID: Int64?,
+            cueGroupID: Int64?
+        )] = []
+        var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
         while try statement.step() {
             let shiori = shiori(from: statement)
-            candidates.append(
-                ShioriTableCandidate(
+            let cueLineRecord: SubtitleCueLineRecord? = if statement.nullableInt64Column(14) != nil {
+                cueLineRecord(from: statement, startingAt: 14)
+            } else {
+                nil
+            }
+            let cueGroupLanguages = Self.languageValues(
+                from: statement.nullableStringColumn(29)
+            )
+            let languages: Set<SubtitleLanguageCode>
+            if let subtitleFileID = statement.nullableInt64Column(13),
+               let cueLineRecord {
+                let languageDetections: SearchLanguageDetections
+                if let cached = languageDetectionsBySubtitleFileID[subtitleFileID] {
+                    languageDetections = cached
+                } else {
+                    let loaded = try searchLanguageDetections(
+                        forSubtitleFileID: subtitleFileID
+                    )
+                    languageDetectionsBySubtitleFileID[subtitleFileID] = loaded
+                    languageDetections = loaded
+                }
+                let languageCandidate = SearchCandidate(
+                    cueGroupID: cueLineRecord.cueGroupID,
+                    subtitleFileID: subtitleFileID,
+                    subtitlePath: shiori.subtitlePath,
+                    subtitleFormat: shiori.subtitleFormat,
+                    videoPath: shiori.videoPath,
+                    videoName: shiori.videoName,
+                    startMilliseconds: cueLineRecord.line.startMilliseconds,
+                    endMilliseconds: cueLineRecord.line.endMilliseconds,
+                    timeRange: shiori.timeRange,
+                    searchContent: cueLineRecord.line.content,
+                    lineCount: statement.nullableIntColumn(28) ?? 1,
+                    order: SearchResultOrder(
+                        subtitleFileName: URL(fileURLWithPath: shiori.subtitlePath).lastPathComponent,
+                        displayTitle: "",
+                        folderOrder: 0,
+                        fileOrder: 0
+                    )
+                )
+                languages = Self.displayLanguages(
+                    for: cueLineRecord.line,
+                    candidate: languageCandidate,
+                    detections: languageDetections,
+                    cueGroupLanguages: cueGroupLanguages
+                )
+            } else {
+                languages = cueGroupLanguages
+            }
+            unresolvedCandidates.append(
+                (
                     shiori: shiori,
                     displayTitle: Self.shioriDisplayTitle(
                         rawValue: statement.nullableStringColumn(12),
                         subtitlePath: shiori.subtitlePath
                     ),
-                    languages: Self.languageValues(from: statement.nullableStringColumn(13))
+                    languages: languages,
+                    cueLineID: cueLineRecord?.id,
+                    cueGroupID: cueLineRecord?.cueGroupID
                 )
             )
         }
-        return candidates
+        let cueGroupIDs = Array(Set(unresolvedCandidates.compactMap(\.cueGroupID))).sorted()
+        let groupRecordsByID = try cueLineRecords(forCueGroupIDs: cueGroupIDs)
+        let cueIDs = unresolvedCandidates.compactMap(\.cueLineID)
+        let speakersByCueID = try cueLineSpeakers(forCueIDs: cueIDs)
+        return unresolvedCandidates.map { candidate in
+            let groupRecords = candidate.cueGroupID.flatMap { groupRecordsByID[$0] } ?? []
+            let primaryGroupIndex = candidate.cueLineID.flatMap { cueID in
+                groupRecords.firstIndex { $0.id == cueID }
+            }
+            let cueGroupTexts = groupRecords.isEmpty
+                ? [candidate.shiori.content]
+                : groupRecords.map(\.line.content)
+            return ShioriTableCandidate(
+                shiori: candidate.shiori,
+                displayTitle: candidate.displayTitle,
+                languages: candidate.languages,
+                cuePresentation: ShioriCuePresentation(
+                    cueID: candidate.cueLineID,
+                    cueGroupID: candidate.cueGroupID,
+                    primaryGroupIndex: primaryGroupIndex,
+                    cueGroupTexts: cueGroupTexts,
+                    languages: candidate.languages,
+                    speakers: candidate.cueLineID.flatMap { speakersByCueID[$0] } ?? []
+                )
+            )
+        }
     }
 
     private func shioriPage(
@@ -7287,6 +7474,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }),
             displayTitlesByShioriID: Dictionary(uniqueKeysWithValues: candidates.map { candidate in
                 (candidate.shiori.id, candidate.displayTitle)
+            }),
+            cuePresentationsByShioriID: Dictionary(uniqueKeysWithValues: candidates.map { candidate in
+                (candidate.shiori.id, candidate.cuePresentation)
             })
         )
     }
@@ -7561,7 +7751,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     private struct SearchResultMatch {
         let cueLineRecord: SubtitleCueLineRecord
+        let primaryGroupIndex: Int
         let cueGroupLines: [String]
+        let displayLanguages: Set<SubtitleLanguageCode>
+        let displaySpeakers: Set<String>
+    }
+
+    private struct AllCuePageCandidate {
+        let candidate: SearchCandidate
+        let cueLineRecord: SubtitleCueLineRecord
         let displayLanguages: Set<SubtitleLanguageCode>
         let displaySpeakers: Set<String>
     }
@@ -7570,6 +7768,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let shiori: Shiori
         let displayTitle: String
         let languages: Set<SubtitleLanguageCode>
+        let cuePresentation: ShioriCuePresentation
     }
 
     private struct SearchLanguageDetections {
@@ -7877,19 +8076,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 continue
             }
 
-            let displayLanguages: Set<SubtitleLanguageCode>
-            if let languageDetections, languageDetections.hasAnyDetection {
-                displayLanguages = Self.languagesForMatchingLine(
-                    at: index,
-                    candidate: candidate,
-                    lines: lines,
-                    detections: languageDetections
-                )
-            } else if !cueGroupLanguages.isEmpty {
-                displayLanguages = cueGroupLanguages
-            } else {
-                displayLanguages = [.unknown]
-            }
+            let displayLanguages = Self.displayLanguages(
+                for: record.line,
+                candidate: candidate,
+                detections: languageDetections,
+                cueGroupLanguages: cueGroupLanguages
+            )
             guard languageFilterCodes.isEmpty
                     || !displayLanguages.isDisjoint(with: languageFilterCodes)
             else {
@@ -7910,6 +8102,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             matches.append(
                 SearchResultMatch(
                     cueLineRecord: record,
+                    primaryGroupIndex: index,
                     cueGroupLines: cueGroupLines,
                     displayLanguages: displayLanguages,
                     displaySpeakers: displaySpeakers
@@ -7930,6 +8123,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 cueGroupID: candidate.cueGroupID,
                 cueEventIndex: cue.line.eventIndex,
                 cueDisplayOrder: cue.line.displayOrder,
+                primaryGroupIndex: match.primaryGroupIndex,
                 subtitlePath: candidate.subtitlePath,
                 subtitleFormat: candidate.subtitleFormat,
                 videoPath: candidate.videoPath,
@@ -8004,6 +8198,32 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
             return detections.styleLanguagesByName[styleName] ?? [.unknown]
         }
+    }
+
+    private static func displayLanguages(
+        for cueLine: SubtitleCueLine,
+        candidate: SearchCandidate,
+        detections: SearchLanguageDetections?,
+        cueGroupLanguages: Set<SubtitleLanguageCode>
+    ) -> Set<SubtitleLanguageCode> {
+        if let detections, detections.hasAnyDetection {
+            return languagesForMatchingLine(
+                at: 0,
+                candidate: candidate,
+                lines: [cueLine],
+                detections: detections
+            )
+        }
+
+        if candidate.subtitleFormat == .ass, candidate.lineCount > 1 {
+            return SubtitleLanguageRecognizer(minimumEffectiveCharacterCount: 4)
+                .detectLanguages(
+                    in: SubtitleLanguageAnalyzer.languageSegments(from: cueLine.content)
+                )
+                .languages
+        }
+
+        return cueGroupLanguages.isEmpty ? [.unknown] : cueGroupLanguages
     }
 
     private static func fallbackLanguagesForMatchingLine(
@@ -10056,23 +10276,26 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    private func cueLineRecord(from statement: SQLiteStatement) -> SubtitleCueLineRecord {
+    private func cueLineRecord(
+        from statement: SQLiteStatement,
+        startingAt columnOffset: Int32 = 0
+    ) -> SubtitleCueLineRecord {
         SubtitleCueLineRecord(
-            id: statement.int64Column(0),
-            cueGroupID: statement.int64Column(1),
+            id: statement.int64Column(columnOffset),
+            cueGroupID: statement.int64Column(columnOffset + 1),
             line: SubtitleCueLine(
-                eventIndex: statement.intColumn(2),
-                sourceFormat: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt,
-                sourceStyle: statement.nullableStringColumn(4),
-                sourceLayer: statement.nullableIntColumn(5),
-                startTimecode: statement.stringColumn(6),
-                endTimecode: statement.stringColumn(7),
-                startMilliseconds: statement.intColumn(8),
-                endMilliseconds: statement.intColumn(9),
-                content: statement.stringColumn(10),
-                displayX: statement.nullableDoubleColumn(11),
-                displayY: statement.nullableDoubleColumn(12),
-                displayOrder: statement.intColumn(13)
+                eventIndex: statement.intColumn(columnOffset + 2),
+                sourceFormat: SubtitleFormat(rawValue: statement.stringColumn(columnOffset + 3)) ?? .srt,
+                sourceStyle: statement.nullableStringColumn(columnOffset + 4),
+                sourceLayer: statement.nullableIntColumn(columnOffset + 5),
+                startTimecode: statement.stringColumn(columnOffset + 6),
+                endTimecode: statement.stringColumn(columnOffset + 7),
+                startMilliseconds: statement.intColumn(columnOffset + 8),
+                endMilliseconds: statement.intColumn(columnOffset + 9),
+                content: statement.stringColumn(columnOffset + 10),
+                displayX: statement.nullableDoubleColumn(columnOffset + 11),
+                displayY: statement.nullableDoubleColumn(columnOffset + 12),
+                displayOrder: statement.intColumn(columnOffset + 13)
             )
         )
     }

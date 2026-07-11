@@ -5,18 +5,18 @@ struct CueContextSearchRequest: Equatable, Identifiable {
     let id: UUID
     let displayTitle: String
     let subtitlePath: String
-    let targetEntryID: Int64
+    let targetCueID: Int64
 
     init(
         id: UUID = UUID(),
         displayTitle: String,
         subtitlePath: String,
-        targetEntryID: Int64
+        targetCueID: Int64
     ) {
         self.id = id
         self.displayTitle = displayTitle
         self.subtitlePath = subtitlePath
-        self.targetEntryID = targetEntryID
+        self.targetCueID = targetCueID
     }
 }
 

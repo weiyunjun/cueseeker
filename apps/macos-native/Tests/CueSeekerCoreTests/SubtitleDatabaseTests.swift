@@ -55,7 +55,7 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
 }
 
 @Test
-func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
+func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -88,6 +88,21 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
             ),
         ]
     )
+    let summarySubtitleFile = URL(fileURLWithPath: "/Media/ZZSummary.srt")
+    try database.replaceEntries(
+        subtitleFile: summarySubtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/ZZSummary.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:03,500",
+                startMilliseconds: 3_000,
+                endMilliseconds: 3_500,
+                text: "third file cue"
+            )
+        ]
+    )
     let cueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
     let secondCueLine = try #require(cueLines.first { $0.line.content == "second cue" })
     try database.replaceCueLineSpeakers(
@@ -97,15 +112,26 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
         ]
     )
 
-    let page = try database.allCueGroupsVisiblePage(limit: 10, cursor: .start)
+    let page = try database.allCuesVisiblePage(limit: 10, cursor: .start)
 
-    #expect(page.totalCount == 2)
-    #expect(page.results.map(\.content) == ["first cue", "second cue"])
-    #expect(page.results.map(\.timeRange) == ["00:01 - 00:01", "00:02 - 00:02"])
+    #expect(page.totalCount == 3)
+    #expect(page.results.map(\.content) == ["first cue", "second cue", "third file cue"])
+    #expect(page.results.map(\.timeRange) == [
+        "00:01 - 00:01",
+        "00:02 - 00:02",
+        "00:03 - 00:03",
+    ])
     #expect(page.results[0].speakers == [])
     #expect(page.results[1].speakers == ["高松灯"])
+    #expect(page.results[2].speakers == [])
+    #expect(Dictionary(uniqueKeysWithValues: page.fileSummaries.map {
+        ($0.subtitlePath, $0.matchCount)
+    }) == [
+        subtitleFile.path: 2,
+        summarySubtitleFile.path: 1,
+    ])
 
-    let speakerPage = try database.allCueGroupsVisiblePage(
+    let speakerPage = try database.allCuesVisiblePage(
         limit: 10,
         cursor: .start,
         filterSet: SubtitleSearchFilterSet(
@@ -120,6 +146,123 @@ func allCueGroupsVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     )
     #expect(speakerPage.totalCount == 1)
     #expect(speakerPage.results.map(\.content) == ["second cue"])
+}
+
+@Test
+func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/AllCues.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/AllCues.mkv")
+    let cueGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "中文上方\n日本語の下側\n二行目",
+        cueLines: [
+            testCueLine(
+                eventIndex: 10,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "中文上方",
+                displayOrder: 0,
+                sourceStyle: "CN"
+            ),
+            testCueLine(
+                eventIndex: 11,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "日本語の下側\n二行目",
+                displayOrder: 1,
+                sourceStyle: "JP"
+            ),
+        ]
+    )
+    let analysis = SubtitleLanguageAnalysis(
+        format: .ass,
+        fileDetection: nil,
+        styleDetections: [
+            "CN": SubtitleLanguageDetectionResult(
+                languages: [.simplifiedChinese],
+                confidence: 1,
+                segmentCount: 1,
+                effectiveCharacterCount: 4,
+                distribution: [SubtitleLanguageDistribution(language: .simplifiedChinese, share: 1)]
+            ),
+            "JP": SubtitleLanguageDetectionResult(
+                languages: [.japanese],
+                confidence: 1,
+                segmentCount: 1,
+                effectiveCharacterCount: 9,
+                distribution: [SubtitleLanguageDistribution(language: .japanese, share: 1)]
+            ),
+        ],
+        cueGroupLanguages: [[.simplifiedChinese, .japanese]]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [cueGroup],
+        languageAnalysis: analysis
+    )
+    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    try database.replaceCueLineSpeakers(
+        forSubtitleFile: subtitleFile,
+        assignments: [
+            SubtitleCueLineSpeakerAssignment(cueLineID: cueRecords[0].id, speakers: ["上方角色"]),
+            SubtitleCueLineSpeakerAssignment(cueLineID: cueRecords[1].id, speakers: ["下方角色"]),
+        ]
+    )
+
+    let firstPage = try database.allCuesVisiblePage(limit: 1, cursor: .start)
+    #expect(firstPage.totalCount == 2)
+    #expect(firstPage.results.map(\.entryID) == [cueRecords[0].id])
+    #expect(firstPage.results[0].cueLines == ["中文上方"])
+    #expect(firstPage.results[0].cueGroupLines == ["中文上方", "日本語の下側\n二行目"])
+    #expect(firstPage.results[0].primaryGroupIndex == 0)
+    #expect(firstPage.results[0].languages == [.simplifiedChinese])
+    #expect(firstPage.results[0].speakers == ["上方角色"])
+    #expect(firstPage.nextCursor == SubtitleSearchCursor(offset: 1))
+
+    let secondPage = try database.allCuesVisiblePage(
+        limit: 1,
+        cursor: firstPage.nextCursor
+    )
+    #expect(secondPage.results.map(\.entryID) == [cueRecords[1].id])
+    #expect(secondPage.results[0].content == "日本語の下側\n二行目")
+    #expect(secondPage.results[0].cueLines == ["日本語の下側\n二行目"])
+    #expect(secondPage.results[0].primaryGroupIndex == 1)
+    #expect(secondPage.results[0].languages == [.japanese])
+    #expect(secondPage.results[0].speakers == ["下方角色"])
+    #expect(secondPage.results[0].cueGroupID == firstPage.results[0].cueGroupID)
+
+    let filteredPage = try database.allCuesVisiblePage(
+        limit: 10,
+        cursor: .start,
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(field: .speaker, operatorID: .contains, value: "下方角色"),
+                SubtitleSearchFilterRule(
+                    join: .and,
+                    field: .language,
+                    operatorID: .contains,
+                    value: "ja"
+                ),
+            ]
+        )
+    )
+    #expect(filteredPage.totalCount == 1)
+    #expect(filteredPage.results.map(\.entryID) == [cueRecords[1].id])
+    #expect(filteredPage.fileSummaries.map(\.matchCount) == [1])
 }
 
 @Test
@@ -166,25 +309,30 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     )
 
     let contextEntries = try database.entries(forSubtitleFile: contextSubtitleFile)
-    let firstContextEntry = try #require(contextEntries.first)
     let thirdContextEntry = try #require(contextEntries.first { $0.content == "context cue 3" })
-    let lastContextEntry = try #require(contextEntries.first { $0.content == "context cue 6" })
+    let contextCues = try database.cueLineRecords(forSubtitleFile: contextSubtitleFile)
+    let firstContextCue = try #require(contextCues.first)
+    let thirdContextCue = try #require(contextCues.first { $0.line.content == "context cue 3" })
+    let lastContextCue = try #require(contextCues.first { $0.line.content == "context cue 6" })
 
     #expect(
-        try database.firstCueGroupID(forSubtitleFile: contextSubtitleFile) == firstContextEntry.id
+        try database.firstCueID(forSubtitleFile: contextSubtitleFile) == firstContextCue.id
     )
     #expect(
-        try database.cueGroupID(
+        try database.cueID(
             forSubtitlePath: contextSubtitleFile.path,
-            startMilliseconds: thirdContextEntry.startMilliseconds,
-            endMilliseconds: thirdContextEntry.endMilliseconds
-        ) == thirdContextEntry.id
+            cueIdentity: SubtitleCueIdentity(
+                eventIndex: thirdContextCue.line.eventIndex,
+                startMilliseconds: thirdContextEntry.startMilliseconds,
+                endMilliseconds: thirdContextEntry.endMilliseconds
+            )
+        ) == thirdContextCue.id
     )
 
     let targetFirstPage = try #require(
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
-            targetCueGroupID: thirdContextEntry.id,
+            targetCueID: thirdContextCue.id,
             limit: 3,
             anchorsInitialPage: true
         )
@@ -202,7 +350,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     let precedingPage = try #require(
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
-            targetCueGroupID: thirdContextEntry.id,
+            targetCueID: thirdContextCue.id,
             limit: 2,
             cursor: SubtitleSearchCursor(offset: 0)
         )
@@ -217,7 +365,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     let followingPage = try #require(
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
-            targetCueGroupID: thirdContextEntry.id,
+            targetCueID: thirdContextCue.id,
             limit: 3,
             cursor: SubtitleSearchCursor(offset: 5)
         )
@@ -229,7 +377,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     let tailPage = try #require(
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
-            targetCueGroupID: lastContextEntry.id,
+            targetCueID: lastContextCue.id,
             limit: 3,
             anchorsInitialPage: true
         )
@@ -242,6 +390,111 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
         "context cue 6",
     ])
     #expect(tailPage.results.map(\.searchRank) == [3, 4, 5])
+
+    let oversizedAnchorPage = try #require(
+        try database.cueContextSearchPage(
+            subtitlePath: contextSubtitleFile.path,
+            targetCueID: lastContextCue.id,
+            limit: 2,
+            anchorWindowSize: 5,
+            anchorsInitialPage: true
+        )
+    )
+    #expect(oversizedAnchorPage.appliedCursor == SubtitleSearchCursor(offset: 4))
+    #expect(oversizedAnchorPage.results.map(\.content) == [
+        "context cue 5",
+        "context cue 6",
+    ])
+    #expect(oversizedAnchorPage.results.contains { $0.entryID == lastContextCue.id })
+}
+
+@Test
+func cueContextSearchPageAnchorsExactSiblingCueInStableSourceOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/ContextSiblings.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/ContextSiblings.mkv")
+    let firstGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "upper sibling\nlower sibling",
+        cueLines: [
+            testCueLine(
+                eventIndex: 10,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "upper sibling",
+                displayOrder: 0
+            ),
+            testCueLine(
+                eventIndex: 11,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "lower sibling",
+                displayOrder: 1
+            ),
+        ]
+    )
+    let secondGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:04.00",
+        endTimecode: "0:00:05.00",
+        startMilliseconds: 4_000,
+        endMilliseconds: 5_000,
+        searchContent: "following cue",
+        cueLines: [
+            testCueLine(
+                eventIndex: 12,
+                startMilliseconds: 4_000,
+                endMilliseconds: 5_000,
+                content: "following cue",
+                displayOrder: 0
+            )
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [firstGroup, secondGroup]
+    )
+    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let lowerSibling = try #require(cueRecords.first { $0.line.eventIndex == 11 })
+
+    let page = try #require(try database.cueContextSearchPage(
+        subtitlePath: subtitleFile.path,
+        targetCueID: lowerSibling.id,
+        limit: 2,
+        anchorsInitialPage: true
+    ))
+
+    #expect(page.totalCount == 3)
+    #expect(page.appliedCursor == SubtitleSearchCursor(offset: 1))
+    #expect(page.results.map(\.entryID) == [lowerSibling.id, cueRecords[2].id])
+    #expect(page.results.map(\.content) == ["lower sibling", "following cue"])
+    #expect(page.results[0].cueLines == ["lower sibling"])
+    #expect(page.results[0].cueGroupLines == ["upper sibling", "lower sibling"])
+    #expect(page.results[0].primaryGroupIndex == 1)
+    #expect(page.results[0].cueGroupID == cueRecords[0].cueGroupID)
+    #expect(page.results.map(\.searchRank) == [1, 2])
+
+    let precedingPage = try #require(try database.cueContextSearchPage(
+        subtitlePath: subtitleFile.path,
+        targetCueID: lowerSibling.id,
+        limit: 1,
+        cursor: .start
+    ))
+    #expect(precedingPage.results.map(\.entryID) == [cueRecords[0].id])
+    #expect(precedingPage.results.map(\.searchRank) == [0])
 }
 
 @Test
@@ -3223,6 +3476,227 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
 }
 
 @Test
+func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/ShioriPresentation.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/ShioriPresentation.mkv")
+    let chineseText = "这是同一组里较长的中文字幕内容"
+    let japaneseText = "これは同じグループの日本語字幕です\n改行も保持します"
+    let groupOnlyLanguageAnalysis = SubtitleLanguageAnalysis(
+        format: .ass,
+        fileDetection: nil,
+        styleDetections: [:],
+        cueGroupLanguages: [[.japanese, .simplifiedChinese]]
+    )
+    let initialGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "\(chineseText)\n\(japaneseText)",
+        cueLines: [
+            testCueLine(
+                eventIndex: 10,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: chineseText,
+                displayOrder: 0
+            ),
+            testCueLine(
+                eventIndex: 11,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: japaneseText,
+                displayOrder: 1
+            ),
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [initialGroup],
+        languageAnalysis: groupOnlyLanguageAnalysis
+    )
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    #expect(selection.cueEventIndex == 11)
+    let saved = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .ass,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection
+    )
+    #expect(saved.cueDisplayOrder == 1)
+
+    let reorderedGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "\(japaneseText)\n\(chineseText)",
+        cueLines: [
+            testCueLine(
+                eventIndex: 11,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: japaneseText,
+                displayOrder: 0
+            ),
+            testCueLine(
+                eventIndex: 10,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: chineseText,
+                displayOrder: 1
+            ),
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [reorderedGroup],
+        languageAnalysis: groupOnlyLanguageAnalysis
+    )
+    let currentCues = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let currentJapaneseCue = try #require(currentCues.first { $0.line.eventIndex == 11 })
+    let currentChineseCue = try #require(currentCues.first { $0.line.eventIndex == 10 })
+    try database.replaceCueLineSpeakers(
+        forSubtitleFile: subtitleFile,
+        assignments: [
+            SubtitleCueLineSpeakerAssignment(
+                cueLineID: currentJapaneseCue.id,
+                speakers: ["Japanese Speaker"]
+            ),
+            SubtitleCueLineSpeakerAssignment(
+                cueLineID: currentChineseCue.id,
+                speakers: ["Chinese Speaker"]
+            ),
+        ]
+    )
+
+    let allJapaneseCues = try database.allCuesVisiblePage(
+        limit: 10,
+        cursor: .start,
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(field: .language, operatorID: .contains, value: "ja")
+            ]
+        )
+    )
+    #expect(allJapaneseCues.results.map(\.entryID) == [currentJapaneseCue.id])
+    let allChineseCues = try database.allCuesVisiblePage(
+        limit: 10,
+        cursor: .start,
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(field: .language, operatorID: .contains, value: "zh")
+            ]
+        )
+    )
+    #expect(allChineseCues.results.map(\.entryID) == [currentChineseCue.id])
+
+    let page = try database.shioriPage(limit: 10, offset: 0)
+    let shiori = try #require(page.shioris.first)
+    let presentation = try #require(page.cuePresentationsByShioriID[shiori.id])
+    #expect(shiori.cueDisplayOrder == 1)
+    #expect(presentation.cueID == currentJapaneseCue.id)
+    #expect(presentation.cueGroupID == currentJapaneseCue.cueGroupID)
+    #expect(presentation.primaryGroupIndex == 0)
+    #expect(presentation.cueGroupTexts == [japaneseText, chineseText])
+    #expect(presentation.languages == [.japanese])
+    #expect(presentation.speakers == ["Japanese Speaker"])
+    #expect(page.languagesByShioriID[shiori.id] == [.japanese])
+    #expect(
+        try database.cueID(
+            forSubtitlePath: subtitleFile.path,
+            cueIdentity: try #require(shiori.cueIdentity)
+        ) == currentJapaneseCue.id
+    )
+
+    let japaneseSpeakerPage = try database.shioriTablePage(
+        limit: 10,
+        offset: 0,
+        searchText: "",
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(
+                    field: .speaker,
+                    operatorID: .contains,
+                    value: "Japanese Speaker"
+                )
+            ]
+        )
+    )
+    #expect(japaneseSpeakerPage.totalCount == 1)
+    let siblingSpeakerPage = try database.shioriTablePage(
+        limit: 10,
+        offset: 0,
+        searchText: "",
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(
+                    field: .speaker,
+                    operatorID: .contains,
+                    value: "Chinese Speaker"
+                )
+            ]
+        )
+    )
+    #expect(siblingSpeakerPage.totalCount == 0)
+
+    let japaneseLanguagePage = try database.shioriTablePage(
+        limit: 10,
+        offset: 0,
+        searchText: "",
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(field: .language, operatorID: .contains, value: "ja")
+            ]
+        )
+    )
+    #expect(japaneseLanguagePage.totalCount == 1)
+    let chineseLanguagePage = try database.shioriTablePage(
+        limit: 10,
+        offset: 0,
+        searchText: "",
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(
+                    field: .language,
+                    operatorID: .contains,
+                    value: "zh"
+                )
+            ]
+        )
+    )
+    #expect(chineseLanguagePage.totalCount == 0)
+
+    let contextPage = try #require(try database.cueContextSearchPage(
+        subtitlePath: subtitleFile.path,
+        targetCueID: currentJapaneseCue.id,
+        limit: 2,
+        anchorsInitialPage: true
+    ))
+    #expect(contextPage.results.first?.entryID == currentJapaneseCue.id)
+    #expect(contextPage.results.first?.cueDisplayOrder == 0)
+    #expect(contextPage.results.first?.content == japaneseText)
+}
+
+@Test
 func shioriTablePageAppliesSearchAndFiltersBeforeSlicing() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -3545,6 +4019,16 @@ func migrationConvertsLegacyShioriToJapaneseCueAndBottommostFallback() throws {
     #expect(fallback.content == "Lower fallback cue")
     #expect(fallback.cueEventIndex == 201)
     #expect(fallback.cueDisplayOrder == 1)
+
+    let mixedFileDetection = try #require(try database.shiori(id: 45))
+    #expect(mixedFileDetection.content == "これは日本語です")
+    #expect(mixedFileDetection.cueEventIndex == 300)
+    #expect(mixedFileDetection.cueDisplayOrder == 0)
+
+    let mixedStyleDetection = try #require(try database.shiori(id: 46))
+    #expect(mixedStyleDetection.content == "これは同じスタイルの日本語です")
+    #expect(mixedStyleDetection.cueEventIndex == 400)
+    #expect(mixedStyleDetection.cueDisplayOrder == 0)
 }
 
 @Test
@@ -3570,6 +4054,15 @@ func migrationPreservesLegacyShioriTagsAndUnindexedSnapshot() throws {
     #expect(orphan.cueIdentity == nil)
     #expect(orphan.isValid)
     #expect(orphan.createdAt == "2026-07-10T02:03:04Z")
+
+    let page = try database.shioriPage(limit: 10, offset: 0)
+    let presentation = try #require(page.cuePresentationsByShioriID[orphan.id])
+    #expect(presentation.cueID == nil)
+    #expect(presentation.cueGroupID == nil)
+    #expect(presentation.primaryGroupIndex == nil)
+    #expect(presentation.cueGroupTexts == [orphan.content])
+    #expect(presentation.languages == [.unknown])
+    #expect(presentation.speakers.isEmpty)
 }
 
 @Test
@@ -4842,6 +5335,59 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     )
     #expect(navigation.current?.content == "shared lower")
     #expect(navigation.previous?.content == "shared upper")
+}
+
+@Test
+func searchPrimaryGroupIndexDistinguishesSiblingCuesWithIdenticalText() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    let subtitleFile = URL(fileURLWithPath: "/Media/DuplicateSiblingText.ass")
+    let cueGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "duplicate cue\nduplicate cue",
+        cueLines: [
+            testCueLine(
+                eventIndex: 10,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "duplicate cue",
+                displayOrder: 0
+            ),
+            testCueLine(
+                eventIndex: 11,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "duplicate cue",
+                displayOrder: 1
+            ),
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/DuplicateSiblingText.mkv"),
+        format: .ass,
+        cueGroups: [cueGroup]
+    )
+
+    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let page = try database.searchPage("duplicate", limit: 10, cursor: .start)
+
+    #expect(page.results.map(\.entryID) == cueRecords.map(\.id))
+    #expect(page.results.map(\.content) == ["duplicate cue", "duplicate cue"])
+    #expect(page.results.map(\.cueGroupLines) == [
+        ["duplicate cue", "duplicate cue"],
+        ["duplicate cue", "duplicate cue"],
+    ])
+    #expect(page.results.map(\.primaryGroupIndex) == [0, 1])
 }
 
 @Test
@@ -6379,7 +6925,9 @@ private func createVersionTwentySevenCueGroupShioriDatabase(at url: URL) throws 
         )
         VALUES
             (1, '/Media/Legacy.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3),
-            (2, '/Media/Fallback.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3);
+            (2, '/Media/Fallback.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3),
+            (3, '/Media/Mixed.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3),
+            (4, '/Media/MixedStyle.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3);
 
         INSERT INTO subtitle_cue_groups(
             id, subtitle_file_id, subtitle_path, seq, start_time, end_time,
@@ -6389,7 +6937,11 @@ private func createVersionTwentySevenCueGroupShioriDatabase(at url: URL) throws 
             (1, 1, '/Media/Legacy.ass', NULL, '0:00:01.00', '0:00:03.00',
              1000, 3000, '00:01 - 00:03', '日本語の字幕です\n日本語の下段です\n中文字幕', 3),
             (2, 2, '/Media/Fallback.ass', NULL, '0:00:04.00', '0:00:05.00',
-             4000, 5000, '00:04 - 00:05', 'Upper fallback cue\nLower fallback cue', 2);
+             4000, 5000, '00:04 - 00:05', 'Upper fallback cue\nLower fallback cue', 2),
+            (3, 3, '/Media/Mixed.ass', NULL, '0:00:08.00', '0:00:09.00',
+             8000, 9000, '00:08 - 00:09', 'これは日本語です\n这是中文字幕', 2),
+            (4, 4, '/Media/MixedStyle.ass', NULL, '0:00:10.00', '0:00:11.00',
+             10000, 11000, '00:10 - 00:11', 'これは同じスタイルの日本語です\n这是同一样式的中文字幕', 2);
 
         INSERT INTO subtitle_cue_lines(
             id, cue_group_id, event_index, source_format, source_style, source_layer,
@@ -6405,7 +6957,15 @@ private func createVersionTwentySevenCueGroupShioriDatabase(at url: URL) throws 
             (20, 2, 200, 'ass', NULL, 0, '0:00:04.10', '0:00:04.90',
              4100, 4900, 'Upper fallback cue', NULL, 100, 0),
             (21, 2, 201, 'ass', NULL, 0, '0:00:04.20', '0:00:04.80',
-             4200, 4800, 'Lower fallback cue', NULL, 200, 1);
+             4200, 4800, 'Lower fallback cue', NULL, 200, 1),
+            (30, 3, 300, 'ass', NULL, 0, '0:00:08.00', '0:00:09.00',
+             8000, 9000, 'これは日本語です', NULL, 100, 0),
+            (31, 3, 301, 'ass', NULL, 0, '0:00:08.00', '0:00:09.00',
+             8000, 9000, '这是中文字幕', NULL, 200, 1),
+            (40, 4, 400, 'ass', 'MIXED', 0, '0:00:10.00', '0:00:11.00',
+             10000, 11000, 'これは同じスタイルの日本語です', NULL, 100, 0),
+            (41, 4, 401, 'ass', 'MIXED', 0, '0:00:10.00', '0:00:11.00',
+             10000, 11000, '这是同一样式的中文字幕', NULL, 200, 1);
 
         INSERT INTO subtitle_language_detections(
             id, subtitle_file_id, scope, scope_key, algorithm_version, confidence,
@@ -6413,10 +6973,18 @@ private func createVersionTwentySevenCueGroupShioriDatabase(at url: URL) throws 
         )
         VALUES
             (1, 1, 'style', 'ZH', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z'),
-            (2, 1, 'style', 'JP', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z');
+            (2, 1, 'style', 'JP', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z'),
+            (3, 3, 'file', '', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z'),
+            (4, 4, 'style', 'MIXED', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z');
 
         INSERT INTO subtitle_language_detection_codes(detection_id, language_code)
-        VALUES (1, 'zh-Hans'), (2, 'ja');
+        VALUES
+            (1, 'zh-Hans'),
+            (2, 'ja'),
+            (3, 'ja'),
+            (3, 'zh-Hans'),
+            (4, 'ja'),
+            (4, 'zh-Hans');
 
         INSERT INTO shioris(
             id, subtitle_path, subtitle_format, start_ms, end_ms,
@@ -6431,7 +6999,14 @@ private func createVersionTwentySevenCueGroupShioriDatabase(at url: URL) throws 
              '2026-07-10T02:03:04Z'),
             (44, '/Media/Fallback.ass', 'ass', 4000, 5000,
              '/Media/Fallback.mkv', 'Fallback.mkv', 'Upper fallback cue\nLower fallback cue', 1,
-             '2026-07-10T03:04:05Z');
+             '2026-07-10T03:04:05Z'),
+            (45, '/Media/Mixed.ass', 'ass', 8000, 9000,
+             '/Media/Mixed.mkv', 'Mixed.mkv', 'これは日本語です\n这是中文字幕', 1,
+             '2026-07-10T04:05:06Z'),
+            (46, '/Media/MixedStyle.ass', 'ass', 10000, 11000,
+             '/Media/MixedStyle.mkv', 'MixedStyle.mkv',
+             'これは同じスタイルの日本語です\n这是同一样式的中文字幕', 1,
+             '2026-07-10T05:06:07Z');
 
         INSERT INTO shiori_tags(id, name, normalized_name, created_at)
         VALUES (7, 'Review', 'Review', '2026-07-10T00:00:00Z');

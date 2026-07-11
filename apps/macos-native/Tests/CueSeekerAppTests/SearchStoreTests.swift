@@ -44,6 +44,159 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
 
 @MainActor
 @Test
+func contextEntryPointsPreserveExactCueIdentity() throws {
+    let suiteName = "CueSeekerCueContextEntryPointTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerCueContextEntryPointTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let database = try #require(app.subtitleDatabase)
+    let seedSubtitleFile = fixtureRoot.appendingPathComponent("Seed.ass")
+    let seedVideoFile = fixtureRoot.appendingPathComponent("Seed.mkv")
+    let seedGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:02.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        searchContent: "seed upper\nseed lower",
+        cueLines: [
+            SubtitleCueLine(
+                eventIndex: 0,
+                sourceFormat: .ass,
+                sourceStyle: "Top",
+                sourceLayer: 0,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:02.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                content: "seed upper",
+                displayX: nil,
+                displayY: 100,
+                displayOrder: 0
+            ),
+            SubtitleCueLine(
+                eventIndex: 1,
+                sourceFormat: .ass,
+                sourceStyle: "Bottom",
+                sourceLayer: 0,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:02.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                content: "seed lower",
+                displayX: nil,
+                displayY: 900,
+                displayOrder: 1
+            ),
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: seedSubtitleFile,
+        videoFile: seedVideoFile,
+        format: .ass,
+        cueGroups: [seedGroup]
+    )
+    let subtitleFile = fixtureRoot.appendingPathComponent("Episode.ass")
+    let videoFile = fixtureRoot.appendingPathComponent("Episode.mkv")
+    let cueGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "upper cue\nlower cue",
+        cueLines: [
+            SubtitleCueLine(
+                eventIndex: 10,
+                sourceFormat: .ass,
+                sourceStyle: "Top",
+                sourceLayer: 0,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:03.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "upper cue",
+                displayX: nil,
+                displayY: 100,
+                displayOrder: 0
+            ),
+            SubtitleCueLine(
+                eventIndex: 11,
+                sourceFormat: .ass,
+                sourceStyle: "Bottom",
+                sourceLayer: 0,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:03.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "lower cue",
+                displayX: nil,
+                displayY: 900,
+                displayOrder: 1
+            ),
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [cueGroup]
+    )
+    app.indexing.selectedFolders = [fixtureRoot]
+
+    let cues = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let upperCue = try #require(cues.first { $0.line.eventIndex == 10 })
+    let lowerCue = try #require(cues.first { $0.line.eventIndex == 11 })
+    #expect(upperCue.cueGroupID == lowerCue.cueGroupID)
+    #expect(upperCue.id != upperCue.cueGroupID)
+    #expect(lowerCue.id != lowerCue.cueGroupID)
+    #expect(try database.firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
+    #expect(try database.firstCueGroupID(forSubtitleFile: subtitleFile) == upperCue.cueGroupID)
+
+    let allCuePage = try database.allCuesVisiblePage(
+        limit: 10,
+        cursor: .start,
+        under: [fixtureRoot]
+    )
+    let lowerResult = try #require(allCuePage.results.first { $0.entryID == lowerCue.id })
+    app.openSearchResultContext(lowerResult)
+    #expect(app.search.cueContextSearchRequest?.targetCueID == lowerCue.id)
+
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let shiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .ass,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection
+    )
+    app.openShioriContext(shiori, displayTitle: "Episode")
+    #expect(app.search.cueContextSearchRequest?.targetCueID == lowerCue.id)
+
+    let libraryVideo = try #require(try database.libraryVideos(under: [fixtureRoot]).first {
+        $0.subtitlePath == subtitleFile.path
+    })
+    app.openLibraryVideoContext(libraryVideo, displayTitle: "Episode")
+    #expect(app.search.cueContextSearchRequest?.targetCueID == upperCue.id)
+}
+
+@MainActor
+@Test
 func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     let suiteName = "CueSeekerSearchCountProgressRowsTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -255,7 +408,7 @@ func cueContextTargetSourceIndexUsesStableSearchRankNearTail() {
         totalRowCount: 2738
     )
 
-    #expect(resolvedCueContextTargetSourceIndex(in: page, targetEntryID: target.entryID) == 2717)
+    #expect(resolvedCueContextTargetSourceIndex(in: page, targetCueID: target.entryID) == 2717)
 }
 
 @Test
@@ -273,7 +426,7 @@ func cueContextTargetSourceIndexFallsBackToLoadedRangeStartWhenTargetIsMissing()
         totalRowCount: 2738
     )
 
-    #expect(resolvedCueContextTargetSourceIndex(in: page, targetEntryID: 1520171) == 2688)
+    #expect(resolvedCueContextTargetSourceIndex(in: page, targetCueID: 1520171) == 2688)
 }
 
 @Test
@@ -351,7 +504,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
         ]
     )
     app.indexing.selectedFolders = [fixtureRoot]
-    let page = try database.allCueGroupsVisiblePage(
+    let page = try database.allCuesVisiblePage(
         limit: 3,
         cursor: .start,
         under: [fixtureRoot]

@@ -47,38 +47,35 @@ extension AppCoordinator {
         openCueContextSearch(
             displayTitle: result.displayTitle,
             subtitlePath: result.subtitlePath,
-            targetEntryID: result.cueGroupID
+            targetCueID: result.entryID
         )
     }
 
     func openShioriContext(_ item: Shiori, displayTitle: String) {
-        let targetEntryID: Int64?
-        if let database = subtitleDatabase {
+        let targetCueID: Int64?
+        if let database = subtitleDatabase,
+           let cueIdentity = item.cueIdentity {
             do {
-                targetEntryID = try database.cueGroupID(
+                targetCueID = try database.cueID(
                     forSubtitlePath: item.subtitlePath,
-                    startMilliseconds: item.startMilliseconds,
-                    endMilliseconds: item.endMilliseconds
-                ) ?? database.cueTextSelection(
-                    forSubtitleFile: URL(fileURLWithPath: item.subtitlePath),
-                    atMilliseconds: item.startMilliseconds
-                )?.cueGroupID
+                    cueIdentity: cueIdentity
+                )
             } catch {
                 print("Failed to resolve Shiori context cue: \(error)")
-                targetEntryID = nil
+                targetCueID = nil
             }
         } else {
-            targetEntryID = nil
+            targetCueID = nil
         }
 
-        guard let targetEntryID else {
+        guard let targetCueID else {
             return
         }
 
         openCueContextSearch(
             displayTitle: displayTitle,
             subtitlePath: item.subtitlePath,
-            targetEntryID: targetEntryID
+            targetCueID: targetCueID
         )
     }
 
@@ -88,7 +85,7 @@ extension AppCoordinator {
         }
 
         do {
-            guard let targetEntryID = try database.firstCueGroupID(
+            guard let targetCueID = try database.firstCueID(
                 forSubtitleFile: URL(fileURLWithPath: video.subtitlePath)
             ) else {
                 return
@@ -99,7 +96,7 @@ extension AppCoordinator {
             openCueContextSearch(
                 displayTitle: contextTitle,
                 subtitlePath: video.subtitlePath,
-                targetEntryID: targetEntryID
+                targetCueID: targetCueID
             )
         } catch {
             print("Failed to open Library video context: \(error)")
@@ -109,7 +106,7 @@ extension AppCoordinator {
     func openCueContextSearch(
         displayTitle: String,
         subtitlePath: String,
-        targetEntryID: Int64
+        targetCueID: Int64
     ) {
         let trimmedDisplayTitle = displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedDisplayTitle.isEmpty,
@@ -125,7 +122,7 @@ extension AppCoordinator {
         let request = CueContextSearchRequest(
             displayTitle: trimmedDisplayTitle,
             subtitlePath: subtitlePath,
-            targetEntryID: targetEntryID
+            targetCueID: targetCueID
         )
         search.cueContextSearchRequest = request
         workbenchLayout.selectPanelMode(.search)
@@ -299,7 +296,7 @@ extension AppCoordinator {
         do {
             let page = try await Task.detached(priority: .userInitiated) {
                 let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
-                return try pageDatabase.allCueGroupsVisiblePage(
+                return try pageDatabase.allCuesVisiblePage(
                     limit: upperBound - lowerBound,
                     cursor: SubtitleSearchCursor(offset: lowerBound),
                     under: folders,
@@ -341,12 +338,12 @@ extension AppCoordinator {
 
         do {
             let subtitlePath = request.subtitlePath
-            let targetEntryID = request.targetEntryID
+            let targetCueID = request.targetCueID
             let loadedPage = try await Task.detached(priority: .userInitiated) {
                 let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
                 return try pageDatabase.cueContextSearchPage(
                     subtitlePath: subtitlePath,
-                    targetCueGroupID: targetEntryID,
+                    targetCueID: targetCueID,
                     limit: upperBound - lowerBound,
                     cursor: SubtitleSearchCursor(offset: lowerBound),
                     anchorWindowSize: anchorWindowSize,

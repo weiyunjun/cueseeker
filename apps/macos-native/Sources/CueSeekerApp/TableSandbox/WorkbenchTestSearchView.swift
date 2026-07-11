@@ -612,7 +612,7 @@ struct WorkbenchTestSearchView: View {
             cueContextTotalRowCount = page.totalRowCount
             let targetSourceIndex = resolvedCueContextTargetSourceIndex(
                 in: page,
-                targetEntryID: request.targetEntryID
+                targetCueID: request.targetCueID
             )
             cueContextTargetSourceIndex = targetSourceIndex
             tableScrollTargetRow = cueContextDisplayRow(
@@ -933,9 +933,9 @@ struct WorkbenchTestSearchView: View {
 
 func resolvedCueContextTargetSourceIndex(
     in page: TableSandboxSearchHydrationPage,
-    targetEntryID: Int64
+    targetCueID: Int64
 ) -> Int {
-    page.results.first { $0.entryID == targetEntryID }?.searchRank ?? page.range.lowerBound
+    page.results.first { $0.entryID == targetCueID }?.searchRank ?? page.range.lowerBound
 }
 
 func cueContextDisplayRow(

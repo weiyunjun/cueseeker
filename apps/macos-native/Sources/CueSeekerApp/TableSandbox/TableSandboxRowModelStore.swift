@@ -34,6 +34,23 @@ struct TableSandboxShioriRowSource: Equatable, Sendable {
     let dateAddedText: String
     let languages: Set<SubtitleLanguageCode>
     let shioriTags: [ShioriTag]
+    let cuePresentation: ShioriCuePresentation?
+
+    init(
+        shiori: Shiori,
+        displayTitle: String,
+        dateAddedText: String,
+        languages: Set<SubtitleLanguageCode>,
+        shioriTags: [ShioriTag],
+        cuePresentation: ShioriCuePresentation? = nil
+    ) {
+        self.shiori = shiori
+        self.displayTitle = displayTitle
+        self.dateAddedText = dateAddedText
+        self.languages = languages
+        self.shioriTags = shioriTags
+        self.cuePresentation = cuePresentation
+    }
 }
 
 @MainActor
