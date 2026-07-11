@@ -8,6 +8,7 @@ final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
     private static let primarySearchLanguageKey = "primarySearchLanguage"
     private static let searchScopeKey = "searchScope"
+    private static let showCueGroupKey = "showCueGroup"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let autoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
@@ -40,6 +41,12 @@ final class SettingsStore: ObservableObject {
     @Published var searchScope: SearchScope {
         didSet {
             userDefaults.set(searchScope.rawValue, forKey: Self.searchScopeKey)
+        }
+    }
+
+    @Published var showCueGroup: Bool {
+        didSet {
+            userDefaults.set(showCueGroup, forKey: Self.showCueGroupKey)
         }
     }
 
@@ -116,6 +123,7 @@ final class SettingsStore: ObservableObject {
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.primarySearchLanguageKey: PrimarySearchLanguage.defaultValue.rawValue,
             Self.searchScopeKey: SearchScope.defaultValue.rawValue,
+            Self.showCueGroupKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.autoPlayCueSequenceEnabledKey: false,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoPlayCueSequenceGapDefaultMilliseconds,
@@ -132,6 +140,7 @@ final class SettingsStore: ObservableObject {
         self.appAppearanceMode = loadedAppearance
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.searchScope = Self.loadSearchScope(from: userDefaults)
+        self.showCueGroup = userDefaults.bool(forKey: Self.showCueGroupKey)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.autoPlayCueSequenceEnabled = userDefaults.bool(forKey: Self.autoPlayCueSequenceEnabledKey)
         self.autoPlayCueSequenceGapMilliseconds = Self.loadAutoPlayCueSequenceGapMilliseconds(from: userDefaults)

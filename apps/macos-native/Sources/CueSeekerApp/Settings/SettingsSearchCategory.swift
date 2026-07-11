@@ -46,6 +46,17 @@ struct SettingsSearchCategory: View {
                     .labelsHidden()
                     .frame(width: 180)
                 }
+
+                HStack(spacing: 16) {
+                    Text("Show Cue Group")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Toggle("Show Cue Group", isOn: $settingsStore.showCueGroup)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
             }
 
             Spacer()
