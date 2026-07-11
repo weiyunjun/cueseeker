@@ -324,7 +324,7 @@ The list supports lazy loading:
 - Prefetch threshold: `10`.
 - When the user scrolls near the end of loaded results and more results exist,
   the app fetches another page.
-- Search result lazy loading is based on matched cue groups, not subtitle
+- Search result lazy loading is based on matched Cues, not subtitle
   file groups.
 
 ## 9. Search Result Grouping

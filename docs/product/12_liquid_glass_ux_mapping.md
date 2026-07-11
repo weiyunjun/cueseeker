@@ -198,10 +198,10 @@ The Liquid Glass card rewrite must preserve existing lazy-loading semantics.
 
 Rules:
 
-- Search result lazy loading remains based on matched cue groups, not subtitle
+- Search result lazy loading remains based on matched Cues, not subtitle
   file groups.
-- The initial visible budget remains 100 cue-group results.
-- Each incremental global load remains 100 cue-group results.
+- The initial visible budget remains 100 Cue results.
+- Each incremental global load remains 100 Cue results.
 - Lazy loading may trigger only from user-visible actions: scrolling to the
   bottom when more global rows can be shown, expanding all groups from the
   all-collapsed state, or expanding an individual subtitle-file group.

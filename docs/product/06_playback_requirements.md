@@ -259,7 +259,8 @@ Rules:
   font files, image assets, text sidecars, archives, and media-container
   non-playback attachments unless a future documented product feature explicitly
   supports those file types.
-- Search result previews are database-owned cue group projections. Playback
+- Search result previews are database-owned Cue projections with optional Cue
+  Group context. Playback
   subtitle rendering is source-file-owned.
 - Native playback does not need to decode embedded subtitle streams for M1.
 - The subtitle visibility control should show or hide the app-owned overlay.
@@ -283,8 +284,8 @@ Grouped search result behavior:
 - Clicking a grouped subtitle result should select the row, open or seek the
   matched video file, and begin asynchronous source subtitle preparation for the
   matched source subtitle file.
-- The playback target is the cue group start time even when the displayed search
-  preview contains several ASS lines.
+- The playback target is the primary Cue's own start time. Showing additional
+  Cue Group context must not change that target.
 - If the source subtitle file changes, reindexing should rebuild the cue groups
   and refresh the subtitle-to-video mapping before later search results are
   used for playback.

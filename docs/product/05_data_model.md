@@ -158,15 +158,17 @@ Notes:
 
 ## 8. Subtitle Cue Group
 
-A subtitle cue group represents one searchable subtitle moment in one source
-subtitle file.
+A subtitle cue group is a derived indexing container for cue lines that share
+one exact subtitle-file time window. It is not the product result or action
+identity.
 
 For SRT, a cue group usually maps to one SRT block and contains one cue line.
 
 For ASS, a cue group maps to all searchable `Dialogue` events in the same source
-subtitle file with the exact same `start_ms` and `end_ms`. This keeps bilingual
-or multi-line ASS moments as one search result. Near-equal ASS timestamps are
-not grouped by tolerance in the first implementation.
+subtitle file with the exact same `start_ms` and `end_ms`. This preserves the
+relationship needed for optional bilingual or multi-line context without
+combining the contained cues into one result. Near-equal ASS timestamps are not
+grouped by tolerance in the first implementation.
 
 Fields:
 
@@ -182,10 +184,15 @@ Fields:
 
 Notes:
 
-- `start_ms` is the primary timestamp used for playback seek.
+- Group timing supports indexed recall and group-context lookup. Cue actions use
+  the selected cue line's own `start_ms` and `end_ms`.
 - `end_ms` is useful for future current-line highlighting and Shiori.
 - `subtitle_path` and timing fields are part of stable identity.
-- `search_content` is the aggregated searchable text from the group's cue lines.
+- `search_content` is aggregate recall data. Final Search matching and result
+  identity are resolved per cue line.
+- Cue Group context may be loaded for presentation and `Copy Cue Group Text`,
+  but it must not replace the primary Cue identity used by selection, playback,
+  Context, Shiori, copy-Cue, or export actions.
 - Playback should resolve the target media file through the active subtitle-to-video match, not through subtitle path naming assumptions.
 - The current native schema uses first-class subtitle files, video files,
   subtitle-to-video matches, cue groups, and cue lines. The older M1
@@ -196,6 +203,13 @@ Notes:
 
 A subtitle cue line represents one displayable/searchable line inside a cue
 group.
+
+The cue line is the product-level Cue and the base unit for Search, Shiori,
+Context, Playback Subtitle Focus, copy actions, and exports.
+
+One source SRT block remains one Cue even when its text contains explicit line
+breaks. One searchable ASS `Dialogue` event is one Cue. Visual wrapping and
+source line breaks do not create additional Cue identities.
 
 Fields:
 
@@ -218,6 +232,9 @@ Notes:
 
 - `content` stores clean searchable/display text, not raw ASS override tags.
 - `event_index` preserves source order inside the subtitle file.
+- Durable Cue identity uses source subtitle path, source `event_index`, and the
+  Cue's own `start_ms` / `end_ms`; the database row ID is a refreshable indexed
+  binding and must not be the only durable identity.
 - `source_style` stores ASS style names such as `Dial_JP`, `Dial_CH`,
   `Screen`, `Title`, `Staff`, `ED_JP`, or `ED_CH` when available.
 - `source_layer` stores the ASS `Layer` field when available. Layer is render
@@ -329,14 +346,14 @@ FTS rows outside that active folder scope are stale derived index data and must
 not appear in user-facing search results.
 
 If an ASS cue group contains multiple languages or styles with the same timing,
-FTS should return the cue group once when any contained cue line matches. The
-search result should then load all cue lines for that group and display them in
-`display_order`.
+FTS may use the group aggregate for recall, but final filtering must emit one
+result for each matching cue line. The result's primary content is that Cue.
+Other cue lines in the group are loaded only when optional Cue Group context is
+requested and are displayed in `display_order` above the primary Cue.
 
-A cue group must not match only because query terms are split across different
-cue lines. The search implementation may use cue group content for recall, but
-it must ensure that at least one cue line satisfies the query semantics before a
-group is returned.
+A Cue must not match only because query terms are split across different cue
+lines. The search implementation may use cue-group content for recall, but each
+returned Cue must independently satisfy the query semantics.
 
 ## 13. Shiori
 
@@ -347,6 +364,8 @@ Expected fields:
 - `id`
 - `subtitle_path`
 - `subtitle_format`
+- `cue_event_index`
+- `cue_display_order`
 - `start_ms`
 - `end_ms`
 - `video_path`
@@ -361,14 +380,21 @@ The initial native table should be named `shioris`.
 record. The initial Shiori panel does not need to display this timestamp, but the
 field must be persisted when the record is created.
 
-Shiori identity should be based on source subtitle path and time range, not on
-volatile row IDs. When cue groups are available, Shiori should target cue groups
-rather than individual ASS lines unless the product explicitly adds line-level
-Shiori records.
+Shiori identity is one Cue. It is based on source subtitle path, source
+`cue_event_index`, and the Cue's own time range, not on volatile indexed row
+IDs. `cue_display_order` preserves the Cue's presentation relationship inside
+its Cue Group but is not a substitute for Cue identity.
 
-Creating Shiori for a subtitle cue that already has a matching
-`subtitle_path`, `start_ms`, and `end_ms` should be treated as an existing
-record rather than creating a duplicate row.
+Creating Shiori for a Cue that already has matching `subtitle_path`,
+`cue_event_index`, `start_ms`, and `end_ms` should be treated as an existing
+record rather than creating a duplicate row. Different Cues in the same Cue
+Group may each have their own Shiori record.
+
+The version-28 migration converts legacy Cue-Group Shiori rows to the physically
+bottommost indexed Cue in the matching exact time window, replaces stored group
+text with that Cue's complete text, and preserves the Shiori row ID, creation
+timestamp, and tag assignments. A legacy Shiori whose source Cue is unavailable
+remains durable with an unresolved Cue identity instead of being deleted.
 
 A Shiori record is durable user state. Its current resolved link to
 an indexed subtitle cue, video file, or Library row is derived index state. If
@@ -416,7 +442,8 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Schema version: `26`.
+- Implemented schema version before the accepted Cue migration: `27`.
+- Accepted next schema version: `28`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -451,6 +478,11 @@ Current native schema:
   history.
 - Version 26 adds `shiori_tags` and `shiori_tag_assignments` for the global
   Shiori tag pool and Shiori/tag associations.
+- Version 27 adds Library display-cover rendition fields without replacing the
+  durable master-cover reference.
+- Version 28 changes durable Shiori identity from Cue Group timing to individual
+  Cue identity, preserves tag assignments, and migrates resolvable legacy rows
+  to the physically bottommost Cue in their indexed group.
 
 ## 15. Flutter Data Compatibility
 

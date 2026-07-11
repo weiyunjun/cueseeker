@@ -114,7 +114,8 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The current schema version is `26`.
+- The implemented schema version before the accepted Cue migration is `27`.
+- The accepted next schema version is `28`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -149,6 +150,13 @@ Current mechanism:
   global tag pool and `shiori_tag_assignments` for many-to-many Shiori/tag
   associations. Tag deletion cascades assignments but must not delete Shiori
   records.
+- Schema version `27` adds Library display-cover rendition fields while
+  preserving the master-cover reference.
+- Schema version `28` changes Shiori uniqueness from Cue Group timing to
+  individual Cue identity using subtitle path, source event index, and Cue
+  timing. The migration preserves Shiori IDs, creation timestamps, and tag
+  assignments; resolvable legacy rows retain only the physically bottommost
+  Cue's complete text.
 
 ## 5. Migration Rules
 
@@ -277,10 +285,11 @@ Rules:
   stable video identity, persist resume position and update timestamp, and must
   not be rebuilt from subtitle index data.
 - Search-result playback must not read or mutate Library playback history.
-- Shiori records are durable local user state. The initial Shiori table should
-  use `subtitle_path`, `start_ms`, and `end_ms` as the stable cue identity,
-  persist `subtitle_format`, `video_path`, `video_name`, `content`, and
-  `created_at`, and avoid duplicate rows for the same saved cue identity.
+- Shiori records are durable local user state. Shiori identity uses
+  `subtitle_path`, `cue_event_index`, `start_ms`, and `end_ms`, persists
+  `cue_display_order`, `subtitle_format`, `video_path`, `video_name`, `content`,
+  and `created_at`, and permits different Cues in one Cue Group to be saved
+  independently.
 
 ## 9. Media Native Compatibility Profile Rules
 
@@ -351,18 +360,16 @@ Search ranking and query syntax:
   database rows still exist.
 - Invalid query syntax must not crash the app.
 - Query limits must prevent excessive result rendering.
-- Search must return cue groups, not individual ASS cue lines.
-- A cue group must not match only because query terms are split across different
-  cue lines. If group-level FTS recall is used, line-level filtering must enforce
-  the final match semantics before results are returned.
-- When any cue line in a group matches, result loading should include all cue
-  lines for that group.
-- A future search-projection change may use raw cue lines as the FTS recall
-  unit, but the product result identity must remain a display cue group or time
-  window keyed by subtitle file plus exact start and end milliseconds.
-- If line-level FTS recall is introduced, matched lines must map
-  deterministically to their display time window, and duplicate line hits within
-  the same time window must be deduplicated before rendering.
+- Search returns individual Cue lines as product results.
+- A Cue must not match only because query terms are split across different cue
+  lines. Group-level FTS recall may remain an indexing optimization, but
+  line-level filtering must independently validate every returned Cue.
+- Optional Cue Group presentation loads the other lines for the same group only
+  after the primary Cue identity is known. It must not change result counts,
+  ordering, selection, playback, Context, Shiori, copy-Cue, or export identity.
+- Matched cue lines must map deterministically to their source group and stable
+  source order. Multiple matching Cues in the same time window remain distinct
+  results.
 - Search ordering should prefer materialized product-order keys over
   per-query reconstruction when practical. The intended stable order is Library
   block rank, subtitle-file rank within that block, then cue time.

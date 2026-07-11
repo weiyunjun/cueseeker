@@ -185,15 +185,17 @@ Rules:
 
 - Source subtitle files remain the source of truth for indexed subtitle content.
 - The SQLite database is an indexed local cache plus local app state, not a replacement for the source files.
-- The current M2 ASS support step adds ASS indexing, grouped cue search results,
-  grouped result display, and click-to-playback behavior.
+- ASS indexing preserves cue groups as derived relationships while Search,
+  Context, Shiori, and playback actions use individual cue lines as their
+  product identity.
 - SRT blocks should map to cue groups with one cue line.
 - ASS `Dialogue` events should map to cue groups and cue lines.
 - ASS cue grouping must use exact subtitle file, `start_ms`, and `end_ms`
   equality. Timestamp tolerance grouping is out of scope for the first ASS step.
-- Search may use cue group aggregate text for recall, but returned groups must
-  satisfy line-level query semantics so terms split only across different cue
-  lines do not create a match.
+- Search may use cue-group aggregate text for recall, but every returned Cue
+  must satisfy line-level query semantics so terms split only across different
+  cue lines do not create a match. Optional Cue Group context is a presentation
+  projection and must not replace the primary Cue identity.
 - Reindexing must be able to remove stale entries when source subtitle files disappear.
 - Indexed content must be reconciled with the currently selected folders so rows
   from removed folders do not remain visible.

@@ -90,7 +90,8 @@ Accepted M1 implementation summary:
 Known post-M1 follow-up areas:
 
 - Search ranking, query semantics, CJK behavior, and other search-quality improvements require dedicated post-M1 design work and should not block M1 acceptance.
-- ASS subtitle indexing, grouped cue search results, and ASS result click-to-play
+- ASS subtitle indexing, cue-centric search results with optional Cue Group
+  context, and ASS result click-to-play
   behavior are M2 feature work. M1 remains accepted as the minimal SRT loop.
   Source ASS playback rendering started with the accepted ASS Lite subset, but
   complex ASS playback should move to the accepted source-faithful rendering
@@ -115,9 +116,10 @@ Planning status:
   visible feedback overlays.
 - ASS subtitle search support is included in M2 planning as a search, indexing,
   playback-selection, and data-model migration feature.
-- The first ASS support implementation is complete in the native app: `.ass`
-  files are indexed, grouped cue search results are displayed, and selecting an
-  ASS result opens or updates playback at the cue group's `start_ms`.
+- The first ASS support implementation indexed `.ass` files through cue groups.
+  The accepted current direction presents individual Cues as results and opens
+  or updates playback at the selected Cue's `start_ms`, while retaining the
+  group relationship only for optional context.
 
 Goal:
 

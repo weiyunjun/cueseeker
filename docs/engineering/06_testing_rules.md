@@ -637,9 +637,13 @@ Required database and search coverage:
 - Migration preserves durable configuration and rebuilds derived subtitle index
   data.
 - FTS rows link to cue groups.
-- Search returns cue groups, not individual ASS cue lines.
-- A query that matches one cue line returns the full cue group.
+- Search returns individual Cue lines.
+- A query that matches one cue line returns that Cue as the primary result; Cue
+  Group context is a separate optional presentation projection.
 - Query terms split only across different cue lines do not produce a result.
+- Multiple matching Cues in one Cue Group remain distinct results and counts.
+- Migrating legacy Shiori preserves row IDs and tag assignments while selecting
+  the physically bottommost indexed Cue and discarding other group text.
 - Search results remain scoped to currently selected folders.
 
 Required integration coverage:
@@ -655,7 +659,7 @@ Required integration coverage:
 Playback verification for the first ASS step:
 
 - Clicking an ASS search result opens or updates the Playback Area.
-- Playback opens the matched video and seeks to the cue group's `start_ms`.
+- Playback opens the matched video and seeks to the selected Cue's `start_ms`.
 - Source ASS subtitle rendering is not required for this first ASS step.
 
 ## 17. ASS Renderer Routing Coverage

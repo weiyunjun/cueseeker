@@ -159,10 +159,10 @@ Grouped result behavior:
   folder row.
 - Collapsing a group should only hide that group's loaded rows. It must
   not change result counts, search scope, or selection identity.
-- Result lazy loading should remain based on matched cue groups, not
+- Result lazy loading should remain based on matched Cues, not
   subtitle file groups.
-- Result lazy loading should use 100 cue-group results as the initial
-  visible budget and 100 cue-group results for each incremental load.
+- Result lazy loading should use 100 Cue results as the initial visible budget
+  and 100 Cue results for each incremental load.
 - Search result thumbnail previews are controlled by the Settings
   `Experimental Features` category. The `Search Result Thumbnails` setting is
   disabled by default.
@@ -170,13 +170,13 @@ Grouped result behavior:
   as plain text rows and must not request thumbnail cache entries, create
   thumbnail work, or start frame extraction processes.
 - When Search result thumbnail testing is enabled, each loaded 100-result page
-  should immediately schedule thumbnail generation for those 100 cue-group
-  rows. Thumbnail scheduling is tied to loaded cue-group rows, not subtitle file
+  should immediately schedule thumbnail generation for those 100 Cue rows.
+  Thumbnail scheduling is tied to loaded Cue rows, not subtitle file
   groups.
 - Thumbnail generation should use persistent disk cache first. Rows should reuse
   cached thumbnails across app sessions before invoking frame extraction again.
 - The first thumbnail test uses `ffmpeg` to generate `160x90` AVIF images from
-  the midpoint between each cue group's start and end timestamps. The initial
+  the midpoint between each Cue's start and end timestamps. The initial
   generation worker budget is 20 concurrent `ffmpeg` tasks.
 - Before a thumbnail loads, the row should show a lightweight skeleton-style
   picture placeholder. It should not show a black or flat gray block.
