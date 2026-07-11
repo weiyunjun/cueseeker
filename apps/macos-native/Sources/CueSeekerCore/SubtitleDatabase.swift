@@ -797,6 +797,8 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     public let timeRange: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
+    public let cueEventIndex: Int?
+    public let cueDisplayOrder: Int?
     public let content: String
     public let isValid: Bool
     public let createdAt: String
@@ -810,6 +812,8 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         timeRange: String = "",
         startMilliseconds: Int,
         endMilliseconds: Int,
+        cueEventIndex: Int? = nil,
+        cueDisplayOrder: Int? = nil,
         content: String,
         isValid: Bool,
         createdAt: String
@@ -827,9 +831,22 @@ public struct Shiori: Equatable, Sendable, Identifiable {
             : timeRange
         self.startMilliseconds = startMilliseconds
         self.endMilliseconds = endMilliseconds
+        self.cueEventIndex = cueEventIndex
+        self.cueDisplayOrder = cueDisplayOrder
         self.content = content
         self.isValid = isValid
         self.createdAt = createdAt
+    }
+
+    public var cueIdentity: SubtitleCueIdentity? {
+        guard let cueEventIndex else {
+            return nil
+        }
+        return SubtitleCueIdentity(
+            eventIndex: cueEventIndex,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
     }
 
     public var cueLines: [String] {
@@ -1050,6 +1067,23 @@ public struct SubtitleCueTiming: Equatable, Sendable {
     }
 }
 
+public struct SubtitleCueIdentity: Equatable, Hashable, Sendable {
+    public let eventIndex: Int
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+
+    public init(
+        eventIndex: Int,
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) {
+        let resolvedStartMilliseconds = max(0, startMilliseconds)
+        self.eventIndex = eventIndex
+        self.startMilliseconds = resolvedStartMilliseconds
+        self.endMilliseconds = max(resolvedStartMilliseconds, endMilliseconds)
+    }
+}
+
 public struct SubtitleCueLineRecord: Equatable, Sendable {
     public let id: Int64
     public let cueGroupID: Int64
@@ -1074,12 +1108,49 @@ public struct SubtitleCueLineSpeakerAssignment: Equatable, Sendable {
 
 public struct SubtitleCueTextSelection: Equatable, Sendable {
     public let cueGroupID: Int64
+    public let cueLineID: Int64?
     public let startMilliseconds: Int
     public let endMilliseconds: Int
-    public let lines: [String]
+    public let cueEventIndex: Int?
+    public let cueDisplayOrder: Int?
+    public let content: String
 
     public var text: String {
-        lines.joined(separator: "\n")
+        content
+    }
+
+    public var lines: [String] {
+        content.components(separatedBy: .newlines)
+    }
+
+    public var cueIdentity: SubtitleCueIdentity? {
+        guard let cueEventIndex else {
+            return nil
+        }
+        return SubtitleCueIdentity(
+            eventIndex: cueEventIndex,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
+    }
+
+    public init(
+        cueGroupID: Int64,
+        cueLineID: Int64? = nil,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        cueEventIndex: Int?,
+        cueDisplayOrder: Int?,
+        content: String
+    ) {
+        let resolvedStartMilliseconds = max(0, startMilliseconds)
+        self.cueGroupID = cueGroupID
+        self.cueLineID = cueLineID
+        self.startMilliseconds = resolvedStartMilliseconds
+        self.endMilliseconds = max(resolvedStartMilliseconds, endMilliseconds)
+        self.cueEventIndex = cueEventIndex
+        self.cueDisplayOrder = cueDisplayOrder
+        self.content = content
     }
 
     public init(
@@ -1088,10 +1159,14 @@ public struct SubtitleCueTextSelection: Equatable, Sendable {
         endMilliseconds: Int,
         lines: [String]
     ) {
-        self.cueGroupID = cueGroupID
-        self.startMilliseconds = startMilliseconds
-        self.endMilliseconds = endMilliseconds
-        self.lines = lines
+        self.init(
+            cueGroupID: cueGroupID,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            cueEventIndex: nil,
+            cueDisplayOrder: nil,
+            content: lines.joined(separator: "\n")
+        )
     }
 }
 
@@ -1203,7 +1278,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 27
+    public static let currentSchemaVersion: Int = 28
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1583,12 +1658,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitle_format TEXT NOT NULL,
                 start_ms INTEGER NOT NULL,
                 end_ms INTEGER NOT NULL,
+                cue_event_index INTEGER,
+                cue_display_order INTEGER,
                 video_path TEXT NOT NULL,
                 video_name TEXT NOT NULL,
                 content TEXT NOT NULL,
                 is_valid INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
-                UNIQUE(subtitle_path, start_ms, end_ms)
+                UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms)
             );
 
             CREATE INDEX IF NOT EXISTS idx_shioris_subtitle_path
@@ -1834,6 +1911,20 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
         }
 
+        if previousVersion < 28,
+           try !columnExists(table: "shioris", column: "cue_event_index") {
+            try migrateLegacyShiorisToSingleCueIdentity()
+        }
+        if previousVersion < 28 {
+            try database.execute(
+                """
+                DROP INDEX IF EXISTS idx_shioris_order;
+                CREATE INDEX idx_shioris_order
+                    ON shioris(subtitle_path, start_ms, end_ms, cue_event_index);
+                """
+            )
+        }
+
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
     }
 
@@ -1872,6 +1963,255 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try updateStatement.reset()
             try updateStatement.clearBindings()
         }
+    }
+
+    private struct LegacyShioriMigrationRow {
+        let id: Int64
+        let subtitlePath: String
+        let subtitleFormat: String
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        let videoPath: String
+        let videoName: String
+        let content: String
+        let isValid: Bool
+        let createdAt: String
+    }
+
+    private struct LegacyShioriCueCandidate {
+        let identity: SubtitleCueIdentity
+        let displayOrder: Int
+        let content: String
+        let isJapanese: Bool
+    }
+
+    private struct MigratedShioriIdentityKey: Hashable {
+        let subtitlePath: String
+        let identity: SubtitleCueIdentity
+    }
+
+    private func migrateLegacyShiorisToSingleCueIdentity() throws {
+        let legacyRows = try legacyShioriMigrationRows()
+        var migratedRows: [(legacy: LegacyShioriMigrationRow, cue: LegacyShioriCueCandidate?)] = []
+        migratedRows.reserveCapacity(legacyRows.count)
+        var usedIdentities = Set<MigratedShioriIdentityKey>()
+
+        for legacy in legacyRows {
+            var cue = try legacyShioriCueCandidate(for: legacy)
+            if let resolvedCue = cue {
+                let key = MigratedShioriIdentityKey(
+                    subtitlePath: legacy.subtitlePath,
+                    identity: resolvedCue.identity
+                )
+                if !usedIdentities.insert(key).inserted {
+                    cue = nil
+                }
+            }
+            migratedRows.append((legacy: legacy, cue: cue))
+        }
+
+        try database.execute("PRAGMA foreign_keys = OFF;")
+        do {
+            try database.execute("BEGIN IMMEDIATE TRANSACTION;")
+            try database.execute(
+                """
+                DROP TABLE IF EXISTS shioris_v28;
+
+                CREATE TABLE shioris_v28 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    subtitle_path TEXT NOT NULL,
+                    subtitle_format TEXT NOT NULL,
+                    start_ms INTEGER NOT NULL,
+                    end_ms INTEGER NOT NULL,
+                    cue_event_index INTEGER,
+                    cue_display_order INTEGER,
+                    video_path TEXT NOT NULL,
+                    video_name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    is_valid INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms)
+                );
+                """
+            )
+
+            let insertStatement = try database.prepare(
+                """
+                INSERT INTO shioris_v28(
+                    id,
+                    subtitle_path,
+                    subtitle_format,
+                    start_ms,
+                    end_ms,
+                    cue_event_index,
+                    cue_display_order,
+                    video_path,
+                    video_name,
+                    content,
+                    is_valid,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """
+            )
+
+            for row in migratedRows {
+                let identity = row.cue?.identity
+                try insertStatement.bind(row.legacy.id, at: 1)
+                try insertStatement.bind(row.legacy.subtitlePath, at: 2)
+                try insertStatement.bind(row.legacy.subtitleFormat, at: 3)
+                try insertStatement.bind(identity?.startMilliseconds ?? row.legacy.startMilliseconds, at: 4)
+                try insertStatement.bind(identity?.endMilliseconds ?? row.legacy.endMilliseconds, at: 5)
+                if let eventIndex = identity?.eventIndex {
+                    try insertStatement.bind(eventIndex, at: 6)
+                } else {
+                    try insertStatement.bindNull(at: 6)
+                }
+                if let displayOrder = row.cue?.displayOrder {
+                    try insertStatement.bind(displayOrder, at: 7)
+                } else {
+                    try insertStatement.bindNull(at: 7)
+                }
+                try insertStatement.bind(row.legacy.videoPath, at: 8)
+                try insertStatement.bind(row.legacy.videoName, at: 9)
+                try insertStatement.bind(row.cue?.content ?? row.legacy.content, at: 10)
+                try insertStatement.bind(row.legacy.isValid ? 1 : 0, at: 11)
+                try insertStatement.bind(row.legacy.createdAt, at: 12)
+                try insertStatement.run()
+                try insertStatement.reset()
+                try insertStatement.clearBindings()
+            }
+
+            try database.execute(
+                """
+                DROP TABLE shioris;
+                ALTER TABLE shioris_v28 RENAME TO shioris;
+
+                CREATE INDEX idx_shioris_subtitle_path
+                    ON shioris(subtitle_path);
+
+                CREATE INDEX idx_shioris_order
+                    ON shioris(subtitle_path, start_ms, end_ms, cue_event_index);
+
+                CREATE INDEX idx_shioris_created_order
+                    ON shioris(created_at DESC, id DESC);
+                """
+            )
+
+            let foreignKeyCheck = try database.prepare(
+                "PRAGMA foreign_key_check(shiori_tag_assignments);"
+            )
+            guard try !foreignKeyCheck.step() else {
+                throw SQLiteDatabaseError.executeFailed(
+                    "Shiori Cue migration left an invalid foreign-key reference"
+                )
+            }
+
+            try database.execute("COMMIT;")
+            try database.execute("PRAGMA foreign_keys = ON;")
+        } catch {
+            try? database.execute("ROLLBACK;")
+            try? database.execute("PRAGMA foreign_keys = ON;")
+            throw error
+        }
+    }
+
+    private func legacyShioriMigrationRows() throws -> [LegacyShioriMigrationRow] {
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, start_ms, end_ms,
+                   video_path, video_name, content, is_valid, created_at
+            FROM shioris
+            ORDER BY id ASC;
+            """
+        )
+        var rows: [LegacyShioriMigrationRow] = []
+        while try statement.step() {
+            rows.append(
+                LegacyShioriMigrationRow(
+                    id: statement.int64Column(0),
+                    subtitlePath: statement.stringColumn(1),
+                    subtitleFormat: statement.stringColumn(2),
+                    startMilliseconds: statement.intColumn(3),
+                    endMilliseconds: statement.intColumn(4),
+                    videoPath: statement.stringColumn(5),
+                    videoName: statement.stringColumn(6),
+                    content: statement.stringColumn(7),
+                    isValid: statement.intColumn(8) != 0,
+                    createdAt: statement.stringColumn(9)
+                )
+            )
+        }
+        return rows
+    }
+
+    private func legacyShioriCueCandidate(
+        for shiori: LegacyShioriMigrationRow
+    ) throws -> LegacyShioriCueCandidate? {
+        let statement = try database.prepare(
+            """
+            SELECT l.event_index, l.display_order, l.start_ms, l.end_ms, l.content,
+                   EXISTS (
+                       SELECT 1
+                       FROM subtitle_language_detections d
+                       WHERE d.subtitle_file_id = sf.id
+                         AND (
+                             (d.scope = 'style' AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*'))
+                             OR (d.scope = 'file' AND d.scope_key = '')
+                         )
+                   ) AS has_language_detection,
+                   EXISTS (
+                       SELECT 1
+                       FROM subtitle_language_detections d
+                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
+                       WHERE d.subtitle_file_id = sf.id
+                         AND dc.language_code = 'ja'
+                         AND (
+                             (d.scope = 'style' AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*'))
+                             OR (d.scope = 'file' AND d.scope_key = '')
+                         )
+                   ) AS is_japanese
+            FROM subtitle_files sf
+            JOIN subtitle_cue_groups g ON g.subtitle_file_id = sf.id
+            JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
+            WHERE sf.subtitle_path = ?
+              AND g.start_ms = ?
+              AND g.end_ms = ?
+            ORDER BY g.id ASC, l.display_order ASC, l.event_index ASC, l.id ASC;
+            """
+        )
+        try statement.bind(shiori.subtitlePath, at: 1)
+        try statement.bind(shiori.startMilliseconds, at: 2)
+        try statement.bind(shiori.endMilliseconds, at: 3)
+
+        let recognizer = SubtitleLanguageRecognizer()
+        var candidates: [LegacyShioriCueCandidate] = []
+        while try statement.step() {
+            let content = statement.stringColumn(4)
+            let hasLanguageDetection = statement.intColumn(5) != 0
+            let isJapanese: Bool
+            if hasLanguageDetection {
+                isJapanese = statement.intColumn(6) != 0
+            } else {
+                isJapanese = recognizer.detectLanguages(
+                    in: SubtitleLanguageAnalyzer.languageSegments(from: content)
+                ).languages.contains(.japanese)
+            }
+            candidates.append(
+                LegacyShioriCueCandidate(
+                    identity: SubtitleCueIdentity(
+                        eventIndex: statement.intColumn(0),
+                        startMilliseconds: statement.intColumn(2),
+                        endMilliseconds: statement.intColumn(3)
+                    ),
+                    displayOrder: statement.intColumn(1),
+                    content: content,
+                    isJapanese: isJapanese
+                )
+            )
+        }
+
+        return candidates.last(where: \.isJapanese) ?? candidates.last
     }
 
     private static func cueTimeRange(startMilliseconds: Int, endMilliseconds: Int) -> String {
@@ -3076,20 +3416,44 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return nil
         }
 
-        let lineContents = try cueLines(forCueGroupID: group.cueGroupID)
-            .map(\.content)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let fallbackLines = group.searchContent
-            .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        if let selection = try bottommostCueTextSelection(forCueGroupID: group.cueGroupID) {
+            return selection
+        }
 
         return SubtitleCueTextSelection(
             cueGroupID: group.cueGroupID,
             startMilliseconds: group.startMilliseconds,
             endMilliseconds: group.endMilliseconds,
-            lines: lineContents.isEmpty ? fallbackLines : lineContents
+            cueEventIndex: nil,
+            cueDisplayOrder: nil,
+            content: group.searchContent
+        )
+    }
+
+    private func bottommostCueTextSelection(
+        forCueGroupID cueGroupID: Int64
+    ) throws -> SubtitleCueTextSelection? {
+        let statement = try database.prepare(
+            """
+            SELECT id, event_index, display_order, start_ms, end_ms, content
+            FROM subtitle_cue_lines
+            WHERE cue_group_id = ?
+            ORDER BY display_order DESC, event_index DESC, id DESC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(cueGroupID, at: 1)
+        guard try statement.step() else {
+            return nil
+        }
+        return SubtitleCueTextSelection(
+            cueGroupID: cueGroupID,
+            cueLineID: statement.int64Column(0),
+            startMilliseconds: statement.intColumn(3),
+            endMilliseconds: statement.intColumn(4),
+            cueEventIndex: statement.intColumn(1),
+            cueDisplayOrder: statement.intColumn(2),
+            content: statement.stringColumn(5)
         )
     }
 
@@ -6470,6 +6834,39 @@ public final class SubtitleDatabase: @unchecked Sendable {
         selection: SubtitleCueTextSelection,
         createdAt: Date = Date()
     ) throws -> Shiori {
+        let resolvedSelection: SubtitleCueTextSelection
+        if selection.cueIdentity != nil {
+            resolvedSelection = selection
+        } else if let indexedSelection = try bottommostCueTextSelection(
+            forCueGroupID: selection.cueGroupID
+        ) {
+            resolvedSelection = indexedSelection
+        } else {
+            resolvedSelection = selection
+        }
+
+        if resolvedSelection.cueIdentity == nil,
+           let existing = try unresolvedShiori(
+               subtitleFile: subtitleFile,
+               startMilliseconds: resolvedSelection.startMilliseconds,
+               endMilliseconds: resolvedSelection.endMilliseconds,
+               content: resolvedSelection.content
+           ) {
+            let updateStatement = try database.prepare(
+                """
+                UPDATE shioris
+                SET subtitle_format = ?, video_path = ?, video_name = ?, is_valid = 1
+                WHERE id = ?;
+                """
+            )
+            try updateStatement.bind(subtitleFormat.rawValue, at: 1)
+            try updateStatement.bind(videoFile.path, at: 2)
+            try updateStatement.bind(videoName, at: 3)
+            try updateStatement.bind(existing.id, at: 4)
+            try updateStatement.run()
+            return try shiori(id: existing.id) ?? existing
+        }
+
         let statement = try database.prepare(
             """
             INSERT INTO shioris(
@@ -6477,15 +6874,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitle_format,
                 start_ms,
                 end_ms,
+                cue_event_index,
+                cue_display_order,
                 video_path,
                 video_name,
                 content,
                 is_valid,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
-            ON CONFLICT(subtitle_path, start_ms, end_ms) DO UPDATE SET
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(subtitle_path, cue_event_index, start_ms, end_ms) DO UPDATE SET
                 subtitle_format = excluded.subtitle_format,
+                cue_display_order = excluded.cue_display_order,
                 video_path = excluded.video_path,
                 video_name = excluded.video_name,
                 content = excluded.content,
@@ -6495,23 +6895,69 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         try statement.bind(subtitleFile.path, at: 1)
         try statement.bind(subtitleFormat.rawValue, at: 2)
-        try statement.bind(max(0, selection.startMilliseconds), at: 3)
-        try statement.bind(max(selection.startMilliseconds, selection.endMilliseconds), at: 4)
-        try statement.bind(videoFile.path, at: 5)
-        try statement.bind(videoName, at: 6)
-        try statement.bind(selection.text, at: 7)
-        try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 8)
+        try statement.bind(resolvedSelection.startMilliseconds, at: 3)
+        try statement.bind(resolvedSelection.endMilliseconds, at: 4)
+        if let eventIndex = resolvedSelection.cueEventIndex {
+            try statement.bind(eventIndex, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
+        }
+        if let displayOrder = resolvedSelection.cueDisplayOrder {
+            try statement.bind(displayOrder, at: 6)
+        } else {
+            try statement.bindNull(at: 6)
+        }
+        try statement.bind(videoFile.path, at: 7)
+        try statement.bind(videoName, at: 8)
+        try statement.bind(resolvedSelection.text, at: 9)
+        try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 10)
         try statement.run()
 
-        guard let shiori = try shiori(
-            subtitleFile: subtitleFile,
-            startMilliseconds: selection.startMilliseconds,
-            endMilliseconds: selection.endMilliseconds
-        ) else {
+        let savedShiori: Shiori?
+        if let identity = resolvedSelection.cueIdentity {
+            savedShiori = try shiori(subtitleFile: subtitleFile, cueIdentity: identity)
+        } else {
+            savedShiori = try unresolvedShiori(
+                subtitleFile: subtitleFile,
+                startMilliseconds: resolvedSelection.startMilliseconds,
+                endMilliseconds: resolvedSelection.endMilliseconds,
+                content: resolvedSelection.content
+            )
+        }
+        guard let savedShiori else {
             throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
         }
 
-        return shiori
+        return savedShiori
+    }
+
+    public func shiori(
+        subtitleFile: URL,
+        cueIdentity: SubtitleCueIdentity
+    ) throws -> Shiori? {
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
+                   start_ms, end_ms, cue_event_index, cue_display_order,
+                   content, is_valid, created_at
+            FROM shioris
+            WHERE subtitle_path = ?
+              AND cue_event_index = ?
+              AND start_ms = ?
+              AND end_ms = ?;
+            """
+        )
+
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(cueIdentity.eventIndex, at: 2)
+        try statement.bind(cueIdentity.startMilliseconds, at: 3)
+        try statement.bind(cueIdentity.endMilliseconds, at: 4)
+
+        guard try statement.step() else {
+            return nil
+        }
+
+        return shiori(from: statement)
     }
 
     public func shiori(
@@ -6522,22 +6968,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, content, is_valid, created_at
+                   start_ms, end_ms, cue_event_index, cue_display_order,
+                   content, is_valid, created_at
             FROM shioris
             WHERE subtitle_path = ?
               AND start_ms = ?
-              AND end_ms = ?;
+              AND end_ms = ?
+            ORDER BY cue_display_order DESC, cue_event_index DESC, id ASC
+            LIMIT 1;
             """
         )
-
         try statement.bind(subtitleFile.path, at: 1)
         try statement.bind(max(0, startMilliseconds), at: 2)
         try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
-
         guard try statement.step() else {
             return nil
         }
-
         return shiori(from: statement)
     }
 
@@ -6545,7 +6991,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, content, is_valid, created_at
+                   start_ms, end_ms, cue_event_index, cue_display_order,
+                   content, is_valid, created_at
             FROM shioris
             WHERE id = ?;
             """
@@ -6557,6 +7004,38 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return nil
         }
 
+        return shiori(from: statement)
+    }
+
+    private func unresolvedShiori(
+        subtitleFile: URL,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        content: String
+    ) throws -> Shiori? {
+        let statement = try database.prepare(
+            """
+            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
+                   start_ms, end_ms, cue_event_index, cue_display_order,
+                   content, is_valid, created_at
+            FROM shioris
+            WHERE subtitle_path = ?
+              AND cue_event_index IS NULL
+              AND cue_display_order IS NULL
+              AND start_ms = ?
+              AND end_ms = ?
+              AND content = ?
+            ORDER BY id ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(max(0, startMilliseconds), at: 2)
+        try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
+        try statement.bind(content, at: 4)
+        guard try statement.step() else {
+            return nil
+        }
         return shiori(from: statement)
     }
 
@@ -6578,7 +7057,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, content, is_valid, created_at
+                   start_ms, end_ms, cue_event_index, cue_display_order,
+                   content, is_valid, created_at
             FROM shioris
             WHERE \(orderingPredicate)
             \(orderingClause)
@@ -6601,7 +7081,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, content, is_valid, created_at
+                   start_ms, end_ms, cue_event_index, cue_display_order,
+                   content, is_valid, created_at
             FROM shioris
             ORDER BY subtitle_path ASC, start_ms ASC, end_ms ASC, id ASC;
             """
@@ -6707,29 +7188,38 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT s.id, s.subtitle_path, s.subtitle_format, s.video_path, s.video_name,
-                   s.start_ms, s.end_ms, s.content, s.is_valid, s.created_at,
+                   s.start_ms, s.end_ms, s.cue_event_index, s.cue_display_order,
+                   s.content, s.is_valid, s.created_at,
                    sor.display_title,
                    (
-                       SELECT GROUP_CONCAT(cgl.language_code)
-                       FROM subtitle_files sf
-                       JOIN subtitle_cue_groups g
-                         ON g.subtitle_file_id = sf.id
-                        AND g.start_ms = s.start_ms
-                        AND g.end_ms = s.end_ms
-                       JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
-                       WHERE sf.subtitle_path = s.subtitle_path
-                   ) AS language_values,
-                   (
-                       SELECT g.time_range
-                       FROM subtitle_files sf
-                       JOIN subtitle_cue_groups g
-                         ON g.subtitle_file_id = sf.id
-                        AND g.start_ms = s.start_ms
-                        AND g.end_ms = s.end_ms
-                       WHERE sf.subtitle_path = s.subtitle_path
-                       ORDER BY g.id ASC
-                       LIMIT 1
-                   ) AS time_range
+                       SELECT GROUP_CONCAT(language_code)
+                       FROM (
+                           SELECT DISTINCT cgl.language_code AS language_code
+                           FROM subtitle_files sf
+                           JOIN subtitle_cue_groups g ON g.subtitle_file_id = sf.id
+                           JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
+                           LEFT JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
+                           WHERE sf.subtitle_path = s.subtitle_path
+                             AND (
+                                 (
+                                     s.cue_event_index IS NOT NULL
+                                     AND l.event_index = s.cue_event_index
+                                     AND l.start_ms = s.start_ms
+                                     AND l.end_ms = s.end_ms
+                                     AND (
+                                         s.cue_display_order IS NULL
+                                         OR l.display_order = s.cue_display_order
+                                     )
+                                 )
+                                 OR (
+                                     s.cue_event_index IS NULL
+                                     AND g.start_ms = s.start_ms
+                                     AND g.end_ms = s.end_ms
+                                 )
+                             )
+                           ORDER BY cgl.language_code ASC
+                       )
+                   ) AS language_values
             FROM shioris s
             LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
             ORDER BY s.created_at DESC, s.id DESC
@@ -6744,18 +7234,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var candidates: [ShioriTableCandidate] = []
         while try statement.step() {
-            let shiori = shiori(
-                from: statement,
-                timeRange: statement.nullableStringColumn(12)
-            )
+            let shiori = shiori(from: statement)
             candidates.append(
                 ShioriTableCandidate(
                     shiori: shiori,
                     displayTitle: Self.shioriDisplayTitle(
-                        rawValue: statement.nullableStringColumn(10),
+                        rawValue: statement.nullableStringColumn(12),
                         subtitlePath: shiori.subtitlePath
                     ),
-                    languages: Self.languageValues(from: statement.nullableStringColumn(11))
+                    languages: Self.languageValues(from: statement.nullableStringColumn(13))
                 )
             )
         }
@@ -6987,31 +7474,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     @discardableResult
-    public func removeShiori(
-        subtitleFile: URL,
-        startMilliseconds: Int,
-        endMilliseconds: Int
-    ) throws -> Bool {
-        guard try shiori(
-            subtitleFile: subtitleFile,
-            startMilliseconds: startMilliseconds,
-            endMilliseconds: endMilliseconds
-        ) != nil else {
+    public func removeShiori(id: Int64) throws -> Bool {
+        guard try shiori(id: id) != nil else {
             return false
         }
 
         let statement = try database.prepare(
             """
             DELETE FROM shioris
-            WHERE subtitle_path = ?
-              AND start_ms = ?
-              AND end_ms = ?;
+            WHERE id = ?;
             """
         )
-
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(max(0, startMilliseconds), at: 2)
-        try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
+        try statement.bind(id, at: 1)
         try statement.run()
         return true
     }
@@ -9578,9 +10052,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
             timeRange: timeRange ?? "",
             startMilliseconds: statement.intColumn(5),
             endMilliseconds: statement.intColumn(6),
-            content: statement.stringColumn(7),
-            isValid: statement.intColumn(8) != 0,
-            createdAt: statement.stringColumn(9)
+            cueEventIndex: statement.nullableIntColumn(7),
+            cueDisplayOrder: statement.nullableIntColumn(8),
+            content: statement.stringColumn(9),
+            isValid: statement.intColumn(10) != 0,
+            createdAt: statement.stringColumn(11)
         )
     }
 

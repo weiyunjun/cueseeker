@@ -3060,6 +3060,71 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
 }
 
 @Test
+func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Same Time.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/Same Time.mkv")
+    let topSelection = SubtitleCueTextSelection(
+        cueGroupID: 1,
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        cueEventIndex: 10,
+        cueDisplayOrder: 0,
+        content: "Chinese upper cue"
+    )
+    let bottomSelection = SubtitleCueTextSelection(
+        cueGroupID: 1,
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        cueEventIndex: 11,
+        cueDisplayOrder: 1,
+        content: "Japanese lower cue"
+    )
+
+    let top = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .ass,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: topSelection,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let bottom = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .ass,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: bottomSelection,
+        createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+    )
+    let duplicateBottom = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .ass,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: bottomSelection,
+        createdAt: Date(timeIntervalSince1970: 1_900_000_000)
+    )
+
+    #expect(top.id != bottom.id)
+    #expect(bottom.id == duplicateBottom.id)
+    #expect(top.cueIdentity == topSelection.cueIdentity)
+    #expect(bottom.cueIdentity == bottomSelection.cueIdentity)
+    #expect(duplicateBottom.createdAt == bottom.createdAt)
+    #expect(try database.shioriCount() == 2)
+    #expect(try database.removeShiori(id: bottom.id))
+    #expect(try database.shiori(id: top.id) != nil)
+    #expect(try database.shiori(id: bottom.id) == nil)
+}
+
+@Test
 func shioriPageReturnsNewestRowsWithLanguages() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -3448,6 +3513,61 @@ func migrationAddsShioriTagsWithoutDroppingExistingShioris() throws {
     let tag = try database.assignShioriTag(named: "Review", toShioriID: shiori.id)
     #expect(tag.name == "Review")
     #expect(try database.shioriTags(forShioriID: shiori.id).map(\.name) == ["Review"])
+}
+
+@Test
+func migrationConvertsLegacyShioriToJapaneseCueAndBottommostFallback() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try createVersionTwentySevenCueGroupShioriDatabase(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == 28)
+
+    let japanese = try #require(try database.shiori(id: 42))
+    #expect(japanese.content == "日本語の下段です")
+    #expect(japanese.startMilliseconds == 1_050)
+    #expect(japanese.endMilliseconds == 2_950)
+    #expect(japanese.cueEventIndex == 102)
+    #expect(japanese.cueDisplayOrder == 1)
+    #expect(!japanese.isValid)
+    #expect(japanese.createdAt == "2026-07-10T01:02:03Z")
+
+    let fallback = try #require(try database.shiori(id: 44))
+    #expect(fallback.content == "Lower fallback cue")
+    #expect(fallback.cueEventIndex == 201)
+    #expect(fallback.cueDisplayOrder == 1)
+}
+
+@Test
+func migrationPreservesLegacyShioriTagsAndUnindexedSnapshot() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try createVersionTwentySevenCueGroupShioriDatabase(at: databaseURL)
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try database.shioriTags(forShioriID: 42).map(\.name) == ["Review"])
+    #expect(try database.shioriTags(forShioriID: 43).map(\.name) == ["Review"])
+
+    let orphan = try #require(try database.shiori(id: 43))
+    #expect(orphan.subtitlePath == "/Media/Missing.ass")
+    #expect(orphan.content == "Unindexed Japanese and Chinese snapshot")
+    #expect(orphan.startMilliseconds == 6_000)
+    #expect(orphan.endMilliseconds == 7_000)
+    #expect(orphan.cueIdentity == nil)
+    #expect(orphan.isValid)
+    #expect(orphan.createdAt == "2026-07-10T02:03:04Z")
 }
 
 @Test
@@ -5038,7 +5158,7 @@ func cueTextSelectionFallsBackToPreviousCueRange() throws {
 }
 
 @Test
-func cueTextSelectionReturnsLinesInSearchResultDisplayOrder() throws {
+func cueTextSelectionReturnsPhysicallyBottommostCueAsSingleCue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -5083,8 +5203,10 @@ func cueTextSelectionReturnsLinesInSearchResultDisplayOrder() throws {
 
     let selectedCue = try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 2_000)
     let selection = try #require(selectedCue)
-    #expect(selection.lines == ["top", "bottom"])
-    #expect(selection.text == "top\nbottom")
+    #expect(selection.lines == ["bottom"])
+    #expect(selection.text == "bottom")
+    #expect(selection.cueEventIndex == 0)
+    #expect(selection.cueDisplayOrder == 1)
 }
 
 @Test
@@ -5940,6 +6062,190 @@ private func createVersionTwentyFiveDatabaseWithShiori(at url: URL) throws {
         );
 
         PRAGMA user_version = 25;
+        """
+    )
+}
+
+private func createVersionTwentySevenCueGroupShioriDatabase(at url: URL) throws {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    try executeSQLite(
+        database,
+        """
+        PRAGMA foreign_keys = ON;
+
+        CREATE TABLE subtitle_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_path TEXT NOT NULL UNIQUE,
+            format TEXT NOT NULL,
+            file_size INTEGER,
+            modified_at REAL,
+            indexed_at TEXT NOT NULL,
+            index_algorithm_version INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE subtitle_cue_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER NOT NULL,
+            subtitle_path TEXT NOT NULL,
+            seq INTEGER,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            time_range TEXT NOT NULL DEFAULT '',
+            search_content TEXT NOT NULL,
+            line_count INTEGER NOT NULL DEFAULT 1,
+            FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE subtitle_cue_lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cue_group_id INTEGER NOT NULL,
+            event_index INTEGER NOT NULL,
+            source_format TEXT NOT NULL,
+            source_style TEXT,
+            source_layer INTEGER,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            display_x REAL,
+            display_y REAL,
+            display_order INTEGER NOT NULL,
+            FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE subtitle_language_detections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER NOT NULL,
+            scope TEXT NOT NULL,
+            scope_key TEXT NOT NULL DEFAULT '',
+            algorithm_version INTEGER NOT NULL,
+            confidence REAL NOT NULL,
+            confidence_band TEXT NOT NULL,
+            segment_count INTEGER NOT NULL,
+            effective_character_count INTEGER NOT NULL,
+            detected_at TEXT NOT NULL,
+            UNIQUE(subtitle_file_id, scope, scope_key),
+            FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE subtitle_language_detection_codes (
+            detection_id INTEGER NOT NULL,
+            language_code TEXT NOT NULL,
+            PRIMARY KEY(detection_id, language_code),
+            FOREIGN KEY(detection_id) REFERENCES subtitle_language_detections(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE shioris (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_path TEXT NOT NULL,
+            subtitle_format TEXT NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            video_path TEXT NOT NULL,
+            video_name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            is_valid INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            UNIQUE(subtitle_path, start_ms, end_ms)
+        );
+
+        CREATE TABLE shiori_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE shiori_tag_assignments (
+            shiori_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY(shiori_id, tag_id),
+            FOREIGN KEY(shiori_id) REFERENCES shioris(id) ON DELETE CASCADE,
+            FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO subtitle_files(
+            id, subtitle_path, format, file_size, modified_at, indexed_at, index_algorithm_version
+        )
+        VALUES
+            (1, '/Media/Legacy.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3),
+            (2, '/Media/Fallback.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3);
+
+        INSERT INTO subtitle_cue_groups(
+            id, subtitle_file_id, subtitle_path, seq, start_time, end_time,
+            start_ms, end_ms, time_range, search_content, line_count
+        )
+        VALUES
+            (1, 1, '/Media/Legacy.ass', NULL, '0:00:01.00', '0:00:03.00',
+             1000, 3000, '00:01 - 00:03', '日本語の字幕です\n日本語の下段です\n中文字幕', 3),
+            (2, 2, '/Media/Fallback.ass', NULL, '0:00:04.00', '0:00:05.00',
+             4000, 5000, '00:04 - 00:05', 'Upper fallback cue\nLower fallback cue', 2);
+
+        INSERT INTO subtitle_cue_lines(
+            id, cue_group_id, event_index, source_format, source_style, source_layer,
+            start_time, end_time, start_ms, end_ms, content, display_x, display_y, display_order
+        )
+        VALUES
+            (10, 1, 100, 'ass', 'ZH', 0, '0:00:01.20', '0:00:02.80',
+             1200, 2800, '中文字幕', NULL, 300, 2),
+            (11, 1, 101, 'ass', 'JP', 0, '0:00:01.10', '0:00:02.90',
+             1100, 2900, '日本語の字幕です', NULL, 100, 0),
+            (12, 1, 102, 'ass', 'JP', 0, '0:00:01.05', '0:00:02.95',
+             1050, 2950, '日本語の下段です', NULL, 200, 1),
+            (20, 2, 200, 'ass', NULL, 0, '0:00:04.10', '0:00:04.90',
+             4100, 4900, 'Upper fallback cue', NULL, 100, 0),
+            (21, 2, 201, 'ass', NULL, 0, '0:00:04.20', '0:00:04.80',
+             4200, 4800, 'Lower fallback cue', NULL, 200, 1);
+
+        INSERT INTO subtitle_language_detections(
+            id, subtitle_file_id, scope, scope_key, algorithm_version, confidence,
+            confidence_band, segment_count, effective_character_count, detected_at
+        )
+        VALUES
+            (1, 1, 'style', 'ZH', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z'),
+            (2, 1, 'style', 'JP', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z');
+
+        INSERT INTO subtitle_language_detection_codes(detection_id, language_code)
+        VALUES (1, 'zh-Hans'), (2, 'ja');
+
+        INSERT INTO shioris(
+            id, subtitle_path, subtitle_format, start_ms, end_ms,
+            video_path, video_name, content, is_valid, created_at
+        )
+        VALUES
+            (42, '/Media/Legacy.ass', 'ass', 1000, 3000,
+             '/Media/Legacy.mkv', 'Legacy.mkv', '日本語の字幕です\n日本語の下段です\n中文字幕', 0,
+             '2026-07-10T01:02:03Z'),
+            (43, '/Media/Missing.ass', 'ass', 6000, 7000,
+             '/Media/Missing.mkv', 'Missing.mkv', 'Unindexed Japanese and Chinese snapshot', 1,
+             '2026-07-10T02:03:04Z'),
+            (44, '/Media/Fallback.ass', 'ass', 4000, 5000,
+             '/Media/Fallback.mkv', 'Fallback.mkv', 'Upper fallback cue\nLower fallback cue', 1,
+             '2026-07-10T03:04:05Z');
+
+        INSERT INTO shiori_tags(id, name, normalized_name, created_at)
+        VALUES (7, 'Review', 'Review', '2026-07-10T00:00:00Z');
+
+        INSERT INTO shiori_tag_assignments(shiori_id, tag_id, created_at)
+        VALUES
+            (42, 7, '2026-07-10T01:02:04Z'),
+            (43, 7, '2026-07-10T02:03:05Z');
+
+        PRAGMA user_version = 27;
         """
     )
 }

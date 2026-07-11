@@ -114,8 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version before the accepted Cue migration is `27`.
-- The accepted next schema version is `28`.
+- The implemented schema version is `28`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -155,8 +154,9 @@ Current mechanism:
 - Schema version `28` changes Shiori uniqueness from Cue Group timing to
   individual Cue identity using subtitle path, source event index, and Cue
   timing. The migration preserves Shiori IDs, creation timestamps, and tag
-  assignments; resolvable legacy rows retain only the physically bottommost
-  Cue's complete text.
+  assignments; resolvable legacy rows prefer a Japanese Cue and use the
+  physically bottommost eligible Cue as the deterministic tie-break and
+  fallback. Unindexed rows remain durable with unresolved Cue identity.
 
 ## 5. Migration Rules
 

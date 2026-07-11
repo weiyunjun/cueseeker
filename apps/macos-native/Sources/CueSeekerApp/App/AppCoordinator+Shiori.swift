@@ -217,11 +217,7 @@ extension AppCoordinator {
         }
 
         do {
-            try database.removeShiori(
-                subtitleFile: URL(fileURLWithPath: item.subtitlePath),
-                startMilliseconds: item.startMilliseconds,
-                endMilliseconds: item.endMilliseconds
-            )
+            try database.removeShiori(id: item.id)
             if reloadPresentation {
                 try refreshShioriPresentationAfterMutation(database: database)
             } else {

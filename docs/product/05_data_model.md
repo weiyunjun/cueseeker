@@ -390,11 +390,14 @@ Creating Shiori for a Cue that already has matching `subtitle_path`,
 record rather than creating a duplicate row. Different Cues in the same Cue
 Group may each have their own Shiori record.
 
-The version-28 migration converts legacy Cue-Group Shiori rows to the physically
-bottommost indexed Cue in the matching exact time window, replaces stored group
-text with that Cue's complete text, and preserves the Shiori row ID, creation
-timestamp, and tag assignments. A legacy Shiori whose source Cue is unavailable
-remains durable with an unresolved Cue identity instead of being deleted.
+The implemented version-28 migration converts legacy Cue-Group Shiori rows to
+one indexed Cue in the matching exact time window. It prefers Cues recognized as
+Japanese; when several Japanese Cues exist it chooses the physically bottommost
+one, and when no Cue can be recognized as Japanese it falls back to the
+physically bottommost Cue. It replaces stored group text with that Cue's
+complete text and preserves the Shiori row ID, validity, creation timestamp,
+and tag assignments. A legacy Shiori whose source Cue is unavailable remains
+durable with an unresolved Cue identity instead of being deleted.
 
 A Shiori record is durable user state. Its current resolved link to
 an indexed subtitle cue, video file, or Library row is derived index state. If
@@ -442,8 +445,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Implemented schema version before the accepted Cue migration: `27`.
-- Accepted next schema version: `28`.
+- Implemented schema version: `28`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -482,7 +484,8 @@ Current native schema:
   durable master-cover reference.
 - Version 28 changes durable Shiori identity from Cue Group timing to individual
   Cue identity, preserves tag assignments, and migrates resolvable legacy rows
-  to the physically bottommost Cue in their indexed group.
+  to a Japanese Cue when one is identifiable, choosing the physically
+  bottommost eligible Cue as the deterministic tie-break and fallback.
 
 ## 15. Flutter Data Compatibility
 
