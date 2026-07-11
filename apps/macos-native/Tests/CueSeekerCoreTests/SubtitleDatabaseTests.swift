@@ -1086,10 +1086,12 @@ func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throw
 
     let japaneseResults = try database.search("今日", languageFilter: .japanese)
     #expect(japaneseResults.map(\.startMilliseconds) == [2_000])
-    #expect(japaneseResults.first?.cueLines == [
+    #expect(japaneseResults.first?.cueLines == ["今日は大丈夫です"])
+    #expect(japaneseResults.first?.cueGroupLines == [
         "只是中文上下文",
         "今日は大丈夫です"
     ])
+    #expect(japaneseResults.first?.languages == [.japanese])
     #expect(try database.search("今日", languageFilter: .chinese).isEmpty)
 
     let visiblePage = try database.searchVisiblePage(
@@ -1311,7 +1313,7 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
 }
 
 @Test
-func searchExactPageCanReturnOnlyCueGroupIDsForCompletion() throws {
+func searchExactPageCanReturnOnlyCueIDsForCompletion() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1340,7 +1342,7 @@ func searchExactPageCanReturnOnlyCueGroupIDsForCompletion() throws {
     #expect(page.results.isEmpty)
     #expect(page.renderableResults.isEmpty)
     #expect(page.totalCount == 3)
-    #expect(page.cueGroupIDs.count == 3)
+    #expect(page.cueIDs.count == 3)
     #expect(page.nextCursor == nil)
 }
 
@@ -1653,7 +1655,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     #expect(progress.allSatisfy { $0.countState == .exactProgress })
     #expect(progress.map(\.knownResultCount) == progress.map(\.knownResultCount).sorted())
     #expect(progress.allSatisfy { $0.results.count == $0.knownResultCount })
-    #expect(progress.allSatisfy { $0.cueGroupIDs.count == $0.knownResultCount })
+    #expect(progress.allSatisfy { $0.cueIDs.count == $0.knownResultCount })
     #expect(progress.last?.knownResultCount == 5_000)
     #expect(progress.last?.knownFileCount == 1)
     #expect(progress.last?.fileSummaries.map(\.matchCount) == [5_000])
@@ -1663,7 +1665,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     #expect(page.countState == .exact)
     #expect(page.results.count == 50)
     #expect(page.renderableResults.count == 5_100)
-    #expect(page.renderableResults.count == page.cueGroupIDs.count)
+    #expect(page.renderableResults.count == page.cueIDs.count)
     #expect(page.totalCount == 5_100)
     #expect(page.knownResultCount == 5_100)
     #expect(page.fileSummaries.map(\.matchCount) == [5_100])
@@ -1878,7 +1880,7 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 }
 
 @Test
-func cueGroupOccurrenceCountMatchesSearchPageExactTotals() throws {
+func cueOccurrenceCountMatchesSearchPageExactTotals() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1912,19 +1914,19 @@ func cueGroupOccurrenceCountMatchesSearchPageExactTotals() throws {
     )
 
     let allCJKPage = try database.searchPage("一級", limit: 10)
-    #expect(try database.cueGroupOccurrenceCount(for: " 一級 ") == allCJKPage.totalCount)
+    #expect(try database.cueOccurrenceCount(for: " 一級 ") == allCJKPage.totalCount)
     #expect(allCJKPage.totalCount == 3)
 
     let scopedCJKPage = try database.searchPage("一級", limit: 10, under: [mediaFolder])
-    #expect(try database.cueGroupOccurrenceCount(for: "一級", under: [mediaFolder]) == scopedCJKPage.totalCount)
+    #expect(try database.cueOccurrenceCount(for: "一級", under: [mediaFolder]) == scopedCJKPage.totalCount)
     #expect(scopedCJKPage.totalCount == 2)
 
     let phrasePage = try database.searchPage("一級試験", limit: 10)
-    #expect(try database.cueGroupOccurrenceCount(for: "一級試験") == phrasePage.totalCount)
+    #expect(try database.cueOccurrenceCount(for: "一級試験") == phrasePage.totalCount)
     #expect(phrasePage.totalCount == 2)
 
     let latinPage = try database.searchPage("mag", limit: 10)
-    #expect(try database.cueGroupOccurrenceCount(for: "mag") == latinPage.totalCount)
+    #expect(try database.cueOccurrenceCount(for: "mag") == latinPage.totalCount)
     #expect(latinPage.totalCount == 1)
 }
 
@@ -4663,7 +4665,7 @@ func migrationRebuildsFTSRowsForJapaneseKanaSearch() throws {
 }
 
 @Test
-func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
+func searchesIndividualCuesAndRejectsCrossCueOnlyMatches() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -4723,11 +4725,204 @@ func searchesCueGroupsAndRejectsCrossLineOnlyMatches() throws {
     let alphaResults = try database.search("alpha")
     #expect(alphaResults.count == 1)
     #expect(alphaResults[0].subtitleFormat == .ass)
-    #expect(alphaResults[0].cueLines == ["alpha", "beta"])
+    #expect(alphaResults[0].content == "alpha")
+    #expect(alphaResults[0].cueLines == ["alpha"])
+    #expect(alphaResults[0].cueGroupLines == ["alpha", "beta"])
+    #expect(alphaResults[0].cueEventIndex == 0)
+    #expect(alphaResults[0].cueDisplayOrder == 0)
     #expect(alphaResults[0].videoPath == videoFile.path)
     #expect(alphaResults[0].startMilliseconds == 1_000)
 
     #expect(try database.search("alpha beta").isEmpty)
+}
+
+@Test
+func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/SiblingMatches.ass")
+    let videoFile = URL(fileURLWithPath: "/Media/SiblingMatches.mkv")
+    let cueGroup = SubtitleCueGroup(
+        sequenceNumber: nil,
+        startTimecode: "0:00:01.00",
+        endTimecode: "0:00:03.00",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        searchContent: "shared upper\nshared lower",
+        cueLines: [
+            testCueLine(
+                eventIndex: 10,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "shared upper",
+                displayOrder: 0
+            ),
+            testCueLine(
+                eventIndex: 11,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                content: "shared lower",
+                displayOrder: 1
+            ),
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [cueGroup]
+    )
+
+    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let exactFirst = try database.searchPage(
+        "shared",
+        limit: 1,
+        cursor: .start
+    )
+    #expect(exactFirst.totalCount == 2)
+    #expect(exactFirst.results.map(\.content) == ["shared upper"])
+    #expect(exactFirst.cueIDs == cueRecords.map(\.id))
+    #expect(exactFirst.fileSummaries.map(\.matchCount) == [2])
+    #expect(exactFirst.nextCursor == SubtitleSearchCursor(offset: 1))
+    #expect(exactFirst.results[0].cueGroupLines == ["shared upper", "shared lower"])
+
+    let exactSecond = try database.searchPage(
+        "shared",
+        limit: 1,
+        cursor: exactFirst.nextCursor
+    )
+    #expect(exactSecond.results.map(\.content) == ["shared lower"])
+    #expect(exactSecond.results.map(\.searchRank) == [1])
+    #expect(exactSecond.nextCursor == nil)
+
+    let visibleFirst = try database.searchVisiblePage(
+        "shared",
+        limit: 1,
+        cursor: .start
+    )
+    let visibleSecond = try database.searchVisiblePage(
+        "shared",
+        limit: 1,
+        cursor: visibleFirst.nextCursor
+    )
+    #expect(visibleFirst.results.map(\.content) == ["shared upper"])
+    #expect(visibleSecond.results.map(\.content) == ["shared lower"])
+    #expect(visibleFirst.results[0].cueGroupID == visibleSecond.results[0].cueGroupID)
+    #expect(visibleFirst.results[0].entryID != visibleSecond.results[0].entryID)
+
+    let hydratedPage = try #require(try database.searchIndexedVisiblePage(
+        from: SubtitleSearchResultIDIndexWindow(
+            cueIDs: exactFirst.cueIDs,
+            offset: 0,
+            totalCount: 2,
+            fileSummaries: exactFirst.fileSummaries,
+            countSnapshot: .exact(totalCount: 2, fileSummaryCount: 1),
+            appliedCursor: .start,
+            nextCursor: nil
+        )
+    ))
+    #expect(hydratedPage.results.map(\.content) == ["shared upper", "shared lower"])
+    #expect(hydratedPage.results.map(\.entryID) == exactFirst.cueIDs)
+
+    let navigation = try database.searchNavigationSnapshot(
+        "shared",
+        anchor: SearchNavigationAnchor(
+            selectedEntryID: exactFirst.cueIDs[1],
+            selectedSearchRank: 1,
+            videoPath: nil,
+            subtitlePath: nil,
+            currentMilliseconds: 0
+        )
+    )
+    #expect(navigation.current?.content == "shared lower")
+    #expect(navigation.previous?.content == "shared upper")
+}
+
+@Test
+func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/MultilineCue.srt")
+    let content = "shared first line\nshared second line"
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/MultilineCue.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: content
+            )
+        ]
+    )
+
+    let results = try database.search("shared first second")
+    #expect(results.count == 1)
+    #expect(results[0].content == content)
+    #expect(results[0].cueLines == [content])
+    #expect(results[0].cueGroupLines == [content])
+}
+
+@Test
+func searchCueFiltersAndSpeakersDoNotLeakFromSiblingCue() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/CueFilterIsolation.ass")
+    let cueGroup = languageFilterASSCueGroup(
+        startMilliseconds: 1_000,
+        lines: [
+            (style: "Primary", content: "target primary cue"),
+            (style: "Context", content: "secret sibling cue"),
+        ]
+    )
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/CueFilterIsolation.mkv"),
+        format: .ass,
+        cueGroups: [cueGroup]
+    )
+    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let sibling = try #require(cueRecords.first { $0.line.content == "secret sibling cue" })
+    try database.replaceCueLineSpeakers(
+        forSubtitleFile: subtitleFile,
+        assignments: [
+            SubtitleCueLineSpeakerAssignment(cueLineID: sibling.id, speakers: ["Sibling Speaker"])
+        ]
+    )
+
+    let siblingCueFilter = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .cues, operatorID: .contains, value: "secret")
+    ])
+    let siblingSpeakerFilter = SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(field: .speaker, operatorID: .contains, value: "Sibling Speaker")
+    ])
+    #expect(try database.search("target", filterSet: siblingCueFilter).isEmpty)
+    #expect(try database.search("target", filterSet: siblingSpeakerFilter).isEmpty)
+
+    let siblingResults = try database.search("secret")
+    #expect(siblingResults.map(\.content) == ["secret sibling cue"])
+    #expect(siblingResults.first?.speakers == ["Sibling Speaker"])
 }
 
 @Test
@@ -4771,8 +4966,9 @@ func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
     ])
 
     let results = try database.search("Chinese")
-    #expect(results.map(\.content) == ["Chinese upper line\nJapanese lower line"])
-    #expect(results.first?.cueLines == ["Chinese upper line", "Japanese lower line"])
+    #expect(results.map(\.content) == ["Chinese upper line"])
+    #expect(results.first?.cueLines == ["Chinese upper line"])
+    #expect(results.first?.cueGroupLines == ["Chinese upper line", "Japanese lower line"])
 }
 
 @Test

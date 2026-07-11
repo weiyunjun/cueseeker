@@ -346,13 +346,15 @@ func indexesASSFilesAsGroupedCueResults() throws {
     #expect(searchResults.count == 1)
     #expect(searchResults[0].subtitleFormat == .ass)
     #expect(searchResults[0].videoName == "Movie.mkv")
-    #expect(searchResults[0].cueLines == ["日本語ライン", "English line"])
+    #expect(searchResults[0].cueLines == ["English line"])
+    #expect(searchResults[0].cueGroupLines == ["日本語ライン", "English line"])
     #expect(searchResults[0].startMilliseconds == 1_000)
 
     let kanaResults = try database.search("ライン")
     #expect(kanaResults.count == 1)
     #expect(kanaResults[0].subtitleFormat == .ass)
-    #expect(kanaResults[0].cueLines == ["日本語ライン", "English line"])
+    #expect(kanaResults[0].cueLines == ["日本語ライン"])
+    #expect(kanaResults[0].cueGroupLines == ["日本語ライン", "English line"])
 }
 
 @Test

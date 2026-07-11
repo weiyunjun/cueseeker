@@ -47,7 +47,7 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
         key: cacheKey,
         chunks: [AIChunkItem(item: "startup", translation: "startup")]
     )
-    #expect(try preparedDatabase.cueGroupOccurrenceCount(for: "startup") == 1)
+    #expect(try preparedDatabase.cueOccurrenceCount(for: "startup") == 1)
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
@@ -55,7 +55,7 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
     #expect(app.startupDatabaseTask == nil)
     #expect(app.libraryDisplayRenditionTask == nil)
     let database = try #require(app.subtitleDatabase)
-    #expect(try database.cueGroupOccurrenceCount(for: "startup") == 1)
+    #expect(try database.cueOccurrenceCount(for: "startup") == 1)
     #expect(try database.aiChunkCacheEntry(for: cacheKey)?.chunks == [
         AIChunkItem(item: "startup", translation: "startup")
     ])

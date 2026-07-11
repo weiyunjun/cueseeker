@@ -25,7 +25,7 @@ final class SearchStore: ObservableObject {
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResults: [SubtitleSearchResult] = []
-    @Published var searchResultCueGroupIDs: [Int64] = []
+    @Published var searchResultCueIDs: [Int64] = []
     @Published var searchResultTotalCount = 0
     @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
     @Published var searchCountState: SubtitleSearchCountState = .exact

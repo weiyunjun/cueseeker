@@ -719,7 +719,7 @@ extension AppCoordinator {
             fallbackStartMilliseconds: result.startMilliseconds,
             fallbackEndMilliseconds: result.endMilliseconds,
             fallbackContent: result.content,
-            fallbackCueGroupID: result.entryID
+            fallbackCueGroupID: result.cueGroupID
         )
     }
 

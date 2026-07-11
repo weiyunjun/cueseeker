@@ -88,7 +88,7 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     app.search.searchQuery = "shared"
     app.search.searchStatus = .searching
     app.search.searchResults = [existingResult]
-    app.search.searchResultCueGroupIDs = [existingResult.entryID]
+    app.search.searchResultCueIDs = [existingResult.entryID]
     app.search.searchResultTotalCount = 100
     app.search.searchCountState = .exactProgress
     app.search.searchKnownResultCount = 1
@@ -104,7 +104,7 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
             ),
             fileSummaries: [progressSummary],
             results: progressResults,
-            cueGroupIDs: progressResults.map(\.entryID)
+            cueIDs: progressResults.map(\.entryID)
         ),
         query: "shared",
         folderPaths: [fixtureRoot.path],
@@ -115,7 +115,7 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     )
 
     #expect(app.search.searchResults == progressResults)
-    #expect(app.search.searchResultCueGroupIDs == progressResults.map(\.entryID))
+    #expect(app.search.searchResultCueIDs == progressResults.map(\.entryID))
     #expect(app.search.searchResultTotalCount == progressResults.count)
     #expect(app.search.searchKnownResultCount == progressResults.count)
     #expect(app.loadedGlobalSearchResultCount == progressResults.count)
@@ -168,7 +168,7 @@ func searchResultGroupsKeepSummaryOnlyRowsUntilGroupExpansion() {
 
 @MainActor
 @Test
-func tableSandboxSearchRowsUseCurrentCueGroupIDsForDistantRanges() async throws {
+func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     let suiteName = "CueSeekerTableSandboxSearchIDTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
@@ -217,7 +217,7 @@ func tableSandboxSearchRowsUseCurrentCueGroupIDsForDistantRanges() async throws 
         limit: 0,
         under: [fixtureRoot]
     )
-    app.search.searchResultCueGroupIDs = exactPage.cueGroupIDs
+    app.search.searchResultCueIDs = exactPage.cueIDs
     app.search.searchResultTotalCount = exactPage.totalCount
     app.search.searchFileSummaries = exactPage.fileSummaries
     app.search.searchCountState = exactPage.countState

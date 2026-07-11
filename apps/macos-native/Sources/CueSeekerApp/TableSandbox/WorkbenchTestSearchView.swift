@@ -159,7 +159,7 @@ struct WorkbenchTestSearchView: View {
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
         }
-        .onChange(of: search.searchResultCueGroupIDs) { _ in
+        .onChange(of: search.searchResultCueIDs) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
         }
@@ -338,14 +338,14 @@ struct WorkbenchTestSearchView: View {
         resetCueContextWindow()
         let releasedRows = max(
             search.searchResults.count,
-            search.searchResultCueGroupIDs.count,
+            search.searchResultCueIDs.count,
             search.searchResultTotalCount,
             rowStore.snapshot.loadedReferenceCount,
             rowStore.snapshot.totalRowCount
         )
         search.searchQuery = ""
         search.searchResults = []
-        search.searchResultCueGroupIDs = []
+        search.searchResultCueIDs = []
         search.searchResultTotalCount = 0
         search.searchNavigationSnapshot = nil
         search.hasMoreSearchResults = false
