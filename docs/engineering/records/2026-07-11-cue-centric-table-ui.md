@@ -11,7 +11,8 @@ Implement the Cue-centric Search, Shiori, and Context table presentation in
 reviewable stages. Phase 4A establishes the row data contract and preserves
 complete source text. Phases 4B and 4C add dynamic virtual row geometry,
 optional Cue Group rendering, and shared Cue Group interactions without
-changing primary Cue semantics.
+changing primary Cue semantics. Phase 4D verifies presentation refresh scope
+through mounted native surfaces and exact diagnostic counters.
 
 ## Classification
 
@@ -202,14 +203,16 @@ changing primary Cue semantics.
 
 The final completion audit corrected the earlier Phase 4C statement about
 Liquid Glass mappings: the active mapping documents still described the older
-Search and Shiori card surfaces. That documentation conflict remains a
-separate closeout item and must be synchronized before the complete
-Cue-centric requirement is declared finished.
+Search and Shiori card surfaces. That conflict was resolved by the active-doc
+alignment recorded in
+`docs/engineering/records/2026-07-12-cue-centric-documentation-closeout.md`.
 
 ## Outcome
 
-Phases 4A through 4C give Search, Shiori, and Context one unambiguous primary
+Phases 4A through 4D give Search, Shiori, and Context one unambiguous primary
 Cue plus complete optional Cue Group context, content-driven virtual geometry,
-and shared AppKit interactions. Presentation changes now preserve scroll
-position and primary action identity without truncating subtitle content,
-scanning the full virtual row count, or changing Copy Table semantics.
+shared AppKit interactions, and verified local refresh scope. Presentation
+changes preserve scroll position and primary action identity without
+truncating subtitle content, scanning the full virtual row count, changing Copy
+Table semantics, rebuilding row snapshots, or invalidating hidden Playback and
+Subtitle Focus surfaces.

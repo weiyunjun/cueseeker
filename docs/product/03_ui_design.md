@@ -48,14 +48,16 @@ First implementation requirements:
 - Treat text editing in the topbar Search field as a draft query.
 - Submit Search only when the user presses Return.
 - Show submitted Search results in the main content area.
-- Render Search results as grouped cards in the main content area.
-- Render Shiori with the same basic grouped-card layout as Search.
-- Search and Shiori cards must show the complete cue text without truncating
-  subtitle lines.
-- Cards in the same visual row should share the tallest card height for that
-  row, with subtitle content vertically centered inside the card body area.
-- Card metadata should show the result rank and timestamp. Do not infer or
-  display episode labels unless a reliable episode source is available.
+- Render Search results as individual Cue rows in the shared native virtual
+  table described in section 4.1.
+- Render Shiori and Context with the same Cue-row table geometry and interaction
+  model as Search, with Shiori-only Tags and Date Added columns.
+- Search, Shiori, and Context rows must show the complete Cue text without
+  clipping, truncation, ellipsis, or a line-count cap.
+- Row height is content-driven rather than equalized across neighboring rows.
+- Table metadata uses Display Title, Time, and the surface-specific columns
+  defined in section 4.1; it must not infer episode labels without a reliable
+  source.
 - Remove the visible Mode Rail, resizable content-panel sidebar, and sidebar
   position setting from the active workbench.
 - Do not render a second Search field inside the Search results page.
@@ -109,9 +111,10 @@ controls:
 ui/prototypes/cueseeker-liquid-glass-v5/
 ```
 
-The standalone prototype remains the current visual baseline for HTML review of
-the main workbench, grouped Search results, Search-launched playback overlay,
-playback side panel, and video-page bottom player. The v5 directory is the
+The standalone prototype remains a visual baseline for the main workbench,
+Search-launched playback overlay, playback side panel, and video-page bottom
+player. Its grouped Search/Shiori card presentation is superseded and is not a
+normative reference for the current Cue table. The v5 directory is the
 current split-source review fork for control taxonomy, disabled states,
 prototype theme switching, bottom-player control sizing, and expanded playback
 video geometry. Earlier versioned forks remain available for visual comparison.
@@ -127,18 +130,14 @@ Stable design snapshot:
   The expanded playback state shows the video-page bottom player while
   replacing the main results area with a video surface and optional right side
   panel.
-- Search results show a compact summary row and a fixed `Collapse All` action.
-  `Collapse All` collapses all visible result groups and keeps the same label;
-  it is not an expand-all toggle. It has distinct normal and disabled states.
-- Search result groups are expanded by default. Group headers use a disclosure
-  rail, a friendly title, and a muted result count. Result cards use light glass
-  backgrounds, hover lift, readable bilingual text, and inline keyword
-  highlights. Search, Library, and Shiori main-page cards do not retain a
-  selected visual state after activation.
-- Search and Shiori group headers may show a compact Anki export icon after the
-  muted result count. The icon uses the native `square.and.arrow.up` symbol at
-  small header scale, with a fixed 24pt hit target so it reads as a secondary
-  group action rather than a title element.
+- Search, Shiori, and Context use an ungrouped native virtual table whose row
+  identity and default action target are one primary Cue. They have no
+  subtitle-file disclosure header or `Collapse All` action.
+- Search query matches may remain highlighted inside the primary Cue text.
+  Library can continue to use its accepted card and disclosure presentation;
+  that Library pattern does not define Search, Shiori, or Context.
+- Export actions operate on selected Cue rows rather than on subtitle-file
+  group headers.
 - The expanded video surface is a black playback frame with a subtitle overlay.
   The overlay can be shown or hidden from the bottom player without resizing
   the bottom player controls.
@@ -208,10 +207,12 @@ Stable design snapshot:
   window, such as a theme mode switcher and a disable-all control-state
   switcher. These controls exist only to inspect visual states in the HTML
   prototype and are not part of the native App layout.
-- Prototype interactions include group disclosure, global group collapse,
-  subtitle overlay toggling, side-panel visibility toggling, Shiori stateful
-  command feedback, transport feedback, playback close, fullscreen feedback,
-  and speed-menu selection.
+- Prototype interactions include historical group disclosure and global group
+  collapse controls for visual comparison only; those two interactions are
+  superseded for Search, Shiori, and Context. Subtitle overlay toggling,
+  side-panel visibility toggling, Shiori stateful command feedback, transport
+  feedback, playback close, fullscreen feedback, and speed-menu selection
+  remain useful prototype references.
 
 Current component classification:
 
@@ -225,10 +226,10 @@ Current component classification:
 | Topbar Search input | Search field capsule |
 | Topbar Search clear action | Embedded circular icon button |
 | Search results summary row | Status summary row |
-| `Collapse All` action | Capsule command button with disabled state |
-| Search result group header | Disclosure header row |
-| Search result group expand/collapse action | Disclosure icon button |
-| Search result card | Result card |
+| Search / Shiori / Context results | Native virtual table |
+| Search / Context row | Individual primary Cue table row |
+| Shiori row | Individual saved-Cue table row |
+| Legacy `Collapse All`, result group, and result card | Superseded prototype-only components |
 | Search match highlight | Inline text highlight |
 | Expanded playback frame | Video stage surface |
 | Subtitle overlay | Subtitle overlay |
@@ -429,9 +430,9 @@ Accepted first Library panel direction:
   normal left padding.
 - A single chevron on the left of the folder row indicates expand or
   collapse state. The chevron rotates between `0°` (collapsed) and `90°`
-  (expanded) over `160ms` with an ease curve when toggled. This animation
-  and left-side position are shared with Search and Shiori group disclosure
-  rails.
+  (expanded) over `160ms` with an ease curve when toggled. Search, Shiori, and
+  Context no longer share this disclosure pattern because their current
+  presentation is an ungrouped Cue table.
   The full folder row is the click target that toggles expand or collapse.
 - Expanded folders show a numbered button grid using each video's one-based
   natural-sort sibling rank. The grid does not display file names, durations,
@@ -457,10 +458,59 @@ Accepted first Library panel direction:
   Search results, Shiori, or any other surface must not toggle these Library
   indicators.
 
+## 4.1 Cue-Centric Search, Shiori, And Context Table
+
+This section is the current normative presentation for Search, Shiori, and
+Search-hosted Context. It supersedes every grouped-card, subtitle-file group,
+disclosure-rail, and `Collapse All` description elsewhere in this document for
+those three surfaces. Library's own card and folder-disclosure design is not
+affected.
+
+The three surfaces share one native AppKit virtual table model:
+
+- Every row represents one primary Cue. Pagination, result counts, sorting,
+  selection identity, default actions, Shiori identity, and export identity are
+  all Cue-based.
+- Search and Context columns are Selection, Display Title, Cues, and Time.
+- Shiori columns are Selection, Display Title, Cues, Tags, Time, and Date Added.
+- Display Title uses the subtitle file's immediate parent folder plus its
+  one-based Finder-like natural-sort rank among same-extension siblings, with a
+  source-filename fallback. Stable row/source identity remains subtitle-path
+  and primary-Cue based, never display-title based.
+- Rows have no full-row hover or selected fill. Interactive cell content owns
+  its local hover and pointer region; noninteractive row space can toggle the
+  selection checkbox.
+- The row height is content-driven. Its subtitle height is
+  `16 + 24P + 20S` points, where `P` is the primary Cue's visual line count and
+  `S` is the total visual line count of displayed additional Cues. Source line
+  breaks and automatic wrapping both count. The complete text is always shown;
+  there is no clipping, truncation, ellipsis, character cap, or line cap.
+- Width-dependent reflow remeasures only visible rows plus overscan and
+  preserves the primary Cue identity and the anchored primary Cue first line's
+  screen-space position.
+- Search pagination loads 100 individual Cues per page. It does not page,
+  count, or expand subtitle-file groups.
+
+Settings > Search places the native `Show Cue Group` switch immediately below
+Search Scope. It defaults to Off and persists across launches:
+
+- Off shows only the primary Cue.
+- On adds every other Cue from that Cue Group above the primary Cue using the
+  smaller, more muted secondary style and `20pt` line height.
+- This setting is presentation-only. It must not rerun Search, rebuild Context,
+  alter Shiori data, change result count, reorder rows, change selection, or
+  retarget actions.
+- When On, all displayed Cue text shares one hover, click, and context-menu
+  region, but the primary Cue remains the only default action target.
+- `Copy Cue Text` always copies only the exact primary Cue. `Copy Cue Group
+  Text` appears only when the setting is On and copies the complete displayed
+  group in stable source display order.
+
 ## 5. CueSeeker Workbench And Search Mode
 
-The CueSeeker workbench is the primary screen. Current Search presentation is
-the topbar-driven workflow described in section 1.2.
+The CueSeeker workbench is the primary screen. Current Search result
+presentation is the Cue-centric native table in section 4.1; section 1.2 still
+provides shell and playback visual context but not grouped result geometry.
 
 Search mode is being migrated first to the topbar Search workflow described in
 section 1.1. Requirements in this section that place Search inside the Shared
@@ -487,15 +537,15 @@ Accepted player-first Search presentation:
 - In the topbar Search transition, the topbar Search field is the only Search
   entry point. The Search result page must not duplicate the Search field below
   the topbar.
-- Search results keep the existing grouped result presentation and global
-  `Collapse All` behavior for the first implementation.
+- Search results use the individual-Cue native table in section 4.1 and do not
+  expose subtitle-file grouping, disclosure, or `Collapse All`.
 - Selecting a Search result opens the Search-launched playback page instead of
   keeping Search playback constrained to a side-panel workbench layout.
 
 - The native window identity remains `CueSeeker`, but the visible custom
   topbar centers the Search field instead of rendering a `CueSeeker` title.
 - The embedded Playback Area remains central.
-- Search controls and grouped Search results appear in the Shared Content Panel
+- Search controls and the Cue table appear in the Shared Content Panel
   when Search mode is selected.
 - The Shared Content Panel may be collapsed so the Playback Area can expand.
 - Collapsing the Shared Content Panel must not pause playback or clear the
@@ -503,7 +553,7 @@ Accepted player-first Search presentation:
 - The Playback Area is the primary review surface after a result is selected;
   Search is the functional navigation and result-selection surface.
 
-Accepted M1 search presentation:
+Legacy M1 search presentation (superseded and non-normative for result layout):
 
 - The search field is a custom `NSTextView` wrapper (`SearchTextView`)
   allowing zero baseline jitter, a leading magnifying-glass icon, and an
@@ -548,7 +598,11 @@ Accepted M1 search presentation:
   matches with a yellow background that remains readable on selected rows.
 - Search result visual polish is still incomplete and subject to further iteration.
 
-## 6. Search Result Group
+## 6. Legacy Search Result Group (Superseded, Non-Normative)
+
+This section is retained only as historical context for the former grouped
+Search design. It must not guide current Search, Shiori, or Context work; use
+section 4.1 instead.
 
 Each subtitle-file group should be compact and scannable. Search mode groups
 search results by subtitle file in a single flat level — there is no
@@ -603,7 +657,10 @@ when it is available. If two groups have the same display title, or if a
 group falls back to the source subtitle filename, the full subtitle path
 should be used as the secondary stable ordering key.
 
-## 7. Search Result Row
+## 7. Legacy Grouped Search Result Row (Superseded, Non-Normative)
+
+This section describes the row inside the former grouped-card presentation. It
+is non-normative for the current Cue table in section 4.1.
 
 Each result row should be compact and scannable.
 
@@ -731,17 +788,22 @@ Search mode required content:
 
 - Search input.
 - Indexing status when relevant.
-- Result count.
-- Fixed `Collapse All` result control.
-- Grouped Search results.
+- Total matching Cue count.
+- Individual-Cue native virtual table using section 4.1.
 - Empty, loading, and error states.
 
 Shiori mode required content:
 
-- Shiori summary text in the form `<count> shioris in <count> files`.
-- A fixed `Collapse All` control that does not change into an expand-all control.
-- Grouped Shiori rows, expanded by default.
+- Shiori summary based on saved Cue count.
+- Individual saved-Cue native virtual table using section 4.1.
 - Empty and error states.
+
+Context mode required content:
+
+- The Search-hosted Context scope for the requested primary Cue.
+- Individual-Cue native virtual table using the Search columns and section 4.1
+  geometry.
+- Complete Cue text and the same default action identity as Search.
 
 Future Search mode actions may include hover buttons and contextual menus on
 result rows. A result-level `Add to Queue` action is an accepted future
@@ -762,6 +824,19 @@ Behavior:
   `Play`.
 - Subtitle Focus feedback renders above the focus overlay. `S` and `C` keep the
   focus overlay visible and playback paused; `Space` closes it.
+- Playback Subtitle Focus renders one exact Cue per virtual reel item. Its
+  natural height is `52L + 24pt`, where `L` includes source line breaks and
+  automatic wrapping; its resolved height is the lesser of that natural height
+  and the reel viewport height.
+- A fitting selected Cue shows every line and centers its complete bounds on
+  the fixed screen-space Focus Anchor. An oversized selected Cue aligns its top
+  edge with the reel viewport top, begins at its first visual line, and clips
+  only trailing content below the viewport while retaining its complete action
+  value.
+- Focus opening selects the physically bottommost Cue in the Cue Group that
+  contains the captured playback timestamp, otherwise the nearest preceding
+  Cue, otherwise the first Cue. Width reflow preserves that stable Cue identity
+  and restores its accepted fitting-center or oversized-top placement.
 - Removing a Shiori should show transient playback feedback with the Shiori icon
   and `Shiori Removed`.
 - Collapsing the Shared Content Panel hides the active mode content.
@@ -841,19 +916,20 @@ Panel visibility and list lifetime:
   ordering inputs change. Session-only Library collapse state is a view state
   overlay and must not regenerate Library rows.
 - Search rows are active query presentation. They should remain cached until
-  the query, loaded result page, Search-group collapse state, or Search ordering
-  inputs change.
+  the query, loaded Cue page, filter, or Search ordering inputs change. Width
+  reflow and `Show Cue Group` must not rebuild the row identity snapshot.
 - Shiori rows are saved-content presentation. They should remain cached until
-  the Shiori record set or Shiori-group collapse state changes.
+  the saved-Cue record set, tag data, or Shiori ordering inputs change. Width
+  reflow and `Show Cue Group` must not rebuild the row identity snapshot.
 - Future panel modes such as Timeline, Queue, and Learning Session should keep
   their own presentation state separate from Library, Search, and Shiori rows.
 - Switching panel modes should feel like changing tools in a stable panel, not
   like reopening the workbench. Library, Timeline, Shiori, Search, Queue, and
   Learning Session should preserve local scroll, collapse, selection, and draft
   state where practical.
-- The first SwiftUI implementation may use lazy list rendering, but grouped
-  rows should be flattened when necessary so laziness applies to individual
-  visible rows rather than to one large group view containing many child rows.
+- Search, Shiori, and Context use a native virtual table that lays out visible
+  rows plus overscan rather than constructing the complete result set as
+  SwiftUI row views.
 - Dense row lists should prefer lightweight row interactions. Hover buttons,
   plus actions, Shiori actions, context menus, and full-row click targets should not
   make the list feel like a column of heavy native buttons.
@@ -891,6 +967,7 @@ background treatment.
 Current Settings categories:
 
 - `Library`.
+- `Search`.
 - `Appearance`.
 - `Decode`.
 - `Experimental Features`.
@@ -906,6 +983,13 @@ Required `Library` elements:
 - Per-folder remove action.
 - Remove confirmation dialog explaining that local files will not be deleted.
 - Indexing status.
+
+The `Search` category exposes Search Scope and places a native macOS
+`Show Cue Group` switch immediately below it. The switch defaults to Off,
+persists across launches, and applies to Search, Shiori, and Context. Changing
+it updates only table presentation and visible-row measurement; it must not
+rerun Search, rebuild Context, alter Shiori data, change result count, or
+retarget any row action away from the primary Cue.
 
 The `Appearance` category should expose `Appearance Mode` as its first setting.
 The control uses the same app-drawn segmented-control pattern as `Decode >

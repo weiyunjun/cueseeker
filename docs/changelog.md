@@ -6,6 +6,24 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Completed the Cue-centric Search, Shiori, Context, playback-focus, copy, and
+  export milestone. Search now queries, counts, pages, selects, and acts on
+  individual Cues; Shiori stores and tags one Cue with a version-28 migration
+  that retains the Japanese Cue; Context and all default actions preserve the
+  primary Cue identity. Search, Shiori, and Context share a native virtual
+  table with complete dynamic text (`max(40, 16 + 24P + 20S)`) and a persisted,
+  default-Off Show Cue Group switch whose optional context is presentation-only
+  and locally reflows visible-plus-overscan rows. Anki, Screenshot, and Collage
+  export the explicitly selected Cue set; Collage retains only its
+  same-subtitle-file selection constraint and its rendering object remains
+  unchanged. Playback Subtitle Focus now presents and
+  navigates individual dynamically sized Cues, selects the bottommost Cue at
+  the captured timestamp with documented fallbacks, centers fitting Cues,
+  top-aligns oversized Cues, and keeps `S`, `C`, and Space bound to the exact
+  accepted focused Cue. Export uses the explicitly selected Cue set; row-level
+  Copy Cue Text and Context commands continue to use the triggering row's
+  primary Cue. This milestone supersedes the older grouped-card,
+  group-header export, and fixed Focus descriptions below.
 - Replaced the Playback Subtitle Focus action menu and cue pointer actions with
   direct keyboard commands: `S` saves the exact settled cue idempotently, `C`
   copies its complete text, and Space starts continuous playback from its exact

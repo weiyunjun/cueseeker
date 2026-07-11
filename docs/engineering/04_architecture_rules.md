@@ -282,9 +282,40 @@ Rules:
 - Library folder collapse or expand state is presentation state over the
   persisted Library snapshot. Toggling one folder, toggling all folders, or
   resetting all groups to collapsed must not rebuild Library presentation rows.
-- Search presentation rows are derived query state. They should be cached and
-  rebuilt only when the query, loaded search page, Search result grouping state,
-  Search collapse state, or Search ordering inputs change.
+- Search presentation rows are derived Cue query state. Their identity snapshot
+  should be cached and rebuilt only when the submitted query, loaded Cue page,
+  result ordering, or underlying indexed Cue data changes. Cues-column width
+  changes and the persisted `Show Cue Group` preference are presentation inputs:
+  they may remeasure visible rows plus overscan, but must not rebuild the query,
+  row identity snapshot, result count, selection, or primary-Cue action targets.
+- Search, Shiori, and Search-hosted Context use one native AppKit virtual Cue
+  table contract. Every row owns one primary Cue identity and a content-driven
+  height of `16 + 24P + 20S`, where `P` is the primary Cue visual-line count and
+  `S` is the visual-line count of optional additional Cue Group context shown
+  above it. Source line breaks and width-dependent wrapping both contribute to
+  those counts; the table must render all Cue text without truncation or a
+  maximum line count.
+- Dynamic Cue-table measurement is a visible-plus-overscan concern. Width
+  reflow and `Show Cue Group` changes should invalidate table-local presentation
+  only: measurement and height indexes, visible drawing, document/scrollbar
+  geometry, cursor rects, hover state, and menu anchors. They then restore a
+  stable scroll anchor made from the primary Cue identity and its first visual
+  line's screen-space position. Row-local hover, menu, measurement, and scroll
+  state must remain outside Search, Shiori, Library, and Playback stores.
+- Playback Subtitle Focus uses a native virtual Cue document, not Cue Group
+  rows. Opening selects the physically bottommost Cue in the active Cue Group;
+  when no Cue is active it falls back to the nearest preceding Cue, then the
+  first Cue. Each Cue has natural height `52L + 24` and resolved height clamped
+  to the reel viewport. A fitting Cue centers its complete bounds on the fixed
+  Focus Anchor; an oversized Cue uses accepted head-first placement at the
+  viewport top. Width reflow preserves stable Cue identity and restores that
+  accepted placement.
+- Subtitle Focus actions operate on an immutable exact-Cue target after the
+  target's accepted placement settles: `S` saves that Cue idempotently, `C`
+  copies its complete text, and Space seeks and plays from its own start time.
+  Focus layout, selection, motion, deferred-action, and visible-plus-overscan
+  measurement state are overlay-local and must not invalidate tables or the
+  playback render host.
 - Side-panel collapse or expand must not destroy and recreate large list state.
   Prefer stable panel shells whose layout width, visibility, opacity, or hit
   testing changes without discarding the panel's current presentation model.
@@ -579,8 +610,10 @@ Rules:
   active playback route.
 - Settings must not expose an ASS renderer selector while CueSeeker has a
   single supported ASS renderer.
-- Search result previews are database-owned cue group projections. Playback
-  subtitle rendering is source-file-owned.
+- Search result previews are database-owned primary-Cue projections. Optional
+  Cue Group context is presentation-only and never replaces the primary Cue's
+  row identity, selection, playback target, or action target. Playback subtitle
+  rendering remains source-file-owned.
 - The database cue projection must not be treated as a replacement ASS renderer.
 - Search projection may omit non-searchable visual-effect details from FTS, but
   playback rendering must preserve timed source ASS events, including

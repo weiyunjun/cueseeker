@@ -55,6 +55,13 @@ Normal non-diagnostic app runs should not emit `com.cueseeker.perf` logs.
 
 ## 3. UI Invalidation Domain Split
 
+The cross-domain Library, Playback, and Search isolation goals in this procedure
+remain current. Its older grouped Search-card and `Collapse All` actions are
+Superseded and must be skipped or replaced by the native Cue-table actions in
+section 6. Use section 6 for Search, Shiori, Context, dynamic row geometry, and
+`Show Cue Group` refresh-scope acceptance; retain the other isolation checks
+below.
+
 ### Goal
 
 Continue splitting UI invalidation domains so Library, Playback, Search, and
@@ -294,6 +301,11 @@ After the invalidation-domain work is accepted:
 
 ## 4. Search Optimization Gate
 
+The query and performance goals in this gate remain current. Its grouped-card,
+group-disclosure, and `Collapse All` UI actions are Superseded and must be
+skipped or replaced by section 6's native Cue-table actions. Group-specific
+pass/fail criteria do not apply to the current UI.
+
 ### Goal
 
 Validate that a Search optimization step preserves the visible app workflow
@@ -473,10 +485,13 @@ The gate passes only if:
 ### Goal
 
 Verify the owner-visible behavior introduced by
+`docs/human/requirements/20260710-Feature-Cue-Centric Search Shiori Context Playback And Export.md`
+and the still-compatible keyboard-action contract in
 `docs/human/requirements/20260710-Feature-Playback Subtitle Focus Keyboard Actions.md`:
 normal playback exposes only the circular subtitle control and `Q` shortcut,
 while Playback Subtitle Focus uses exact-cue `S`, `C`, and Space actions with no
-cue pointer actions or action menu.
+cue pointer actions or action menu. Focus geometry must also use complete
+individual-Cue text and accepted fitting/oversized placement.
 
 ### Build And Launch
 
@@ -499,9 +514,11 @@ the terminal output from the failing action through two seconds afterward.
 
 ### Preconditions
 
-- Use an indexed video with at least fifteen subtitle cue groups.
+- Use an indexed video with at least fifteen individual Cues.
 - Include one cue containing two or more source lines so exact clipboard line
   breaks can be checked.
+- Include fitting one-, two-, and three-visual-line Cues. When available, also
+  include one Cue whose natural height exceeds the Focus reel viewport.
 - Start from a cue that has not yet been saved as Shiori for this run.
 - Keep a second terminal available for `pbpaste` checks.
 - Record the commit under test with `git rev-parse --short HEAD`.
@@ -535,27 +552,38 @@ the terminal output from the failing action through two seconds afterward.
    text and confirm selection, Focus Anchor, reel position, playback state, and
    overlay state do not change.
 3. Navigate with Up, Down, wheel or trackpad, and the scrollbar. Confirm each
-   mechanism still changes the focused cue and settles it at the Focus Anchor.
-4. Focus the known multi-line cue and press `C`. Confirm `Subtitle Copied`
+   mechanism changes the focused Cue by ordinal. A fitting Cue settles with its
+   complete bounds centered on the fixed Focus Anchor; an oversized Cue settles
+   top-aligned and starts from its first visual line.
+4. Visit the known one-, two-, and three-line Cues. Confirm every visual line is
+   present and their resolved heights are approximately 76, 128, and 180 points
+   when all three fit the reel. Narrow and widen the playback window; confirm
+   wrapping changes height without changing the selected Cue identity, and the
+   Cue returns to its accepted placement.
+5. If an oversized Cue is available, enter it through keyboard, wheel, and
+   scrollbar navigation. Confirm each settled entry starts from the first visual
+   line, aligns the Cue top to the reel top, and clips only trailing display
+   content while keeping the same Cue selected.
+6. Focus the known multi-line cue and press `C`. Confirm `Subtitle Copied`
    appears above the focus overlay, the overlay remains visible, playback stays
    paused, and cue/reel/scrollbar positions do not change. Run `pbpaste` in the
    second terminal and compare the complete text and line breaks with the
    focused cue.
-5. On an unsaved focused cue, press `S`. Confirm `Shiori Saved` appears above
+7. On an unsaved focused cue, press `S`. Confirm `Shiori Saved` appears above
    the focus overlay, the overlay remains visible, playback stays paused, and
    selection/reel/scrollbar state does not move.
-6. Press `S` again on the same cue. Confirm `Shiori Already Saved` appears and
+8. Press `S` again on the same cue. Confirm `Shiori Already Saved` appears and
    no duplicate Shiori is created.
-7. Press Down and immediately press `C` before the reel transition finishes.
+9. Press Down and immediately press `C` before the reel transition finishes.
    After settlement, run `pbpaste`. Confirm the copied text belongs to the new
    cue settled at the Focus Anchor, not the previous cue, and that the action
    executes only once.
-8. Press Enter while the focus overlay is visible. Confirm it performs no
+10. Press Enter while the focus overlay is visible. Confirm it performs no
    action, opens no menu, and leaves the paused focus state unchanged.
-9. Focus a cue with an identifiable start and press Space. Confirm the focus
+11. Focus a cue with an identifiable start and press Space. Confirm the focus
    overlay closes, playback begins continuously from that cue's start, and the
    HUD shows `Play`.
-10. Reopen Playback Subtitle Focus, navigate with the scrollbar, and press
+12. Reopen Playback Subtitle Focus, navigate with the scrollbar, and press
     Escape. Confirm the overlay closes without an implicit seek and restores
     the playback state captured when this focus Session opened.
 
@@ -570,6 +598,9 @@ the terminal output from the failing action through two seconds afterward.
   `Subtitle Copied` above the still-visible focus overlay.
 - A short screen recording or precise written observation for Down-then-`C`
   settlement and Space continuous playback.
+- Screenshots or a recording showing fitting multi-line centering, width reflow
+  with stable Cue identity, and oversized head-first placement when an
+  oversized fixture is available.
 - On failure, the relevant block from
   `/tmp/cueseeker-subtitle-focus-keyboard-actions.log` and the exact action that
   produced it.
@@ -582,6 +613,12 @@ The gate passes only if:
   commands; `Q` alone toggles subtitle visibility and its circular button state.
 - Cue hover and click create no visual, selection, action, menu, playback, or
   cursor response while Up, Down, wheel, and scrollbar navigation still work.
+- One-, two-, and three-line fitting Cues show every line at approximately 76,
+  128, and 180 points, remain centered on the fixed Focus Anchor, and preserve
+  selected Cue identity through width reflow.
+- An oversized Cue, when available, resolves to the reel height and returns to
+  top-aligned first-line-visible placement after keyboard, wheel, scrollbar, or
+  width-reflow settlement.
 - Focus `S` saves the exact settled cue idempotently, shows the correct saved or
   already-saved HUD, and keeps the paused overlay and navigation state intact.
 - Focus `C` copies the exact complete cue text with source line breaks, shows
@@ -592,3 +629,120 @@ The gate passes only if:
   focused cue start, and shows `Play`.
 - No crash, duplicate action, hidden feedback, stale Session action, unexpected
   seek, or unrelated workbench reset occurs.
+
+## 6. Cue-Centric Table Presentation And Refresh Scope
+
+### Goal
+
+Verify that Search, Shiori, and Search-hosted Context present individual Cues
+through the shared native virtual table, render complete dynamic-height content,
+and isolate `Show Cue Group` and width reflow from query/data and unrelated UI.
+
+### Build And Launch
+
+Terminal A:
+
+```bash
+/usr/bin/log stream --style compact --predicate 'subsystem == "com.cueseeker.perf"'
+```
+
+Terminal B:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native
+CUESEEKER_PERF_UI=1 swift run CueSeeker
+```
+
+Stop if `MARK UIInvalidationProbe.enabled` does not appear within three seconds.
+The relevant scoped counters use these families:
+
+```text
+table.search.*
+table.context.*
+table.shiori.*
+playback.render_host_*
+```
+
+Within each table family, inspect `native_make`, `native_update`,
+`dynamic_row_measurement`, `dynamic_row_draw`,
+`show_cue_group_owner_update`, `width_reflow_owner_update`, and
+`dynamic_scroll_anchor_correction`. Width reflow also emits
+`ACTION UI.SubtitleTable.<surface>.width_reflow`.
+
+### Preconditions
+
+- Index a subtitle fixture containing at least two matching individual Cues in
+  the same Cue Group, plus one-line and multi-line primary Cues.
+- Include enough rows to scroll, with source line breaks and text that wraps
+  when the window narrows.
+- Save at least one fixture Cue to Shiori and ensure it can be opened in
+  Search-hosted Context.
+- In Settings / Search, confirm `Show Cue Group` exists immediately below
+  Search Scope as a native switch.
+- Record the short commit hash with `git rev-parse --short HEAD`.
+
+### Actions
+
+After each action, wait two seconds and preserve the corresponding log block.
+
+1. Launch with `Show Cue Group` Off and run a query matching two Cues from the
+   same Cue Group. Confirm they appear as separate result rows and contribute
+   separately to the result count.
+2. Inspect one-line and multi-line rows. Confirm complete text is visible, with
+   no ellipsis, truncation, maximum line count, or clipped source line break.
+3. Scroll until a distinctive primary Cue is visible and record the screen
+   position of its first visual line. Narrow the window enough to wrap Cues,
+   then widen it again.
+4. Open Settings / Search, turn `Show Cue Group` On, and return to Search.
+   Confirm additional Cues appear above each primary Cue in smaller, more muted
+   text while the same primary Cue remains the row and action identity.
+5. With `Show Cue Group` On, left-click and right-click additional Cue text.
+   Confirm the shared interaction region uses the primary Cue for Play,
+   Context, and Copy Cue Text; confirm Copy Cue Group Text is additionally
+   available. Turn the switch Off and confirm only the extra menu item and
+   additional text disappear.
+6. Open Context from the distinctive primary Cue and repeat the width and
+   `Show Cue Group` checks. Confirm Context uses the same dynamic table contract
+   and returns to the exact primary Cue.
+7. Open Shiori and repeat the checks on the saved Cue. Confirm the Shiori Cue,
+   tags, time, and date identity remain unchanged and the table is not reloaded
+   merely because presentation changed.
+8. Set `Show Cue Group` On and quit. Start the performance log before relaunch,
+   then open the same table for its first mount. Confirm its first visible
+   presentation is already On, with no intermediate Off frame and no redundant
+   owner update caused solely by initial preference hydration.
+9. Cover that On table with the playback page and turn `Show Cue Group` Off.
+   Confirm no covered-table work occurs. Close playback and confirm the newly
+   visible table applies Off exactly once without rebuilding the playback render
+   host. Quit and relaunch once more to confirm Off persisted.
+
+### Evidence To Paste Back
+
+- The short commit hash and pass/fail for each numbered action.
+- Before/after screenshots for width reflow and `Show Cue Group` on Search,
+  Context, and Shiori.
+- The scoped counter deltas for each action, including any
+  `playback.render_host_*` changes.
+- The visible result count and stable primary Cue identity used for the anchor
+  and action checks.
+
+### Acceptance Criteria
+
+The gate passes only if:
+
+- Search count, pagination, selection, Context return, and actions are based on
+  individual Cues; sibling matches from one Cue Group remain distinct.
+- Every primary and displayed additional Cue line is visible. Row geometry
+  follows `16 + 24P + 20S`, including width wrapping and source line breaks.
+- `Show Cue Group` defaults Off on fresh state, persists across launches, and is
+  presentation-only. It changes neither query execution, row identity snapshot,
+  result count, sorting, selection, primary Cue identity, nor action target.
+- Width and preference changes remeasure only visible rows plus overscan for the
+  currently eligible surface. Search, Context, and Shiori counters remain
+  independently scoped; hidden surfaces may defer work until visible.
+- Reflow preserves the anchored primary Cue and its first visual line's
+  screen-space position instead of preserving only a raw scroll offset.
+- No table presentation action rebuilds Library, recreates the playback render
+  host, reruns Search, rebuilds Context scope, or reloads Shiori data.
+- No rainbow cursor, scroll jump, stale row, duplicate row, clipped Cue, or
+  action retargeting occurs.

@@ -10,24 +10,16 @@ This document describes CueSeeker's Search interface in high detail so an LLM
 can reason about layout, behavior, visual hierarchy, and future UI/UX redesigns
 without needing to infer everything from source code.
 
-CueSeeker is a native macOS subtitle search and playback tool. Search is a
-mode inside the shared workbench content panel. Its job is to let the user type
-text, scan grouped subtitle results, select a cue, and immediately preview the
-matching video at the result timestamp in the central Playback Area.
+CueSeeker is a native macOS subtitle search and playback tool. Search accepts a
+query, presents individual Cue rows in a native virtual table, and opens or
+seeks playback from the exact selected Cue timestamp. Search, Shiori, and
+Search-hosted Context share the same Cue-centric table model.
 
-Layout note: this brief was originally written for an older Search workspace
-with a right-side playback inspector. The current shell layout is the fixed
-left Mode Rail plus Shared Content Panel documented below and in
-`docs/product/03_ui_design.md`. Detailed Search field, grouping, row, and
-lazy-loading rules still apply to Search mode unless a later section explicitly
-conflicts with the current shell layout.
-
-Current Liquid Glass rewrite note: the accepted direction now uses a topbar
-workbench and an active-playback bottom player. The bottom player is shown only
-while playback exists. Expanded playback owns a top-left `Close` capsule that
-ends the current playback session, clears playback-derived selection highlights,
-and hides playback UI without clearing Search results, Search caches, Library
-rows, Shiori records, or unrelated workbench presentation state.
+This brief originally described a grouped-card Search workspace. The current
+normative contract is the section immediately below. Sections explicitly
+marked `Legacy; Superseded` are retained only as historical implementation and
+design context; none of their grouped-card, disclosure, `Collapse All`, fixed
+row, or Shared Content Panel requirements may override the current contract.
 
 The Search interface should feel like a focused desktop utility:
 
@@ -40,7 +32,97 @@ The Search interface should feel like a focused desktop utility:
 Avoid treating this surface like a marketing website, landing page, content
 feed, or media library home screen.
 
-## 2. High-Level App Shell Context
+## Current Cue-Centric Search Contract (Normative)
+
+### Surface And Identity
+
+- Search results are a flat ordered sequence of individual primary Cues.
+  Result count, row identity, selection, pagination, sorting, playback,
+  Context, Shiori, copy, and export actions all use that Cue identity.
+- Search, Shiori, and Search-hosted Context use the same native AppKit virtual
+  table. They do not use grouped cards, subtitle-file group headers, disclosure
+  rails, or `Collapse All`.
+- Search and Context columns are Selection, Display Title, Cues, and Time.
+  Shiori columns are Selection, Display Title, Cues, Tags, Time, and Date Added.
+- Search query highlighting may emphasize matches inside the primary Cue text.
+  Context and the complete-subtitle playback list do not apply Search query
+  highlighting.
+
+### Dynamic Row Geometry
+
+- Every row is content-driven. Subtitle height is `16 + 24P + 20S` points,
+  where `P >= 1` is the primary Cue's complete visual line count and `S >= 0`
+  is the total visual line count of displayed additional Cues.
+- Visual lines include source line breaks and automatic wrapping at the current
+  Cues column width. The table must render all text without clipping,
+  truncation, ellipsis, a maximum line count, or a character limit.
+- Additional Cue context, when present, appears above the primary Cue. Metadata
+  aligns with the primary Cue's first visual line rather than the complete row
+  center.
+- Width reflow remeasures visible rows plus overscan and preserves the stable
+  primary Cue identity and its first visual line's screen-space scroll anchor.
+- Rows have no full-width hover or selected background. Each interactive cell
+  owns its local content hover region; row space outside interactive content
+  can toggle checkbox selection.
+
+### Show Cue Group
+
+- Settings > Search places the native `Show Cue Group` switch immediately below
+  Search Scope. It defaults to Off and persists across launches.
+- Off renders only the primary Cue. On renders every additional Cue from the
+  same Cue Group above it with smaller, more muted typography and a `20pt` line
+  height.
+- The setting is presentation-only. It must not rerun Search, rebuild Context,
+  mutate Shiori, change result count, reorder rows, change selection identity,
+  replace the primary Cue, or retarget actions.
+- When On, the complete displayed Cue Group shares one hover, pointer, click,
+  and context-menu region. Additional Cues never become independent action
+  targets.
+- `Copy Cue Text` always copies only the exact primary Cue. `Copy Cue Group
+  Text` appears only while the setting is On and copies the displayed group in
+  stable source display order.
+
+### Loading And Refresh Scope
+
+- Search pages contain 100 individual Cues. Total count means total matching
+  Cue count; it is not a subtitle-file group count.
+- Virtual rendering creates and measures only visible rows plus overscan.
+- Query, filter, page, and ordering changes may rebuild the Search row
+  snapshot. Hover, width reflow, and `Show Cue Group` must not rerun Search or
+  rebuild row identity.
+- Hidden Search, Shiori, and Context surfaces may defer data presentation work
+  until visible. Table-only interaction must not invalidate Library, playback
+  render hosting, the App topbar, or unrelated surfaces.
+
+### Selection And Playback
+
+- Clicking the Cues interaction region plays from the primary Cue's own start
+  time. Displaying additional Cue Group context cannot change that target.
+- Context opens around the exact primary Cue. Shiori saves that Cue, and tags
+  attach to that Cue.
+- The video-page Results list follows the same stable individual-Cue order.
+
+### Playback Subtitle Focus
+
+- Playback Subtitle Focus is also Cue-centric. Enter captures the playback
+  timestamp and pauses playback. If that timestamp lies within a Cue Group,
+  select the physically bottommost Cue in stable source display order;
+  otherwise select the nearest preceding Cue, or the first Cue when none
+  precedes it.
+- Cue natural height is `52L + 24pt`, including source line breaks and automatic
+  wrapping. Resolved height is the lesser of natural height and reel viewport
+  height.
+- A fitting selected Cue shows every line and centers its complete bounds on
+  the fixed Focus Anchor. An oversized selected Cue aligns its top edge with
+  the viewport top, begins at its first visual line, and clips only trailing
+  content below the viewport.
+- Width reflow preserves stable selected Cue identity and restores its accepted
+  fitting-center or oversized-top placement. `S`, `C`, and `Space` target the
+  exact settled Cue; `Space` plays from that Cue's own start time.
+
+The legacy detailed brief begins below.
+
+## 2. High-Level App Shell Context (Legacy; Superseded)
 
 Search mode lives inside the main CueSeeker window.
 
@@ -68,7 +150,7 @@ The Search screen should respect the existing titlebar, fixed Mode Rail, and
 Shared Content Panel model unless a redesign explicitly proposes a broader
 app-shell change.
 
-## 3. Search Workspace Structure
+## 3. Search Workspace Structure (Legacy; Superseded)
 
 Search mode is one content mode within the workbench:
 
@@ -94,7 +176,7 @@ Search controls and grouped results appear only when Search mode is active and
 the Shared Content Panel is expanded. Playback remains visible in the central
 Playback Area.
 
-## 4. Window and Size Constraints
+## 4. Window and Size Constraints (Legacy; Superseded)
 
 Current shell constraints:
 
@@ -120,7 +202,7 @@ Design implications:
   subtitle-file group rows are ordered by ascending cue start time, so
   spatial order conveys time order without a dedicated column.
 
-## 5. Search Results Pane
+## 5. Search Results Pane (Legacy; Superseded)
 
 The Search Results Pane is the primary content region of Search mode.
 
@@ -137,7 +219,7 @@ The result pane should be visually dominant because it is the primary task
 surface. The Playback Area should support the selected result without
 overpowering the search list.
 
-## 6. Search Header
+## 6. Search Header (Legacy; Superseded)
 
 The Search Header contains:
 
@@ -229,7 +311,9 @@ collapsing or expanding one group should not rewrite the global label.
 
 ## 7. Search States
 
-The Search pane renders exactly one primary content state below the header.
+The Search page renders exactly one primary content state below its topbar-led
+Search chrome. These state semantics remain current; populated-result geometry
+comes from the normative Cue-table contract above.
 
 ### 7.1 Empty Query
 
@@ -297,16 +381,16 @@ implementation keeps it minimal.
 
 Shown when `searchResults` is non-empty.
 
-The populated state renders a scrollable grouped list.
+The populated state renders the native virtual table of individual Cue rows.
 
 ### 7.6 Appending / Lazy Loading
 
-When a search is in progress and existing results are already visible, a small
-ProgressView appears at the bottom of the LazyVStack.
+When a search is in progress and existing results are already visible, the
+native table exposes a small incremental-loading indicator at its paging edge.
 
 This is used for incremental pagination, not initial loading.
 
-## 8. Results List
+## 8. Results List (Legacy; Superseded)
 
 The results list is a vertical `ScrollView` containing a `LazyVStack`.
 
@@ -327,7 +411,7 @@ The list supports lazy loading:
 - Search result lazy loading is based on matched Cues, not subtitle
   file groups.
 
-## 9. Search Result Grouping
+## 9. Search Result Grouping (Legacy; Superseded)
 
 Results are grouped by subtitle file in a single flat level. Search mode does
 not aggregate subtitle files under a parent-folder layer (the
@@ -431,7 +515,7 @@ When expanding:
 - Expanding an individual group should reveal at most the first 100
   matching rows for that file.
 
-## 10. Search Result Row
+## 10. Search Result Row (Legacy; Superseded)
 
 Each row represents one matched subtitle cue group.
 
@@ -532,7 +616,7 @@ The highlight inverts on a selected row so the matched substring stays the
 most prominent token in the line while staying inside the accent-color
 envelope. Dark-mode equivalents are deferred.
 
-## 11. Playback Area
+## 11. Playback Area (Legacy; Superseded)
 
 The Playback Area is the central context surface for the selected search
 result.
@@ -644,7 +728,7 @@ These buttons replaced earlier read-only metadata fields. A redesign should not
 reintroduce passive full path labels as the primary playback-area content unless
 there is a clear diagnostic mode.
 
-## 12. Shared Content Panel Resize Divider
+## 12. Shared Content Panel Resize Divider (Legacy; Superseded)
 
 When the Shared Content Panel is visible, a resize divider appears at its
 trailing edge between the panel and the Playback Area.
@@ -673,7 +757,7 @@ Design implication:
 The divider is intentionally subtle. It should remain discoverable on hover but
 not become a heavy visual boundary.
 
-## 13. Search and Playback Interaction Flow
+## 13. Search and Playback Interaction Flow (Legacy; Superseded)
 
 Primary user flow:
 
@@ -710,30 +794,20 @@ If playback fails:
 
 ## 14. Focus Behavior
 
-Search focus is explicitly managed because the Search field is an AppKit
-NSTextView embedded in SwiftUI.
+Search focus is explicitly managed because the topbar Search field wraps an
+AppKit text editor inside SwiftUI.
 
-Focus clears when:
-
-- User triggers topbar app commands.
-- User selects a Mode Rail item.
-- User toggles the Shared Content Panel.
-- User toggles all search result groups.
-- User toggles one search result group.
-- User selects a search result.
-- User clicks inside the Playback Area.
-- User starts dragging the Shared Content Panel divider.
-- User clicks Playback Area file buttons.
-- User clicks video surface actions that are wired through SearchView.
-
-Focus should not be cleared by unrelated system behavior such as app switching
-unless AppKit naturally changes first responder.
-
-Design implication:
-
-If a redesigned UI adds toolbar buttons, filters, tabs, or playback-area
-controls, they should usually clear Search focus when activated unless they are
-directly part of text input.
+- Typing edits the draft query. Return submits it without inserting a newline.
+- App-owned commands, topbar mode changes, Cue activation, playback controls,
+  and Finder reveal actions may clear Search focus before executing.
+- Table hover, scrolling, dynamic-row remeasurement, Show Cue Group changes,
+  and unrelated background state publication must not rewrite the draft query
+  or force a false result-state transition.
+- App switching should not intentionally clear Search focus unless AppKit
+  naturally changes first responder. Returning to the app preserves the focus
+  state when the native responder chain does.
+- New toolbar buttons, filters, tabs, or playback controls should normally clear
+  Search focus when activated unless they are directly part of text input.
 
 ## 15. Keyboard Behavior Relevant to Search
 
@@ -773,73 +847,37 @@ with playback shortcuts while video review is active.
 
 ## 16. Data and Loading Model
 
-Search starts from `updateSearchQuery`.
-
-Important constants:
-
-- Search debounce: `250 ms`.
-- Global page size: `100`.
-- Prefetch threshold: `10`.
-
-Search uses database pagination:
-
-- First search: offset `0`, appending `false`.
-- Lazy load: offset equals loaded global result count, appending `true`.
-
-Search page returns:
-
-- `results`
-- `totalCount`
-- `fileSummaries`
-
-Search state tracks:
-
-- Loaded results.
-- Total matching count.
-- File summaries for grouping.
-- Whether more global results exist.
-- Collapsed group paths.
-- Additional expanded group rows by path.
-
-Design implication:
-
-The UI must distinguish:
-
-- Total matching result count.
-- Currently rendered row count.
-- Per-file total match count.
-- Loaded rows inside each group.
-
-Do not design a count presentation that implies all rows are currently loaded
-when only a page is loaded.
+- The topbar field owns a draft query; Return submits a stable active query
+  snapshot. Typing alone does not replace the displayed result snapshot.
+- Database pagination returns individual Cue rows in pages of 100 plus the exact
+  total matching Cue count. Two matching sibling Cues remain two rows and two
+  count units.
+- Search state tracks the submitted query, loaded Cue pages, total count,
+  filter/sort inputs, row selection, and whether another Cue page exists.
+- Display Title and optional Cue Group presentation metadata may accompany a
+  row, but subtitle-file grouping, collapsed paths, and per-group expansion are
+  not Search identity or paging state.
+- Show Cue Group and Cues-column width are table presentation state. They may
+  invalidate visible-plus-overscan measurement and stable-anchor geometry but
+  must not rerun the query or rebuild the row identity snapshot.
+- The UI distinguishes total matching Cue count from the currently loaded page
+  count and must not imply that all rows are loaded when another page exists.
 
 ## 17. Visual Hierarchy Summary
 
-Current hierarchy from strongest to weakest:
+Current Search hierarchy from strongest to weakest:
 
-1. Search field.
-2. Selected search result row.
-3. Group headers.
-4. Unselected subtitle row text.
-5. Result count / rendered count.
-6. Timestamps and secondary metadata.
-7. Rail line and dividers.
+1. Primary Cue content and active query match.
+2. Topbar Search field and explicit table actions.
+3. Display Title and Time metadata.
+4. Optional additional Cue Group context when Show Cue Group is On.
+5. Total count, filters, sort controls, borders, and scrollbar.
 
-The Playback Area hierarchy:
+For redesigns, preserve individual-Cue identity, complete dynamic text,
+primary-versus-additional Cue hierarchy, native table density, stable scroll
+anchoring, query highlighting, Cue-based pagination, and contextual playback.
 
-1. Video preview.
-2. Playback error, if present.
-3. File location buttons.
-4. Empty state text or passive context.
-
-For redesigns, preserve this intent:
-
-- Search results are the main work object.
-- Video preview is important but contextual.
-- Counts and controls support scanning.
-- Dividers should structure the workspace without becoming visual noise.
-
-## 18. Current Design Strengths
+## 18. Former Design Strengths (Legacy; Superseded)
 
 - Native macOS shell and controls.
 - Good density for subtitle review.
@@ -851,7 +889,7 @@ For redesigns, preserve this intent:
 - Shared Content Panel width is resizable and persisted.
 - File reveal actions are more useful than passive path metadata.
 
-## 19. Current Design Weaknesses / Redesign Opportunities
+## 19. Former Design Weaknesses (Legacy; Superseded)
 
 These are not bugs; they are areas where future UI exploration may help.
 
@@ -870,7 +908,7 @@ These are not bugs; they are areas where future UI exploration may help.
 - Search result rows are readable but could better support very long bilingual
   cue groups.
 
-## 20. Redesign Guardrails
+## 20. Current Redesign Guardrails
 
 When proposing new UI directions, keep these constraints:
 
@@ -878,11 +916,15 @@ When proposing new UI directions, keep these constraints:
 - Do not turn the screen into a marketing page, landing page, or media gallery.
 - Preserve native macOS interaction expectations.
 - Preserve dense result scanning.
-- Preserve grouped subtitle-file headers with a left disclosure rail.
+- Preserve one stable primary Cue per native table row.
+- Do not reintroduce grouped result cards, subtitle-file disclosure headers, or
+  Collapse All.
+- Show every source and wrapped Cue line through content-driven row height.
+- Keep Show Cue Group presentation-only, with additional context above the
+  unchanged primary Cue action target.
 - Preserve query highlighting.
-- Preserve central contextual playback.
-- Preserve no-navigation result preview.
-- Preserve lazy loading and collapse semantics.
+- Preserve contextual playback from the primary Cue's own start time.
+- Preserve Cue-based paging and stable-anchor reflow.
 - Do not hide critical result counts behind decorative UI.
 - Do not use heavy colorful decoration that competes with subtitle text.
 - Do not rely on hover-only controls for essential actions.
@@ -911,12 +953,14 @@ Use this when asking another AI to discuss the Search UI:
 
 ```text
 You are reviewing CueSeeker, a native macOS subtitle search and playback app.
-Search is a mode in CueSeeker's Shared Content Panel. Users type a query, scan
-grouped subtitle results by subtitle file, select a cue row, and the central
-Playback Area opens or updates to play the matching video at that timestamp.
-The UI should remain a dense, native macOS utility, not a marketing page.
-Preserve grouped results, query highlighting, lazy loading, collapse/expand
-behavior, and contextual playback. Improve visual hierarchy, state
-presentation, playback-area structure, and scanning ergonomics without breaking
-native desktop expectations.
+Users type a query and scan a native virtual table of individual Cue rows.
+Search and Context use Selection, Display Title, Cues, and Time; Shiori adds
+Tags and Date Added. Rows show all subtitle text with content-driven height
+16 + 24P + 20S. Show Cue Group defaults Off and only adds muted context above
+the primary Cue; it never changes identity or action targets. There are no
+grouped cards, disclosure headers, or Collapse All. Selecting a row plays from
+that exact Cue. Playback Subtitle Focus is also Cue-centric, uses 52L + 24
+natural height, centers fitting Cues, top-aligns oversized Cues, and routes
+S/C/Space to the exact settled Cue. Keep the UI a dense native macOS utility,
+not a marketing page.
 ```

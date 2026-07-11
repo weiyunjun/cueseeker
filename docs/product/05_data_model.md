@@ -240,8 +240,9 @@ Notes:
 - `source_layer` stores the ASS `Layer` field when available. Layer is render
   stacking information, not vertical position.
 - `display_x`, `display_y`, and `display_order` are derived layout fields for
-  search result presentation. They help order grouped results to approximate
-  the subtitle's on-video placement.
+  optional Cue Group presentation. They help order additional context to
+  approximate the subtitle's on-video placement without replacing the primary
+  Cue result identity.
 - Cue lines must not be deduplicated during indexing. If an ASS file contains
   several `Dialogue` events with the same text and timing, all of them should be
   retained until a future explicit product rule defines a safe display-only

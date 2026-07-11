@@ -608,8 +608,9 @@ A milestone is not complete until:
 
 ## 16. M2 ASS Subtitle Test Coverage
 
-The first M2 ASS implementation is complete only after ASS indexing, grouped
-search results, and click-to-playback behavior are verified.
+The ASS implementation is complete only after ASS indexing, individual-Cue
+Search results with optional derived Cue Group context, and exact-Cue
+click-to-playback behavior are verified.
 
 Current verification:
 
@@ -642,8 +643,11 @@ Required database and search coverage:
   Group context is a separate optional presentation projection.
 - Query terms split only across different cue lines do not produce a result.
 - Multiple matching Cues in one Cue Group remain distinct results and counts.
-- Migrating legacy Shiori preserves row IDs and tag assignments while selecting
-  the physically bottommost indexed Cue and discarding other group text.
+- Migrating legacy Shiori preserves row IDs and tag assignments while preferring
+  an indexed Japanese Cue when language classification is available, then
+  selecting the physically bottommost Cue among the eligible candidates. When
+  no Japanese candidate can be identified, migration falls back to the
+  physically bottommost indexed Cue overall. Other Cue Group text is discarded.
 - Search results remain scoped to currently selected folders.
 
 Required integration coverage:
@@ -728,7 +732,9 @@ Required search projection coverage:
   result text.
 - Repeated visual-effect fragments do not create duplicate user-facing search
   results unless they contain distinct readable subtitle text.
-- Cue group timing remains stable and can be used as the playback seek target.
+- Each Cue's own timing remains stable and is the Search/playback action target.
+  Cue Group timing remains available for derived recall and optional context
+  but must not replace the selected Cue's start time.
 
 Required render timeline coverage:
 
@@ -793,3 +799,66 @@ Required renderer checks:
   lifecycle.
 - Subtitle visibility toggles renderer output without stopping the video.
 - SRT playback subtitle behavior does not regress.
+
+## 19. Cue-Centric Table And Subtitle Focus Coverage
+
+Search, Shiori, Context, and Playback Subtitle Focus are complete only when
+their individual-Cue identity, dynamic geometry, and invalidation boundaries
+are verified together.
+
+Required Cue-table coverage:
+
+- Search pagination and exact result counts use individual Cues. Multiple
+  matching Cues from one Cue Group remain separate rows with separate stable
+  identities and action targets.
+- Search and Search-hosted Context use the Search table columns; Shiori uses its
+  declared Cue, tag, time, and date columns. All three surfaces use the same
+  native virtual Cue-table geometry and interaction contract.
+- A one-line primary Cue with no additional context resolves to 40 points; each
+  additional primary visual line adds 24 points and each additional Cue Group
+  visual line adds 20 points. Tests must count source line breaks and automatic
+  wrapping and verify the general `16 + 24P + 20S` formula.
+- Complete primary and optional additional Cue text is rendered without
+  clipping, truncation, ellipsis, a maximum line count, or a character limit.
+- `Show Cue Group` defaults to Off, persists across launches, and uses a native
+  macOS switch below Search Scope. Off renders only the primary Cue; On renders
+  every additional Cue above it while all selection and actions continue to use
+  the primary Cue.
+- Toggling `Show Cue Group` or changing the Cues-column width remeasures only
+  visible rows plus overscan. It must not rerun Search, rebuild the row identity
+  snapshot, change Context scope, reload Shiori data, change counts, reorder
+  rows, retarget actions, or recreate the playback render host.
+- Dynamic reflow preserves a stable scroll anchor consisting of the primary Cue
+  identity and its first visual line's screen-space position. Probe tests must
+  distinguish Search, Context, and Shiori measurement, draw, owner-update, and
+  anchor-correction counters.
+
+Required Subtitle Focus coverage:
+
+- Opening Focus at a timestamp inside a Cue Group selects that group's
+  physically bottommost Cue in stable source display order. With no active Cue,
+  selection falls back to the nearest preceding Cue, then the first Cue.
+- The initial snapshot contains 10 Cues when available, preferring six before
+  and three after the selected Cue, with stable Cue identity independent of the
+  transient window index.
+- Natural Cue height is `52L + 24`; one-, two-, and three-line Cues therefore
+  measure 76, 128, and 180 points. Resolved height is clamped to the reel
+  viewport while the complete Cue value remains available to actions.
+- A fitting Cue displays every visual line and centers its complete bounds on
+  the fixed Focus Anchor. An oversized Cue uses accepted head-first placement:
+  its resolved top aligns to the reel viewport top, its first visual line stays
+  the visible origin whenever it settles, and only trailing display content may
+  be clipped.
+- Resizing or width-dependent wrapping preserves stable selected Cue identity,
+  recomputes natural and resolved height, and restores the selected Cue to its
+  accepted placement.
+- Up, Down, wheel, and scrollbar navigation operate on Cue ordinals and accepted
+  placements rather than fixed Cue Group slots or cumulative rendered height.
+- `S`, `C`, and Space target the exact settled Cue. Tests verify idempotent
+  Shiori save, complete-text copy with source line breaks, exact start-time
+  seek/play, and once-only deferred execution when an action is accepted during
+  motion.
+- Normal playback before Enter creates no Focus query, Cue collection, Cue view,
+  or measurement. Focus layout and interaction invalidate neither Cue tables nor
+  the playback render host; closing or replacing the playback source releases
+  retained Focus Cue state and rejects late results.

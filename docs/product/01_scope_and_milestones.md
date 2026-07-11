@@ -140,10 +140,11 @@ Expected areas:
   interactions, Search field focus preservation for system-level window or app
   switching, mouse-only fullscreen chrome reveal, and speed menu hover geometry
   that matches the speed button click area.
-- ASS subtitle search and grouped result support.
+- ASS subtitle search and Cue-context support.
   The native app now scans `.ass` files, parses ASS dialogue events, indexes cue
-  groups and cue lines, displays grouped search results, and supports
-  click-to-playback behavior for matched ASS results. Source ASS subtitle
+  groups and individual Cues, displays one Cue per Search row with optional Cue
+  Group presentation context, and supports exact-Cue click-to-playback behavior.
+  Source ASS subtitle
   rendering should preserve readable search projection semantics while moving
   playback toward the accepted non-blocking, source-faithful ASS rendering
   pipeline.

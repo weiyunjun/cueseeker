@@ -98,11 +98,16 @@ database with FTS5 search support.
 
 Requirements:
 
+- Treat each stored cue line as the stable product-level Cue. A Cue Group is a
+  derived indexing and optional-presentation container, not the identity used
+  by Search, Shiori, Context, playback actions, copy, or export.
 - Store subtitle metadata.
 - Store video path.
 - Store subtitle path.
 - Store start and end timestamps.
 - Store searchable text content for each cue group.
+- Store and search each Cue's own normalized content so query terms, results,
+  counts, ordering, pagination, and action identity remain Cue-scoped.
 - Store the ordered cue lines that belong to each cue group.
 - Support incremental indexing based on file metadata.
 - Remove stale entries when source subtitle files no longer exist.
@@ -124,20 +129,22 @@ Requirements:
 - Search should support CJK text at least at the level needed by the existing Flutter implementation.
 - Results should be ordered predictably.
 - Results should be limited to avoid rendering excessive rows.
-- Search should load results incrementally in pages of 100 cue lines so broad queries can
+- Search should load results incrementally in pages of 100 Cues so broad queries can
   continue revealing matches while avoiding an unbounded first render. Pagination must strictly follow
-  the number of cue lines rather than grouping by subtitle files.
-- The Search view should show the total matching cue-group count for the current
+  the number of Cues rather than grouping by subtitle files.
+- The Search view should show the total matching Cue count for the current
   query near the search field.
 - Search results must be scoped to the currently selected subtitle folders.
 - Stale index rows outside the currently selected folders must not appear in
   Search.
-- Search should return cue groups, not individual ASS lines, so a bilingual or
-  multi-layer ASS moment appears as one result.
-- If a query matches any line in a cue group, the result should display the
-  whole cue group.
-- A cue group must not match only because query terms are split across different
-  cue lines. At least one cue line must satisfy the query semantics.
+- Search returns individual Cues. Two matching sibling Cues in one Cue Group
+  produce two independently identified, counted, ordered, selectable rows.
+- A Cue must satisfy query semantics by its own indexed text. Cue Group
+  aggregate text may be used only for recall and must not create a match from
+  terms split across different Cues.
+- Cue Group content is an optional presentation projection controlled by Show
+  Cue Group. It must not change Search count, row identity, ordering,
+  selection, or any action target.
 - The current native search behavior should preserve the practical legacy Flutter semantics:
   single Latin-token searches use prefix matching, multi-token Latin searches use
   ordered whole-token filtering after FTS recall, Han and Japanese kana content
@@ -150,6 +157,40 @@ Requirements:
 ## 7. Search Results
 
 Search results must show enough information for the user to choose the correct match.
+
+### Current Cue-Centric Table Contract
+
+The native Search surface is a flat, virtualized table. Each row represents
+one primary Cue and retains its subtitle-file grouping metadata only as data;
+the older disclosure-group/card presentation described later in this section
+is superseded and non-normative.
+
+- Search and Context use Selection, `Display Title`, `Cues`, and `Time`
+  columns. Shiori uses the same Cue geometry and adds `Tags` and `Date Added`.
+- The primary Cue is the only playback, Context, Copy Cue Text, selection, and
+  export identity. Time is the primary Cue's own start time.
+- With Show Cue Group Off, Cues renders the complete primary Cue only. With it
+  On, every additional Cue is rendered above the primary Cue in smaller,
+  secondary text; all text shares one hover/click/context-menu region and no
+  additional Cue becomes an independent action target.
+- Row height is content-driven: minimum 40pt and
+  `16 + 24P + 20S`, where `P` is primary visual lines and `S` is additional
+  visual lines after source breaks and wrapping. Complete text is never
+  truncated, clipped, ellipsized, or line-capped.
+- Width changes and Show Cue Group changes may remeasure only visible plus
+  overscan rows. They preserve row count, result count, sorting, selection,
+  primary Cue identity, and the anchored primary Cue's screen position.
+- Search pagination remains 100 Cues. Snapshot identity and query execution do
+  not depend on presentation height or Show Cue Group.
+
+### Legacy Grouped Result Presentation (Superseded)
+
+The grouped-card container, subtitle-file headers, disclosure/collapse actions,
+group-level paging, and former fixed row visuals below are historical only.
+They must not be used to implement or review the current native Search,
+Context, or Shiori tables. Display-title derivation, thumbnail feature gating,
+query highlighting, playback, and Finder reveal remain current only through
+the Current Supporting Search Rules restated after this legacy block.
 
 Search results should be grouped by subtitle file. Each subtitle-file group
 is a single flat container of matched cue-group rows; Search mode does not
@@ -283,6 +324,25 @@ The main window's top-level identity should be `CueSeeker`, not a `Search`
 workspace label. Search is a workbench panel mode, not a main-window sidebar
 destination for the current single-workbench design.
 
+### Current Supporting Search Rules
+
+- `Display Title` uses the subtitle file's immediate parent folder plus its
+  one-based Finder-like natural-sort rank among regular sibling files with the
+  same final extension. The rank is zero-padded to at least two digits; if the
+  title cannot be derived, use the source subtitle filename. Stable identity
+  remains the subtitle path, never the display title.
+- Search Result Thumbnails remains an experimental Settings feature. When Off,
+  Search must not render thumbnail placeholders, read the thumbnail cache,
+  create requests, generate thumbnails, or launch extraction. When On, only
+  loaded Cue rows may request the existing primary-Cue midpoint preview.
+- Search may highlight the query match within the primary Cue text. Highlight
+  styling must remain readable without introducing the superseded full-row
+  selected-card fill.
+- Clicking the Cues interaction region opens or seeks playback at the primary
+  Cue's own start time. Playback retains `Video Folder` and `Subtitle Folder`
+  actions that reveal the matched files in Finder; it does not need duplicate
+  read-only path fields.
+
 ## 8. Library And Timeline
 
 Library and Timeline are not required for M1.
@@ -299,14 +359,14 @@ When implemented, Library should support:
 - Group videos by the immediate parent folder only. Library should be flat and
   should not render nested folder trees in the first implementation.
 - Sort folder groups and the videos inside each folder with the same Finder-like
-  natural ordering used by friendly Search result group titles, so ordinary
-  text sorts like `a-z` and numeric filename runs sort naturally.
+  natural ordering used by Search display titles, so ordinary text sorts like
+  `a-z` and numeric filename runs sort naturally.
 - Display each folder as a two-line row: the folder display name on the first
   line and an episode-count subtitle on the second line, with a single
   disclosure chevron on the left that rotates between `0°` (collapsed) and
-  `90°` (expanded) over `160ms` with an ease curve when toggled. The same
-  left-side chevron position and rotation animation are shared with Search and
-  Shiori group disclosure rails.
+  `90°` (expanded) over `160ms` with an ease curve when toggled. This is a
+  Library-only disclosure pattern; Search, Shiori, and Context use the
+  ungrouped native Cue table.
 - Read `N episodes` as the folder subtitle when no Library-launched playback is
   active for any video in this folder, and read `N episodes · Playing M` when
   Library-launched playback is active for a video in this folder, where `M` is
@@ -409,8 +469,9 @@ Requirements:
 
 - Open the matched local video file.
 - Seek to the subtitle start timestamp.
-- For ASS search results, seek to the cue group start timestamp immediately and
-  prepare source ASS rendering asynchronously.
+- For Search, Shiori, and Context playback actions, seek to the primary Cue's
+  own start timestamp. Showing additional Cue Group context must not change
+  that target. For ASS sources, prepare source rendering asynchronously.
 - Render video inside the native app window.
 - Render source ASS subtitles through the accepted source-faithful rendering
   pipeline, with ASS Lite available only as an interim fallback.
@@ -424,8 +485,8 @@ Requirements:
   playback selection highlights across Search, Library, Shiori, and playback
   side-panel rows, and returns to the workbench with no active playback UI.
 - Closing playback must not clear Search results, database search caches,
-  Library rows, Shiori records, group disclosure state, or unrelated workbench
-  presentation state.
+  Library rows, Shiori records, Library disclosure state, Cue-table
+  presentation, or unrelated workbench state.
 - Prefer seek over reload when the current video is already open.
 - Continue playback when the Shared Content Panel is collapsed.
 - Pause playback when the user switches from Search to another top-level section.
@@ -477,8 +538,8 @@ Playback Subtitle Focus cue action requirements:
   anchor, never on the current playback timestamp.
 - `S` saves that cue idempotently. It shows `Shiori Saved` after a new write or
   `Shiori Already Saved` when the durable record already exists.
-- `C` copies the complete cue group, preserving source line order and line
-  breaks, and shows `Subtitle Copied`.
+- `C` copies the exact focused Cue's complete text, preserving its source line
+  order and line breaks, and shows `Subtitle Copied`.
 - `S` and `C` keep Playback Subtitle Focus visible, keep playback paused, and
   preserve cue selection and reel position.
 - `Space` closes Playback Subtitle Focus, seeks to the focused cue start, begins
@@ -487,6 +548,13 @@ Playback Subtitle Focus cue action requirements:
   Down, wheel, and scrollbar navigation remain available.
 - If an action key is accepted while cue motion is settling, execute it once
   against the final settled cue.
+- Each reel item represents one Cue. Its natural height is `52L + 24pt`, where
+  `L` is its complete visual-line count after source breaks and wrapping.
+- A fitting Cue displays every line and keeps its complete center at the fixed
+  Focus Anchor. An oversized Cue aligns its top edge with the reel viewport
+  top, starts from its first visual line, and clips only trailing content.
+- Width-dependent remeasurement must preserve stable Cue identity and restore
+  the selected Cue to its accepted fitting-center or oversized-top placement.
 
 The playback engine is selected in `docs/decisions/ADR-0007-native-only-playback-backend.md`.
 
@@ -536,6 +604,12 @@ Current Settings categories:
 - Default `Search Scope` to `All`.
 - Apply `Search Scope` only to regular Search results in the Search tab.
 - Do not apply `Search Scope` to Shiori search or Cue Context search.
+- Present a persisted native `Show Cue Group` switch immediately below
+  `Search Scope` and default it to Off.
+- Apply `Show Cue Group` to Search, Shiori, and Context presentation only.
+  Changing it may remeasure visible rows plus overscan and restore the anchored
+  primary Cue, but must not rerun Search, rebuild Context scope, mutate Shiori
+  data, change result counts, or refresh hidden or playback-covered tables.
 
 `Decode` settings requirements:
 
@@ -561,7 +635,7 @@ Future settings may include playback, database, logging, and privacy options.
 
 Shiori is CueSeeker's saved-subtitle workflow.
 
-When implemented, the app should support:
+The app supports:
 
 - Save the current subtitle cue as a Shiori.
 - Save a video or broader saved item only after that Shiori type is
@@ -578,8 +652,9 @@ Initial Shiori save behavior:
 - While Playback Subtitle Focus is visible, `S` saves the exact focused cue.
 - Shiori shortcut handling must preserve native text input behavior and must not
   intercept editable text fields or modified shortcuts such as `Command-S`.
-- The save command uses the stable focused-cue identity and indexed cue-group
-  projection captured by the active Subtitle Focus Session.
+- The save command uses the stable individual-Cue identity captured by the
+  active Subtitle Focus Session. Cue Group projection is not part of the saved
+  identity or payload.
 - If the resolved cue is not already saved, the app should persist it and show a
   playback feedback overlay with the Shiori icon and `Shiori Saved`.
 - If the resolved cue is already saved, `S` must not remove or duplicate it and
@@ -598,54 +673,48 @@ Initial Shiori panel behavior:
 - Shiori is a Shared Content Panel mode selected from the fixed Mode Rail.
 - The Shiori mode uses a saved-content icon and should be named `Shiori` in
   user-facing English text.
-- Shiori rows should be grouped by subtitle file, following the Search
-  result grouping pattern where practical.
+- Each Shiori record identifies one individual Cue, and each tag is associated
+  with that Cue rather than its Cue Group.
+- Legacy bilingual Shiori records migrate to the Japanese Cue. When multiple
+  Japanese candidates exist, retain the physically bottommost one; only when
+  language cannot identify a Japanese candidate may migration fall back to the
+  physically bottommost Cue overall.
+- Shiori uses the shared native virtual table, not subtitle-file grouped cards.
+  Its Cue row geometry and Show Cue Group presentation match Search and
+  Context; save, delete, filter, playback, Context, copy, and export retain the
+  stable primary Cue identity.
 
-## 13. Anki Export
+## 13. Cue Export and Copy
 
-CueSeeker should support a first-pass Anki export workflow for subtitle moments
-from Search result groups and Shiori groups.
+CueSeeker export and copy workflows operate on one or more explicitly selected
+individual Cues. Show Cue Group is presentation-only and must never add its
+additional Cues to an export or copy target.
 
 Initial Anki export behavior:
 
-- Search result group headers should expose a compact export button immediately
-  after the `N results` count.
-- Shiori group headers should expose the same compact export button immediately
-  after the `N shioris` count.
-- The export button should use the native `square.and.arrow.up` symbol.
-- Activating the export button should open a macOS save panel for an `.apkg`
-  destination.
-- Confirming the save panel should export silently. The first pass does not
-  need progress UI, success UI, or automatic Finder reveal.
-- Search export should export the currently loaded rows in that Search result
-  group.
-- Shiori export should export all Shiori rows in that Shiori group.
-- Each exported row should become one Anki card.
-- The generated deck name should be `CueSeeker::<group display title>`, such as
-  `CueSeeker::It's MyGO!!!!! - 07`.
-- The initial note type should contain only `Audio`, `Image`, and `Text`
-  fields. Do not add metadata fields in the first pass.
-- The front of each card should show the audio clip and midpoint screenshot.
-- The back of each card should show the subtitle text as CueSeeker displays it,
-  preserving grouped cue lines without adding language labels.
-- Audio clips should use the subtitle row start and end timestamps.
-- Screenshots should use the midpoint between the subtitle row start and end
-  timestamps.
-- Video clips are out of scope for the first pass.
-- Shiori groups are expanded by default. The disclosure rail, hover
-  background, and selected background follow the same rules as Search
-  result rows.
-- The Shiori panel summary should read `<count> shioris in <count> files`.
-- The Shiori panel should expose a fixed `Collapse All` control. The
-  control does not become `Expand All`; after a global collapse, users
-  expand groups individually.
-- Shiori rows display saved subtitle text only. Like Search result rows
-  they do not render the cue start timestamp. Shiori rows do not carry a
-  query, so keyword highlights do not apply.
-- Clicking a Shiori row should open or update playback for the saved video
-  at the saved subtitle start timestamp.
+- Each selected Cue becomes one Anki card, and each card uses only that Cue's
+  exact text and own start/end timestamps.
+- The export action opens a macOS save panel for an `.apkg` destination. After
+  confirmation, export completes without requiring progress UI, success UI, or
+  automatic Finder reveal.
+- The generated deck name is derived from the selected Cue source context.
+- The initial note type contains only `Audio`, `Image`, and `Text`; video clips
+  and additional metadata fields remain out of scope.
+- Each card front contains the audio clip and midpoint screenshot. Its back
+  contains the exact selected Cue text without language labels.
 
-Shiori actions may later appear in Search results, Timeline rows, contextual
-menus, and future hover controls after those entry points are documented. Shiori
-may also feed Queue or Learning Session workflows after those workflows have
-documented placement.
+Screenshot, Collage, Context, and copy behavior:
+
+- Screenshot exports render the selected Cue or Cues using each Cue's own
+  timing. The rendering object itself is unchanged by this requirement.
+- Collage exports use the selected Cues in stable selection order. Every Cue in
+  one Collage request must belong to the same subtitle file; no separate
+  same-subtitle-file/different-video branch is required by the data model. The
+  rendering object itself is unchanged by this requirement.
+- `Copy Cue Text` copies exactly one primary Cue's complete text.
+- When Show Cue Group is On, `Copy Cue Group Text` copies the complete displayed
+  Cue Group without changing the primary Cue action identity.
+- `Context` opens at the corresponding primary Cue, not at a Cue Group.
+
+Shiori may also feed Queue or Learning Session workflows after those workflows
+have documented placement.

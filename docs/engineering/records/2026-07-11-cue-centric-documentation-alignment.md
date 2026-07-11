@@ -42,3 +42,14 @@ schema and application implementation begins.
 The active AI-maintained documentation now supports the accepted Cue-centric
 implementation sequence. Cue Group remains available for indexing and optional
 presentation context without replacing individual Cue identity.
+
+## Final Audit Correction
+
+The first alignment in commit `5d3bacc` covered the core identity, database,
+playback, and test rules needed to begin implementation. A later completion
+audit found that several active functional, UI, interaction, LLM-brief, Liquid
+Glass mapping, and end-to-end documents still described the earlier grouped
+card and fixed Focus designs. The original Outcome above therefore must not be
+read as evidence that every active AI-maintained document was already aligned
+at that point. The remaining conflicts are corrected and verified in
+`docs/engineering/records/2026-07-12-cue-centric-documentation-closeout.md`.

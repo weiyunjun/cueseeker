@@ -24,8 +24,8 @@ The accepted next Search workflow is:
 Open app
 Type a query in the topbar Search field
 Press Return
-Review grouped Search results in the main content area
-Click result
+Review individual Cue rows in the native Search table
+Click the primary Cue content for a row
 Search-launched playback opens in the main content area
 Use the bottom player and the playback overlay side panel for result and
 subtitle navigation
@@ -111,7 +111,39 @@ Accepted topbar Search transition:
   must not clear to an intermediate `0 results` or loading panel during that
   jump.
 
-Expected behavior:
+Current Cue-centric table behavior:
+
+- Search, Shiori, and Search-hosted Context use the same native virtual table.
+  Every row, result count, selection identity, default action, and pagination
+  position represents one primary Cue rather than a Cue Group or subtitle-file
+  group.
+- Search and Context show Selection, Display Title, Cues, and Time. Shiori adds
+  Tags and Date Added.
+- The table has no subtitle-file disclosure headers, grouped cards, or
+  `Collapse All` interaction. Search pagination loads 100 individual Cues per
+  page.
+- Row height is content-driven as `16 + 24P + 20S` points. `P` is the complete
+  primary Cue visual line count, and `S` is the complete visual line count of
+  displayed additional Cues. Source line breaks and automatic wrapping both
+  count; every line must be visible without clipping, truncation, ellipsis, or
+  a maximum line count.
+- Width reflow remeasures visible rows plus overscan and preserves the primary
+  Cue identity and the primary Cue first line's screen-space scroll anchor.
+- Settings > Search places `Show Cue Group` below Search Scope. It is a native
+  persistent switch that defaults to Off. Off shows only the primary Cue. On
+  adds the remaining Cue Group content above it using smaller, more muted text.
+- `Show Cue Group` is presentation-only. It must not rerun Search, rebuild
+  Context, alter Shiori data, change counts, ordering, selection, or action
+  targets. When On, all displayed Cue text shares one interaction region while
+  the primary Cue remains the action target.
+- `Copy Cue Text` always copies the exact primary Cue. `Copy Cue Group Text`
+  appears only while `Show Cue Group` is On.
+
+### Legacy Shared Content Panel Search Shell (Superseded)
+
+The following shell and grouped-result rules describe the retired Mode Rail /
+Shared Content Panel Search design. Current topbar Search and native Cue-table
+behavior above take precedence.
 
 - Search controls and Search results live in Search mode inside the Shared
   Content Panel.
@@ -145,7 +177,11 @@ Expected behavior:
   query has results.
 - Repeating the same query should not trigger expensive work without reason.
 
-Grouped result behavior:
+### Legacy Grouped Result And Row Rules (Superseded)
+
+The following historical rules are retained only to explain the former Search
+implementation. They must not guide current Search, Shiori, or Context UI;
+the Cue-centric table contract above has precedence.
 
 - Search results should be grouped by subtitle file in a single flat level.
   Search mode does not aggregate subtitle files under a parent-folder
@@ -224,16 +260,31 @@ Result row visual rules:
   group rows are ordered by ascending cue start time, so spatial order
   conveys time order without a dedicated column.
 
-Search focus behavior:
+### Current Supporting Search Behavior
+
+- Return submits the topbar draft query; typing alone does not replace the
+  active result snapshot.
+- Empty, searching, failed, no-result, populated, and incremental-loading states
+  remain explicit and must not flicker through false intermediate counts.
+- Search loads individual Cues in 100-Cue pages. Display Title keeps the
+  Finder-like parent-folder and same-extension sibling-rank derivation with a
+  source-filename fallback.
+- Search Result Thumbnails remains experimental and defaults Off. While Off,
+  Search must not render placeholders, read cache entries, create requests,
+  generate thumbnails, or start extraction. While On, work is limited to loaded
+  Cue rows and uses the existing primary-Cue midpoint preview pipeline.
+- Invalid search syntax returns an empty/failure state without crashing, and
+  repeating an unchanged submitted query must not start expensive work without
+  reason.
+
+### Current Search Focus Behavior
 
 - User-initiated app commands should clear Search field focus.
 - Selecting a search result should clear Search field focus.
-- Clicking App-owned expand or collapse buttons should clear Search field focus.
 - Future App-owned feature buttons should clear Search field focus by default.
-- Selecting another Mode Rail item should clear Search field focus.
+- Selecting another topbar mode should clear Search field focus.
 - Opening Settings may clear Search field focus, but it must not change the
-  active workbench mode, selected result, Shared Content Panel visibility, or
-  playback state.
+  active workbench mode, selected result state, or playback state.
 - Clicking anywhere in the Playback Area should clear Search field focus.
 - System-level app switching should not intentionally clear Search field focus.
 - Returning to the app after backgrounding should preserve the Search field focus state when AppKit preserves the first responder.
@@ -275,10 +326,10 @@ Responsiveness boundaries:
   playback interactions are presentation changes over that snapshot, not reasons
   to rebuild Library rows.
 - Search is an active query and aggregation area. Search input, result loading,
-  Search-group collapse state, Queue actions, and future learning actions should
-  not rebuild Library rows or mutate Library state.
-- Shiori is a saved-content browsing area. Opening, grouping, or collapsing
-  Shiori records should not rebuild Library rows or Search result rows.
+  table presentation, Queue actions, and future learning actions should not
+  rebuild Library rows or mutate Library state.
+- Shiori is a saved-content browsing area. Opening or reflowing Shiori Cue rows
+  should not rebuild Library rows or Search result rows.
 - Playback is the central video review area. Opening media, seeking,
   play/pause, fullscreen, subtitle visibility, and playback-control state should
   not rebuild Library rows, Search result rows, or Shiori rows unless the user
@@ -286,11 +337,11 @@ Responsiveness boundaries:
 - Closing playback is an explicit playback-session command. It should clear the
   current playback selection across Search, Library, Shiori, and playback side
   panel rows, but it must not clear Search results, database search caches,
-  Shiori records, Library rows, group disclosure presentation state, or any
-  unrelated workbench data.
+  Shiori records, Library rows, Library disclosure state, Cue-table
+  presentation, or any unrelated workbench data.
 - Switching Mode Rail modes should preserve inactive mode state where practical.
-  It should not clear Search results, Shiori groups, Library disclosure state,
-  selected rows, or playback context.
+  It should not clear Search results, Shiori records or table state, Library
+  disclosure state, selected rows, or playback context.
 - Collapsing or expanding the Shared Content Panel should preserve the panel's
   current content state. It should not destroy and recreate large result lists
   as a side effect of a layout change.
@@ -327,20 +378,18 @@ Responsiveness boundaries:
 
 When the user selects a result:
 
-- In the current Liquid Glass target, Search, Library, and Shiori main-page
-  cards do not retain selected-card visuals after activation.
+- Search, Shiori, and Context resolve the selected row as one exact primary
+  Cue. Optional displayed Cue Group context never becomes the selection or
+  playback target.
 - The visible selected-row treatment belongs to the playback side panel. Right
   playback side-panel rows should still show the current playback context with
   selected styling and should update immediately when the current playback row
   changes.
-- The selected row does not show a cue start timestamp. Within a
-  subtitle-file group rows are ordered by ascending cue start time, so
-  spatial order conveys time order without a dedicated column.
+- The native table exposes the Cue's start and end values in its Time column.
 - Unselected rows use a slightly muted primary label color for subtitle
-  text, preserving hierarchy without making unselected results as faint as
-  group headers.
-- Search result subtitle text should keep internal SRT and ASS line breaks
-  readable with extra wrapped-line spacing, especially for bilingual cue text.
+  text, preserving hierarchy without competing with the primary Cue action.
+- Search result subtitle text preserves internal SRT and ASS line breaks and
+  grows the row to show every source and wrapped visual line.
 - The app should remain in the CueSeeker workbench and open or update the
   central Playback Area.
 - If the Shared Content Panel is visible in Search mode, selecting a result
@@ -349,8 +398,8 @@ When the user selects a result:
 - If the same video is already open, the app should seek instead of reopening when practical.
 - If the video file is missing, the app should show a clear error.
 - Selecting a different result should switch video or seek within the current video and auto-play.
-- Selecting a grouped ASS cue result should use the cue group's `start_ms` as
-  the playback target and begin asynchronous source ASS rendering preparation.
+- Selecting an ASS Cue uses that exact primary Cue's `start_ms` as the playback
+  target and begins asynchronous source ASS rendering preparation.
 - Result selection and Playback Area updates should remain responsive even when
   source ASS rendering is slow or unavailable.
 - The Playback Area should expose `Video Folder` and `Subtitle Folder`
@@ -364,8 +413,7 @@ Search-launched playback result navigation:
 
 - `Previous Result` and `Next Result` navigate through the complete active
   Search result order.
-- The order must match the Search results page order, including subtitle-file
-  group order and row order inside each group.
+- The order must match the Search Cue table's stable row order.
 - Navigation must not use a separate ordering scoped to the current video path
   or subtitle path.
 - The current playback time identifies the current Search-result anchor. If
@@ -375,12 +423,12 @@ Search-launched playback result navigation:
 - The app should be able to show the current Search-result position and total
   result count from the same ordered result source.
 
-The video-page `Results` tab shows the same grouped Search result content as the
-Search results page. The current row uses selected state and should be scrolled
+The video-page `Results` tab shows the same ordered individual-Cue Search
+content as the Search results page. The current Cue row uses selected state and should be scrolled
 into view. It lives in the centered overlay panel, which floats over the video,
 does not resize the video, does not pause playback, never auto-hides, and does
 not include `Collapse All`. Clicking a row during playback seeks to or opens
-that result.
+that exact Cue.
 
 The video-page `Subtitles` tab shows the current subtitle file in timestamp
 order. It does not apply keyword highlighting because it is context navigation,
@@ -399,10 +447,10 @@ playback. Clicking a row seeks to that subtitle.
   constant `3pt` outer padding prevents layout jitter on focus state
   changes.
 - **Search Results**: Interactive result rows emphasize the selection
-  state over hover. The selected background uses the macOS system accent
-  color and aligns with the group disclosure rail's left edge. Result rows
-  use no divider lines, keep readable bilingual line spacing, and do not
-  render a cue start timestamp.
+  state over hover in the playback side panel. In the main native table,
+  interactive cell content receives the local hover region and rows use no
+  full-width hover or selected fill. Complete Cue text remains readable, and
+  the Time column provides start and end context.
 
 ## 7. Playback Interaction
 
@@ -439,6 +487,32 @@ Topbar Search playback interaction:
   video, does not pause playback, and never auto-hides.
 - `Results` is a nearby Search-result context tab.
 - `Subtitles` is a current-subtitle-file context tab.
+
+Playback Subtitle Focus interaction:
+
+- Enter on the Playback Page captures the current timestamp and source
+  identity, pauses playback, and opens a native virtual Cue reel. Each reel
+  item and every interaction target is one exact Cue.
+- If the captured timestamp lies within a Cue Group, the initial selection is
+  the physically bottommost Cue in stable source display order. If it lies in
+  no Cue, select the nearest preceding Cue; if none exists, select the first
+  Cue.
+- Cue natural height is `52L + 24pt`, where `L` includes source line breaks and
+  automatic wrapping. Resolved height is the lesser of natural height and the
+  reel viewport height.
+- The Focus Anchor remains fixed at the viewport's vertical center. A fitting
+  Cue shows every line and centers its complete bounds on the anchor. An
+  oversized Cue aligns its top edge with the viewport top, starts at its first
+  visual line, and clips only trailing content below the viewport.
+- Up, Down, discrete wheel, precise wheel, and scrollbar navigation move among
+  accepted Cue placements. Width reflow preserves stable selected Cue identity
+  and restores its fitting-center or oversized-top placement.
+- `S`, `C`, and `Space` target the exact settled Cue. `S` saves it, `C` copies
+  its complete source-ordered text, and `Space` seeks to its own start time and
+  plays. An action accepted during motion executes once after the final Cue
+  settles.
+- Cue pointer hover and click do not select, seek, play, save, copy, or open an
+  action menu. Pointer wheel and the scrollbar remain available.
 
 Keyboard interactions should not interfere with text input.
 
@@ -598,8 +672,8 @@ Library behavior:
 - The full folder row should be the click target that toggles expand or
   collapse. The chevron sits on the left of the folder row as a visual
   indicator and rotates between `0°` (collapsed) and `90°` (expanded) over
-  `160ms` with an ease curve when toggled. The same chevron animation and
-  left-side position are shared with Search and Shiori group disclosure rails.
+  `160ms` with an ease curve when toggled. This is a Library-only disclosure
+  pattern; Search, Shiori, and Context use the ungrouped native Cue table.
 - Videos inside a folder should be sorted with the same Finder-like natural
   ordering used to derive the row rank.
 - Expanded folders should show a numbered episode-button grid where each
@@ -648,13 +722,12 @@ Queue and Learning Session are future learning workflow modes.
 
 Shiori behavior:
 
-- Shiori belongs to the Shared Content Panel for the current implementation
-  because it uses the same grouped result presentation and click-to-playback
-  flow as Search.
+- Shiori uses the same individual-Cue native table and click-to-playback flow
+  as Search, with Tags and Date Added columns for saved-Cue metadata.
 - Shiori is selected from the fixed Mode Rail.
 - Saving or removing a Shiori should not pause playback or reset Search state.
-- Shiori panel collapse state is presentation state and should not rebuild
-  Library rows or Search result rows.
+- Shiori local table presentation must not rebuild Library rows or Search
+  result rows.
 
 Queue behavior:
 
@@ -761,12 +834,16 @@ Expected behavior:
   and right content area.
 - The left category list uses the quiet gray settings/navigation background.
 - The right content area uses the white settings content background.
-- The active native Settings categories are `Library`, `Decode`,
+- The active native Settings categories are `Library`, `Search`, `Decode`,
   `Maintenance`, `Developer`, and `Experimental Features`. `Layout` remains an
   accepted direction for the Sidebar Position preference when that setting is
   reintroduced.
 - `Library` contains current Subtitle Folders management: add folders, index
   selected folders, remove folders with confirmation, and show indexing status.
+- `Search` contains Search Scope and, immediately below it, the native
+  `Show Cue Group` switch. The switch defaults to Off, persists across launches,
+  and changes only Search, Shiori, and Context Cue presentation; it must not
+  rerun queries, rebuild scope, mutate Shiori, alter counts, or retarget actions.
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
 - `Maintenance` contains local database storage stats and the manual

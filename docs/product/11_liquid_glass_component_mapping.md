@@ -32,9 +32,10 @@ Included App surfaces:
 
 - Main workbench shell (info page only; hidden on the video page).
 - Topbar Library, Shiori, and Search controls (info page only).
-- Search results.
+- Search results and Search-hosted Context use the native AppKit Cue table.
 - Library grouped episode grid.
-- Shiori grouped cards.
+- Shiori uses the native AppKit Cue table.
+- Playback Subtitle Focus uses the native AppKit virtual Cue reel.
 - Active-playback bottom player.
 - Video page video surface (dedicated full-window presentation).
 - Video page top bar (custom traffic-light cluster plus centered title).
@@ -51,6 +52,13 @@ Out of scope for this mapping pass:
   render behavior. The real NSWindow traffic lights are suppressed on the video
   page; the in-scope video-page traffic-light cluster is a custom-drawn product
   control, not the native window buttons.
+
+Current Cue-centric override: older prototype mappings for grouped Search or
+Shiori cards, disclosure headers, and `Collapse All` are **Superseded**. They
+remain useful only as historical Liquid Glass references. Search, Shiori, and
+Context now share `SubtitleTableView` with native dynamic Cue rows; Playback
+Subtitle Focus is a native virtual reel. These native-only surfaces take
+precedence over conflicting `ui-selectable-card` prototype mappings.
 
 ## 3. Mapping Principles
 
@@ -88,6 +96,8 @@ Expected SwiftUI building blocks:
 | `LiquidGlassSegmentedControl` | Two or more compact segmented options. |
 | `LiquidGlassSelectableCard` | Selectable result-style card surface. |
 | `LiquidGlassSelectableRow` | Selectable sidebar/list row surface. |
+| `SubtitleTableView` | Native AppKit virtual table shared by Search, Shiori, and Search-hosted Context; owns dynamic Cue row measurement, drawing, scroll anchoring, and table-local interaction. |
+| `PlaybackSubtitleFocusReelRepresentable` | Native AppKit virtual Cue reel; owns visible-plus-overscan measurement and accepted fitting/oversized Focus placement. |
 | `LiquidGlassSlider` | Playback progress and volume slider family. |
 | `LiquidGlassPopupMenu` | Rounded-rectangle popup menu and menu item family. |
 | `LiquidGlassSurface` | Shared workbench, bottom-player, overlay-panel, and video-stage surfaces. |
@@ -104,7 +114,7 @@ live in that owner, not in individual call sites.
 | HTML class anchor | Product component concept | SwiftUI owner | App usage |
 | --- | --- | --- | --- |
 | `ui-capsule` | Capsule button base | `LiquidGlassCapsuleButton` / capsule `ButtonStyle` | Shared base for visible pill-shaped text/value controls. |
-| `ui-capsule--command` | Capsule command button | `LiquidGlassCapsuleButton.Kind.command` | `Collapse All` and similar compact commands. |
+| `ui-capsule--command` | Capsule command button | `LiquidGlassCapsuleButton.Kind.command` | Compact commands outside the retired grouped Search/Shiori UI; `Collapse All` prototype usage is Superseded. |
 | `ui-capsule--value` | Fixed-width value capsule | `LiquidGlassCapsuleButton.Kind.value` | Playback speed control. |
 | `ui-capsule--test` | Prototype-only test capsule | No production App component | HTML review controls only. |
 | `ui-prototype-control` | Prototype-only review control | No production App component | Must not appear in production App UI. |
@@ -118,7 +128,9 @@ live in that owner, not in individual call sites.
 | `ui-input-capsule` | Search field capsule | `LiquidGlassSearchField` | Topbar Search input. |
 | `ui-segmented-control` | Segmented control container | `LiquidGlassSegmentedControl` | Playback side-panel tabs. |
 | `ui-segmented-control__option` | Segmented control option | `LiquidGlassSegmentedControl.Option` | Search Results and Subtitles tab buttons. |
-| `ui-selectable-card` | Selectable card | `LiquidGlassSelectableCard` | All three info-page cards share this one owner. v6 markup: `result-card ui-selectable-card` (Search), `result-card shiori-card ui-selectable-card` (Shiori), `library-episode-card ui-selectable-card` (Library); `shiori-card` / `library-episode-card` are surface modifiers, not separate owners. Adopted by Search in P5.2-1, Library in P5.3, Shiori in P5.4-1. The Library episode card draws the shared `LiquidGlassTokens` card skin (fill / hover / shadow) directly rather than wrapping the `LiquidGlassSelectableCard` view, because its Library-launched "playing" treatment (doc 12 §7.2) is a main-page retained-playback indicator that the wrapper's selected state explicitly must not represent (that selected state is sidebar-reuse only; see this file's component header). The token source is still shared, so the skin stays single-sourced. |
+| `ui-selectable-card` | Selectable card | `LiquidGlassSelectableCard` | Current production use is Library episode-card styling only. Search and Shiori `result-card` mappings are Superseded by the native Cue table. The Library episode card may draw the shared card tokens directly so its Library-launched playing treatment remains distinct from selection state. |
+| Native-only Cue table row | Content-driven primary-Cue row | `SubtitleTableView` | Search, Shiori, and Context. Height is `16 + 24P + 20S`; all Cue lines render; optional additional Cues appear above the unchanged primary Cue identity. Width and `Show Cue Group` reflow affect visible rows plus overscan only. |
+| Native-only Subtitle Focus Cue | Content-driven Cue reel item | `PlaybackSubtitleFocusReelRepresentable` | One exact Cue per item. Natural height is `52L + 24`; resolved height is viewport-clamped; fitting Cues center on the Focus Anchor and oversized Cues use head-first top placement. |
 | `ui-selectable-row` | Selectable sidebar row | `LiquidGlassSelectableRow` | Playback side-panel result and subtitle rows. |
 | `ui-popup-menu` | Rounded-rectangle popup menu | `LiquidGlassPopupMenu` | Playback speed menu. |
 | `ui-popup-menu__item` | Popup menu item | `LiquidGlassPopupMenu.Item` | Playback speed options. |
@@ -130,7 +142,7 @@ live in that owner, not in individual call sites.
 | `ui-feedback-hud--text-capsule` | Text-only feedback capsule modifier | `LiquidGlassFeedbackOverlay.HUD.Kind.textCapsule` | Independent compact capsule HUD for text-only feedback such as fullscreen enter and exit. No icon slot or icon spacing is reserved. |
 | `ui-feedback-icon` | Feedback icon | `LiquidGlassFeedbackOverlay.Icon` | Command icon inside the transient video feedback HUD; omitted for text-only fullscreen enter and exit feedback. |
 | `ui-feedback-label` | Feedback label | `LiquidGlassFeedbackOverlay.Label` | Short command or state label inside the transient video feedback HUD. |
-| `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Playback side-panel selected rows, selected toggles, and selected menu items. Search, Library, and Shiori main-page cards must not use this for retained playback *selection* visuals (finding F). Carve-out: the Library episode card's Library-launched *playing* indicator (doc 12 §7.2) is a mandated ongoing-playback state, not a selection visual, and is kept; it uses a Library-specific treatment, not this shared selected state. |
+| `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Playback side-panel rows, selected toggles, and selected menu items. Native Search/Shiori/Context Cue tables use their declared checkbox/focus state rather than retained card selection. Library's playing indicator is a separate ongoing-playback treatment. |
 | `ui-is-active` | Active state marker | `LiquidGlassControlState.active` | Active segmented option and active transient control states. |
 
 ### 5.1 Video-page top bar anchors (v6)
@@ -169,15 +181,17 @@ Retired active-target components:
 | Main workbench shell | `.window`, `.main`, `.toolbar` | `ContentView`, `AppTopBar`, `LiquidGlassSurface` | `AppCoordinator`, `WorkbenchLayoutState`, native window setup. The workbench `.toolbar` is the info-page chrome only and is hidden while the video page is shown. |
 | Topbar mode buttons | `ui-icon-button--topbar` | `LiquidGlassIconButton.Kind.topbar` | `activateWorkbenchPanelMode`. |
 | Topbar Search | `ui-input-capsule`, `ui-icon-button--embedded` | `LiquidGlassSearchField` | `TopbarSearchInputState`, Return-submit flow. |
-| Search page | `.search-state`, result groups, `ui-selectable-card` | Search page view plus `LiquidGlassSelectableCard` | Existing Search query, grouping, lazy loading, load-more, exact counts. |
+| Search page | Native-only Cue table; grouped-card prototype is Superseded | Search page shell plus `SubtitleTableView` | Individual-Cue query/pages/counts and stable row identity. Dynamic measurement, `Show Cue Group`, and scroll-anchor correction are table-presentation concerns only. |
+| Search-hosted Context | Native-only Cue table | Context mode plus `SubtitleTableView` | Exact primary-Cue Context scope, Search columns, dynamic geometry, and primary-Cue return identity. |
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
-| Shiori page | `.shiori-state`, grouped cards | Shiori page view plus `LiquidGlassSelectableCard` | Existing Shiori persistence and open behavior. |
+| Shiori page | Native-only Cue table; grouped-card prototype is Superseded | Shiori page shell plus `SubtitleTableView` | One-Cue Shiori/tag identity, dynamic geometry, exact-Cue open/remove actions, and presentation-only optional Cue Group context. |
 | Info-page empty / loading / failed / no-results states | State demo `.state-view`, `.state-spinner`, `.load-more` (separate `ui/state-demos/info-page-card-states/` prototype, outside `ui/prototypes/`) | Shared info-page state views (`SearchStatus`-driven Search states; Library `selectedFolders`/`libraryStatus`; Shiori empty) | `SearchStore` / `LibraryStore` / `ShioriStore` status; see doc 12 §6.1/§7.1/§8. Provisional state authority only (condition→state + whether it animates), not final visual. |
 | Bottom player | `.player-dock`, `.player-hud` | `BottomPlaybackBar`, `LiquidGlassBottomPlayer` | Active playback session visibility, playback view model, seek, volume, speed, navigation, and subtitle visibility. Normal playback chrome has no Shiori or copy command. |
 | Video page | `.video-state`, `.video-stage`, `.video-frame`, `ui-feedback-overlay` | `PlaybackExpandedLayout`, video stage surface, `LiquidGlassFeedbackOverlay` | Dedicated full-window presentation layered above a live info page; real video aspect ratio; playback render view lifecycle; playback close lifecycle (returns to the originating info page); playback input feedback. The feedback overlay renders above the playback overlay panel. |
 | Video page top bar | `.video-topbar`, `.video-traffic`, `.vt-dot`, `.vt-close`, `.vt-min`, `.vt-zoom`, `.video-title` | `LiquidGlassVideoTopBar`, `LiquidGlassWindowControlButton` | Player UI; shares `player-chrome-visible` show/hide with the bottom player. Close returns to the originating info page; zoom enters fullscreen. Native NSWindow traffic lights are suppressed on the video page. |
 | Video page overlay panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Overlay-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. Right-aligned floating overlay over the video; does NOT squeeze the video stage; visibility is independent of `player-chrome-visible` and is driven only by the bottom-bar panel toggle; never auto-hides. The native scrollbar may show a fixed-width light thumb with transparent track/gutter. |
 | Fullscreen playback chrome | Prototype bottom-player and video-page top bar visual language plus `ui-feedback-overlay` | Fullscreen overlay using the same bottom-player, top-bar, and feedback component families | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing, playback input feedback. |
+| Playback Subtitle Focus | Native-only virtual Cue reel | `PlaybackSubtitleFocusReelRepresentable` | Exact-Cue initial selection fallback, `52L + 24` geometry, accepted fitting/oversized placement, ordinal navigation, and exact-Cue `S`/`C`/Space actions. |
 
 Info-page state views note: the empty / loading / failed / no-results states
 are specified by a separate focused interactive prototype,
@@ -203,7 +217,7 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `[disabled]` | `Environment(\.isEnabled)` | Disabled visual treatment must be owned by the component style. |
 | `aria-pressed="true"` | Boolean binding such as `isSelected` | Used by toggle controls. It does not imply `ui-is-selected` unless the component mapping explicitly uses selected visual styling. |
 | `aria-expanded="true"` | Boolean binding such as `isExpanded` | Used by menus and disclosure controls. The retired source/title capsule must not be reintroduced as the expanded-playback toggle. |
-| `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state for playback side-panel rows and selected controls only. Main Search, Library, and Shiori cards should not retain selected visuals after activation. |
+| `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state for playback side-panel rows and selected controls only. Native Search/Shiori/Context tables do not inherit the retired main-page card selection treatment. |
 | `ui-is-active` | `LiquidGlassControlState.active` | Active tab or active transient selection. |
 | `.is-dragging` | `@GestureState` or local drag state | Sliders should use this for thumb and track emphasis. |
 | `body[data-theme]` | `AppAppearanceMode` / color scheme | Theme tokens should derive from App appearance mode, not prototype-only controls. |
@@ -226,7 +240,8 @@ Icon asset rule:
   changes repeatedly. Repeated commands may update text and run a small update
   pulse, but must not remount the HUD or replay the full entry animation.
 
-Main-page selected-visual correction: the `ui-is-selected` rows above forbid
+Historical main-page selected-visual correction (the Search/Shiori card
+surfaces are now Superseded): the `ui-is-selected` rows above forbade
 retained playback-selection visuals on main Search / Library / Shiori cards
 (proposal "P5.0 Confirmed Audit" finding F). The Search card and the shared
 `CardGroupHeader` selected visuals were excised in P5.2-2. The `ShioriCard`
@@ -253,7 +268,9 @@ role, not by copying CSS names mechanically.
 | `--hairline`, `--hairline-soft` | `LiquidGlassTokens.hairline` | Borders and separators. |
 | `--text`, `--text-2`, `--text-3`, `--text-4` | `LiquidGlassTokens.text` | Primary through quaternary text roles. |
 | `--accent`, `--accent-soft` | `LiquidGlassTokens.accent` | App accent emphasis and soft selected treatment. |
-| `--card-*`, `--card-selected-*`, `--row-*` | `LiquidGlassTokens.selectableCardSurface` | Selectable-card / list-row surface, hover, and selected skins. The authoritative skin is the later v6 token-override layer (theme-driven, `styles.css` L1758); the hardcoded-light base values (L563) are not the authority and must not be replicated. |
+| `--card-*`, `--card-selected-*`, `--row-*` | `LiquidGlassTokens.selectableCardSurface` | Library cards, playback-side-panel rows, and historical prototype references. They do not define native Search/Shiori/Context Cue-table geometry or selection. |
+| Native Table Row tokens | `SubtitleTableCueGeometry` plus table drawing tokens | Search/Shiori/Context row padding, 24-point primary line height, 20-point additional line height, dynamic measurement, and scoped hover/menu drawing. |
+| Native Subtitle Focus tokens | `PlaybackSubtitleFocusMetrics` | 52-point Cue line height, 12-point vertical padding, 8-point Cue gap, viewport-clamped resolved height, and accepted placement. |
 | `--highlight`, `--highlight-text` | `LiquidGlassTokens.searchHighlight` | Search match highlighting. |
 | `--search-page-*` | Page-specific semantic tokens | Info-page (Search / Library / Shiori) surface; page background light `#f4f4f6` / dark `#1f2027`. Concrete confirmed values: proposal "P5.2-B Confirmed Pixel Spec". |
 | `--search-page-pill-*`, `--field-*` (topbar) | `LiquidGlassTokens.topbarControlSurface` | Topbar search-field capsule (`LiquidGlassSearchField`) and topbar tool buttons (`LiquidGlassIconButton.Kind.topbar`); concrete values in proposal "P5.2-B Confirmed Pixel Spec". NSWindow traffic lights stay native and are not aligned. |
@@ -267,12 +284,10 @@ Rules:
   styles.
 - App implementation may use native materials and color-scheme behavior when
   they preserve the accepted visual intent.
-- The Search card subtitle `.line` font weight and opacity are
-  App-authoritative (owner decision 2026-05-19): the v6 prototype was updated
-  to match the App (weight 600, opacity 0.88; commit `7c2ea1f`), not the
-  reverse. Concrete P5.2-B card / topbar / page pixel values are
-  single-sourced in the proposal "P5.2-B Confirmed Pixel Spec"; this document
-  maps semantic roles only.
+- Historical Search-card note (Superseded for the current Cue table): the
+  prototype `.line` weight and opacity were once App-authoritative. Current
+  Search Cue typography and geometry come from the native Table Row contract,
+  not that card rule.
 
 ## 9. Synchronization Workflow
 
@@ -325,10 +340,10 @@ The following must not be synchronized from HTML classes into Swift:
 
 Open questions before this document becomes accepted:
 
-- Resolved (v6, 2026-05-20): `ui-selectable-card` covers all three —
-  Search/Shiori result cards and Library episode cards — under one
-  `LiquidGlassSelectableCard` owner, with `shiori-card` / `library-episode-card`
-  as surface modifiers (see §5). Library episodes do not get a separate anchor.
+- Superseded (Cue-centric UI, 2026-07): the v6 decision that
+  `ui-selectable-card` covered Search, Shiori, and Library now applies only to
+  historical prototypes and current Library styling. Search and Shiori use the
+  native Cue table; Context shares that table contract.
 - Should topbar Library and Shiori buttons be modeled as `topbar` plus
   `toggle`, or as a distinct topbar-toggle variant?
 - Should fullscreen playback chrome use the exact bottom-player component with

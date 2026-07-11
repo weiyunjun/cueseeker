@@ -77,8 +77,8 @@ Accepted M2 playback-close behavior:
   Shiori, and playback side-panel rows.
 - Close hides the bottom player because there is no active playback session.
 - Close must not clear Search results, database search caches, Library rows,
-  Shiori records, group disclosure presentation state, or unrelated workbench
-  state.
+  Shiori records, Library disclosure state, Cue-table presentation, or
+  unrelated workbench state.
 - If the active playback source is Library, close uses the same Library playback
   history save path as any other playback stop or source switch.
 - Search-launched and Shiori-launched playback close must not read, write, or
@@ -279,11 +279,11 @@ Rules:
   practice, but the classifier should remain diagnosable when a file is
   ambiguous.
 
-Grouped search result behavior:
+Cue-centric search result behavior:
 
-- Clicking a grouped subtitle result should select the row, open or seek the
-  matched video file, and begin asynchronous source subtitle preparation for the
-  matched source subtitle file.
+- Clicking an individual primary Cue should select that Cue row, open or seek
+  the matched video file to the Cue's own start time, and begin asynchronous
+  source subtitle preparation for the matched source subtitle file.
 - The playback target is the primary Cue's own start time. Showing additional
   Cue Group context must not change that target.
 - If the source subtitle file changes, reindexing should rebuild the cue groups
@@ -494,9 +494,9 @@ Current implementation notes and accepted fullscreen correction:
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
 - Normal playback exposes no current-timestamp Shiori or subtitle-copy command
   through either the bottom player or `S` / `C`.
-- Playback Subtitle Focus uses the exact settled cue-group projection for
-  Shiori, clipboard text, and continuous playback. Clipboard text preserves
-  source line order and line breaks.
+- Playback Subtitle Focus uses the exact settled Cue for Shiori, clipboard
+  text, and continuous playback. Clipboard text preserves source line order and
+  line breaks.
 - In Playback Subtitle Focus, `S` shows `Shiori Saved` or
   `Shiori Already Saved` and `C` shows `Subtitle Copied` without dismissing the
   overlay or resuming playback. `Space` dismisses the overlay, seeks to the
@@ -505,6 +505,43 @@ Current implementation notes and accepted fullscreen correction:
   without action; Up, Down, wheel, and scrollbar navigation remain available.
 - An action accepted during unresolved reel motion runs exactly once against
   the final settled focused cue and is cancelled if the Session closes first.
+
+Playback Subtitle Focus Cue contract:
+
+- Enter captures playback state, source identity, and the current timestamp,
+  pauses playback, and opens a native virtual reel whose items are individual
+  Cues. Normal playback must not create Focus queries, collections, views, or
+  measurements before Enter.
+- If the captured timestamp lies within a Cue Group, the default selection is
+  the physically bottommost Cue in stable source display order. If the
+  timestamp lies within no Cue, select the nearest preceding Cue; if no
+  preceding Cue exists, select the first Cue.
+- The initial window contains exactly 10 Cues when possible, preferring six
+  preceding Cues, the selected Cue, and three following Cues. Boundary shortage
+  is filled from the opposite side without changing stable Cue identity.
+- A Cue's natural height is `52L + 24pt`, where `L >= 1` includes source line
+  breaks and automatic wrapping at the current content width. Its resolved
+  height is `min(natural height, reel viewport height)`.
+- The Focus Anchor stays fixed at the reel viewport's vertical center. A Cue
+  that fits shows every visual line and centers its complete bounds on that
+  anchor. An oversized Cue aligns its top edge with the viewport top, starts at
+  its first visual line, clips only trailing content below the viewport, and
+  retains its complete unclipped value for actions.
+- Up, Down, discrete wheel, precise wheel, and scrollbar navigation move
+  between accepted Cue placements. Width-dependent reflow preserves stable
+  selected Cue identity, recomputes natural and resolved height, and restores
+  the fitting-center or oversized-top placement.
+- Scrollbar identity and progress are Cue-ordinal based rather than cumulative
+  rendered height based. Virtual rendering lays out only viewport-visible Cues
+  plus overscan and an explicit target when necessary.
+- `S`, `C`, and `Space` use the exact settled Cue identified by stable Cue
+  identity and ordinal. `S` saves that Cue, `C` copies its complete text, and
+  `Space` seeks to that Cue's own start time and begins continuous playback.
+  An accepted action during motion waits for the existing final placement and
+  executes once against the resulting Cue.
+- Cue hover and click have no selection, action, seek, playback, or visual
+  effect. Pointer clicks are consumed by the overlay; wheel and scrollbar
+  navigation remain enabled.
 
 ## 9. Learning Session Playback
 

@@ -35,9 +35,10 @@ Surfaces covered by this UX mapping:
 
 - Main workbench shell (info page only; hidden on the video page).
 - Topbar Library, Shiori, and Search controls (info page only).
-- Search results.
+- Search results and Search-hosted Context in the native Cue table.
 - Library grouped episode grid.
-- Shiori grouped cards.
+- Shiori in the native Cue table.
+- Playback Subtitle Focus in the native virtual Cue reel.
 - Active-playback bottom player.
 - Video page video surface (dedicated full-window presentation).
 - Video page top bar (custom traffic-light cluster plus centered title).
@@ -155,6 +156,30 @@ Rules:
 
 ## 6. Search UX
 
+### 6.0 Current Cue-Centric Native Contract
+
+The native App contract below supersedes conflicting grouped-card,
+subtitle-file disclosure, and `Collapse All` behavior retained from the v6 HTML
+prototype in sections 6.3-6.4:
+
+- Search and Search-hosted Context use `SubtitleTableView`; Shiori uses the same
+  native virtual table contract with its additional Tags and Date Added cells.
+- Each row has one stable primary Cue identity. Search pages and exact counts
+  use individual Cues, so two matching sibling Cues remain two rows.
+- Rows are content-driven: `16 + 24P + 20S`, with all source line breaks and
+  automatic wrapping visible. No Cue text may be truncated or line-limited.
+- `Show Cue Group` is a persisted native switch below Search Scope. Off renders
+  only the primary Cue; On renders additional Cues above it in secondary type,
+  while selection, playback, Context, copy-Cue, and export targets remain the
+  primary Cue.
+- While Show Cue Group is On, all displayed Cue text shares one hover, click,
+  and context-menu region. `Copy Cue Text` still targets only the primary Cue;
+  `Copy Cue Group Text` appears only while On and copies the displayed group.
+- Cues-column width and `Show Cue Group` changes may remeasure visible rows plus
+  overscan only. They preserve the primary Cue plus first-line screen anchor
+  and must not rerun Search, rebuild Context scope, reload Shiori, change
+  counts/ordering/identity, or recreate the playback render host.
+
 ### 6.1 Search Submission And Page States
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
@@ -163,7 +188,6 @@ Rules:
 | Submitted results appear in the main content area. | `.search-state` | Search page view | `AppCoordinator.submitTopbarSearch` |
 | Empty, loading, failed, and no-results states remain explicit. | State demo `.state-view` / `.state-spinner` / `.load-more` (`ui/state-demos/info-page-card-states/`) | Search page state views | `SearchStatus`, submitted query |
 | Search page shows a compact summary row above results. | `.results-header` | Search summary view | Search result counts |
-| `Collapse All` uses a fixed label and does not become Expand All. | `ui-capsule--command` | `LiquidGlassCapsuleButton.Kind.command` | Search group collapse state |
 
 Rules:
 
@@ -172,19 +196,13 @@ Rules:
 - Repeating the same query should not trigger expensive work without reason.
 - Search focus changes are UI state and must not invalidate Library, Shiori, or
   playback content.
-- The `Collapse All` control collapses all visible result groups and keeps the
-  same label.
-- Collapsing all groups keeps group headers visible and reduces visible result
-  cards or rows to zero.
-- Collapse actions must not re-run Search, fetch another page, change the lazy
-  loading cursor, or mutate result counts.
 - Search page state, in this order (condition → state; title/message verbatim
   from `SearchView.swift`): submitted query empty → "No Search Query";
   `SearchStatus.searching` with no results → "Searching" (animated spinner);
   `SearchStatus.failed(message)` with no results → "Search Failed" (shows the
   error message); completed with zero results → "No Results"; results present
-  → grouped card list; `SearchStatus.searching` with results already present →
-  grouped card list with a bottom incremental "loading more" spinner.
+  → native Cue table; `SearchStatus.searching` with results already present →
+  the current Cue table with a bottom incremental "loading more" spinner.
 - The state demo `ui/state-demos/info-page-card-states/` is the provisional
   authority for which state appears and whether it animates; it is not the
   final pixel-level visual authority. The demo's state-view treatment leans
@@ -194,7 +212,7 @@ Rules:
 
 ### 6.2 Search Result Lazy Loading
 
-The Liquid Glass card rewrite must preserve existing lazy-loading semantics.
+The native Cue table must preserve existing Cue paging semantics.
 
 Rules:
 
@@ -202,15 +220,11 @@ Rules:
   file groups.
 - The initial visible budget remains 100 Cue results.
 - Each incremental global load remains 100 Cue results.
-- Lazy loading may trigger only from user-visible actions: scrolling to the
-  bottom when more global rows can be shown, expanding all groups from the
-  all-collapsed state, or expanding an individual subtitle-file group.
-- Expanding all groups reveals at most one global 100-result batch. It must not
-  reveal 100 rows per subtitle file.
-- Expanding one subtitle-file group reveals at most the first 100 matching rows
-  for that subtitle file.
-- UI card layout changes must not make first-screen rendering wait for all
-  groups, all counts, thumbnails, or playback metadata.
+- Additional pages may load only from the table's declared visible-row paging
+  trigger and must advance the individual-Cue cursor without duplicate or stale
+  rows.
+- Dynamic row layout must not make first-screen rendering wait for all rows,
+  all measurements, or playback metadata; measure visible rows plus overscan.
 - Search thumbnails are not retained. The accepted card design (v6 and the
   state demo) has no thumbnails; the experimental
   `searchResultThumbnailsEnabled` setting, its Settings toggle, and any
@@ -222,7 +236,10 @@ Rules:
   "P5.0 Confirmed Audit" finding B). First-screen rendering must never wait for
   thumbnails.
 
-### 6.3 Search Group Headers
+### 6.3 Search Group Headers (Legacy HTML — Superseded)
+
+This subsection records the retired grouped-card prototype and is not a current
+native App requirement.
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
@@ -244,7 +261,10 @@ Rules:
 - Fallback raw filenames may wrap, with soft wrap opportunities after common
   delimiters when needed.
 
-### 6.4 Search Result Cards
+### 6.4 Search Result Cards (Legacy HTML — Superseded)
+
+This subsection records the retired grouped-card prototype and is not a current
+native App requirement.
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
@@ -349,37 +369,34 @@ Rules:
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
 | Shiori is entered from the topbar Shiori icon. | `#topbarShioriToggle` | `AppTopBar` | `activateWorkbenchPanelMode(.shiori)` |
-| Shiori uses grouped card presentation aligned with Search. | `.shiori-state`, `.shiori-card` | Shiori page view, `LiquidGlassSelectableCard` | Shiori groups |
+| Shiori uses the shared native Cue table. | Native-only | Shiori page view, `SubtitleTableView` | Stable individual-Cue Shiori rows |
 | Shiori summary shows total shiori and file counts. | `.results-header` | Shiori summary view | Shiori counts |
-| `Collapse All` keeps a fixed label. | `ui-capsule--command` | `LiquidGlassCapsuleButton.Kind.command` | Shiori group collapse state |
-| Selecting a Shiori opens or seeks playback. | `ui-selectable-card` | Shiori card view | `openShiori` |
+| Selecting a Shiori opens or seeks playback from that Cue. | Native table Cues cell | `SubtitleTableView` | `openShiori` |
 | Empty state is explicit; there is no Shiori loading or failed state. | State demo `.state-view` (`ui/state-demos/info-page-card-states/`) | Shiori page state view | `shioris` empty |
 
 Rules:
 
-- Shiori cards should show complete cue text without truncating subtitle lines.
-- Shiori cards may show pressed feedback during activation, but they do not
-  retain selected-card visuals after opening playback.
+- Every Shiori row owns one Cue and its tags. Complete primary and optional
+  additional Cue text follows the shared `16 + 24P + 20S` dynamic geometry and
+  must not be truncated.
+- `Show Cue Group` changes presentation only; it never changes Shiori identity,
+  tags, counts, ordering, playback target, or remove/export action target.
 - Saving or removing a Shiori must not pause playback, reset Search state, or
   rebuild Library rows.
-- Shiori group collapse state is presentation state and must not rebuild Search
-  or Library rows.
+- Width and `Show Cue Group` reflow may remeasure visible Shiori rows plus
+  overscan, preserving the anchored primary Cue without rebuilding the Shiori
+  snapshot, Search, Library, or playback render host.
 - Playback Subtitle Focus Shiori feedback uses the same transient playback
   feedback system as other playback commands and renders above the focus
   overlay.
 - Shiori page state (condition → state; verbatim from `SearchView.swift`):
-  `shioris` empty → "No Shiori"; shioris present → grouped card list. The App
+  `shioris` empty → "No Shiori"; shioris present → native Cue table. The App
   has no Shiori loading or failed state and the demo must not invent one. The
   state demo is the provisional state authority (see §6.1); pixel-level visual
   reconciliation is deferred.
-- Shiori card, group header, and results-header pixel visuals align to the v6
-  prototype (`result-card shiori-card ui-selectable-card`, `.group-header`,
-  `.results-header`). Order: P5.4-1 adopt the shared `LiquidGlassSelectableCard`;
-  P5.4-2 excise the retained `Color.accentColor` selected visual and
-  `selectedShiori` plumbing (finding F); P5.4-3/-4 retire the dead Shiori
-  legacy cluster and the orphaned `SearchLayout`; P5.4-B precise alignment from
-  a future owner-confirmed "P5.4 Confirmed Pixel Spec". See proposal "P5.3 /
-  P5.4 Old-Code Audit & Deletion Plan".
+- The v6 grouped Shiori-card, group-header, and `Collapse All` mappings are
+  Superseded historical prototype references and must not override the native
+  table contract.
 
 ## 9. Bottom Player UX
 
@@ -702,11 +719,12 @@ Rules:
 - If the current source is Search or Shiori, close must not read, write, or
   overwrite Library playback resume history.
 - Close must clear the selected overlay-panel row because there is no longer an
-  active playback identity. Search, Library, and Shiori main-page cards should
-  already have no retained playback selection visuals.
+  active playback identity. Native Search/Shiori/Context tables have no
+  playback-derived card selection visual; Library's documented playing
+  indicator is a separate source-specific state.
 - Close must not clear the submitted Search query, Search result list, database
-  search cache, Shiori records, Library rows, group disclosure presentation
-  state, or unrelated workbench state.
+  search cache, Shiori records, Library rows, Library disclosure state,
+  Cue-table presentation, or unrelated workbench state.
 - Close from playback fullscreen exits fullscreen and ends playback. It must not
   leave the user in a video-only fullscreen surface without playback.
 - Closing playback is not the same as hiding the overlay panel, hiding chrome,
@@ -919,6 +937,25 @@ If `S`, `C`, or `Space` is accepted while the reel is settling, the command is
 executed once against the final settled cue. Cue hover and click have no
 cue-specific response; Up, Down, wheel, and scrollbar navigation are unchanged.
 
+Playback Subtitle Focus geometry and selection are native-only:
+
+- One item is one exact Cue. At opening, choose the physically bottommost Cue
+  in the active Cue Group; with no active Cue, fall back to the nearest
+  preceding Cue, then the first Cue.
+- Natural Cue height is `52L + 24`; resolved height is clamped to the reel
+  viewport. Source line breaks and automatic wrapping both contribute to `L`.
+- A fitting Cue displays every line and centers its complete bounds on the fixed
+  Focus Anchor. An oversized Cue aligns its top to the reel viewport and always
+  settles with the first visual line visible; only trailing display content may
+  be clipped.
+- Up, Down, wheel, and scrollbar navigation use Cue ordinals and content-driven
+  accepted placements. Width reflow preserves stable selected Cue identity and
+  restores the fitting-center or oversized-head-first placement.
+- Layout and drawing are limited to visible Cues plus overscan and an explicit
+  navigation target. Focus selection, motion, measurement, and deferred action
+  state remain overlay-local and must not invalidate Search, Shiori, Context,
+  Library, or the playback render host.
+
 ### 13.3 Video Surface Mouse Rules
 
 Rules:
@@ -982,20 +1019,23 @@ Rules:
 - Library rows remain cached until Library data or Library ordering inputs
   change. Manual disclosure, playback, Search, and Shiori interactions must not
   rebuild Library rows.
-- Search rows remain cached until the query, loaded result page, Search group
-  collapse state, or Search ordering inputs change.
-- Shiori rows remain cached until Shiori records or Shiori group collapse state
-  change.
+- Search row identities remain cached until the query, loaded Cue page, Search
+  ordering, or indexed Cue data changes. Width and `Show Cue Group` update only
+  visible-plus-overscan measurement and the stable scroll anchor.
+- Shiori row identities remain cached until Shiori records, tags, ordering, or
+  submitted Shiori filters change. Width and `Show Cue Group` are
+  presentation-only and must not rebuild that snapshot.
 - Playback state changes must not rebuild Library, Search, or Shiori rows
   unless a product-specific state indicator requires a targeted update.
 - Switching modes changes visible surfaces, not the underlying data model.
 - Collapsing, expanding, hiding, or restoring panels changes layout state, not
   data state.
-- Search result card rendering may use SwiftUI lazy containers, custom layout,
-  or flattened row structures as needed to preserve first-screen rendering and
-  scroll performance.
-- Large grouped content should avoid wrapping all rows of a group inside one
-  eagerly measured view when that would defeat laziness.
+- Search, Shiori, and Context use the native virtual Cue table so row view,
+  measurement, and drawing work stays proportional to the visible range plus
+  overscan rather than total Cue count.
+- Playback Subtitle Focus uses a separate native virtual Cue document. Its
+  retained collection must not create one view or text-layout object per Cue;
+  accepted placement reflow stays local to the Focus overlay.
 
 ## 15. Native Differences Allowed
 
