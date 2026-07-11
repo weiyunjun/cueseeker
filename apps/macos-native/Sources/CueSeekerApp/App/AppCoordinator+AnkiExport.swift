@@ -7,12 +7,9 @@ import CueSeekerCore
 extension AppCoordinator {
     func exportSearchResultGroupToAnki(_ group: SearchResultFileGroup) {
         let items = group.results.map { result in
-            AnkiExportItem(
-                deckDisplayTitle: group.subtitleDisplayTitle,
-                videoPath: result.videoPath,
-                startMilliseconds: result.startMilliseconds,
-                endMilliseconds: result.endMilliseconds,
-                textLines: subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
+            Self.ankiExportItem(
+                for: result,
+                deckDisplayTitle: group.subtitleDisplayTitle
             )
         }
         exportAnkiItems(items)
@@ -20,12 +17,9 @@ extension AppCoordinator {
 
     func exportShioriGroupToAnki(_ group: ShioriFileGroup) {
         let items = group.shioris.map { shiori in
-            AnkiExportItem(
-                deckDisplayTitle: group.subtitleDisplayTitle,
-                videoPath: shiori.videoPath,
-                startMilliseconds: shiori.startMilliseconds,
-                endMilliseconds: shiori.endMilliseconds,
-                textLines: subtitleDisplayLines(content: shiori.content, cueLines: shiori.cueLines)
+            Self.ankiExportItem(
+                for: shiori,
+                deckDisplayTitle: group.subtitleDisplayTitle
             )
         }
         exportAnkiItems(items)
@@ -33,12 +27,9 @@ extension AppCoordinator {
 
     func exportSearchResultsToAnki(_ results: [SubtitleSearchResult]) {
         let items = results.map { result in
-            AnkiExportItem(
-                deckDisplayTitle: displayTitle(for: result),
-                videoPath: result.videoPath,
-                startMilliseconds: result.startMilliseconds,
-                endMilliseconds: result.endMilliseconds,
-                textLines: subtitleDisplayLines(content: result.content, cueLines: result.cueLines)
+            Self.ankiExportItem(
+                for: result,
+                deckDisplayTitle: displayTitle(for: result)
             )
         }
         exportAnkiItems(items)
@@ -46,15 +37,40 @@ extension AppCoordinator {
 
     func exportShiorisToAnki(_ shioris: [Shiori]) {
         let items = shioris.map { shiori in
-            AnkiExportItem(
-                deckDisplayTitle: SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: shiori.subtitlePath),
-                videoPath: shiori.videoPath,
-                startMilliseconds: shiori.startMilliseconds,
-                endMilliseconds: shiori.endMilliseconds,
-                textLines: subtitleDisplayLines(content: shiori.content, cueLines: shiori.cueLines)
+            Self.ankiExportItem(
+                for: shiori,
+                deckDisplayTitle: SubtitleDisplayTitleResolver.displayTitle(
+                    forSubtitlePath: shiori.subtitlePath
+                )
             )
         }
         exportAnkiItems(items)
+    }
+
+    nonisolated static func ankiExportItem(
+        for result: SubtitleSearchResult,
+        deckDisplayTitle: String
+    ) -> AnkiExportItem {
+        AnkiExportItem(
+            deckDisplayTitle: deckDisplayTitle,
+            videoPath: result.videoPath,
+            startMilliseconds: result.startMilliseconds,
+            endMilliseconds: result.endMilliseconds,
+            text: result.content
+        )
+    }
+
+    nonisolated static func ankiExportItem(
+        for shiori: Shiori,
+        deckDisplayTitle: String
+    ) -> AnkiExportItem {
+        AnkiExportItem(
+            deckDisplayTitle: deckDisplayTitle,
+            videoPath: shiori.videoPath,
+            startMilliseconds: shiori.startMilliseconds,
+            endMilliseconds: shiori.endMilliseconds,
+            text: shiori.content
+        )
     }
 
     private func exportAnkiItems(_ items: [AnkiExportItem]) {

@@ -66,6 +66,8 @@ extension AppCoordinator {
             subtitleFormat: result.subtitleFormat,
             startMilliseconds: result.startMilliseconds,
             endMilliseconds: result.endMilliseconds,
+            cueDisplayOrder: result.cueDisplayOrder,
+            cueEventIndex: result.cueEventIndex,
             textLines: subtitleDisplayLines(content: result.content, cueLines: result.cueLines),
             subtitleSource: playbackSubtitleSource(for: result)
         )
@@ -79,6 +81,8 @@ extension AppCoordinator {
             subtitleFormat: shiori.subtitleFormat,
             startMilliseconds: shiori.startMilliseconds,
             endMilliseconds: shiori.endMilliseconds,
+            cueDisplayOrder: shiori.cueDisplayOrder,
+            cueEventIndex: shiori.cueEventIndex,
             textLines: subtitleDisplayLines(content: shiori.content, cueLines: shiori.cueLines),
             subtitleSource: playbackSubtitleSource(for: shiori)
         )

@@ -7,7 +7,7 @@ struct AnkiExportItem: Sendable {
     let videoPath: String
     let startMilliseconds: Int
     let endMilliseconds: Int
-    let textLines: [String]
+    let text: String
 }
 
 enum AnkiPackageExportError: Error, CustomStringConvertible {
@@ -96,7 +96,7 @@ enum AnkiPackageExporter {
                     deckName: deckPrefix + item.deckDisplayTitle,
                     audioField: "[sound:\(audioName)]",
                     imageField: "<img src=\"\(imageName)\">",
-                    textField: textHTML(for: item.textLines)
+                    textField: textHTML(for: item.text)
                 )
             )
         }
@@ -582,13 +582,16 @@ enum AnkiPackageExporter {
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 
-    private static func textHTML(for lines: [String]) -> String {
-        let cleaned = lines
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return (cleaned.isEmpty ? [""] : cleaned)
-            .map(htmlEscaped)
-            .joined(separator: "<br>")
+    static func _textHTMLForTesting(_ text: String) -> String {
+        textHTML(for: text)
+    }
+
+    private static func textHTML(for text: String) -> String {
+        let normalizedLineEndings = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        return htmlEscaped(normalizedLineEndings)
+            .replacingOccurrences(of: "\n", with: "<br>")
     }
 
     private static func htmlEscaped(_ value: String) -> String {

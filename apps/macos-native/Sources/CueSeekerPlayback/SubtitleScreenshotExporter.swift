@@ -12,6 +12,8 @@ public struct SubtitleScreenshotExportItem: Equatable, Sendable {
     public let subtitleFormat: SubtitleFormat
     public let startMilliseconds: Int
     public let endMilliseconds: Int
+    public let cueDisplayOrder: Int?
+    public let cueEventIndex: Int?
     public let textLines: [String]
     public let subtitleSource: PlaybackSubtitleSource?
 
@@ -22,6 +24,8 @@ public struct SubtitleScreenshotExportItem: Equatable, Sendable {
         subtitleFormat: SubtitleFormat,
         startMilliseconds: Int,
         endMilliseconds: Int,
+        cueDisplayOrder: Int? = nil,
+        cueEventIndex: Int? = nil,
         textLines: [String],
         subtitleSource: PlaybackSubtitleSource? = nil
     ) {
@@ -31,6 +35,8 @@ public struct SubtitleScreenshotExportItem: Equatable, Sendable {
         self.subtitleFormat = subtitleFormat
         self.startMilliseconds = max(0, startMilliseconds)
         self.endMilliseconds = max(max(0, startMilliseconds), endMilliseconds)
+        self.cueDisplayOrder = cueDisplayOrder
+        self.cueEventIndex = cueEventIndex
         self.textLines = textLines
         self.subtitleSource = subtitleSource
     }
@@ -64,7 +70,7 @@ public enum SubtitleScreenshotExportError: Error, CustomStringConvertible {
         case .unsupportedSubtitleFormat(let format):
             "Unsupported subtitle screenshot format: \(format)"
         case .invalidCollageItems:
-            "Collage export requires selected subtitles from one video and no more than 50 items."
+            "Collage export requires selected Cues from one subtitle file and no more than 50 items."
         case .processFailed(let executable, let status, let output):
             "\(executable) exited with status \(status). \(output)"
         }
@@ -96,6 +102,50 @@ public enum SubtitleScreenshotExporter {
         "\(item.displayTitle)-\(timeString(milliseconds: item.startMilliseconds))-\(timeString(milliseconds: item.endMilliseconds)).png"
     }
 
+    static func defaultScreenshotFileNames(
+        for items: [SubtitleScreenshotExportItem]
+    ) -> [String] {
+        let baseNames = items.map { defaultScreenshotFileName(for: $0) }
+        let indexesByBaseName = Dictionary(grouping: baseNames.indices) {
+            baseNames[$0]
+        }
+        let uniqueBaseNames = indexesByBaseName.compactMap { baseName, indexes in
+            indexes.count == 1 ? baseName : nil
+        }
+        var usedNames = Set(uniqueBaseNames)
+        var resolvedNames = baseNames
+
+        for baseName in indexesByBaseName.keys.sorted() {
+            guard let indexes = indexesByBaseName[baseName], indexes.count > 1 else {
+                continue
+            }
+            let sortedIndexes = indexes.sorted { lhs, rhs in
+                stableTimelinePrecedes(
+                    items[lhs],
+                    lhsInputOrdinal: lhs,
+                    items[rhs],
+                    rhsInputOrdinal: rhs
+                )
+            }
+            let stem = baseName.hasSuffix(".png")
+                ? String(baseName.dropLast(4))
+                : baseName
+            for (collisionOrdinal, itemIndex) in sortedIndexes.enumerated() {
+                let suffix = String(format: "cue-%02d", collisionOrdinal + 1)
+                var candidate = "\(stem)-\(suffix).png"
+                var fallbackOrdinal = 2
+                while usedNames.contains(candidate) {
+                    candidate = "\(stem)-\(suffix)-\(fallbackOrdinal).png"
+                    fallbackOrdinal += 1
+                }
+                resolvedNames[itemIndex] = candidate
+                usedNames.insert(candidate)
+            }
+        }
+
+        return resolvedNames
+    }
+
     public static func defaultScreenshotFolderName(exportedAt: Date = Date()) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -118,8 +168,10 @@ public enum SubtitleScreenshotExporter {
             return false
         }
 
-        let videoPaths = Set(items.map { URL(fileURLWithPath: $0.videoPath).standardizedFileURL.path })
-        return videoPaths.count == 1
+        let subtitlePaths = Set(items.map {
+            URL(fileURLWithPath: $0.subtitlePath).standardizedFileURL.path
+        })
+        return subtitlePaths.count == 1
     }
 
     public static func exportScreenshot(
@@ -213,14 +265,15 @@ public enum SubtitleScreenshotExporter {
             try? FileManager.default.removeItem(at: workspaceURL)
         }
 
-        for item in items {
+        let defaultFileNames = defaultScreenshotFileNames(for: items)
+        for (index, item) in items.enumerated() {
             let renderedFrame = try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
                 workspaceURL: workspaceURL
             )
             let destinationURL = explicitSingleDestinationURL
-                ?? directoryURL.appendingPathComponent(defaultScreenshotFileName(for: item))
+                ?? directoryURL.appendingPathComponent(defaultFileNames[index])
             try writePNG(renderedFrame.image, to: destinationURL)
         }
     }
@@ -695,16 +748,50 @@ public enum SubtitleScreenshotExporter {
         (item.startMilliseconds + item.endMilliseconds) / 2
     }
 
-    private static func sortedByTimeline(_ items: [SubtitleScreenshotExportItem]) -> [SubtitleScreenshotExportItem] {
-        items.sorted {
-            if $0.startMilliseconds == $1.startMilliseconds {
-                if $0.endMilliseconds == $1.endMilliseconds {
-                    return $0.subtitlePath.localizedStandardCompare($1.subtitlePath) == .orderedAscending
-                }
-                return $0.endMilliseconds < $1.endMilliseconds
-            }
-            return $0.startMilliseconds < $1.startMilliseconds
+    static func _sortedByTimelineForTesting(
+        _ items: [SubtitleScreenshotExportItem]
+    ) -> [SubtitleScreenshotExportItem] {
+        sortedByTimeline(items)
+    }
+
+    private static func sortedByTimeline(
+        _ items: [SubtitleScreenshotExportItem]
+    ) -> [SubtitleScreenshotExportItem] {
+        items.enumerated().sorted { lhs, rhs in
+            stableTimelinePrecedes(
+                lhs.element,
+                lhsInputOrdinal: lhs.offset,
+                rhs.element,
+                rhsInputOrdinal: rhs.offset
+            )
+        }.map(\.element)
+    }
+
+    private static func stableTimelinePrecedes(
+        _ lhs: SubtitleScreenshotExportItem,
+        lhsInputOrdinal: Int,
+        _ rhs: SubtitleScreenshotExportItem,
+        rhsInputOrdinal: Int
+    ) -> Bool {
+        if lhs.startMilliseconds != rhs.startMilliseconds {
+            return lhs.startMilliseconds < rhs.startMilliseconds
         }
+        if lhs.endMilliseconds != rhs.endMilliseconds {
+            return lhs.endMilliseconds < rhs.endMilliseconds
+        }
+
+        let lhsDisplayOrder = lhs.cueDisplayOrder ?? Int.max
+        let rhsDisplayOrder = rhs.cueDisplayOrder ?? Int.max
+        if lhsDisplayOrder != rhsDisplayOrder {
+            return lhsDisplayOrder < rhsDisplayOrder
+        }
+
+        let lhsEventIndex = lhs.cueEventIndex ?? Int.max
+        let rhsEventIndex = rhs.cueEventIndex ?? Int.max
+        if lhsEventIndex != rhsEventIndex {
+            return lhsEventIndex < rhsEventIndex
+        }
+        return lhsInputOrdinal < rhsInputOrdinal
     }
 
     private static func timeString(milliseconds: Int) -> String {
