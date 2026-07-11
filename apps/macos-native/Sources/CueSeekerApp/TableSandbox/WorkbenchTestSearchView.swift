@@ -84,6 +84,7 @@ struct WorkbenchTestSearchView: View {
                     showsTimeColumn: isColumnVisible("time", in: visibleColumns),
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
+                    showsCueGroup: settingsStore.showCueGroup,
                     scrollResetToken: tableScrollResetToken,
                     scrollTargetRow: tableScrollTargetRow,
                     onVisibleRowsChange: hydrateVisibleRows,

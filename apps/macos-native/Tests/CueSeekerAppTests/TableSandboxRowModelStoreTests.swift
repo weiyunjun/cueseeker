@@ -541,6 +541,7 @@ func tableSandboxRowModelStoreSeparatesDuplicateSiblingByPrimaryIndex() {
 
     let row = store.snapshot.row(at: 0)
     #expect(row?.id == 91)
+    #expect(row?.primaryCueID == 91)
     #expect(row?.primaryCueText == repeatedText)
     #expect(row?.primaryGroupIndex == 1)
     #expect(row?.additionalCueTexts == [repeatedText, trailingText])
@@ -684,6 +685,8 @@ func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity
 
     let row = store.snapshot.row(at: 0)
     #expect(row?.id == 41)
+    #expect(row?.primaryCueID == 901)
+    #expect(row?.primaryCueIdentity == .cue(901))
     #expect(row?.primaryCueText == repeatedText)
     #expect(row?.cueGroupTexts == cuePresentation.cueGroupTexts)
     #expect(row?.primaryGroupIndex == 1)
@@ -722,6 +725,8 @@ func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
 
     let row = store.snapshot.row(at: 0)
     #expect(row?.id == 42)
+    #expect(row?.primaryCueID == nil)
+    #expect(row?.primaryCueIdentity == .rowFallback(42))
     #expect(row?.primaryCueText == content)
     #expect(row?.cueGroupTexts == [content])
     #expect(row?.primaryGroupIndex == nil)

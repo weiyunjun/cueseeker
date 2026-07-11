@@ -180,7 +180,7 @@ func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
 
 @MainActor
 @Test
-func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
+func subtitleTableViewUsesDynamicMinimumRowHeightAndLazySelectionState() {
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "test-search",
         rowCount: 100_000,
@@ -196,7 +196,7 @@ func subtitleTableViewUsesRedesignFixedRowHeightAndLazySelectionState() {
     coordinator.isRedesign = true
 
     #expect(coordinator.numberOfRowsForTesting() == 100_000)
-    #expect(coordinator.currentRowHeight == CGFloat(64))
+    #expect(coordinator.currentRowHeight == SubtitleTableCueGeometry.minimumRowHeight)
     #expect(coordinator.rowSelectionStateForTesting(row: 0) == false)
     #expect(coordinator.rowSelectionStateForTesting(row: 99_999) == true)
 }
@@ -383,11 +383,11 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
 
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: 10))
     coordinator.scrollContentDidChange()
-    #expect(notifiedRanges.count == 1)
+    #expect(notifiedRanges.count == 2)
 
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: 1_000))
     coordinator.scrollContentDidChange()
-    #expect(notifiedRanges.count == 2)
+    #expect(notifiedRanges.count == 3)
 }
 
 @MainActor
@@ -936,17 +936,359 @@ func subtitleTableViewDismissMenuKeepsInteractiveCellCursorRectAvailable() throw
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
 }
 
+@MainActor
 @Test
-func subtitleVirtualRowHeightCacheKeepsFixedRowHeightForFastScrollMapping() {
-    var cache = SubtitleVirtualRowHeightCache()
+func subtitleTableViewResolvesDocumentedDynamicRowHeightsAndPrimarySlotAlignment() throws {
+    let rows = [
+        dynamicTableRow(id: 1, primary: "one"),
+        dynamicTableRow(id: 2, primary: "one\ntwo"),
+        dynamicTableRow(id: 3, primary: "one\ntwo\nthree"),
+        dynamicTableRow(id: 4, primary: "main", group: ["extra", "main"], primaryIndex: 1),
+        dynamicTableRow(id: 5, primary: "main", group: ["extra one", "extra two", "main"], primaryIndex: 2),
+        dynamicTableRow(id: 6, primary: "main one\nmain two", group: ["extra", "main one\nmain two"], primaryIndex: 1),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        showsCueGroup: true
+    )
 
-    let changed = cache.setHeight(CGFloat(120), for: 2_000_000, defaultHeight: CGFloat(56))
-    #expect(!changed)
-    #expect(cache.count == 0)
-    #expect(cache.height(for: 2_000_000, defaultHeight: CGFloat(56)) == CGFloat(56))
-    #expect(cache.height(for: 1_999_999, defaultHeight: CGFloat(56)) == CGFloat(56))
-    #expect(cache.rowIndex(atY: CGFloat(112), rowCount: 2_000_000, defaultHeight: CGFloat(56)) == 2)
-    #expect(cache.totalHeight(rowCount: 2_000_000, defaultHeight: CGFloat(56)) == CGFloat(112_000_000))
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 40)
+    #expect(fixture.coordinator.rowHeightForTesting(1) == 64)
+    #expect(fixture.coordinator.rowHeightForTesting(2) == 88)
+    #expect(fixture.coordinator.rowHeightForTesting(3) == 60)
+    #expect(fixture.coordinator.rowHeightForTesting(4) == 80)
+    #expect(fixture.coordinator.rowHeightForTesting(5) == 84)
+
+    let checkbox = try #require(fixture.coordinator.checkboxRectForTesting(row: 3))
+    let expectedPrimaryCenterY = fixture.coordinator.rowYOffsetForTesting(3) + 8 + 20 + 12
+    #expect(abs(checkbox.midY - expectedPrimaryCenterY) < 0.5)
+}
+
+@MainActor
+@Test
+func subtitleTableViewShowCueGroupMenuAndClipboardKeepPrimaryAndGroupSemantics() {
+    let row = dynamicTableRow(
+        id: 77,
+        primary: "main\nline",
+        group: ["extra one", "main\nline", "extra two"],
+        primaryIndex: 1
+    )
+    let offFixture = makeAttachedVirtualTableCoordinator(rowCount: 1, row: row)
+    let onFixture = makeAttachedVirtualTableCoordinator(
+        rowCount: 1,
+        row: row,
+        showsCueGroup: true,
+        rowActionMenuStyle: .shiori
+    )
+
+    #expect(offFixture.coordinator.cuesMenuItemsForTesting().map(\.title) == [
+        "Play", "Context", "Copy Cue Text",
+    ])
+    let onItems = onFixture.coordinator.cuesMenuItemsForTesting()
+    #expect(onItems.map(\.title) == [
+        "Play", "Context", "Copy Cue Text", "Copy Cue Group Text", "Remove Shiori",
+    ])
+    #expect(onItems[2].systemImage == onItems[3].systemImage)
+
+    offFixture.coordinator.copyCueTextForTesting(row: 0)
+    #expect(NSPasteboard.general.string(forType: .string) == "main\nline")
+    onFixture.coordinator.copyCueGroupTextForTesting(row: 0)
+    #expect(NSPasteboard.general.string(forType: .string) == "extra one\nmain\nline\nextra two")
+}
+
+@MainActor
+@Test
+func subtitleTableViewExtraCueLeftAndRightHitRegionsStillTargetPrimaryRow() throws {
+    let row = dynamicTableRow(
+        id: 41,
+        primary: "primary target",
+        group: ["extra target", "primary target"],
+        primaryIndex: 1
+    )
+    var playedIdentity: SubtitleTablePrimaryCueIdentity?
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: 1,
+        row: row,
+        showsCueGroup: true,
+        onPlay: { playedIdentity = $0.primaryCueIdentity }
+    )
+    let cuesCell = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues"))
+    let extraPoint = CGPoint(
+        x: cuesCell.minX + SubtitleTableCueGeometry.cellLeadingPadding + 8,
+        y: fixture.coordinator.rowYOffsetForTesting(0) + SubtitleTableCueGeometry.rowPaddingY + 10
+    )
+    let windowPoint = fixture.documentView.convert(extraPoint, to: nil)
+
+    #expect(fixture.coordinator.cueTextHitTestForTesting(row: 0, point: extraPoint))
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint))
+    #expect(playedIdentity == row.primaryCueIdentity)
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint))
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+}
+
+@MainActor
+@Test
+func subtitleTableViewShowCueGroupReflowPreservesPrimaryFirstLineAndPresentationState() throws {
+    let rows = (0..<200).map { index in
+        dynamicTableRow(
+            id: index + 1,
+            primary: "primary \(index)",
+            group: ["extra first", "extra second", "primary \(index)"],
+            primaryIndex: 2
+        )
+    }
+    var visibleNotifications = 0
+    let selectedRow = 50
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        onVisibleRowsChange: { _ in visibleNotifications += 1 },
+        isRowSelected: { $0 == selectedRow }
+    )
+    fixture.coordinator.scrollToRow(selectedRow)
+    let beforeY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: selectedRow))
+    let measurementLimit = (fixture.coordinator.measurementRowRangeForTesting()?.count ?? 0) + 1
+    visibleNotifications = 0
+    fixture.coordinator.resetMeasurementComputeCountForTesting()
+
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        rowsVersion: 1,
+        rowsUpdate: .none,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        showsCueGroup: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in visibleNotifications += 1 },
+        isRowSelected: { $0 == selectedRow },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: selectedRow))
+    #expect(abs(afterY - beforeY) < 0.5)
+    #expect(fixture.coordinator.numberOfRowsForTesting() == rows.count)
+    #expect(fixture.coordinator.rowSelectionStateForTesting(row: selectedRow))
+    #expect(visibleNotifications == 0)
+    #expect(fixture.coordinator.measurementComputeCountForTesting() <= measurementLimit)
+}
+
+@MainActor
+@Test
+func subtitleTableViewWidthReflowPreservesPrimaryFirstLineAnchor() throws {
+    let longText = Array(repeating: "automatic wrapping content", count: 30).joined(separator: " ")
+    let rows = (0..<200).map { index in
+        dynamicTableRow(id: index + 1, primary: "\(index) \(longText)")
+    }
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    let anchorRow = 40
+    fixture.coordinator.scrollToRow(anchorRow)
+    let beforeY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
+    let measurementLimit = (fixture.coordinator.measurementRowRangeForTesting()?.count ?? 0) + 1
+    fixture.coordinator.resetMeasurementComputeCountForTesting()
+
+    fixture.container.setFrameSize(CGSize(width: 1_600, height: fixture.container.frame.height))
+    fixture.header.setFrameSize(CGSize(width: 1_600, height: fixture.header.frame.height))
+    fixture.scrollView.setFrameSize(CGSize(width: 1_600, height: fixture.scrollView.frame.height))
+    fixture.overlay.setFrameSize(CGSize(width: 1_600, height: fixture.overlay.frame.height))
+    fixture.coordinator.resizeDocument()
+
+    let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
+    #expect(abs(afterY - beforeY) < 0.5)
+    #expect(fixture.coordinator.measurementComputeCountForTesting() <= measurementLimit)
+}
+
+@MainActor
+@Test
+func subtitleTableViewCueCellPatchPreservesSamePrimaryIdentityAnchor() throws {
+    var rows = (0..<100).map { index in
+        dynamicTableRow(id: index + 1, primary: "primary \(index)")
+    }
+    let anchorRow = 30
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    fixture.coordinator.scrollToRow(anchorRow)
+    let beforeY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
+    rows[anchorRow] = dynamicTableRow(
+        id: anchorRow + 1,
+        primary: "primary changed\nsecond line\nthird line"
+    )
+
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        rowsVersion: 2,
+        rowsUpdate: .cells([TableSandboxCellInvalidation(row: anchorRow, columnID: "cues")]),
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
+    #expect(fixture.coordinator.rowHeightForTesting(anchorRow) == 88)
+    #expect(abs(afterY - beforeY) < 0.5)
+}
+
+@MainActor
+@Test
+func subtitleTableViewReloadPreservesSamePrimaryIdentityAnchor() throws {
+    var rows = (0..<100).map { index in
+        dynamicTableRow(id: index + 1, primary: "primary \(index)")
+    }
+    let anchorRow = 30
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    fixture.coordinator.scrollToRow(anchorRow)
+    let beforeY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
+    rows[anchorRow] = dynamicTableRow(
+        id: anchorRow + 1,
+        primary: "primary changed\nsecond line\nthird line"
+    )
+
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        rowsVersion: 2,
+        rowsUpdate: .reload,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    let afterY = try #require(fixture.coordinator.primaryFirstLineScreenYForTesting(row: anchorRow))
+    #expect(fixture.coordinator.rowHeightForTesting(anchorRow) == 88)
+    #expect(abs(afterY - beforeY) < 0.5)
+}
+
+@MainActor
+@Test
+func subtitleTableViewAppendKeepsMeasurementsWhileReloadInvalidatesIdentityContent() {
+    var rows = [
+        dynamicTableRow(id: 1, primary: "one"),
+        dynamicTableRow(id: 2, primary: "two"),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    fixture.coordinator.resetMeasurementComputeCountForTesting()
+    rows.append(dynamicTableRow(id: 3, primary: "three"))
+
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        rowsVersion: 2,
+        rowsUpdate: .append(2..<3),
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    #expect(fixture.coordinator.measurementComputeCountForTesting() == 1)
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 40)
+
+    fixture.coordinator.resetMeasurementComputeCountForTesting()
+    rows[0] = dynamicTableRow(id: 1, primary: "one\nchanged\ncontent")
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        rowsVersion: 3,
+        rowsUpdate: .reload,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        selectionHeaderState: .unchecked,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 88)
+    #expect(fixture.coordinator.measurementComputeCountForTesting() == rows.count)
+}
+
+@MainActor
+@Test
+func subtitleTableViewMeasurementAndDrawingWorkStayViewportBoundedAtLargeCounts() {
+    let row = dynamicTableRow(id: 1, primary: "one")
+    let small = makeAttachedVirtualTableCoordinator(width: 900, rowCount: 500, row: row)
+    let large = makeAttachedVirtualTableCoordinator(width: 900, rowCount: 50_000, row: row)
+
+    let smallMeasurementRange = small.coordinator.measurementRowRangeForTesting()
+    let largeMeasurementRange = large.coordinator.measurementRowRangeForTesting()
+    #expect(smallMeasurementRange?.count == largeMeasurementRange?.count)
+    #expect(small.coordinator.measurementComputeCountForTesting() == smallMeasurementRange?.count)
+    #expect(large.coordinator.measurementComputeCountForTesting() == largeMeasurementRange?.count)
+    #expect((largeMeasurementRange?.count ?? 0) <= 9)
+
+    let smallDrawRange = small.coordinator.drawingRowRangeForTesting(dirtyRect: small.documentView.bounds)
+    let largeDrawRange = large.coordinator.drawingRowRangeForTesting(dirtyRect: large.documentView.bounds)
+    #expect(smallDrawRange?.count == largeDrawRange?.count)
+    #expect((largeDrawRange?.count ?? 0) <= 5)
+
+    let image = NSImage(size: large.scrollView.contentView.bounds.size)
+    image.lockFocus()
+    large.coordinator.resetDrawnRowCountForTesting()
+    large.coordinator.drawRows(in: large.documentView.bounds)
+    image.unlockFocus()
+    #expect(large.coordinator.drawnRowCountForTesting() > 0)
+    #expect(large.coordinator.drawnRowCountForTesting() <= (largeDrawRange?.count ?? 0))
+}
+
+@Test
+func subtitleVirtualRowHeightCacheUsesMeasuredHeightForFastScrollMapping() {
+    var cache = SubtitleVirtualRowHeightCache()
+    cache.configure(rowCount: 2_000_000, defaultHeight: 40)
+
+    let changed = cache.setHeight(120, for: 1_999_999)
+    #expect(changed)
+    #expect(cache.count == 1)
+    #expect(cache.height(for: 1_999_999) == 120)
+    #expect(cache.height(for: 1_999_998) == 40)
+    #expect(cache.rowIndex(atY: 80) == 2)
+    #expect(cache.totalHeight == 80_000_080)
 }
 
 @MainActor
@@ -1000,14 +1342,22 @@ private func makeAttachedVirtualTableCoordinator(
 @MainActor
 private func makeAttachedVirtualTableCoordinator(
     width: CGFloat = 900,
+    rowCount: Int = 100,
+    row: SubtitleTableRow? = nil,
+    rowProvider customRowProvider: ((Int) -> SubtitleTableRow?)? = nil,
     showsDateAddedColumn: Bool = false,
     showsTimeColumn: Bool = false,
     showsTagsColumn: Bool = false,
+    showsCueGroup: Bool = false,
+    rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
     makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil },
     onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
+    isRowSelected: @escaping (Int) -> Bool = { _ in false },
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
+    onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
-    onOpenSubtitleFile: @escaping (String) -> Void = { _ in }
+    onOpenSubtitleFile: @escaping (String) -> Void = { _ in },
+    onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
 ) -> (
     coordinator: SubtitleTableView.Coordinator,
     container: SubtitleTableContainerView,
@@ -1016,7 +1366,7 @@ private func makeAttachedVirtualTableCoordinator(
     overlay: SubtitleTableScrollbarOverlayView,
     documentView: SubtitleVirtualTableDocumentView
 ) {
-    let loadedRow = SubtitleTableRow(
+    let loadedRow = row ?? SubtitleTableRow(
         id: 1,
         subtitlePath: "/tmp/CueSeeker/Episode 01.srt",
         dateAdded: "26-07-04 19:00",
@@ -1028,10 +1378,11 @@ private func makeAttachedVirtualTableCoordinator(
         speakerTags: [],
         shioriTags: showsTagsColumn ? [WorkbenchTag(key: "7", label: "Review", colorID: .gray)] : []
     )
+    let rowProvider = customRowProvider ?? { _ in loadedRow }
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "test-search",
-        rowCount: 100,
-        rowProvider: { _ in loadedRow },
+        rowCount: rowCount,
+        rowProvider: rowProvider,
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsDateAddedColumn: showsDateAddedColumn,
@@ -1039,11 +1390,15 @@ private func makeAttachedVirtualTableCoordinator(
         showsLanguageColumn: true,
         showsSpeakerColumn: true,
         showsTagsColumn: showsTagsColumn,
+        showsCueGroup: showsCueGroup,
         onVisibleRowsChange: onVisibleRowsChange,
-        isRowSelected: { _ in false },
+        isRowSelected: isRowSelected,
         onToggleRowSelection: onToggleRowSelection,
         onPlay: onPlay,
+        onShowContext: onShowContext,
         onOpenSubtitleFile: onOpenSubtitleFile,
+        rowActionMenuStyle: rowActionMenuStyle,
+        onRemoveShiori: onRemoveShiori,
         makeTagsPopover: makeTagsPopover
     )
     coordinator.isRedesign = true
@@ -1085,4 +1440,20 @@ private func makeTabKeyEvent(shift: Bool = false) -> NSEvent {
         isARepeat: false,
         keyCode: 48
     )!
+}
+
+private func dynamicTableRow(
+    id: Int,
+    primary: String,
+    group: [String]? = nil,
+    primaryIndex: Int? = nil
+) -> SubtitleTableRow {
+    SubtitleTableRow(
+        id: id,
+        primaryCueID: Int64(id),
+        displayTitle: "Episode \(id)",
+        primaryCueText: primary,
+        cueGroupTexts: group ?? [primary],
+        primaryGroupIndex: primaryIndex ?? 0
+    )
 }

@@ -67,6 +67,7 @@ private struct WorkbenchShioriTableContent: View {
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
                     showsSpeakerColumn: false,
                     showsTagsColumn: isColumnVisible("tags", in: visibleColumns),
+                    showsCueGroup: settingsStore.showCueGroup,
                     scrollResetToken: tableScrollResetToken,
                     suspendsMenuOutsideClickDismiss: pendingTagDeletion != nil,
                     onVisibleRowsChange: hydrateVisibleRows,

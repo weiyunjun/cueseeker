@@ -1,8 +1,12 @@
 import AppKit
 
 struct SubtitleTableRowHeightCacheLookup {
-    let height: CGFloat
+    let measurement: SubtitleTableRowMeasurement
     let isCacheHit: Bool
+
+    var height: CGFloat {
+        measurement.height
+    }
 }
 
 struct SubtitleTableRowHeightCache {
@@ -15,33 +19,83 @@ struct SubtitleTableRowHeightCache {
     mutating func lookup(
         rowIndex: Int,
         row: SubtitleTableRow,
-        nameWidth: CGFloat,
-        cuesWidth: CGFloat,
-        compute: () -> CGFloat
+        effectiveCuesWidth: CGFloat,
+        showsCueGroup: Bool,
+        styleRevision: Int,
+        compute: () -> SubtitleTableRowMeasurement
     ) -> SubtitleTableRowHeightCacheLookup {
         guard rowIndex >= 0 else {
-            let height = compute()
-            return SubtitleTableRowHeightCacheLookup(height: height, isCacheHit: false)
+            return SubtitleTableRowHeightCacheLookup(measurement: compute(), isCacheHit: false)
         }
 
-        let nameWidthKey = Self.widthKey(nameWidth)
-        let cuesWidthKey = Self.widthKey(cuesWidth)
+        let cuesWidthKey = Self.widthKey(effectiveCuesWidth)
 
         if let entry = entries[rowIndex],
-           entry.matches(row: row, nameWidth: nameWidthKey, cuesWidth: cuesWidthKey) {
-            return SubtitleTableRowHeightCacheLookup(height: entry.height, isCacheHit: true)
+           entry.matches(
+               row: row,
+               cuesWidth: cuesWidthKey,
+               showsCueGroup: showsCueGroup,
+               styleRevision: styleRevision
+           ) {
+            return SubtitleTableRowHeightCacheLookup(measurement: entry.measurement, isCacheHit: true)
         }
 
-        let height = compute()
+        let measurement = compute()
         entries[rowIndex] = CacheEntry(
             rowID: row.id,
-            displayTitle: row.displayTitle,
-            cues: row.cues,
-            nameWidth: nameWidthKey,
+            primaryCueID: row.primaryCueID,
+            primaryCueText: row.primaryCueText,
+            cueGroupTexts: row.cueGroupTexts,
+            primaryGroupIndex: row.primaryGroupIndex,
             cuesWidth: cuesWidthKey,
-            height: height
+            showsCueGroup: showsCueGroup,
+            styleRevision: styleRevision,
+            measurement: measurement
         )
-        return SubtitleTableRowHeightCacheLookup(height: height, isCacheHit: false)
+        return SubtitleTableRowHeightCacheLookup(measurement: measurement, isCacheHit: false)
+    }
+
+    func cachedMeasurement(
+        rowIndex: Int,
+        row: SubtitleTableRow,
+        effectiveCuesWidth: CGFloat,
+        showsCueGroup: Bool,
+        styleRevision: Int
+    ) -> SubtitleTableRowMeasurement? {
+        let cuesWidthKey = Self.widthKey(effectiveCuesWidth)
+        guard let entry = entries[rowIndex],
+              entry.matches(
+                  row: row,
+                  cuesWidth: cuesWidthKey,
+                  showsCueGroup: showsCueGroup,
+                  styleRevision: styleRevision
+              )
+        else {
+            return nil
+        }
+        return entry.measurement
+    }
+
+    func cachedMeasurement(
+        rowIndex: Int,
+        primaryCueIdentity: SubtitleTablePrimaryCueIdentity
+    ) -> SubtitleTableRowMeasurement? {
+        guard let entry = entries[rowIndex] else { return nil }
+        switch primaryCueIdentity {
+        case .cue(let cueID):
+            guard entry.primaryCueID == cueID else { return nil }
+        case .rowFallback(let rowID):
+            guard entry.rowID == rowID, entry.primaryCueID == nil else { return nil }
+        }
+        return entry.measurement
+    }
+
+    mutating func removeAll() {
+        entries.removeAll(keepingCapacity: true)
+    }
+
+    mutating func remove(rowIndex: Int) {
+        entries.removeValue(forKey: rowIndex)
     }
 
     mutating func prune(to rows: [SubtitleTableRow]) {
@@ -67,21 +121,32 @@ struct SubtitleTableRowHeightCache {
 
 private struct CacheEntry {
     let rowID: Int
-    let displayTitle: String
-    let cues: String
-    let nameWidth: Int
+    let primaryCueID: Int64?
+    let primaryCueText: String
+    let cueGroupTexts: [String]
+    let primaryGroupIndex: Int?
     let cuesWidth: Int
-    let height: CGFloat
+    let showsCueGroup: Bool
+    let styleRevision: Int
+    let measurement: SubtitleTableRowMeasurement
 
-    func matches(row: SubtitleTableRow, nameWidth: Int, cuesWidth: Int) -> Bool {
+    func matches(
+        row: SubtitleTableRow,
+        cuesWidth: Int,
+        showsCueGroup: Bool,
+        styleRevision: Int
+    ) -> Bool {
         matches(row: row)
-            && self.nameWidth == nameWidth
             && self.cuesWidth == cuesWidth
+            && self.showsCueGroup == showsCueGroup
+            && self.styleRevision == styleRevision
     }
 
     func matches(row: SubtitleTableRow) -> Bool {
         rowID == row.id
-            && displayTitle == row.displayTitle
-            && cues == row.cues
+            && primaryCueID == row.primaryCueID
+            && primaryCueText == row.primaryCueText
+            && cueGroupTexts == row.cueGroupTexts
+            && primaryGroupIndex == row.primaryGroupIndex
     }
 }

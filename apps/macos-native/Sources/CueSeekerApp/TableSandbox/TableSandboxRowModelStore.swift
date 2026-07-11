@@ -390,6 +390,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         let displayTitle = searchDisplayTitle(for: result)
         return SubtitleTableRow(
             id: Int(result.entryID),
+            primaryCueID: result.entryID,
             subtitlePath: result.subtitlePath,
             displayTitle: displayTitle,
             startTime: tableSandboxCueTimeText(milliseconds: result.startMilliseconds),
@@ -407,6 +408,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         let cuePresentation = item.cuePresentation
         return SubtitleTableRow(
             id: Int(item.shiori.id),
+            primaryCueID: cuePresentation?.cueID,
             subtitlePath: item.shiori.subtitlePath,
             dateAdded: item.dateAddedText,
             displayTitle: item.displayTitle,
@@ -449,6 +451,7 @@ func tableSandboxSearchRow(for result: SubtitleSearchResult) -> SubtitleTableRow
         : result.displayTitle
     return SubtitleTableRow(
         id: Int(result.entryID),
+        primaryCueID: result.entryID,
         subtitlePath: result.subtitlePath,
         displayTitle: displayTitle,
         startTime: tableSandboxCueTimeText(milliseconds: result.startMilliseconds),
@@ -466,6 +469,7 @@ func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTab
     let cuePresentation = item.cuePresentation
     return SubtitleTableRow(
         id: Int(item.shiori.id),
+        primaryCueID: cuePresentation?.cueID,
         subtitlePath: item.shiori.subtitlePath,
         dateAdded: item.dateAddedText,
         displayTitle: item.displayTitle,

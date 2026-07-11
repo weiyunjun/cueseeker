@@ -15,13 +15,12 @@ enum SubtitleTableMetrics {
     static let cellLeading: CGFloat = 12
     static let trailingInset: CGFloat = 14
     static let indexTrailingInset: CGFloat = 6
-    static let rowVerticalInset: CGFloat = 9
+    static let rowVerticalInset: CGFloat = SubtitleTableCueGeometry.rowPaddingY
     static let headerHeight: CGFloat = 44
     static let headerHorizontalInset: CGFloat = 12
     static let indexHeaderHorizontalInset: CGFloat = 16
     static let cornerRadius: CGFloat = 10
     static let estimatedRowHeight: CGFloat = 56
-    static let maximumBodyLineCount = 6
     static let tagHeight: CGFloat = 22
     static let tagHorizontalInset: CGFloat = 8
     static let tagRedesignHorizontalInset: CGFloat = 10
@@ -495,7 +494,7 @@ final class SubtitleTextLayout {
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
 
-    init(maximumNumberOfLines: Int = SubtitleTableMetrics.maximumBodyLineCount) {
+    init(maximumNumberOfLines: Int = 0) {
         textContainer.lineFragmentPadding = 0
         textContainer.maximumNumberOfLines = maximumNumberOfLines
         layoutManager.usesFontLeading = true
@@ -743,10 +742,12 @@ private enum SubtitleTableCellActionMenuKind: Equatable {
 private struct RowActionMenu: View {
     var kind: SubtitleTableCellActionMenuKind = .cues
     var style: SubtitleTableRowActionMenuStyle = .search
+    var showsCueGroup = false
     var canOpenFolder = true
     var onPlay: () -> Void
     var onContext: () -> Void
     var onCopyCueText: () -> Void
+    var onCopyCueGroupText: () -> Void
     var onOpenFolder: () -> Void
     var onCopyText: () -> Void
     var onRemoveShiori: () -> Void
@@ -792,6 +793,16 @@ private struct RowActionMenu: View {
                 isEnabled: true,
                 action: onCopyCueText
             )
+            if showsCueGroup {
+                WorkbenchPopoverRow(
+                    title: "Copy Cue Group Text",
+                    systemImage: "doc.on.doc",
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    isEnabled: true,
+                    action: onCopyCueGroupText
+                )
+            }
             if style == .shiori {
                 WorkbenchPopoverRow(
                     title: "Remove Shiori",
@@ -1753,51 +1764,6 @@ final class SubtitleVirtualTableDocumentView: NSView {
     }
 }
 
-// MARK: - Height cache
-
-struct SubtitleVirtualRowHeightCache {
-    private var heights: [Int: CGFloat] = [:]
-
-    var count: Int {
-        heights.count
-    }
-
-    mutating func removeAll() {
-        heights.removeAll()
-    }
-
-    mutating func prune(rowCount: Int, isLoaded: (Int) -> Bool) {
-        heights = heights.filter { row, _ in
-            row >= 0 && row < rowCount && isLoaded(row)
-        }
-    }
-
-    func height(for row: Int, defaultHeight: CGFloat) -> CGFloat {
-        defaultHeight
-    }
-
-    mutating func setHeight(_ height: CGFloat, for row: Int, defaultHeight: CGFloat) -> Bool {
-        _ = height
-        _ = row
-        _ = defaultHeight
-        return false
-    }
-
-    func yOffset(for row: Int, defaultHeight: CGFloat) -> CGFloat {
-        CGFloat(max(0, row)) * defaultHeight
-    }
-
-    func totalHeight(rowCount: Int, defaultHeight: CGFloat) -> CGFloat {
-        CGFloat(max(0, rowCount)) * defaultHeight
-    }
-
-    func rowIndex(atY y: CGFloat, rowCount: Int, defaultHeight: CGFloat) -> Int {
-        guard rowCount > 0 else { return 0 }
-        let row = Int((max(0, y) / max(1, defaultHeight)).rounded(.down))
-        return min(max(0, row), rowCount - 1)
-    }
-}
-
 // MARK: - SwiftUI bridge
 
 struct IsWorkbenchPopupLayerOpenKey: EnvironmentKey {
@@ -1833,6 +1799,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var showsLanguageColumn = false
     var showsSpeakerColumn = false
     var showsTagsColumn = false
+    var showsCueGroup = false
     var scrollResetToken = 0
     var scrollTargetRow: Int?
     var suspendsMenuOutsideClickDismiss = false
@@ -1871,6 +1838,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             showsTagsColumn: showsTagsColumn,
+            showsCueGroup: showsCueGroup,
             scrollResetToken: scrollResetToken,
             scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
@@ -1988,6 +1956,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: showsLanguageColumn,
             showsSpeakerColumn: showsSpeakerColumn,
             showsTagsColumn: showsTagsColumn,
+            showsCueGroup: showsCueGroup,
             scrollResetToken: scrollResetToken,
             scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
@@ -2026,6 +1995,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var showsLanguageColumn: Bool
         private var showsSpeakerColumn: Bool
         private var showsTagsColumn: Bool
+        private var showsCueGroup: Bool
         private var scrollResetToken: Int
         private var scrollTargetRow: Int?
         private var onVisibleRowsChange: (Range<Int>) -> Void
@@ -2051,7 +2021,9 @@ struct SubtitleTableView: NSViewRepresentable {
 
                 headerHeightConstraint?.constant = currentHeaderHeight
                 container?.layoutSubtreeIfNeeded()
+                rowMeasurementCache.removeAll()
                 rowHeightCache.removeAll()
+                lastEffectiveCuesWidthKey = nil
                 lastNotifiedVisibleRows = nil
                 resizeDocument()
                 notifyVisibleRowsChanged(force: true)
@@ -2061,7 +2033,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
-                documentView?.needsDisplay = true
+                invalidateVisibleDocument()
             }
         }
 
@@ -2086,7 +2058,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         var currentRowHeight: CGFloat {
-            isRedesign ? 64.0 : SubtitleTableMetrics.estimatedRowHeight
+            isRedesign ? SubtitleTableCueGeometry.minimumRowHeight : SubtitleTableMetrics.estimatedRowHeight
         }
 
         private weak var container: SubtitleTableContainerView?
@@ -2108,6 +2080,12 @@ struct SubtitleTableView: NSViewRepresentable {
         private enum ActiveMenuAnchor {
             case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInContainer: CGPoint?)
             case header(triggerFrame: CGRect)
+        }
+
+        struct DynamicScrollAnchor {
+            let primaryCueIdentity: SubtitleTablePrimaryCueIdentity
+            let row: Int
+            let primaryFirstLineScreenY: CGFloat
         }
 
         enum TableSortDirection: Equatable {
@@ -2153,7 +2131,14 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private let textLayout = SubtitleTextLayout()
+        private let cueTextMeasurer = SubtitleTableCueTextMeasurer()
+        private var rowMeasurementCache = SubtitleTableRowHeightCache()
         private var rowHeightCache = SubtitleVirtualRowHeightCache()
+        private var lastEffectiveCuesWidthKey: Int?
+        private var isApplyingDynamicReflow = false
+        private var isResizingDocument = false
+        private var measurementComputeCount = 0
+        private var drawnRowCount = 0
         private var hoveredRow: Int?
         private var hoveredColumnID: String?
         private var hoveredCueTextRow: Int?
@@ -2182,6 +2167,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: Bool = false,
             showsSpeakerColumn: Bool = false,
             showsTagsColumn: Bool = false,
+            showsCueGroup: Bool = false,
             scrollResetToken: Int = 0,
             scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
@@ -2216,6 +2202,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsLanguageColumn = showsLanguageColumn
             self.showsSpeakerColumn = showsSpeakerColumn
             self.showsTagsColumn = showsTagsColumn
+            self.showsCueGroup = showsCueGroup
             self.scrollResetToken = scrollResetToken
             self.scrollTargetRow = scrollTargetRow
             self.onVisibleRowsChange = onVisibleRowsChange
@@ -2297,6 +2284,7 @@ struct SubtitleTableView: NSViewRepresentable {
             showsLanguageColumn: Bool,
             showsSpeakerColumn: Bool,
             showsTagsColumn: Bool = false,
+            showsCueGroup: Bool = false,
             scrollResetToken: Int,
             scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
@@ -2314,6 +2302,26 @@ struct SubtitleTableView: NSViewRepresentable {
             makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
         ) {
             let tableChanged = tableName != self.tableName
+            let cuePresentationInputChanged = showsCueGroup != self.showsCueGroup ||
+                columnOrder != self.columnOrder ||
+                showsDateAddedColumn != self.showsDateAddedColumn ||
+                showsDisplayTitleColumn != self.showsDisplayTitleColumn ||
+                showsTimeColumn != self.showsTimeColumn ||
+                showsLanguageColumn != self.showsLanguageColumn ||
+                showsSpeakerColumn != self.showsSpeakerColumn ||
+                showsTagsColumn != self.showsTagsColumn
+            let cuesCellsWillChange: Bool
+            if case .cells(let cells) = rowsUpdate {
+                cuesCellsWillChange = cells.contains { $0.columnID == "cues" }
+            } else {
+                cuesCellsWillChange = false
+            }
+            let preservesReloadAnchor = !tableChanged && rowsUpdate == .reload
+            let presentationAnchor = (
+                cuePresentationInputChanged || preservesReloadAnchor || cuesCellsWillChange
+            )
+                ? captureDynamicScrollAnchor()
+                : nil
             self.tableName = tableName
             self.rowProvider = rowProvider
             let dateAddedChanged = dateAddedHeader != self.dateAddedHeader
@@ -2344,6 +2352,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.showsSpeakerColumn = showsSpeakerColumn
             let tagsColumnChanged = showsTagsColumn != self.showsTagsColumn
             self.showsTagsColumn = showsTagsColumn
+            let showCueGroupChanged = showsCueGroup != self.showsCueGroup
+            self.showsCueGroup = showsCueGroup
             let shouldResetScroll = scrollResetToken != self.scrollResetToken
             self.scrollResetToken = scrollResetToken
             self.scrollTargetRow = scrollTargetRow
@@ -2373,16 +2383,35 @@ struct SubtitleTableView: NSViewRepresentable {
                 updateFocusedCheckbox(nil)
             }
 
-            rowHeightCache.prune(rowCount: nextRowCount) { [rowProvider] row in
-                rowProvider(row) != nil
+            let isAppendUpdate: Bool
+            if case .append = rowsUpdate {
+                isAppendUpdate = true
+            } else {
+                isAppendUpdate = false
             }
+            let resetsMeasuredGeometry = tableChanged ||
+                rowsUpdate == .reload ||
+                (rowCountChanged && !isAppendUpdate)
+            if resetsMeasuredGeometry || showCueGroupChanged {
+                rowMeasurementCache.removeAll()
+                rowHeightCache.removeAll()
+            } else if case .cells(let cells) = rowsUpdate {
+                for cell in cells where cell.columnID == "cues" {
+                    rowMeasurementCache.remove(rowIndex: cell.row)
+                    rowHeightCache.removeHeight(for: cell.row)
+                }
+            }
+            rowHeightCache.configure(rowCount: nextRowCount, defaultHeight: currentRowHeight)
 
             let columnVisibilityChanged = dateAddedColumnChanged || displayTitleColumnChanged || timeColumnChanged || languageColumnChanged || speakerColumnChanged || tagsColumnChanged || columnOrderChanged
             let headerTitleChanged = dateAddedChanged || displayTitleChanged || timeChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged || tagsHeaderChanged
             let needsDocumentResize = tableChanged || rowsChanged || columnVisibilityChanged
 
             if needsDocumentResize {
-                resizeDocument()
+                resizeDocument(preserving: presentationAnchor)
+            }
+            if showCueGroupChanged {
+                reflowVisibleRows(anchor: presentationAnchor)
             }
             if rowsChanged || columnVisibilityChanged {
                 if isMenuOpen {
@@ -2398,11 +2427,22 @@ struct SubtitleTableView: NSViewRepresentable {
             } else if rowsChanged || columnVisibilityChanged {
                 notifyVisibleRowsChanged(force: rowsChanged)
             }
+            if showCueGroupChanged {
+                invalidateVisibleDocument()
+                invalidateDocumentCursorRects()
+                layoutHoverButtons()
+                if isMenuOpen {
+                    dismissMenu(recalculateHover: false)
+                }
+            }
             if tableChanged || rowsChanged || columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged {
                 headerView?.refreshHeaderHosts()
             }
             if columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged {
                 headerView?.needsDisplay = true
+            }
+            if columnVisibilityChanged {
+                invalidateVisibleDocument()
             }
             invalidateRows(for: rowsUpdate, rowsChanged: rowsChanged)
             if needsDocumentResize || columnVisibilityChanged || headerTitleChanged || shouldResetScroll {
@@ -2550,6 +2590,94 @@ struct SubtitleTableView: NSViewRepresentable {
             copyCellText(row: row, columnID: columnID)
         }
 
+        func copyCueTextForTesting(row: Int) {
+            copyRow(row)
+        }
+
+        func copyCueGroupTextForTesting(row: Int) {
+            copyCueGroup(row)
+        }
+
+        func cuesMenuItemsForTesting() -> [(title: String, systemImage: String)] {
+            var items = [
+                ("Play", "play.fill"),
+                ("Context", "doc.text"),
+                ("Copy Cue Text", "doc.on.doc"),
+            ]
+            if showsCueGroup {
+                items.append(("Copy Cue Group Text", "doc.on.doc"))
+            }
+            if rowActionMenuStyle == .shiori {
+                items.append(("Remove Shiori", "bookmark.slash"))
+            }
+            return items
+        }
+
+        func rowHeightForTesting(_ row: Int) -> CGFloat {
+            rowHeightCache.height(for: row)
+        }
+
+        func checkboxRectForTesting(row: Int) -> CGRect? {
+            guard let documentView,
+                  let measurement = cachedMeasurement(for: row, documentWidth: documentView.bounds.width)
+            else {
+                return nil
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            return checkboxRect(
+                forRowRect: rowRect,
+                primaryFirstLineTop: rowRect.minY + measurement.primaryFirstLineOffset
+            )
+        }
+
+        func rowYOffsetForTesting(_ row: Int) -> CGFloat {
+            rowHeightCache.yOffset(for: row)
+        }
+
+        func totalRowsHeightForTesting() -> CGFloat {
+            rowHeightCache.totalHeight
+        }
+
+        func primaryFirstLineScreenYForTesting(row: Int) -> CGFloat? {
+            guard let scrollView,
+                  let documentView,
+                  let measurement = cachedMeasurement(for: row, documentWidth: documentView.bounds.width)
+            else {
+                return nil
+            }
+            return rowHeightCache.yOffset(for: row)
+                + measurement.primaryFirstLineOffset
+                - scrollView.contentView.bounds.minY
+        }
+
+        func measurementComputeCountForTesting() -> Int {
+            measurementComputeCount
+        }
+
+        func resetMeasurementComputeCountForTesting() {
+            measurementComputeCount = 0
+        }
+
+        func drawnRowCountForTesting() -> Int {
+            drawnRowCount
+        }
+
+        func resetDrawnRowCountForTesting() {
+            drawnRowCount = 0
+        }
+
+        func drawingRowRangeForTesting(dirtyRect: CGRect) -> Range<Int>? {
+            guard let documentView else { return nil }
+            let viewportDirtyRect = dirtyRect.intersection(documentView.visibleRect)
+            guard !viewportDirtyRect.isNull else { return nil }
+            return visibleRowRange(in: viewportDirtyRect)
+        }
+
+        func measurementRowRangeForTesting() -> Range<Int>? {
+            guard let scrollView else { return nil }
+            return measurementRowRange(in: scrollView.contentView.bounds)
+        }
+
         func openSubtitleFileForTesting(row: Int) {
             openSubtitleFile(row: row)
         }
@@ -2607,7 +2735,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard rowCount > 0 else { return }
             onToggleAllSelection()
             headerView?.refreshHeaderHosts()
-            documentView?.needsDisplay = true
+            invalidateVisibleDocument()
         }
 
         func cellFullText(row: Int, column: Int) -> String {
@@ -2627,17 +2755,16 @@ struct SubtitleTableView: NSViewRepresentable {
             return text(for: textColumns[textColumnIndex], model: model)
         }
 
-        func resizeDocument() {
-            guard let scrollView, let documentView else { return }
+        func resizeDocument(preserving preservedAnchor: DynamicScrollAnchor? = nil) {
+            guard !isResizingDocument, let scrollView, let documentView else { return }
+            isResizingDocument = true
+            defer { isResizingDocument = false }
+
+            rowHeightCache.configure(rowCount: rowCount, defaultHeight: currentRowHeight)
             let viewportWidth = max(scrollView.contentSize.width, scrollView.bounds.width)
             let width = isRedesign
                 ? tableContentWidth(viewportWidth: viewportWidth)
                 : max(scrollView.contentSize.width, scrollView.bounds.width)
-            let height = max(
-                scrollView.contentSize.height,
-                CGFloat(rowCount) * currentRowHeight
-            )
-            let nextSize = CGSize(width: width, height: max(1, height))
             let oldSize = documentView.frame.size
             let oldLayout = isRedesign
                 ? tableColumnLayout(contentWidth: max(1, oldSize.width), height: currentRowHeight)
@@ -2645,17 +2772,37 @@ struct SubtitleTableView: NSViewRepresentable {
             let newLayout = isRedesign
                 ? tableColumnLayout(contentWidth: width, height: currentRowHeight)
                 : nil
-            let isCuesOnlyWidthResize = oldSize.height == nextSize.height &&
-                oldSize.width != nextSize.width &&
-                oldLayout.map { old in newLayout?.isCuesOnlyWidthChange(from: old) == true } == true
+            let nextEffectiveWidth = isRedesign
+                ? effectiveCuesTextWidth(documentWidth: width)
+                : 0
+            let nextEffectiveWidthKey = SubtitleTableRowHeightCache.widthKey(nextEffectiveWidth)
+            let effectiveWidthChanged = isRedesign &&
+                lastEffectiveCuesWidthKey != nil &&
+                lastEffectiveCuesWidthKey != nextEffectiveWidthKey
+            let anchor = preservedAnchor ?? (effectiveWidthChanged ? captureDynamicScrollAnchor() : nil)
+            if effectiveWidthChanged {
+                rowMeasurementCache.removeAll()
+                rowHeightCache.removeAll()
+            }
+            if isRedesign {
+                lastEffectiveCuesWidthKey = nextEffectiveWidthKey
+            }
+
+            let nextSize = CGSize(
+                width: width,
+                height: max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
+            )
             scrollbarOverlayView?.needsDisplay = true
             let sizeChanged = documentView.frame.size != nextSize
             if sizeChanged {
                 documentView.setFrameSize(nextSize)
             }
             clampHorizontalScrollOffset(contentWidth: width)
+            if isRedesign {
+                reflowVisibleRows(anchor: anchor)
+            }
             scrollbarOverlayView?.scrollMetricsDidChange()
-            if isCuesOnlyWidthResize,
+            if effectiveWidthChanged,
                let oldLayout,
                let newLayout
             {
@@ -2666,7 +2813,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 )
                 headerView?.refreshHeaderHostsForCuesWidthChange()
                 refreshHeaderForHorizontalScrollIfNeeded()
-            } else if sizeChanged {
+            } else if oldSize.width != nextSize.width {
                 refreshHeaderForHorizontalScrollIfNeeded(force: true)
             } else {
                 refreshHeaderForHorizontalScrollIfNeeded()
@@ -2676,7 +2823,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func notifyVisibleRowsChanged(force: Bool = false) {
             guard !isExternalPopupLayerOpen else { return }
-            guard let range = visibleRowRange() else { return }
+            if isRedesign {
+                reflowVisibleRows()
+            }
+            guard let scrollView,
+                  let range = measurementRowRange(in: scrollView.contentView.bounds)
+            else { return }
             guard force || range != lastNotifiedVisibleRows else { return }
             lastNotifiedVisibleRows = range
             onVisibleRowsChange(range)
@@ -2689,7 +2841,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             scrollView.contentView.scroll(to: .zero)
             scrollView.reflectScrolledClipView(scrollView.contentView)
-            documentView?.needsDisplay = true
+            invalidateVisibleDocument()
             scrollbarOverlayView?.needsDisplay = true
             invalidateDocumentCursorRects()
             notifyVisibleRowsChanged(force: true)
@@ -2701,13 +2853,16 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             let clampedRow = min(max(0, row), max(0, rowCount - 1))
+            if isRedesign {
+                reflowVisibleRows(explicitTargetRow: clampedRow)
+            }
             let maxY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
-            let y = min(rowHeightCache.yOffset(for: clampedRow, defaultHeight: currentRowHeight), maxY)
+            let y = min(rowHeightCache.yOffset(for: clampedRow), maxY)
             var origin = scrollView.contentView.bounds.origin
             origin.y = y
             scrollView.contentView.scroll(to: origin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
-            documentView.needsDisplay = true
+            documentView.setNeedsDisplay(documentView.visibleRect)
             scrollbarOverlayView?.needsDisplay = true
             invalidateDocumentCursorRects()
             notifyVisibleRowsChanged(force: true)
@@ -2851,15 +3006,23 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawRowsNow(in dirtyRect: CGRect) {
+            let viewportDirtyRect = dirtyRect.intersection(documentView?.visibleRect ?? .zero)
             guard rowCount > 0,
                   let documentView,
-                  let range = visibleRowRange(in: dirtyRect)
+                  !viewportDirtyRect.isNull,
+                  let range = visibleRowRange(in: viewportDirtyRect)
             else {
                 return
             }
 
             for row in range {
                 let rowRect = rectForRow(row, width: documentView.bounds.width)
+                guard rowRect.intersects(viewportDirtyRect) else { continue }
+                drawnRowCount += 1
+                UIInvalidationProbe.count(
+                    "table.dynamic_row_draw",
+                    details: "table=\(tableName) row=\(row)"
+                )
                 drawRowBackground(row: row, rect: rowRect)
                 drawCellTexts(row: row, rowRect: rowRect)
             }
@@ -2887,12 +3050,19 @@ struct SubtitleTableView: NSViewRepresentable {
             let model = rowProvider(row)
             let M = SubtitleTableMetrics.self
             let layout = tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height)
+            let measurement = cachedMeasurement(for: row, documentWidth: rowRect.width)
+                ?? SubtitleTableRowMeasurement(
+                    height: rowRect.height,
+                    primaryLineCount: 1,
+                    extraLineCount: 0
+                )
+            let primaryFirstLineTop = rowRect.minY + measurement.primaryFirstLineOffset
 
             if isRedesign {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
                 WorkbenchCheckboxDrawing.draw(
                     state: checkboxState,
-                    in: checkboxRect(forRowRect: rowRect),
+                    in: checkboxRect(forRowRect: rowRect, primaryFirstLineTop: primaryFirstLineTop),
                     isFocused: isEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
                 )
             } else {
@@ -2907,7 +3077,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     trailing: M.trailingInset,
                     role: .metadata,
                     isHovered: isDateAddedHovered,
-                    underline: isDateAddedHovered
+                    underline: isDateAddedHovered,
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             if showsDisplayTitleColumn {
@@ -2919,7 +3090,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     trailing: M.trailingInset,
                     role: .secondaryContext,
                     isHovered: isDisplayHovered,
-                    underline: isDisplayHovered
+                    underline: isDisplayHovered,
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             if let timeRect = layout.timeRect {
@@ -2931,17 +3103,17 @@ struct SubtitleTableView: NSViewRepresentable {
                     trailing: M.trailingInset,
                     role: .metadata,
                     isHovered: isTimeHovered,
-                    underline: isTimeHovered
+                    underline: isTimeHovered,
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
             let isCuesHovered = isCellHovered(row: row, columnID: "cues")
-            drawBody(
-                model?.cues ?? "",
+            drawCues(
+                model: model,
                 in: cuesRect,
-                trailing: cuesTextTrailingInset(forRowRect: rowRect),
-                isHovered: isCuesHovered,
-                underline: isCuesHovered
+                measurement: measurement,
+                isHovered: isCuesHovered
             )
             if let speakerRect = layout.speakerRect {
                 let cellRect = rowColumnRect(speakerRect, rowRect: rowRect)
@@ -2949,7 +3121,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     model?.speakerTags ?? [],
                     in: cellRect,
                     trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "speaker")
+                    isHovered: isCellHovered(row: row, columnID: "speaker"),
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             if let languageRect = layout.languageRect {
@@ -2958,7 +3131,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     model?.tags ?? [],
                     in: cellRect,
                     trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "language")
+                    isHovered: isCellHovered(row: row, columnID: "language"),
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             if let tagsRect = layout.tagsRect {
@@ -2967,7 +3141,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     model?.shioriTags ?? [],
                     in: cellRect,
                     trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "tags")
+                    isHovered: isCellHovered(row: row, columnID: "tags"),
+                    firstLineTop: primaryFirstLineTop
                 )
             }
         }
@@ -3027,7 +3202,8 @@ struct SubtitleTableView: NSViewRepresentable {
             trailing: CGFloat,
             role: SubtitleTableTextRole = .primaryContent,
             isHovered: Bool = false,
-            underline: Bool = false
+            underline: Bool = false,
+            firstLineTop: CGFloat? = nil
         ) {
             let M = SubtitleTableMetrics.self
             guard !text.isEmpty else { return }
@@ -3042,7 +3218,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
-            let origin = bodyTextOrigin(in: rect)
+            let origin = bodyTextOrigin(in: rect, firstLineTop: firstLineTop)
             if isHovered {
                 if let textBounds = textLayout.unionUsedRect(at: origin) {
                     drawContentHoverBackground(rects: [textBounds], clippedTo: rect)
@@ -3058,6 +3234,107 @@ struct SubtitleTableView: NSViewRepresentable {
                 )
             }
             textLayout.draw(at: origin)
+            NSGraphicsContext.restoreGraphicsState()
+        }
+
+        private func drawCues(
+            model: SubtitleTableRow?,
+            in rect: CGRect,
+            measurement: SubtitleTableRowMeasurement,
+            isHovered: Bool
+        ) {
+            guard let model else { return }
+            let textWidth = max(
+                1,
+                rect.width
+                    - SubtitleTableCueGeometry.cellLeadingPadding
+                    - SubtitleTableCueGeometry.cellTrailingPadding
+            )
+            let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
+            let extraText = showsCueGroup && !model.additionalCueTexts.isEmpty
+                ? model.additionalCueTexts.joined(separator: "\n")
+                : nil
+            let extraOrigin = CGPoint(
+                x: textX,
+                y: rect.minY + SubtitleTableCueGeometry.rowPaddingY
+            )
+            let primaryOrigin = CGPoint(
+                x: textX,
+                y: rect.minY + measurement.primaryFirstLineOffset
+            )
+            let primaryColor = isHovered
+                ? WorkbenchRedesignColors.NS.textPrimary
+                : WorkbenchRedesignColors.NS.textSecondary
+            let extraColor = WorkbenchRedesignColors.NS.textMuted
+
+            NSGraphicsContext.saveGraphicsState()
+            NSBezierPath.clip(rect)
+
+            var usedRects = [CGRect]()
+            if let extraText {
+                textLayout.update(
+                    attributedString: SubtitleTableCueTextMeasurer.attributedString(
+                        extraText,
+                        style: .extra,
+                        foregroundColor: extraColor
+                    ),
+                    width: textWidth
+                )
+                usedRects.append(contentsOf: textLayout.usedRects(at: extraOrigin))
+            }
+            textLayout.update(
+                attributedString: SubtitleTableCueTextMeasurer.attributedString(
+                    model.primaryCueText,
+                    style: .primary,
+                    foregroundColor: primaryColor
+                ),
+                width: textWidth
+            )
+            usedRects.append(contentsOf: textLayout.usedRects(at: primaryOrigin))
+
+            if isHovered {
+                drawContentHoverBackground(rects: usedRects, clippedTo: rect)
+            }
+
+            if let extraText {
+                textLayout.update(
+                    attributedString: SubtitleTableCueTextMeasurer.attributedString(
+                        extraText,
+                        style: .extra,
+                        foregroundColor: extraColor
+                    ),
+                    width: textWidth
+                )
+                if isHovered {
+                    textLayout.drawUnderline(
+                        at: extraOrigin,
+                        color: extraColor,
+                        thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
+                        offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
+                        backingScaleFactor: backingScaleFactor()
+                    )
+                }
+                textLayout.draw(at: extraOrigin)
+            }
+
+            textLayout.update(
+                attributedString: SubtitleTableCueTextMeasurer.attributedString(
+                    model.primaryCueText,
+                    style: .primary,
+                    foregroundColor: primaryColor
+                ),
+                width: textWidth
+            )
+            if isHovered {
+                textLayout.drawUnderline(
+                    at: primaryOrigin,
+                    color: WorkbenchRedesignColors.NS.textPrimary,
+                    thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
+                    offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
+                    backingScaleFactor: backingScaleFactor()
+                )
+            }
+            textLayout.draw(at: primaryOrigin)
             NSGraphicsContext.restoreGraphicsState()
         }
 
@@ -3086,7 +3363,8 @@ struct SubtitleTableView: NSViewRepresentable {
             text: String,
             in rect: CGRect,
             trailing: CGFloat,
-            role: SubtitleTableTextRole
+            role: SubtitleTableTextRole,
+            firstLineTop: CGFloat? = nil
         ) -> CGRect? {
             let M = SubtitleTableMetrics.self
             guard !text.isEmpty else { return nil }
@@ -3098,16 +3376,59 @@ struct SubtitleTableView: NSViewRepresentable {
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
-            let origin = bodyTextOrigin(in: rect)
+            let origin = bodyTextOrigin(in: rect, firstLineTop: firstLineTop)
             guard let textBounds = textLayout.unionUsedRect(at: origin) else { return nil }
             return contentHoverRect(rects: [textBounds], clippedTo: rect)
+        }
+
+        private func cuesContentHoverRect(
+            model: SubtitleTableRow,
+            in rect: CGRect,
+            measurement: SubtitleTableRowMeasurement
+        ) -> CGRect? {
+            let textWidth = max(
+                1,
+                rect.width
+                    - SubtitleTableCueGeometry.cellLeadingPadding
+                    - SubtitleTableCueGeometry.cellTrailingPadding
+            )
+            let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
+            var usedRects = [CGRect]()
+            if showsCueGroup, !model.additionalCueTexts.isEmpty {
+                textLayout.update(
+                    attributedString: SubtitleTableCueTextMeasurer.attributedString(
+                        model.additionalCueTexts.joined(separator: "\n"),
+                        style: .extra,
+                        foregroundColor: WorkbenchRedesignColors.NS.textMuted
+                    ),
+                    width: textWidth
+                )
+                usedRects.append(contentsOf: textLayout.usedRects(at: CGPoint(
+                    x: textX,
+                    y: rect.minY + SubtitleTableCueGeometry.rowPaddingY
+                )))
+            }
+            textLayout.update(
+                attributedString: SubtitleTableCueTextMeasurer.attributedString(
+                    model.primaryCueText,
+                    style: .primary,
+                    foregroundColor: WorkbenchRedesignColors.NS.textSecondary
+                ),
+                width: textWidth
+            )
+            usedRects.append(contentsOf: textLayout.usedRects(at: CGPoint(
+                x: textX,
+                y: rect.minY + measurement.primaryFirstLineOffset
+            )))
+            return contentHoverRect(rects: usedRects, clippedTo: rect)
         }
 
         private func drawTags(
             _ tags: [WorkbenchTag],
             in rect: CGRect,
             trailing: CGFloat,
-            isHovered: Bool = false
+            isHovered: Bool = false,
+            firstLineTop: CGFloat? = nil
         ) {
             guard !tags.isEmpty else { return }
 
@@ -3115,7 +3436,13 @@ struct SubtitleTableView: NSViewRepresentable {
             NSBezierPath.clip(rect)
 
             let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
-            let laidOutTags = layoutTags(tags, in: rect, trailing: trailing, tagStyle: tagStyle)
+            let laidOutTags = layoutTags(
+                tags,
+                in: rect,
+                trailing: trailing,
+                tagStyle: tagStyle,
+                firstLineTop: firstLineTop
+            )
 
             if isHovered {
                 drawContentHoverBackground(rects: laidOutTags.map { $0.tagRect }, clippedTo: rect)
@@ -3145,11 +3472,18 @@ struct SubtitleTableView: NSViewRepresentable {
         private func tagContentHoverRect(
             tags: [WorkbenchTag],
             in rect: CGRect,
-            trailing: CGFloat
+            trailing: CGFloat,
+            firstLineTop: CGFloat? = nil
         ) -> CGRect? {
             guard !tags.isEmpty else { return nil }
             let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
-            let laidOutTags = layoutTags(tags, in: rect, trailing: trailing, tagStyle: tagStyle)
+            let laidOutTags = layoutTags(
+                tags,
+                in: rect,
+                trailing: trailing,
+                tagStyle: tagStyle,
+                firstLineTop: firstLineTop
+            )
             return contentHoverRect(rects: laidOutTags.map { $0.tagRect }, clippedTo: rect)
         }
 
@@ -3157,7 +3491,8 @@ struct SubtitleTableView: NSViewRepresentable {
             _ tags: [WorkbenchTag],
             in rect: CGRect,
             trailing: CGFloat,
-            tagStyle: SubtitleTableTagStyle
+            tagStyle: SubtitleTableTagStyle,
+            firstLineTop: CGFloat? = nil
         ) -> [(tag: WorkbenchTag, attributed: NSAttributedString, textSize: CGSize, tagRect: CGRect)] {
             let M = SubtitleTableMetrics.self
             var x = rect.minX + M.cellLeading
@@ -3171,9 +3506,14 @@ struct SubtitleTableView: NSViewRepresentable {
                 let textSize = attributed.size()
                 let tagHeight = tagStyle.height(for: textSize)
                 if y == nil {
-                    y = isRedesign
-                        ? rect.minY + (rect.height - tagHeight) / 2
-                        : rect.minY + M.rowVerticalInset - 1
+                    if let firstLineTop, isRedesign {
+                        y = firstLineTop
+                            + (SubtitleTableCueGeometry.primaryLineHeight - tagHeight) / 2
+                    } else {
+                        y = isRedesign
+                            ? rect.minY + (rect.height - tagHeight) / 2
+                            : rect.minY + M.rowVerticalInset - 1
+                    }
                 }
                 guard let currentY = y else { break }
                 let tagWidth = tagStyle.width(for: textSize)
@@ -3193,30 +3533,223 @@ struct SubtitleTableView: NSViewRepresentable {
             return laidOutTags
         }
 
+        private func effectiveCuesTextWidth(documentWidth: CGFloat) -> CGFloat {
+            let layout = tableColumnLayout(contentWidth: documentWidth, height: currentRowHeight)
+            return max(
+                1,
+                layout.cuesRect.width
+                    - SubtitleTableCueGeometry.cellLeadingPadding
+                    - SubtitleTableCueGeometry.cellTrailingPadding
+            )
+        }
+
+        private func cachedMeasurement(for row: Int, documentWidth: CGFloat) -> SubtitleTableRowMeasurement? {
+            guard let model = rowProvider(row) else { return nil }
+            return rowMeasurementCache.cachedMeasurement(
+                rowIndex: row,
+                row: model,
+                effectiveCuesWidth: effectiveCuesTextWidth(documentWidth: documentWidth),
+                showsCueGroup: showsCueGroup,
+                styleRevision: SubtitleTableCueGeometry.styleRevision
+            )
+        }
+
+        @discardableResult
+        private func measureRow(_ row: Int, documentWidth: CGFloat) -> Bool {
+            guard isRedesign,
+                  row >= 0,
+                  row < rowCount,
+                  let model = rowProvider(row)
+            else {
+                return false
+            }
+
+            let effectiveWidth = effectiveCuesTextWidth(documentWidth: documentWidth)
+            let lookup = rowMeasurementCache.lookup(
+                rowIndex: row,
+                row: model,
+                effectiveCuesWidth: effectiveWidth,
+                showsCueGroup: showsCueGroup,
+                styleRevision: SubtitleTableCueGeometry.styleRevision
+            ) { [cueTextMeasurer] in
+                measurementComputeCount += 1
+                UIInvalidationProbe.count(
+                    "table.dynamic_row_measurement",
+                    details: "table=\(tableName) row=\(row)"
+                )
+                return cueTextMeasurer.rowMeasurement(
+                    row: model,
+                    effectiveCuesWidth: effectiveWidth,
+                    showsCueGroup: showsCueGroup
+                )
+            }
+            return rowHeightCache.setHeight(lookup.height, for: row)
+        }
+
+        private func captureDynamicScrollAnchor() -> DynamicScrollAnchor? {
+            guard isRedesign,
+                  let scrollView,
+                  let documentView,
+                  let visibleRows = visibleRowRange()
+            else {
+                return nil
+            }
+
+            for row in visibleRows {
+                guard let model = rowProvider(row) else {
+                    continue
+                }
+                guard let measurement = cachedMeasurement(
+                    for: row,
+                    documentWidth: documentView.bounds.width
+                ) ?? rowMeasurementCache.cachedMeasurement(
+                    rowIndex: row,
+                    primaryCueIdentity: model.primaryCueIdentity
+                )
+                else {
+                    continue
+                }
+                let firstLineDocumentY = rowHeightCache.yOffset(for: row)
+                    + measurement.primaryFirstLineOffset
+                return DynamicScrollAnchor(
+                    primaryCueIdentity: model.primaryCueIdentity,
+                    row: row,
+                    primaryFirstLineScreenY: firstLineDocumentY - scrollView.contentView.bounds.minY
+                )
+            }
+            return nil
+        }
+
+        private func restoreDynamicScrollAnchor(_ anchor: DynamicScrollAnchor?) {
+            guard let anchor,
+                  let scrollView,
+                  let documentView,
+                  let model = rowProvider(anchor.row),
+                  model.primaryCueIdentity == anchor.primaryCueIdentity,
+                  let measurement = cachedMeasurement(for: anchor.row, documentWidth: documentView.bounds.width)
+            else {
+                return
+            }
+
+            let firstLineDocumentY = rowHeightCache.yOffset(for: anchor.row)
+                + measurement.primaryFirstLineOffset
+            let maximumY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
+            let nextY = min(
+                max(0, firstLineDocumentY - anchor.primaryFirstLineScreenY),
+                maximumY
+            )
+            var origin = scrollView.contentView.bounds.origin
+            guard abs(origin.y - nextY) > 0.01 else { return }
+            origin.y = nextY
+            scrollView.contentView.scroll(to: origin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            UIInvalidationProbe.count(
+                "table.dynamic_scroll_anchor_correction",
+                details: "table=\(tableName) row=\(anchor.row)"
+            )
+        }
+
+        private func reflowVisibleRows(
+            anchor: DynamicScrollAnchor? = nil,
+            explicitTargetRow: Int? = nil
+        ) {
+            guard isRedesign,
+                  !isApplyingDynamicReflow,
+                  let scrollView,
+                  let documentView
+            else {
+                return
+            }
+            isApplyingDynamicReflow = true
+            defer { isApplyingDynamicReflow = false }
+
+            let resolvedAnchor = anchor ?? captureDynamicScrollAnchor()
+            rowHeightCache.configure(rowCount: rowCount, defaultHeight: currentRowHeight)
+            if anchor == nil,
+               let measurementRange = measurementRowRange(in: scrollView.contentView.bounds)
+            {
+                for row in measurementRange {
+                    _ = measureRow(row, documentWidth: documentView.bounds.width)
+                }
+            }
+            let requiredTargetRow = explicitTargetRow ?? resolvedAnchor?.row
+            if let requiredTargetRow,
+               requiredTargetRow >= 0,
+               requiredTargetRow < rowCount,
+               measurementRowRange(in: scrollView.contentView.bounds)?.contains(requiredTargetRow) != true
+            {
+                _ = measureRow(requiredTargetRow, documentWidth: documentView.bounds.width)
+            }
+
+            let nextHeight = max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
+            if abs(documentView.frame.height - nextHeight) > 0.01 {
+                documentView.setFrameSize(CGSize(width: documentView.frame.width, height: nextHeight))
+            }
+            restoreDynamicScrollAnchor(resolvedAnchor)
+            var postRestoreHeightChanged = false
+            if let postRestoreRange = measurementRowRange(in: scrollView.contentView.bounds) {
+                for row in postRestoreRange {
+                    postRestoreHeightChanged = measureRow(
+                        row,
+                        documentWidth: documentView.bounds.width
+                    ) || postRestoreHeightChanged
+                }
+            }
+            if postRestoreHeightChanged {
+                let resolvedHeight = max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
+                if abs(documentView.frame.height - resolvedHeight) > 0.01 {
+                    documentView.setFrameSize(CGSize(
+                        width: documentView.frame.width,
+                        height: resolvedHeight
+                    ))
+                }
+                restoreDynamicScrollAnchor(resolvedAnchor)
+            }
+            scrollbarOverlayView?.scrollMetricsDidChange()
+            scrollbarOverlayView?.needsDisplay = true
+            documentView.setNeedsDisplay(documentView.visibleRect)
+            invalidateDocumentCursorRects()
+            layoutHoverButtons()
+            if isMenuOpen {
+                repositionOpenMenu()
+            }
+        }
+
         private func heightForRow(_ row: Int, width: CGFloat) -> CGFloat {
-            _ = row
             _ = width
-            return currentRowHeight
+            return rowHeightCache.height(for: row)
         }
 
         private func rectForRow(_ row: Int, width: CGFloat) -> CGRect {
-            let y = rowHeightCache.yOffset(for: row, defaultHeight: currentRowHeight)
+            let y = rowHeightCache.yOffset(for: row)
             let height = heightForRow(row, width: width)
             return CGRect(x: 0, y: y, width: width, height: height)
         }
 
-        private func checkboxRect(forRowRect rowRect: CGRect) -> CGRect {
+        private func checkboxRect(
+            forRowRect rowRect: CGRect,
+            primaryFirstLineTop: CGFloat? = nil
+        ) -> CGRect {
             let size = SubtitleTableMetrics.checkboxSize
+            let centerY = primaryFirstLineTop.map {
+                $0 + SubtitleTableCueGeometry.primaryLineHeight / 2
+            } ?? rowRect.midY
             return CGRect(
                 x: (SubtitleTableMetrics.indexColumnWidth - size) / 2,
-                y: rowRect.minY + (rowRect.height - size) / 2,
+                y: centerY - size / 2,
                 width: size,
                 height: size
             )
         }
 
-        private func checkboxHitRect(forRowRect rowRect: CGRect) -> CGRect {
-            checkboxRect(forRowRect: rowRect).insetBy(
+        private func checkboxHitRect(
+            forRowRect rowRect: CGRect,
+            primaryFirstLineTop: CGFloat? = nil
+        ) -> CGRect {
+            checkboxRect(
+                forRowRect: rowRect,
+                primaryFirstLineTop: primaryFirstLineTop
+            ).insetBy(
                 dx: -SubtitleTableMetrics.checkboxHitSlop,
                 dy: -SubtitleTableMetrics.checkboxHitSlop
             )
@@ -3228,18 +3761,20 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func visibleRowRange(in rect: CGRect) -> Range<Int>? {
+            rowRange(in: rect, overscan: 0)
+        }
+
+        private func measurementRowRange(in rect: CGRect) -> Range<Int>? {
+            rowRange(in: rect, overscan: SubtitleTableCueGeometry.measurementOverscan)
+        }
+
+        private func rowRange(in rect: CGRect, overscan: Int) -> Range<Int>? {
             guard rowCount > 0 else { return nil }
-            let lower = rowHeightCache.rowIndex(
-                atY: rect.minY,
-                rowCount: rowCount,
-                defaultHeight: currentRowHeight
-            )
-            let upper = rowHeightCache.rowIndex(
-                atY: max(rect.minY, rect.maxY),
-                rowCount: rowCount,
-                defaultHeight: currentRowHeight
-            )
-            let overscan = 4
+            let lower = rowHeightCache.rowIndex(atY: rect.minY)
+            let upperY = rect.maxY > rect.minY
+                ? rect.maxY.nextDown
+                : rect.minY
+            let upper = rowHeightCache.rowIndex(atY: upperY)
             let lowerBound = max(0, lower - overscan)
             let upperBound = min(rowCount, upper + overscan + 1)
             return lowerBound < upperBound ? lowerBound..<upperBound : nil
@@ -3314,11 +3849,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
             guard rowCount > 0 else { return nil }
-            let row = rowHeightCache.rowIndex(
-                atY: point.y,
-                rowCount: rowCount,
-                defaultHeight: currentRowHeight
-            )
+            let row = rowHeightCache.rowIndex(atY: point.y)
             let rect = rectForRow(row, width: documentView?.bounds.width ?? 0)
             return rect.contains(point) ? row : nil
         }
@@ -3360,9 +3891,17 @@ struct SubtitleTableView: NSViewRepresentable {
             return frame
         }
 
-        private func bodyTextOrigin(in rect: CGRect) -> CGPoint {
+        private func bodyTextOrigin(in rect: CGRect, firstLineTop: CGFloat? = nil) -> CGPoint {
             let M = SubtitleTableMetrics.self
-            let yOffset = isRedesign ? rect.minY + (rect.height - textLayout.usedHeight) / 2 : rect.minY + M.rowVerticalInset
+            let yOffset: CGFloat
+            if let firstLineTop, isRedesign {
+                yOffset = firstLineTop
+                    + max(0, (SubtitleTableCueGeometry.primaryLineHeight - textLayout.usedHeight) / 2)
+            } else {
+                yOffset = isRedesign
+                    ? rect.minY + (rect.height - textLayout.usedHeight) / 2
+                    : rect.minY + M.rowVerticalInset
+            }
             return CGPoint(x: rect.minX + M.cellLeading, y: yOffset)
         }
 
@@ -3382,32 +3921,50 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let cellRect = dataCellRect(columnID: columnID, rowRect: rowRect) else {
                 return nil
             }
+            let measurement = cachedMeasurement(for: row, documentWidth: documentView.bounds.width)
+                ?? SubtitleTableRowMeasurement(
+                    height: rowRect.height,
+                    primaryLineCount: 1,
+                    extraLineCount: 0
+                )
+            let primaryFirstLineTop = rowRect.minY + measurement.primaryFirstLineOffset
+            if columnID == "cues" {
+                return cuesContentHoverRect(
+                    model: model,
+                    in: cellRect,
+                    measurement: measurement
+                )
+            }
             if columnID == "speaker" {
                 return tagContentHoverRect(
                     tags: model.speakerTags,
                     in: cellRect,
-                    trailing: SubtitleTableMetrics.trailingInset
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             if columnID == "language" {
                 return tagContentHoverRect(
                     tags: model.tags,
                     in: cellRect,
-                    trailing: SubtitleTableMetrics.trailingInset
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             if columnID == "tags" {
                 return tagContentHoverRect(
                     tags: model.shioriTags,
                     in: cellRect,
-                    trailing: SubtitleTableMetrics.trailingInset
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    firstLineTop: primaryFirstLineTop
                 )
             }
             return bodyContentHoverRect(
                 text: text(for: columnID, model: model),
                 in: cellRect,
                 trailing: bodyTextTrailingInset(for: columnID, rowRect: rowRect),
-                role: bodyTextRole(for: columnID)
+                role: bodyTextRole(for: columnID),
+                firstLineTop: primaryFirstLineTop
             )
         }
 
@@ -3534,26 +4091,13 @@ struct SubtitleTableView: NSViewRepresentable {
         private func isPointInCueText(row: Int, point: CGPoint) -> Bool {
             guard row >= 0,
                   row < rowCount,
-                  let documentView,
                   let model = rowProvider(row),
-                  !model.cues.isEmpty
+                  !model.primaryCueText.isEmpty,
+                  let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "cues")
             else {
                 return false
             }
-            let rowRect = rectForRow(row, width: documentView.bounds.width)
-            let cuesRect = cuesCellRect(forRowRect: rowRect)
-            guard cuesRect.contains(point) else { return false }
-
-            let M = SubtitleTableMetrics.self
-            textLayout.update(
-                attributedString: SubtitleTableText.body(
-                    model.cues,
-                    role: .primaryContent,
-                    isRedesign: isRedesign
-                ),
-                width: max(0, cuesRect.width - M.cellLeading - cuesTextTrailingInset(forRowRect: rowRect))
-            )
-            return textLayout.containsText(at: point, origin: bodyTextOrigin(in: cuesRect))
+            return hoverRect.contains(point)
         }
 
         func handleMouseHover(windowPoint: CGPoint) {
@@ -3859,6 +4403,11 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
+        private func invalidateVisibleDocument() {
+            guard let documentView else { return }
+            documentView.setNeedsDisplay(documentView.visibleRect)
+        }
+
         private func invalidateColumnLayoutChange(
             columnID: String,
             oldLayout: SubtitleTableColumnLayout,
@@ -3891,11 +4440,15 @@ struct SubtitleTableView: NSViewRepresentable {
             case .none:
                 break
             case .append(let range):
-                invalidateRows(range.map { Optional($0) })
+                guard let visibleRows = visibleRowRange() else { return }
+                let lowerBound = max(range.lowerBound, visibleRows.lowerBound)
+                let upperBound = min(range.upperBound, visibleRows.upperBound)
+                guard lowerBound < upperBound else { return }
+                invalidateRows((lowerBound..<upperBound).map { Optional($0) })
             case .cells(let cells):
                 invalidateCells(cells)
             case .reload:
-                documentView?.needsDisplay = true
+                invalidateVisibleDocument()
             }
         }
 
@@ -4077,6 +4630,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let menuView = RowActionMenu(
                 kind: menuKind,
                 style: rowActionMenuStyle,
+                showsCueGroup: showsCueGroup,
                 canOpenFolder: canOpenSubtitleFile(row: row),
                 onPlay: { [weak self] in
                     self?.dismissMenu()
@@ -4089,6 +4643,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 },
                 onCopyCueText: { [weak self] in
                     self?.copyRow(row)
+                    self?.dismissMenu()
+                },
+                onCopyCueGroupText: { [weak self] in
+                    self?.copyCueGroup(row)
                     self?.dismissMenu()
                 },
                 onOpenFolder: { [weak self] in
@@ -4396,7 +4954,14 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let model = rowProvider(row) else { return }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(model.cues, forType: .string)
+            pasteboard.setString(model.primaryCueText, forType: .string)
+        }
+
+        private func copyCueGroup(_ row: Int) {
+            guard let model = rowProvider(row) else { return }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(model.cueGroupCopyText, forType: .string)
         }
 
         private func copyCellText(row: Int, columnID: String) {

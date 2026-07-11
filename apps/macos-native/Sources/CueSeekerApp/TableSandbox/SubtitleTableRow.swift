@@ -3,6 +3,9 @@ import Foundation
 /// Row view-model shared by the Search, Shiori, and Context table surfaces.
 struct SubtitleTableRow: Identifiable, Equatable {
     let id: Int
+    /// Stable identity of the primary Cue. Shiori row identity remains the
+    /// Shiori ID, so scroll anchoring cannot safely substitute `id` here.
+    let primaryCueID: Int64?
     let subtitlePath: String
     let dateAdded: String
     let displayTitle: String
@@ -26,6 +29,10 @@ struct SubtitleTableRow: Identifiable, Equatable {
         primaryCueText
     }
 
+    var primaryCueIdentity: SubtitleTablePrimaryCueIdentity {
+        primaryCueID.map(SubtitleTablePrimaryCueIdentity.cue) ?? .rowFallback(id)
+    }
+
     /// Additional Cue texts keep their stable source order. Index-based removal
     /// is required because two sibling Cues may contain identical text.
     var additionalCueTexts: [String] {
@@ -47,6 +54,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
 
     init(
         id: Int,
+        primaryCueID: Int64? = nil,
         subtitlePath: String = "",
         dateAdded: String = "",
         displayTitle: String,
@@ -61,6 +69,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
         shioriTags: [WorkbenchTag] = []
     ) {
         self.id = id
+        self.primaryCueID = primaryCueID
         self.subtitlePath = subtitlePath
         self.dateAdded = dateAdded
         self.displayTitle = displayTitle
@@ -102,6 +111,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
     ) {
         self.init(
             id: id,
+            primaryCueID: Int64(id),
             subtitlePath: subtitlePath,
             dateAdded: dateAdded,
             displayTitle: displayTitle,
@@ -120,6 +130,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
     func replacingShioriTags(_ nextShioriTags: [WorkbenchTag]) -> SubtitleTableRow {
         SubtitleTableRow(
             id: id,
+            primaryCueID: primaryCueID,
             subtitlePath: subtitlePath,
             dateAdded: dateAdded,
             displayTitle: displayTitle,
@@ -134,6 +145,11 @@ struct SubtitleTableRow: Identifiable, Equatable {
             shioriTags: nextShioriTags
         )
     }
+}
+
+enum SubtitleTablePrimaryCueIdentity: Hashable {
+    case cue(Int64)
+    case rowFallback(Int)
 }
 
 enum SubtitleTableTimeRange {
