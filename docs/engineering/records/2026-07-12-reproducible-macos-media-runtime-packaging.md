@@ -31,6 +31,10 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
    rewrites install names to `@rpath`, and stages licenses and build metadata.
 9. Added a fail-fast runtime verifier for required libraries, ARM64-only
    architecture, install IDs, dependency paths, and FFmpeg GPL/nonfree state.
+10. Replaced the Swift package's independent FFmpeg header/library fallback and
+    Homebrew libass paths with one complete controlled media runtime root.
+11. Added development and app-bundle runtime search paths while keeping the
+    linked library identities at `@rpath`.
 
 ## Verification
 
@@ -51,6 +55,12 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
 - libass was built through its distribution-recommended Autotools path with
   CoreText, ARM64 assembly, and the pinned FreeType, FriBidi, HarfBuzz, and
   libunibreak libraries.
+- `swift build` passed against the controlled runtime.
+- `swift test` passed all 7 XCTest tests and 548 Swift Testing tests against the
+  controlled runtime.
+- `otool -L` on the rebuilt CueSeeker executable reports the controlled FFmpeg
+  8.1.2 and libass libraries through `@rpath`; it contains no Homebrew or
+  `/private/tmp` media-library dependency.
 
 ## Outcome
 

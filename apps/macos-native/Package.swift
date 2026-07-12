@@ -3,39 +3,54 @@
 import PackageDescription
 import Foundation
 
-let homebrewRoot = "/opt/homebrew"
-let localPatchedFFmpegRoot = "/private/tmp/cueseeker-ffmpeg-8.1-patched"
+let packageDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+let repositoryDirectory = packageDirectory.deletingLastPathComponent().deletingLastPathComponent()
+let defaultMediaRuntimeRoot = repositoryDirectory
+    .appendingPathComponent(".build/media-runtime/arm64-macos13")
+    .path
 
-func hasRequiredFFmpegHeaders(_ root: String) -> Bool {
-    [
+func missingMediaRuntimeFiles(_ root: String) -> [String] {
+    let requiredPaths = [
         "\(root)/include/libavformat/avformat.h",
         "\(root)/include/libavcodec/avcodec.h",
         "\(root)/include/libavutil/avutil.h",
         "\(root)/include/libswresample/swresample.h",
         "\(root)/include/libswscale/swscale.h",
-    ].allSatisfy { FileManager.default.fileExists(atPath: $0) }
-}
-
-func hasRequiredFFmpegLibraries(_ root: String) -> Bool {
-    [
+        "\(root)/include/ass/ass.h",
         "\(root)/lib/libavformat.dylib",
         "\(root)/lib/libavcodec.dylib",
         "\(root)/lib/libavutil.dylib",
         "\(root)/lib/libswresample.dylib",
         "\(root)/lib/libswscale.dylib",
-    ].allSatisfy { FileManager.default.fileExists(atPath: $0) }
+        "\(root)/lib/libass.dylib",
+        "\(root)/lib/libfreetype.dylib",
+        "\(root)/lib/libfribidi.dylib",
+        "\(root)/lib/libharfbuzz.dylib",
+        "\(root)/lib/libunibreak.dylib",
+    ]
+    return requiredPaths.filter { !FileManager.default.fileExists(atPath: $0) }
 }
 
-let defaultFFmpegIncludeRoot = hasRequiredFFmpegHeaders(localPatchedFFmpegRoot)
-    ? localPatchedFFmpegRoot
-    : homebrewRoot
-let defaultFFmpegLibraryRoot = hasRequiredFFmpegLibraries(localPatchedFFmpegRoot)
-    ? localPatchedFFmpegRoot
-    : homebrewRoot
-let ffmpegRootOverride = Context.environment["CUESEEKER_FFMPEG_ROOT"]
-let ffmpegIncludePath = "\(ffmpegRootOverride ?? defaultFFmpegIncludeRoot)/include"
-let ffmpegLibraryPath = "\(ffmpegRootOverride ?? defaultFFmpegLibraryRoot)/lib"
-let libassLibraryPath = "\(homebrewRoot)/opt/libass/lib"
+let mediaRuntimeRoot = Context.environment["CUESEEKER_MEDIA_RUNTIME_ROOT"]
+    ?? defaultMediaRuntimeRoot
+let missingRuntimeFiles = missingMediaRuntimeFiles(mediaRuntimeRoot)
+if !missingRuntimeFiles.isEmpty {
+    fatalError("""
+        CueSeeker controlled media runtime is incomplete at \(mediaRuntimeRoot).
+        Run scripts/build_macos_media_runtime.sh from the repository root, or set
+        CUESEEKER_MEDIA_RUNTIME_ROOT to a complete runtime. Missing files:
+        \(missingRuntimeFiles.joined(separator: "\n"))
+        """)
+}
+let mediaIncludePath = "\(mediaRuntimeRoot)/include"
+let mediaLibraryPath = "\(mediaRuntimeRoot)/lib"
+let mediaRuntimeLinkerFlags = [
+    "-L", mediaLibraryPath,
+    "-Xlinker", "-rpath",
+    "-Xlinker", mediaLibraryPath,
+    "-Xlinker", "-rpath",
+    "-Xlinker", "@executable_path/../Frameworks",
+]
 
 let package = Package(
     name: "CueSeekerNative",
@@ -64,10 +79,10 @@ let package = Package(
             path: "Sources/CNativePlayback",
             publicHeadersPath: "include",
             cSettings: [
-                .unsafeFlags(["-I", ffmpegIncludePath])
+                .unsafeFlags(["-I", mediaIncludePath])
             ],
             linkerSettings: [
-                .unsafeFlags(["-L", ffmpegLibraryPath]),
+                .unsafeFlags(mediaRuntimeLinkerFlags),
                 .linkedLibrary("avformat"),
                 .linkedLibrary("avcodec"),
                 .linkedLibrary("avutil"),
@@ -87,10 +102,10 @@ let package = Package(
             path: "Sources/CASSRendering",
             publicHeadersPath: "include",
             cSettings: [
-                .unsafeFlags(["-I", "\(homebrewRoot)/include"])
+                .unsafeFlags(["-I", mediaIncludePath])
             ],
             linkerSettings: [
-                .unsafeFlags(["-L", libassLibraryPath]),
+                .unsafeFlags(mediaRuntimeLinkerFlags),
                 .linkedLibrary("ass"),
                 .linkedFramework("CoreGraphics"),
                 .linkedFramework("Foundation"),
@@ -118,10 +133,10 @@ let package = Package(
             name: "NativePlaybackProbe",
             path: "Sources/NativePlaybackProbe",
             cSettings: [
-                .unsafeFlags(["-I", ffmpegIncludePath])
+                .unsafeFlags(["-I", mediaIncludePath])
             ],
             linkerSettings: [
-                .unsafeFlags(["-L", ffmpegLibraryPath]),
+                .unsafeFlags(mediaRuntimeLinkerFlags),
                 .linkedLibrary("avformat"),
                 .linkedLibrary("avcodec"),
                 .linkedLibrary("avutil"),
