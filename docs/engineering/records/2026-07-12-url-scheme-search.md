@@ -20,6 +20,8 @@ packaging verification, and an installable acceptance build.
 2. Changed the packaged and runtime bundle identifier to `com.cueseeker.app`,
    registered the `cueseeker` URL scheme, and added both values to recursive app
    bundle verification.
+3. Added a strict, independently tested URL command parser for the version 1
+   search grammar and invalid-input no-op boundary.
 
 ## Verification
 
