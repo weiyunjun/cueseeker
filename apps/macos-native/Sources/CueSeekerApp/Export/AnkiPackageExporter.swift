@@ -426,14 +426,15 @@ enum AnkiPackageExporter {
     }
 
     private static func ffmpegExecutableURL() -> URL? {
+        let bundled = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Helpers/ffmpeg")
         let candidates = [
-            "/opt/homebrew/bin/ffmpeg",
-            "/usr/local/bin/ffmpeg",
-            "/usr/bin/ffmpeg"
+            bundled,
+            URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg"),
+            URL(fileURLWithPath: "/usr/local/bin/ffmpeg"),
+            URL(fileURLWithPath: "/usr/bin/ffmpeg")
         ]
-        return candidates
-            .map(URL.init(fileURLWithPath:))
-            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
     private static func modelJSON(modelID: Int64, deckID: Int64, now: Int) -> [String: Any] {

@@ -81,10 +81,22 @@ public actor ThumbnailGenerator {
     }
     
     private func executeFFmpeg(request: ThumbnailRequest, cacheKey: String) async -> Data? {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".avif")
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+        let bundledFFmpeg = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Helpers/ffmpeg")
+        let candidates = [
+            bundledFFmpeg,
+            URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg"),
+            URL(fileURLWithPath: "/usr/local/bin/ffmpeg")
+        ]
+        guard let ffmpegURL = candidates.first(where: {
+            FileManager.default.isExecutableFile(atPath: $0.path)
+        }) else {
+            return nil
+        }
         
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg")
+        process.executableURL = ffmpegURL
         
         let seconds = Double(request.timestampMilliseconds) / 1000.0
         let timeString = String(format: "%.3f", seconds)
@@ -96,8 +108,8 @@ public actor ThumbnailGenerator {
             "-i", request.videoPath,
             "-vframes", "1",
             "-vf", "scale=320:180:force_original_aspect_ratio=decrease",
-            "-c:v", "libsvtav1",
-            "-crf", "35",
+            "-c:v", "mjpeg",
+            "-q:v", "5",
             "-preset", "8",
             "-f", "avif",
             tempURL.path

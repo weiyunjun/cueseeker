@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Established the reproducible ARM64 macOS media runtime and local app
+  packaging path. CueSeeker now builds against pinned FFmpeg 8.1.2 plus its
+  Matroska patch and pinned libass dependencies instead of mixing temporary and
+  Homebrew runtime paths. The generated self-contained app embeds its complete
+  dylib closure, licenses, and an FFmpeg helper for thumbnails, screenshots,
+  Library covers, and Anki MP3 export, and passes architecture, dependency,
+  signature, build, and full-test verification.
 - Completed the Cue-centric Search, Shiori, Context, playback-focus, copy, and
   export milestone. Search now queries, counts, pages, selects, and acts on
   individual Cues; Shiori stores and tags one Cue with a version-28 migration

@@ -54,7 +54,7 @@ public actor ThumbnailCache {
     }
     
     public func fileURL(forKey key: String) -> URL {
-        cacheDirectory.appendingPathComponent("\(key).avif")
+        cacheDirectory.appendingPathComponent("\(key).jpg")
     }
     
     public func image(forKey key: String) -> Data? {

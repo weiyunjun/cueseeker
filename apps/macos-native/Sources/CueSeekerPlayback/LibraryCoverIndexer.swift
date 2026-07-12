@@ -572,13 +572,14 @@ public struct LibraryCoverIndexer: Sendable {
 
     private static func resolveFFmpegCommand(configuredPath: String?) -> FFmpegCommand {
         let candidates = [
-            configuredPath,
-            "/opt/homebrew/bin/ffmpeg",
-            "/usr/local/bin/ffmpeg"
+            configuredPath.map(URL.init(fileURLWithPath:)),
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ffmpeg"),
+            URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg"),
+            URL(fileURLWithPath: "/usr/local/bin/ffmpeg")
         ].compactMap { $0 }
 
-        for path in candidates where FileManager.default.isExecutableFile(atPath: path) {
-            return .absolute(URL(fileURLWithPath: path))
+        for url in candidates where FileManager.default.isExecutableFile(atPath: url.path) {
+            return .absolute(url)
         }
 
         return .environment

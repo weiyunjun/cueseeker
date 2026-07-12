@@ -35,6 +35,17 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
     Homebrew libass paths with one complete controlled media runtime root.
 11. Added development and app-bundle runtime search paths while keeping the
     linked library identities at `@rpath`.
+12. Added LAME 3.100 as a pinned LGPL shared dependency and enabled FFmpeg's
+    `libmp3lame` encoder so packaged Anki audio export remains self-contained.
+13. Included the FFmpeg 8.1.2 CLI from the same controlled build for existing
+    thumbnail, screenshot, Library cover, and Anki subprocess workflows.
+14. Changed generated thumbnail cache files from AVIF through external
+    `libsvtav1` to built-in FFmpeg MJPEG output so thumbnail generation does not
+    require an unbundled encoder.
+15. Updated all FFmpeg subprocess resolution paths to prefer the app's embedded
+    `Contents/Helpers/ffmpeg` executable while preserving development fallbacks.
+16. Added the standard app `Info.plist`, self-contained bundle assembly,
+    ordered local signing, and recursive app verification scripts.
 
 ## Verification
 
@@ -61,16 +72,32 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
 - `otool -L` on the rebuilt CueSeeker executable reports the controlled FFmpeg
   8.1.2 and libass libraries through `@rpath`; it contains no Homebrew or
   `/private/tmp` media-library dependency.
+- The final runtime build includes FFmpeg 8.1.2, libavfilter, the FFmpeg helper,
+  LAME 3.100, libass 0.17.4, and the complete pinned text-rendering dependency
+  closure. Runtime verification passed.
+- The embedded FFmpeg helper reports FFmpeg 8.1.2 and exposes both `mjpeg` and
+  `libmp3lame` encoders.
+- `scripts/package_macos_app.sh` produced an ad-hoc-signed
+  `.build/distribution/CueSeeker.app`.
+- `scripts/verify_macos_app_bundle.sh` confirmed the main executable, FFmpeg
+  helper, and every dylib are ARM64-only; all non-system dependencies resolve
+  within `Contents/Frameworks`; development runtime rpaths are absent; and the
+  complete app signature is valid.
+- The final `swift test` run passed all 7 XCTest tests and 548 Swift Testing
+  tests after the embedded-helper and JPEG thumbnail changes.
+- Launch Services successfully opened the packaged app, and `pgrep` confirmed
+  the running process came from
+  `CueSeeker.app/Contents/MacOS/CueSeeker`.
 
 ## Outcome
 
 The technical baseline is recorded in
 `docs/engineering/09_macos_media_runtime_and_packaging.md`. The first
-implementation stage now produces and verifies the controlled runtime.
+implementation now produces the controlled runtime and a locally signed,
+self-contained ARM64 app for human end-to-end acceptance.
 
 ## Follow-ups
 
-- Implement and verify the pinned media runtime build.
-- Move SwiftPM to the complete controlled runtime root.
-- Package and verify the self-contained app bundle.
 - Complete human end-to-end validation on a clean Apple Silicon Mac.
+- Add Developer ID signing and notarization only when friend distribution is
+  requested; the media runtime does not need to be rebuilt for that step.

@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LOCK_FILE="$REPO_ROOT/third_party/media-runtime/sources.lock"
 PATCH_FILE="$REPO_ROOT/third_party/ffmpeg/patches/ffmpeg-8.1-cueseeker-skip-internal-subtitles.patch"
+LAME_PATCH_FILE="$REPO_ROOT/third_party/lame/patches/lame-3.100-remove-obsolete-export.patch"
 BUILD_ROOT="${CUESEEKER_MEDIA_BUILD_ROOT:-$REPO_ROOT/.build/media-runtime-build}"
 CACHE_ROOT="${CUESEEKER_MEDIA_CACHE_ROOT:-$REPO_ROOT/.build/media-runtime-cache}"
 PREFIX="${CUESEEKER_MEDIA_RUNTIME_ROOT:-$REPO_ROOT/.build/media-runtime/arm64-macos13}"
@@ -112,6 +113,8 @@ configure_environment() {
     export CFLAGS="-arch arm64 -mmacosx-version-min=$DEPLOYMENT_TARGET -O2"
     export CXXFLAGS="$CFLAGS"
     export LDFLAGS="-arch arm64 -mmacosx-version-min=$DEPLOYMENT_TARGET"
+    export CLANG_MODULE_CACHE_PATH="$BUILD_ROOT/clang-module-cache"
+    mkdir -p "$CLANG_MODULE_CACHE_PATH"
     export PATH="$BUILD_ROOT/tools/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 }
 
@@ -229,6 +232,25 @@ build_libass() {
     )
 }
 
+build_lame() {
+    source="$BUILD_ROOT/sources/lame-3.100"
+    build="$BUILD_ROOT/build/lame"
+    patch --forward -p1 -d "$source" < "$LAME_PATCH_FILE"
+    rm -rf "$build"
+    mkdir -p "$build"
+    (
+        cd "$build"
+        "$source/configure" \
+            --prefix="$PREFIX" \
+            --libdir="$PREFIX/lib" \
+            --enable-shared \
+            --disable-static \
+            --disable-frontend
+        make -j "$JOBS"
+        make install
+    )
+}
+
 build_ffmpeg() {
     source="$BUILD_ROOT/sources/ffmpeg-8.1.2"
     build="$BUILD_ROOT/build/ffmpeg"
@@ -247,20 +269,23 @@ build_ffmpeg() {
             --cxx="$CXX" \
             --enable-shared \
             --disable-static \
-            --disable-programs \
+            --enable-ffmpeg \
+            --disable-ffplay \
+            --disable-ffprobe \
             --disable-doc \
             --disable-debug \
             --disable-avdevice \
-            --disable-avfilter \
             --disable-gpl \
             --disable-nonfree \
+            --enable-libmp3lame \
             --enable-videotoolbox \
             --enable-audiotoolbox \
+            --disable-metal \
             --enable-pic \
             --install-name-dir='@rpath' \
-            --extra-cflags="$CFLAGS" \
-            --extra-cxxflags="$CXXFLAGS" \
-            --extra-ldflags="$LDFLAGS"
+            --extra-cflags="$CFLAGS -I$PREFIX/include" \
+            --extra-cxxflags="$CXXFLAGS -I$PREFIX/include" \
+            --extra-ldflags="$LDFLAGS -L$PREFIX/lib -Wl,-rpath,$PREFIX/lib -Wl,-rpath,@executable_path/../Frameworks"
         if grep -Eq '^CONFIG_(GPL|NONFREE)=yes' ffbuild/config.mak; then
             echo "error: FFmpeg configured with GPL or nonfree components" >&2
             exit 1
@@ -290,6 +315,15 @@ rewrite_install_names() {
             fi
         done < "$mapfile_path"
     done
+
+    if [ -x "$PREFIX/bin/ffmpeg" ]; then
+        while IFS='|' read -r old_id new_id; do
+            [ -n "$old_id" ] || continue
+            if otool -L "$PREFIX/bin/ffmpeg" | awk '{print $1}' | grep -Fx "$old_id" >/dev/null; then
+                install_name_tool -change "$old_id" "$new_id" "$PREFIX/bin/ffmpeg"
+            fi
+        done < "$mapfile_path"
+    fi
 }
 
 stage_licenses_and_manifest() {
@@ -301,8 +335,10 @@ stage_licenses_and_manifest() {
     cp "$BUILD_ROOT/sources/fribidi-1.0.16/COPYING" "$licenses/FriBidi-COPYING"
     cp "$BUILD_ROOT/sources/harfbuzz-14.1.0/COPYING" "$licenses/HarfBuzz-COPYING"
     cp "$BUILD_ROOT/sources/libunibreak-6.1/LICENCE" "$licenses/libunibreak-LICENCE"
+    cp "$BUILD_ROOT/sources/lame-3.100/COPYING" "$licenses/LAME-COPYING"
     cp "$LOCK_FILE" "$PREFIX/sources.lock"
     cp "$PATCH_FILE" "$PREFIX/ffmpeg-cueseeker.patch"
+    cp "$LAME_PATCH_FILE" "$PREFIX/lame-cueseeker.patch"
     {
         echo "deployment_target=$DEPLOYMENT_TARGET"
         echo "architecture=arm64"
@@ -311,6 +347,7 @@ stage_licenses_and_manifest() {
         echo "meson=$($MESON --version)"
         echo "ninja=$($BUILD_ROOT/tools/bin/ninja --version)"
         echo "patch_sha256=$(shasum -a 256 "$PATCH_FILE" | awk '{print $1}')"
+        echo "lame_patch_sha256=$(shasum -a 256 "$LAME_PATCH_FILE" | awk '{print $1}')"
     } > "$PREFIX/build-info.txt"
 }
 
@@ -326,6 +363,7 @@ build_fribidi
 build_harfbuzz
 build_libunibreak
 build_libass
+build_lame
 build_ffmpeg
 rewrite_install_names
 stage_licenses_and_manifest

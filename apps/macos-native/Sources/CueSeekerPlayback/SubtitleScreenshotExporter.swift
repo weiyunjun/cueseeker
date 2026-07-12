@@ -808,10 +808,11 @@ public enum SubtitleScreenshotExporter {
 
     private static func ffmpegExecutableURL() -> URL? {
         let candidates = [
-            "/opt/homebrew/bin/ffmpeg",
-            "/usr/local/bin/ffmpeg",
-            "/usr/bin/ffmpeg"
-        ].map(URL.init(fileURLWithPath:))
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ffmpeg"),
+            URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg"),
+            URL(fileURLWithPath: "/usr/local/bin/ffmpeg"),
+            URL(fileURLWithPath: "/usr/bin/ffmpeg")
+        ]
 
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }

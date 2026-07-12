@@ -32,8 +32,11 @@ Human-owned direction:
   using a narrow `--disable-everything` allowlist. Codec reduction requires a
   separate compatibility review.
 - External GPL codec libraries such as x264 and x265 must not be linked.
-- FFmpeg programs, documentation, static libraries, and debug symbols are not
-  part of the app runtime.
+- LAME 3.100 is included as an LGPL shared library because the existing Anki
+  workflow exports MP3 audio through FFmpeg's `libmp3lame` encoder.
+- The `ffmpeg` command-line program is part of the app runtime because existing
+  thumbnail, screenshot, and Anki export workflows invoke it. `ffplay`,
+  `ffprobe`, documentation, static libraries, and debug symbols are excluded.
 - The source URL, archive SHA-256, patch SHA-256, configure arguments, and build
   tool versions must be recorded with the staged runtime.
 
@@ -103,6 +106,7 @@ CueSeeker.app/
     Info.plist
     MacOS/CueSeeker
     Frameworks/<media runtime dylibs>
+    Helpers/ffmpeg
     Resources/ThirdPartyLicenses/<license notices>
 ```
 

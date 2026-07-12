@@ -9,6 +9,7 @@ fi
 
 ROOT="$(cd "$1" && pwd)"
 LIB_DIR="$ROOT/lib"
+FFMPEG_EXECUTABLE="$ROOT/bin/ffmpeg"
 required=(
     libavformat
     libavcodec
@@ -20,6 +21,7 @@ required=(
     libfribidi
     libharfbuzz
     libunibreak
+    libmp3lame
 )
 
 for stem in "${required[@]}"; do
@@ -28,6 +30,24 @@ for stem in "${required[@]}"; do
         exit 1
     fi
 done
+
+if [ ! -x "$FFMPEG_EXECUTABLE" ]; then
+    echo "error: missing bundled ffmpeg executable" >&2
+    exit 1
+fi
+if [ "$(lipo -archs "$FFMPEG_EXECUTABLE")" != "arm64" ]; then
+    echo "error: bundled ffmpeg executable is not ARM64-only" >&2
+    exit 1
+fi
+while read -r dependency; do
+    case "$dependency" in
+        @rpath/*|/System/Library/*|/usr/lib/*) ;;
+        *)
+            echo "error: forbidden ffmpeg executable dependency: $dependency" >&2
+            exit 1
+            ;;
+    esac
+done < <(otool -L "$FFMPEG_EXECUTABLE" | tail -n +2 | awk '{print $1}')
 
 for dylib in "$LIB_DIR"/*.dylib; do
     [ -f "$dylib" ] || continue

@@ -27,6 +27,7 @@ func missingMediaRuntimeFiles(_ root: String) -> [String] {
         "\(root)/lib/libfribidi.dylib",
         "\(root)/lib/libharfbuzz.dylib",
         "\(root)/lib/libunibreak.dylib",
+        "\(root)/lib/libmp3lame.dylib",
     ]
     return requiredPaths.filter { !FileManager.default.fileExists(atPath: $0) }
 }
