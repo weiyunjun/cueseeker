@@ -87,6 +87,7 @@ final class SettingsStore: ObservableObject {
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let searchFilterSetsKey = "searchFilterSets"
+    private static let urlSchemePlayFirstSearchResultEnabledKey = "urlSchemePlayFirstSearchResultEnabled"
     private static let aiChunkingEnabledKey = "aiChunkingEnabled"
     private static let aiChunkingTranslationLanguageKey = "aiChunkingTranslationLanguage"
     private static let aiChunkingPromptTemplateKey = "aiChunkingPromptTemplate"
@@ -163,6 +164,15 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    @Published var urlSchemePlayFirstSearchResultEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                urlSchemePlayFirstSearchResultEnabled,
+                forKey: Self.urlSchemePlayFirstSearchResultEnabledKey
+            )
+        }
+    }
+
     @Published var aiChunkingEnabled: Bool {
         didSet {
             userDefaults.set(aiChunkingEnabled, forKey: Self.aiChunkingEnabledKey)
@@ -203,6 +213,7 @@ final class SettingsStore: ObservableObject {
             Self.playbackSpeakerDisplayEnabledKey: false,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
+            Self.urlSchemePlayFirstSearchResultEnabledKey: false,
             Self.aiChunkingEnabledKey: false,
             Self.aiChunkingTranslationLanguageKey: AIChunkingTranslationLanguage.defaultValue.rawValue,
             Self.aiChunkingPromptTemplateKey: AIChunkingPromptConfiguration.defaultTemplate
@@ -228,6 +239,9 @@ final class SettingsStore: ObservableObject {
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
         )
         self.searchFilterSets = Self.loadSearchFilterSets(from: userDefaults)
+        self.urlSchemePlayFirstSearchResultEnabled = userDefaults.bool(
+            forKey: Self.urlSchemePlayFirstSearchResultEnabledKey
+        )
         self.aiChunkingEnabled = userDefaults.bool(forKey: Self.aiChunkingEnabledKey)
         self.aiChunkingTranslationLanguage = Self.loadAIChunkingTranslationLanguage(from: userDefaults)
         self.aiChunkingPromptTemplate = Self.loadAIChunkingPromptTemplate(from: userDefaults)

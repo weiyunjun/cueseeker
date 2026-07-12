@@ -17,6 +17,8 @@ Search page.
 1. Defined setting persistence, reuse of the existing 100-row first-page search,
    the accepted-page decision point, fallback behavior, and generation-bound
    cancellation in `docs/engineering/10_url_scheme.md`.
+2. Added the URL Scheme Settings category and the shared-preferences-backed
+   `Play First Search Result` toggle, defaulting to off.
 
 ## Verification
 
