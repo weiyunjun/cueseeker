@@ -26,6 +26,9 @@ Search page.
    Search as the playback origin in the same main-actor transaction. Empty and
    failed pages fall back to Search, while new URLs cancel old intents, search
    tasks, exact completion, and active playback independently of the setting.
+5. Added regression coverage proving a replacement URL cancels the old intent,
+   first-page task, exact-completion task, and playback even when direct play is
+   disabled for the replacement request.
 
 ## Verification
 

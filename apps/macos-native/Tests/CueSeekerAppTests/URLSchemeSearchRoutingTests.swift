@@ -139,6 +139,47 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
 }
 
 @MainActor
+@Test
+func newURLSchemeCommandCancelsOldIntentSearchTasksAndPlaybackIndependentlyOfSetting() throws {
+    let fixture = try makeURLSchemeRoutingFixture("CommandCancellation")
+    defer { fixture.cleanup() }
+    let playbackIntentID = UUID()
+    let playbackResult = makeURLSchemeSearchResult(id: 11, content: "old playback")
+    fixture.app.search.searchQuery = "old playback"
+    fixture.app.pendingURLSchemeDirectPlayIntent = URLSchemeDirectPlayIntent(
+        id: playbackIntentID,
+        keyword: "old playback"
+    )
+    #expect(fixture.app.resolveURLSchemeDirectPlayIntent(
+        id: playbackIntentID,
+        firstPageResult: playbackResult
+    ))
+    #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
+
+    let staleIntent = URLSchemeDirectPlayIntent(id: UUID(), keyword: "stale")
+    fixture.app.pendingURLSchemeDirectPlayIntent = staleIntent
+    let oldSearchTask = Task<Void, Never> {
+        try? await Task.sleep(nanoseconds: 10_000_000_000)
+    }
+    let oldExactTask = Task<Void, Never> {
+        try? await Task.sleep(nanoseconds: 10_000_000_000)
+    }
+    fixture.app.searchTask = oldSearchTask
+    fixture.app.searchExactCompletionTask = oldExactTask
+    fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = false
+
+    fixture.app.handleURLSchemeCommand(.search(keyword: "replacement"))
+
+    #expect(oldSearchTask.isCancelled)
+    #expect(oldExactTask.isCancelled)
+    #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
+    #expect(!fixture.app.playback.isPlaybackSurfaceExpanded)
+    #expect(fixture.app.search.selectedSearchResult == nil)
+    #expect(fixture.app.search.searchQuery == "replacement")
+    #expect(fixture.app.workbenchLayout.panelMode == .search)
+}
+
+@MainActor
 private func makeURLSchemeRoutingFixture(
     _ name: String
 ) throws -> (app: AppCoordinator, cleanup: () -> Void) {
