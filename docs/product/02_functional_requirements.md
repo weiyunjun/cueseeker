@@ -80,8 +80,13 @@ Initial matching rule:
 
 - Match by basename.
 - Support common video extensions.
-- Support simple language suffix removal, such as matching `Movie.en.srt` or
-  `Movie.scjp.ass` to `Movie.mp4`.
+- Match at most one video for each subtitle.
+- Try the complete subtitle basename first. When that basename contains an
+  additional dot-separated suffix, try the basename with its final suffix
+  removed as the fallback.
+- Prefer `Movie.commentary.mp4` over `Movie.mp4` for
+  `Movie.commentary.ass`; use `Movie.mp4` only when the complete-basename video
+  is absent. `Movie.ass` matches only the `Movie` basename.
 
 Initial video extensions:
 

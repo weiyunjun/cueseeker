@@ -111,9 +111,12 @@ Example:
 
 ```text
 Movie.srt -> Movie.mp4
-Movie.en.srt -> Movie.mp4
-Movie.scjp.ass -> Movie.mp4
+Movie.commentary.ass -> Movie.commentary.mp4, when present
+Movie.commentary.ass -> Movie.mp4, as the fallback
 ```
+
+Each subtitle resolves to at most one video. The complete subtitle basename
+has priority over the fallback with its final dot-separated suffix removed.
 
 ## 4. Timestamp Behavior
 

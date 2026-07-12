@@ -216,12 +216,14 @@ Primary reference files:
 - Supported video extensions are `mp4`, `mkv`, `webm`, `avi`, and `mov`.
 - Matching is same-directory basename matching.
 - The first candidate is the full subtitle basename.
-- The second candidate strips a simple language suffix matching
-  `.[A-Za-z]{2,5}` or `.[A-Za-z]{2,5}-[A-Za-z]{2,5}`.
+- When the subtitle basename contains an additional dot-separated suffix, the
+  second candidate removes that final suffix without interpreting its meaning.
+- Matching stops at the first existing candidate, so each subtitle resolves to
+  at most one video and the complete basename has priority.
 - Examples:
   - `Movie.srt` may match `Movie.mkv`.
-  - `Movie.en.srt` may match `Movie.mp4`.
-  - `Movie.scjp.ass` may match `Movie.mp4`.
+  - `Movie.commentary.ass` prefers `Movie.commentary.mp4` when it exists.
+  - `Movie.commentary.ass` may fall back to `Movie.mp4`.
 - If no candidate video exists, the subtitle file is not indexed.
 
 ### SRT Parsing
@@ -368,7 +370,7 @@ native macOS implementation.
 
 The baseline must include:
 
-- A real fixture media folder that exercises SRT, ASS, language-suffix matching,
+- A real fixture media folder that exercises SRT, ASS, basename-priority matching,
   Library rows, Search results, Shiori, and playback intent.
 - A full data snapshot produced by one run of the current macOS path:
   scanning, matching, parsing, database writes, stale cleanup, Search, Library,
@@ -618,8 +620,8 @@ the macOS app.
 - SQLite WAL, busy timeout, and synchronous mode remain as documented.
 - Subtitle scanning preserves extension support, hidden-file behavior,
   symlink-directory behavior, and path sorting.
-- Subtitle-to-video matching preserves exact basename and simple language-suffix
-  behavior.
+- Subtitle-to-video matching preserves complete-basename priority, one-level
+  suffix fallback, and the one-video-per-subtitle invariant.
 - SRT parsing preserves optional sequence numbers, newline normalization, comma
   and dot timecode parsing, and malformed-block skipping.
 - ASS parsing preserves exact-time grouping, line ordering, cleaned searchable

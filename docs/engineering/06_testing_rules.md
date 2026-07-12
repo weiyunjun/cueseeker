@@ -53,7 +53,8 @@ Required unit test areas:
 - Malformed subtitle block handling.
 - Subtitle file extension filtering.
 - Video basename matching.
-- Simple language suffix removal.
+- Complete-basename video priority, one-level suffix fallback, and at most one
+  matched video per subtitle.
 - Friendly Search result group title derivation from parent folder name and
   same-extension sibling subtitle rank.
 - Finder-like natural filename ordering for friendly Search result group titles,
@@ -653,7 +654,9 @@ Required database and search coverage:
 Required integration coverage:
 
 - Index a fixture folder containing `.srt` and `.ass` files.
-- Match language-suffix ASS files such as `Movie.scjp.ass` to `Movie.mp4`.
+- Prefer `Movie.commentary.mp4` for `Movie.commentary.ass` when both it and
+  `Movie.mp4` exist, and fall back to `Movie.mp4` when the complete-basename
+  video is absent.
 - Reindex after an ASS file changes and rebuild its cue groups and cue lines.
 - Remove a configured folder and verify ASS-derived rows no longer appear in
   search results.

@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted deterministic subtitle-to-video basename priority: each subtitle
+  resolves to at most one same-directory video, prefers its complete basename,
+  and falls back once by removing the final dot-separated basename suffix.
 - Corrected URL Scheme direct-play presentation so enabled links wait for the
   accepted first Search page before bringing CueSeeker forward. Successful
   links now present Playback directly and still return to the populated Search
