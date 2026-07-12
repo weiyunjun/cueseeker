@@ -187,6 +187,11 @@ struct WorkbenchTestSearchView: View {
                 resumeDeferredTableResponse()
             }
         }
+        .task(id: isTableResponseActive) {
+            guard isTableResponseActive else { return }
+            await Task.yield()
+            resumeDeferredTableResponse()
+        }
         .onDisappear {
             resetContinuousRowLoading()
         }
@@ -475,7 +480,9 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func resumeDeferredTableResponse() {
-        guard allowsTableResponse, hasDeferredRefreshWhileCovered else { return }
+        guard allowsTableResponse else { return }
+        let isStandardSearch = activeCueContextRequest == nil && !isFilterOnlyMode
+        guard hasDeferredRefreshWhileCovered || isStandardSearch else { return }
         hasDeferredRefreshWhileCovered = false
         refreshTableForCurrentState()
     }

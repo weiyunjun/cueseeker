@@ -358,6 +358,55 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
+    func urlSchemeEmptyFallbackClearsRowsChangedWhilePlaybackCoveredTable() async throws {
+        let uiProbeScope = UUID().uuidString
+        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
+            scope: uiProbeScope
+        )
+        defer { session.finish() }
+
+        try await withMountedCueTable(
+            surface: .search,
+            uiProbeScope: uiProbeScope
+        ) { app, window, coordinator in
+            #expect(coordinator.numberOfRowsForTesting() == 200)
+            app.settings.urlSchemePlayFirstSearchResultEnabled = true
+            app.search.selectedSearchResult = app.search.searchResults[0]
+            app.playback.isPlaybackSurfaceExpanded = true
+
+            let didMountPlayback = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return session.recording().count("UI.PlaybackPage.body") > 0
+            }
+            try #require(didMountPlayback)
+            try await Task.sleep(nanoseconds: 50_000_000)
+            let recordingBefore = session.recording()
+
+            app.handleURLSchemeCommand(.search(keyword: "missing URL result"))
+            await app.searchTask?.value
+
+            var resumedCoordinator: SubtitleTableView.Coordinator?
+            let didClearRows = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                resumedCoordinator = findSubtitleTableCoordinator(
+                    in: window.contentView,
+                    surface: .search
+                )
+                return resumedCoordinator?.numberOfRowsForTesting() == 0
+            }
+            try #require(didClearRows)
+            _ = try #require(resumedCoordinator)
+            #expect(app.search.searchQuery == "missing URL result")
+            #expect(app.search.searchResults.isEmpty)
+            #expect(!app.isPlaybackPageVisible)
+            #expect(session.recording()
+                .delta(since: recordingBefore)
+                .count("table.search.snapshot_rebuild") == 1)
+        }
+    }
+
+    @MainActor
+    @Test
     func asynchronousProbeSessionCapturesDeferredMainRunLoopEvents() async throws {
         let session = UIInvalidationProbe.beginAsyncRecordingForTesting()
         defer { session.finish() }

@@ -12,7 +12,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   page when closed. Links received during Playback keep the current page and
   player session alive, seek within the same video or replace a different media
   source without collapsing Playback, while empty or failed searches stop the
-  player and present only the Search fallback.
+  player and present only the Search fallback. That fallback now reconciles the
+  native table after it was covered by Playback, so an unmatched query cannot
+  retain rows or row counts from the previous search.
 - Established the reproducible ARM64 macOS media runtime and local app
   packaging path. CueSeeker now builds against pinned FFmpeg 8.1.2 plus its
   Matroska patch and pinned libass dependencies instead of mixing temporary and

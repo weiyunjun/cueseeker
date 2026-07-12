@@ -101,6 +101,10 @@ subtitle source and seeks to the result timestamp. If it resolves to a
 different video path, the existing Playback presentation stays visible while
 the player replaces its media source. Both outcomes replace the Playback return
 panel with Search so closing the result returns to the new populated query.
+When an empty or failed result reveals Search immediately after Playback, the
+native Search table must reconcile its cached row snapshot with `SearchStore`
+after the covered-table gate reopens; rows from the previous query must never
+remain visible in the fallback.
 
 Every valid new URL Scheme command cancels the previous URL intent and current
 search task. With optional direct playback off, the command stops active

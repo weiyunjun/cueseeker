@@ -39,6 +39,11 @@ Search page.
    existing same-video seek path or replaces the media source without
    collapsing Playback. Empty and failed results still stop Playback before the
    Search fallback, and disabled commands retain the original Search behavior.
+8. Fixed covered-table recovery for empty direct-play fallback. The Search
+   table now performs a post-transition reconciliation whenever its standard
+   Search response gate becomes active, even when SwiftUI coalesces away the
+   previous `onChange` edge, while filter-only and Context tables retain their
+   existing deferred-load gate.
 
 ## Verification
 
@@ -64,6 +69,12 @@ Search page.
   different-video first pages are pending, replace the return panel with Search
   after success, and stop Playback only for fallback. Disabled commands still
   stop Playback before opening Search.
+- A mounted SwiftUI/AppKit integration regression began with 200 Search rows,
+  covered the table with Playback, submitted an unmatched URL Scheme query, and
+  confirmed the revealed table rebuilt exactly once to zero rows rather than
+  retaining the previous query snapshot.
+- The covered-table follow-up passed all 7 XCTest tests and 561 Swift Testing
+  tests with zero failures.
 - The follow-up `URLScheme` test filter passed all 10 parser, settings, routing,
   cancellation, fallback, and real first-page integration tests.
 - The follow-up Release app was built, recursively bundle-verified, installed at
