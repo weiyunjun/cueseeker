@@ -110,9 +110,10 @@ CueSeeker.app/
     Resources/ThirdPartyLicenses/<license notices>
 ```
 
-The initial local bundle identifier is `com.cueseeker.macos-native`, matching
-the existing native application's storage identity. A future change to this
-identifier requires the release-rule review described in
+The final bundle identifier is `com.cueseeker.app`. Application data remains
+independent of this identifier: preferences use `com.cueseeker.shared`, and the
+database remains under `Application Support/CueSeeker`. A future bundle
+identifier change requires the release-rule review described in
 `docs/engineering/07_release_rules.md`.
 
 The packaging workflow must support ad-hoc signing for local validation. A

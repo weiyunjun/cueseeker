@@ -17,6 +17,9 @@ packaging verification, and an installable acceptance build.
 1. Defined the URL grammar, invalid-input behavior, cold and running delivery,
    search-state transition, and packaging gates in
    `docs/engineering/10_url_scheme.md`.
+2. Changed the packaged and runtime bundle identifier to `com.cueseeker.app`,
+   registered the `cueseeker` URL scheme, and added both values to recursive app
+   bundle verification.
 
 ## Verification
 

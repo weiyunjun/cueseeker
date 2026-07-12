@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import CryptoKit
+import CueSeekerCore
 
 public struct ThumbnailRequest: Equatable, Hashable, Sendable {
     public let videoPath: String
@@ -31,7 +32,7 @@ public actor ThumbnailCache {
         ).first ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches")
         
         self.cacheDirectory = baseDirectory
-            .appendingPathComponent("com.cueseeker.macos-native")
+            .appendingPathComponent(ApplicationInfo.bundleIdentifier)
             .appendingPathComponent("Thumbnails")
             
         try? FileManager.default.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)

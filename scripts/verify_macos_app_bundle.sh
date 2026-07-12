@@ -22,8 +22,14 @@ for path in "$EXECUTABLE" "$FFMPEG_EXECUTABLE" "$PLIST" "$FRAMEWORKS"; do
 done
 
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" != \
-    "com.cueseeker.macos-native" ]; then
+    "com.cueseeker.app" ]; then
     echo "error: unexpected bundle identifier" >&2
+    exit 1
+fi
+
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$PLIST")" != \
+    "cueseeker" ]; then
+    echo "error: cueseeker URL scheme is not registered" >&2
     exit 1
 fi
 

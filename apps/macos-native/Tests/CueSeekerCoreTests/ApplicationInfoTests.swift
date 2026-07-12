@@ -8,7 +8,7 @@ func applicationInfoDefinesNativeAppName() {
 
 @Test
 func applicationInfoDefinesBundleAndSharedPreferencesIdentifiers() {
-    #expect(ApplicationInfo.bundleIdentifier == "com.cueseeker.macos-native")
+    #expect(ApplicationInfo.bundleIdentifier == "com.cueseeker.app")
     #expect(ApplicationInfo.preferencesSuiteIdentifier == "com.cueseeker.shared")
 }
 
