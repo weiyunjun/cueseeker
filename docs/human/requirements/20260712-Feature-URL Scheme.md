@@ -7,3 +7,12 @@ main
 3. URL Scheme链接需要可以自行构造，基本格式是cueseeker://search?q={{keyword}}，例如cueseeker://search?q=大丈夫。
 4. 第一个版本，点击链接后，直接强制打开搜索页面（哪怕是正在播放视频），细节优化（确认框等）后续再做。
 5. 非法链接，关键词为空等，这个版本直接不响应。
+
+# 包名
+Bundle Identifier：`com.cueseeker.app`
+对应关系：
+- 正式名称：`CueSeeker`
+- 域名：`cueseeker.com`
+- Bundle Identifier：`com.cueseeker.app`
+- URL Scheme：`cueseeker`
+- 链接：`cueseeker://search?q={{keyword}}`
