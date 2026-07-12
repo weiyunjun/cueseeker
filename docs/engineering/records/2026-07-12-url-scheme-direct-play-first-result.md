@@ -32,11 +32,33 @@ Search page.
 
 ## Verification
 
-- Pending implementation.
+- `swift test` passed all 7 XCTest tests and 560 Swift Testing tests.
+- Settings tests confirmed the toggle defaults off and persists in the shared
+  preferences suite.
+- Parser and routing tests confirmed the original disabled behavior remains
+  unchanged, empty and failed first pages fall back to Search, and only a
+  matching generation can consume an intent.
+- A real indexing integration test produced a complete two-row first visible
+  page through the existing `searchVisiblePage` pipeline and confirmed the
+  selected playback item was exactly `searchResults.first`.
+- Replacement-command regression coverage confirmed the old intent, first-page
+  task, exact-completion task, and playback are cancelled independently of the
+  replacement request's setting.
+- `scripts/package_macos_app.sh` rebuilt and recursively verified the
+  self-contained, ad-hoc-signed ARM64 app.
+- Replaced and registered `/Applications/CueSeeker.app`, enabled the option in
+  shared preferences, and cold-opened an encoded `大丈夫` URL. The installed
+  process opened the media file belonging to the first result of the logged
+  standard `visibleWindow` page.
+- While that video was active, an unmatched URL closed the media file and the
+  same standard first-page pipeline completed with zero results, exercising the
+  Search fallback.
 
 ## Outcome
 
-Pending implementation and human end-to-end acceptance.
+Implementation and automated verification match the requirement. The installed
+build is ready for human end-to-end acceptance; `Play First Search Result` is
+left enabled for that validation.
 
 ## Follow-ups
 
