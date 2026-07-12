@@ -2,33 +2,38 @@ import Foundation
 import CueSeekerCore
 
 enum ApplicationPersistence {
-    private static let legacyDebugDomainName = ApplicationInfo.name
-    private static let migrationKey = "sharedPersistenceMigrationFromLegacyDebugDefaultsCompleted"
+    private static let legacyDomainNames = [
+        ApplicationInfo.bundleIdentifier,
+        ApplicationInfo.name
+    ]
+    private static let migrationKey = "sharedPersistenceDomainMigrationCompleted"
 
     static func sharedUserDefaults() -> UserDefaults {
         guard let sharedDefaults = UserDefaults(
-            suiteName: ApplicationInfo.persistenceIdentifier
+            suiteName: ApplicationInfo.preferencesSuiteIdentifier
         ) else {
             return .standard
         }
 
-        let legacyValues = UserDefaults.standard.persistentDomain(
-            forName: legacyDebugDomainName
-        ) ?? [:]
-        migrateLegacyDefaultsIfNeeded(legacyValues, into: sharedDefaults)
+        let legacyDomains = legacyDomainNames.map {
+            UserDefaults.standard.persistentDomain(forName: $0) ?? [:]
+        }
+        migrateLegacyDefaultsIfNeeded(legacyDomains, into: sharedDefaults)
         return sharedDefaults
     }
 
     static func migrateLegacyDefaultsIfNeeded(
-        _ legacyValues: [String: Any],
+        _ legacyDomains: [[String: Any]],
         into sharedDefaults: UserDefaults
     ) {
         guard !sharedDefaults.bool(forKey: migrationKey) else {
             return
         }
 
-        for (key, value) in legacyValues where sharedDefaults.object(forKey: key) == nil {
-            sharedDefaults.set(value, forKey: key)
+        for legacyValues in legacyDomains {
+            for (key, value) in legacyValues where sharedDefaults.object(forKey: key) == nil {
+                sharedDefaults.set(value, forKey: key)
+            }
         }
         sharedDefaults.set(true, forKey: migrationKey)
     }

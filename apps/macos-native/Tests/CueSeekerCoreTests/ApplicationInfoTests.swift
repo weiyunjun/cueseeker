@@ -7,8 +7,9 @@ func applicationInfoDefinesNativeAppName() {
 }
 
 @Test
-func applicationInfoDefinesSharedPersistenceIdentifier() {
-    #expect(ApplicationInfo.persistenceIdentifier == "com.cueseeker.macos-native")
+func applicationInfoDefinesBundleAndSharedPreferencesIdentifiers() {
+    #expect(ApplicationInfo.bundleIdentifier == "com.cueseeker.macos-native")
+    #expect(ApplicationInfo.preferencesSuiteIdentifier == "com.cueseeker.shared")
 }
 
 @Test

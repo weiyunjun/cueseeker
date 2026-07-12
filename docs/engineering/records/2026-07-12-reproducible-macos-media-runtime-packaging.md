@@ -47,13 +47,14 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
 16. Added the standard app `Info.plist`, self-contained bundle assembly,
     ordered local signing, and recursive app verification scripts.
 17. Assigned Debug and packaged launches the same explicit
-    `com.cueseeker.macos-native` UserDefaults suite while preserving injectable
+    `com.cueseeker.shared` UserDefaults suite while preserving injectable
     isolated defaults for tests. This makes Library folders, Recent visibility,
     settings, and interface state share the same persistence identity as the
     already-shared application database.
-18. Added a one-time, non-overwriting migration from the legacy `CueSeeker`
-    Debug preferences domain so existing Library folders and application state
-    appear immediately in both launch forms.
+18. Added a one-time, non-overwriting migration from both the packaged
+    `com.cueseeker.macos-native` domain and the legacy `CueSeeker` Debug domain.
+    Existing packaged values take precedence, while missing Library folders and
+    application state are filled from Debug preferences.
 
 ## Verification
 
@@ -103,6 +104,9 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
   tests after the final shared-persistence migration change.
 - The final packaging run rebuilt and verified the self-contained, ad-hoc-signed
   ARM64 `CueSeeker.app` after the persistence changes.
+- Replaced and relaunched `/Applications/CueSeeker.app`, then confirmed the
+  running process came from that bundle and `com.cueseeker.shared` contained
+  both legacy Debug Library paths plus the completed migration marker.
 
 ## Outcome
 
