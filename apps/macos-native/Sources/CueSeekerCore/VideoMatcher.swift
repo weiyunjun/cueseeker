@@ -36,11 +36,9 @@ public struct VideoMatcher {
     public func candidateBaseNames(for subtitleBaseName: String) -> [String] {
         var candidates = [subtitleBaseName]
 
-        if let languageSuffixRange = subtitleBaseName.range(
-            of: #"\.[A-Za-z]{2,5}(-[A-Za-z]{2,5})?$"#,
-            options: .regularExpression
-        ) {
-            let stripped = String(subtitleBaseName[..<languageSuffixRange.lowerBound])
+        if let suffixSeparator = subtitleBaseName.lastIndex(of: "."),
+           suffixSeparator != subtitleBaseName.startIndex {
+            let stripped = String(subtitleBaseName[..<suffixSeparator])
             if !stripped.isEmpty {
                 candidates.append(stripped)
             }

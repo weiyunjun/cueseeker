@@ -17,21 +17,27 @@ per subtitle.
 
 1. Aligned product, playback, testing, shared-core planning, and changelog
    documentation with the accepted rule.
-2. Implementation and automated regression coverage are pending the next
-   staged commits.
+2. Replaced the language-suffix regular expression in `VideoMatcher` with a
+   deterministic final-dot split that yields the complete basename first and
+   at most one fallback.
+3. Added unit coverage for generic suffix fallback, complete-basename priority
+   across video extensions, unsuffixed subtitle isolation, and one-level-only
+   fallback generation.
 
 ## Verification
 
 - Confirmed the human-owned requirement is committed.
 - Searched AI-maintained documentation for the superseded language-suffix rule
   and replaced the active matching and testing expectations.
+- `swift test --package-path apps/macos-native --filter VideoMatcher` passed all
+  six selected Swift Testing tests.
 
 ## Outcome
 
-Documentation alignment is complete. Production implementation and automated
-verification remain in progress.
+Documentation alignment, the production matcher change, and focused unit
+verification are complete. Indexing integration verification remains in
+progress.
 
 ## Follow-ups
 
-- Update `VideoMatcher` and its unit tests.
 - Add indexing/database integration coverage for deterministic rematching.
