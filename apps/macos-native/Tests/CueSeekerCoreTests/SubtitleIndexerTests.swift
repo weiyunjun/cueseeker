@@ -47,6 +47,86 @@ func indexesFolderIntoSQLiteSearchDatabase() throws {
 }
 
 @Test
+func indexingPrefersCompleteBasenameMatchAndStoresOneAssociation() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    try fixture.writeSubtitle(
+        name: "Episode.reference-track.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Complete basename priority.
+
+        """
+    )
+    let exactVideo = try fixture.writeVideo(name: "Episode.reference-track.mkv")
+    _ = try fixture.writeVideo(name: "Episode.mp4")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let result = try SubtitleIndexer().index(folder: fixture.root, into: database)
+    let subtitleFiles = try database.subtitleFiles()
+    let searchResults = try database.search("priority")
+    let storedVideo = URL(
+        fileURLWithPath: try #require(subtitleFiles.first?.videoPath)
+    ).resolvingSymlinksInPath()
+    let searchedVideo = URL(
+        fileURLWithPath: try #require(searchResults.first?.videoPath)
+    ).resolvingSymlinksInPath()
+
+    #expect(result.indexedSubtitleFiles == 1)
+    #expect(subtitleFiles.count == 1)
+    #expect(storedVideo == exactVideo.resolvingSymlinksInPath())
+    #expect(searchResults.count == 1)
+    #expect(searchedVideo == exactVideo.resolvingSymlinksInPath())
+}
+
+@Test
+func reindexingSwitchesFromFallbackToCompleteBasenameMatch() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    try fixture.writeSubtitle(
+        name: "Episode.reference-track.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Deterministic rematching.
+
+        """
+    )
+    let fallbackVideo = try fixture.writeVideo(name: "Episode.mp4")
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initialResult = try indexer.index(folder: fixture.root, into: database)
+    let initialFiles = try database.subtitleFiles()
+
+    let exactVideo = try fixture.writeVideo(name: "Episode.reference-track.mkv")
+    let rematchedResult = try indexer.index(folder: fixture.root, into: database)
+    let rematchedFiles = try database.subtitleFiles()
+    let initialVideo = URL(
+        fileURLWithPath: try #require(initialFiles.first?.videoPath)
+    ).resolvingSymlinksInPath()
+    let rematchedVideo = URL(
+        fileURLWithPath: try #require(rematchedFiles.first?.videoPath)
+    ).resolvingSymlinksInPath()
+
+    #expect(initialResult.indexedSubtitleFiles == 1)
+    #expect(initialFiles.count == 1)
+    #expect(initialVideo == fallbackVideo.resolvingSymlinksInPath())
+    #expect(rematchedResult.indexedSubtitleFiles == 1)
+    #expect(rematchedResult.skippedUnchangedSubtitleFiles == 0)
+    #expect(rematchedFiles.count == 1)
+    #expect(rematchedVideo == exactVideo.resolvingSymlinksInPath())
+}
+
+@Test
 func indexingSRTStoresLanguageAnalysisAfterVideoMatch() throws {
     let fixture = try IndexingFixture()
     defer {

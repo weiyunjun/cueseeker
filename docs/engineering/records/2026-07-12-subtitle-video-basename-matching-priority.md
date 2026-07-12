@@ -23,6 +23,10 @@ per subtitle.
 3. Added unit coverage for generic suffix fallback, complete-basename priority
    across video extensions, unsuffixed subtitle isolation, and one-level-only
    fallback generation.
+4. Added indexing integration coverage proving a generic non-language suffix
+   selects the complete-basename video when both candidates exist, persists one
+   active association, and rematches an unchanged subtitle when a new
+   higher-priority video appears.
 
 ## Verification
 
@@ -31,12 +35,19 @@ per subtitle.
   and replaced the active matching and testing expectations.
 - `swift test --package-path apps/macos-native --filter VideoMatcher` passed all
   six selected Swift Testing tests.
+- The first `swift test --package-path apps/macos-native --filter BasenameMatch`
+  run selected the correct videos but exposed `/var` versus `/private/var`
+  aliases in the temporary-fixture assertions. The assertions were corrected
+  to compare symlink-resolved file URLs.
+- The repeated basename-matching integration filter passed both tests, covering
+  complete-basename priority, one persisted active association, fallback, and
+  deterministic rematching of an otherwise unchanged subtitle.
 
 ## Outcome
 
-Documentation alignment, the production matcher change, and focused unit
-verification are complete. Indexing integration verification remains in
-progress.
+Documentation alignment, the production matcher change, focused unit tests,
+and indexing integration verification are complete. Broader regression
+verification remains pending.
 
 ## Follow-ups
 
