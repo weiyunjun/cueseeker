@@ -23,6 +23,14 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
    distribution and a future Mac App Store build.
 6. Defined the initial controlled libass dependency direction and app-bundle
    layout.
+7. Added a pinned source manifest for FFmpeg 8.1.2, libass 0.17.4, FreeType
+   2.14.3, FriBidi 1.0.16, HarfBuzz 14.1.0, libunibreak 6.1, and the build-only
+   pkgconf 2.5.1 tool.
+8. Added a source build that bootstraps fixed Meson and Ninja versions, applies
+   the CueSeeker FFmpeg patch, builds the full ARM64 shared-library runtime,
+   rewrites install names to `@rpath`, and stages licenses and build metadata.
+9. Added a fail-fast runtime verifier for required libraries, ARM64-only
+   architecture, install IDs, dependency paths, and FFmpeg GPL/nonfree state.
 
 ## Verification
 
@@ -30,14 +38,25 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
   `/private/tmp` and `/opt/homebrew` runtime dependencies.
 - The existing FFmpeg implementation record and patch were inspected to confirm
   why the custom demuxer option remains required.
-- No application source or build behavior changed in this documentation step.
+- The official FFmpeg 8.1.2 source archive matched pinned SHA-256
+  `464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c`.
+- The existing CueSeeker patch applied cleanly to FFmpeg 8.1.2.
+- `scripts/build_macos_media_runtime.sh` completed a clean source build of the
+  controlled runtime.
+- `scripts/verify_macos_media_runtime.sh` passed for the staged runtime and
+  confirmed all shipped dylibs are ARM64 with only `@rpath`, system framework,
+  and `/usr/lib` dependencies.
+- FFmpeg reported `License: LGPL version 2.1 or later`; the staged configuration
+  has GPL and nonfree disabled.
+- libass was built through its distribution-recommended Autotools path with
+  CoreText, ARM64 assembly, and the pinned FreeType, FriBidi, HarfBuzz, and
+  libunibreak libraries.
 
 ## Outcome
 
 The technical baseline is recorded in
-`docs/engineering/09_macos_media_runtime_and_packaging.md`. Implementation will
-proceed in independently verifiable build-runtime, SwiftPM-linking, and app
-packaging stages.
+`docs/engineering/09_macos_media_runtime_and_packaging.md`. The first
+implementation stage now produces and verifies the controlled runtime.
 
 ## Follow-ups
 

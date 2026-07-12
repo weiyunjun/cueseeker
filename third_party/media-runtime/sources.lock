@@ -1,0 +1,8 @@
+# name|version|archive|source_url|sha256|source_directory
+pkgconf|2.5.1|pkgconf-2.5.1.tar.xz|https://distfiles.ariadne.space/pkgconf/pkgconf-2.5.1.tar.xz|cd05c9589b9f86ecf044c10a2269822bc9eb001eced2582cfffd658b0a50c243|pkgconf-2.5.1
+ffmpeg|8.1.2|ffmpeg-8.1.2.tar.xz|https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz|464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c|ffmpeg-8.1.2
+libass|0.17.4|libass-0.17.4.tar.xz|https://github.com/libass/libass/releases/download/0.17.4/libass-0.17.4.tar.xz|78f1179b838d025e9c26e8fef33f8092f65611444ffa1bfc0cfac6a33511a05a|libass-0.17.4
+freetype|2.14.3|freetype-2.14.3.tar.xz|https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.xz|36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f|freetype-2.14.3
+fribidi|1.0.16|fribidi-1.0.16.tar.xz|https://github.com/fribidi/fribidi/releases/download/v1.0.16/fribidi-1.0.16.tar.xz|1b1cde5b235d40479e91be2f0e88a309e3214c8ab470ec8a2744d82a5a9ea05c|fribidi-1.0.16
+harfbuzz|14.1.0|harfbuzz-14.1.0.tar.xz|https://github.com/harfbuzz/harfbuzz/releases/download/14.1.0/harfbuzz-14.1.0.tar.xz|ee0eb3a1da2c5a28147f12dff55f6c7d60aeeeb29ac7ef334eabe84c8476c105|harfbuzz-14.1.0
+libunibreak|6.1|libunibreak-6.1.tar.gz|https://github.com/adah1972/libunibreak/releases/download/libunibreak_6_1/libunibreak-6.1.tar.gz|cc4de0099cf7ff05005ceabff4afed4c582a736abc38033e70fdac86335ce93f|libunibreak-6.1
