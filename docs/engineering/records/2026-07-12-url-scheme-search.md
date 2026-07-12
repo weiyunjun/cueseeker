@@ -22,6 +22,12 @@ packaging verification, and an installable acceptance build.
    bundle verification.
 3. Added a strict, independently tested URL command parser for the version 1
    search grammar and invalid-input no-op boundary.
+4. Registered the AppKit Get URL Apple Event handler before launch completion,
+   retained a cold-start command until the window existed, and routed running
+   commands immediately.
+5. Reused the existing playback shutdown and non-debounced search submission
+   paths while clearing active filters and cue-context state, selecting Search,
+   displaying the keyword, and activating the main window.
 
 ## Verification
 

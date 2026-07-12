@@ -13,6 +13,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let appState = AppCoordinator()
     private var windowButtonsProxy: WindowButtonsProxyView?
     private var keyDownMonitor: Any?
+    private var pendingURLSchemeCommand: URLSchemeCommand?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppPerformanceProbe.mark("MARK CueSeeker.applicationDidFinishLaunching")
@@ -28,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         configureMainMenu()
         createMainWindow()
         configurePlaybackKeyboardShortcuts()
+        consumePendingURLSchemeCommand()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -41,8 +52,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.keyDownMonitor = nil
         }
         NotificationCenter.default.removeObserver(self)
+        NSAppleEventManager.shared().removeEventHandler(
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
         appState.saveCurrentLibraryPlaybackHistorySynchronously()
         appState.playbackFullscreenManager.exitFullscreen()
+    }
+
+    @objc private func handleGetURLEvent(
+        _ event: NSAppleEventDescriptor,
+        withReplyEvent replyEvent: NSAppleEventDescriptor
+    ) {
+        guard let urlString = event.paramDescriptor(
+            forKeyword: AEKeyword(keyDirectObject)
+        )?.stringValue,
+              let command = URLSchemeCommand(urlString: urlString)
+        else {
+            return
+        }
+
+        guard window != nil else {
+            pendingURLSchemeCommand = command
+            return
+        }
+        executeURLSchemeCommand(command)
+    }
+
+    private func consumePendingURLSchemeCommand() {
+        guard let command = pendingURLSchemeCommand else {
+            return
+        }
+        pendingURLSchemeCommand = nil
+        executeURLSchemeCommand(command)
+    }
+
+    private func executeURLSchemeCommand(_ command: URLSchemeCommand) {
+        appState.handleURLSchemeCommand(command)
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func createMainWindow() {
