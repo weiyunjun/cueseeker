@@ -31,11 +31,29 @@ packaging verification, and an installable acceptance build.
 
 ## Verification
 
-- Pending implementation.
+- `swift test` passed all 7 XCTest tests and 554 Swift Testing tests.
+- URL parser tests covered encoded Unicode, trimming, case-insensitive routing,
+  empty and duplicate parameters, unknown parameters, unsupported routes, and
+  malformed percent encoding.
+- Search routing tests confirmed the command selects Search, displays the
+  keyword, clears the active filter set, and clears cue-context state.
+- `scripts/package_macos_app.sh` produced and recursively verified a
+  self-contained, ad-hoc-signed ARM64 app with bundle identifier
+  `com.cueseeker.app` and the `cueseeker` URL scheme.
+- Replaced `/Applications/CueSeeker.app` and forced Launch Services
+  registration for the final bundle.
+- A cold Launch Services invocation for encoded keyword `大丈夫` started the
+  installed app and the search E2E log recorded completed results for that exact
+  query.
+- A second invocation while the same process was running replaced the query
+  with `確認`; the search E2E log recorded completed results, proving running
+  Apple Event delivery.
 
 ## Outcome
 
-Pending implementation and end-to-end acceptance.
+Implementation and automated verification match the requirement. The installed
+build is ready for human end-to-end acceptance, including the required
+playback-to-search transition.
 
 ## Follow-ups
 
