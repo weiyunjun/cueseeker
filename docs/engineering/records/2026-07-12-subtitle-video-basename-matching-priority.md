@@ -27,6 +27,8 @@ per subtitle.
    selects the complete-basename video when both candidates exist, persists one
    active association, and rematches an unchanged subtitle when a new
    higher-priority video appears.
+5. Ran the complete native package test suite and debug build without touching
+   the user's production database or media files.
 
 ## Verification
 
@@ -42,13 +44,19 @@ per subtitle.
 - The repeated basename-matching integration filter passed both tests, covering
   complete-basename priority, one persisted active association, fallback, and
   deterministic rematching of an otherwise unchanged subtitle.
+- `swift test --package-path apps/macos-native` passed all 7 XCTest tests and
+  566 Swift Testing tests.
+- `swift build --package-path apps/macos-native` completed successfully.
 
 ## Outcome
 
-Documentation alignment, the production matcher change, focused unit tests,
-and indexing integration verification are complete. Broader regression
-verification remains pending.
+The implementation matches the accepted rule without a database schema change:
+each subtitle produces the complete basename candidate first, optionally one
+generic fallback candidate, and persists only the first existing video. Focused
+and full automated verification passed. Real-library end-to-end acceptance is
+left to the human owner as requested.
 
 ## Follow-ups
 
-- Add indexing/database integration coverage for deterministic rematching.
+- Reindex the selected real media folders and verify the expected Library video
+  set during human end-to-end acceptance.
