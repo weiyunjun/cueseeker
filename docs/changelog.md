@@ -9,7 +9,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Corrected URL Scheme direct-play presentation so enabled links wait for the
   accepted first Search page before bringing CueSeeker forward. Successful
   links now present Playback directly and still return to the populated Search
-  page when closed; empty or failed searches present only the Search fallback.
+  page when closed. Links received during Playback keep the current page and
+  player session alive, seek within the same video or replace a different media
+  source without collapsing Playback, while empty or failed searches stop the
+  player and present only the Search fallback.
 - Established the reproducible ARM64 macOS media runtime and local app
   packaging path. CueSeeker now builds against pinned FFmpeg 8.1.2 plus its
   Matroska patch and pinned libass dependencies instead of mixing temporary and

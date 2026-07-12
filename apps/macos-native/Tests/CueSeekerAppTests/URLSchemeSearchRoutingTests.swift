@@ -53,6 +53,12 @@ func urlSchemeDirectPlayFallsBackToSearchWhenFirstPageCannotProduceResults() thr
     defer { fixture.cleanup() }
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
     fixture.app.workbenchLayout.selectPanelMode(.shiori)
+    fixture.app.search.selectedSearchResult = makeURLSchemeSearchResult(
+        id: 1,
+        content: "existing playback"
+    )
+    fixture.app.playback.isPlaybackSurfaceExpanded = true
+    fixture.app.playbackOriginatingPanelMode = .shiori
 
     var presentationReadyCount = 0
     var presentedFallbackSearch = false
@@ -68,6 +74,7 @@ func urlSchemeDirectPlayFallsBackToSearchWhenFirstPageCannotProduceResults() thr
     #expect(fixture.app.search.searchQuery == "missing")
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
     #expect(!fixture.app.playback.isPlaybackSurfaceExpanded)
+    #expect(fixture.app.search.selectedSearchResult == nil)
 }
 
 @MainActor
@@ -130,6 +137,20 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
         atPath: fixtureRoot.appendingPathComponent("Episode.mkv").path,
         contents: Data()
     ))
+    try """
+    1
+    00:00:05,000 --> 00:00:06,000
+    alternate source result
+
+    """.write(
+        to: fixtureRoot.appendingPathComponent("Alternate.srt"),
+        atomically: true,
+        encoding: .utf8
+    )
+    #expect(FileManager.default.createFile(
+        atPath: fixtureRoot.appendingPathComponent("Alternate.mkv").path,
+        contents: Data()
+    ))
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
@@ -160,15 +181,48 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(app.playback.isPlaybackSurfaceExpanded)
     #expect(app.pendingURLSchemeDirectPlayIntent == nil)
 
+    let originalPlaybackResult = try #require(app.search.selectedSearchResult)
+    app.playbackOriginatingPanelMode = .shiori
+    var sameVideoPresentationReadyCount = 0
+    app.handleURLSchemeCommand(.search(keyword: "shared pipeline")) {
+        sameVideoPresentationReadyCount += 1
+    }
+
+    #expect(sameVideoPresentationReadyCount == 0)
+    #expect(app.search.selectedSearchResult == originalPlaybackResult)
+    #expect(app.playback.isPlaybackSurfaceExpanded)
+    await app.searchTask?.value
+
+    #expect(sameVideoPresentationReadyCount == 1)
+    #expect(app.search.selectedSearchResult?.videoPath == originalPlaybackResult.videoPath)
+    #expect(app.playback.isPlaybackSurfaceExpanded)
+    #expect(app.playbackOriginatingPanelMode == .search)
+
+    let sameVideoPlaybackResult = try #require(app.search.selectedSearchResult)
+    var differentVideoPresentationReadyCount = 0
+    app.handleURLSchemeCommand(.search(keyword: "alternate source")) {
+        differentVideoPresentationReadyCount += 1
+    }
+
+    #expect(differentVideoPresentationReadyCount == 0)
+    #expect(app.search.selectedSearchResult == sameVideoPlaybackResult)
+    #expect(app.playback.isPlaybackSurfaceExpanded)
+    await app.searchTask?.value
+
+    #expect(differentVideoPresentationReadyCount == 1)
+    #expect(app.search.selectedSearchResult?.videoPath.hasSuffix("Alternate.mkv") == true)
+    #expect(app.playback.isPlaybackSurfaceExpanded)
+    #expect(app.playbackOriginatingPanelMode == .search)
+
     app.stopPlayback()
     #expect(app.workbenchLayout.panelMode == .search)
-    #expect(app.search.searchQuery == "shared pipeline")
+    #expect(app.search.searchQuery == "alternate source")
     #expect(!app.playback.isPlaybackSurfaceExpanded)
 }
 
 @MainActor
 @Test
-func newURLSchemeCommandCancelsOldIntentSearchTasksAndPlaybackIndependentlyOfSetting() throws {
+func newURLSchemeCommandCancelsOldIntentAndTasksAndDisabledSearchStopsPlayback() throws {
     let fixture = try makeURLSchemeRoutingFixture("CommandCancellation")
     defer { fixture.cleanup() }
     let playbackIntentID = UUID()

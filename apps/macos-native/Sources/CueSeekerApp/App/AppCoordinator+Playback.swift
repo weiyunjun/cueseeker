@@ -152,10 +152,14 @@ extension AppCoordinator {
     func rememberPlaybackOriginatingPanelModeIfEntering(
         preferredMode: WorkbenchPanelMode? = nil
     ) {
+        if let preferredMode {
+            playbackOriginatingPanelMode = preferredMode
+            return
+        }
         guard !playback.isPlaybackSurfaceExpanded else {
             return
         }
-        playbackOriginatingPanelMode = preferredMode ?? workbenchLayout.panelMode
+        playbackOriginatingPanelMode = workbenchLayout.panelMode
     }
 
     func openSearchResult(

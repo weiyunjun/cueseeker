@@ -27,20 +27,24 @@ extension AppCoordinator {
         searchTask?.cancel()
         searchExactCompletionTask?.cancel()
         searchExactCompletionTask = nil
-        if hasPlaybackSelection {
-            stopPlayback()
-        }
 
         switch command {
         case let .search(keyword):
             search.activeFilterSet = SubtitleSearchFilterSet()
             search.cueContextSearchRequest = nil
-            search.selectedSearchResult = nil
             search.searchNavigationSnapshot = nil
             guard settings.urlSchemePlayFirstSearchResultEnabled else {
+                if hasPlaybackSelection {
+                    stopPlayback()
+                }
+                search.selectedSearchResult = nil
                 submitSearch(keyword)
                 onPresentationReady()
                 return
+            }
+
+            if !hasPlaybackSelection {
+                search.selectedSearchResult = nil
             }
 
             let intent = URLSchemeDirectPlayIntent(
@@ -75,6 +79,7 @@ extension AppCoordinator {
 
         pendingURLSchemeDirectPlayIntent = nil
         guard let firstPageResult else {
+            stopPlayback()
             workbenchLayout.selectPanelMode(.search)
             intent.onPresentationReady()
             return true

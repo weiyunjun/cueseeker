@@ -46,7 +46,7 @@ Every running-state command is processed once.
 
 ## Search Behavior
 
-Handling a valid search command must:
+When optional direct playback is off, handling a valid search command must:
 
 1. Leave fullscreen and stop active playback, preserving the existing playback
    history behavior.
@@ -74,8 +74,10 @@ or wait for the later exact-count completion task.
 While that first page is pending, CueSeeker must not bring an intermediate
 Search page to the foreground. A cold URL launch creates the main window
 without ordering it front, and a running-state URL command does not reactivate
-the window until the direct-play intent resolves. A failed or empty result
-selects Search before presenting the window.
+the window until the direct-play intent resolves. If Playback is already
+visible, its current selection, native player session, and expanded surface
+remain active while the new first page is pending. A failed or empty result
+stops that playback and selects Search before presenting the window.
 
 The direct-play decision occurs only after the complete first visible page:
 
@@ -92,9 +94,20 @@ playback therefore returns to the populated Search page without exposing that
 page before playback. If the page is empty or the search cannot produce a page,
 CueSeeker displays the populated or failed Search page instead.
 
-Every valid new URL Scheme command cancels the previous URL intent, the current
-search task, and active playback regardless of the toggle. Background indexing
-and database maintenance are not URL intents and are not cancelled. A one-shot
+When Playback is already visible, the successful result must not collapse or
+recreate the Playback presentation. If the result resolves to the same
+standardized video path, the existing native player session reloads the
+subtitle source and seeks to the result timestamp. If it resolves to a
+different video path, the existing Playback presentation stays visible while
+the player replaces its media source. Both outcomes replace the Playback return
+panel with Search so closing the result returns to the new populated query.
+
+Every valid new URL Scheme command cancels the previous URL intent and current
+search task. With optional direct playback off, the command stops active
+playback before opening Search. With direct playback on, active playback is
+preserved until the accepted page reuses or replaces its source, or until an
+empty or failed result stops it for Search fallback. Background indexing and
+database maintenance are not URL intents and are not cancelled. A one-shot
 intent is generation-bound to the search that created it; stale or superseded
 pages can never start playback.
 

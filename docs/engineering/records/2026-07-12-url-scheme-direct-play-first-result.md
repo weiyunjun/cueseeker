@@ -34,6 +34,11 @@ Search page.
    until the accepted first page has either established Playback or selected
    the Search fallback. Successful playback publishes its visible selection
    before Search becomes the underlying return panel.
+7. Removed the eager Playback stop for enabled direct-play commands. Existing
+   Playback now remains visible while the first page is pending, then reuses the
+   existing same-video seek path or replaces the media source without
+   collapsing Playback. Empty and failed results still stop Playback before the
+   Search fallback, and disabled commands retain the original Search behavior.
 
 ## Verification
 
@@ -54,12 +59,24 @@ Search page.
   immediately, failed direct-play commands present only their Search fallback,
   and successful direct-play commands do not become presentation-ready until
   Playback is visible with Search established as its return panel.
+- Running-playback coverage confirmed enabled direct-play commands preserve the
+  selected result and expanded Playback surface while same-video and
+  different-video first pages are pending, replace the return panel with Search
+  after success, and stop Playback only for fallback. Disabled commands still
+  stop Playback before opening Search.
 - The follow-up `URLScheme` test filter passed all 10 parser, settings, routing,
   cancellation, fallback, and real first-page integration tests.
 - The follow-up Release app was built, recursively bundle-verified, installed at
   `/Applications/CueSeeker.app`, and cold-launched through Launch Services with
   an encoded `大丈夫` URL. The installed app presented the first result in
   Playback with the direct-play option enabled.
+- The playback-reuse follow-up passed all 7 XCTest tests and 560 Swift Testing
+  tests. Its Release app was recursively verified, installed at
+  `/Applications/CueSeeker.app`, cold-launched with `大丈夫`, and invoked again
+  with the same URL while Playback was active. The second invocation retained
+  the same app process and Playback presentation, and the process log contained
+  no player-stop or audio-engine-restart event after that invocation, matching
+  the existing same-video in-session seek path.
 - `scripts/package_macos_app.sh` rebuilt and recursively verified the
   self-contained, ad-hoc-signed ARM64 app.
 - Replaced and registered `/Applications/CueSeeker.app`, enabled the option in
