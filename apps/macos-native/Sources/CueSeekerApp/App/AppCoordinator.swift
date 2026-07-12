@@ -434,10 +434,11 @@ final class AppCoordinator: ObservableObject {
     var nextGlobalSearchCursor: SubtitleSearchCursor?
 
     init(
-        userDefaults: UserDefaults = .standard,
+        userDefaults: UserDefaults? = nil,
         databaseURL: URL? = nil,
         uiProbeScope: String = UUID().uuidString
     ) {
+        let userDefaults = userDefaults ?? ApplicationPersistence.sharedUserDefaults()
         self.uiProbeScope = uiProbeScope
         self.userDefaults = userDefaults
         let resolvedDatabaseURL = databaseURL ?? Self.defaultDatabaseURL()

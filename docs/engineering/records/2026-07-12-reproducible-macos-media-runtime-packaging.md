@@ -46,6 +46,14 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
     `Contents/Helpers/ffmpeg` executable while preserving development fallbacks.
 16. Added the standard app `Info.plist`, self-contained bundle assembly,
     ordered local signing, and recursive app verification scripts.
+17. Assigned Debug and packaged launches the same explicit
+    `com.cueseeker.macos-native` UserDefaults suite while preserving injectable
+    isolated defaults for tests. This makes Library folders, Recent visibility,
+    settings, and interface state share the same persistence identity as the
+    already-shared application database.
+18. Added a one-time, non-overwriting migration from the legacy `CueSeeker`
+    Debug preferences domain so existing Library folders and application state
+    appear immediately in both launch forms.
 
 ## Verification
 
@@ -88,6 +96,13 @@ libass runtime that can be embedded in a self-contained CueSeeker app bundle.
 - Launch Services successfully opened the packaged app, and `pgrep` confirmed
   the running process came from
   `CueSeeker.app/Contents/MacOS/CueSeeker`.
+- Application metadata tests verify the stable shared persistence identifier;
+  migration tests verify legacy values are copied once without replacing values
+  already written by the packaged app.
+- The complete `swift test` run passed all 7 XCTest tests and 550 Swift Testing
+  tests after the final shared-persistence migration change.
+- The final packaging run rebuilt and verified the self-contained, ad-hoc-signed
+  ARM64 `CueSeeker.app` after the persistence changes.
 
 ## Outcome
 
