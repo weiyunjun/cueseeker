@@ -136,6 +136,11 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(app.workbenchLayout.panelMode == .search)
     #expect(app.playback.isPlaybackSurfaceExpanded)
     #expect(app.pendingURLSchemeDirectPlayIntent == nil)
+
+    app.stopPlayback()
+    #expect(app.workbenchLayout.panelMode == .search)
+    #expect(app.search.searchQuery == "shared pipeline")
+    #expect(!app.playback.isPlaybackSurfaceExpanded)
 }
 
 @MainActor

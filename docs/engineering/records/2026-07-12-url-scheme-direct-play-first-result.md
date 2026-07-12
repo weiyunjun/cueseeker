@@ -40,7 +40,8 @@ Search page.
   matching generation can consume an intent.
 - A real indexing integration test produced a complete two-row first visible
   page through the existing `searchVisiblePage` pipeline and confirmed the
-  selected playback item was exactly `searchResults.first`.
+  selected playback item was exactly `searchResults.first`; stopping that
+  playback returned to Search with the originating keyword intact.
 - Replacement-command regression coverage confirmed the old intent, first-page
   task, exact-completion task, and playback are cancelled independently of the
   replacement request's setting.
