@@ -441,8 +441,12 @@ extension AppCoordinator {
         query: String,
         cursor: SubtitleSearchCursor,
         appending: Bool,
-        debounce: Bool
+        debounce: Bool,
+        urlSchemeIntentID: UUID? = nil
     ) {
+        if pendingURLSchemeDirectPlayIntent?.id != urlSchemeIntentID {
+            pendingURLSchemeDirectPlayIntent = nil
+        }
         searchTask?.cancel()
         if !appending {
             searchExactCompletionTask?.cancel()
@@ -503,6 +507,7 @@ extension AppCoordinator {
                 status: "idle"
             )
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
+            resolveURLSchemeDirectPlayIntent(id: urlSchemeIntentID, firstPageResult: nil)
             return
         }
 
@@ -517,6 +522,7 @@ extension AppCoordinator {
                 status: "completed"
             )
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
+            resolveURLSchemeDirectPlayIntent(id: urlSchemeIntentID, firstPageResult: nil)
             return
         }
 
@@ -539,6 +545,7 @@ extension AppCoordinator {
                 error: "Database compaction is running"
             )
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
+            resolveURLSchemeDirectPlayIntent(id: urlSchemeIntentID, firstPageResult: nil)
             return
         }
 
@@ -558,6 +565,7 @@ extension AppCoordinator {
                 error: "Database is not initialized"
             )
             clearSearchPerformanceRunIfActive(searchPerformanceRun)
+            resolveURLSchemeDirectPlayIntent(id: urlSchemeIntentID, firstPageResult: nil)
             return
         }
         UIInvalidationProbe.count(
@@ -732,6 +740,10 @@ extension AppCoordinator {
                     renderedRowCount: search.renderedSearchResultCount,
                     status: statusText
                 )
+                let consumedURLSchemeIntent = resolveURLSchemeDirectPlayIntent(
+                    id: urlSchemeIntentID,
+                    firstPageResult: page.results.first
+                )
                 if !appending && !pageCompletesSearch {
                     startSearchExactCompletion(
                         query: trimmedQuery,
@@ -744,6 +756,8 @@ extension AppCoordinator {
                 }
                 if page.results.isEmpty {
                     SearchPerformanceLogger.mark(searchPerformanceRun, "search_no_result_rows_to_render")
+                    clearSearchPerformanceRunIfActive(searchPerformanceRun)
+                } else if consumedURLSchemeIntent {
                     clearSearchPerformanceRunIfActive(searchPerformanceRun)
                 }
             } catch is CancellationError {
@@ -797,6 +811,7 @@ extension AppCoordinator {
                     error: message
                 )
                 clearSearchPerformanceRunIfActive(searchPerformanceRun)
+                resolveURLSchemeDirectPlayIntent(id: urlSchemeIntentID, firstPageResult: nil)
             }
         }
     }

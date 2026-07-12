@@ -432,6 +432,7 @@ final class AppCoordinator: ObservableObject {
     var loadedGlobalSearchResultCount = 0
     var lastSearchCountProgressUpdate: UInt64 = 0
     var nextGlobalSearchCursor: SubtitleSearchCursor?
+    var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
 
     init(
         userDefaults: UserDefaults? = nil,

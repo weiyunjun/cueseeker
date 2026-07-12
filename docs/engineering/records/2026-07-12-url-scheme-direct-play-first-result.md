@@ -19,6 +19,13 @@ Search page.
    cancellation in `docs/engineering/10_url_scheme.md`.
 2. Added the URL Scheme Settings category and the shared-preferences-backed
    `Play First Search Result` toggle, defaulting to off.
+3. Added a generation-bound, one-shot URL intent to the existing `startSearch`
+   pipeline. It is consumed only after the complete first visible page passes
+   existing stale guards, is assigned to `SearchStore`, and is grouped.
+4. Reused `openSearchResult` for the first ordered page result and selected
+   Search as the playback origin in the same main-actor transaction. Empty and
+   failed pages fall back to Search, while new URLs cancel old intents, search
+   tasks, exact completion, and active playback independently of the setting.
 
 ## Verification
 
