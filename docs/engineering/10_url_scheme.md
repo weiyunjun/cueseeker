@@ -54,7 +54,8 @@ Handling a valid search command must:
 3. Clear the active search filter set and any cue-context search state.
 4. Put the decoded keyword in the visible search field.
 5. Submit through the existing non-debounced search pipeline.
-6. Make the main window key and activate CueSeeker.
+6. Make the main window key and activate CueSeeker. Optional direct playback
+   defers this step until its first-page outcome is ready.
 
 The URL handler must not duplicate database search logic.
 
@@ -70,6 +71,12 @@ search uses the same non-debounced `startSearch` pipeline and the same
 not issue a separate one-row query, observe published rows to guess completion,
 or wait for the later exact-count completion task.
 
+While that first page is pending, CueSeeker must not bring an intermediate
+Search page to the foreground. A cold URL launch creates the main window
+without ordering it front, and a running-state URL command does not reactivate
+the window until the direct-play intent resolves. A failed or empty result
+selects Search before presenting the window.
+
 The direct-play decision occurs only after the complete first visible page:
 
 1. returns from the database;
@@ -78,11 +85,12 @@ The direct-play decision occurs only after the complete first visible page:
 3. is assigned to `SearchStore` and grouped by the normal presentation path.
 
 If that accepted page contains rows, CueSeeker opens `page.results.first`
-through the existing Search-result playback entry point. The Search panel is
-made the playback origin in the same main-actor transaction, so the next UI
-render is playback and closing playback returns to the populated Search page.
-If the page is empty or the search cannot produce a page, CueSeeker displays
-the populated or failed Search page instead.
+through the existing Search-result playback entry point. It first establishes
+the selected result and expanded Playback presentation, then selects Search as
+the underlying return panel, and only then presents the main window. Closing
+playback therefore returns to the populated Search page without exposing that
+page before playback. If the page is empty or the search cannot produce a page,
+CueSeeker displays the populated or failed Search page instead.
 
 Every valid new URL Scheme command cancels the previous URL intent, the current
 search task, and active playback regardless of the toggle. Background indexing

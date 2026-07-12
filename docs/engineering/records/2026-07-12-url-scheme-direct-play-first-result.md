@@ -29,6 +29,11 @@ Search page.
 5. Added regression coverage proving a replacement URL cancels the old intent,
    first-page task, exact-completion task, and playback even when direct play is
    disabled for the replacement request.
+6. Corrected the presentation timing after installed-app validation exposed an
+   intermediate Search page. Direct-play commands now defer window activation
+   until the accepted first page has either established Playback or selected
+   the Search fallback. Successful playback publishes its visible selection
+   before Search becomes the underlying return panel.
 
 ## Verification
 
@@ -45,6 +50,16 @@ Search page.
 - Replacement-command regression coverage confirmed the old intent, first-page
   task, exact-completion task, and playback are cancelled independently of the
   replacement request's setting.
+- Presentation-readiness coverage confirmed disabled commands present Search
+  immediately, failed direct-play commands present only their Search fallback,
+  and successful direct-play commands do not become presentation-ready until
+  Playback is visible with Search established as its return panel.
+- The follow-up `URLScheme` test filter passed all 10 parser, settings, routing,
+  cancellation, fallback, and real first-page integration tests.
+- The follow-up Release app was built, recursively bundle-verified, installed at
+  `/Applications/CueSeeker.app`, and cold-launched through Launch Services with
+  an encoded `大丈夫` URL. The installed app presented the first result in
+  Playback with the direct-play option enabled.
 - `scripts/package_macos_app.sh` rebuilt and recursively verified the
   self-contained, ad-hoc-signed ARM64 app.
 - Replaced and registered `/Applications/CueSeeker.app`, enabled the option in
@@ -57,9 +72,10 @@ Search page.
 
 ## Outcome
 
-Implementation and automated verification match the requirement. The installed
-build is ready for human end-to-end acceptance; `Play First Search Result` is
-left enabled for that validation.
+Implementation and automated verification match the requirement, including the
+follow-up correction that removes the visible intermediate Search page. The
+installed build is ready for human end-to-end acceptance; `Play First Search
+Result` is left enabled for that validation.
 
 ## Follow-ups
 

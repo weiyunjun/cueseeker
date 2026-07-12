@@ -149,17 +149,20 @@ extension AppCoordinator {
         )
     }
 
-    func rememberPlaybackOriginatingPanelModeIfEntering() {
+    func rememberPlaybackOriginatingPanelModeIfEntering(
+        preferredMode: WorkbenchPanelMode? = nil
+    ) {
         guard !playback.isPlaybackSurfaceExpanded else {
             return
         }
-        playbackOriginatingPanelMode = workbenchLayout.panelMode
+        playbackOriginatingPanelMode = preferredMode ?? workbenchLayout.panelMode
     }
 
     func openSearchResult(
         _ result: SubtitleSearchResult,
         recordsNavigationHistory: Bool = true,
-        displayTitle: String? = nil
+        displayTitle: String? = nil,
+        returnPanelMode: WorkbenchPanelMode? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
@@ -168,7 +171,7 @@ extension AppCoordinator {
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
         preparePlaybackKeyboardFocus()
-        rememberPlaybackOriginatingPanelModeIfEntering()
+        rememberPlaybackOriginatingPanelModeIfEntering(preferredMode: returnPanelMode)
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         if recordsNavigationHistory {
@@ -176,7 +179,6 @@ extension AppCoordinator {
         }
         clearCueSegmentPlayback()
         activePlaybackSource = .search
-        workbenchLayout.selectPanelMode(.search)
         search.selectedSearchResult = result
         updateSearchNavigationSnapshotForOpenedResult(result)
         shiori.selectedShiori = nil
@@ -188,6 +190,7 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
+        workbenchLayout.selectPanelMode(.search)
         Task { @MainActor in
             await Task.yield()
             play(result)

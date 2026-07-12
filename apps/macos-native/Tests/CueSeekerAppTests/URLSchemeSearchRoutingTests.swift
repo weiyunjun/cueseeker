@@ -34,8 +34,12 @@ func urlSchemeSearchClearsFiltersAndForcesSearchRoute() throws {
         targetCueID: 42
     )
 
-    app.handleURLSchemeCommand(.search(keyword: "大丈夫"))
+    var presentationReadyCount = 0
+    app.handleURLSchemeCommand(.search(keyword: "大丈夫")) {
+        presentationReadyCount += 1
+    }
 
+    #expect(presentationReadyCount == 1)
     #expect(app.workbenchLayout.panelMode == .search)
     #expect(app.search.searchQuery == "大丈夫")
     #expect(app.search.activeFilterSet.isEffectivelyEmpty)
@@ -50,8 +54,16 @@ func urlSchemeDirectPlayFallsBackToSearchWhenFirstPageCannotProduceResults() thr
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
     fixture.app.workbenchLayout.selectPanelMode(.shiori)
 
-    fixture.app.handleURLSchemeCommand(.search(keyword: "missing"))
+    var presentationReadyCount = 0
+    var presentedFallbackSearch = false
+    fixture.app.handleURLSchemeCommand(.search(keyword: "missing")) {
+        presentationReadyCount += 1
+        presentedFallbackSearch = fixture.app.workbenchLayout.panelMode == .search
+            && !fixture.app.isPlaybackPageVisible
+    }
 
+    #expect(presentationReadyCount == 1)
+    #expect(presentedFallbackSearch)
     #expect(fixture.app.workbenchLayout.panelMode == .search)
     #expect(fixture.app.search.searchQuery == "missing")
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
@@ -127,9 +139,20 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     app.settings.urlSchemePlayFirstSearchResultEnabled = true
     app.workbenchLayout.selectPanelMode(.shiori)
 
-    app.handleURLSchemeCommand(.search(keyword: "shared pipeline"))
+    var presentationReadyCount = 0
+    var presentedPlayback = false
+    app.handleURLSchemeCommand(.search(keyword: "shared pipeline")) {
+        presentationReadyCount += 1
+        presentedPlayback = app.isPlaybackPageVisible
+            && app.workbenchLayout.panelMode == .search
+    }
+
+    #expect(presentationReadyCount == 0)
+    #expect(app.workbenchLayout.panelMode == .shiori)
     await app.searchTask?.value
 
+    #expect(presentationReadyCount == 1)
+    #expect(presentedPlayback)
     #expect(app.search.searchResults.count == 2)
     #expect(app.search.selectedSearchResult == app.search.searchResults.first)
     #expect(app.search.selectedSearchResult?.content == "shared pipeline first result")

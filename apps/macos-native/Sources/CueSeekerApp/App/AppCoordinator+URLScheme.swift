@@ -1,14 +1,28 @@
 import Foundation
 import CueSeekerCore
 
-struct URLSchemeDirectPlayIntent: Equatable, Sendable {
+struct URLSchemeDirectPlayIntent {
     let id: UUID
     let keyword: String
+    let onPresentationReady: @MainActor () -> Void
+
+    init(
+        id: UUID,
+        keyword: String,
+        onPresentationReady: @escaping @MainActor () -> Void = {}
+    ) {
+        self.id = id
+        self.keyword = keyword
+        self.onPresentationReady = onPresentationReady
+    }
 }
 
 @MainActor
 extension AppCoordinator {
-    func handleURLSchemeCommand(_ command: URLSchemeCommand) {
+    func handleURLSchemeCommand(
+        _ command: URLSchemeCommand,
+        onPresentationReady: @escaping @MainActor () -> Void = {}
+    ) {
         pendingURLSchemeDirectPlayIntent = nil
         searchTask?.cancel()
         searchExactCompletionTask?.cancel()
@@ -25,10 +39,15 @@ extension AppCoordinator {
             search.searchNavigationSnapshot = nil
             guard settings.urlSchemePlayFirstSearchResultEnabled else {
                 submitSearch(keyword)
+                onPresentationReady()
                 return
             }
 
-            let intent = URLSchemeDirectPlayIntent(id: UUID(), keyword: keyword)
+            let intent = URLSchemeDirectPlayIntent(
+                id: UUID(),
+                keyword: keyword,
+                onPresentationReady: onPresentationReady
+            )
             pendingURLSchemeDirectPlayIntent = intent
             search.searchQuery = keyword
             startSearch(
@@ -55,11 +74,13 @@ extension AppCoordinator {
         }
 
         pendingURLSchemeDirectPlayIntent = nil
-        workbenchLayout.selectPanelMode(.search)
         guard let firstPageResult else {
+            workbenchLayout.selectPanelMode(.search)
+            intent.onPresentationReady()
             return true
         }
-        openSearchResult(firstPageResult)
+        openSearchResult(firstPageResult, returnPanelMode: .search)
+        intent.onPresentationReady()
         return true
     }
 }

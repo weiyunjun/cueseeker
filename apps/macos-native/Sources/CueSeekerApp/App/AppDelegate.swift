@@ -36,10 +36,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             object: nil
         )
         configureMainMenu()
-        createMainWindow()
+        let launchesFromPendingURLSchemeCommand = pendingURLSchemeCommand != nil
+        createMainWindow(showImmediately: !launchesFromPendingURLSchemeCommand)
         configurePlaybackKeyboardShortcuts()
         consumePendingURLSchemeCommand()
-        NSApp.activate(ignoringOtherApps: true)
+        if !launchesFromPendingURLSchemeCommand {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -88,12 +91,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func executeURLSchemeCommand(_ command: URLSchemeCommand) {
-        appState.handleURLSchemeCommand(command)
+        appState.handleURLSchemeCommand(command) { [weak self] in
+            self?.presentMainWindow()
+        }
+    }
+
+    private func presentMainWindow() {
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func createMainWindow() {
+    private func createMainWindow(showImmediately: Bool) {
         let contentView = ContentView()
             .environmentObject(appState)
             .environmentObject(appState.workbenchLayout)
@@ -122,13 +130,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.delegate = self
         window.center()
         window.contentView = NSHostingView(rootView: contentView)
-        window.makeKeyAndOrderFront(nil)
-        
-        if let screen = window.screen {
+
+        if let screen = window.screen ?? NSScreen.main {
             window.setFrame(screen.visibleFrame, display: true)
         }
 
         self.window = window
+        if showImmediately {
+            window.makeKeyAndOrderFront(nil)
+        }
         adjustTrafficLights()
     }
 
