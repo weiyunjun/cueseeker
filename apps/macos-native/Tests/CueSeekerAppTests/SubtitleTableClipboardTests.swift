@@ -6,7 +6,7 @@ func subtitleTableClipboardCopiesHeadersAndExpandsCueLines() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "rowNumber", title: "#", kind: .rowNumber, width: .fixed(84)),
         WorkbenchTableColumn(id: "display", title: "Display Title", kind: .text, width: .fixed(300)),
-        WorkbenchTableColumn(id: "time", title: "Time", kind: .text, width: .fixed(190)),
+        WorkbenchTableColumn(id: "time", title: "Time Range", kind: .text, width: .fixed(190)),
         WorkbenchTableColumn(id: "cues", title: "Cues", kind: .text, width: .flexible(min: 580)),
     ])
     let rows = [
@@ -28,7 +28,7 @@ func subtitleTableClipboardCopiesHeadersAndExpandsCueLines() {
 
     let text = SubtitleTableClipboard.tsv(rows: rows, columns: columns)
     let expected = [
-        "Display Title\tTime\tCues",
+        "Display Title\tTime Range\tCues",
         "Episode 01\t00:01 - 00:02\tline one",
         "\t\tline two",
         "Episode 02\t00:04 - 00:06\tsingle line",
@@ -40,7 +40,7 @@ func subtitleTableClipboardCopiesHeadersAndExpandsCueLines() {
 @Test
 func subtitleTableClipboardCopiesCrossHourTimeRangeWithFullFormat() {
     let columns = SubtitleTableClipboard.columns(from: [
-        WorkbenchTableColumn(id: "time", title: "Time", kind: .text, width: .fixed(190)),
+        WorkbenchTableColumn(id: "time", title: "Time Range", kind: .text, width: .fixed(190)),
     ])
     let row = SubtitleTableRow(
         id: 1,
@@ -52,7 +52,7 @@ func subtitleTableClipboardCopiesCrossHourTimeRangeWithFullFormat() {
 
     let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
     let expected = [
-        "Time",
+        "Time Range",
         "00:15:18 - 01:16:32",
     ].joined(separator: "\n")
 

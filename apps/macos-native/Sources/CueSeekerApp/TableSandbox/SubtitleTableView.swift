@@ -1380,7 +1380,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             }
             if showsTimeColumn {
                 drawHeader(
-                    coordinator?.timeHeaderForRendering() ?? "Time",
+                    coordinator?.timeHeaderForRendering() ?? "Time Range",
                     rect: CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth, y: 0, width: timeWidth, height: bounds.height),
                     leading: M.headerHorizontalInset,
                     trailing: M.trailingInset
@@ -1496,7 +1496,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             nameHeaderHost?.isHidden = true
         }
         if let timeRect = layout.timeRect {
-            updateHeaderHost(&timeHeaderHost, title: coordinator?.timeHeaderForRendering() ?? "Time", columnID: "time", isSortable: true, frame: timeRect)
+            updateHeaderHost(&timeHeaderHost, title: coordinator?.timeHeaderForRendering() ?? "Time Range", columnID: "time", isSortable: true, frame: timeRect)
         } else {
             timeHeaderHost?.isHidden = true
         }
@@ -1810,7 +1810,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowsUpdate: TableSandboxRowsUpdate
     var dateAddedHeader = "Date Added"
     var displayTitleHeader = "Name"
-    var timeHeader = "Time"
+    var timeHeader = "Time Range"
     var cuesHeader = "Cues"
     var speakerHeader = "Speaker"
     var languageHeader = "Language"
@@ -2196,7 +2196,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsVersion: Int,
             dateAddedHeader: String = "Date Added",
             displayTitleHeader: String = "Name",
-            timeHeader: String = "Time",
+            timeHeader: String = "Time Range",
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",
@@ -2317,7 +2317,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowsUpdate: TableSandboxRowsUpdate,
             dateAddedHeader: String = "Date Added",
             displayTitleHeader: String,
-            timeHeader: String = "Time",
+            timeHeader: String = "Time Range",
             cuesHeader: String = "Cues",
             speakerHeader: String = "Speaker",
             languageHeader: String = "Language",

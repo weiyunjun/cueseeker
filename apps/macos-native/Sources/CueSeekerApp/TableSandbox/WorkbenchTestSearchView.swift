@@ -84,7 +84,7 @@ struct WorkbenchTestSearchView: View {
                     rowsVersion: rowStore.snapshot.version,
                     rowsUpdate: rowStore.snapshot.update,
                     displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
-                    timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time"),
+                    timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time Range"),
                     cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
                     speakerHeader: columnTitle("speaker", in: visibleColumns, fallback: "Speaker"),
                     languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),

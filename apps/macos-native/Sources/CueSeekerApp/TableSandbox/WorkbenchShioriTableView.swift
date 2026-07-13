@@ -72,7 +72,7 @@ private struct WorkbenchShioriTableContent: View {
                     rowsUpdate: rowStore.snapshot.update,
                     dateAddedHeader: columnTitle("dateAdded", in: visibleColumns, fallback: "Date Added"),
                     displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
-                    timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time"),
+                    timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time Range"),
                     cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
                     languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
                     tagsHeader: columnTitle("tags", in: visibleColumns, fallback: "Tags"),

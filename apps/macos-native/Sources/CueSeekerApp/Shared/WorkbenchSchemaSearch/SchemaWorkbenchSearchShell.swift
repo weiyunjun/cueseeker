@@ -224,7 +224,7 @@ enum SchemaWorkbenchSearchDefaults {
         ),
         WorkbenchTableColumn(
             id: "time",
-            title: "Time",
+            title: "Time Range",
             kind: .text,
             width: .fixed(190)
         ),
@@ -257,7 +257,7 @@ enum SchemaWorkbenchSearchDefaults {
         ),
         WorkbenchTableColumn(
             id: "time",
-            title: "Time",
+            title: "Time Range",
             kind: .text,
             width: .fixed(190)
         ),

@@ -109,7 +109,7 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
     coordinator.isRedesign = true
 
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
-    #expect(coordinator.cellFullText(row: -1, column: 2) == "Time")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Time Range")
     #expect(coordinator.cellFullText(row: -1, column: 3) == "Language")
     #expect(coordinator.cellFullText(row: -1, column: 4) == "")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "loaded cue")
@@ -153,7 +153,7 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
     #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
     #expect(coordinator.cellFullText(row: -1, column: 3) == "Tags")
-    #expect(coordinator.cellFullText(row: -1, column: 4) == "Time")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "Time Range")
     #expect(coordinator.cellFullText(row: -1, column: 5) == "Date Added")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
     #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
