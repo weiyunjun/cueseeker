@@ -281,13 +281,14 @@ Step 9.
 
 - Removed the row Checkbox from the table's pointing-hand cursor regions while
   preserving its existing click and keyboard behavior.
-- Removed the playback subtitle-focus scrollbar's pointing-hand override so
-  the shared scrollbar keeps the inherited default cursor without changing
-  its drag behavior.
+- Removed the playback subtitle-focus scrollbar's pointing-hand override and
+  made the shared Scrollbar Thumb explicitly register the default arrow cursor,
+  preventing an overlapping interactive cell from leaking its cursor through
+  the overlay without changing scrollbar drag behavior.
 
 ## Step 9 Verification
 
-- `swift test --filter 'subtitleTableViewLimitsPointingHandToCueAndTagsContent|subtitleFocusReelScrollbarUsesInheritedCursor'`
+- `swift test --filter 'subtitleTableViewLimitsPointingHandToCueAndTagsContent|tableScrollbarPrimitiveRegistersArrowCursorForThumbs'`
   - Passed both selected Swift Testing tests.
 - `swift test --filter 'subtitleTableView.*Cursor|tableScrollbarPrimitive|subtitleFocus.*Scrollbar'`
   - Passed all 14 selected Swift Testing tests.

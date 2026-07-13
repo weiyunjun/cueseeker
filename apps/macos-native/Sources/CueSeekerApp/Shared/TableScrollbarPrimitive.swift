@@ -211,11 +211,6 @@ enum TableScrollbarAppearanceMode: Equatable {
     case fixedDark
 }
 
-enum TableScrollbarCursorPolicy: Equatable {
-    case inherited
-    case pointingHand
-}
-
 class TableScrollbarOverlayView: NSView {
     var presentationProvider: () -> TableScrollbarPresentation? = { nil }
     var onDrag: (TableScrollbarDragEvent) -> Void = { _ in }
@@ -224,11 +219,6 @@ class TableScrollbarOverlayView: NSView {
     var appearanceMode: TableScrollbarAppearanceMode = .inherited {
         didSet {
             needsDisplay = true
-        }
-    }
-    var cursorPolicy: TableScrollbarCursorPolicy = .inherited {
-        didSet {
-            window?.invalidateCursorRects(for: self)
         }
     }
     var isPresented = false {
@@ -315,16 +305,12 @@ class TableScrollbarOverlayView: NSView {
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        guard cursorPolicy == .pointingHand,
-              let geometry = geometry()
-        else {
-            return
-        }
+        guard let geometry = geometry() else { return }
         for axis in TableScrollbarAxis.allCases {
             guard let rect = geometry.interactiveThumbRect(for: axis, in: bounds) else {
                 continue
             }
-            addCursorRect(rect, cursor: .pointingHand)
+            addCursorRect(rect, cursor: .arrow)
         }
     }
 

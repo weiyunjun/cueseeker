@@ -882,10 +882,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         scrollbarView.acceptsInteraction && allowsNativeScrollbarInput()
     }
 
-    var scrollbarCursorPolicyForTesting: TableScrollbarCursorPolicy {
-        scrollbarView.cursorPolicy
-    }
-
     func applyPreciseWheelDeltaForTesting(_ deltaY: CGFloat) {
         handlePreciseWheel(
             deltaY: deltaY,
