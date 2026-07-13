@@ -1639,7 +1639,7 @@ func subtitleTableViewAutoScrollTickMovesViewportAndKeepsDragSelection() throws 
 
 @MainActor
 @Test
-func subtitleTableViewDragsAcrossBodyCellsWithoutChangingCheckboxSelection() throws {
+func subtitleTableViewKeepsCheckboxStateSeparateWhileCheckboxClickClearsTextSelection() throws {
     let rows = [
         SubtitleTableRow(id: 1, displayTitle: "First Episode", cues: "first cue"),
         SubtitleTableRow(id: 2, displayTitle: "Second Episode", cues: "second cue"),
@@ -1705,9 +1705,55 @@ func subtitleTableViewDragsAcrossBodyCellsWithoutChangingCheckboxSelection() thr
         CGPoint(x: checkboxRect.midX, y: checkboxRect.midY),
         to: nil
     )
+    _ = CueSeekerPointerEventRouter.routeLeftMouseDown(
+        subtitleTableLeftMouseDownEvent()
+    )
     #expect(fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint))
     #expect(toggledRows == [0])
-    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues") == selectedCueRange)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues") == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewAppLeftMouseDownClearsEveryAttachedTableSelection() throws {
+    let first = makeAttachedVirtualTableCoordinator()
+    let second = makeAttachedVirtualTableCoordinator()
+    defer {
+        first.coordinator.quiesceForTesting()
+        second.coordinator.quiesceForTesting()
+    }
+    first.coordinator.selectAllTableText()
+    second.coordinator.selectAllTableText()
+    #expect(first.coordinator.textSelectionSelectsAllForTesting())
+    #expect(second.coordinator.textSelectionSelectsAllForTesting())
+
+    let event = subtitleTableLeftMouseDownEvent()
+    let routedEvent = CueSeekerPointerEventRouter.routeLeftMouseDown(event)
+
+    #expect(routedEvent === event)
+    #expect(first.coordinator.textSelectionSelectsAllForTesting() == false)
+    #expect(second.coordinator.textSelectionSelectsAllForTesting() == false)
+
+    let start = try #require(first.coordinator.textFragmentInfoForTesting(
+        row: 0,
+        columnID: "display"
+    ).first)
+    let end = try #require(first.coordinator.textFragmentInfoForTesting(
+        row: 1,
+        columnID: "cues"
+    ).first)
+    let startWindowPoint = first.documentView.convert(
+        CGPoint(x: start.textBounds.midX, y: start.textBounds.midY),
+        to: nil
+    )
+    let endWindowPoint = first.documentView.convert(
+        CGPoint(x: end.textBounds.midX, y: end.textBounds.midY),
+        to: nil
+    )
+    #expect(first.coordinator.handleMouseDown(windowPoint: startWindowPoint))
+    #expect(first.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(first.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+    #expect(first.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") != nil)
 }
 
 @MainActor
@@ -2360,6 +2406,21 @@ private func makeTabKeyEvent(shift: Bool = false) -> NSEvent {
         charactersIgnoringModifiers: "\t",
         isARepeat: false,
         keyCode: 48
+    )!
+}
+
+@MainActor
+private func subtitleTableLeftMouseDownEvent() -> NSEvent {
+    NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: .zero,
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: 0,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
     )!
 }
 

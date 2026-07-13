@@ -11,7 +11,7 @@ record currently covers the `Time Range` label and the shared vertical row
 geometry, row interaction, clipboard foundations, and body text-selection
 interaction used by Search, Shiori, and Context. It also covers the complete
 shared table-text interaction and complete-result source integration through
-Step 10.
+Step 11.
 
 ## Step 1 Changes
 
@@ -310,9 +310,30 @@ Step 10.
 - `git diff --check`
   - Passed.
 
+## Step 11 Global Text Selection Clearing Changes
+
+- Added one App-local left-mouse-down router that synchronously broadcasts the
+  gesture and returns the original event unchanged, so controls keep their
+  native click behavior.
+- Made every attached table clear its existing text selection when that event
+  occurs in any CueSeeker window. A same-gesture table drag can then establish
+  a new selection, while right-click continues to preserve the old selection.
+- Superseded Step 6's earlier Checkbox text-selection preservation rule to match
+  the newer human-owned requirement; Checkbox batch selection remains
+  independent from table text selection.
+
+## Step 11 Verification
+
+- `swift test --filter 'cueSeekerPointerEventRouterBroadcastsAndReturnsLeftMouseDown|subtitleTableViewAppLeftMouseDownClearsEveryAttachedTableSelection|subtitleTableViewKeepsCheckboxStateSeparateWhileCheckboxClickClearsTextSelection'`
+  - Passed all 3 selected Swift Testing tests.
+- `swift test --filter 'cueSeekerPointerEventRouter|subtitleTableView'`
+  - Passed all 72 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 10 match their accepted outcomes. The table paths
+Steps 1 through 11 match their accepted outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
 viewport-independent logical state across the fixed Header and Body, standard
@@ -324,4 +345,6 @@ boundaries without forcing unloaded rows into the virtualized display model.
 Checkboxes and scrollbars retain their default cursor while Cue and Shiori Tag
 click targets keep their pointing-hand feedback. Primary and Extra Cue glyphs
 are visually centered inside their fixed line-height boxes without changing
-the surrounding row or selection geometry.
+the surrounding row or selection geometry. Any CueSeeker-window left click
+clears stale table text selection before the original control handles the
+event, while right-click preserves the selection.

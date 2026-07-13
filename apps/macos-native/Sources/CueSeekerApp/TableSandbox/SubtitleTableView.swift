@@ -2546,6 +2546,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 self?.resizeDocument()
                 self?.repositionOpenMenu()
             }
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appLeftMouseDown),
+                name: .cueSeekerLeftMouseDown,
+                object: nil
+            )
             installKeyboardFocusEventMonitor()
         }
 
@@ -3603,6 +3609,10 @@ struct SubtitleTableView: NSViewRepresentable {
             let previousSelection = textSelection
             textSelection.clear()
             invalidateTextSelectionChange(from: previousSelection)
+        }
+
+        @objc private func appLeftMouseDown(_ notification: Notification) {
+            clearTextSelection()
         }
 
         func selectAllTableText() {

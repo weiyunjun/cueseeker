@@ -4,6 +4,17 @@ import CueSeekerCore
 
 extension Notification.Name {
     static let cueSeekerShowSettings = Notification.Name("cueSeekerShowSettings")
+    static let cueSeekerLeftMouseDown = Notification.Name("cueSeekerLeftMouseDown")
+}
+
+enum CueSeekerPointerEventRouter {
+    static func routeLeftMouseDown(_ event: NSEvent) -> NSEvent {
+        NotificationCenter.default.post(
+            name: .cueSeekerLeftMouseDown,
+            object: event
+        )
+        return event
+    }
 }
 
 @MainActor
@@ -13,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let appState = AppCoordinator()
     private var windowButtonsProxy: WindowButtonsProxyView?
     private var keyDownMonitor: Any?
+    private var leftMouseDownMonitor: Any?
     private var pendingURLSchemeCommand: URLSchemeCommand?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -39,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let launchesFromPendingURLSchemeCommand = pendingURLSchemeCommand != nil
         createMainWindow(showImmediately: !launchesFromPendingURLSchemeCommand)
         configurePlaybackKeyboardShortcuts()
+        configurePointerEventRouting()
         consumePendingURLSchemeCommand()
         if !launchesFromPendingURLSchemeCommand {
             NSApp.activate(ignoringOtherApps: true)
@@ -53,6 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let keyDownMonitor {
             NSEvent.removeMonitor(keyDownMonitor)
             self.keyDownMonitor = nil
+        }
+        if let leftMouseDownMonitor {
+            NSEvent.removeMonitor(leftMouseDownMonitor)
+            self.leftMouseDownMonitor = nil
         }
         NotificationCenter.default.removeObserver(self)
         NSAppleEventManager.shared().removeEventHandler(
@@ -161,6 +178,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
 
             return handled ? nil : event
+        }
+    }
+
+    private func configurePointerEventRouting() {
+        leftMouseDownMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: .leftMouseDown
+        ) { event in
+            CueSeekerPointerEventRouter.routeLeftMouseDown(event)
         }
     }
 
