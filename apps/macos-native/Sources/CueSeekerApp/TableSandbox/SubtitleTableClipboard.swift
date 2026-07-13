@@ -34,6 +34,142 @@ struct SubtitleTableClipboardColumn {
     }
 }
 
+struct SubtitleTableTextCopyColumn: Equatable, Sendable {
+    let id: String
+    let title: String
+
+    func text(for row: SubtitleTableRow, showsCueGroup: Bool) -> String {
+        switch id {
+        case "dateAdded":
+            return row.dateAdded
+        case "display":
+            return row.displayTitle
+        case "time":
+            return row.timeRange
+        case "cues":
+            let cueTexts = (showsCueGroup ? row.additionalCueTexts : []) + [row.primaryCueText]
+            return cueTexts.joined(separator: "\n")
+        case "speaker":
+            return row.speakerTags.map(\.label).joined(separator: ", ")
+        case "language":
+            return row.tags.map(\.label).joined(separator: ", ")
+        case "tags":
+            return row.shioriTags.map(\.label).joined(separator: ", ")
+        default:
+            return ""
+        }
+    }
+}
+
+struct SubtitleTableTextCopyRequest: Equatable, Sendable {
+    let selection: SubtitleTableTextSelectionState
+    let columns: [SubtitleTableTextCopyColumn]
+    let rowCount: Int
+    let showsCueGroup: Bool
+
+    var includesHeader: Bool {
+        if selection.selectsAllResults {
+            return true
+        }
+        guard let range = selection.orderedRange else { return false }
+        return range.start.row == .header
+    }
+
+    var bodyRowRange: Range<Int> {
+        let safeRowCount = max(0, rowCount)
+        if selection.selectsAllResults {
+            return 0..<safeRowCount
+        }
+        guard let range = selection.orderedRange,
+              case .body(let endRow) = range.end.row
+        else {
+            return 0..<0
+        }
+        let startRow: Int
+        switch range.start.row {
+        case .header:
+            startRow = 0
+        case .body(let row):
+            startRow = row
+        }
+        let lowerBound = min(max(0, startRow), safeRowCount)
+        let endExclusive = endRow >= safeRowCount
+            ? safeRowCount
+            : max(0, endRow + 1)
+        let upperBound = min(max(lowerBound, endExclusive), safeRowCount)
+        return lowerBound..<upperBound
+    }
+}
+
+struct SubtitleTableTextCopyBuilder {
+    private let request: SubtitleTableTextCopyRequest
+    private var representationBuilder = SubtitleTableClipboard.RepresentationBuilder()
+
+    init(request: SubtitleTableTextCopyRequest) {
+        self.request = request
+        if request.includesHeader, !request.columns.isEmpty {
+            representationBuilder.append(
+                cells: request.columns.enumerated().map { columnIndex, column in
+                    selectedText(
+                        column.title,
+                        selection: request.selection.cellSelection(
+                            row: .header,
+                            columnIndex: columnIndex,
+                            utf16Length: (column.title as NSString).length
+                        )
+                    )
+                },
+                isHeader: true
+            )
+        }
+    }
+
+    mutating func append(rows: [SubtitleTableRow], startingAt startingRow: Int) {
+        guard !request.columns.isEmpty else { return }
+        for (offset, row) in rows.enumerated() {
+            let rowIndex = startingRow + offset
+            guard request.bodyRowRange.contains(rowIndex) else { continue }
+            representationBuilder.append(cells: request.columns.enumerated().map { columnIndex, column in
+                let text = column.text(for: row, showsCueGroup: request.showsCueGroup)
+                return selectedText(
+                    text,
+                    selection: request.selection.cellSelection(
+                        row: .body(rowIndex),
+                        columnIndex: columnIndex,
+                        utf16Length: (text as NSString).length
+                    )
+                )
+            })
+        }
+    }
+
+    var representations: SubtitleTableClipboard.Representations {
+        representationBuilder.representations
+    }
+
+    private func selectedText(
+        _ text: String,
+        selection: SubtitleTableTextCellSelection
+    ) -> String {
+        switch selection {
+        case .none:
+            return ""
+        case .full:
+            return text
+        case .range(let range):
+            let source = text as NSString
+            let safeRange = NSIntersectionRange(
+                range,
+                NSRange(location: 0, length: source.length)
+            )
+            guard safeRange.length > 0 else { return "" }
+            return source.substring(
+                with: source.rangeOfComposedCharacterSequences(for: safeRange)
+            )
+        }
+    }
+}
+
 enum SubtitleTableClipboard {
     struct Representations: Equatable {
         let plainText: String

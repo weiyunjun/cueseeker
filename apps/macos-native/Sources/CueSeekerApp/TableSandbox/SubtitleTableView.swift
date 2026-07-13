@@ -43,6 +43,60 @@ enum SubtitleTableMetrics {
     static let interactiveTextUnderlineOffset = WorkbenchControlMetrics.redesignInteractiveTextUnderlineOffset
 }
 
+struct SubtitleTableTextDragAutoScrollGeometry {
+    static let edgeZone: CGFloat = 32
+    static let maximumStep: CGFloat = 24
+
+    static func nextOrigin(
+        pointer: CGPoint,
+        viewport: CGRect,
+        currentOrigin: CGPoint,
+        contentSize: CGSize,
+        viewportSize: CGSize,
+        allowsVerticalScrolling: Bool = true
+    ) -> CGPoint {
+        guard !viewport.isEmpty else { return currentOrigin }
+        let horizontalDelta = axisDelta(
+            value: pointer.x,
+            minimum: viewport.minX,
+            maximum: viewport.maxX,
+            leadingSign: -1,
+            trailingSign: 1
+        )
+        let verticalDelta = allowsVerticalScrolling ? axisDelta(
+            value: pointer.y,
+            minimum: viewport.minY,
+            maximum: viewport.maxY,
+            leadingSign: 1,
+            trailingSign: -1
+        ) : 0
+        let maximumX = max(0, contentSize.width - viewportSize.width)
+        let maximumY = max(0, contentSize.height - viewportSize.height)
+        return CGPoint(
+            x: min(max(0, currentOrigin.x + horizontalDelta), maximumX),
+            y: min(max(0, currentOrigin.y + verticalDelta), maximumY)
+        )
+    }
+
+    private static func axisDelta(
+        value: CGFloat,
+        minimum: CGFloat,
+        maximum: CGFloat,
+        leadingSign: CGFloat,
+        trailingSign: CGFloat
+    ) -> CGFloat {
+        let leadingPenetration = min(max(0, minimum + edgeZone - value) / edgeZone, 1)
+        if leadingPenetration > 0 {
+            return leadingSign * maximumStep * leadingPenetration * leadingPenetration
+        }
+        let trailingPenetration = min(max(0, value - (maximum - edgeZone)) / edgeZone, 1)
+        if trailingPenetration > 0 {
+            return trailingSign * maximumStep * trailingPenetration * trailingPenetration
+        }
+        return 0
+    }
+}
+
 struct SubtitleTableColumnLayout: Equatable {
     var indexRect: CGRect
     var dateAddedRect: CGRect?
@@ -1233,6 +1287,69 @@ final class SubtitleTableScrollbarOverlayView: TableScrollbarOverlayView {
     }
 }
 
+final class SubtitleTableHeaderTextOverlayView: NSView {
+    weak var coordinator: SubtitleTableView.Coordinator?
+
+    override var isFlipped: Bool { true }
+    override var acceptsFirstResponder: Bool { true }
+    override var isOpaque: Bool { false }
+
+    override func resignFirstResponder() -> Bool {
+        coordinator?.cancelPendingTextInteraction()
+        return super.resignFirstResponder()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !isHidden,
+              NSApp.currentEvent?.type == .leftMouseDown,
+              coordinator?.isHeaderTextHitForInteraction(at: point) == true
+        else {
+            return nil
+        }
+        return self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        if coordinator?.handleHeaderMouseDown(windowPoint: event.locationInWindow) == true {
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        if coordinator?.handleMouseDragged(windowPoint: event.locationInWindow) == true {
+            return
+        }
+        super.mouseDragged(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if coordinator?.handleMouseUp(windowPoint: event.locationInWindow) == true {
+            return
+        }
+        super.mouseUp(with: event)
+    }
+
+    @IBAction override func selectAll(_ sender: Any?) {
+        coordinator?.selectAllTableText()
+    }
+
+    @IBAction func copy(_ sender: Any?) {
+        coordinator?.copyTableTextSelection()
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        coordinator?.drawHeaderTextSelection(in: dirtyRect)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+}
+
 final class SubtitleVirtualTableHeaderView: NSView {
     weak var coordinator: SubtitleTableView.Coordinator?
     var isRedesign: Bool = false {
@@ -1250,6 +1367,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private var speakerHeaderHost: NSHostingView<AnyView>?
     private var languageHeaderHost: NSHostingView<AnyView>?
     private var tagsHeaderHost: NSHostingView<AnyView>?
+    private var textInteractionOverlay: SubtitleTableHeaderTextOverlayView?
     private var lastHeaderLayout: SubtitleTableColumnLayout?
 
     private var hoverTracking: NSTrackingArea?
@@ -1442,6 +1560,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func layout() {
         super.layout()
+        textInteractionOverlay?.frame = bounds
         refreshHeaderHostsForLayoutChange()
     }
 
@@ -1456,6 +1575,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             speakerHeaderHost?.isHidden = true
             languageHeaderHost?.isHidden = true
             tagsHeaderHost?.isHidden = true
+            textInteractionOverlay?.isHidden = true
             lastHeaderLayout = nil
             return
         }
@@ -1498,6 +1618,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             tagsHeaderHost?.isHidden = true
         }
         updateHeaderKeyViewBridge()
+        ensureTextInteractionOverlay()
         lastHeaderLayout = layout
     }
 
@@ -1517,7 +1638,67 @@ final class SubtitleVirtualTableHeaderView: NSView {
         updateHeaderFrame(&languageHeaderHost, frame: layout.languageRect)
         updateHeaderFrame(&tagsHeaderHost, frame: layout.tagsRect)
         updateHeaderKeyViewBridge()
+        ensureTextInteractionOverlay()
         lastHeaderLayout = layout
+    }
+
+    func refreshHeaderFramesForHorizontalScroll() {
+        guard isRedesign else {
+            refreshHeaderHosts()
+            return
+        }
+        let layout = currentHeaderLayout()
+        updateHeaderFrame(&indexHeaderHost, frame: layout.indexRect)
+        updateHeaderFrame(&dateAddedHeaderHost, frame: layout.dateAddedRect)
+        updateHeaderFrame(
+            &nameHeaderHost,
+            frame: coordinator?.showsDisplayTitleColumnForRendering() ?? true
+                ? layout.nameRect
+                : nil
+        )
+        updateHeaderFrame(&timeHeaderHost, frame: layout.timeRect)
+        updateHeaderFrame(&cuesHeaderHost, frame: layout.cuesRect)
+        updateHeaderFrame(&speakerHeaderHost, frame: layout.speakerRect)
+        updateHeaderFrame(&languageHeaderHost, frame: layout.languageRect)
+        updateHeaderFrame(&tagsHeaderHost, frame: layout.tagsRect)
+        textInteractionOverlay?.needsDisplay = true
+        lastHeaderLayout = layout
+    }
+
+    private func ensureTextInteractionOverlay() {
+        let overlay: SubtitleTableHeaderTextOverlayView
+        if let textInteractionOverlay {
+            overlay = textInteractionOverlay
+        } else {
+            overlay = SubtitleTableHeaderTextOverlayView(frame: bounds)
+            overlay.autoresizingMask = [.width, .height]
+            overlay.coordinator = coordinator
+            textInteractionOverlay = overlay
+        }
+        overlay.frame = bounds
+        overlay.isHidden = false
+        if overlay.superview == nil {
+            addSubview(overlay)
+        } else {
+            addSubview(overlay, positioned: .above, relativeTo: nil)
+        }
+        overlay.needsDisplay = true
+    }
+
+    func invalidateTextSelectionOverlay() {
+        textInteractionOverlay?.needsDisplay = true
+    }
+
+    func textInteractionOverlayForTesting() -> SubtitleTableHeaderTextOverlayView? {
+        textInteractionOverlay
+    }
+
+    @IBAction override func selectAll(_ sender: Any?) {
+        coordinator?.selectAllTableText()
+    }
+
+    @IBAction func copy(_ sender: Any?) {
+        coordinator?.copyTableTextSelection()
     }
 
     private func refreshHeaderHostsForLayoutChange() {
@@ -1767,6 +1948,14 @@ final class SubtitleVirtualTableDocumentView: NSView {
         super.keyDown(with: event)
     }
 
+    @IBAction override func selectAll(_ sender: Any?) {
+        coordinator?.selectAllTableText()
+    }
+
+    @IBAction func copy(_ sender: Any?) {
+        coordinator?.copyTableTextSelection()
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         coordinator?.drawRows(in: dirtyRect)
@@ -1790,6 +1979,8 @@ extension EnvironmentValues {
         set { self[IsWorkbenchPopupLayerOpenKey.self] = newValue }
     }
 }
+
+typealias SubtitleTableTextCopyRowLoader = @MainActor (Range<Int>) async -> [SubtitleTableRow]?
 
 struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
@@ -1824,6 +2015,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var selectionHeaderState: WorkbenchCheckboxState = .unchecked
     var onToggleRowSelection: (Int) -> Void = { _ in }
     var onToggleAllSelection: () -> Void = {}
+    var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
     var onPlay: (SubtitleTableRow) -> Void
     var onShowContext: (SubtitleTableRow) -> Void = { _ in }
     var onOpenSubtitleFile: (String) -> Void = { path in
@@ -1864,6 +2056,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
+            loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
             onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
@@ -1994,6 +2187,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
+            loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
             onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
@@ -2035,6 +2229,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var selectionHeaderState: WorkbenchCheckboxState
         private var onToggleRowSelection: (Int) -> Void
         private var onToggleAllSelection: () -> Void
+        private var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
         private var onPlay: (SubtitleTableRow) -> Void
         private var onShowContext: (SubtitleTableRow) -> Void
         private var onOpenSubtitleFile: (String) -> Void
@@ -2074,7 +2269,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 guard oldValue != isEnabled else { return }
                 if !isEnabled {
                     clearFocusedCheckbox()
-                    pendingTextInteraction = nil
+                    cancelPendingTextInteraction()
                     updateHoveredColumnID(nil)
                     updateHoveredCueTextRow(nil)
                 }
@@ -2109,6 +2304,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var pendingMenuReposition = false
         nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
+        nonisolated(unsafe) private var textCopyTask: Task<Void, Never>?
+        nonisolated(unsafe) private var textDragAutoScrollTimer: Timer?
 
         private enum ActiveMenuAnchor {
             case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInContainer: CGPoint?)
@@ -2134,7 +2331,7 @@ struct SubtitleTableView: NSViewRepresentable {
             didSet {
                 guard isExternalPopupLayerOpen != oldValue else { return }
                 if isExternalPopupLayerOpen {
-                    pendingTextInteraction = nil
+                    cancelPendingTextInteraction()
                     if isMenuOpen {
                         dismissMenu(recalculateHover: false)
                     }
@@ -2188,6 +2385,7 @@ struct SubtitleTableView: NSViewRepresentable {
             case none
             case play(row: Int)
             case tags(row: Int, documentPoint: CGPoint)
+            case headerMenu(columnID: String, triggerFrame: CGRect)
         }
 
         private struct PendingTextInteraction {
@@ -2195,6 +2393,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let anchor: SubtitleTableTextPosition?
             let directAction: PendingDirectTextAction
             var didDrag = false
+            var latestWindowPoint: CGPoint
         }
 
         private var pendingTextInteraction: PendingTextInteraction?
@@ -2206,6 +2405,13 @@ struct SubtitleTableView: NSViewRepresentable {
             case bounded(SubtitleTableTextPosition, SubtitleTableTextPosition)
             case from(SubtitleTableTextPosition)
             case through(SubtitleTableTextPosition)
+        }
+
+        private struct HeaderTextFragmentLayout {
+            let columnID: String
+            let columnIndex: Int
+            let cellRect: CGRect
+            let fragment: SubtitleTableTextFragmentLayout
         }
 
         init(
@@ -2237,6 +2443,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: WorkbenchCheckboxState = .unchecked,
             onToggleRowSelection: @escaping (Int) -> Void = { _ in },
             onToggleAllSelection: @escaping () -> Void = {},
+            loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
             onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
             onOpenSubtitleFile: @escaping (String) -> Void = { path in
@@ -2274,6 +2481,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
+            self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
             self.onShowContext = onShowContext
             self.onOpenSubtitleFile = onOpenSubtitleFile
@@ -2283,6 +2491,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         deinit {
+            textCopyTask?.cancel()
+            textDragAutoScrollTimer?.invalidate()
             NotificationCenter.default.removeObserver(self)
             if let monitor = menuEventMonitor {
                 NSEvent.removeMonitor(monitor)
@@ -2304,6 +2514,10 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollView = scrollView
             self.scrollbarOverlayView = scrollbarOverlayView
             self.documentView = documentView
+            headerView.coordinator = self
+            headerView.isRedesign = isRedesign
+            documentView.coordinator = self
+            documentView.isRedesign = isRedesign
             scrollbarOverlayView.onDragStateChanged = { [weak self] isDragging in
                 self?.setScrollbarDragging(isDragging)
             }
@@ -2358,6 +2572,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: WorkbenchCheckboxState,
             onToggleRowSelection: @escaping (Int) -> Void,
             onToggleAllSelection: @escaping () -> Void,
+            loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
             onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
             onOpenSubtitleFile: @escaping (String) -> Void = { path in
@@ -2436,6 +2651,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
+            self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
             self.onShowContext = onShowContext
             self.onOpenSubtitleFile = onOpenSubtitleFile
@@ -2626,6 +2842,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func quiesceForTesting() {
+            cancelPendingTextInteraction()
             NotificationCenter.default.removeObserver(self)
             removeMenuDismissMonitor()
             if let monitor = keyboardFocusEventMonitor {
@@ -2778,6 +2995,54 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
+        func headerTextFragmentInfoForTesting() -> [(
+            columnID: String,
+            columnIndex: Int,
+            textBounds: CGRect,
+            clipRect: CGRect
+        )] {
+            headerTextFragments().map {
+                (
+                    columnID: $0.columnID,
+                    columnIndex: $0.columnIndex,
+                    textBounds: textBounds(for: $0.fragment),
+                    clipRect: $0.fragment.clipRect
+                )
+            }
+        }
+
+        func headerTextPositionForTesting(
+            point: CGPoint,
+            requiresTextHit: Bool = true
+        ) -> SubtitleTableTextPosition? {
+            headerTextPosition(at: point, requiresTextHit: requiresTextHit)
+        }
+
+        func headerTextSelectionRectsForTesting(columnID: String) -> [CGRect] {
+            guard let item = headerTextFragments().first(where: { $0.columnID == columnID }),
+                  let selectedRange = textSelection.selectedUTF16Range(
+                      row: .header,
+                      columnIndex: item.columnIndex,
+                      utf16Length: item.fragment.logicalUTF16Range.length
+                  )
+            else {
+                return []
+            }
+            textLayout.update(
+                attributedString: item.fragment.attributed,
+                width: item.fragment.width
+            )
+            return textLayout.selectionRects(
+                forUTF16Range: selectedRange,
+                at: item.fragment.origin
+            ).compactMap {
+                let clipped = $0.intersection(item.fragment.clipRect)
+                return clipped.isNull || clipped.width <= 0 || clipped.height <= 0
+                    ? nil
+                    : clipped
+            }
+        }
+
         func textSelectionRangeForTesting(row: Int, columnID: String) -> NSRange? {
             guard let model = rowProvider(row) else { return nil }
             return selectedUTF16Range(
@@ -2823,8 +3088,126 @@ struct SubtitleTableView: NSViewRepresentable {
             textSelectionInvalidationCount = 0
         }
 
+        func textSelectionSelectsAllForTesting() -> Bool {
+            textSelection.selectsAllResults
+        }
+
+        func waitForTextCopyForTesting() async {
+            await textCopyTask?.value
+        }
+
         func cancelPendingTextInteraction() {
+            stopTextDragAutoScroll()
             pendingTextInteraction = nil
+        }
+
+        private func startTextDragAutoScrollIfNeeded() {
+            guard textDragAutoScrollTimer == nil else { return }
+            let timer = Timer(
+                timeInterval: 1.0 / 30.0,
+                target: self,
+                selector: #selector(textDragAutoScrollTick),
+                userInfo: nil,
+                repeats: true
+            )
+            textDragAutoScrollTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
+        }
+
+        private func updateTextDragAutoScrollState(
+            for interaction: PendingTextInteraction
+        ) {
+            guard let target = textDragAutoScrollTarget(for: interaction),
+                  target.nextOrigin != target.currentOrigin
+            else {
+                stopTextDragAutoScroll()
+                return
+            }
+            startTextDragAutoScrollIfNeeded()
+        }
+
+        private func stopTextDragAutoScroll() {
+            textDragAutoScrollTimer?.invalidate()
+            textDragAutoScrollTimer = nil
+        }
+
+        @objc private func textDragAutoScrollTick() {
+            guard let interaction = pendingTextInteraction,
+                  interaction.didDrag,
+                  interaction.anchor != nil,
+                  let scrollView
+            else {
+                stopTextDragAutoScroll()
+                return
+            }
+            if documentView?.window != nil, NSEvent.pressedMouseButtons & 1 == 0 {
+                cancelPendingTextInteraction()
+                return
+            }
+            guard let target = textDragAutoScrollTarget(for: interaction),
+                  target.nextOrigin != target.currentOrigin
+            else {
+                stopTextDragAutoScroll()
+                return
+            }
+            let clipView = scrollView.contentView
+            clipView.scroll(to: target.nextOrigin)
+            scrollView.reflectScrolledClipView(clipView)
+            refreshHeaderForHorizontalScrollIfNeeded()
+            scrollbarOverlayView?.scrollMetricsDidChange()
+            notifyVisibleRowsChanged()
+            updateTextSelectionFocus(atWindowPoint: interaction.latestWindowPoint)
+        }
+
+        private func textDragAutoScrollTarget(
+            for interaction: PendingTextInteraction
+        ) -> (currentOrigin: CGPoint, nextOrigin: CGPoint)? {
+            guard interaction.didDrag,
+                  interaction.anchor != nil,
+                  let scrollView,
+                  let documentView
+            else {
+                return nil
+            }
+            let clipView = scrollView.contentView
+            let viewport = clipView.convert(clipView.bounds, to: nil)
+            let allowsVerticalScrolling: Bool
+            if interaction.anchor?.row == .header,
+               let headerView
+            {
+                let headerRect = headerView.convert(headerView.bounds, to: nil)
+                allowsVerticalScrolling = interaction.latestWindowPoint.y < headerRect.minY
+            } else {
+                allowsVerticalScrolling = true
+            }
+            let currentOrigin = clipView.bounds.origin
+            return (
+                currentOrigin,
+                SubtitleTableTextDragAutoScrollGeometry.nextOrigin(
+                    pointer: interaction.latestWindowPoint,
+                    viewport: viewport,
+                    currentOrigin: currentOrigin,
+                    contentSize: documentView.bounds.size,
+                    viewportSize: clipView.bounds.size,
+                    allowsVerticalScrolling: allowsVerticalScrolling
+                )
+            )
+        }
+
+        private func updateTextSelectionFocus(atWindowPoint windowPoint: CGPoint) {
+            guard let focus = textPosition(
+                atWindowPoint: windowPoint,
+                requiresTextHit: false
+            ) else {
+                return
+            }
+            let previousSelection = textSelection
+            textSelection.updateFocus(to: focus)
+            invalidateTextSelectionChange(from: previousSelection)
+        }
+
+        func textDragAutoScrollTickForTesting() {
+            textDragAutoScrollTick()
         }
 
         func copyCellTextForTesting(row: Int, columnID: String) {
@@ -3199,10 +3582,85 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func clearTextSelection() {
-            pendingTextInteraction = nil
+            cancelPendingTextInteraction()
             let previousSelection = textSelection
             textSelection.clear()
             invalidateTextSelectionChange(from: previousSelection)
+        }
+
+        func selectAllTableText() {
+            guard isRedesign, isEnabled else { return }
+            let previousSelection = textSelection
+            textSelection.selectAll()
+            invalidateTextSelectionChange(from: previousSelection)
+        }
+
+        func copyTableTextSelection(to pasteboard: NSPasteboard = .general) {
+            guard isRedesign,
+                  isEnabled,
+                  textSelection.hasSelection
+            else {
+                return
+            }
+            let request = SubtitleTableTextCopyRequest(
+                selection: textSelection,
+                columns: visibleTextColumnOrder().map {
+                    SubtitleTableTextCopyColumn(id: $0, title: headerTitle(for: $0))
+                },
+                rowCount: rowCount,
+                showsCueGroup: showsCueGroup
+            )
+            guard !request.columns.isEmpty else { return }
+
+            textCopyTask?.cancel()
+            textCopyTask = nil
+            let initialPasteboardChangeCount = pasteboard.changeCount
+            if request.bodyRowRange.isEmpty {
+                let builder = SubtitleTableTextCopyBuilder(request: request)
+                guard pasteboard.changeCount == initialPasteboardChangeCount else { return }
+                _ = SubtitleTableClipboard.copy(
+                    representations: builder.representations,
+                    to: pasteboard
+                )
+                return
+            }
+
+            let loader = loadRowsForTextCopy
+            let capturedRowProvider = rowProvider
+            textCopyTask = Task { @MainActor in
+                var builder = SubtitleTableTextCopyBuilder(request: request)
+                let batchSize = 512
+                var batchStart = request.bodyRowRange.lowerBound
+                while batchStart < request.bodyRowRange.upperBound {
+                    guard !Task.isCancelled else { return }
+                    let batchEnd = min(batchStart + batchSize, request.bodyRowRange.upperBound)
+                    let batchRange = batchStart..<batchEnd
+                    let rows: [SubtitleTableRow]?
+                    if let loader {
+                        rows = await loader(batchRange)
+                    } else {
+                        let loadedRows = batchRange.compactMap(capturedRowProvider)
+                        rows = loadedRows.count == batchRange.count ? loadedRows : nil
+                    }
+                    guard let rows,
+                          rows.count == batchRange.count,
+                          !Task.isCancelled
+                    else {
+                        return
+                    }
+                    builder.append(rows: rows, startingAt: batchStart)
+                    batchStart = batchEnd
+                }
+                guard !Task.isCancelled,
+                      pasteboard.changeCount == initialPasteboardChangeCount
+                else {
+                    return
+                }
+                _ = SubtitleTableClipboard.copy(
+                    representations: builder.representations,
+                    to: pasteboard
+                )
+            }
         }
 
         private func textSelectionProjection(
@@ -3240,7 +3698,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 textSelectionProjection(textSelection, for: .header)
             {
                 textSelectionInvalidationCount += 1
-                headerView?.needsDisplay = true
+                headerView?.invalidateTextSelectionOverlay()
             }
 
             guard let documentView,
@@ -3277,6 +3735,113 @@ struct SubtitleTableView: NSViewRepresentable {
                 return tagsHeader
             default:
                 return ""
+            }
+        }
+
+        private func headerTextFragments() -> [HeaderTextFragmentLayout] {
+            guard let headerView else { return [] }
+            let columnIDs = visibleTextColumnOrder()
+            let layout = headerColumnLayoutForRendering(
+                viewportWidth: headerView.bounds.width,
+                height: headerView.bounds.height
+            )
+            return columnIDs.enumerated().compactMap { columnIndex, columnID in
+                guard let cellRect = layout.rect(for: columnID) else { return nil }
+                let title = headerTitle(for: columnID)
+                let attributed = SubtitleTableText.header(title, isRedesign: isRedesign)
+                let size = attributed.size()
+                let leading = WorkbenchControlMetrics.redesignPaddingHeaderTriggerX
+                let origin = CGPoint(
+                    x: cellRect.minX + leading,
+                    y: cellRect.minY + max(0, (cellRect.height - size.height) / 2)
+                )
+                return HeaderTextFragmentLayout(
+                    columnID: columnID,
+                    columnIndex: columnIndex,
+                    cellRect: cellRect,
+                    fragment: SubtitleTableTextFragmentLayout(
+                        attributed: attributed,
+                        origin: origin,
+                        width: max(1, cellRect.width - 2 * leading),
+                        clipRect: CGRect(
+                            x: origin.x,
+                            y: origin.y,
+                            width: max(0, min(size.width, cellRect.maxX - leading - origin.x)),
+                            height: min(size.height, cellRect.height)
+                        ),
+                        logicalUTF16Range: NSRange(
+                            location: 0,
+                            length: (title as NSString).length
+                        )
+                    )
+                )
+            }
+        }
+
+        private func headerTextPosition(
+            at point: CGPoint,
+            requiresTextHit: Bool
+        ) -> SubtitleTableTextPosition? {
+            let fragments = headerTextFragments()
+            let candidate: HeaderTextFragmentLayout?
+            if requiresTextHit {
+                candidate = fragments.first { item in
+                    guard item.fragment.clipRect.contains(point) else { return false }
+                    textLayout.update(
+                        attributedString: item.fragment.attributed,
+                        width: item.fragment.width
+                    )
+                    return textLayout.containsText(at: point, origin: item.fragment.origin)
+                }
+            } else {
+                candidate = fragments.min { lhs, rhs in
+                    squaredDistance(from: point, to: textBounds(for: lhs.fragment)) <
+                        squaredDistance(from: point, to: textBounds(for: rhs.fragment))
+                }
+            }
+            guard let candidate else { return nil }
+            textLayout.update(
+                attributedString: candidate.fragment.attributed,
+                width: candidate.fragment.width
+            )
+            return SubtitleTableTextPosition(
+                row: .header,
+                columnIndex: candidate.columnIndex,
+                utf16Offset: textLayout.utf16Offset(
+                    at: point,
+                    origin: candidate.fragment.origin
+                )
+            )
+        }
+
+        func isHeaderTextHitForInteraction(at point: CGPoint) -> Bool {
+            headerTextPosition(at: point, requiresTextHit: true) != nil
+        }
+
+        func drawHeaderTextSelection(in dirtyRect: CGRect) {
+            guard textSelection.hasSelection else { return }
+            for item in headerTextFragments() where item.fragment.clipRect.intersects(dirtyRect) {
+                let title = item.fragment.attributed.string
+                guard let selectedRange = textSelection.selectedUTF16Range(
+                    row: .header,
+                    columnIndex: item.columnIndex,
+                    utf16Length: (title as NSString).length
+                ) else {
+                    continue
+                }
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath.clip(item.fragment.clipRect)
+                textLayout.update(
+                    attributedString: item.fragment.attributed,
+                    width: item.fragment.width
+                )
+                drawSelectionBackground(
+                    selectedRange,
+                    with: textLayout,
+                    at: item.fragment.origin
+                )
+                textLayout.draw(at: item.fragment.origin)
+                NSGraphicsContext.restoreGraphicsState()
             }
         }
 
@@ -3332,7 +3897,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let offset = scrollView?.contentView.bounds.origin.x ?? 0
             guard force || lastHeaderHorizontalOffset != offset else { return }
             lastHeaderHorizontalOffset = offset
-            headerView?.refreshHeaderHosts()
+            headerView?.refreshHeaderFramesForHorizontalScroll()
             headerView?.needsDisplay = true
         }
 
@@ -4743,9 +5308,21 @@ struct SubtitleTableView: NSViewRepresentable {
                 return nil
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
-            guard let columnID = visibleTextColumnOrder().first(where: {
-                dataCellRect(columnID: $0, rowRect: rowRect)?.contains(point) == true
-            }) else {
+            let columnIDs = visibleTextColumnOrder()
+            let columnID: String?
+            if requiresTextHit {
+                columnID = columnIDs.first(where: {
+                    dataCellRect(columnID: $0, rowRect: rowRect)?.contains(point) == true
+                })
+            } else {
+                columnID = columnIDs.min { lhs, rhs in
+                    let lhsRect = dataCellRect(columnID: lhs, rowRect: rowRect) ?? .zero
+                    let rhsRect = dataCellRect(columnID: rhs, rowRect: rowRect) ?? .zero
+                    return squaredDistance(from: point, to: lhsRect) <
+                        squaredDistance(from: point, to: rhsRect)
+                }
+            }
+            guard let columnID else {
                 return nil
             }
             return textPosition(
@@ -4754,6 +5331,61 @@ struct SubtitleTableView: NSViewRepresentable {
                 point: point,
                 requiresTextHit: requiresTextHit
             )
+        }
+
+        private func textPosition(
+            atWindowPoint windowPoint: CGPoint,
+            requiresTextHit: Bool
+        ) -> SubtitleTableTextPosition? {
+            if let headerView {
+                let headerWindowRect = headerView.convert(headerView.bounds, to: nil)
+                let projectsToHeader = headerWindowRect.contains(windowPoint) ||
+                    (!requiresTextHit && windowPointProjectsToHeader(
+                        windowPoint,
+                        headerWindowRect: headerWindowRect
+                    ))
+                if projectsToHeader {
+                    var point = headerView.convert(windowPoint, from: nil)
+                    if !requiresTextHit {
+                        point.x = min(max(headerView.bounds.minX, point.x), headerView.bounds.maxX)
+                        point.y = min(max(headerView.bounds.minY, point.y), headerView.bounds.maxY)
+                    }
+                    return headerTextPosition(at: point, requiresTextHit: requiresTextHit)
+                }
+            }
+
+            guard let documentView else { return nil }
+            var point = documentView.convert(windowPoint, from: nil)
+            if !requiresTextHit {
+                let visibleRect = documentView.visibleRect
+                guard !visibleRect.isEmpty else { return nil }
+                point.x = min(max(visibleRect.minX, point.x), visibleRect.maxX.nextDown)
+                point.y = min(max(visibleRect.minY, point.y), visibleRect.maxY.nextDown)
+            }
+            return textPosition(
+                atDocumentPoint: point,
+                requiresTextHit: requiresTextHit
+            )
+        }
+
+        private func windowPointProjectsToHeader(
+            _ windowPoint: CGPoint,
+            headerWindowRect: CGRect
+        ) -> Bool {
+            if windowPoint.y >= headerWindowRect.minY,
+               windowPoint.y <= headerWindowRect.maxY {
+                return true
+            }
+
+            guard let scrollView else { return false }
+            let bodyWindowRect = scrollView.convert(scrollView.bounds, to: nil)
+            if bodyWindowRect.midY < headerWindowRect.midY {
+                return windowPoint.y > headerWindowRect.maxY
+            }
+            if bodyWindowRect.midY > headerWindowRect.midY {
+                return windowPoint.y < headerWindowRect.minY
+            }
+            return false
         }
 
         private func textBounds(for fragment: SubtitleTableTextFragmentLayout) -> CGRect {
@@ -4898,7 +5530,8 @@ struct SubtitleTableView: NSViewRepresentable {
             pendingTextInteraction = PendingTextInteraction(
                 startPoint: windowPoint,
                 anchor: anchor,
-                directAction: directAction
+                directAction: directAction,
+                latestWindowPoint: windowPoint
             )
             if let anchor {
                 let previousSelection = textSelection
@@ -4908,12 +5541,46 @@ struct SubtitleTableView: NSViewRepresentable {
             return true
         }
 
-        func handleMouseDragged(windowPoint: CGPoint) -> Bool {
-            guard var interaction = pendingTextInteraction,
-                  let documentView
+        func handleHeaderMouseDown(windowPoint: CGPoint) -> Bool {
+            guard isRedesign,
+                  isEnabled,
+                  !isMenuOpen,
+                  !isExternalPopupLayerOpen,
+                  let headerView
             else {
                 return false
             }
+            let point = headerView.convert(windowPoint, from: nil)
+            guard headerView.bounds.contains(point),
+                  let anchor = headerTextPosition(at: point, requiresTextHit: true),
+                  let headerFragment = headerTextFragments().first(where: {
+                      $0.columnIndex == anchor.columnIndex
+                  })
+            else {
+                return false
+            }
+
+            clearFocusedCheckbox()
+            pendingTextInteraction = PendingTextInteraction(
+                startPoint: windowPoint,
+                anchor: anchor,
+                directAction: .headerMenu(
+                    columnID: headerFragment.columnID,
+                    triggerFrame: headerFragment.cellRect
+                ),
+                latestWindowPoint: windowPoint
+            )
+            let previousSelection = textSelection
+            textSelection.begin(at: anchor)
+            invalidateTextSelectionChange(from: previousSelection)
+            return true
+        }
+
+        func handleMouseDragged(windowPoint: CGPoint) -> Bool {
+            guard var interaction = pendingTextInteraction else {
+                return false
+            }
+            interaction.latestWindowPoint = windowPoint
             let distance = hypot(
                 windowPoint.x - interaction.startPoint.x,
                 windowPoint.y - interaction.startPoint.y
@@ -4921,26 +5588,19 @@ struct SubtitleTableView: NSViewRepresentable {
             if distance >= Self.textDragThreshold {
                 interaction.didDrag = true
             }
-            if interaction.didDrag,
-               interaction.anchor != nil,
-               let focus = textPosition(
-                   atDocumentPoint: documentView.convert(windowPoint, from: nil),
-                   requiresTextHit: false
-               ) {
-                let previousSelection = textSelection
-                textSelection.updateFocus(to: focus)
-                invalidateTextSelectionChange(from: previousSelection)
-            }
             pendingTextInteraction = interaction
+            if interaction.didDrag, interaction.anchor != nil {
+                updateTextSelectionFocus(atWindowPoint: windowPoint)
+                updateTextDragAutoScrollState(for: interaction)
+            }
             return true
         }
 
         func handleMouseUp(windowPoint: CGPoint) -> Bool {
-            guard var interaction = pendingTextInteraction,
-                  let documentView
-            else {
+            guard var interaction = pendingTextInteraction else {
                 return false
             }
+            stopTextDragAutoScroll()
             pendingTextInteraction = nil
             if hypot(
                 windowPoint.x - interaction.startPoint.x,
@@ -4949,14 +5609,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 interaction.didDrag = true
             }
             if interaction.didDrag,
-               interaction.anchor != nil,
-               let focus = textPosition(
-                   atDocumentPoint: documentView.convert(windowPoint, from: nil),
-                   requiresTextHit: false
-               ) {
-                let previousSelection = textSelection
-                textSelection.updateFocus(to: focus)
-                invalidateTextSelectionChange(from: previousSelection)
+               interaction.anchor != nil
+            {
+                updateTextSelectionFocus(atWindowPoint: windowPoint)
             }
             guard !interaction.didDrag else { return true }
 
@@ -4967,6 +5622,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 playRow(row)
             case .tags(let row, let documentPoint):
                 _ = showTagsPopover(row: row, documentPoint: documentPoint)
+            case .headerMenu(let columnID, let triggerFrame):
+                showHeaderMenu(for: columnID, triggerFrame: triggerFrame)
             }
             return true
         }
@@ -5412,7 +6069,7 @@ struct SubtitleTableView: NSViewRepresentable {
             buttonFrame: CGRect,
             clickPointInContainer: CGPoint? = nil
         ) {
-            pendingTextInteraction = nil
+            cancelPendingTextInteraction()
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
@@ -5548,7 +6205,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func showHeaderMenu(for columnID: String, triggerFrame: CGRect) {
-            pendingTextInteraction = nil
+            cancelPendingTextInteraction()
             isMenuOpen = true
             activeRowMenuRow = nil
             activeRowMenuColumnID = nil

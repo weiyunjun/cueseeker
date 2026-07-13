@@ -9,7 +9,8 @@
 Implement the accepted table update in independently verified Git steps. This
 record currently covers the `Time Range` label and the shared vertical row
 geometry, row interaction, clipboard foundations, and body text-selection
-interaction used by Search, Shiori, and Context.
+interaction used by Search, Shiori, and Context. It also covers the complete
+shared table-text interaction through Step 7.
 
 ## Step 1 Changes
 
@@ -150,11 +151,43 @@ interaction used by Search, Shiori, and Context.
 - `git diff --check`
   - Passed.
 
+## Step 7 Changes
+
+- Added a fixed Header text-selection overlay that shares the Body selection
+  model while preserving existing Header controls, hover behavior, and menu
+  click semantics below the permanent 3-point drag threshold.
+- Added standard AppKit responder actions for `Cmd+A` and `Cmd+C`; table select
+  all covers every visible Header and Body text cell without changing Checkbox
+  selection, while active text inputs keep their normal first-responder scope.
+- Added selection-aware structured copying that preserves every visible column,
+  leaves unselected cells empty, emits tab-separated rows for spreadsheet
+  alignment, and keeps displayed Cue Groups inside one multiline cell.
+- Added an optional exact-range async row loader for full-result copying, with
+  512-row batches, exact-count validation, task cancellation, and pasteboard
+  change-count protection against overwriting newer user content.
+- Added horizontal and vertical drag-edge auto-scroll with fixed-Header/Body
+  focus projection, viewport clamping, dynamic-row reflow, and lightweight
+  Header frame synchronization during horizontal scrolling.
+
+## Step 7 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleTableClipboard|subtitleTableView|subtitleTableTextSelection|subtitleTextLayout'`
+  - Passed all 89 selected Swift Testing tests.
+- Added regression coverage for Header dragging and menu arbitration,
+  Header/Body crossing, Header side/top overflow, responder select-all,
+  structured partial and all-result copying, exact loader batches, pasteboard
+  races, and drag-edge auto-scroll geometry and viewport movement.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 6 match their accepted intermediate outcomes. The table paths
+Steps 1 through 7 match their accepted intermediate outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
-viewport-independent logical state and body drag interaction, while structured
-copying preserves table and multiline-cell boundaries for spreadsheet paste
-targets.
+viewport-independent logical state across the fixed Header and Body, standard
+select-all/copy commands, and edge auto-scroll. Structured copying preserves
+visible table columns and multiline-cell boundaries for spreadsheet paste
+targets without coupling text selection to Checkbox state.

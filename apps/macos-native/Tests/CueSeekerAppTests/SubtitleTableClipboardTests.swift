@@ -243,3 +243,115 @@ func subtitleTableClipboardWritesOnePasteboardItemWithAllRepresentations() throw
     #expect(item.string(forType: .tabularText) == representations.tabularText)
     #expect(item.string(forType: .string) == representations.plainText)
 }
+
+@Test
+func subtitleTableTextCopyPreservesAbsoluteColumnsForPartialCrossRowSelection() {
+    let columns = [
+        SubtitleTableTextCopyColumn(id: "display", title: "Display Title"),
+        SubtitleTableTextCopyColumn(id: "cues", title: "Cues"),
+        SubtitleTableTextCopyColumn(id: "time", title: "Time Range"),
+    ]
+    let rows = [
+        SubtitleTableRow(
+            id: 1,
+            displayTitle: "Episode 01",
+            startTime: "00:01",
+            endTime: "00:02",
+            cues: "first cue"
+        ),
+        SubtitleTableRow(
+            id: 2,
+            displayTitle: "Episode 02",
+            startTime: "00:03",
+            endTime: "00:04",
+            cues: "second cue"
+        ),
+    ]
+    var selection = SubtitleTableTextSelectionState()
+    selection.begin(at: SubtitleTableTextPosition(
+        row: .body(0),
+        columnIndex: 1,
+        utf16Offset: 3
+    ))
+    selection.updateFocus(to: SubtitleTableTextPosition(
+        row: .body(1),
+        columnIndex: 0,
+        utf16Offset: 7
+    ))
+    let request = SubtitleTableTextCopyRequest(
+        selection: selection,
+        columns: columns,
+        rowCount: rows.count,
+        showsCueGroup: false
+    )
+    var builder = SubtitleTableTextCopyBuilder(request: request)
+    builder.append(rows: rows, startingAt: 0)
+
+    #expect(
+        builder.representations.tabularText
+            == "\tst cue\t00:01 - 00:02\nEpisode\t\t"
+    )
+}
+
+@Test
+func subtitleTableTextCopySelectAllIncludesHeaderAndDisplayedCueGroup() {
+    let columns = [
+        SubtitleTableTextCopyColumn(id: "display", title: "Display Title"),
+        SubtitleTableTextCopyColumn(id: "cues", title: "Cues"),
+    ]
+    let primary = "primary\nline"
+    let row = SubtitleTableRow(
+        id: 1,
+        displayTitle: "Episode",
+        primaryCueText: primary,
+        cueGroupTexts: ["extra", primary],
+        primaryGroupIndex: 1
+    )
+    var selection = SubtitleTableTextSelectionState()
+    selection.selectAll()
+    let request = SubtitleTableTextCopyRequest(
+        selection: selection,
+        columns: columns,
+        rowCount: 1,
+        showsCueGroup: true
+    )
+    var builder = SubtitleTableTextCopyBuilder(request: request)
+    builder.append(rows: [row], startingAt: 0)
+
+    #expect(
+        builder.representations.tabularText
+            == "Display Title\tCues\nEpisode\t\"extra\nprimary\nline\""
+    )
+}
+
+@Test
+func subtitleTableTextCopyHeaderRangeAndEmojiStayStructurallySafe() {
+    let columns = [
+        SubtitleTableTextCopyColumn(id: "display", title: "Display Title"),
+        SubtitleTableTextCopyColumn(id: "cues", title: "Cues"),
+    ]
+    var selection = SubtitleTableTextSelectionState()
+    selection.begin(at: SubtitleTableTextPosition(
+        row: .header,
+        columnIndex: 0,
+        utf16Offset: 8
+    ))
+    selection.updateFocus(to: SubtitleTableTextPosition(
+        row: .body(0),
+        columnIndex: 0,
+        utf16Offset: 2
+    ))
+    let request = SubtitleTableTextCopyRequest(
+        selection: selection,
+        columns: columns,
+        rowCount: 1,
+        showsCueGroup: false
+    )
+    let row = SubtitleTableRow(id: 1, displayTitle: "😀A", cues: "cue")
+    var builder = SubtitleTableTextCopyBuilder(request: request)
+    builder.append(rows: [row], startingAt: 0)
+
+    #expect(builder.representations.tabularText == "Title\tCues\n😀\t")
+    #expect(builder.representations.html.contains("<th"))
+    #expect(builder.representations.html.contains("<td"))
+}
