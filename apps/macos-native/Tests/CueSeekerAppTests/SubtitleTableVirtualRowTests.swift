@@ -865,6 +865,95 @@ func subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow() {
 
 @MainActor
 @Test
+func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() throws {
+    let original = SubtitleTableRow(
+        id: 11,
+        primaryCueID: 101,
+        subtitlePath: "/tmp/CueSeeker/Original.srt",
+        displayTitle: "Original",
+        startTime: "00:11",
+        endTime: "00:12",
+        timeRange: "00:11 - 00:12",
+        primaryCueText: "original cue",
+        cueGroupTexts: ["original extra", "original cue"],
+        primaryGroupIndex: 1
+    )
+    let replacement = SubtitleTableRow(
+        id: 22,
+        primaryCueID: 202,
+        subtitlePath: "/tmp/CueSeeker/Replacement.srt",
+        displayTitle: "Replacement",
+        startTime: "00:21",
+        endTime: "00:22",
+        timeRange: "00:21 - 00:22",
+        primaryCueText: "replacement cue",
+        cueGroupTexts: ["replacement extra", "replacement cue"],
+        primaryGroupIndex: 1
+    )
+    var currentRow = original
+    var playedRowIDs: [Int] = []
+    var contextRowIDs: [Int] = []
+    var openedPaths: [String] = []
+    var removedRowIDs: [Int] = []
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: 1,
+        rowProvider: { _ in currentRow },
+        showsCueGroup: true,
+        rowActionMenuStyle: .shiori,
+        onPlay: { playedRowIDs.append($0.id) },
+        onShowContext: { contextRowIDs.append($0.id) },
+        onOpenSubtitleFile: { openedPaths.append($0) },
+        onRemoveShiori: { removedRowIDs.append($0.id) }
+    )
+    let anchorFrame = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
+    )
+    let pasteboard = NSPasteboard.general
+
+    func performAfterReplacingRow(_ action: SubtitleTableRowAction) {
+        currentRow = original
+        fixture.coordinator.showMenu(
+            for: 0,
+            buttonFrame: anchorFrame
+        )
+        #expect(fixture.coordinator.activeRowMenuTargetForTesting() == original)
+        currentRow = replacement
+        fixture.coordinator.performActiveRowMenuActionForTesting(action)
+        #expect(fixture.coordinator.activeRowMenuTargetForTesting() == nil)
+    }
+
+    performAfterReplacingRow(.play)
+    #expect(playedRowIDs == [original.id])
+
+    performAfterReplacingRow(.openSubtitleFolder)
+    #expect(openedPaths == [original.subtitlePath])
+
+    performAfterReplacingRow(.context)
+    #expect(contextRowIDs == [original.id])
+
+    performAfterReplacingRow(.copyCueText)
+    #expect(pasteboard.string(forType: .string) == original.primaryCueText)
+
+    performAfterReplacingRow(.copyCueGroupText)
+    #expect(pasteboard.string(forType: .string) == original.cueGroupCopyText)
+
+    performAfterReplacingRow(.copyTimeRange)
+    #expect(pasteboard.string(forType: .string) == original.timeRange)
+
+    performAfterReplacingRow(.removeShiori)
+    #expect(removedRowIDs == [original.id])
+
+    currentRow = original
+    fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
+    #expect(fixture.coordinator.activeRowMenuTargetForTesting() == original)
+    fixture.coordinator.dismissMenu(recalculateHover: false)
+    #expect(fixture.coordinator.activeRowMenuTargetForTesting() == nil)
+    fixture.coordinator.performActiveRowMenuActionForTesting(.play)
+    #expect(playedRowIDs == [original.id])
+}
+
+@MainActor
+@Test
 func subtitleTableViewDoesNotCreateRowActionHostsDuringContainerLayout() {
     let fixture = makeAttachedVirtualTableCoordinator(width: 500)
     let initialSubviewCount = fixture.container.subviews.count

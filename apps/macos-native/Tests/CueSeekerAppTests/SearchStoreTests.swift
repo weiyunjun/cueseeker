@@ -276,6 +276,42 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     #expect(app.nextGlobalSearchCursor == nil)
 }
 
+@Test
+func workbenchSearchTextCopyBoundaryRequiresExactCountAndCompleteCueIDs() {
+    let completeCueIDs: [Int64] = [11, 12, 13]
+
+    #expect(workbenchSearchHasCompleteTextCopyBoundary(
+        countState: .exact,
+        cueIDs: completeCueIDs,
+        resultRowCount: completeCueIDs.count
+    ))
+    #expect(workbenchSearchHasCompleteTextCopyBoundary(
+        countState: .exact,
+        cueIDs: [],
+        resultRowCount: 0
+    ))
+    #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        countState: .exactProgress,
+        cueIDs: completeCueIDs,
+        resultRowCount: completeCueIDs.count
+    ))
+    #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        countState: .exact,
+        cueIDs: Array(completeCueIDs.dropLast()),
+        resultRowCount: completeCueIDs.count
+    ))
+    #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        countState: .exact,
+        cueIDs: completeCueIDs,
+        resultRowCount: completeCueIDs.count - 1
+    ))
+    #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        countState: .exact,
+        cueIDs: [],
+        resultRowCount: -1
+    ))
+}
+
 @MainActor
 @Test
 func searchResultGroupsKeepSummaryOnlyRowsUntilGroupExpansion() {

@@ -222,6 +222,61 @@ Step 8.
 - `git diff --check`
   - Passed.
 
+## Step 8 Completion Audit: Stable Row Action Targets
+
+- Froze the complete `SubtitleTableRow` when a Row Action Menu opens, so every
+  menu command continues to target the right-clicked Primary Cue even if an
+  asynchronous Context prepend or result reload replaces the row at that
+  display index before the command is chosen.
+- Routed Play, Open Subtitle Folder, Context, all row-copy commands, and Remove
+  Shiori through the frozen command target, and cleared that target whenever
+  the Row Action Menu closes or another menu type opens.
+- Added a regression that replaces the current `rowProvider` value at the same
+  index after opening the menu and verifies all seven actions still use the
+  original row; it also verifies a closed menu cannot reuse the stale target.
+
+## Step 8 Completion Audit Verification
+
+- `swift test --filter 'subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges|subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow|subtitleTable.*RowActionMenu'`
+  - Passed all 6 selected Swift Testing tests.
+- `swift test --filter 'subtitleTableView|subtitleTable.*RowActionMenu'`
+  - Passed all 74 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
+## Step 8 Completion Audit: Exact Ordinary Search Copy Boundary
+
+- Required ordinary Search to reach the `.exact` count state before it can
+  expose a complete-result text-copy source. An `.exactProgress` snapshot is
+  still renderable, but it can no longer present its currently known rows as
+  the complete Search result.
+- Required the complete ordered Cue ID snapshot cardinality to match the exact
+  result count when the source is created.
+- Revalidated the current exact state, result count, and complete ordered Cue
+  ID snapshot before and after every copy batch, so a previously captured
+  source aborts if the Search boundary changes while copying.
+- Added direct regression coverage for exact, empty-exact, exact-progress,
+  incomplete, over-complete, and invalid result boundaries.
+
+## Step 8 Exact Ordinary Search Copy Boundary Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'workbenchSearchTextCopyBoundaryRequiresExactCountAndCompleteCueIDs|tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges|subtitleTableViewTextCopyLoadsExactBatches'`
+  - Passed all 3 selected Swift Testing tests.
+- `swift test --filter 'subtitleTable|tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges|cueContext|workbenchSearchTextCopyBoundaryRequiresExactCountAndCompleteCueIDs'`
+  - Passed all 126 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
+## Step 8 Completion Audit Final Verification
+
+- `swift test`
+  - Passed all 7 XCTest cases and all 609 Swift Testing tests after both audit
+    fixes were combined.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 Steps 1 through 8 match their accepted outcomes. The table paths

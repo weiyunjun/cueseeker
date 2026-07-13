@@ -2,6 +2,16 @@ import SwiftUI
 import CueSeekerCore
 import CueSeekerPlayback
 
+func workbenchSearchHasCompleteTextCopyBoundary(
+    countState: SubtitleSearchCountState,
+    cueIDs: [Int64],
+    resultRowCount: Int
+) -> Bool {
+    countState == .exact
+        && resultRowCount >= 0
+        && cueIDs.count == resultRowCount
+}
+
 private struct WorkbenchSearchTableTextCopySource {
     enum Mode {
         case search(query: String, cueIDs: [Int64])
@@ -263,9 +273,18 @@ struct WorkbenchTestSearchView: View {
             resultRowCount = search.searchResultTotalCount
         } else {
             let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !query.isEmpty else { return nil }
-            mode = .search(query: query, cueIDs: search.searchResultCueIDs)
+            let cueIDs = search.searchResultCueIDs
             resultRowCount = search.searchResultTotalCount
+            guard !query.isEmpty,
+                  workbenchSearchHasCompleteTextCopyBoundary(
+                      countState: search.searchCountState,
+                      cueIDs: cueIDs,
+                      resultRowCount: resultRowCount
+                  )
+            else {
+                return nil
+            }
+            mode = .search(query: query, cueIDs: cueIDs)
         }
         return WorkbenchSearchTableTextCopySource(
             mode: mode,
@@ -330,8 +349,12 @@ struct WorkbenchTestSearchView: View {
                   search.activeFilterSetSignature == source.filterSignature,
                   settingsStore.primarySearchLanguage.searchLanguageFilter == source.languageFilter,
                   settingsStore.searchScope.searchWatchStateFilter == source.watchStateFilter,
+                  workbenchSearchHasCompleteTextCopyBoundary(
+                      countState: search.searchCountState,
+                      cueIDs: search.searchResultCueIDs,
+                      resultRowCount: search.searchResultTotalCount
+                  ),
                   search.searchResultTotalCount == source.resultRowCount,
-                  cueIDs.count == source.resultRowCount,
                   search.searchResultCueIDs == cueIDs
             else {
                 return false

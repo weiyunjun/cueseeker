@@ -2305,6 +2305,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var activeMenuAnchor: ActiveMenuAnchor?
         private var activeRowMenuRow: Int?
         private var activeRowMenuColumnID: String?
+        private var activeRowMenuTarget: SubtitleTableRow?
         private var pendingMenuReposition = false
         nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
@@ -3246,6 +3247,14 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func performRowActionForTesting(_ action: SubtitleTableRowAction, row: Int) {
             performRowAction(action, row: row)
+        }
+
+        func performActiveRowMenuActionForTesting(_ action: SubtitleTableRowAction) {
+            performActiveRowMenuAction(action, recalculateHover: false)
+        }
+
+        func activeRowMenuTargetForTesting() -> SubtitleTableRow? {
+            activeRowMenuTarget
         }
 
         func rowHeightForTesting(_ row: Int) -> CGFloat {
@@ -6081,10 +6090,17 @@ struct SubtitleTableView: NSViewRepresentable {
             buttonFrame: CGRect,
             clickPointInContainer: CGPoint? = nil
         ) {
+            guard row >= 0,
+                  row < rowCount,
+                  let target = rowProvider(row)
+            else {
+                return
+            }
             cancelPendingTextInteraction()
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
+            activeRowMenuTarget = target
             activeMenuAnchor = .row(
                 row: row,
                 columnID: columnID,
@@ -6098,6 +6114,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 isMenuOpen = false
                 activeRowMenuRow = nil
                 activeRowMenuColumnID = nil
+                activeRowMenuTarget = nil
                 activeMenuAnchor = nil
                 return
             }
@@ -6116,11 +6133,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let menuView = RowActionMenu(
                 style: rowActionMenuStyle,
                 showsCueGroup: showsCueGroup,
-                canOpenFolder: canOpenSubtitleFile(row: row),
+                canOpenFolder: canOpenSubtitleFile(target: target),
                 onAction: { [weak self] action in
-                    guard let self else { return }
-                    self.dismissMenu()
-                    self.performRowAction(action, row: row)
+                    self?.performActiveRowMenuAction(action)
                 }
             )
 
@@ -6174,6 +6189,7 @@ struct SubtitleTableView: NSViewRepresentable {
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = "tags"
+            activeRowMenuTarget = nil
             let clickPointInContainer = container.convert(documentPoint, from: documentView)
             activeMenuAnchor = .row(
                 row: row,
@@ -6221,6 +6237,7 @@ struct SubtitleTableView: NSViewRepresentable {
             isMenuOpen = true
             activeRowMenuRow = nil
             activeRowMenuColumnID = nil
+            activeRowMenuTarget = nil
             activeHeaderMenuColumnID = columnID
             activeMenuAnchor = .header(triggerFrame: triggerFrame)
             layoutHoverButtons()
@@ -6230,6 +6247,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 isMenuOpen = false
                 activeHeaderMenuColumnID = nil
                 activeRowMenuColumnID = nil
+                activeRowMenuTarget = nil
                 activeMenuAnchor = nil
                 return
             }
@@ -6288,6 +6306,7 @@ struct SubtitleTableView: NSViewRepresentable {
             activeHeaderMenuColumnID = nil
             activeRowMenuRow = nil
             activeRowMenuColumnID = nil
+            activeRowMenuTarget = nil
             activeMenuAnchor = nil
             updateHoveredColumnID(nil)
             updateHoveredCueTextRow(nil)
@@ -6411,56 +6430,86 @@ struct SubtitleTableView: NSViewRepresentable {
             onPlay(model)
         }
 
+        private func performActiveRowMenuAction(
+            _ action: SubtitleTableRowAction,
+            recalculateHover: Bool = true
+        ) {
+            guard let target = activeRowMenuTarget else { return }
+            dismissMenu(recalculateHover: recalculateHover)
+            performRowAction(action, target: target)
+        }
+
         private func performRowAction(_ action: SubtitleTableRowAction, row: Int) {
+            guard let target = rowProvider(row) else { return }
+            performRowAction(action, target: target)
+        }
+
+        private func performRowAction(
+            _ action: SubtitleTableRowAction,
+            target: SubtitleTableRow
+        ) {
             switch action {
             case .play:
-                playRow(row)
+                onPlay(target)
             case .openSubtitleFolder:
-                openSubtitleFile(row: row)
+                openSubtitleFile(target: target)
             case .context:
-                guard let model = rowProvider(row) else { return }
-                onShowContext(model)
+                onShowContext(target)
             case .copyCueText:
-                copyRow(row)
+                copyRow(target: target)
             case .copyCueGroupText:
-                copyCueGroup(row)
+                copyCueGroup(target: target)
             case .copyTimeRange:
-                copyCellText(row: row, columnID: "time")
+                copyCellText(target: target, columnID: "time")
             case .removeShiori:
-                guard let model = rowProvider(row) else { return }
-                onRemoveShiori(model)
+                onRemoveShiori(target)
             }
         }
 
         private func copyRow(_ row: Int) {
             guard let model = rowProvider(row) else { return }
+            copyRow(target: model)
+        }
+
+        private func copyRow(target: SubtitleTableRow) {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(model.primaryCueText, forType: .string)
+            pasteboard.setString(target.primaryCueText, forType: .string)
         }
 
         private func copyCueGroup(_ row: Int) {
             guard let model = rowProvider(row) else { return }
+            copyCueGroup(target: model)
+        }
+
+        private func copyCueGroup(target: SubtitleTableRow) {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            pasteboard.setString(model.cueGroupCopyText, forType: .string)
+            pasteboard.setString(target.cueGroupCopyText, forType: .string)
         }
 
         private func copyCellText(row: Int, columnID: String) {
             guard let model = rowProvider(row) else { return }
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(text(for: columnID, model: model), forType: .string)
+            copyCellText(target: model, columnID: columnID)
         }
 
-        private func canOpenSubtitleFile(row: Int) -> Bool {
-            guard let model = rowProvider(row) else { return false }
-            return !model.subtitlePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        private func copyCellText(target: SubtitleTableRow, columnID: String) {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text(for: columnID, model: target), forType: .string)
+        }
+
+        private func canOpenSubtitleFile(target: SubtitleTableRow) -> Bool {
+            !target.subtitlePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
         private func openSubtitleFile(row: Int) {
             guard let model = rowProvider(row) else { return }
-            let path = model.subtitlePath.trimmingCharacters(in: .whitespacesAndNewlines)
+            openSubtitleFile(target: model)
+        }
+
+        private func openSubtitleFile(target: SubtitleTableRow) {
+            let path = target.subtitlePath.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !path.isEmpty else { return }
             onOpenSubtitleFile(path)
         }
