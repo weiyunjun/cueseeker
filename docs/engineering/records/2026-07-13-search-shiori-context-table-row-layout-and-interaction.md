@@ -53,8 +53,27 @@ geometry used by Search, Shiori, and Context.
 - `git diff --check`
   - Passed.
 
+## Step 3 Changes
+
+- Added a pure unified Row Action Menu model with stable action identifiers,
+  accepted user-facing labels, symbols, ordering, and divider placement.
+- Kept Search and Context on the same action sequence and added the separated
+  `Remove Shiori` action only for Shiori.
+- Kept `Copy Cue Group Text` conditional on `Show Cue Group`.
+- Left the existing menu presentation and mouse hit regions unchanged until the
+  next integration step.
+
+## Step 3 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleTable.*RowActionMenu|subtitleTableRowActionMetadata'`
+  - Passed all 4 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 and 2 match the accepted requirement. The table paths present
-`Time Range`, preserve the internal `time` identity, and now share symmetric
-vertical row geometry without coupling other columns to the Primary Cue line.
+Steps 1 through 3 match their accepted intermediate outcomes. The table paths
+present `Time Range`, share symmetric vertical row geometry, and have one tested
+command model ready for the unified Row Action Menu integration.
