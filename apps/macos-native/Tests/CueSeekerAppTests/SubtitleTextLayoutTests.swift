@@ -40,6 +40,30 @@ func subtitleTextLayoutLeavesShortBodyTextUncapped() {
 
 @MainActor
 @Test
+func subtitleTextLayoutUsesWholeUTF16GlyphBoundariesAndOffsetsSelectionRects() throws {
+    let layout = SubtitleTextLayout()
+    layout.update(
+        attributedString: SubtitleTableText.body("A😀B", isRedesign: true),
+        width: 300
+    )
+    let origin = CGPoint(x: 17, y: 29)
+    let emojiRect = try #require(
+        layout.selectionRects(forUTF16Range: NSRange(location: 1, length: 2), at: origin).first
+    )
+    let leftPoint = CGPoint(x: emojiRect.minX + emojiRect.width * 0.25, y: emojiRect.midY)
+    let rightPoint = CGPoint(x: emojiRect.minX + emojiRect.width * 0.75, y: emojiRect.midY)
+
+    #expect(layout.utf16Length == 4)
+    #expect(layout.utf16Offset(at: leftPoint, origin: origin) == 1)
+    #expect(layout.utf16Offset(at: rightPoint, origin: origin) == 3)
+    #expect(layout.utf16Offset(at: leftPoint, origin: origin) != 2)
+    #expect(layout.utf16Offset(at: rightPoint, origin: origin) != 2)
+    #expect(emojiRect.minX >= origin.x)
+    #expect(emojiRect.minY >= origin.y)
+}
+
+@MainActor
+@Test
 func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     let primary = SubtitleTableText.body(
         "cue",

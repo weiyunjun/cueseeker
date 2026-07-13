@@ -8,8 +8,8 @@
 
 Implement the accepted table update in independently verified Git steps. This
 record currently covers the `Time Range` label and the shared vertical row
-geometry, row interaction, and text-selection/clipboard foundations used by
-Search, Shiori, and Context.
+geometry, row interaction, clipboard foundations, and body text-selection
+interaction used by Search, Shiori, and Context.
 
 ## Step 1 Changes
 
@@ -119,10 +119,42 @@ Search, Shiori, and Context.
 - `git diff --check`
   - Passed.
 
+## Step 6 Changes
+
+- Added TextKit UTF-16 hit testing and selection geometry, including composed
+  glyph boundaries for emoji and other multi-code-unit characters.
+- Mapped ordinary body text, multi-item Cue text, and Tag labels into one
+  ordered logical table-text document while preserving their visual fragments.
+- Added cross-cell and cross-row body dragging with a permanent 3-point drag
+  threshold; Cue playback and the Shiori Tags popover now wait for mouse-up and
+  are suppressed after a drag begins.
+- Kept Checkbox clicks and right-click Row Action Menus independent from the
+  table-text selection, and cancelled pending left-click actions when a menu
+  opens.
+- Added exact selectable-text I-beam regions while retaining pointing-hand
+  regions for Cue, Shiori Tags, and Checkbox interactions.
+- Limited selection redraws to visible rows whose selection projection changed,
+  kept the no-selection drawing path allocation-light, and fixed fallback Cue
+  fragment mapping so the Primary Cue is always retained.
+
+## Step 6 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleTextLayout|subtitleTableView|subtitleTableTextSelection'`
+  - Passed all 73 selected Swift Testing tests.
+- Added regression coverage for forward and reverse cross-cell dragging,
+  Checkbox and right-click selection preservation, Cue and Tag click-versus-drag
+  arbitration, clipped long-Tag focus, UTF-16 glyph boundaries, selection redraw
+  locality, and missing Cue measurement fallback.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 5 match their accepted intermediate outcomes. The table paths
+Steps 1 through 6 match their accepted intermediate outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
-viewport-independent logical state, and structured copying preserves table and
-multiline-cell boundaries for spreadsheet paste targets.
+viewport-independent logical state and body drag interaction, while structured
+copying preserves table and multiline-cell boundaries for spreadsheet paste
+targets.
