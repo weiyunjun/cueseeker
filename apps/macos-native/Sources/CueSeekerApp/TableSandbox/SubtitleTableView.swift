@@ -750,128 +750,36 @@ enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
     }
 }
 
-private enum SubtitleTableCellActionMenuKind: Equatable {
-    case cues
-    case displayTitle
-    case time
-    case dateAdded
-
-    init?(columnID: String) {
-        switch columnID {
-        case "cues":
-            self = .cues
-        case "display":
-            self = .displayTitle
-        case "time":
-            self = .time
-        case "dateAdded":
-            self = .dateAdded
-        default:
-            return nil
-        }
-    }
-}
-
 private struct RowActionMenu: View {
-    var kind: SubtitleTableCellActionMenuKind = .cues
     var style: SubtitleTableRowActionMenuStyle = .search
     var showsCueGroup = false
     var canOpenFolder = true
-    var onPlay: () -> Void
-    var onContext: () -> Void
-    var onCopyCueText: () -> Void
-    var onCopyCueGroupText: () -> Void
-    var onOpenFolder: () -> Void
-    var onCopyText: () -> Void
-    var onRemoveShiori: () -> Void
+    var onAction: (SubtitleTableRowAction) -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
-                switch kind {
-                case .cues:
-                    cuesRows
-                case .displayTitle:
-                    displayTitleRows
-                case .time, .dateAdded:
-                    copyTextRow
+                ForEach(Array(model.elements.enumerated()), id: \.offset) { _, element in
+                    switch element {
+                    case .divider:
+                        Divider()
+                    case .action(let action):
+                        WorkbenchPopoverRow(
+                            title: action.title,
+                            systemImage: action.systemImage,
+                            isRedesign: true,
+                            showsCheckmarkSlot: false,
+                            isEnabled: action != .openSubtitleFolder || canOpenFolder,
+                            action: { onAction(action) }
+                        )
+                    }
                 }
             }
         }
     }
 
-    private var cuesRows: some View {
-        Group {
-            WorkbenchPopoverRow(
-                title: "Play",
-                systemImage: "play.fill",
-                isRedesign: true,
-                showsCheckmarkSlot: false,
-                isEnabled: true,
-                action: onPlay
-            )
-            WorkbenchPopoverRow(
-                title: "Context",
-                systemImage: "doc.text",
-                isRedesign: true,
-                showsCheckmarkSlot: false,
-                isEnabled: true,
-                action: onContext
-            )
-            WorkbenchPopoverRow(
-                title: "Copy Cue Text",
-                systemImage: "doc.on.doc",
-                isRedesign: true,
-                showsCheckmarkSlot: false,
-                isEnabled: true,
-                action: onCopyCueText
-            )
-            if showsCueGroup {
-                WorkbenchPopoverRow(
-                    title: "Copy Cue Group Text",
-                    systemImage: "doc.on.doc",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: true,
-                    action: onCopyCueGroupText
-                )
-            }
-            if style == .shiori {
-                WorkbenchPopoverRow(
-                    title: "Remove Shiori",
-                    systemImage: "bookmark.slash",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: true,
-                    action: onRemoveShiori
-                )
-            }
-        }
-    }
-
-    private var displayTitleRows: some View {
-        Group {
-            WorkbenchPopoverRow(
-                title: "Open Folder",
-                systemImage: "folder",
-                isRedesign: true,
-                showsCheckmarkSlot: false,
-                isEnabled: canOpenFolder,
-                action: onOpenFolder
-            )
-            copyTextRow
-        }
-    }
-
-    private var copyTextRow: some View {
-        WorkbenchPopoverRow(
-            title: "Copy Text",
-            systemImage: "doc.on.doc",
-            isRedesign: true,
-            showsCheckmarkSlot: false,
-            isEnabled: true,
-            action: onCopyText
-        )
+    private var model: SubtitleTableRowActionMenuModel {
+        SubtitleTableRowActionMenuModel(style: style, showsCueGroup: showsCueGroup)
     }
 }
 
@@ -2700,19 +2608,22 @@ struct SubtitleTableView: NSViewRepresentable {
             copyCueGroup(row)
         }
 
-        func cuesMenuItemsForTesting() -> [(title: String, systemImage: String)] {
-            var items = [
-                ("Play", "play.fill"),
-                ("Context", "doc.text"),
-                ("Copy Cue Text", "doc.on.doc"),
-            ]
-            if showsCueGroup {
-                items.append(("Copy Cue Group Text", "doc.on.doc"))
-            }
-            if rowActionMenuStyle == .shiori {
-                items.append(("Remove Shiori", "bookmark.slash"))
-            }
-            return items
+        func rowMenuElementsForTesting() -> [SubtitleTableRowActionMenuElement] {
+            SubtitleTableRowActionMenuModel(
+                style: rowActionMenuStyle,
+                showsCueGroup: showsCueGroup
+            ).elements
+        }
+
+        func rowMenuItemsForTesting() -> [(title: String, systemImage: String)] {
+            SubtitleTableRowActionMenuModel(
+                style: rowActionMenuStyle,
+                showsCueGroup: showsCueGroup
+            ).actions.map { ($0.title, $0.systemImage) }
+        }
+
+        func performRowActionForTesting(_ action: SubtitleTableRowAction, row: Int) {
+            performRowAction(action, row: row)
         }
 
         func rowHeightForTesting(_ row: Int) -> CGFloat {
@@ -3180,38 +3091,29 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if let dateAddedRect = layout.dateAddedRect {
                 let cellRect = rowColumnRect(dateAddedRect, rowRect: rowRect)
-                let isDateAddedHovered = isCellHovered(row: row, columnID: "dateAdded")
                 drawBody(
                     model?.dateAdded ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .metadata,
-                    isHovered: isDateAddedHovered,
-                    underline: isDateAddedHovered
+                    role: .metadata
                 )
             }
             if showsDisplayTitleColumn {
                 let cellRect = rowColumnRect(layout.nameRect, rowRect: rowRect)
-                let isDisplayHovered = isCellHovered(row: row, columnID: "display")
                 drawBody(
                     model?.displayTitle ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .secondaryContext,
-                    isHovered: isDisplayHovered,
-                    underline: isDisplayHovered
+                    role: .secondaryContext
                 )
             }
             if let timeRect = layout.timeRect {
                 let cellRect = rowColumnRect(timeRect, rowRect: rowRect)
-                let isTimeHovered = isCellHovered(row: row, columnID: "time")
                 drawBody(
                     model?.timeRange ?? "",
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .metadata,
-                    isHovered: isTimeHovered,
-                    underline: isTimeHovered
+                    role: .metadata
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
@@ -3227,8 +3129,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 drawTags(
                     model?.speakerTags ?? [],
                     in: cellRect,
-                    trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "speaker")
+                    trailing: M.trailingInset
                 )
             }
             if let languageRect = layout.languageRect {
@@ -3236,8 +3137,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 drawTags(
                     model?.tags ?? [],
                     in: cellRect,
-                    trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "language")
+                    trailing: M.trailingInset
                 )
             }
             if let tagsRect = layout.tagsRect {
@@ -4026,14 +3926,14 @@ struct SubtitleTableView: NSViewRepresentable {
 
             return range.flatMap { row -> [CGRect] in
                 guard rowProvider(row) != nil else { return [] }
-                return interactiveCellColumnIDs().compactMap { columnID in
-                    let rowRect = rectForRow(row, width: documentWidth)
-                    let documentHoverRect = cellContentHoverRectInDocument(row: row, columnID: columnID)
-                        ?? (columnID == "tags" ? dataCellRect(columnID: columnID, rowRect: rowRect) : nil)
-                    guard let documentHoverRect else {
-                        return nil
-                    }
-                    let cursorRect = documentHoverRect.intersection(visibleRect)
+                let rowRect = rectForRow(row, width: documentWidth)
+                let candidateRects = [
+                    checkboxRect(forRowRect: rowRect),
+                    cellContentHoverRectInDocument(row: row, columnID: "cues"),
+                    dataCellRect(columnID: "tags", rowRect: rowRect),
+                ].compactMap { $0 }
+                return candidateRects.compactMap { candidateRect in
+                    let cursorRect = candidateRect.intersection(visibleRect)
                     guard !cursorRect.isNull, cursorRect.width > 0, cursorRect.height > 0 else {
                         return nil
                     }
@@ -4050,28 +3950,11 @@ struct SubtitleTableView: NSViewRepresentable {
             ).contains { $0.contains(point) }
         }
 
-        private func cellActionMenuColumnIDs() -> [String] {
-            visibleTextColumnOrder().filter { SubtitleTableCellActionMenuKind(columnID: $0) != nil }
-        }
-
-        private func interactiveCellColumnIDs() -> [String] {
-            visibleTextColumnOrder().filter { columnID in
-                SubtitleTableCellActionMenuKind(columnID: columnID) != nil || columnID == "tags"
-            }
-        }
-
         private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
             guard rowCount > 0 else { return nil }
             let row = rowHeightCache.rowIndex(atY: point.y)
             let rect = rectForRow(row, width: documentView?.bounds.width ?? 0)
             return rect.contains(point) ? row : nil
-        }
-
-        private func cuesCellRect(forRowRect rowRect: CGRect) -> CGRect {
-            rowColumnRect(
-                tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height).cuesRect,
-                rowRect: rowRect
-            )
         }
 
         private func rowActionButtonFrameInDocument(for row: Int) -> CGRect? {
@@ -4213,7 +4096,40 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        private func isPointInCueCell(row: Int, point: CGPoint) -> Bool {
+        private func actionMenuColumnID(row: Int, point: CGPoint) -> String? {
+            guard isRedesign,
+                  row >= 0,
+                  row < rowCount,
+                  rowProvider(row) != nil,
+                  let documentView
+            else {
+                return nil
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            return visibleTextColumnOrder().first { columnID in
+                dataCellRect(columnID: columnID, rowRect: rowRect)?.contains(point) == true
+            }
+        }
+
+        private func hoveredDataColumnID(row: Int, point: CGPoint) -> String? {
+            guard isRedesign,
+                  row >= 0,
+                  row < rowCount,
+                  rowProvider(row) != nil
+            else {
+                return nil
+            }
+            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "cues"),
+               hoverRect.contains(point) {
+                return "cues"
+            }
+            if isPointInTagsCell(row: row, point: point) {
+                return "tags"
+            }
+            return nil
+        }
+
+        private func isPointInCheckbox(row: Int, point: CGPoint) -> Bool {
             guard isRedesign,
                   isEnabled,
                   !isExternalPopupLayerOpen,
@@ -4225,54 +4141,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return false
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
-            return cuesCellRect(forRowRect: rowRect).contains(point)
-        }
-
-        private func actionMenuColumnID(row: Int, point: CGPoint) -> String? {
-            guard let columnID = hoveredDataColumnID(row: row, point: point),
-                  SubtitleTableCellActionMenuKind(columnID: columnID) != nil
-            else {
-                return nil
-            }
-            return columnID
-        }
-
-        private func hoveredDataColumnID(row: Int, point: CGPoint) -> String? {
-            guard isRedesign,
-                  row >= 0,
-                  row < rowCount,
-                  rowProvider(row) != nil
-            else {
-                return nil
-            }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "dateAdded"),
-               hoverRect.contains(point) {
-                return "dateAdded"
-            }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "display"),
-               hoverRect.contains(point) {
-                return "display"
-            }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "time"),
-               hoverRect.contains(point) {
-                return "time"
-            }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "cues"),
-               hoverRect.contains(point) {
-                return "cues"
-            }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "speaker"),
-               hoverRect.contains(point) {
-                return "speaker"
-            }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "language"),
-               hoverRect.contains(point) {
-                return "language"
-            }
-            if isPointInTagsCell(row: row, point: point) {
-                return "tags"
-            }
-            return nil
+            return checkboxRect(forRowRect: rowRect).contains(point)
         }
 
         private func isPointInTagsCell(row: Int, point: CGPoint) -> Bool {
@@ -4316,7 +4185,7 @@ struct SubtitleTableView: NSViewRepresentable {
             updateHoveredRow(row)
             let hoveredColumn = row.flatMap { hoveredDataColumnID(row: $0, point: point) }
             updateHoveredColumnID(hoveredColumn)
-            let cueTextRow = row.flatMap { hoveredColumn == "cues" && isPointInCueCell(row: $0, point: point) ? $0 : nil }
+            let cueTextRow = row.flatMap { hoveredColumn == "cues" && isPointInCueText(row: $0, point: point) ? $0 : nil }
             updateHoveredRowActionRow(nil)
             updateHoveredCueTextRow(cueTextRow)
         }
@@ -4339,11 +4208,14 @@ struct SubtitleTableView: NSViewRepresentable {
             if isPointInTagsCell(row: row, point: point) {
                 return showTagsPopover(row: row, documentPoint: point)
             }
-            if let columnID = actionMenuColumnID(row: row, point: point),
-               performDefaultCellAction(row: row, columnID: columnID) {
+            if isPointInCueText(row: row, point: point) {
+                playRow(row)
                 return true
             }
-            return toggleRowCheckboxFromMouse(row: row)
+            if isPointInCheckbox(row: row, point: point) {
+                return toggleRowCheckboxFromMouse(row: row)
+            }
+            return false
         }
 
         func handleRightMouseDown(windowPoint: CGPoint) -> Bool {
@@ -4372,23 +4244,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 clickPointInContainer: anchorPoint
             )
             return true
-        }
-
-        @discardableResult
-        private func performDefaultCellAction(row: Int, columnID: String) -> Bool {
-            switch SubtitleTableCellActionMenuKind(columnID: columnID) {
-            case .cues:
-                playRow(row)
-                return true
-            case .displayTitle:
-                openSubtitleFile(row: row)
-                return true
-            case .time, .dateAdded:
-                copyCellText(row: row, columnID: columnID)
-                return true
-            case nil:
-                return false
-            }
         }
 
         private func toggleRowCheckboxFromMouse(row: Int) -> Bool {
@@ -4828,41 +4683,14 @@ struct SubtitleTableView: NSViewRepresentable {
             menuOverlayView?.frame = container.bounds
             menuOverlayView?.isHidden = false
 
-            let menuKind = SubtitleTableCellActionMenuKind(columnID: columnID) ?? .cues
             let menuView = RowActionMenu(
-                kind: menuKind,
                 style: rowActionMenuStyle,
                 showsCueGroup: showsCueGroup,
                 canOpenFolder: canOpenSubtitleFile(row: row),
-                onPlay: { [weak self] in
-                    self?.dismissMenu()
-                    self?.playRow(row)
-                },
-                onContext: { [weak self] in
-                    guard let self, let model = self.rowProvider(row) else { return }
+                onAction: { [weak self] action in
+                    guard let self else { return }
                     self.dismissMenu()
-                    self.onShowContext(model)
-                },
-                onCopyCueText: { [weak self] in
-                    self?.copyRow(row)
-                    self?.dismissMenu()
-                },
-                onCopyCueGroupText: { [weak self] in
-                    self?.copyCueGroup(row)
-                    self?.dismissMenu()
-                },
-                onOpenFolder: { [weak self] in
-                    self?.openSubtitleFile(row: row)
-                    self?.dismissMenu()
-                },
-                onCopyText: { [weak self] in
-                    self?.copyCellText(row: row, columnID: columnID)
-                    self?.dismissMenu()
-                },
-                onRemoveShiori: { [weak self] in
-                    guard let self, let model = self.rowProvider(row) else { return }
-                    self.dismissMenu()
-                    self.onRemoveShiori(model)
+                    self.performRowAction(action, row: row)
                 }
             )
 
@@ -5150,6 +4978,27 @@ struct SubtitleTableView: NSViewRepresentable {
         private func playRow(_ row: Int) {
             guard let model = rowProvider(row) else { return }
             onPlay(model)
+        }
+
+        private func performRowAction(_ action: SubtitleTableRowAction, row: Int) {
+            switch action {
+            case .play:
+                playRow(row)
+            case .openSubtitleFolder:
+                openSubtitleFile(row: row)
+            case .context:
+                guard let model = rowProvider(row) else { return }
+                onShowContext(model)
+            case .copyCueText:
+                copyRow(row)
+            case .copyCueGroupText:
+                copyCueGroup(row)
+            case .copyTimeRange:
+                copyCellText(row: row, columnID: "time")
+            case .removeShiori:
+                guard let model = rowProvider(row) else { return }
+                onRemoveShiori(model)
+            }
         }
 
         private func copyRow(_ row: Int) {

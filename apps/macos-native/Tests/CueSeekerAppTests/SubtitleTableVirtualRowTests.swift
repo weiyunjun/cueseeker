@@ -514,7 +514,7 @@ func subtitleTableViewCueContentLeftClickPlaysInsteadOfOpeningMenu() throws {
 
 @MainActor
 @Test
-func subtitleTableViewDisplayTitleContentLeftClickOpensFolder() throws {
+func subtitleTableViewDisplayTitleContentLeftClickHasNoAction() throws {
     var openedPath: String?
     let fixture = makeAttachedVirtualTableCoordinator(onOpenSubtitleFile: { path in
         openedPath = path
@@ -523,9 +523,9 @@ func subtitleTableViewDisplayTitleContentLeftClickOpensFolder() throws {
     let displayPoint = CGPoint(x: displayRect.midX, y: displayRect.midY)
     let windowPoint = fixture.documentView.convert(displayPoint, to: nil)
 
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == false)
     #expect(fixture.coordinator.isMenuOpenForTesting() == false)
-    #expect(openedPath == "/tmp/CueSeeker/Episode 01.srt")
+    #expect(openedPath == nil)
 }
 
 @MainActor
@@ -566,35 +566,39 @@ private func expectMenuFrame(_ menuFrame: CGRect, opensBelow clickPoint: CGPoint
 
 @MainActor
 @Test
-func subtitleTableViewTimeContentLeftClickCopiesText() throws {
+func subtitleTableViewTimeContentLeftClickHasNoAction() throws {
     let fixture = makeAttachedVirtualTableCoordinator(showsTimeColumn: true)
     let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    pasteboard.setString("unchanged", forType: .string)
     let timeRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "time"))
     let timePoint = CGPoint(x: timeRect.midX, y: timeRect.midY)
     let windowPoint = fixture.documentView.convert(timePoint, to: nil)
 
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == false)
     #expect(fixture.coordinator.isMenuOpenForTesting() == false)
-    #expect(pasteboard.string(forType: .string) == "00:01 - 00:02")
+    #expect(pasteboard.string(forType: .string) == "unchanged")
 }
 
 @MainActor
 @Test
-func subtitleTableViewDateAddedContentLeftClickCopiesText() throws {
+func subtitleTableViewDateAddedContentLeftClickHasNoAction() throws {
     let fixture = makeAttachedVirtualTableCoordinator(showsDateAddedColumn: true)
     let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    pasteboard.setString("unchanged", forType: .string)
     let dateAddedRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "dateAdded"))
     let dateAddedPoint = CGPoint(x: dateAddedRect.midX, y: dateAddedRect.midY)
     let windowPoint = fixture.documentView.convert(dateAddedPoint, to: nil)
 
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == false)
     #expect(fixture.coordinator.isMenuOpenForTesting() == false)
-    #expect(pasteboard.string(forType: .string) == "26-07-04 19:00")
+    #expect(pasteboard.string(forType: .string) == "unchanged")
 }
 
 @MainActor
 @Test
-func subtitleTableViewRightClickOutsideContentHoverRegionDoesNotOpenMenu() throws {
+func subtitleTableViewRightClickOutsideContentHoverRegionOpensRowMenu() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let outsideContentPoint = CGPoint(
@@ -603,13 +607,13 @@ func subtitleTableViewRightClickOutsideContentHoverRegionDoesNotOpenMenu() throw
     )
     let windowPoint = fixture.documentView.convert(outsideContentPoint, to: nil)
 
-    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == false)
-    #expect(fixture.coordinator.isMenuOpenForTesting() == false)
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
 }
 
 @MainActor
 @Test
-func subtitleTableViewTagsContentRightClickDoesNotOpenMenu() throws {
+func subtitleTableViewTagsContentRightClickOpensRowMenu() throws {
     let fixture = makeAttachedVirtualTableCoordinator(width: 1_400, showsTagsColumn: true)
     let tagsRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "tags"))
     let tagsPoint = CGPoint(x: tagsRect.midX, y: tagsRect.midY)
@@ -617,8 +621,8 @@ func subtitleTableViewTagsContentRightClickDoesNotOpenMenu() throws {
 
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(tagsPoint) })
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: tagsPoint) == true)
-    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == false)
-    #expect(fixture.coordinator.isMenuOpenForTesting() == false)
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
 }
 
 @MainActor
@@ -721,7 +725,7 @@ func subtitleTableViewCanSuspendMenuOutsideClickDismissForExternalDialog() throw
 
 @MainActor
 @Test
-func subtitleTableViewLeftClickOutsideContentHoverRegionTogglesSelection() throws {
+func subtitleTableViewLeftClickOutsideInteractiveRegionsHasNoAction() throws {
     var toggledRows: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in
         toggledRows.append(row)
@@ -733,8 +737,52 @@ func subtitleTableViewLeftClickOutsideContentHoverRegionTogglesSelection() throw
     )
     let windowPoint = fixture.documentView.convert(outsideContentPoint, to: nil)
 
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == false)
+    #expect(toggledRows.isEmpty)
+}
+
+@MainActor
+@Test
+func subtitleTableViewCheckboxBodyIsTheOnlySelectionColumnClickTarget() throws {
+    var toggledRows: [Int] = []
+    let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in
+        toggledRows.append(row)
+    })
+    let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
+    let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
+    let checkboxWindowPoint = fixture.documentView.convert(checkboxPoint, to: nil)
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint) == true)
     #expect(toggledRows == [0])
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: checkboxWindowPoint) == false)
+
+    let selectionColumnBlankPoint = CGPoint(x: 4, y: checkboxRect.midY)
+    let blankWindowPoint = fixture.documentView.convert(selectionColumnBlankPoint, to: nil)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint) == false)
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: blankWindowPoint) == false)
+    #expect(toggledRows == [0])
+    #expect(fixture.coordinator.isMenuOpenForTesting() == false)
+}
+
+@MainActor
+@Test
+func subtitleTableViewRightClickUsesEveryNonSelectionCellFullArea() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_800,
+        showsDateAddedColumn: true,
+        showsTimeColumn: true,
+        showsTagsColumn: true
+    )
+
+    for columnID in ["display", "cues", "speaker", "language", "tags", "time", "dateAdded"] {
+        let cellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: columnID))
+        let blankSidePoint = CGPoint(x: cellRect.maxX - 4, y: cellRect.midY)
+        let windowPoint = fixture.documentView.convert(blankSidePoint, to: nil)
+
+        #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == true)
+        #expect(fixture.coordinator.isMenuOpenForTesting())
+        fixture.coordinator.dismissMenu(recalculateHover: false)
+    }
 }
 
 @MainActor
@@ -764,6 +812,44 @@ func subtitleTableViewOpenFolderActionUsesSubtitlePath() {
     fixture.coordinator.openSubtitleFileForTesting(row: 0)
 
     #expect(openedPath == "/tmp/CueSeeker/Episode 01.srt")
+}
+
+@MainActor
+@Test
+func subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow() {
+    var playedRowID: Int?
+    var contextRowID: Int?
+    var openedPath: String?
+    var removedRowID: Int?
+    let fixture = makeAttachedVirtualTableCoordinator(
+        showsTimeColumn: true,
+        showsCueGroup: true,
+        rowActionMenuStyle: .shiori,
+        onPlay: { playedRowID = $0.id },
+        onShowContext: { contextRowID = $0.id },
+        onOpenSubtitleFile: { openedPath = $0 },
+        onRemoveShiori: { removedRowID = $0.id }
+    )
+    let pasteboard = NSPasteboard.general
+
+    fixture.coordinator.performRowActionForTesting(.play, row: 0)
+    fixture.coordinator.performRowActionForTesting(.openSubtitleFolder, row: 0)
+    fixture.coordinator.performRowActionForTesting(.context, row: 0)
+    fixture.coordinator.performRowActionForTesting(.removeShiori, row: 0)
+
+    #expect(playedRowID == 1)
+    #expect(openedPath == "/tmp/CueSeeker/Episode 01.srt")
+    #expect(contextRowID == 1)
+    #expect(removedRowID == 1)
+
+    fixture.coordinator.performRowActionForTesting(.copyCueText, row: 0)
+    #expect(pasteboard.string(forType: .string) == "cue text")
+
+    fixture.coordinator.performRowActionForTesting(.copyCueGroupText, row: 0)
+    #expect(pasteboard.string(forType: .string) == "cue text")
+
+    fixture.coordinator.performRowActionForTesting(.copyTimeRange, row: 0)
+    #expect(pasteboard.string(forType: .string) == "00:01 - 00:02")
 }
 
 @MainActor
@@ -914,15 +1000,22 @@ func subtitleTableViewSuppressesVisibleRowNotificationsWhenExternalLayerIsOpen()
 @Test
 func subtitleTableViewProvidesInteractiveCellCursorRectsForContentHoverRegions() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
+    let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
+    let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
+    let displayRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "display"))
+    let displayPoint = CGPoint(x: displayRect.midX, y: displayRect.midY)
     let outsideContentPoint = CGPoint(
         x: cuesRect.maxX + SubtitleTableMetrics.tableCellHoverPaddingX + 12,
         y: cuesRect.midY
     )
 
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) })
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: checkboxPoint) == true)
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: displayPoint) == false)
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(outsideContentPoint) } == false)
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: outsideContentPoint) == false)
 }
@@ -1016,7 +1109,7 @@ func subtitleTableViewUsesTallestVisibleColumnAndCentersCheckbox() throws {
 
 @MainActor
 @Test
-func subtitleTableViewShowCueGroupMenuAndClipboardKeepPrimaryAndGroupSemantics() {
+func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
     let row = dynamicTableRow(
         id: 77,
         primary: "main\nline",
@@ -1031,14 +1124,15 @@ func subtitleTableViewShowCueGroupMenuAndClipboardKeepPrimaryAndGroupSemantics()
         rowActionMenuStyle: .shiori
     )
 
-    #expect(offFixture.coordinator.cuesMenuItemsForTesting().map(\.title) == [
-        "Play", "Context", "Copy Cue Text",
+    #expect(offFixture.coordinator.rowMenuItemsForTesting().map(\.title) == [
+        "Play", "Open Subtitle Folder", "Context", "Copy Cue Text", "Copy Time Range",
     ])
-    let onItems = onFixture.coordinator.cuesMenuItemsForTesting()
+    let onItems = onFixture.coordinator.rowMenuItemsForTesting()
     #expect(onItems.map(\.title) == [
-        "Play", "Context", "Copy Cue Text", "Copy Cue Group Text", "Remove Shiori",
+        "Play", "Open Subtitle Folder", "Context", "Copy Cue Text",
+        "Copy Cue Group Text", "Copy Time Range", "Remove Shiori",
     ])
-    #expect(onItems[2].systemImage == onItems[3].systemImage)
+    #expect(onItems[3].systemImage == onItems[4].systemImage)
 
     offFixture.coordinator.copyCueTextForTesting(row: 0)
     #expect(NSPasteboard.general.string(forType: .string) == "main\nline")

@@ -8,7 +8,7 @@
 
 Implement the accepted table update in independently verified Git steps. This
 record currently covers the `Time Range` label and the shared vertical row
-geometry used by Search, Shiori, and Context.
+geometry and row interaction used by Search, Shiori, and Context.
 
 ## Step 1 Changes
 
@@ -72,8 +72,31 @@ geometry used by Search, Shiori, and Context.
 - `git diff --check`
   - Passed.
 
+## Step 4 Changes
+
+- Integrated the unified Row Action Menu model into the table presentation so
+  every non-Selection data cell opens the same row menu over its full cell area.
+- Replaced column-specific left-click actions with the accepted direct actions:
+  Cue text plays, the complete Shiori Tags cell opens its popover, and only the
+  visible Checkbox body changes row selection.
+- Removed hover emphasis and pointing-hand cursor regions from plain Display,
+  metadata, Speaker, and Language text while retaining exact interactive
+  regions for the Checkbox, Cue text, and Shiori Tags cell.
+- Routed all unified menu actions to the existing play, folder, Context, copy,
+  and Shiori-removal callbacks, including `Open Subtitle Folder` and `Copy Time
+  Range`.
+
+## Step 4 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleTableView|subtitleTable.*RowActionMenu|subtitleTableRowActionMetadata'`
+  - Passed all 58 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 3 match their accepted intermediate outcomes. The table paths
-present `Time Range`, share symmetric vertical row geometry, and have one tested
-command model ready for the unified Row Action Menu integration.
+Steps 1 through 4 match their accepted intermediate outcomes. The table paths
+present `Time Range`, share symmetric vertical row geometry, and use the unified
+row action model and accepted mouse hit behavior.
