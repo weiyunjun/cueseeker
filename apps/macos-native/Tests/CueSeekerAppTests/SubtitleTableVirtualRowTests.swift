@@ -979,13 +979,39 @@ func subtitleTableViewResolvesDocumentedDynamicRowHeightsAndPrimarySlotAlignment
     #expect(fixture.coordinator.rowHeightForTesting(0) == 40)
     #expect(fixture.coordinator.rowHeightForTesting(1) == 64)
     #expect(fixture.coordinator.rowHeightForTesting(2) == 88)
-    #expect(fixture.coordinator.rowHeightForTesting(3) == 60)
-    #expect(fixture.coordinator.rowHeightForTesting(4) == 80)
-    #expect(fixture.coordinator.rowHeightForTesting(5) == 84)
+    #expect(fixture.coordinator.rowHeightForTesting(3) == 68)
+    #expect(fixture.coordinator.rowHeightForTesting(4) == 96)
+    #expect(fixture.coordinator.rowHeightForTesting(5) == 92)
 
     let checkbox = try #require(fixture.coordinator.checkboxRectForTesting(row: 3))
-    let expectedPrimaryCenterY = fixture.coordinator.rowYOffsetForTesting(3) + 8 + 20 + 12
-    #expect(abs(checkbox.midY - expectedPrimaryCenterY) < 0.5)
+    let expectedRowCenterY = fixture.coordinator.rowYOffsetForTesting(3)
+        + fixture.coordinator.rowHeightForTesting(3) / 2
+    #expect(abs(checkbox.midY - expectedRowCenterY) < 0.5)
+}
+
+@MainActor
+@Test
+func subtitleTableViewUsesTallestVisibleColumnAndCentersCheckbox() throws {
+    let rows = [
+        SubtitleTableRow(id: 1, displayTitle: "Short", cues: "cue"),
+        SubtitleTableRow(
+            id: 2,
+            displayTitle: "Line one\nLine two\nLine three\nLine four",
+            cues: "cue"
+        ),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+
+    #expect(fixture.coordinator.rowHeightForTesting(0) == 40)
+    #expect(fixture.coordinator.rowHeightForTesting(1) > 40)
+
+    let checkbox = try #require(fixture.coordinator.checkboxRectForTesting(row: 1))
+    let expectedCenter = fixture.coordinator.rowYOffsetForTesting(1)
+        + fixture.coordinator.rowHeightForTesting(1) / 2
+    #expect(abs(checkbox.midY - expectedCenter) < 0.5)
 }
 
 @MainActor

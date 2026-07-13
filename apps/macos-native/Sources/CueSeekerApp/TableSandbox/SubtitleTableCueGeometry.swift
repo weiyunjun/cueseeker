@@ -27,7 +27,7 @@ enum SubtitleTableCueStyle: Sendable {
 }
 
 enum SubtitleTableCueGeometry {
-    static let styleRevision = 1
+    static let styleRevision = 2
     static let minimumRowHeight: CGFloat = 40
     static let rowPaddingY: CGFloat = 8
     static let cellLeadingPadding: CGFloat = 12
@@ -36,28 +36,82 @@ enum SubtitleTableCueGeometry {
     static let extraLineHeight: CGFloat = 20
     static let measurementOverscan = 4
 
-    static func rowHeight(primaryLineCount: Int, extraLineCount: Int) -> CGFloat {
-        max(
+    static func cueBlockHeight(
+        primaryLineCount: Int,
+        extraCueLineCounts: [Int]
+    ) -> CGFloat {
+        let primaryHeight = CGFloat(max(1, primaryLineCount)) * primaryLineHeight
+        let extraHeight = extraCueLineCounts.reduce(CGFloat.zero) { height, lineCount in
+            height + CGFloat(max(1, lineCount)) * extraLineHeight
+        }
+        let itemSpacing = CGFloat(extraCueLineCounts.count) * rowPaddingY
+        return primaryHeight + extraHeight + itemSpacing
+    }
+
+    static func rowHeight(
+        primaryLineCount: Int,
+        extraCueLineCounts: [Int],
+        otherContentHeights: [CGFloat] = []
+    ) -> CGFloat {
+        let tallestContent = otherContentHeights.reduce(
+            cueBlockHeight(
+                primaryLineCount: primaryLineCount,
+                extraCueLineCounts: extraCueLineCounts
+            ),
+            max
+        )
+        return max(
             minimumRowHeight,
-            2 * rowPaddingY
-                + CGFloat(max(1, primaryLineCount)) * primaryLineHeight
-                + CGFloat(max(0, extraLineCount)) * extraLineHeight
+            tallestContent + 2 * rowPaddingY
         )
     }
 
-    static func primaryCueTop(rowMinY: CGFloat, extraLineCount: Int) -> CGFloat {
-        rowMinY + rowPaddingY + CGFloat(max(0, extraLineCount)) * extraLineHeight
-    }
 }
 
 struct SubtitleTableRowMeasurement: Equatable {
     let height: CGFloat
     let primaryLineCount: Int
-    let extraLineCount: Int
+    let extraCueLineCounts: [Int]
+
+    init(height: CGFloat, primaryLineCount: Int, extraCueLineCounts: [Int]) {
+        self.height = height
+        self.primaryLineCount = max(1, primaryLineCount)
+        self.extraCueLineCounts = extraCueLineCounts.map { max(1, $0) }
+    }
+
+    var extraLineCount: Int {
+        extraCueLineCounts.reduce(0, +)
+    }
+
+    var cueBlockHeight: CGFloat {
+        SubtitleTableCueGeometry.cueBlockHeight(
+            primaryLineCount: primaryLineCount,
+            extraCueLineCounts: extraCueLineCounts
+        )
+    }
+
+    var cueBlockTopOffset: CGFloat {
+        max(0, (height - cueBlockHeight) / 2)
+    }
+
+    var extraCueOffsets: [CGFloat] {
+        var nextOffset = cueBlockTopOffset
+        return extraCueLineCounts.map { lineCount in
+            defer {
+                nextOffset += CGFloat(lineCount) * SubtitleTableCueGeometry.extraLineHeight
+                    + SubtitleTableCueGeometry.rowPaddingY
+            }
+            return nextOffset
+        }
+    }
 
     var primaryFirstLineOffset: CGFloat {
-        SubtitleTableCueGeometry.rowPaddingY
-            + CGFloat(extraLineCount) * SubtitleTableCueGeometry.extraLineHeight
+        cueBlockTopOffset
+            + extraCueLineCounts.reduce(CGFloat.zero) { offset, lineCount in
+                offset
+                    + CGFloat(lineCount) * SubtitleTableCueGeometry.extraLineHeight
+                    + SubtitleTableCueGeometry.rowPaddingY
+            }
     }
 }
 
@@ -85,25 +139,27 @@ final class SubtitleTableCueTextMeasurer {
     func rowMeasurement(
         row: SubtitleTableRow,
         effectiveCuesWidth: CGFloat,
-        showsCueGroup: Bool
+        showsCueGroup: Bool,
+        otherContentHeights: [CGFloat] = []
     ) -> SubtitleTableRowMeasurement {
         let primaryLineCount = visualLineCount(
             text: row.primaryCueText,
             width: effectiveCuesWidth,
             style: .primary
         )
-        let extraLineCount = showsCueGroup
-            ? row.additionalCueTexts.reduce(into: 0) { count, text in
-                count += visualLineCount(text: text, width: effectiveCuesWidth, style: .extra)
+        let extraCueLineCounts = showsCueGroup
+            ? row.additionalCueTexts.map { text in
+                visualLineCount(text: text, width: effectiveCuesWidth, style: .extra)
             }
-            : 0
+            : []
         return SubtitleTableRowMeasurement(
             height: SubtitleTableCueGeometry.rowHeight(
                 primaryLineCount: primaryLineCount,
-                extraLineCount: extraLineCount
+                extraCueLineCounts: extraCueLineCounts,
+                otherContentHeights: otherContentHeights
             ),
             primaryLineCount: primaryLineCount,
-            extraLineCount: extraLineCount
+            extraCueLineCounts: extraCueLineCounts
         )
     }
 

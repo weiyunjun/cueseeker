@@ -42,11 +42,7 @@ struct SubtitleTableRowHeightCache {
 
         let measurement = compute()
         entries[rowIndex] = CacheEntry(
-            rowID: row.id,
-            primaryCueID: row.primaryCueID,
-            primaryCueText: row.primaryCueText,
-            cueGroupTexts: row.cueGroupTexts,
-            primaryGroupIndex: row.primaryGroupIndex,
+            row: row,
             cuesWidth: cuesWidthKey,
             showsCueGroup: showsCueGroup,
             styleRevision: styleRevision,
@@ -83,9 +79,9 @@ struct SubtitleTableRowHeightCache {
         guard let entry = entries[rowIndex] else { return nil }
         switch primaryCueIdentity {
         case .cue(let cueID):
-            guard entry.primaryCueID == cueID else { return nil }
+            guard entry.row.primaryCueID == cueID else { return nil }
         case .rowFallback(let rowID):
-            guard entry.rowID == rowID, entry.primaryCueID == nil else { return nil }
+            guard entry.row.id == rowID, entry.row.primaryCueID == nil else { return nil }
         }
         return entry.measurement
     }
@@ -120,11 +116,7 @@ struct SubtitleTableRowHeightCache {
 }
 
 private struct CacheEntry {
-    let rowID: Int
-    let primaryCueID: Int64?
-    let primaryCueText: String
-    let cueGroupTexts: [String]
-    let primaryGroupIndex: Int?
+    let row: SubtitleTableRow
     let cuesWidth: Int
     let showsCueGroup: Bool
     let styleRevision: Int
@@ -143,10 +135,6 @@ private struct CacheEntry {
     }
 
     func matches(row: SubtitleTableRow) -> Bool {
-        rowID == row.id
-            && primaryCueID == row.primaryCueID
-            && primaryCueText == row.primaryCueText
-            && cueGroupTexts == row.cueGroupTexts
-            && primaryGroupIndex == row.primaryGroupIndex
+        self.row == row
     }
 }

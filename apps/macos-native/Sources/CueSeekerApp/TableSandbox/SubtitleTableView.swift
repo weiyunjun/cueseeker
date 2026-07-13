@@ -386,6 +386,18 @@ struct SubtitleTableTagStyle {
     }
 }
 
+private struct SubtitleTableLaidOutTag {
+    let tag: WorkbenchTag
+    let attributed: NSAttributedString
+    let textSize: CGSize
+    let tagRect: CGRect
+}
+
+private struct SubtitleTableTagLayoutResult {
+    let items: [SubtitleTableLaidOutTag]
+    let blockHeight: CGFloat
+}
+
 // MARK: - Typography
 
 enum SubtitleTableTextRole {
@@ -2357,15 +2369,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsLanguageColumn != self.showsLanguageColumn ||
                 showsSpeakerColumn != self.showsSpeakerColumn ||
                 showsTagsColumn != self.showsTagsColumn
-            let cuesCellsWillChange: Bool
+            let heightAffectingCellsWillChange: Bool
             if case .cells(let cells) = rowsUpdate {
-                cuesCellsWillChange = cells.contains { $0.columnID == "cues" }
+                let heightAffectingColumnIDs: Set<String> = [
+                    "dateAdded", "display", "time", "cues", "speaker", "language", "tags",
+                ]
+                heightAffectingCellsWillChange = cells.contains {
+                    heightAffectingColumnIDs.contains($0.columnID)
+                }
             } else {
-                cuesCellsWillChange = false
+                heightAffectingCellsWillChange = false
             }
             let preservesReloadAnchor = !tableChanged && rowsUpdate == .reload
             let presentationAnchor = (
-                cuePresentationInputChanged || preservesReloadAnchor || cuesCellsWillChange
+                cuePresentationInputChanged || preservesReloadAnchor || heightAffectingCellsWillChange
             )
                 ? captureDynamicScrollAnchor()
                 : nil
@@ -2439,11 +2456,14 @@ struct SubtitleTableView: NSViewRepresentable {
             let resetsMeasuredGeometry = tableChanged ||
                 rowsUpdate == .reload ||
                 (rowCountChanged && !isAppendUpdate)
-            if resetsMeasuredGeometry || showCueGroupChanged {
+            if resetsMeasuredGeometry || cuePresentationInputChanged {
                 rowMeasurementCache.removeAll()
                 rowHeightCache.removeAll()
             } else if case .cells(let cells) = rowsUpdate {
-                for cell in cells where cell.columnID == "cues" {
+                let heightAffectingColumnIDs: Set<String> = [
+                    "dateAdded", "display", "time", "cues", "speaker", "language", "tags",
+                ]
+                for cell in cells where heightAffectingColumnIDs.contains(cell.columnID) {
                     rowMeasurementCache.remove(rowIndex: cell.row)
                     rowHeightCache.removeHeight(for: cell.row)
                 }
@@ -2701,15 +2721,13 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func checkboxRectForTesting(row: Int) -> CGRect? {
             guard let documentView,
-                  let measurement = cachedMeasurement(for: row, documentWidth: documentView.bounds.width)
+                  row >= 0,
+                  row < rowCount
             else {
                 return nil
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
-            return checkboxRect(
-                forRowRect: rowRect,
-                primaryFirstLineTop: rowRect.minY + measurement.primaryFirstLineOffset
-            )
+            return checkboxRect(forRowRect: rowRect)
         }
 
         func rowYOffsetForTesting(_ row: Int) -> CGFloat {
@@ -3147,15 +3165,14 @@ struct SubtitleTableView: NSViewRepresentable {
                 ?? SubtitleTableRowMeasurement(
                     height: rowRect.height,
                     primaryLineCount: 1,
-                    extraLineCount: 0
+                    extraCueLineCounts: []
                 )
-            let primaryFirstLineTop = rowRect.minY + measurement.primaryFirstLineOffset
 
             if isRedesign {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
                 WorkbenchCheckboxDrawing.draw(
                     state: checkboxState,
-                    in: checkboxRect(forRowRect: rowRect, primaryFirstLineTop: primaryFirstLineTop),
+                    in: checkboxRect(forRowRect: rowRect),
                     isFocused: isEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
                 )
             } else {
@@ -3170,8 +3187,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     trailing: M.trailingInset,
                     role: .metadata,
                     isHovered: isDateAddedHovered,
-                    underline: isDateAddedHovered,
-                    firstLineTop: primaryFirstLineTop
+                    underline: isDateAddedHovered
                 )
             }
             if showsDisplayTitleColumn {
@@ -3183,8 +3199,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     trailing: M.trailingInset,
                     role: .secondaryContext,
                     isHovered: isDisplayHovered,
-                    underline: isDisplayHovered,
-                    firstLineTop: primaryFirstLineTop
+                    underline: isDisplayHovered
                 )
             }
             if let timeRect = layout.timeRect {
@@ -3196,8 +3211,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     trailing: M.trailingInset,
                     role: .metadata,
                     isHovered: isTimeHovered,
-                    underline: isTimeHovered,
-                    firstLineTop: primaryFirstLineTop
+                    underline: isTimeHovered
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
@@ -3214,8 +3228,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     model?.speakerTags ?? [],
                     in: cellRect,
                     trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "speaker"),
-                    firstLineTop: primaryFirstLineTop
+                    isHovered: isCellHovered(row: row, columnID: "speaker")
                 )
             }
             if let languageRect = layout.languageRect {
@@ -3224,8 +3237,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     model?.tags ?? [],
                     in: cellRect,
                     trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "language"),
-                    firstLineTop: primaryFirstLineTop
+                    isHovered: isCellHovered(row: row, columnID: "language")
                 )
             }
             if let tagsRect = layout.tagsRect {
@@ -3234,8 +3246,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     model?.shioriTags ?? [],
                     in: cellRect,
                     trailing: M.trailingInset,
-                    isHovered: isCellHovered(row: row, columnID: "tags"),
-                    firstLineTop: primaryFirstLineTop
+                    isHovered: isCellHovered(row: row, columnID: "tags")
                 )
             }
         }
@@ -3295,8 +3306,7 @@ struct SubtitleTableView: NSViewRepresentable {
             trailing: CGFloat,
             role: SubtitleTableTextRole = .primaryContent,
             isHovered: Bool = false,
-            underline: Bool = false,
-            firstLineTop: CGFloat? = nil
+            underline: Bool = false
         ) {
             let M = SubtitleTableMetrics.self
             guard !text.isEmpty else { return }
@@ -3311,7 +3321,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
-            let origin = bodyTextOrigin(in: rect, firstLineTop: firstLineTop)
+            let origin = bodyTextOrigin(in: rect)
             if isHovered {
                 if let textBounds = textLayout.unionUsedRect(at: origin) {
                     drawContentHoverBackground(rects: [textBounds], clippedTo: rect)
@@ -3344,13 +3354,12 @@ struct SubtitleTableView: NSViewRepresentable {
                     - SubtitleTableCueGeometry.cellTrailingPadding
             )
             let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
-            let extraText = showsCueGroup && !model.additionalCueTexts.isEmpty
-                ? model.additionalCueTexts.joined(separator: "\n")
-                : nil
-            let extraOrigin = CGPoint(
-                x: textX,
-                y: rect.minY + SubtitleTableCueGeometry.rowPaddingY
-            )
+            let extraCueLayouts = zip(
+                showsCueGroup ? model.additionalCueTexts : [],
+                measurement.extraCueOffsets
+            ).map { text, offset in
+                (text: text, origin: CGPoint(x: textX, y: rect.minY + offset))
+            }
             let primaryOrigin = CGPoint(
                 x: textX,
                 y: rect.minY + measurement.primaryFirstLineOffset
@@ -3364,16 +3373,16 @@ struct SubtitleTableView: NSViewRepresentable {
             NSBezierPath.clip(rect)
 
             var usedRects = [CGRect]()
-            if let extraText {
+            for extraCue in extraCueLayouts {
                 textLayout.update(
                     attributedString: SubtitleTableCueTextMeasurer.attributedString(
-                        extraText,
+                        extraCue.text,
                         style: .extra,
                         foregroundColor: extraColor
                     ),
                     width: textWidth
                 )
-                usedRects.append(contentsOf: textLayout.usedRects(at: extraOrigin))
+                usedRects.append(contentsOf: textLayout.usedRects(at: extraCue.origin))
             }
             textLayout.update(
                 attributedString: SubtitleTableCueTextMeasurer.attributedString(
@@ -3389,10 +3398,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 drawContentHoverBackground(rects: usedRects, clippedTo: rect)
             }
 
-            if let extraText {
+            for extraCue in extraCueLayouts {
                 textLayout.update(
                     attributedString: SubtitleTableCueTextMeasurer.attributedString(
-                        extraText,
+                        extraCue.text,
                         style: .extra,
                         foregroundColor: extraColor
                     ),
@@ -3400,14 +3409,14 @@ struct SubtitleTableView: NSViewRepresentable {
                 )
                 if isHovered {
                     textLayout.drawUnderline(
-                        at: extraOrigin,
+                        at: extraCue.origin,
                         color: extraColor,
                         thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
                         offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
                         backingScaleFactor: backingScaleFactor()
                     )
                 }
-                textLayout.draw(at: extraOrigin)
+                textLayout.draw(at: extraCue.origin)
             }
 
             textLayout.update(
@@ -3456,8 +3465,7 @@ struct SubtitleTableView: NSViewRepresentable {
             text: String,
             in rect: CGRect,
             trailing: CGFloat,
-            role: SubtitleTableTextRole,
-            firstLineTop: CGFloat? = nil
+            role: SubtitleTableTextRole
         ) -> CGRect? {
             let M = SubtitleTableMetrics.self
             guard !text.isEmpty else { return nil }
@@ -3469,7 +3477,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
-            let origin = bodyTextOrigin(in: rect, firstLineTop: firstLineTop)
+            let origin = bodyTextOrigin(in: rect)
             guard let textBounds = textLayout.unionUsedRect(at: origin) else { return nil }
             return contentHoverRect(rects: [textBounds], clippedTo: rect)
         }
@@ -3487,10 +3495,13 @@ struct SubtitleTableView: NSViewRepresentable {
             )
             let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
             var usedRects = [CGRect]()
-            if showsCueGroup, !model.additionalCueTexts.isEmpty {
+            for (extraText, offset) in zip(
+                showsCueGroup ? model.additionalCueTexts : [],
+                measurement.extraCueOffsets
+            ) {
                 textLayout.update(
                     attributedString: SubtitleTableCueTextMeasurer.attributedString(
-                        model.additionalCueTexts.joined(separator: "\n"),
+                        extraText,
                         style: .extra,
                         foregroundColor: WorkbenchRedesignColors.NS.textMuted
                     ),
@@ -3498,7 +3509,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 )
                 usedRects.append(contentsOf: textLayout.usedRects(at: CGPoint(
                     x: textX,
-                    y: rect.minY + SubtitleTableCueGeometry.rowPaddingY
+                    y: rect.minY + offset
                 )))
             }
             textLayout.update(
@@ -3520,8 +3531,7 @@ struct SubtitleTableView: NSViewRepresentable {
             _ tags: [WorkbenchTag],
             in rect: CGRect,
             trailing: CGFloat,
-            isHovered: Bool = false,
-            firstLineTop: CGFloat? = nil
+            isHovered: Bool = false
         ) {
             guard !tags.isEmpty else { return }
 
@@ -3533,8 +3543,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 tags,
                 in: rect,
                 trailing: trailing,
-                tagStyle: tagStyle,
-                firstLineTop: firstLineTop
+                tagStyle: tagStyle
             )
 
             if isHovered {
@@ -3565,8 +3574,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func tagContentHoverRect(
             tags: [WorkbenchTag],
             in rect: CGRect,
-            trailing: CGFloat,
-            firstLineTop: CGFloat? = nil
+            trailing: CGFloat
         ) -> CGRect? {
             guard !tags.isEmpty else { return nil }
             let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
@@ -3574,8 +3582,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 tags,
                 in: rect,
                 trailing: trailing,
-                tagStyle: tagStyle,
-                firstLineTop: firstLineTop
+                tagStyle: tagStyle
             )
             return contentHoverRect(rects: laidOutTags.map { $0.tagRect }, clippedTo: rect)
         }
@@ -3584,46 +3591,71 @@ struct SubtitleTableView: NSViewRepresentable {
             _ tags: [WorkbenchTag],
             in rect: CGRect,
             trailing: CGFloat,
-            tagStyle: SubtitleTableTagStyle,
-            firstLineTop: CGFloat? = nil
-        ) -> [(tag: WorkbenchTag, attributed: NSAttributedString, textSize: CGSize, tagRect: CGRect)] {
+            tagStyle: SubtitleTableTagStyle
+        ) -> [SubtitleTableLaidOutTag] {
             let M = SubtitleTableMetrics.self
-            var x = rect.minX + M.cellLeading
-            var y: CGFloat?
-            let maxX = rect.maxX - trailing
-            let maxY = isRedesign ? rect.maxY : rect.maxY - M.rowVerticalInset
-            var laidOutTags: [(tag: WorkbenchTag, attributed: NSAttributedString, textSize: CGSize, tagRect: CGRect)] = []
+            let naturalLayout = naturalTagLayout(
+                tags,
+                availableWidth: max(0, rect.width - M.cellLeading - trailing),
+                tagStyle: tagStyle
+            )
+            let top = isRedesign
+                ? rect.minY + max(0, (rect.height - naturalLayout.blockHeight) / 2)
+                : rect.minY + M.rowVerticalInset - 1
+            return naturalLayout.items.compactMap { item in
+                let tagRect = item.tagRect.offsetBy(dx: rect.minX + M.cellLeading, dy: top)
+                if !isRedesign, tagRect.maxY > rect.maxY - M.rowVerticalInset {
+                    return nil
+                }
+                return SubtitleTableLaidOutTag(
+                    tag: item.tag,
+                    attributed: item.attributed,
+                    textSize: item.textSize,
+                    tagRect: tagRect
+                )
+            }
+        }
+
+        private func naturalTagLayout(
+            _ tags: [WorkbenchTag],
+            availableWidth: CGFloat,
+            tagStyle: SubtitleTableTagStyle
+        ) -> SubtitleTableTagLayoutResult {
+            guard !tags.isEmpty, availableWidth > 0 else {
+                return SubtitleTableTagLayoutResult(items: [], blockHeight: 0)
+            }
+
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            var currentRowHeight: CGFloat = 0
+            var laidOutTags = [SubtitleTableLaidOutTag]()
 
             for tag in tags {
                 let attributed = SubtitleTableText.tag(tag, isRedesign: isRedesign, isEnabled: isEnabled)
                 let textSize = attributed.size()
                 let tagHeight = tagStyle.height(for: textSize)
-                if y == nil {
-                    if let firstLineTop, isRedesign {
-                        y = firstLineTop
-                            + (SubtitleTableCueGeometry.primaryLineHeight - tagHeight) / 2
-                    } else {
-                        y = isRedesign
-                            ? rect.minY + (rect.height - tagHeight) / 2
-                            : rect.minY + M.rowVerticalInset - 1
-                    }
-                }
-                guard let currentY = y else { break }
-                let tagWidth = tagStyle.width(for: textSize)
-                if x > rect.minX + M.cellLeading, x + tagWidth > maxX {
-                    x = rect.minX + M.cellLeading
-                    y = currentY + tagHeight + tagStyle.verticalSpacing
-                }
-                guard let resolvedY = y, resolvedY + tagHeight <= maxY else {
-                    break
+                let tagWidth = min(tagStyle.width(for: textSize), availableWidth)
+                if x > 0, x + tagWidth > availableWidth {
+                    x = 0
+                    y += currentRowHeight + tagStyle.verticalSpacing
+                    currentRowHeight = 0
                 }
 
-                let tagRect = CGRect(x: x, y: resolvedY, width: min(tagWidth, max(0, maxX - x)), height: tagHeight)
-                laidOutTags.append((tag: tag, attributed: attributed, textSize: textSize, tagRect: tagRect))
-                x += tagRect.width + tagStyle.horizontalSpacing
+                let tagRect = CGRect(x: x, y: y, width: tagWidth, height: tagHeight)
+                laidOutTags.append(SubtitleTableLaidOutTag(
+                    tag: tag,
+                    attributed: attributed,
+                    textSize: textSize,
+                    tagRect: tagRect
+                ))
+                currentRowHeight = max(currentRowHeight, tagHeight)
+                x += tagWidth + tagStyle.horizontalSpacing
             }
 
-            return laidOutTags
+            return SubtitleTableTagLayoutResult(
+                items: laidOutTags,
+                blockHeight: laidOutTags.isEmpty ? 0 : y + currentRowHeight
+            )
         }
 
         private func effectiveCuesTextWidth(documentWidth: CGFloat) -> CGFloat {
@@ -3634,6 +3666,104 @@ struct SubtitleTableView: NSViewRepresentable {
                     - SubtitleTableCueGeometry.cellLeadingPadding
                     - SubtitleTableCueGeometry.cellTrailingPadding
             )
+        }
+
+        private func rowMeasurement(
+            for model: SubtitleTableRow,
+            documentWidth: CGFloat,
+            effectiveCuesWidth: CGFloat
+        ) -> SubtitleTableRowMeasurement {
+            let layout = tableColumnLayout(contentWidth: documentWidth, height: currentRowHeight)
+            var otherContentHeights = [SubtitleTableMetrics.checkboxSize]
+
+            if let dateAddedRect = layout.dateAddedRect {
+                otherContentHeights.append(bodyContentHeight(
+                    model.dateAdded,
+                    cellWidth: dateAddedRect.width,
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    role: .metadata
+                ))
+            }
+            if showsDisplayTitleColumn {
+                otherContentHeights.append(bodyContentHeight(
+                    model.displayTitle,
+                    cellWidth: layout.nameRect.width,
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    role: .secondaryContext
+                ))
+            }
+            if let timeRect = layout.timeRect {
+                otherContentHeights.append(bodyContentHeight(
+                    model.timeRange,
+                    cellWidth: timeRect.width,
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    role: .metadata
+                ))
+            }
+
+            let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
+            if let speakerRect = layout.speakerRect {
+                otherContentHeights.append(tagContentHeight(
+                    model.speakerTags,
+                    cellWidth: speakerRect.width,
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    tagStyle: tagStyle
+                ))
+            }
+            if let languageRect = layout.languageRect {
+                otherContentHeights.append(tagContentHeight(
+                    model.tags,
+                    cellWidth: languageRect.width,
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    tagStyle: tagStyle
+                ))
+            }
+            if let tagsRect = layout.tagsRect {
+                otherContentHeights.append(tagContentHeight(
+                    model.shioriTags,
+                    cellWidth: tagsRect.width,
+                    trailing: SubtitleTableMetrics.trailingInset,
+                    tagStyle: tagStyle
+                ))
+            }
+
+            return cueTextMeasurer.rowMeasurement(
+                row: model,
+                effectiveCuesWidth: effectiveCuesWidth,
+                showsCueGroup: showsCueGroup,
+                otherContentHeights: otherContentHeights
+            )
+        }
+
+        private func bodyContentHeight(
+            _ text: String,
+            cellWidth: CGFloat,
+            trailing: CGFloat,
+            role: SubtitleTableTextRole
+        ) -> CGFloat {
+            guard !text.isEmpty else { return 0 }
+            textLayout.update(
+                attributedString: SubtitleTableText.body(
+                    text,
+                    role: role,
+                    isRedesign: isRedesign
+                ),
+                width: max(0, cellWidth - SubtitleTableMetrics.cellLeading - trailing)
+            )
+            return textLayout.usedHeight
+        }
+
+        private func tagContentHeight(
+            _ tags: [WorkbenchTag],
+            cellWidth: CGFloat,
+            trailing: CGFloat,
+            tagStyle: SubtitleTableTagStyle
+        ) -> CGFloat {
+            naturalTagLayout(
+                tags,
+                availableWidth: max(0, cellWidth - SubtitleTableMetrics.cellLeading - trailing),
+                tagStyle: tagStyle
+            ).blockHeight
         }
 
         private func cachedMeasurement(for row: Int, documentWidth: CGFloat) -> SubtitleTableRowMeasurement? {
@@ -3664,17 +3794,17 @@ struct SubtitleTableView: NSViewRepresentable {
                 effectiveCuesWidth: effectiveWidth,
                 showsCueGroup: showsCueGroup,
                 styleRevision: SubtitleTableCueGeometry.styleRevision
-            ) { [cueTextMeasurer] in
+            ) {
                 measurementComputeCount += 1
                 UIInvalidationProbe.count(
                     probeSurface.counterName("dynamic_row_measurement"),
                     scope: probeScope,
                     details: "table=\(tableName) row=\(row)"
                 )
-                return cueTextMeasurer.rowMeasurement(
-                    row: model,
-                    effectiveCuesWidth: effectiveWidth,
-                    showsCueGroup: showsCueGroup
+                return rowMeasurement(
+                    for: model,
+                    documentWidth: documentWidth,
+                    effectiveCuesWidth: effectiveWidth
                 )
             }
             return rowHeightCache.setHeight(lookup.height, for: row)
@@ -3821,30 +3951,18 @@ struct SubtitleTableView: NSViewRepresentable {
             return CGRect(x: 0, y: y, width: width, height: height)
         }
 
-        private func checkboxRect(
-            forRowRect rowRect: CGRect,
-            primaryFirstLineTop: CGFloat? = nil
-        ) -> CGRect {
+        private func checkboxRect(forRowRect rowRect: CGRect) -> CGRect {
             let size = SubtitleTableMetrics.checkboxSize
-            let centerY = primaryFirstLineTop.map {
-                $0 + SubtitleTableCueGeometry.primaryLineHeight / 2
-            } ?? rowRect.midY
             return CGRect(
                 x: (SubtitleTableMetrics.indexColumnWidth - size) / 2,
-                y: centerY - size / 2,
+                y: rowRect.midY - size / 2,
                 width: size,
                 height: size
             )
         }
 
-        private func checkboxHitRect(
-            forRowRect rowRect: CGRect,
-            primaryFirstLineTop: CGFloat? = nil
-        ) -> CGRect {
-            checkboxRect(
-                forRowRect: rowRect,
-                primaryFirstLineTop: primaryFirstLineTop
-            ).insetBy(
+        private func checkboxHitRect(forRowRect rowRect: CGRect) -> CGRect {
+            checkboxRect(forRowRect: rowRect).insetBy(
                 dx: -SubtitleTableMetrics.checkboxHitSlop,
                 dy: -SubtitleTableMetrics.checkboxHitSlop
             )
@@ -3986,17 +4104,11 @@ struct SubtitleTableView: NSViewRepresentable {
             return frame
         }
 
-        private func bodyTextOrigin(in rect: CGRect, firstLineTop: CGFloat? = nil) -> CGPoint {
+        private func bodyTextOrigin(in rect: CGRect) -> CGPoint {
             let M = SubtitleTableMetrics.self
-            let yOffset: CGFloat
-            if let firstLineTop, isRedesign {
-                yOffset = firstLineTop
-                    + max(0, (SubtitleTableCueGeometry.primaryLineHeight - textLayout.usedHeight) / 2)
-            } else {
-                yOffset = isRedesign
-                    ? rect.minY + (rect.height - textLayout.usedHeight) / 2
-                    : rect.minY + M.rowVerticalInset
-            }
+            let yOffset = isRedesign
+                ? rect.minY + max(0, (rect.height - textLayout.usedHeight) / 2)
+                : rect.minY + M.rowVerticalInset
             return CGPoint(x: rect.minX + M.cellLeading, y: yOffset)
         }
 
@@ -4020,9 +4132,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 ?? SubtitleTableRowMeasurement(
                     height: rowRect.height,
                     primaryLineCount: 1,
-                    extraLineCount: 0
+                    extraCueLineCounts: []
                 )
-            let primaryFirstLineTop = rowRect.minY + measurement.primaryFirstLineOffset
             if columnID == "cues" {
                 return cuesContentHoverRect(
                     model: model,
@@ -4034,32 +4145,28 @@ struct SubtitleTableView: NSViewRepresentable {
                 return tagContentHoverRect(
                     tags: model.speakerTags,
                     in: cellRect,
-                    trailing: SubtitleTableMetrics.trailingInset,
-                    firstLineTop: primaryFirstLineTop
+                    trailing: SubtitleTableMetrics.trailingInset
                 )
             }
             if columnID == "language" {
                 return tagContentHoverRect(
                     tags: model.tags,
                     in: cellRect,
-                    trailing: SubtitleTableMetrics.trailingInset,
-                    firstLineTop: primaryFirstLineTop
+                    trailing: SubtitleTableMetrics.trailingInset
                 )
             }
             if columnID == "tags" {
                 return tagContentHoverRect(
                     tags: model.shioriTags,
                     in: cellRect,
-                    trailing: SubtitleTableMetrics.trailingInset,
-                    firstLineTop: primaryFirstLineTop
+                    trailing: SubtitleTableMetrics.trailingInset
                 )
             }
             return bodyContentHoverRect(
                 text: text(for: columnID, model: model),
                 in: cellRect,
                 trailing: bodyTextTrailingInset(for: columnID, rowRect: rowRect),
-                role: bodyTextRole(for: columnID),
-                firstLineTop: primaryFirstLineTop
+                role: bodyTextRole(for: columnID)
             )
         }
 

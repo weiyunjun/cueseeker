@@ -75,8 +75,8 @@ enum WorkbenchControlMetrics {
     static let redesignTableCellHoverRadius = redesignFieldRadius
     /// --padding-table-cell-hover-x: 12px
     static let redesignTableCellHoverPaddingX = redesignPaddingHeaderTriggerX
-    /// --padding-table-cell-hover-y: 6px
-    static let redesignTableCellHoverPaddingY: CGFloat = 6
+    /// --padding-table-cell-hover-y: 8px
+    static let redesignTableCellHoverPaddingY: CGFloat = 8
     /// --font-size-table: 14px
     static let redesignFontSizeTable: CGFloat = 14
     /// --font-size-table-header: 14px

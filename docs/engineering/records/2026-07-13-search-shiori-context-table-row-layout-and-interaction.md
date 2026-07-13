@@ -6,9 +6,9 @@
 
 ## Scope
 
-Implement Step 1 of the accepted table update: rename the user-visible `Time`
-column label to `Time Range` across Search, Shiori, and Context table paths.
-Internal column IDs, model names, and time-range behavior remain unchanged.
+Implement the accepted table update in independently verified Git steps. This
+record currently covers the `Time Range` label and the shared vertical row
+geometry used by Search, Shiori, and Context.
 
 ## Step 1 Changes
 
@@ -28,8 +28,33 @@ Internal column IDs, model names, and time-range behavior remain unchanged.
 - `git diff --check`
   - Passed.
 
+## Step 2 Changes
+
+- Replaced aggregate Extra Cue line geometry with per-Cue-Item measurement so
+  the documented 8-point spacing is applied between Cue Items, not between
+  wrapped or source lines inside one Cue.
+- Made row height use the tallest complete visible-column content block plus
+  equal 8-point top and bottom padding.
+- Centered Cue blocks, metadata, Display Title, complete Tag blocks, and the
+  row-selection Checkbox independently within the final row height.
+- Reused the same Cue Item and Tag block geometry for drawing and content hover
+  hit regions.
+- Matched interactive-cell vertical hover padding to row padding and expanded
+  height-cache invalidation to all height-affecting row content.
+
+## Step 2 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleCue|subtitleTableViewResolvesDocumentedDynamicRowHeights|subtitleTableViewUsesTallestVisibleColumn|subtitleTableRowHeightCache|subtitleTableHeightInvalidation'`
+  - Passed all 20 selected Swift Testing tests.
+- `swift test --filter 'subtitleTableView|subtitleTableHover|subtitleCue'`
+  - Passed all 59 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Search, Shiori, and Context table paths now present `Time Range` as the column
-label and copied TSV header. The internal `time` column ID and time-range model
-behavior are unchanged.
+Steps 1 and 2 match the accepted requirement. The table paths present
+`Time Range`, preserve the internal `time` identity, and now share symmetric
+vertical row geometry without coupling other columns to the Primary Cue line.

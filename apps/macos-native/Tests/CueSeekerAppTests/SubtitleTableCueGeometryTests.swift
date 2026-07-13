@@ -46,10 +46,69 @@ func subtitleCueGeometryAddsEveryExtraCueVisualLineAbovePrimary() {
         primaryGroupIndex: 1
     )
 
-    #expect(measurer.rowMeasurement(row: onePrimaryOneExtra, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 60)
-    #expect(measurer.rowMeasurement(row: onePrimaryTwoExtras, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 80)
-    #expect(measurer.rowMeasurement(row: twoPrimaryOneExtra, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 84)
+    #expect(measurer.rowMeasurement(row: onePrimaryOneExtra, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 68)
+    #expect(measurer.rowMeasurement(row: onePrimaryTwoExtras, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 96)
+    #expect(measurer.rowMeasurement(row: twoPrimaryOneExtra, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 92)
     #expect(measurer.rowMeasurement(row: onePrimaryTwoExtras, effectiveCuesWidth: 2_000, showsCueGroup: false).height == 40)
+}
+
+@MainActor
+@Test
+func subtitleCueGeometrySpacesCueItemsInsteadOfVisualLines() {
+    let measurer = SubtitleTableCueTextMeasurer()
+    let oneTwoLineExtra = SubtitleTableRow(
+        id: 1,
+        displayTitle: "",
+        primaryCueText: "main",
+        cueGroupTexts: ["extra one\nextra two", "main"],
+        primaryGroupIndex: 1
+    )
+    let twoOneLineExtras = SubtitleTableRow(
+        id: 2,
+        displayTitle: "",
+        primaryCueText: "main",
+        cueGroupTexts: ["extra one", "extra two", "main"],
+        primaryGroupIndex: 2
+    )
+
+    let oneItem = measurer.rowMeasurement(
+        row: oneTwoLineExtra,
+        effectiveCuesWidth: 2_000,
+        showsCueGroup: true
+    )
+    let twoItems = measurer.rowMeasurement(
+        row: twoOneLineExtras,
+        effectiveCuesWidth: 2_000,
+        showsCueGroup: true
+    )
+
+    #expect(oneItem.extraCueLineCounts == [2])
+    #expect(oneItem.height == 88)
+    #expect(twoItems.extraCueLineCounts == [1, 1])
+    #expect(twoItems.height == 96)
+}
+
+@Test
+func subtitleCueGeometryCentersCueBlockInsideTallestColumnRow() {
+    let measurement = SubtitleTableRowMeasurement(
+        height: SubtitleTableCueGeometry.rowHeight(
+            primaryLineCount: 1,
+            extraCueLineCounts: [],
+            otherContentHeights: [50]
+        ),
+        primaryLineCount: 1,
+        extraCueLineCounts: []
+    )
+
+    #expect(measurement.height == 66)
+    #expect(measurement.cueBlockHeight == 24)
+    #expect(measurement.cueBlockTopOffset == 21)
+    #expect(measurement.primaryFirstLineOffset == 21)
+}
+
+@Test
+func subtitleTableHoverVerticalPaddingMatchesRowPadding() {
+    #expect(WorkbenchControlMetrics.redesignTableCellHoverPaddingY == SubtitleTableCueGeometry.rowPaddingY)
 }
 
 @MainActor
@@ -71,7 +130,7 @@ func subtitleCueVisualLineCountHasNoSoftWrapLimit() {
     let lines = measurer.visualLineCount(text: text, width: 50, style: .primary)
 
     #expect(lines > 6)
-    #expect(SubtitleTableCueGeometry.rowHeight(primaryLineCount: lines, extraLineCount: 0) == 16 + CGFloat(lines) * 24)
+    #expect(SubtitleTableCueGeometry.rowHeight(primaryLineCount: lines, extraCueLineCounts: []) == 16 + CGFloat(lines) * 24)
 }
 
 @MainActor

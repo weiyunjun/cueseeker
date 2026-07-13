@@ -152,6 +152,50 @@ func subtitleTableRowHeightCacheInvalidatesEveryCueLayoutKey() {
     #expect(misses(row: changedPrimaryIdentity))
 }
 
+@Test
+func subtitleTableRowHeightCacheInvalidatesNonCueContentThatCanChangeHeight() {
+    let base = SubtitleTableRow(
+        id: 7,
+        displayTitle: "Episode 07",
+        cues: "same cue",
+        shioriTags: [WorkbenchTag(key: "1", label: "Review", colorID: .gray)]
+    )
+    let changedTitle = SubtitleTableRow(
+        id: 7,
+        displayTitle: "A much longer display title that wraps across more lines",
+        cues: "same cue",
+        shioriTags: base.shioriTags
+    )
+    let changedTags = base.replacingShioriTags([
+        WorkbenchTag(key: "1", label: "Review", colorID: .gray),
+        WorkbenchTag(key: "2", label: "Grammar", colorID: .gray),
+    ])
+
+    var cache = SubtitleTableRowHeightCache()
+    _ = cache.lookup(
+        rowIndex: 0,
+        row: base,
+        effectiveCuesWidth: 640,
+        showsCueGroup: false,
+        styleRevision: 2
+    ) { testRowMeasurement(40) }
+
+    #expect(!cache.lookup(
+        rowIndex: 0,
+        row: changedTitle,
+        effectiveCuesWidth: 640,
+        showsCueGroup: false,
+        styleRevision: 2
+    ) { testRowMeasurement(64) }.isCacheHit)
+    #expect(!cache.lookup(
+        rowIndex: 0,
+        row: changedTags,
+        effectiveCuesWidth: 640,
+        showsCueGroup: false,
+        styleRevision: 2
+    ) { testRowMeasurement(56) }.isCacheHit)
+}
+
 private func testRowMeasurement(_ height: CGFloat) -> SubtitleTableRowMeasurement {
-    SubtitleTableRowMeasurement(height: height, primaryLineCount: 1, extraLineCount: 0)
+    SubtitleTableRowMeasurement(height: height, primaryLineCount: 1, extraCueLineCounts: [])
 }
