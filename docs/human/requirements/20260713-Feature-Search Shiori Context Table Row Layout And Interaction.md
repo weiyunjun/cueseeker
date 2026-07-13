@@ -3,7 +3,7 @@ main
 
 # 需求描述
 1. 统一修改表格视图的每一行的元素的上下间距和居中效果，预期效果：整体居中，Cues列的间距和与行的上下间距等应该相等。
-2. 表格的所有文字应该都可以拖拽选中并复制，可以Cmd+A全选并复制，且只有Cues列的文字和Shiori的Tags单元格可以点击。
+2. 表格的所有文字应该都可以拖拽选中并复制，可以Cmd+A全选并复制（包括所有文字内容），且只有Cues列的文字和Shiori的Tags单元格可以点击。复制出来的内容，同一行的不同单元格之间，用制表符隔开，方便直接粘贴到Excel表中。
 3. Time列改名为Time Range。
 4. 右键菜单，现在改为对整行的非checkbox列有效（包括Cues单元格和Tags单元格），且整合成一个行右键菜单，而不是每个列弹出不同的右键菜单。
 5. Search界面的表格和Context表格，行右键菜单从上到下包括：Play，Open Subtitle Folder,Context，Copy Cue Text，Copy Cue Group Text，Copy Time Range。
