@@ -14,6 +14,7 @@ final class ShioriStore: ObservableObject {
     @Published var tableActiveFilterSetID: String?
     @Published var tableFilterRules: [SchemaWorkbenchFilterRule] = []
     @Published var tableTotalSavedRowCount = 0
+    @Published var tableResultRowCount = 0
     @Published var tableHasLoadedInitialPage = false
     @Published var tableDataRevision = 0
 
@@ -38,6 +39,7 @@ final class ShioriStore: ObservableObject {
     func clearTableRowsForReload(tableName: String = "shiori") {
         tableHasLoadedInitialPage = false
         tableTotalSavedRowCount = 0
+        tableResultRowCount = 0
         tableRowStore.updateShioriRows(
             [],
             tableName: tableName,

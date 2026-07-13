@@ -2,6 +2,15 @@ import SwiftUI
 import CueSeekerCore
 import CueSeekerPlayback
 
+private struct WorkbenchShioriTableTextCopySource {
+    let searchText: String
+    let filterSet: SubtitleSearchFilterSet
+    let filterSignature: String
+    let resultRowCount: Int
+    let reloadGeneration: Int
+    let dataRevision: Int
+}
+
 struct WorkbenchShioriTableView: View {
     @EnvironmentObject private var shioriStore: ShioriStore
     let isTableResponseActive: Bool
@@ -31,7 +40,6 @@ private struct WorkbenchShioriTableContent: View {
     @State private var reloadGeneration = 0
     @State private var continuousLoadGeneration = 0
     @State private var isLoadingContinuousRows = false
-    @State private var continuousTotalRowCount = 0
     @State private var pendingRemoval: Shiori?
     @State private var pendingTagDeletion: PendingShioriTagDeletion?
     @State private var canExportSelectedRowsAsCollage = false
@@ -44,6 +52,7 @@ private struct WorkbenchShioriTableContent: View {
             SubtitleTableProbeSurface.shiori.counterName("surface_body"),
             scope: appState.uiProbeScope
         )
+        let textCopySource = tableTextCopySource
         SchemaWorkbenchSearchShell(
             searchDraft: $shioriStore.tableSearchDraft,
             visibleColumnIDs: $shioriStore.tableVisibleColumnIDs,
@@ -92,6 +101,10 @@ private struct WorkbenchShioriTableContent: View {
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
                     onToggleAllSelection: toggleAllRowSelection,
+                    allResultsTextCopyRowCount: textCopySource.resultRowCount,
+                    loadRowsForTextCopy: { range in
+                        await loadRowsForTextCopy(range: range, source: textCopySource)
+                    },
                     onPlay: openShiori,
                     onShowContext: showContext,
                     rowActionMenuStyle: .shiori,
@@ -251,6 +264,57 @@ private struct WorkbenchShioriTableContent: View {
         isTableResponseActive
     }
 
+    private var tableTextCopySource: WorkbenchShioriTableTextCopySource {
+        let filterSet = shioriStore.tableFilterRules.subtitleSearchFilterSet
+        return WorkbenchShioriTableTextCopySource(
+            searchText: shioriStore.tableSubmittedSearchText,
+            filterSet: filterSet,
+            filterSignature: filterSet.cacheSignature,
+            resultRowCount: max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount),
+            reloadGeneration: reloadGeneration,
+            dataRevision: shioriStore.tableDataRevision
+        )
+    }
+
+    private func loadRowsForTextCopy(
+        range: Range<Int>,
+        source: WorkbenchShioriTableTextCopySource
+    ) async -> [SubtitleTableRow]? {
+        guard range.lowerBound >= 0,
+              range.upperBound <= source.resultRowCount,
+              range.lowerBound < range.upperBound,
+              textCopySourceStillMatches(source)
+        else {
+            return nil
+        }
+        guard let page = await appState.loadTableSandboxShioriRows(
+            range: range,
+            searchText: source.searchText,
+            filterSet: source.filterSet
+        ),
+            textCopySourceStillMatches(source),
+            page.range == range,
+            page.rows.count == range.count,
+            page.totalRowCount == source.resultRowCount
+        else {
+            return nil
+        }
+        return page.rows.map { tableSandboxShioriRow(for: $0) }
+    }
+
+    private func textCopySourceStillMatches(
+        _ source: WorkbenchShioriTableTextCopySource
+    ) -> Bool {
+        allowsTableResponse
+            && reloadGeneration == source.reloadGeneration
+            && shioriStore.tableDataRevision == source.dataRevision
+            && shioriStore.tableSubmittedSearchText == source.searchText
+            && shioriStore.tableFilterRules.subtitleSearchFilterSet.cacheSignature
+                == source.filterSignature
+            && max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount)
+                == source.resultRowCount
+    }
+
     private func loadInitialRowsIfNeeded() {
         guard allowsTableResponse else {
             if !shioriStore.tableHasLoadedInitialPage {
@@ -332,7 +396,6 @@ private struct WorkbenchShioriTableContent: View {
     private func resetContinuousRowLoading() {
         continuousLoadGeneration += 1
         isLoadingContinuousRows = false
-        continuousTotalRowCount = 0
     }
 
     private func loadNextContinuousRowsIfNeeded(generation: Int) {
@@ -344,10 +407,10 @@ private struct WorkbenchShioriTableContent: View {
         }
 
         let loadedRowCount = rowStore.snapshot.totalRowCount
-        guard loadedRowCount < continuousTotalRowCount else { return }
+        guard loadedRowCount < shioriStore.tableResultRowCount else { return }
 
         isLoadingContinuousRows = true
-        let upperBound = min(continuousTotalRowCount, loadedRowCount + Self.continuousPageSize)
+        let upperBound = min(shioriStore.tableResultRowCount, loadedRowCount + Self.continuousPageSize)
         let range = loadedRowCount..<upperBound
 
         Task { @MainActor in
@@ -394,7 +457,7 @@ private struct WorkbenchShioriTableContent: View {
 
     private func applyHydrationPage(_ page: TableSandboxShioriHydrationPage) {
         shioriStore.tableTotalSavedRowCount = page.totalSavedRowCount
-        continuousTotalRowCount = page.totalRowCount
+        shioriStore.tableResultRowCount = page.totalRowCount
         rowStore.hydrateShioriRows(
             page.rows,
             startIndex: page.range.lowerBound,

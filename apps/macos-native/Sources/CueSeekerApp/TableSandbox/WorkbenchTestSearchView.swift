@@ -2,6 +2,21 @@ import SwiftUI
 import CueSeekerCore
 import CueSeekerPlayback
 
+private struct WorkbenchSearchTableTextCopySource {
+    enum Mode {
+        case search(query: String, cueIDs: [Int64])
+        case allCues
+        case context(CueContextSearchRequest)
+    }
+
+    let mode: Mode
+    let resultRowCount: Int
+    let folderPaths: [String]
+    let filterSignature: String
+    let languageFilter: SubtitleSearchLanguageFilter
+    let watchStateFilter: SubtitleSearchWatchStateFilter
+}
+
 struct WorkbenchTestSearchView: View {
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
@@ -58,6 +73,7 @@ struct WorkbenchTestSearchView: View {
             tableProbeSurface.counterName("surface_body"),
             scope: appState.uiProbeScope
         )
+        let textCopySource = tableTextCopySource
         SchemaWorkbenchSearchShell(
             searchDraft: $searchDraft,
             visibleColumnIDs: $visibleColumnIDs,
@@ -102,6 +118,11 @@ struct WorkbenchTestSearchView: View {
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
                     onToggleAllSelection: toggleAllRowSelection,
+                    allResultsTextCopyRowCount: textCopySource?.resultRowCount,
+                    loadRowsForTextCopy: { range in
+                        guard let textCopySource else { return nil }
+                        return await loadRowsForTextCopy(range: range, source: textCopySource)
+                    },
                     onPlay: play,
                     onShowContext: showContext,
                     isRedesign: true
@@ -229,6 +250,104 @@ struct WorkbenchTestSearchView: View {
 
     private var tableProbeSurface: SubtitleTableProbeSurface {
         activeCueContextRequest == nil ? .search : .context
+    }
+
+    private var tableTextCopySource: WorkbenchSearchTableTextCopySource? {
+        let mode: WorkbenchSearchTableTextCopySource.Mode
+        let resultRowCount: Int
+        if let request = activeCueContextRequest {
+            mode = .context(request)
+            resultRowCount = cueContextTotalRowCount
+        } else if isFilterOnlyMode {
+            mode = .allCues
+            resultRowCount = search.searchResultTotalCount
+        } else {
+            let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !query.isEmpty else { return nil }
+            mode = .search(query: query, cueIDs: search.searchResultCueIDs)
+            resultRowCount = search.searchResultTotalCount
+        }
+        return WorkbenchSearchTableTextCopySource(
+            mode: mode,
+            resultRowCount: max(0, resultRowCount),
+            folderPaths: appState.indexing.selectedFolders.map(\.path),
+            filterSignature: search.activeFilterSetSignature,
+            languageFilter: settingsStore.primarySearchLanguage.searchLanguageFilter,
+            watchStateFilter: settingsStore.searchScope.searchWatchStateFilter
+        )
+    }
+
+    private func loadRowsForTextCopy(
+        range: Range<Int>,
+        source: WorkbenchSearchTableTextCopySource
+    ) async -> [SubtitleTableRow]? {
+        guard range.lowerBound >= 0,
+              range.upperBound <= source.resultRowCount,
+              range.lowerBound < range.upperBound,
+              textCopySourceStillMatches(source, range: range)
+        else {
+            return nil
+        }
+
+        let page: TableSandboxSearchHydrationPage?
+        switch source.mode {
+        case .search:
+            page = await appState.loadTableSandboxSearchRows(range: range)
+        case .allCues:
+            page = await appState.loadTableSandboxAllCueRows(range: range)
+        case .context(let request):
+            page = await appState.loadCueContextSearchPage(
+                request: request,
+                range: range,
+                anchorsInitialPage: false
+            )
+        }
+
+        guard let page,
+              textCopySourceStillMatches(source, range: range),
+              page.range == range,
+              page.results.count == range.count,
+              page.totalRowCount == source.resultRowCount
+        else {
+            return nil
+        }
+        return page.results.map { tableSandboxSearchRow(for: $0) }
+    }
+
+    private func textCopySourceStillMatches(
+        _ source: WorkbenchSearchTableTextCopySource,
+        range: Range<Int>
+    ) -> Bool {
+        guard allowsTableResponse,
+              appState.indexing.selectedFolders.map(\.path) == source.folderPaths
+        else {
+            return false
+        }
+        switch source.mode {
+        case .search(let query, let cueIDs):
+            guard activeCueContextRequest == nil,
+                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query,
+                  search.activeFilterSetSignature == source.filterSignature,
+                  settingsStore.primarySearchLanguage.searchLanguageFilter == source.languageFilter,
+                  settingsStore.searchScope.searchWatchStateFilter == source.watchStateFilter,
+                  search.searchResultTotalCount == source.resultRowCount,
+                  cueIDs.count == source.resultRowCount,
+                  search.searchResultCueIDs == cueIDs
+            else {
+                return false
+            }
+            return true
+        case .allCues:
+            return activeCueContextRequest == nil
+                && search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !search.activeFilterSet.isEffectivelyEmpty
+                && search.activeFilterSetSignature == source.filterSignature
+                && search.searchResultTotalCount == source.resultRowCount
+        case .context(let request):
+            return activeCueContextRequest?.id == request.id
+                && search.cueContextSearchRequest?.id == request.id
+                && cueContextTotalRowCount == source.resultRowCount
+        }
     }
 
     @discardableResult

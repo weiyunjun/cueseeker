@@ -1366,8 +1366,9 @@ func subtitleTableViewTextCopyLoadsExactBatches() async throws {
     var requestedRanges: [Range<Int>] = []
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_400,
-        rowCount: rowCount,
+        rowCount: 1,
         rowProvider: { _ in nil },
+        allResultsTextCopyRowCount: rowCount,
         loadRowsForTextCopy: { range in
             requestedRanges.append(range)
             return range.map {
@@ -1386,6 +1387,56 @@ func subtitleTableViewTextCopyLoadsExactBatches() async throws {
     let copied = try #require(pasteboard.string(forType: .tabularText))
     #expect(copied.contains("Episode 0\tcue 0"))
     #expect(copied.contains("Episode 512\tcue 512"))
+}
+
+@MainActor
+@Test
+func subtitleTableViewPartialTextCopyUsesDisplayedRowsInsteadOfFullResultLoader() async throws {
+    let rows = [
+        SubtitleTableRow(id: 1, displayTitle: "Visible 1", cues: "first cue"),
+        SubtitleTableRow(id: 2, displayTitle: "Visible 2", cues: "second cue"),
+    ]
+    var loaderCallCount = 0
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        allResultsTextCopyRowCount: 1_000,
+        loadRowsForTextCopy: { range in
+            loaderCallCount += 1
+            return range.map {
+                SubtitleTableRow(id: $0 + 100, displayTitle: "Wrong \($0)", cues: "wrong")
+            }
+        }
+    )
+    let start = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    )
+    let end = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
+    )
+    let startWindowPoint = fixture.documentView.convert(
+        CGPoint(x: start.textBounds.minX, y: start.textBounds.midY),
+        to: nil
+    )
+    let endWindowPoint = fixture.documentView.convert(
+        CGPoint(x: end.textBounds.maxX, y: end.textBounds.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: startWindowPoint))
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+
+    let pasteboard = NSPasteboard(name: .init("SubtitleTablePartialTextCopy-\(UUID().uuidString)"))
+    defer { pasteboard.clearContents() }
+    fixture.coordinator.copyTableTextSelection(to: pasteboard)
+    await fixture.coordinator.waitForTextCopyForTesting()
+
+    #expect(loaderCallCount == 0)
+    let copied = try #require(pasteboard.string(forType: .tabularText))
+    #expect(copied.contains("Visible 1"))
+    #expect(copied.contains("Visible 2"))
+    #expect(!copied.contains("Wrong"))
 }
 
 @MainActor
@@ -2130,6 +2181,7 @@ private func makeAttachedVirtualTableCoordinator(
     makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil },
     onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
     isRowSelected: @escaping (Int) -> Bool = { _ in false },
+    allResultsTextCopyRowCount: Int? = nil,
     loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
     onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
@@ -2172,6 +2224,7 @@ private func makeAttachedVirtualTableCoordinator(
         onVisibleRowsChange: onVisibleRowsChange,
         isRowSelected: isRowSelected,
         onToggleRowSelection: onToggleRowSelection,
+        allResultsTextCopyRowCount: allResultsTextCopyRowCount,
         loadRowsForTextCopy: loadRowsForTextCopy,
         onPlay: onPlay,
         onShowContext: onShowContext,

@@ -2015,6 +2015,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var selectionHeaderState: WorkbenchCheckboxState = .unchecked
     var onToggleRowSelection: (Int) -> Void = { _ in }
     var onToggleAllSelection: () -> Void = {}
+    var allResultsTextCopyRowCount: Int?
     var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
     var onPlay: (SubtitleTableRow) -> Void
     var onShowContext: (SubtitleTableRow) -> Void = { _ in }
@@ -2056,6 +2057,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
+            allResultsTextCopyRowCount: allResultsTextCopyRowCount,
             loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
             onShowContext: onShowContext,
@@ -2187,6 +2189,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
             onToggleAllSelection: onToggleAllSelection,
+            allResultsTextCopyRowCount: allResultsTextCopyRowCount,
             loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
             onShowContext: onShowContext,
@@ -2229,6 +2232,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var selectionHeaderState: WorkbenchCheckboxState
         private var onToggleRowSelection: (Int) -> Void
         private var onToggleAllSelection: () -> Void
+        private var allResultsTextCopyRowCount: Int
         private var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
         private var onPlay: (SubtitleTableRow) -> Void
         private var onShowContext: (SubtitleTableRow) -> Void
@@ -2443,6 +2447,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: WorkbenchCheckboxState = .unchecked,
             onToggleRowSelection: @escaping (Int) -> Void = { _ in },
             onToggleAllSelection: @escaping () -> Void = {},
+            allResultsTextCopyRowCount: Int? = nil,
             loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
             onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
@@ -2481,6 +2486,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
+            self.allResultsTextCopyRowCount = max(0, allResultsTextCopyRowCount ?? rowCount)
             self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
             self.onShowContext = onShowContext
@@ -2572,6 +2578,7 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState: WorkbenchCheckboxState,
             onToggleRowSelection: @escaping (Int) -> Void,
             onToggleAllSelection: @escaping () -> Void,
+            allResultsTextCopyRowCount: Int? = nil,
             loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
             onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
@@ -2651,6 +2658,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
             self.onToggleAllSelection = onToggleAllSelection
+            self.allResultsTextCopyRowCount = max(0, allResultsTextCopyRowCount ?? rowCount)
             self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
             self.onShowContext = onShowContext
@@ -3607,7 +3615,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 columns: visibleTextColumnOrder().map {
                     SubtitleTableTextCopyColumn(id: $0, title: headerTitle(for: $0))
                 },
-                rowCount: rowCount,
+                rowCount: textSelection.selectsAllResults
+                    ? allResultsTextCopyRowCount
+                    : rowCount,
                 showsCueGroup: showsCueGroup
             )
             guard !request.columns.isEmpty else { return }
@@ -3625,7 +3635,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
-            let loader = loadRowsForTextCopy
+            let loader = request.selection.selectsAllResults
+                ? loadRowsForTextCopy
+                : nil
             let capturedRowProvider = rowProvider
             textCopyTask = Task { @MainActor in
                 var builder = SubtitleTableTextCopyBuilder(request: request)

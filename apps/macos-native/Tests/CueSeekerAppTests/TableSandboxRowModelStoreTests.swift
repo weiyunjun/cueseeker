@@ -903,6 +903,7 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
         totalRowCount: 1,
         tableName: "shiori"
     )
+    store.tableResultRowCount = 37
     store.markTableRowsLoaded(totalSavedRowCount: 1)
 
     #expect(store.tableSearchDraft == "tomori")
@@ -911,6 +912,7 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     #expect(store.tableFilterRules.count == 1)
     #expect(store.tableHasLoadedInitialPage)
     #expect(store.tableTotalSavedRowCount == 1)
+    #expect(store.tableResultRowCount == 37)
     #expect(store.tableRowStore.snapshot.row(at: 0)?.cues == "cached shiori")
 }
 
@@ -928,6 +930,7 @@ func shioriStoreInvalidatesTableRowsWithoutResettingControls() {
         totalRowCount: 1,
         tableName: "shiori"
     )
+    store.tableResultRowCount = 12
     store.markTableRowsLoaded(totalSavedRowCount: 1)
 
     store.invalidateTableRows()
@@ -936,6 +939,7 @@ func shioriStoreInvalidatesTableRowsWithoutResettingControls() {
     #expect(store.tableVisibleColumnIDs == ["dateAdded", "cues"])
     #expect(!store.tableHasLoadedInitialPage)
     #expect(store.tableTotalSavedRowCount == 0)
+    #expect(store.tableResultRowCount == 0)
     #expect(store.tableRowStore.snapshot.totalRowCount == 0)
     #expect(store.tableRowStore.snapshot.row(at: 0) == nil)
 }

@@ -10,7 +10,8 @@ Implement the accepted table update in independently verified Git steps. This
 record currently covers the `Time Range` label and the shared vertical row
 geometry, row interaction, clipboard foundations, and body text-selection
 interaction used by Search, Shiori, and Context. It also covers the complete
-shared table-text interaction through Step 7.
+shared table-text interaction and complete-result source integration through
+Step 8.
 
 ## Step 1 Changes
 
@@ -182,12 +183,53 @@ shared table-text interaction through Step 7.
 - `git diff --check`
   - Passed.
 
+## Step 8 Changes
+
+- Separated the virtualized display row count from the complete-result text-copy
+  row count. `Cmd+A` uses the complete boundary and exact async loader, while
+  ordinary drag selections continue to use the displayed `rowProvider`; this
+  preserves Context window-local row indexes.
+- Connected ordinary Search, filter-only Search, and Context to their existing
+  paged database loaders, with Context routed first and loaded from stable
+  source index zero using `anchorsInitialPage: false`.
+- Snapshotted Search query, filters, folders, language, watch scope, total count,
+  and complete ordered Cue IDs. Every copy batch validates the complete Cue ID
+  snapshot plus exact range, row count, and total count before contributing any
+  clipboard content.
+- Connected Shiori copying to immutable submitted-search and filter snapshots,
+  exact page validation, and the existing Shiori row mapping including Date
+  Added, Cue Group, Language, and Shiori Tags.
+- Persisted the filtered Shiori result count in `ShioriStore` so partially
+  hydrated results retain their complete boundary across view suspension or
+  remount, while reload and data invalidation clear the boundary.
+- Added data-revision and reload-generation checks so an in-flight Shiori copy
+  cannot combine rows from different result snapshots.
+
+## Step 8 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleTable|tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges|cueContext'`
+  - Passed all 124 selected Swift Testing tests.
+- `swift test --filter 'shiori|Shiori'`
+  - Passed all 38 selected Swift Testing tests.
+- `swift test`
+  - Passed all 7 XCTest cases and all 607 Swift Testing tests.
+- Added regression coverage proving a one-row displayed prefix can copy 513
+  complete results in exact batches, partial drag copying never calls the
+  full-result loader, and Shiori remount state preserves its filtered result
+  count while invalidation clears it.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 7 match their accepted intermediate outcomes. The table paths
+Steps 1 through 8 match their accepted outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
 viewport-independent logical state across the fixed Header and Body, standard
 select-all/copy commands, and edge auto-scroll. Structured copying preserves
 visible table columns and multiline-cell boundaries for spreadsheet paste
-targets without coupling text selection to Checkbox state.
+targets without coupling text selection to Checkbox state. Complete-result
+copying uses exact, immutable Search, filter-only, Context, and Shiori source
+boundaries without forcing unloaded rows into the virtualized display model.
