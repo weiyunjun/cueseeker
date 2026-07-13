@@ -432,7 +432,7 @@
 ### 2.4 Pointer、点击区域与 Cursor
 
 - 可编辑输入框和没有左键动作的普通可选择文字使用 `text`。
-- Cue 的直接点击区域、Shiori Tags Cell、按钮、菜单项、Checkbox 和 Scrollbar Thumb 使用 `pointer`。
+- Cue 的直接点击区域、Shiori Tags Cell、按钮、菜单项使用 `pointer`。
 - 静态区域使用 `default`。
 - Disabled 控件使用 `not-allowed`。
 - Cursor 必须与实际点击区域一致。
@@ -453,6 +453,8 @@
 - 多行 Cue 在粘贴到电子表格后仍属于一个单元格。
 - 文字选择不改变 Checkbox 批量选择状态。
 - 文字拖拽优先于 Cue 和 Shiori Tags Cell 的单击；发生拖拽后不得执行播放或打开 Shiori Tag Popover。
+- 表格存在文字选择时，CueSeeker 任一窗口内新的左键 Mouse Down 先清除旧选区；同一手势随后形成有效表格拖选时建立新选区。
+- 右键 Mouse Down 不清除表格文字选择。
 
 ### 2.6 Context Menu
 
@@ -699,12 +701,13 @@
 
 - 最终行高：
 
-  `Row Height = max(All Column Content Block Heights) + 2 × --padding-table-row-y`
+  `Row Height = max(--min-height-table-row, max(All Column Content Block Heights) + 2 × --padding-table-row-y)`
 
 - 所有列的完整内容块在行内垂直居中。
 - Metadata 不再对齐 Primary Cue 第一视觉行。
 - Primary Cue 使用 `--font-size-table`、`--line-height-table-cue-primary`、`--color-text-secondary`。
 - Extra Cues 使用 `--font-size-caption`、`--line-height-table-cue-secondary`、`--color-text-muted`。
+- Primary Cue 和 Extra Cues 的文字字形分别在各自的 line-height 行框内垂直视觉居中。
 - 所有 Cue 保留源换行和自动换行，不裁剪、不截断、不显示省略号。
 - 行不显示 Full-row Hover 或 Full-row Selected 背景。
 - 只显示水平 Divider，不显示垂直列分隔线。
@@ -730,7 +733,6 @@
 - Token：`--size-checkbox`、`--radius-checkbox`、`--color-border-checkbox`、`--color-border-focus`、`--color-bg-checkbox-unchecked`、`--color-bg-checkbox-checked`、`--color-checkbox-icon`。
 - 行状态：Unchecked、Checked、Disabled。
 - Header 状态：Unchecked、Checked、Indeterminate、Disabled。
-- 点击只改变批量行选择，不改变文字选择。
 - Header Checkbox 不排序，也不打开 Column Header Menu。
 - `Cmd+A` 不改变 Checkbox 状态。
 
@@ -1251,12 +1253,15 @@
   - Display Title、Time Range 和 Date Added 文字只负责选择和复制。
   - Checkbox 只改变批量选择。
   - 除 Shiori Tags Cell 外，其他普通空白区域无动作。
+  - 从允许的外部空白区域起拖，手势进入表格后才建立新选区。
+  - 起点在按钮、Search/Filter、Count Summary、Sidebar、Topbar、Titlebar 或弹出层时，不能转成表格拖选。
+  - 选区内容始终只有表格文字。
 
 - 正文 Hover：
   - 不显示 Full-row Hover 或 Full-row Selected。
   - Cue Hover 使用 Interactive Text Cell。
   - Display Title、Time Range 和 Date Added 不显示可点击 Hover。
-  - Pointer Cursor 只出现在 Cue 的直接点击区域、Checkbox 和 Shiori Tags Cell。
+  - Pointer Cursor 只出现在 Cue 的直接点击区域和 Shiori Tags Cell。
 
 - 行右键交互使用 Row Action Menu。
 
