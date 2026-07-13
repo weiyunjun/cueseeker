@@ -11,7 +11,7 @@ record currently covers the `Time Range` label and the shared vertical row
 geometry, row interaction, clipboard foundations, and body text-selection
 interaction used by Search, Shiori, and Context. It also covers the complete
 shared table-text interaction and complete-result source integration through
-Step 8.
+Step 9.
 
 ## Step 1 Changes
 
@@ -277,9 +277,26 @@ Step 8.
 - `git diff --check`
   - Passed.
 
+## Step 9 Cursor Changes
+
+- Removed the row Checkbox from the table's pointing-hand cursor regions while
+  preserving its existing click and keyboard behavior.
+- Removed the playback subtitle-focus scrollbar's pointing-hand override so
+  the shared scrollbar keeps the inherited default cursor without changing
+  its drag behavior.
+
+## Step 9 Verification
+
+- `swift test --filter 'subtitleTableViewLimitsPointingHandToCueAndTagsContent|subtitleFocusReelScrollbarUsesInheritedCursor'`
+  - Passed both selected Swift Testing tests.
+- `swift test --filter 'subtitleTableView.*Cursor|tableScrollbarPrimitive|subtitleFocus.*Scrollbar'`
+  - Passed all 14 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 8 match their accepted outcomes. The table paths
+Steps 1 through 9 match their accepted outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
 viewport-independent logical state across the fixed Header and Body, standard
@@ -288,3 +305,5 @@ visible table columns and multiline-cell boundaries for spreadsheet paste
 targets without coupling text selection to Checkbox state. Complete-result
 copying uses exact, immutable Search, filter-only, Context, and Shiori source
 boundaries without forcing unloaded rows into the virtualized display model.
+Checkboxes and scrollbars retain their default cursor while Cue and Shiori Tag
+click targets keep their pointing-hand feedback.

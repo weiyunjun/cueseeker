@@ -4970,7 +4970,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 guard rowProvider(row) != nil else { return [] }
                 let rowRect = rectForRow(row, width: documentWidth)
                 let candidateRects = [
-                    checkboxRect(forRowRect: rowRect),
                     cellContentHoverRectInDocument(row: row, columnID: "cues"),
                     dataCellRect(columnID: "tags", rowRect: rowRect),
                 ].compactMap { $0 }

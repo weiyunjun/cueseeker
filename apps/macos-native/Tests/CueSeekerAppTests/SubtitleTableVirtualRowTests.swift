@@ -1098,7 +1098,7 @@ func subtitleTableViewSuppressesVisibleRowNotificationsWhenExternalLayerIsOpen()
 
 @MainActor
 @Test
-func subtitleTableViewProvidesInteractiveCellCursorRectsForContentHoverRegions() throws {
+func subtitleTableViewLimitsPointingHandToCueAndTagsContent() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
     let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
@@ -1111,8 +1111,8 @@ func subtitleTableViewProvidesInteractiveCellCursorRectsForContentHoverRegions()
         y: cuesRect.midY
     )
 
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) })
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: checkboxPoint) == true)
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) } == false)
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: checkboxPoint) == false)
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: displayPoint) == false)

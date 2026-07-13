@@ -698,7 +698,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         addSubview(scrollView)
 
         scrollbarView.appearanceMode = .fixedDark
-        scrollbarView.cursorPolicy = .pointingHand
         scrollbarView.presentationProvider = { [weak self] in
             self?.scrollbarMetrics.presentation
         }
@@ -881,6 +880,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     var acceptsScrollbarInteractionForTesting: Bool {
         scrollbarView.acceptsInteraction && allowsNativeScrollbarInput()
+    }
+
+    var scrollbarCursorPolicyForTesting: TableScrollbarCursorPolicy {
+        scrollbarView.cursorPolicy
     }
 
     func applyPreciseWheelDeltaForTesting(_ deltaY: CGFloat) {

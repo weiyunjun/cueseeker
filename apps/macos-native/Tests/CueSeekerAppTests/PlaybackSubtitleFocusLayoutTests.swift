@@ -190,6 +190,17 @@ func subtitleFocusScrollbarMapsOnlyFractionalCueOrdinal() throws {
 
 @MainActor
 @Test
+func subtitleFocusReelScrollbarUsesInheritedCursor() {
+    _ = NSApplication.shared
+    let view = PlaybackSubtitleFocusReelContainerView()
+
+    #expect(view.scrollbarCursorPolicyForTesting == .inherited)
+
+    view.invalidate()
+}
+
+@MainActor
+@Test
 func subtitleFocusReelCentersFitCueAndPinsOversizedCueToTop() throws {
     _ = NSApplication.shared
     let fitView = PlaybackSubtitleFocusReelContainerView()
