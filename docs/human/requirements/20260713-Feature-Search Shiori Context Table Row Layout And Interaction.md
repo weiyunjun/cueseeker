@@ -10,7 +10,7 @@ main
 6. Shiori界面表格，行右键菜单从上到下包括：Play，Open Subtitle Folder,Context，Copy Cue Text，Copy Cue Group Text，Copy Time Range，Remove Shiori。
 7. Cue Group Text仍然只在Show Cue Group勾选后才出现，这个逻辑不变。
 8. 表格存在文字选择时，CueSeeker 任一窗口内新的左键 Mouse Down都会先清除旧选区；如果该手势继续在表格内形成拖选，则建立新选区。右键不清除文字选择。
-9. 文字拖选可以从非标题栏且非顶栏的任意非交互区域开始。Count Summary、按钮、筛选区、Sidebar 等工作台区域不参与选择。
+9. 文字拖选可以从非标题栏且非顶栏的任意非交互区域开始（非交互区域 = 点击没有效果的区域）。
 10. UI修改详见# UI文档。
 
 # UI 文档
@@ -1268,8 +1268,7 @@ main
   - Display Title、Time Range 和 Date Added 文字只负责选择和复制。
   - Checkbox 只改变批量选择。
   - 除 Shiori Tags Cell 外，其他普通空白区域无动作。
-  - 从允许的外部空白区域起拖，手势进入表格后才建立新选区。
-  - 起点在按钮、Search/Filter、Count Summary、Sidebar、Topbar、Titlebar 或弹出层时，不能转成表格拖选。
+  - 文字拖选可以从非标题栏且非顶栏的任意非交互区域开始（非交互区域 = 点击没有效果的区域）。手势进入表格后才建立新选区。
   - 选区内容始终只有表格文字。
 
 - 正文 Hover：

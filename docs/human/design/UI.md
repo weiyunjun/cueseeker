@@ -1253,8 +1253,7 @@
   - Display Title、Time Range 和 Date Added 文字只负责选择和复制。
   - Checkbox 只改变批量选择。
   - 除 Shiori Tags Cell 外，其他普通空白区域无动作。
-  - 从允许的外部空白区域起拖，手势进入表格后才建立新选区。
-  - 起点在按钮、Search/Filter、Count Summary、Sidebar、Topbar、Titlebar 或弹出层时，不能转成表格拖选。
+  - 文字拖选可以从非标题栏且非顶栏的任意非交互区域开始（非交互区域 = 点击没有效果的区域）。手势进入表格后才建立新选区。
   - 选区内容始终只有表格文字。
 
 - 正文 Hover：
