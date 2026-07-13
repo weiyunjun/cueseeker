@@ -8,7 +8,8 @@
 
 Implement the accepted table update in independently verified Git steps. This
 record currently covers the `Time Range` label and the shared vertical row
-geometry and row interaction used by Search, Shiori, and Context.
+geometry, row interaction, and text-selection/clipboard foundations used by
+Search, Shiori, and Context.
 
 ## Step 1 Changes
 
@@ -95,8 +96,33 @@ geometry and row interaction used by Search, Shiori, and Context.
 - `git diff --check`
   - Passed.
 
+## Step 5 Changes
+
+- Added an independent table-text selection state with Header/Body document
+  positions, visible-column ordinals, UTF-16 offsets, directional anchor/focus,
+  normalized ranges, safe per-cell range projection, explicit selected-empty
+  cell structure, and an O(1) logical all-results sentinel.
+- Reworked structured table copying so each source result remains one table row
+  and source newlines remain inside their original cell.
+- Added quoted TSV encoding for embedded tabs, newlines, and quotes, plus HTML
+  table and native tabular-text representations on one pasteboard item.
+- Switched the existing Search and Shiori batch table-copy paths to the new
+  structured pasteboard representations; single-cell Row Action Menu copying
+  remains plain text.
+
+## Step 5 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleTableClipboard|subtitleTableTextSelection'`
+  - Passed all 15 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 4 match their accepted intermediate outcomes. The table paths
+Steps 1 through 5 match their accepted intermediate outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
-row action model and accepted mouse hit behavior.
+row action model and accepted mouse hit behavior. Text selection now has a
+viewport-independent logical state, and structured copying preserves table and
+multiline-cell boundaries for spreadsheet paste targets.

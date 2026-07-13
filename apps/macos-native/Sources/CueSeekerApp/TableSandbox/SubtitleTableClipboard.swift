@@ -35,15 +35,59 @@ struct SubtitleTableClipboardColumn {
 }
 
 enum SubtitleTableClipboard {
+    struct Representations: Equatable {
+        let plainText: String
+        let tabularText: String
+        let html: String
+
+        var isEmpty: Bool {
+            tabularText.isEmpty
+        }
+    }
+
+    struct RepresentationBuilder {
+        private var tabularText = ""
+        private var htmlRows = ""
+        private var hasRows = false
+
+        mutating func append(cells: [String], isHeader: Bool = false) {
+            guard !cells.isEmpty else { return }
+            let normalizedCells = cells.map(SubtitleTableClipboard.normalizedCell)
+            if hasRows {
+                tabularText.append("\n")
+            }
+            tabularText.append(
+                normalizedCells.map(SubtitleTableClipboard.tsvCell).joined(separator: "\t")
+            )
+
+            let tag = isHeader ? "th" : "td"
+            let htmlCells = normalizedCells.map { value in
+                "<\(tag) style=\"mso-number-format:'\\@';white-space:pre-wrap\">\(SubtitleTableClipboard.htmlCell(value))</\(tag)>"
+            }
+            htmlRows.append("<tr>\(htmlCells.joined())</tr>")
+            hasRows = true
+        }
+
+        var representations: Representations {
+            guard !tabularText.isEmpty else {
+                return Representations(plainText: "", tabularText: "", html: "")
+            }
+            let html = "<html><head><meta charset=\"utf-8\"></head><body><table>\(htmlRows)</table></body></html>"
+            return Representations(
+                plainText: tabularText,
+                tabularText: tabularText,
+                html: html
+            )
+        }
+    }
+
     struct TSVBuilder {
         private let columns: [SubtitleTableClipboardColumn]
-        private(set) var text: String
+        private var representationBuilder = RepresentationBuilder()
 
         init(columns: [SubtitleTableClipboardColumn]) {
             self.columns = columns
-            text = columns.isEmpty
-                ? ""
-                : columns.map { SubtitleTableClipboard.tsvCell($0.title) }.joined(separator: "\t")
+            representationBuilder.append(cells: columns.map(\.title), isHeader: true)
         }
 
         mutating func append(rows: [SubtitleTableRow]) {
@@ -56,16 +100,15 @@ enum SubtitleTableClipboard {
             guard !columns.isEmpty else {
                 return
             }
+            representationBuilder.append(cells: columns.map { $0.value(row) })
+        }
 
-            let columnLines = columns.map { SubtitleTableClipboard.normalizedLines($0.value(row)) }
-            let expandedRowCount = max(1, columnLines.map(\.count).max() ?? 1)
-            for lineIndex in 0..<expandedRowCount {
-                let outputCells = columnLines.map { lines in
-                    lineIndex < lines.count ? lines[lineIndex] : ""
-                }
-                text.append("\n")
-                text.append(outputCells.joined(separator: "\t"))
-            }
+        var representations: Representations {
+            representationBuilder.representations
+        }
+
+        var text: String {
+            representations.tabularText
         }
     }
 
@@ -82,19 +125,42 @@ enum SubtitleTableClipboard {
         return builder.text
     }
 
+    static func representations(
+        rows: [SubtitleTableRow],
+        columns: [SubtitleTableClipboardColumn]
+    ) -> Representations {
+        var builder = TSVBuilder(columns: columns)
+        builder.append(rows: rows)
+        return builder.representations
+    }
+
     @discardableResult
     static func copy(
         rows: [SubtitleTableRow],
-        columns: [SubtitleTableClipboardColumn]
+        columns: [SubtitleTableClipboardColumn],
+        to pasteboard: NSPasteboard = .general
     ) -> Bool {
-        let text = tsv(rows: rows, columns: columns)
-        guard !text.isEmpty else {
+        copy(representations: representations(rows: rows, columns: columns), to: pasteboard)
+    }
+
+    @discardableResult
+    static func copy(
+        representations: Representations,
+        to pasteboard: NSPasteboard = .general
+    ) -> Bool {
+        guard !representations.isEmpty else {
             return false
         }
 
-        let pasteboard = NSPasteboard.general
+        let item = NSPasteboardItem()
+        guard item.setString(representations.html, forType: .html),
+              item.setString(representations.tabularText, forType: .tabularText),
+              item.setString(representations.plainText, forType: .string)
+        else {
+            return false
+        }
         pasteboard.clearContents()
-        return pasteboard.setString(text, forType: .string)
+        return pasteboard.writeObjects([item])
     }
 
     @discardableResult
@@ -108,15 +174,27 @@ enum SubtitleTableClipboard {
         return pasteboard.setString(text, forType: .string)
     }
 
-    private static func normalizedLines(_ value: String) -> [String] {
+    private static func normalizedCell(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: "\n")
-            .map(tsvCell)
     }
 
     private static func tsvCell(_ value: String) -> String {
-        value.replacingOccurrences(of: "\t", with: " ")
+        guard value.contains("\t") || value.contains("\n") || value.contains("\"") else {
+            return value
+        }
+        return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+
+    private static func htmlCell(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
+            .replacingOccurrences(of: "\t", with: "&#9;")
+            .replacingOccurrences(of: "\n", with: "<br>")
     }
 }

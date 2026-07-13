@@ -1,8 +1,9 @@
+import AppKit
 import Testing
 @testable import CueSeekerApp
 
 @Test
-func subtitleTableClipboardCopiesHeadersAndExpandsCueLines() {
+func subtitleTableClipboardCopiesHeadersAndPreservesMultilineCueCell() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "rowNumber", title: "#", kind: .rowNumber, width: .fixed(84)),
         WorkbenchTableColumn(id: "display", title: "Display Title", kind: .text, width: .fixed(300)),
@@ -29,8 +30,7 @@ func subtitleTableClipboardCopiesHeadersAndExpandsCueLines() {
     let text = SubtitleTableClipboard.tsv(rows: rows, columns: columns)
     let expected = [
         "Display Title\tTime Range\tCues",
-        "Episode 01\t00:01 - 00:02\tline one",
-        "\t\tline two",
+        "Episode 01\t00:01 - 00:02\t\"line one\nline two\"",
         "Episode 02\t00:04 - 00:06\tsingle line",
     ].joined(separator: "\n")
 
@@ -84,8 +84,7 @@ func subtitleTableClipboardBuilderAppendsRows() {
 
     let expected = [
         "Display Title\tCues",
-        "Episode 01\tfirst",
-        "\tsecond",
+        "Episode 01\t\"first\nsecond\"",
         "Episode 02\tthird",
     ].joined(separator: "\n")
 
@@ -93,7 +92,7 @@ func subtitleTableClipboardBuilderAppendsRows() {
 }
 
 @Test
-func subtitleTableClipboardExpandsMultilineNonCueColumns() {
+func subtitleTableClipboardPreservesMultilineNonCueCell() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "dateAdded", title: "Date Added", kind: .text, width: .fixed(190)),
         WorkbenchTableColumn(id: "display", title: "Display Title", kind: .text, width: .fixed(300)),
@@ -111,8 +110,7 @@ func subtitleTableClipboardExpandsMultilineNonCueColumns() {
     let text = SubtitleTableClipboard.tsv(rows: rows, columns: columns)
     let expected = [
         "Date Added\tDisplay Title\tCues",
-        "2026-06-29\tMain Title\tcue",
-        "\tAlias Title\t",
+        "2026-06-29\t\"Main Title\nAlias Title\"\tcue",
     ].joined(separator: "\n")
 
     #expect(text == expected)
@@ -153,7 +151,7 @@ func subtitleTableClipboardCopiesVisibleTagColumnsAsText() {
 }
 
 @Test
-func subtitleTableClipboardSanitizesTabsAndCarriageReturns() {
+func subtitleTableClipboardQuotesTabsAndNormalizesCarriageReturns() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "display", title: "Display\tTitle", kind: .text, width: .fixed(300)),
         WorkbenchTableColumn(id: "cues", title: "Cues", kind: .text, width: .flexible(min: 580)),
@@ -166,10 +164,8 @@ func subtitleTableClipboardSanitizesTabsAndCarriageReturns() {
 
     let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
     let expected = [
-        "Display Title\tCues",
-        "Episode 01\tfirst",
-        "\tsecond",
-        "\tthird",
+        "\"Display\tTitle\"\tCues",
+        "\"Episode\t01\"\t\"first\nsecond\nthird\"",
     ].joined(separator: "\n")
 
     #expect(text == expected)
@@ -202,7 +198,48 @@ func subtitleTableClipboardAlwaysUsesCompletePrimaryCueInsteadOfCueGroup() {
 
     let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
 
-    #expect(text == (["Cues"] + primaryLines).joined(separator: "\n"))
+    #expect(text == "Cues\n\"\(primaryText)\"")
     #expect(!text.contains("extra upper"))
     #expect(!text.contains("extra lower"))
+}
+
+@Test
+func subtitleTableClipboardRepresentationsPreserveGridAndEscapeContent() {
+    var builder = SubtitleTableClipboard.RepresentationBuilder()
+    builder.append(cells: ["Cues", "Tags"], isHeader: true)
+    builder.append(cells: ["<first>\r\nsecond & \"third\"", "A\tB"])
+
+    let representations = builder.representations
+
+    #expect(
+        representations.tabularText
+            == "Cues\tTags\n\"<first>\nsecond & \"\"third\"\"\"\t\"A\tB\""
+    )
+    #expect(representations.plainText == representations.tabularText)
+    #expect(
+        representations.html.contains(
+            "<th style=\"mso-number-format:'\\@';white-space:pre-wrap\">Cues</th>"
+        )
+    )
+    #expect(representations.html.contains("&lt;first&gt;<br>second &amp; &quot;third&quot;"))
+    #expect(representations.html.contains("A&#9;B"))
+    #expect(representations.html.components(separatedBy: "<tr>").count - 1 == 2)
+}
+
+@Test
+func subtitleTableClipboardWritesOnePasteboardItemWithAllRepresentations() throws {
+    var builder = SubtitleTableClipboard.RepresentationBuilder()
+    builder.append(cells: ["Cues"], isHeader: true)
+    builder.append(cells: ["first\nsecond"])
+    let representations = builder.representations
+    let pasteboard = NSPasteboard(name: .init("SubtitleTableClipboard-\(UUID().uuidString)"))
+    defer { pasteboard.clearContents() }
+
+    #expect(SubtitleTableClipboard.copy(representations: representations, to: pasteboard))
+    let item = try #require(pasteboard.pasteboardItems?.first)
+
+    #expect(pasteboard.pasteboardItems?.count == 1)
+    #expect(item.string(forType: .html) == representations.html)
+    #expect(item.string(forType: .tabularText) == representations.tabularText)
+    #expect(item.string(forType: .string) == representations.plainText)
 }

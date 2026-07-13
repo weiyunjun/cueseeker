@@ -948,7 +948,7 @@ struct WorkbenchTestSearchView: View {
 
         var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
         builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
-        SubtitleTableClipboard.copy(text: builder.text)
+        SubtitleTableClipboard.copy(representations: builder.representations)
     }
 
     private func selectedSearchResults(for selectedRows: [Int]) async -> [SubtitleSearchResult] {
