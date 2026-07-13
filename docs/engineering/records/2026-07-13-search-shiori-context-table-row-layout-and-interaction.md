@@ -11,7 +11,7 @@ record currently covers the `Time Range` label and the shared vertical row
 geometry, row interaction, clipboard foundations, and body text-selection
 interaction used by Search, Shiori, and Context. It also covers the complete
 shared table-text interaction and complete-result source integration through
-Step 12.
+Step 13.
 
 ## Step 1 Changes
 
@@ -387,9 +387,59 @@ Step 12.
 - `git diff --check`
   - Passed.
 
+## Step 13 Semantic Text-Drag Origin Fix
+
+- Superseded Step 12's named workbench-region measurements and component-based
+  allow/exclude list. A left Mouse Down in window content outside the table is
+  now eligible by default unless the actual hit surface has an interaction.
+- Classified enabled native controls, editable or selectable text views,
+  scrollbars, Titlebar/Topbar drag surfaces, and custom SwiftUI controls by
+  their live hit semantics. Disabled controls become noninteractive origins;
+  adding or moving ordinary layout content no longer requires another drag-
+  origin rule.
+- Limited custom-control markers to their real action surfaces, including the
+  visual Header Checkbox before its cell expands. Search fields remain whole-
+  field controls, while Filter control padding, Sidebar whitespace, Utility Bar
+  gaps, Count Summary, and other click-inert content remain valid origins.
+- Made the fixed Header route click-inert blank space through the existing
+  3-point text-drag arbitration. Sort triggers and the visual Checkbox keep
+  their actions, while a click without a drag on Header blank space remains a
+  no-op.
+- Made semantic hit resolution follow the topmost visible surface. Popover and
+  confirmation blanks are passive origins, their child controls remain active,
+  rounded corners fall through to the popup-dismiss surface, and a parent
+  Playback cover cancels and blocks the hidden workbench table session.
+- Preserved table-only selection output, complete-result `Cmd+A`, structured
+  TSV/HTML copying, right-click behavior, and the rule that an external drag
+  creates a selection only after entering the table.
+- Stabilized the existing width-reflow integration test by explicitly hiding
+  Sidebar and normalizing the real content width from 1100 to 1180 before
+  asserting reflow. This removes dependence on screen-constrained initial
+  `NSWindow` fitting without changing production layout or reflow behavior.
+
+## Step 13 Verification
+
+- `swift build`
+  - Passed.
+- `swift test --filter 'subtitleTableExternalTextSelection|subtitleTableTextSelectionHitTesting|subtitleTableScrollbar|subtitleTableViewHeader|widthReflowStaysWithMountedTableWhileMountedFocusRemainsStable'`
+  - Passed all 21 selected Swift Testing tests.
+- Added real-window coverage for Count Summary, its leading inset, Sidebar
+  whitespace, Utility Bar gaps, action controls, Titlebar, table entry,
+  cross-window cancellation, and parent-cover lifecycle blocking.
+- Added Header coverage for trailing blank space, sort-trigger padding, the
+  visual Checkbox versus surrounding blank space, and click-versus-drag
+  arbitration.
+- Added semantic-layer coverage for native and custom controls, disabled
+  regions, rounded passive panels, popup-dismiss surfaces, and Scrollbar Thumb
+  versus transparent Track hit testing.
+- `swift test`
+  - Passed all 7 XCTest cases and all 633 Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 12 match their accepted outcomes. The table paths
+Steps 1 through 13 match their accepted outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
 viewport-independent logical state across the fixed Header and Body, standard
@@ -404,5 +454,7 @@ are visually centered inside their fixed line-height boxes without changing
 the surrounding row or selection geometry. Any CueSeeker-window left click
 clears stale table text selection before the original control handles the
 event, while right-click preserves the selection. Table padding and allowed
-workbench whitespace can now originate a table-only drag selection without
-turning controls or popup layers into selection surfaces.
+workbench whitespace can now originate a table-only drag selection. Outside
+Titlebar and Topbar, this follows actual click semantics instead of a named
+component list: click-inert content remains eligible as layouts evolve, while
+real controls and popup-dismiss surfaces keep their actions.

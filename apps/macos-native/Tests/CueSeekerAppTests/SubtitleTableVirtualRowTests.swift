@@ -1646,6 +1646,77 @@ func subtitleTableViewHeaderTextDragSelectsWithoutOpeningSortMenu() throws {
 
 @MainActor
 @Test
+func subtitleTableViewHeaderNonInteractiveBlankStartsDragButClickDoesNothing() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 1_400, rowCount: 2)
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 1_400, height: 260),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = fixture.container
+    fixture.container.layoutSubtreeIfNeeded()
+    fixture.header.layoutSubtreeIfNeeded()
+    let layout = fixture.coordinator.headerColumnLayoutForRendering(
+        viewportWidth: fixture.header.bounds.width,
+        height: fixture.header.bounds.height
+    )
+    let displayCell = try #require(layout.rect(for: "display"))
+    let display = try #require(
+        fixture.coordinator.headerTextFragmentInfoForTesting().first(where: {
+            $0.columnID == "display"
+        })
+    )
+    let cues = try #require(
+        fixture.coordinator.headerTextFragmentInfoForTesting().first(where: {
+            $0.columnID == "cues"
+        })
+    )
+    let blankPoint = CGPoint(
+        x: max(display.textBounds.maxX + 20, displayCell.maxX - 24),
+        y: displayCell.midY
+    )
+    #expect(displayCell.contains(blankPoint))
+    #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: blankPoint))
+    #expect(!fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
+        x: displayCell.minX + 4,
+        y: displayCell.midY
+    )))
+    #expect(!fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
+        x: layout.indexRect.midX,
+        y: layout.indexRect.midY
+    )))
+    #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
+        x: layout.indexRect.midX,
+        y: layout.indexRect.minY + 2
+    )))
+    #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
+        x: layout.indexRect.midX,
+        y: layout.indexRect.maxY - 2
+    )))
+
+    let blankWindowPoint = fixture.header.convert(blankPoint, to: nil)
+    #expect(fixture.coordinator.handleHeaderMouseDown(windowPoint: blankWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: blankWindowPoint))
+    #expect(!fixture.coordinator.isMenuOpenForTesting())
+    #expect(fixture.coordinator.headerTextSelectionRectsForTesting(columnID: "display").isEmpty)
+
+    let cuesWindowPoint = fixture.header.convert(
+        CGPoint(x: cues.textBounds.midX, y: cues.textBounds.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleHeaderMouseDown(windowPoint: blankWindowPoint))
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: cuesWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: cuesWindowPoint))
+    #expect(!fixture.coordinator.isMenuOpenForTesting())
+    #expect(
+        !fixture.coordinator.headerTextSelectionRectsForTesting(columnID: "display").isEmpty ||
+            !fixture.coordinator.headerTextSelectionRectsForTesting(columnID: "cues").isEmpty
+    )
+}
+
+@MainActor
+@Test
 func subtitleTableViewHeaderTextDragKeepsHeaderFocusOutsideItsSidesAndTop() throws {
     let fixture = makeAttachedVirtualTableCoordinator(width: 1_400, rowCount: 2)
     let fragments = fixture.coordinator.headerTextFragmentInfoForTesting()

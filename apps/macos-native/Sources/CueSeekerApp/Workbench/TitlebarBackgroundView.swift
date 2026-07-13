@@ -35,7 +35,7 @@ struct TitlebarBackgroundView: NSViewRepresentable {
     }
 }
 
-final class DraggableNSView: NSView {
+final class DraggableNSView: NSView, SubtitleTableTextSelectionInteractiveView {
     var onDoubleClickZoom: ((NSWindow) -> Bool)?
     var backgroundColor: NSColor = .clear {
         didSet {

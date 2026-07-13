@@ -125,6 +125,15 @@ func subtitleTableScrollbarOverlayHitTestConvertsSuperviewCoordinates() {
     guard let interactiveThumb else { return }
     let parentPoint = overlay.convert(CGPoint(x: interactiveThumb.midX, y: interactiveThumb.midY), to: parent)
     #expect(parent.hitTest(parentPoint) === overlay)
+
+    let transparentTrackPoint = overlay.convert(
+        CGPoint(
+            x: interactiveThumb.midX,
+            y: min(overlay.bounds.maxY - 2, interactiveThumb.maxY + 40)
+        ),
+        to: parent
+    )
+    #expect(parent.hitTest(transparentTrackPoint) !== overlay)
 }
 
 @MainActor

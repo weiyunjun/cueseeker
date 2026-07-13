@@ -11,10 +11,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
   glyphs are visually centered inside their fixed line-height boxes, and a
   left click in any CueSeeker window clears stale table text selection before
   the original control handles the event. Text dragging can now begin from
-  ordinary table padding, short-table whitespace, and allowed workbench
-  whitespace, while Search/Filter, Count Summary, buttons, Sidebar, Topbar,
-  Titlebar, and popup layers remain excluded. `Cmd+A` and structured copying
-  remain scoped to table text only.
+  any click-inert area outside Titlebar and Topbar, including ordinary table
+  padding, Header blank space, short-table whitespace, Count Summary, Sidebar
+  whitespace, Utility Bar gaps, and passive panel content. Real controls,
+  popup-dismiss surfaces, and Scrollbar Thumbs keep their actions, while a
+  Playback cover disables the hidden workbench table session. `Cmd+A` and
+  structured copying remain scoped to table text only.
 - Accepted deterministic subtitle-to-video basename priority: each subtitle
   resolves to at most one same-directory video, prefers its complete basename,
   and falls back once by removing the final dot-separated basename suffix.

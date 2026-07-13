@@ -1,54 +1,256 @@
 import AppKit
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
 @MainActor
 @Test
-func subtitleTableExternalTextSelectionPolicyAllowsOnlyExplicitWorkbenchBackground() {
-    let tableFrame = CGRect(x: 12, y: 140, width: 476, height: 340)
-    let policy = SubtitleTableExternalTextSelectionStartPolicy(
-        allowedFrame: CGRect(x: 0, y: 0, width: 500, height: 500),
-        excludedFrames: [
-            CGRect(x: 0, y: 0, width: 500, height: 80),
-            CGRect(x: 12, y: 100, width: 80, height: 28),
-            CGRect(x: 100, y: 100, width: 180, height: 28),
-            CGRect(x: 420, y: 100, width: 68, height: 28),
-        ],
-        requiredFramesAreReady: true,
-        isBlocked: false
+func subtitleTableExternalTextSelectionPolicyUsesInteractionSemantics() {
+    let policy = SubtitleTableExternalTextSelectionStartPolicy(isBlocked: false)
+    let allowed = SubtitleTableExternalTextSelectionStartContext(
+        isInsideWindowContent: true,
+        isInsideTable: false,
+        isInteractive: false
     )
 
-    #expect(policy.allowsStart(at: CGPoint(x: 350, y: 114), tableFrame: tableFrame))
-    #expect(policy.allowsStart(at: CGPoint(x: 6, y: 200), tableFrame: tableFrame))
-    #expect(!policy.allowsStart(at: CGPoint(x: 250, y: 40), tableFrame: tableFrame))
-    #expect(!policy.allowsStart(at: CGPoint(x: 40, y: 114), tableFrame: tableFrame))
-    #expect(!policy.allowsStart(at: CGPoint(x: 160, y: 114), tableFrame: tableFrame))
-    #expect(!policy.allowsStart(at: CGPoint(x: 450, y: 114), tableFrame: tableFrame))
-    #expect(!policy.allowsStart(at: CGPoint(x: 250, y: 200), tableFrame: tableFrame))
-    #expect(!policy.allowsStart(at: CGPoint(x: 520, y: 114), tableFrame: tableFrame))
+    #expect(policy.allowsStart(allowed))
+    #expect(!policy.allowsStart(SubtitleTableExternalTextSelectionStartContext(
+        isInsideWindowContent: false,
+        isInsideTable: false,
+        isInteractive: false
+    )))
+    #expect(!policy.allowsStart(SubtitleTableExternalTextSelectionStartContext(
+        isInsideWindowContent: true,
+        isInsideTable: true,
+        isInteractive: false
+    )))
+    #expect(!policy.allowsStart(SubtitleTableExternalTextSelectionStartContext(
+        isInsideWindowContent: true,
+        isInsideTable: false,
+        isInteractive: true
+    )))
+    #expect(!SubtitleTableExternalTextSelectionStartPolicy(isBlocked: true).allowsStart(allowed))
 }
 
 @MainActor
 @Test
-func subtitleTableExternalTextSelectionPolicyPassesThroughUntilFramesAreReadyOrWhileBlocked() {
-    let tableFrame = CGRect(x: 12, y: 140, width: 476, height: 340)
-    let point = CGPoint(x: 350, y: 114)
-    let missingFrames = SubtitleTableExternalTextSelectionStartPolicy(
-        allowedFrame: CGRect(x: 0, y: 0, width: 500, height: 500),
-        excludedFrames: [],
-        requiredFramesAreReady: false,
-        isBlocked: false
+func subtitleTableTextSelectionHitTestingDistinguishesControlsFromPlainContent() throws {
+    let plain = NSView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    #expect(!SubtitleTableTextSelectionHitTesting.isInteractive(plain))
+
+    let button = NSButton(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let buttonChild = NSView(frame: button.bounds)
+    button.addSubview(buttonChild)
+    #expect(SubtitleTableTextSelectionHitTesting.isInteractive(button))
+    #expect(SubtitleTableTextSelectionHitTesting.isInteractive(buttonChild))
+
+    button.isEnabled = false
+    #expect(!SubtitleTableTextSelectionHitTesting.isInteractive(button))
+    #expect(!SubtitleTableTextSelectionHitTesting.isInteractive(buttonChild))
+
+    let textView = NSTextView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    textView.isSelectable = true
+    #expect(SubtitleTableTextSelectionHitTesting.isInteractive(textView))
+
+    let titlebar = DraggableNSView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    #expect(SubtitleTableTextSelectionHitTesting.isInteractive(titlebar))
+
+    let host = NSHostingView(
+        rootView: HStack {
+            Text("Count Summary")
+            Button("View") {}
+        }
+        .frame(width: 300, height: 80)
     )
-    let blocked = SubtitleTableExternalTextSelectionStartPolicy(
-        allowedFrame: CGRect(x: 0, y: 0, width: 500, height: 500),
-        excludedFrames: [],
-        requiredFramesAreReady: true,
-        isBlocked: true
+    host.frame = CGRect(x: 0, y: 0, width: 300, height: 80)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    let swiftUIButton = try #require(firstDescendant(in: host, matching: { $0 is NSControl }))
+    let buttonPoint = host.convert(
+        CGPoint(x: swiftUIButton.bounds.midX, y: swiftUIButton.bounds.midY),
+        from: swiftUIButton
+    )
+    #expect(SubtitleTableTextSelectionHitTesting.isInteractive(host.hitTest(buttonPoint)))
+    #expect(!SubtitleTableTextSelectionHitTesting.isInteractive(host.hitTest(CGPoint(x: 4, y: 4))))
+
+    let markedHost = NSHostingView(
+        rootView: Button("Plain") {}
+            .buttonStyle(.plain)
+            .frame(width: 120, height: 40)
+            .subtitleTableTextSelectionInteractiveRegion()
+            .frame(width: 300, height: 80)
+    )
+    markedHost.frame = CGRect(x: 0, y: 0, width: 300, height: 80)
+    let markedWindow = NSWindow(
+        contentRect: markedHost.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    markedWindow.contentView = markedHost
+    markedHost.layoutSubtreeIfNeeded()
+    let marker = try #require(firstDescendant(in: markedHost, matching: {
+        $0 is SubtitleTableTextSelectionInteractiveRegionView
+    }))
+    let markerPoint = marker.convert(
+        CGPoint(x: marker.bounds.midX, y: marker.bounds.midY),
+        to: nil
+    )
+    let markedHitTestPoint = markedHost.superview?.convert(markerPoint, from: nil)
+        ?? markedHost.convert(markerPoint, from: nil)
+    #expect(SubtitleTableTextSelectionHitTesting.isInteractive(
+        markedHost.hitTest(markedHitTestPoint),
+        atWindowPoint: markerPoint,
+        in: markedHost
+    ))
+
+    let outsideMarkerPoint = markedHost.convert(CGPoint(x: 4, y: 4), to: nil)
+    #expect(!marker.convert(marker.bounds, to: nil).contains(outsideMarkerPoint))
+    let outsideMarkerHitTestPoint = markedHost.superview?.convert(
+        outsideMarkerPoint,
+        from: nil
+    ) ?? markedHost.convert(outsideMarkerPoint, from: nil)
+    #expect(!SubtitleTableTextSelectionHitTesting.isInteractive(
+        markedHost.hitTest(outsideMarkerHitTestPoint),
+        atWindowPoint: outsideMarkerPoint,
+        in: markedHost
+    ))
+}
+
+@MainActor
+@Test
+func subtitleTableTextSelectionHitTestingUsesTopmostSemanticSurface() throws {
+    let layeredHost = NSHostingView(
+        rootView: ZStack(alignment: .topLeading) {
+            Color.clear
+                .subtitleTableTextSelectionInteractiveRegion()
+
+            VStack(alignment: .leading, spacing: 0) {
+                Button("Action") {}
+                    .buttonStyle(.plain)
+                    .subtitleTableTextSelectionInteractiveRegion()
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .frame(width: 160, height: 100, alignment: .topLeading)
+            .background(Color.gray.opacity(0.2))
+            .subtitleTableTextSelectionNonInteractiveRegion(cornerRadius: 16)
+            .offset(x: 60, y: 40)
+        }
+        .frame(width: 300, height: 200)
+    )
+    layeredHost.frame = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let window = NSWindow(
+        contentRect: layeredHost.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = layeredHost
+    layeredHost.layoutSubtreeIfNeeded()
+
+    let markers = descendants(in: layeredHost).compactMap {
+        $0 as? SubtitleTableTextSelectionInteractiveRegionView
+    }
+    let passiveMarker = try #require(markers.first(where: { !$0.isActive }))
+    let interactiveMarkers = markers.filter(\.isActive)
+    let fullSurfaceMarker = try #require(interactiveMarkers.max(by: {
+        $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height
+    }))
+    let actionMarker = try #require(interactiveMarkers.min(by: {
+        $0.bounds.width * $0.bounds.height < $1.bounds.width * $1.bounds.height
+    }))
+    let passiveRect = passiveMarker.convert(passiveMarker.bounds, to: nil)
+    let actionRect = actionMarker.convert(actionMarker.bounds, to: nil)
+    let fullSurfaceRect = fullSurfaceMarker.convert(fullSurfaceMarker.bounds, to: nil)
+    let panelBlankPoint = CGPoint(
+        x: passiveRect.maxX - 4,
+        y: passiveRect.midY
+    )
+    let roundedCornerPoint = CGPoint(
+        x: passiveRect.minX + 1,
+        y: passiveRect.minY + 1
+    )
+    let outsidePanelPoint = try #require(point(
+        in: fullSurfaceRect,
+        excluding: [passiveRect]
+    ))
+
+    #expect(!actionRect.contains(panelBlankPoint))
+    #expect(!isInteractiveWindowPoint(
+        panelBlankPoint,
+        in: layeredHost
+    ))
+    #expect(isInteractiveWindowPoint(
+        CGPoint(x: actionRect.midX, y: actionRect.midY),
+        in: layeredHost
+    ))
+    #expect(isInteractiveWindowPoint(
+        outsidePanelPoint,
+        in: layeredHost
+    ))
+    #expect(isInteractiveWindowPoint(
+        roundedCornerPoint,
+        in: layeredHost
+    ))
+}
+
+@MainActor
+@Test
+func subtitleTableTextSelectionHitTestingMatchesActualUtilityBarSurfaces() throws {
+    let size = CGSize(
+        width: 500,
+        height: WorkbenchControlMetrics.redesignTableUtilityBarHeight
+    )
+    let host = NSHostingView(
+        rootView: SchemaWorkbenchTableUtilityBar(
+            tableSummary: SchemaWorkbenchTableSummary(
+                totalRowCount: 42,
+                selectedRowCount: 0
+            ),
+            summaryLeadingInset: SubtitleTableMetrics.checkboxLeadingInset,
+            isRedesign: true,
+            onViewMenu: {}
+        )
+        .frame(width: size.width, height: size.height)
+    )
+    host.frame = CGRect(origin: .zero, size: size)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+
+    let viewButtonMarker = try #require(descendants(in: host).compactMap {
+        $0 as? SubtitleTableTextSelectionInteractiveRegionView
+    }.first(where: { $0.isActive }))
+    let viewButtonRect = viewButtonMarker.convert(viewButtonMarker.bounds, to: nil)
+    let countSummaryPoint = host.convert(
+        CGPoint(x: 40, y: host.bounds.midY),
+        to: nil
+    )
+    let utilityGapPoint = host.convert(
+        CGPoint(x: host.bounds.midX, y: host.bounds.midY),
+        to: nil
     )
 
-    #expect(!missingFrames.allowsStart(at: point, tableFrame: tableFrame))
-    #expect(!blocked.allowsStart(at: point, tableFrame: tableFrame))
-    #expect(!blocked.allowsStart(at: point, tableFrame: nil))
+    #expect(!viewButtonRect.contains(countSummaryPoint))
+    #expect(!isInteractiveWindowPoint(countSummaryPoint, in: host))
+    #expect(!viewButtonRect.contains(utilityGapPoint))
+    #expect(!isInteractiveWindowPoint(utilityGapPoint, in: host))
+    #expect(isInteractiveWindowPoint(
+        CGPoint(x: viewButtonRect.midX, y: viewButtonRect.midY),
+        in: host
+    ))
 }
 
 @MainActor
@@ -127,18 +329,8 @@ func subtitleTableExternalTextSelectionSessionRejectsUnavailableTargetAndUnbinds
 @MainActor
 @Test
 func subtitleTableExternalTextSelectionMonitorCancelsForBlockedOrDetachedLifecycle() {
-    let readyPolicy = SubtitleTableExternalTextSelectionStartPolicy(
-        allowedFrame: CGRect(x: 0, y: 0, width: 500, height: 500),
-        excludedFrames: [],
-        requiredFramesAreReady: true,
-        isBlocked: false
-    )
-    let blockedPolicy = SubtitleTableExternalTextSelectionStartPolicy(
-        allowedFrame: CGRect(x: 0, y: 0, width: 500, height: 500),
-        excludedFrames: [],
-        requiredFramesAreReady: true,
-        isBlocked: true
-    )
+    let readyPolicy = SubtitleTableExternalTextSelectionStartPolicy(isBlocked: false)
+    let blockedPolicy = SubtitleTableExternalTextSelectionStartPolicy(isBlocked: true)
     let target = SubtitleTableExternalTextSelectionTargetSpy()
     let session = SubtitleTableExternalTextSelectionSession()
     let monitor = SubtitleTableExternalTextSelectionEventMonitor.MonitoringView()
@@ -162,80 +354,102 @@ func subtitleTableExternalTextSelectionMonitorCancelsForBlockedOrDetachedLifecyc
 @MainActor
 @Test
 func subtitleTableExternalTextSelectionMonitorRoutesWindowCoordinatesWithoutTakingControls() throws {
-    let allowedFrame = CGRect(x: 0, y: 0, width: 500, height: 500)
-    let tableFrame = CGRect(x: 12, y: 140, width: 476, height: 340)
-    let countFrame = CGRect(x: 12, y: 100, width: 80, height: 28)
-    let actionFrame = CGRect(x: 100, y: 100, width: 180, height: 28)
-    let viewFrame = CGRect(x: 420, y: 100, width: 68, height: 28)
-    let policy = SubtitleTableExternalTextSelectionStartPolicy(
-        allowedFrame: allowedFrame,
-        excludedFrames: [
-            CGRect(x: 0, y: 0, width: 500, height: 80),
-            countFrame,
-            actionFrame,
-            viewFrame,
-        ],
-        requiredFramesAreReady: true,
-        isBlocked: false
-    )
+    let contentFrame = CGRect(x: 0, y: 0, width: 500, height: 500)
+    let tableFrame = CGRect(x: 120, y: 20, width: 368, height: 280)
+    let countFrame = CGRect(x: 120, y: 330, width: 100, height: 28)
+    let actionFrame = CGRect(x: 240, y: 330, width: 100, height: 28)
+    let titlebarFrame = CGRect(x: 0, y: 455, width: 500, height: 45)
+    let policy = SubtitleTableExternalTextSelectionStartPolicy(isBlocked: false)
     let target = SubtitleTableExternalTextSelectionTargetSpy()
     let session = SubtitleTableExternalTextSelectionSession()
     let monitor = SubtitleTableExternalTextSelectionEventMonitor.MonitoringView(
-        frame: allowedFrame
+        frame: contentFrame
     )
     let window = NSWindow(
-        contentRect: allowedFrame,
+        contentRect: contentFrame,
         styleMask: [.borderless],
         backing: .buffered,
         defer: false
     )
     window.contentView = monitor
-    monitor.frame = allowedFrame
+    monitor.frame = contentFrame
+    let countSummary = NSView()
+    countSummary.frame = countFrame
+    monitor.addSubview(countSummary)
+    let actionTarget = SubtitleTableExternalTextSelectionControlTarget()
+    let actionButton = NSButton(
+        title: "View",
+        target: actionTarget,
+        action: #selector(SubtitleTableExternalTextSelectionControlTarget.activate)
+    )
+    actionButton.frame = actionFrame
+    monitor.addSubview(actionButton)
+    let titlebar = DraggableNSView(frame: titlebarFrame)
+    monitor.addSubview(titlebar)
     target.windowRect = monitor.convert(tableFrame, to: nil)
     session.bind(target)
     monitor.update(session: session, startPolicy: policy)
     defer { monitor.tearDown() }
 
-    let utilityGap = CGPoint(x: 350, y: 114)
-    monitor.routeForTesting(externalSelectionMouseEvent(
-        type: .leftMouseDown,
-        localPoint: utilityGap,
-        in: monitor,
-        window: window
-    ))
-    #expect(session.phase == .armed)
-    monitor.routeForTesting(externalSelectionMouseEvent(
-        type: .leftMouseUp,
-        localPoint: utilityGap,
-        in: monitor,
-        window: window
-    ))
-    #expect(session.phase == .idle)
+    #expect(monitor.startContextForTesting(
+        atWindowPoint: monitor.convert(
+            CGPoint(x: actionFrame.midX, y: actionFrame.midY),
+            to: nil
+        )
+    )?.isInteractive == true)
+    #expect(monitor.startContextForTesting(
+        atWindowPoint: monitor.convert(
+            CGPoint(x: titlebarFrame.midX, y: titlebarFrame.midY),
+            to: nil
+        )
+    )?.isInteractive == true)
 
-    for excludedPoint in [
+    for allowedPoint in [
         CGPoint(x: countFrame.midX, y: countFrame.midY),
-        CGPoint(x: actionFrame.midX, y: actionFrame.midY),
-        CGPoint(x: viewFrame.midX, y: viewFrame.midY),
-        CGPoint(x: tableFrame.midX, y: tableFrame.midY),
+        CGPoint(x: countFrame.minX - 12, y: countFrame.midY),
+        CGPoint(x: 30, y: 350),
+        CGPoint(x: 380, y: 344),
     ] {
         monitor.routeForTesting(externalSelectionMouseEvent(
             type: .leftMouseDown,
-            localPoint: excludedPoint,
+            localPoint: allowedPoint,
+            in: monitor,
+            window: window
+        ))
+        #expect(session.phase == .armed)
+        monitor.routeForTesting(externalSelectionMouseEvent(
+            type: .leftMouseUp,
+            localPoint: allowedPoint,
             in: monitor,
             window: window
         ))
         #expect(session.phase == .idle)
     }
 
+    for blockedPoint in [
+        CGPoint(x: actionFrame.midX, y: actionFrame.midY),
+        CGPoint(x: titlebarFrame.midX, y: titlebarFrame.midY),
+        CGPoint(x: tableFrame.midX, y: tableFrame.midY),
+    ] {
+        monitor.routeForTesting(externalSelectionMouseEvent(
+            type: .leftMouseDown,
+            localPoint: blockedPoint,
+            in: monitor,
+            window: window
+        ))
+        #expect(session.phase == .idle)
+    }
+
+    let countPoint = CGPoint(x: countFrame.midX, y: countFrame.midY)
     monitor.routeForTesting(externalSelectionMouseEvent(
         type: .leftMouseDown,
-        localPoint: utilityGap,
+        localPoint: countPoint,
         in: monitor,
         window: window
     ))
     monitor.routeForTesting(externalSelectionMouseEvent(
         type: .leftMouseDragged,
-        localPoint: CGPoint(x: 360, y: 120),
+        localPoint: CGPoint(x: countPoint.x + 10, y: countPoint.y),
         in: monitor,
         window: window
     ))
@@ -257,7 +471,7 @@ func subtitleTableExternalTextSelectionMonitorRoutesWindowCoordinatesWithoutTaki
     #expect(session.phase == .idle)
     #expect(target.endPoints.count == 1)
 
-    #expect(session.arm(startWindowPoint: monitor.convert(utilityGap, to: nil)))
+    #expect(session.arm(startWindowPoint: monitor.convert(countPoint, to: nil)))
     let otherWindow = NSWindow(
         contentRect: CGRect(x: 0, y: 0, width: 100, height: 100),
         styleMask: [.borderless],
@@ -320,6 +534,59 @@ private final class SubtitleTableExternalTextSelectionTargetSpy: SubtitleTableEx
     func cancelExternalTextSelection() {
         cancelCount += 1
     }
+}
+
+@MainActor
+private final class SubtitleTableExternalTextSelectionControlTarget: NSObject {
+    @objc func activate() {}
+}
+
+@MainActor
+private func firstDescendant(
+    in root: NSView,
+    matching predicate: (NSView) -> Bool
+) -> NSView? {
+    for subview in root.subviews {
+        if predicate(subview) {
+            return subview
+        }
+        if let match = firstDescendant(in: subview, matching: predicate) {
+            return match
+        }
+    }
+    return nil
+}
+
+@MainActor
+private func descendants(in root: NSView) -> [NSView] {
+    root.subviews.flatMap { [$0] + descendants(in: $0) }
+}
+
+@MainActor
+private func point(in rect: CGRect, excluding excludedRects: [CGRect]) -> CGPoint? {
+    for x in stride(from: rect.minX + 2, through: rect.maxX - 2, by: 4) {
+        for y in stride(from: rect.minY + 2, through: rect.maxY - 2, by: 4) {
+            let candidate = CGPoint(x: x, y: y)
+            if !excludedRects.contains(where: { $0.contains(candidate) }) {
+                return candidate
+            }
+        }
+    }
+    return nil
+}
+
+@MainActor
+private func isInteractiveWindowPoint(
+    _ point: CGPoint,
+    in root: NSView
+) -> Bool {
+    let hitTestPoint = root.superview?.convert(point, from: nil)
+        ?? root.convert(point, from: nil)
+    return SubtitleTableTextSelectionHitTesting.isInteractive(
+        root.hitTest(hitTestPoint),
+        atWindowPoint: point,
+        in: root
+    )
 }
 
 @MainActor

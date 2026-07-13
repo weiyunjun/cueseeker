@@ -55,7 +55,19 @@ struct CueGroupRefreshScopeIntegrationTests {
         try await withMountedCueTable(
             surface: .search,
             uiProbeScope: uiProbeScope
-        ) { _, window, coordinator in
+        ) { app, window, coordinator in
+            app.workbenchLayout.setSidebarVisible(false)
+            window.setContentSize(NSSize(width: 1_100, height: 900))
+            let didNormalizeWindow = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                guard let contentWidth = window.contentView?.bounds.width else {
+                    return false
+                }
+                return !app.workbenchLayout.isSidebarVisible
+                    && abs(contentWidth - 1_100) < 0.5
+            }
+            try #require(didNormalizeWindow)
+
             let targetRow = min(150, coordinator.numberOfRowsForTesting() / 2)
             coordinator.scrollToRow(targetRow)
             let didResolveAnchor = await waitUntil(timeout: 1) {

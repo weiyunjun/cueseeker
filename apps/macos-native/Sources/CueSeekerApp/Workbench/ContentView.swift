@@ -157,6 +157,9 @@ private struct AppTopBar: View {
         }
         .buttonStyle(AppSidebarToggleButtonStyle())
         .disabled(layoutState.isVideoSizeTransitionInProgress)
+        .subtitleTableTextSelectionInteractiveRegion(
+            isActive: !layoutState.isVideoSizeTransitionInProgress
+        )
         .foregroundStyle(WorkbenchRedesignColors.iconDefault)
         .focusable(false)
         .help(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
@@ -245,6 +248,7 @@ private struct AppSidebarNavigationItem: View {
         }
         .buttonStyle(AppSidebarItemButtonStyle(isSelected: isSelected))
         .disabled(!isEnabled)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .help(mode.sidebarLabel)
         .accessibilityLabel(mode.sidebarLabel)
@@ -264,6 +268,7 @@ private struct AppSidebarSettingsItem: View {
             )
         }
         .buttonStyle(AppSidebarItemButtonStyle(isSelected: false))
+        .subtitleTableTextSelectionInteractiveRegion()
         .focusable(false)
         .help("Settings")
         .accessibilityLabel("Settings")

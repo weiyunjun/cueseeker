@@ -218,6 +218,7 @@ struct WorkbenchInlineClearButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
         .onHover { isHovered = $0 }
@@ -302,6 +303,7 @@ struct WorkbenchSearchField: View {
                 }
             }
         )
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
     }
 }
 
@@ -325,6 +327,7 @@ struct WorkbenchToolbarButton: View {
             .buttonStyle(.plain)
             .focused($isFocused)
             .disableFocusEffect()
+            .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         } else {
             label
         }
@@ -451,6 +454,7 @@ struct WorkbenchButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
         .onHover { isHovered = $0 }
@@ -504,6 +508,7 @@ struct WorkbenchDestructiveButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
     }
@@ -556,6 +561,7 @@ struct WorkbenchPlainActionButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
         .onHover { isHovered = $0 }
@@ -600,6 +606,7 @@ struct WorkbenchFilterPanelTriggerButton: View {
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
+            .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
             .focused($isMainButtonFocused)
             .disableFocusEffect()
 
@@ -638,12 +645,15 @@ struct WorkbenchFilterChip: View {
     let detail: String?
     var action: (() -> Void)? = nil
 
+    @Environment(\.isEnabled) private var isEnabled
+
     var body: some View {
         if let action {
             Button(action: action) {
                 label
             }
             .buttonStyle(.plain)
+            .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         } else {
             label
         }
@@ -863,6 +873,7 @@ struct WorkbenchInlineDropdown: View {
 
     @FocusState private var isFocused: Bool
     @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Button(action: action) {
@@ -875,6 +886,7 @@ struct WorkbenchInlineDropdown: View {
             )
         }
         .buttonStyle(.plain)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
         .onHover { isHovered = $0 }
@@ -946,6 +958,7 @@ struct WorkbenchPopoverRow: View {
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
+            .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         } else {
             label
         }
@@ -1073,6 +1086,7 @@ struct WorkbenchIconButton: View {
                 .buttonStyle(.plain)
                 .focused($isFocused)
                 .disableFocusEffect()
+                .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
             } else {
                 label
             }
@@ -1158,16 +1172,17 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
+        let cornerRadius: CGFloat = isRedesign ? 16 : 10
         content()
             .padding(isRedesign ? 4 : 8)
             .background(
                 Group {
                     if isRedesign {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(WorkbenchRedesignColors.bgPopover)
                             .shadowToken(WorkbenchRedesignColors.shadowPopover)
                     } else {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(WorkbenchControlColors.surfaceFill)
                             .shadow(
                                 color: Color.black.opacity(0.14),
@@ -1179,8 +1194,11 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                 }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: isRedesign ? 16 : 10, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(isRedesign ? WorkbenchRedesignColors.borderControl : WorkbenchControlColors.border.opacity(0.75), lineWidth: isRedesign ? 1.0 : 0.5)
+            )
+            .subtitleTableTextSelectionNonInteractiveRegion(
+                cornerRadius: cornerRadius
             )
     }
 }

@@ -164,62 +164,206 @@ extension EnvironmentValues {
     }
 }
 
-enum SubtitleTableExternalTextSelectionRegion: Hashable {
-    case allowedBackground
-    case searchAndFilter
-    case countSummary
-    case summaryAction
-    case viewButton
+@MainActor
+protocol SubtitleTableTextSelectionInteractiveView: AnyObject {
+    var subtitleTableTextSelectionInteraction: SubtitleTableTextSelectionInteraction { get }
 }
 
-struct SubtitleTableExternalTextSelectionRegionPreferenceKey: PreferenceKey {
-    static var defaultValue: [SubtitleTableExternalTextSelectionRegion: CGRect] { [:] }
+enum SubtitleTableTextSelectionInteraction {
+    case interactive
+    case nonInteractive
+}
 
-    static func reduce(
-        value: inout [SubtitleTableExternalTextSelectionRegion: CGRect],
-        nextValue: () -> [SubtitleTableExternalTextSelectionRegion: CGRect]
+extension SubtitleTableTextSelectionInteractiveView {
+    var subtitleTableTextSelectionInteraction: SubtitleTableTextSelectionInteraction {
+        .interactive
+    }
+}
+
+@MainActor
+final class SubtitleTableTextSelectionInteractiveRegionView: NSView,
+    SubtitleTableTextSelectionInteractiveView
+{
+    var isActive = true
+    var cornerRadius: CGFloat = 0
+
+    var subtitleTableTextSelectionInteraction: SubtitleTableTextSelectionInteraction {
+        isActive ? .interactive : .nonInteractive
+    }
+
+    func contains(windowPoint: CGPoint) -> Bool {
+        let localPoint = convert(windowPoint, from: nil)
+        guard bounds.contains(localPoint) else {
+            return false
+        }
+        guard cornerRadius > 0 else {
+            return true
+        }
+        let radius = min(cornerRadius, min(bounds.width / 2, bounds.height / 2))
+        return RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .path(in: bounds)
+            .contains(localPoint)
+    }
+
+    override func hitTest(_: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+struct SubtitleTableTextSelectionInteractiveRegion: NSViewRepresentable {
+    let isActive: Bool
+    let cornerRadius: CGFloat
+
+    func makeNSView(context _: Context) -> SubtitleTableTextSelectionInteractiveRegionView {
+        let view = SubtitleTableTextSelectionInteractiveRegionView()
+        view.isActive = isActive
+        view.cornerRadius = cornerRadius
+        return view
+    }
+
+    func updateNSView(
+        _ nsView: SubtitleTableTextSelectionInteractiveRegionView,
+        context _: Context
     ) {
-        value.merge(nextValue()) { $1 }
+        nsView.isActive = isActive
+        nsView.cornerRadius = cornerRadius
     }
 }
 
 extension View {
-    func subtitleTableExternalTextSelectionRegion(
-        _ region: SubtitleTableExternalTextSelectionRegion,
-        in coordinateSpaceName: String
+    func subtitleTableTextSelectionInteractiveRegion(
+        isActive: Bool = true,
+        cornerRadius: CGFloat = 0
     ) -> some View {
         background(
-            GeometryReader { geometry in
-                Color.clear
-                    .allowsHitTesting(false)
-                    .preference(
-                        key: SubtitleTableExternalTextSelectionRegionPreferenceKey.self,
-                        value: [region: geometry.frame(in: .named(coordinateSpaceName))]
-                    )
-            }
+            SubtitleTableTextSelectionInteractiveRegion(
+                isActive: isActive,
+                cornerRadius: cornerRadius
+            )
+                .allowsHitTesting(false)
+        )
+    }
+
+    func subtitleTableTextSelectionNonInteractiveRegion(
+        cornerRadius: CGFloat = 0
+    ) -> some View {
+        subtitleTableTextSelectionInteractiveRegion(
+            isActive: false,
+            cornerRadius: cornerRadius
         )
     }
 }
 
+@MainActor
+enum SubtitleTableTextSelectionHitTesting {
+    static func isInteractive(_ hitView: NSView?) -> Bool {
+        var candidate = hitView
+        while let view = candidate {
+            if let control = view as? NSControl, control.isEnabled {
+                return true
+            }
+            if let textView = view as? NSTextView,
+               textView.isEditable || textView.isSelectable
+            {
+                return true
+            }
+            if let semanticView = view as? any SubtitleTableTextSelectionInteractiveView {
+                return semanticView.subtitleTableTextSelectionInteraction == .interactive
+            }
+            if view is NSScroller {
+                return true
+            }
+            candidate = view.superview
+        }
+        return false
+    }
+
+    static func isInteractive(
+        _ hitView: NSView?,
+        atWindowPoint point: CGPoint,
+        in rootView: NSView
+    ) -> Bool {
+        if isInteractive(hitView) {
+            return true
+        }
+        return topmostSemanticInteraction(
+            atWindowPoint: point,
+            in: rootView
+        ) == .interactive
+    }
+
+    static func containsInteractiveRegion(
+        atWindowPoint point: CGPoint,
+        in rootView: NSView
+    ) -> Bool {
+        topmostSemanticInteraction(
+            atWindowPoint: point,
+            in: rootView
+        ) == .interactive
+    }
+
+    private static func topmostSemanticInteraction(
+        atWindowPoint point: CGPoint,
+        in rootView: NSView
+    ) -> SubtitleTableTextSelectionInteraction? {
+        guard rootView.window != nil,
+              !rootView.isHiddenOrHasHiddenAncestor,
+              rootView.alphaValue > 0,
+              windowBounds(of: rootView).contains(point)
+        else {
+            return nil
+        }
+
+        for subview in rootView.subviews.reversed() {
+            if let interaction = topmostSemanticInteraction(
+                atWindowPoint: point,
+                in: subview
+            ) {
+                return interaction
+            }
+        }
+
+        guard let semanticView = rootView as? any SubtitleTableTextSelectionInteractiveView else {
+            return nil
+        }
+        if let region = semanticView as? SubtitleTableTextSelectionInteractiveRegionView,
+           !region.contains(windowPoint: point)
+        {
+            return nil
+        }
+        return semanticView.subtitleTableTextSelectionInteraction
+    }
+
+    private static func windowBounds(of view: NSView) -> CGRect {
+        var rect = view.convert(view.bounds, to: nil).standardized
+        var ancestor = view.superview
+        while !rect.isNull, !rect.isEmpty, let current = ancestor {
+            guard !current.isHidden, current.alphaValue > 0 else {
+                return .null
+            }
+            rect = rect.intersection(
+                current.convert(current.bounds, to: nil).standardized
+            )
+            ancestor = current.superview
+        }
+        return rect
+    }
+}
+
+struct SubtitleTableExternalTextSelectionStartContext: Equatable {
+    let isInsideWindowContent: Bool
+    let isInsideTable: Bool
+    let isInteractive: Bool
+}
+
 struct SubtitleTableExternalTextSelectionStartPolicy: Equatable {
-    let allowedFrame: CGRect?
-    let excludedFrames: [CGRect]
-    let requiredFramesAreReady: Bool
     let isBlocked: Bool
 
-    func allowsStart(at point: CGPoint, tableFrame: CGRect?) -> Bool {
-        guard !isBlocked,
-              requiredFramesAreReady,
-              let allowedFrame,
-              let tableFrame,
-              tableFrame.width > 0,
-              tableFrame.height > 0,
-              allowedFrame.contains(point),
-              !tableFrame.contains(point)
-        else {
-            return false
-        }
-        return !excludedFrames.contains(where: { $0.contains(point) })
+    func allowsStart(_ context: SubtitleTableExternalTextSelectionStartContext) -> Bool {
+        !isBlocked &&
+            context.isInsideWindowContent &&
+            !context.isInsideTable &&
+            !context.isInteractive
     }
 }
 
@@ -244,9 +388,6 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
         nonisolated(unsafe) private var eventMonitor: Any?
         private weak var session: SubtitleTableExternalTextSelectionSession?
         private var startPolicy = SubtitleTableExternalTextSelectionStartPolicy(
-            allowedFrame: nil,
-            excludedFrames: [],
-            requiredFramesAreReady: false,
             isBlocked: true
         )
 
@@ -261,7 +402,7 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
                 self.session = session
             }
             self.startPolicy = startPolicy
-            if startPolicy.isBlocked || !startPolicy.requiredFramesAreReady {
+            if startPolicy.isBlocked {
                 session.cancel()
             }
             installEventMonitorIfNeeded()
@@ -285,6 +426,12 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
 
         func routeForTesting(_ event: NSEvent) {
             route(event)
+        }
+
+        func startContextForTesting(
+            atWindowPoint point: CGPoint
+        ) -> SubtitleTableExternalTextSelectionStartContext? {
+            startContext(atWindowPoint: point)
         }
 
         deinit {
@@ -326,9 +473,9 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
 
             switch event.type {
             case .leftMouseDown:
-                let localPoint = convert(event.locationInWindow, from: nil)
-                let tableFrame = session.targetWindowRect.map { convert($0, from: nil) }
-                guard startPolicy.allowsStart(at: localPoint, tableFrame: tableFrame) else {
+                guard let context = startContext(atWindowPoint: event.locationInWindow),
+                      startPolicy.allowsStart(context)
+                else {
                     return
                 }
                 _ = session.arm(startWindowPoint: event.locationInWindow)
@@ -339,6 +486,39 @@ struct SubtitleTableExternalTextSelectionEventMonitor: NSViewRepresentable {
             default:
                 break
             }
+        }
+
+        private func startContext(
+            atWindowPoint point: CGPoint
+        ) -> SubtitleTableExternalTextSelectionStartContext? {
+            guard let window,
+                  let contentView = window.contentView
+            else {
+                return nil
+            }
+
+            let contentFrame = contentView.convert(contentView.bounds, to: nil).standardized
+            guard contentFrame.width > 0,
+                  contentFrame.height > 0,
+                  !contentFrame.isNull,
+                  !contentFrame.isInfinite
+            else {
+                return nil
+            }
+
+            let hitTestPoint = contentView.superview?.convert(point, from: nil)
+                ?? contentView.convert(point, from: nil)
+            let hitView = contentView.hitTest(hitTestPoint)
+
+            return SubtitleTableExternalTextSelectionStartContext(
+                isInsideWindowContent: contentFrame.contains(point),
+                isInsideTable: session?.targetWindowRect?.contains(point) == true,
+                isInteractive: SubtitleTableTextSelectionHitTesting.isInteractive(
+                    hitView,
+                    atWindowPoint: point,
+                    in: contentView
+                )
+            )
         }
     }
 }

@@ -1038,6 +1038,7 @@ private struct WorkbenchCheckboxButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1302,7 +1303,11 @@ final class SubtitleTableHeaderTextOverlayView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard !isHidden,
               NSApp.currentEvent?.type == .leftMouseDown,
-              coordinator?.isHeaderTextHitForInteraction(at: point) == true
+              let headerView = superview as? SubtitleVirtualTableHeaderView,
+              headerView.shouldRouteTextSelectionMouseDown(
+                  at: convert(point, to: headerView),
+                  excluding: self
+              )
         else {
             return nil
         }
@@ -1691,6 +1696,35 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     func textInteractionOverlayForTesting() -> SubtitleTableHeaderTextOverlayView? {
         textInteractionOverlay
+    }
+
+    func shouldRouteTextSelectionMouseDownForTesting(at point: CGPoint) -> Bool {
+        guard let textInteractionOverlay else { return false }
+        return shouldRouteTextSelectionMouseDown(
+            at: point,
+            excluding: textInteractionOverlay
+        )
+    }
+
+    func shouldRouteTextSelectionMouseDown(
+        at point: CGPoint,
+        excluding overlay: SubtitleTableHeaderTextOverlayView
+    ) -> Bool {
+        guard bounds.contains(point), !overlay.isHidden else { return false }
+        if coordinator?.isHeaderTextHitForInteraction(at: point) == true {
+            return true
+        }
+        if SubtitleTableTextSelectionHitTesting.containsInteractiveRegion(
+            atWindowPoint: convert(point, to: nil),
+            in: self
+        ) {
+            return false
+        }
+
+        let wasHidden = overlay.isHidden
+        overlay.isHidden = true
+        defer { overlay.isHidden = wasHidden }
+        return !SubtitleTableTextSelectionHitTesting.isInteractive(hitTest(point))
     }
 
     @IBAction override func selectAll(_ sender: Any?) {
@@ -3163,8 +3197,6 @@ struct SubtitleTableView: NSViewRepresentable {
         var canBeginExternalTextSelection: Bool {
             isRedesign &&
                 isEnabled &&
-                !isMenuOpen &&
-                !isExternalPopupLayerOpen &&
                 pendingTextInteraction == nil &&
                 container != nil &&
                 container?.window != nil &&
@@ -5705,22 +5737,31 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let point = headerView.convert(windowPoint, from: nil)
             guard headerView.bounds.contains(point),
-                  let anchor = headerTextPosition(at: point, requiresTextHit: true),
-                  let headerFragment = headerTextFragments().first(where: {
-                      $0.columnIndex == anchor.columnIndex
-                  })
+                  let anchor = headerTextPosition(at: point, requiresTextHit: false)
             else {
                 return false
+            }
+
+            let exactAnchor = headerTextPosition(at: point, requiresTextHit: true)
+            let directAction: PendingDirectTextAction
+            if let exactAnchor,
+               let headerFragment = headerTextFragments().first(where: {
+                   $0.columnIndex == exactAnchor.columnIndex
+               })
+            {
+                directAction = .headerMenu(
+                    columnID: headerFragment.columnID,
+                    triggerFrame: headerFragment.cellRect
+                )
+            } else {
+                directAction = .none
             }
 
             clearFocusedCheckbox()
             pendingTextInteraction = PendingTextInteraction(
                 startPoint: windowPoint,
                 anchor: anchor,
-                directAction: .headerMenu(
-                    columnID: headerFragment.columnID,
-                    triggerFrame: headerFragment.cellRect
-                ),
+                directAction: directAction,
                 latestWindowPoint: windowPoint
             )
             return true
@@ -6707,6 +6748,7 @@ struct SubtitleTableHeaderCellView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!isEnabled)
+                .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
                 .focused($isFocused)
                 .disableFocusEffect()
                 .overlay(

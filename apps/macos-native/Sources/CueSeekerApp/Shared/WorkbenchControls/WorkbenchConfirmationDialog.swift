@@ -55,5 +55,6 @@ struct WorkbenchConfirmationDialog: View {
                     .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
             )
         }
+        .subtitleTableTextSelectionNonInteractiveRegion()
     }
 }
