@@ -10,5 +10,6 @@ struct WorkbenchEmptyHint: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3 * 2)
+            .allowsHitTesting(false)
     }
 }

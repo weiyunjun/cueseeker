@@ -309,6 +309,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
     let isRedesign: Bool
+    let isExternalTextSelectionBlocked: Bool
     let tableSummary: SchemaWorkbenchTableSummary?
     let tableSummaryLeadingInset: CGFloat
     let tableSummaryAction: AnyView?
@@ -319,6 +320,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @State private var openPopover: SchemaWorkbenchPopover?
     @State private var shellDropdownFrames: [String: CGRect] = [:]
     @State private var openPopoverWidth: CGFloat = 0
+    @State private var externalTextSelectionRegionFrames: [SubtitleTableExternalTextSelectionRegion: CGRect] = [:]
+    @StateObject private var externalTextSelectionSession = SubtitleTableExternalTextSelectionSession()
 
     init(
         searchDraft: Binding<String>,
@@ -329,6 +332,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
+        isExternalTextSelectionBlocked: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
         tableSummaryLeadingInset: CGFloat = 0,
         tableSummaryAction: AnyView? = nil,
@@ -344,6 +348,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
+        self.isExternalTextSelectionBlocked = isExternalTextSelectionBlocked
         self.tableSummary = tableSummary
         self.tableSummaryLeadingInset = tableSummaryLeadingInset
         self.tableSummaryAction = tableSummaryAction
@@ -354,6 +359,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     var body: some View {
         ZStack {
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .subtitleTableExternalTextSelectionRegion(
+                    .allowedBackground,
+                    in: "SearchShellSpace"
+                )
+                .allowsHitTesting(false)
+
+            SubtitleTableExternalTextSelectionEventMonitor(
+                session: externalTextSelectionSession,
+                startPolicy: externalTextSelectionStartPolicy
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
+
             VStack(spacing: 0) {
                 if isRedesign {
                     SchemaWorkbenchSearchFilterBar(
@@ -378,6 +398,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
                     .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                    .subtitleTableExternalTextSelectionRegion(
+                        .searchAndFilter,
+                        in: "SearchShellSpace"
+                    )
 
                     SchemaWorkbenchTableUtilityBar(
                         tableSummary: tableSummary,
@@ -404,6 +428,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
                     .padding(.bottom, 12)
+                    .subtitleTableExternalTextSelectionRegion(
+                        .searchAndFilter,
+                        in: "SearchShellSpace"
+                    )
 
                     SchemaWorkbenchLegacyFilterControlBar(
                         activeFilterSetName: activeFilterSetName,
@@ -432,15 +460,64 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
             overlayLayer
         }
-        .environment(\.isWorkbenchPopupLayerOpen, isParentWorkbenchPopupLayerOpen || openPopover != nil)
+        .environment(\.isWorkbenchPopupLayerOpen, isAnyWorkbenchPopupLayerOpen)
+        .environment(\.subtitleTableExternalTextSelectionSession, externalTextSelectionSession)
         .coordinateSpace(name: "SearchShellSpace")
         .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { frames in
             self.shellDropdownFrames = frames
         }
+        .onPreferenceChange(SubtitleTableExternalTextSelectionRegionPreferenceKey.self) { frames in
+            self.externalTextSelectionRegionFrames = frames
+        }
         .onChange(of: openPopover) { _ in
             self.openPopoverWidth = 0
         }
+        .onChange(of: externalTextSelectionIsBlocked) { isBlocked in
+            if isBlocked {
+                externalTextSelectionSession.cancel()
+            }
+        }
+        .onDisappear {
+            externalTextSelectionSession.cancel()
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var isAnyWorkbenchPopupLayerOpen: Bool {
+        isParentWorkbenchPopupLayerOpen || openPopover != nil
+    }
+
+    private var externalTextSelectionIsBlocked: Bool {
+        !isRedesign || isAnyWorkbenchPopupLayerOpen || isExternalTextSelectionBlocked
+    }
+
+    private var externalTextSelectionStartPolicy: SubtitleTableExternalTextSelectionStartPolicy {
+        let requiredRegions: [SubtitleTableExternalTextSelectionRegion] = [
+            .allowedBackground,
+            .searchAndFilter,
+            .viewButton,
+        ]
+            + (tableSummary == nil ? [] : [.countSummary])
+            + (tableSummaryAction == nil ? [] : [.summaryAction])
+        let requiredFramesAreReady = requiredRegions.allSatisfy { region in
+            guard let frame = externalTextSelectionRegionFrames[region] else {
+                return false
+            }
+            return frame.width > 0 && frame.height > 0 && !frame.isNull && !frame.isInfinite
+        }
+        let excludedRegions: [SubtitleTableExternalTextSelectionRegion] = [
+            .searchAndFilter,
+            .countSummary,
+            .summaryAction,
+            .viewButton,
+        ]
+
+        return SubtitleTableExternalTextSelectionStartPolicy(
+            allowedFrame: externalTextSelectionRegionFrames[.allowedBackground],
+            excludedFrames: excludedRegions.compactMap { externalTextSelectionRegionFrames[$0] },
+            requiredFramesAreReady: requiredFramesAreReady,
+            isBlocked: externalTextSelectionIsBlocked
+        )
     }
 
     @ViewBuilder
@@ -909,10 +986,18 @@ struct SchemaWorkbenchTableUtilityBar: View {
             if let tableSummary {
                 SchemaWorkbenchCountSummaryView(summary: tableSummary)
                     .padding(.leading, summaryLeadingInset)
+                    .subtitleTableExternalTextSelectionRegion(
+                        .countSummary,
+                        in: "SearchShellSpace"
+                    )
             }
 
             if let summaryAction {
                 summaryAction
+                    .subtitleTableExternalTextSelectionRegion(
+                        .summaryAction,
+                        in: "SearchShellSpace"
+                    )
             }
 
             Spacer(minLength: 0)
@@ -926,6 +1011,10 @@ struct SchemaWorkbenchTableUtilityBar: View {
                 action: onViewMenu
             )
             .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
+            .subtitleTableExternalTextSelectionRegion(
+                .viewButton,
+                in: "SearchShellSpace"
+            )
         }
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignTableUtilityBarHeight : WorkbenchControlMetrics.controlHeight)
     }

@@ -11,7 +11,7 @@ record currently covers the `Time Range` label and the shared vertical row
 geometry, row interaction, clipboard foundations, and body text-selection
 interaction used by Search, Shiori, and Context. It also covers the complete
 shared table-text interaction and complete-result source integration through
-Step 11.
+Step 12.
 
 ## Step 1 Changes
 
@@ -331,9 +331,65 @@ Step 11.
 - `git diff --check`
   - Passed.
 
+## Step 12 Extended Text-Drag Origin Changes
+
+- Classified the change as platform UI/UX: SwiftUI defines the eligible
+  workbench geometry, while AppKit owns pointer routing and native table text
+  selection. No durable product semantics were added to presentation code.
+- Made ordinary Body cell padding, Selection Column whitespace, and the blank
+  viewport below a short result set arm table text selection without creating
+  a selection on Mouse Down alone. The permanent 3-point drag threshold must
+  be crossed before the logical selection begins.
+- Preserved direct-action arbitration: Cue interactive padding and the complete
+  Shiori Tags cell still suppress their click after a drag, but only an actual
+  Cue or Tag text hit can become a text-selection anchor. The Checkbox body
+  remains a batch-selection-only control.
+- Projected non-text Body origins to the nearest logical table position, with
+  short-table whitespace targeting the final actual row and an empty Body
+  falling back to fixed Header text.
+- Added one passive event monitor per Search/Shiori/Context shell. It returns
+  every original event unchanged, arms only from measured eligible whitespace,
+  and begins selection only after the gesture crosses 3 points and first
+  enters the table. Once begun, selection can leave the table and retain the
+  existing edge auto-scroll behavior.
+- Explicitly excluded Search/Filter, Count Summary, batch actions, View,
+  Sidebar, Topbar, Titlebar, table controls, and popup or confirmation layers;
+  the Utility Bar spacer and page padding remain valid origins. Missing first-
+  layout geometry safely disables arming instead of guessing.
+- Bound the shell session weakly to the current table Coordinator, cancelled it
+  for blocked, detached, replaced, or cross-window gesture lifecycles, and made
+  a successful external drag give the table first-responder ownership for
+  subsequent `Cmd+A` and `Cmd+C`.
+- Made empty-result hints pass pointer hit testing to the table underneath.
+  The table-only logical selection, complete-result `Cmd+A`, TSV/HTML copy
+  structure, Checkbox selection, and right-click preservation rules are
+  otherwise unchanged.
+
+## Step 12 Verification
+
+- `swift test --filter 'SubtitleTableExternalTextSelection|SubtitleTableVirtualRowTests|WorkbenchEmptyHintTests'`
+  - Passed all 90 selected Swift Testing tests.
+- Added real-window event-routing coverage for Shell-local coordinate
+  conversion, eligible Utility whitespace, excluded Count/Action/View and
+  table origins, table-entry transition, event completion, and another-window
+  cancellation.
+- Added regression coverage for ordinary padding, Selection Column whitespace,
+  short and empty result bodies, Cue/Tags click-versus-drag arbitration,
+  first-responder transfer, detached targets, 3-point threshold behavior,
+  armed auto-scroll gating, and empty-hint pointer pass-through.
+- Independent read-only review found no remaining functional blocker after the
+  threshold, detached-target, empty-hint, and Shiori confirmation-boundary
+  fixes.
+- `swift build`
+  - Passed.
+- `swift test`
+  - Passed all 7 XCTest cases and all 630 Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 11 match their accepted outcomes. The table paths
+Steps 1 through 12 match their accepted outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
 viewport-independent logical state across the fixed Header and Body, standard
@@ -347,4 +403,6 @@ click targets keep their pointing-hand feedback. Primary and Extra Cue glyphs
 are visually centered inside their fixed line-height boxes without changing
 the surrounding row or selection geometry. Any CueSeeker-window left click
 clears stale table text selection before the original control handles the
-event, while right-click preserves the selection.
+event, while right-click preserves the selection. Table padding and allowed
+workbench whitespace can now originate a table-only drag selection without
+turning controls or popup layers into selection surfaces.

@@ -748,7 +748,10 @@ func subtitleTableViewLeftClickOutsideInteractiveRegionsHasNoAction() throws {
     )
     let windowPoint = fixture.documentView.convert(outsideContentPoint, to: nil)
 
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == false)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: windowPoint) == true)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues") == nil)
     #expect(toggledRows.isEmpty)
 }
 
@@ -769,7 +772,9 @@ func subtitleTableViewCheckboxBodyIsTheOnlySelectionColumnClickTarget() throws {
 
     let selectionColumnBlankPoint = CGPoint(x: 4, y: checkboxRect.midY)
     let blankWindowPoint = fixture.documentView.convert(selectionColumnBlankPoint, to: nil)
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint) == false)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint) == true)
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: blankWindowPoint) == true)
     #expect(fixture.coordinator.handleRightMouseDown(windowPoint: blankWindowPoint) == false)
     #expect(toggledRows == [0])
     #expect(fixture.coordinator.isMenuOpenForTesting() == false)
@@ -1296,6 +1301,320 @@ func subtitleTableViewOnlyInvalidatesWhenTextSelectionActuallyChanges() throws {
     #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
     #expect(fixture.documentView.needsDisplay == false)
     #expect(fixture.coordinator.textSelectionInvalidationCountForTesting() == 0)
+}
+
+@MainActor
+@Test
+func subtitleTableViewArmsNoninteractiveCellPaddingUntilDragThreshold() throws {
+    let rows = [
+        SubtitleTableRow(id: 1, displayTitle: "First Episode", cues: "first cue"),
+        SubtitleTableRow(id: 2, displayTitle: "Second Episode", cues: "second cue"),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    let displayCell = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "display")
+    )
+    let endFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
+    )
+    let blankPoint = CGPoint(x: displayCell.maxX - 4, y: displayCell.midY)
+    let blankWindowPoint = fixture.documentView.convert(blankPoint, to: nil)
+    let jitterWindowPoint = CGPoint(x: blankWindowPoint.x + 2.5, y: blankWindowPoint.y)
+    let endWindowPoint = fixture.documentView.convert(
+        CGPoint(x: endFragment.textBounds.maxX, y: endFragment.textBounds.midY),
+        to: nil
+    )
+
+    #expect(
+        fixture.coordinator.documentTextPositionForTesting(
+            point: blankPoint,
+            requiresTextHit: true
+        ) == nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: jitterWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting())
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues") != nil)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") != nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewDoesNotAutoScrollWhileBlankInteractionIsOnlyArmed() throws {
+    let rows = (0..<100).map {
+        SubtitleTableRow(id: $0 + 1, displayTitle: "Episode \($0)", cues: "cue \($0)")
+    }
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    let displayCell = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "display")
+    )
+    let blankPoint = CGPoint(x: displayCell.maxX - 4, y: displayCell.midY)
+    let blankWindowPoint = fixture.documentView.convert(blankPoint, to: nil)
+    let beforeOrigin = fixture.scrollView.contentView.bounds.origin
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    fixture.coordinator.textDragAutoScrollTickForTesting()
+    #expect(fixture.scrollView.contentView.bounds.origin == beforeOrigin)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: blankWindowPoint))
+}
+
+@MainActor
+@Test
+func subtitleTableViewSelectionColumnBlankCanStartTextDrag() throws {
+    let rows = [
+        SubtitleTableRow(id: 1, displayTitle: "First Episode", cues: "first cue"),
+        SubtitleTableRow(id: 2, displayTitle: "Second Episode", cues: "second cue"),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    let checkbox = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
+    let endFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
+    )
+    let blankPoint = CGPoint(x: 4, y: checkbox.midY)
+    let blankWindowPoint = fixture.documentView.convert(blankPoint, to: nil)
+    let endWindowPoint = fixture.documentView.convert(
+        CGPoint(x: endFragment.textBounds.maxX, y: endFragment.textBounds.midY),
+        to: nil
+    )
+
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting())
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "display") != nil)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") != nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewShortBodyBlankProjectsToLastActualRow() throws {
+    let rows = [
+        SubtitleTableRow(id: 1, displayTitle: "First Episode", cues: "first cue"),
+        SubtitleTableRow(id: 2, displayTitle: "Second Episode", cues: "second cue"),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    let displayCell = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 1, columnID: "display")
+    )
+    let firstFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    )
+    let blankY = fixture.coordinator.totalRowsHeightForTesting() + 24
+    #expect(blankY < fixture.documentView.visibleRect.maxY)
+    let blankPoint = CGPoint(x: displayCell.midX, y: blankY)
+    let projected = try #require(
+        fixture.coordinator.documentTextPositionForTesting(
+            point: blankPoint,
+            requiresTextHit: false
+        )
+    )
+    #expect(projected.row == .body(1))
+
+    let blankWindowPoint = fixture.documentView.convert(blankPoint, to: nil)
+    let endWindowPoint = fixture.documentView.convert(
+        CGPoint(x: firstFragment.textBounds.minX, y: firstFragment.textBounds.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint))
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "display") != nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewInteractiveCuePaddingSuppressesClickWithoutStartingSelection() throws {
+    var playCount = 0
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: 2,
+        onPlay: { _ in playCount += 1 }
+    )
+    let cueHover = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    let endFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
+    )
+    let paddingPoint = CGPoint(x: cueHover.maxX - 1, y: cueHover.midY)
+    let startWindowPoint = fixture.documentView.convert(paddingPoint, to: nil)
+    let endWindowPoint = fixture.documentView.convert(
+        CGPoint(x: endFragment.textBounds.midX, y: endFragment.textBounds.midY),
+        to: nil
+    )
+
+    #expect(fixture.coordinator.cueTextHitTestForTesting(row: 0, point: paddingPoint))
+    #expect(
+        fixture.coordinator.documentTextPositionForTesting(
+            point: paddingPoint,
+            requiresTextHit: true
+        ) == nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: startWindowPoint))
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+    #expect(playCount == 0)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewInteractiveTagsBlankSuppressesPopoverWithoutStartingSelection() throws {
+    var requestedRowID: Int?
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: 2,
+        showsTagsColumn: true,
+        makeTagsPopover: { row, _, _ in
+            requestedRowID = row.id
+            return AnyView(Text("Tags"))
+        }
+    )
+    let tagsCell = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags")
+    )
+    let endFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
+    )
+    let blankPoint = CGPoint(x: tagsCell.maxX - 4, y: tagsCell.midY)
+    let startWindowPoint = fixture.documentView.convert(blankPoint, to: nil)
+    let endWindowPoint = fixture.documentView.convert(
+        CGPoint(x: endFragment.textBounds.midX, y: endFragment.textBounds.midY),
+        to: nil
+    )
+
+    #expect(
+        fixture.coordinator.documentTextPositionForTesting(
+            point: blankPoint,
+            requiresTextHit: true
+        ) == nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: startWindowPoint))
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+    #expect(requestedRowID == nil)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewEmptyBodyBlankFallsBackToHeaderText() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 1_400, rowCount: 0)
+    let headerFragments = fixture.coordinator.headerTextFragmentInfoForTesting()
+    let display = try #require(headerFragments.first(where: { $0.columnID == "display" }))
+    let cues = try #require(headerFragments.first(where: { $0.columnID == "cues" }))
+    let startPoint = CGPoint(x: display.textBounds.minX, y: fixture.documentView.visibleRect.midY)
+    let endPoint = CGPoint(x: cues.textBounds.maxX, y: fixture.documentView.visibleRect.midY)
+    let projected = try #require(
+        fixture.coordinator.documentTextPositionForTesting(
+            point: startPoint,
+            requiresTextHit: false
+        )
+    )
+    #expect(projected.row == .header)
+
+    let startWindowPoint = fixture.documentView.convert(startPoint, to: nil)
+    let endWindowPoint = fixture.documentView.convert(endPoint, to: nil)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: startWindowPoint))
+    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
+    #expect(!fixture.coordinator.headerTextSelectionRectsForTesting(columnID: "display").isEmpty)
+    #expect(!fixture.coordinator.headerTextSelectionRectsForTesting(columnID: "cues").isEmpty)
+}
+
+@MainActor
+@Test
+func subtitleTableViewExternalSelectionTargetBeginsUpdatesEndsAndCancels() throws {
+    let rows = [
+        SubtitleTableRow(id: 1, displayTitle: "First Episode", cues: "first cue"),
+        SubtitleTableRow(id: 2, displayTitle: "Second Episode", cues: "second cue"),
+    ]
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: rows.count,
+        rowProvider: { rows[$0] }
+    )
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 1_400, height: 260),
+        styleMask: [.titled],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = fixture.container
+    #expect(fixture.coordinator.focusFirstVisibleCheckboxFromKeyboard())
+    #expect(fixture.coordinator.focusedCheckboxRowForTesting() != nil)
+    let display = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    )
+    let cues = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
+    )
+    let tableWindowRect = try #require(fixture.coordinator.externalTextSelectionWindowRect)
+    let currentWindowPoint = fixture.documentView.convert(
+        CGPoint(x: display.textBounds.midX, y: display.textBounds.midY),
+        to: nil
+    )
+    let endWindowPoint = fixture.documentView.convert(
+        CGPoint(x: cues.textBounds.maxX, y: cues.textBounds.midY),
+        to: nil
+    )
+    let startWindowPoint = CGPoint(
+        x: tableWindowRect.minX - 24,
+        y: currentWindowPoint.y
+    )
+
+    #expect(fixture.coordinator.canBeginExternalTextSelection)
+    #expect(
+        fixture.coordinator.beginExternalTextSelection(
+            startWindowPoint: startWindowPoint,
+            currentWindowPoint: currentWindowPoint
+        )
+    )
+    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting())
+    #expect(fixture.coordinator.focusedCheckboxRowForTesting() == nil)
+    #expect(window.firstResponder === fixture.documentView)
+    #expect(fixture.coordinator.updateExternalTextSelection(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.endExternalTextSelection(windowPoint: endWindowPoint))
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") != nil)
+
+    fixture.coordinator.clearTextSelectionForTesting()
+    #expect(
+        fixture.coordinator.beginExternalTextSelection(
+            startWindowPoint: startWindowPoint,
+            currentWindowPoint: currentWindowPoint
+        )
+    )
+    fixture.coordinator.cancelExternalTextSelection()
+    #expect(fixture.coordinator.updateExternalTextSelection(windowPoint: endWindowPoint) == false)
+    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") == nil)
+
+    window.contentView = NSView()
+    #expect(fixture.coordinator.externalTextSelectionWindowRect == nil)
+    #expect(fixture.coordinator.canBeginExternalTextSelection == false)
 }
 
 @MainActor

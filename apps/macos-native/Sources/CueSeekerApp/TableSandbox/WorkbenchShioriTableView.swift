@@ -62,6 +62,7 @@ private struct WorkbenchShioriTableContent: View {
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
             searchPlaceholder: "Search Shiori by title or cues...",
             isRedesign: true,
+            isExternalTextSelectionBlocked: pendingRemoval != nil || pendingTagDeletion != nil,
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
             tableSummaryAction: selectedSummaryActions,

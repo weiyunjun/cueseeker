@@ -1985,6 +1985,7 @@ typealias SubtitleTableTextCopyRowLoader = @MainActor (Range<Int>) async -> [Sub
 struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.isWorkbenchPopupLayerOpen) var isWorkbenchPopupLayerOpen
+    @Environment(\.subtitleTableExternalTextSelectionSession) private var externalTextSelectionSession
     var tableName: String
     var probeSurface: SubtitleTableProbeSurface = .search
     var probeScope: String?
@@ -2109,6 +2110,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollbarOverlayView: scrollbarOverlayView,
             documentView: documentView
         )
+        context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(Coordinator.scrollContentDidChange),
@@ -2159,6 +2161,7 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
         context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
+        context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         context.coordinator.update(
             tableName: tableName,
             probeSurface: probeSurface,
@@ -2200,10 +2203,18 @@ struct SubtitleTableView: NSViewRepresentable {
         )
     }
 
+    static func dismantleNSView(
+        _ nsView: SubtitleTableContainerView,
+        coordinator: Coordinator
+    ) {
+        coordinator.unbindExternalTextSelectionSession()
+        coordinator.cancelPendingTextInteraction()
+    }
+
     // MARK: Coordinator
 
     @MainActor
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, SubtitleTableExternalTextSelectionTarget {
         private var tableName: String
         private var probeSurface: SubtitleTableProbeSurface
         private var probeScope: String?
@@ -2311,6 +2322,7 @@ struct SubtitleTableView: NSViewRepresentable {
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
         nonisolated(unsafe) private var textCopyTask: Task<Void, Never>?
         nonisolated(unsafe) private var textDragAutoScrollTimer: Timer?
+        private weak var externalTextSelectionSession: SubtitleTableExternalTextSelectionSession?
 
         private enum ActiveMenuAnchor {
             case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInContainer: CGPoint?)
@@ -2398,6 +2410,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let anchor: SubtitleTableTextPosition?
             let directAction: PendingDirectTextAction
             var didDrag = false
+            var selectionHasBegun = false
             var latestWindowPoint: CGPoint
         }
 
@@ -2553,6 +2566,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 object: nil
             )
             installKeyboardFocusEventMonitor()
+        }
+
+        func bindExternalTextSelectionSession(
+            _ session: SubtitleTableExternalTextSelectionSession?
+        ) {
+            guard externalTextSelectionSession !== session else { return }
+            externalTextSelectionSession?.unbind(self)
+            externalTextSelectionSession = session
+            session?.bind(self)
+        }
+
+        func unbindExternalTextSelectionSession() {
+            externalTextSelectionSession?.unbind(self)
+            externalTextSelectionSession = nil
         }
 
         func update(
@@ -2858,6 +2885,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func quiesceForTesting() {
             cancelPendingTextInteraction()
+            unbindExternalTextSelectionSession()
             NotificationCenter.default.removeObserver(self)
             removeMenuDismissMonitor()
             if let monitor = keyboardFocusEventMonitor {
@@ -3107,6 +3135,17 @@ struct SubtitleTableView: NSViewRepresentable {
             textSelection.selectsAllResults
         }
 
+        func pendingTextSelectionHasBegunForTesting() -> Bool {
+            pendingTextInteraction?.selectionHasBegun == true
+        }
+
+        func documentTextPositionForTesting(
+            point: CGPoint,
+            requiresTextHit: Bool = true
+        ) -> SubtitleTableTextPosition? {
+            textPosition(atDocumentPoint: point, requiresTextHit: requiresTextHit)
+        }
+
         func waitForTextCopyForTesting() async {
             await textCopyTask?.value
         }
@@ -3114,6 +3153,67 @@ struct SubtitleTableView: NSViewRepresentable {
         func cancelPendingTextInteraction() {
             stopTextDragAutoScroll()
             pendingTextInteraction = nil
+        }
+
+        var externalTextSelectionWindowRect: CGRect? {
+            guard let container, container.window != nil else { return nil }
+            return container.convert(container.bounds, to: nil)
+        }
+
+        var canBeginExternalTextSelection: Bool {
+            isRedesign &&
+                isEnabled &&
+                !isMenuOpen &&
+                !isExternalPopupLayerOpen &&
+                pendingTextInteraction == nil &&
+                container != nil &&
+                container?.window != nil &&
+                documentView != nil &&
+                headerView != nil &&
+                !visibleTextColumnOrder().isEmpty
+        }
+
+        func beginExternalTextSelection(
+            startWindowPoint: CGPoint,
+            currentWindowPoint: CGPoint
+        ) -> Bool {
+            guard canBeginExternalTextSelection,
+                  externalTextSelectionWindowRect?.contains(currentWindowPoint) == true,
+                  let anchor = textPosition(
+                      atWindowPoint: startWindowPoint,
+                      requiresTextHit: false
+                  )
+            else {
+                return false
+            }
+
+            clearFocusedCheckbox()
+            documentView?.window?.makeFirstResponder(documentView)
+            var interaction = PendingTextInteraction(
+                startPoint: startWindowPoint,
+                anchor: anchor,
+                directAction: .none,
+                didDrag: true,
+                latestWindowPoint: currentWindowPoint
+            )
+            beginPendingTextSelectionIfPossible(&interaction)
+            guard interaction.selectionHasBegun else { return false }
+            pendingTextInteraction = interaction
+            updateTextSelectionFocus(atWindowPoint: currentWindowPoint)
+            updateTextDragAutoScrollState(for: interaction)
+            return true
+        }
+
+        func updateExternalTextSelection(windowPoint: CGPoint) -> Bool {
+            handleMouseDragged(windowPoint: windowPoint)
+        }
+
+        func endExternalTextSelection(windowPoint: CGPoint) -> Bool {
+            handleMouseUp(windowPoint: windowPoint)
+        }
+
+        func cancelExternalTextSelection() {
+            cancelPendingTextInteraction()
         }
 
         private func startTextDragAutoScrollIfNeeded() {
@@ -3149,6 +3249,7 @@ struct SubtitleTableView: NSViewRepresentable {
         @objc private func textDragAutoScrollTick() {
             guard let interaction = pendingTextInteraction,
                   interaction.didDrag,
+                  interaction.selectionHasBegun,
                   interaction.anchor != nil,
                   let scrollView
             else {
@@ -3178,6 +3279,7 @@ struct SubtitleTableView: NSViewRepresentable {
             for interaction: PendingTextInteraction
         ) -> (currentOrigin: CGPoint, nextOrigin: CGPoint)? {
             guard interaction.didDrag,
+                  interaction.selectionHasBegun,
                   interaction.anchor != nil,
                   let scrollView,
                   let documentView
@@ -5332,10 +5434,18 @@ struct SubtitleTableView: NSViewRepresentable {
             atDocumentPoint point: CGPoint,
             requiresTextHit: Bool
         ) -> SubtitleTableTextPosition? {
-            guard let documentView,
-                  let row = rowAtDocumentPoint(point)
-            else {
+            guard let documentView else {
                 return nil
+            }
+            let row: Int
+            if requiresTextHit {
+                guard let exactRow = rowAtDocumentPoint(point) else { return nil }
+                row = exactRow
+            } else {
+                guard rowCount > 0 else {
+                    return projectedHeaderTextPosition(forDocumentPoint: point)
+                }
+                row = rowHeightCache.rowIndex(atY: point.y)
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
             let columnIDs = visibleTextColumnOrder()
@@ -5361,6 +5471,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 point: point,
                 requiresTextHit: requiresTextHit
             )
+        }
+
+        private func projectedHeaderTextPosition(
+            forDocumentPoint point: CGPoint
+        ) -> SubtitleTableTextPosition? {
+            guard let documentView, let headerView else { return nil }
+            let windowPoint = documentView.convert(point, to: nil)
+            var headerPoint = headerView.convert(windowPoint, from: nil)
+            headerPoint.x = min(
+                max(headerView.bounds.minX, headerPoint.x),
+                headerView.bounds.maxX.nextDown
+            )
+            headerPoint.y = headerView.bounds.midY
+            return headerTextPosition(at: headerPoint, requiresTextHit: false)
         }
 
         private func textPosition(
@@ -5534,24 +5658,28 @@ struct SubtitleTableView: NSViewRepresentable {
                 return false
             }
             let point = documentView.convert(windowPoint, from: nil)
-            guard documentView.visibleRect.contains(point),
-                  let row = rowAtDocumentPoint(point)
-            else {
+            guard documentView.visibleRect.contains(point) else {
                 return false
             }
-            if isPointInCheckbox(row: row, point: point) {
+            let row = rowAtDocumentPoint(point)
+            if let row, isPointInCheckbox(row: row, point: point) {
                 return toggleRowCheckboxFromMouse(row: row)
             }
 
             let directAction: PendingDirectTextAction
-            if isPointInTagsCell(row: row, point: point) {
+            if let row, isPointInTagsCell(row: row, point: point) {
                 directAction = .tags(row: row, documentPoint: point)
-            } else if isPointInCueText(row: row, point: point) {
+            } else if let row, isPointInCueText(row: row, point: point) {
                 directAction = .play(row: row)
             } else {
                 directAction = .none
             }
-            let anchor = textPosition(atDocumentPoint: point, requiresTextHit: true)
+            let exactAnchor = textPosition(atDocumentPoint: point, requiresTextHit: true)
+            let anchor = exactAnchor ?? (
+                isNoDirectTextAction(directAction)
+                    ? textPosition(atDocumentPoint: point, requiresTextHit: false)
+                    : nil
+            )
             guard anchor != nil || !isNoDirectTextAction(directAction) else {
                 return false
             }
@@ -5563,11 +5691,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 directAction: directAction,
                 latestWindowPoint: windowPoint
             )
-            if let anchor {
-                let previousSelection = textSelection
-                textSelection.begin(at: anchor)
-                invalidateTextSelectionChange(from: previousSelection)
-            }
             return true
         }
 
@@ -5600,9 +5723,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 ),
                 latestWindowPoint: windowPoint
             )
-            let previousSelection = textSelection
-            textSelection.begin(at: anchor)
-            invalidateTextSelectionChange(from: previousSelection)
             return true
         }
 
@@ -5618,8 +5738,11 @@ struct SubtitleTableView: NSViewRepresentable {
             if distance >= Self.textDragThreshold {
                 interaction.didDrag = true
             }
+            if interaction.didDrag {
+                beginPendingTextSelectionIfPossible(&interaction)
+            }
             pendingTextInteraction = interaction
-            if interaction.didDrag, interaction.anchor != nil {
+            if interaction.selectionHasBegun {
                 updateTextSelectionFocus(atWindowPoint: windowPoint)
                 updateTextDragAutoScrollState(for: interaction)
             }
@@ -5638,9 +5761,10 @@ struct SubtitleTableView: NSViewRepresentable {
             ) >= Self.textDragThreshold {
                 interaction.didDrag = true
             }
-            if interaction.didDrag,
-               interaction.anchor != nil
-            {
+            if interaction.didDrag {
+                beginPendingTextSelectionIfPossible(&interaction)
+            }
+            if interaction.selectionHasBegun {
                 updateTextSelectionFocus(atWindowPoint: windowPoint)
             }
             guard !interaction.didDrag else { return true }
@@ -5656,6 +5780,20 @@ struct SubtitleTableView: NSViewRepresentable {
                 showHeaderMenu(for: columnID, triggerFrame: triggerFrame)
             }
             return true
+        }
+
+        private func beginPendingTextSelectionIfPossible(
+            _ interaction: inout PendingTextInteraction
+        ) {
+            guard !interaction.selectionHasBegun,
+                  let anchor = interaction.anchor
+            else {
+                return
+            }
+            let previousSelection = textSelection
+            textSelection.begin(at: anchor)
+            interaction.selectionHasBegun = true
+            invalidateTextSelectionChange(from: previousSelection)
         }
 
         private func isNoDirectTextAction(_ action: PendingDirectTextAction) -> Bool {
