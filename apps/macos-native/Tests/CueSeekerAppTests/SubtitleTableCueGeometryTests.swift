@@ -144,6 +144,48 @@ func subtitleCueTypographyUsesDocumentedPrimaryAndExtraStyles() {
     #expect(SubtitleTableCueStyle.extra.lineHeight == 20)
 }
 
+@MainActor
+@Test
+func subtitleCueTypographyVisuallyCentersGlyphsInsideFixedLineHeights() throws {
+    for style in [SubtitleTableCueStyle.primary, .extra] {
+        let attributed = SubtitleTableCueTextMeasurer.attributedString(
+            "まだやってたのね",
+            style: style,
+            foregroundColor: .labelColor
+        )
+        let textStorage = NSTextStorage(attributedString: attributed)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(
+            containerSize: CGSize(width: 2_000, height: CGFloat.greatestFiniteMagnitude)
+        )
+        textContainer.lineFragmentPadding = 0
+        layoutManager.usesFontLeading = false
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        #expect(glyphRange.length > 0)
+        let glyphIndex = try #require(glyphRange.length > 0 ? glyphRange.location : nil)
+        let lineRect = layoutManager.lineFragmentUsedRect(
+            forGlyphAt: glyphIndex,
+            effectiveRange: nil
+        )
+        let baseline = layoutManager.location(forGlyphAt: glyphIndex).y
+        let visualTop = baseline - style.font.ascender
+        let visualBottom = baseline - style.font.descender
+        let topMargin = visualTop - lineRect.minY
+        let bottomMargin = lineRect.maxY - visualBottom
+
+        #expect(lineRect.height == style.lineHeight)
+        #expect(abs(topMargin - bottomMargin) < 1)
+        #expect(
+            attributed.attribute(.baselineOffset, at: 0, effectiveRange: nil) as? CGFloat
+                == style.baselineOffset
+        )
+    }
+}
+
 @Test
 func subtitleVirtualRowHeightCacheMapsSparseTwoMillionRowGeometry() {
     var cache = SubtitleVirtualRowHeightCache()

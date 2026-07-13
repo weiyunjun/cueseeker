@@ -24,6 +24,21 @@ enum SubtitleTableCueStyle: Sendable {
         case .extra: SubtitleTableCueGeometry.extraLineHeight
         }
     }
+
+    @MainActor
+    var font: NSFont {
+        NSFont.systemFont(ofSize: fontSize, weight: fontWeight)
+    }
+
+    @MainActor
+    var naturalLineHeight: CGFloat {
+        ceil(font.ascender - font.descender + font.leading)
+    }
+
+    @MainActor
+    var baselineOffset: CGFloat {
+        max(0, (lineHeight - naturalLineHeight) / 2)
+    }
 }
 
 enum SubtitleTableCueGeometry {
@@ -169,9 +184,10 @@ final class SubtitleTableCueTextMeasurer {
         foregroundColor: NSColor
     ) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
-            .font: NSFont.systemFont(ofSize: style.fontSize, weight: style.fontWeight),
+            .font: style.font,
             .paragraphStyle: paragraphStyle(for: style),
             .foregroundColor: foregroundColor,
+            .baselineOffset: style.baselineOffset,
         ])
     }
 

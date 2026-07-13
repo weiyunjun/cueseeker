@@ -11,7 +11,7 @@ record currently covers the `Time Range` label and the shared vertical row
 geometry, row interaction, clipboard foundations, and body text-selection
 interaction used by Search, Shiori, and Context. It also covers the complete
 shared table-text interaction and complete-result source integration through
-Step 9.
+Step 10.
 
 ## Step 1 Changes
 
@@ -295,9 +295,24 @@ Step 9.
 - `git diff --check`
   - Passed.
 
+## Step 10 Cue Typography Changes
+
+- Derived a positive baseline offset from each Cue style's fixed line height
+  and natural system-font line height, visually centering Primary and Extra Cue
+  glyphs without changing row geometry or line wrapping.
+- Kept text hit regions, selection rectangles, and underline widths unchanged;
+  the custom underline follows the compensated TextKit glyph baseline.
+
+## Step 10 Verification
+
+- `swift test --filter 'subtitleCue|subtitleTextLayout|subtitleTableViewResolvesDocumentedDynamicRowHeightsAndPrimarySlotAlignment|subtitleTableViewUsesTallestVisibleColumnAndCentersCheckbox|subtitleTableViewExtraCueLeftAndRightHitRegionsStillTargetPrimaryRow|subtitleTableViewShowCueGroupReflowPreservesPrimaryFirstLineAndPresentationState'`
+  - Passed all 19 selected Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-Steps 1 through 9 match their accepted outcomes. The table paths
+Steps 1 through 10 match their accepted outcomes. The table paths
 present `Time Range`, share symmetric vertical row geometry, and use the unified
 row action model and accepted mouse hit behavior. Text selection now has a
 viewport-independent logical state across the fixed Header and Body, standard
@@ -307,4 +322,6 @@ targets without coupling text selection to Checkbox state. Complete-result
 copying uses exact, immutable Search, filter-only, Context, and Shiori source
 boundaries without forcing unloaded rows into the virtualized display model.
 Checkboxes and scrollbars retain their default cursor while Cue and Shiori Tag
-click targets keep their pointing-hand feedback.
+click targets keep their pointing-hand feedback. Primary and Extra Cue glyphs
+are visually centered inside their fixed line-height boxes without changing
+the surrounding row or selection geometry.
