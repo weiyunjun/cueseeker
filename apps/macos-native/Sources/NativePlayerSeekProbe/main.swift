@@ -18,6 +18,7 @@ private struct ProbeConfig {
     var endTimeoutSeconds: Double
     var segmentEndSeconds: Double?
     var segmentTimeoutSeconds: Double
+    var postSeekObservationSeconds: Double
 
     static func parse(_ arguments: [String]) throws -> ProbeConfig {
         var videoPath: String?
@@ -33,6 +34,7 @@ private struct ProbeConfig {
         var endTimeoutSeconds = 10.0
         var segmentEndSeconds: Double?
         var segmentTimeoutSeconds = 6.0
+        var postSeekObservationSeconds = 0.1
 
         var index = 1
         while index < arguments.count {
@@ -89,6 +91,11 @@ private struct ProbeConfig {
                     try parseString(valueAfter: argument, arguments: arguments, index: &index),
                     name: argument
                 )
+            case "--post-seek-observation":
+                postSeekObservationSeconds = try parseNonnegativeDouble(
+                    try parseString(valueAfter: argument, arguments: arguments, index: &index),
+                    name: argument
+                )
             case "--help", "-h":
                 throw ProbeUsage.requested
             default:
@@ -124,7 +131,8 @@ private struct ProbeConfig {
             seekTimeoutSeconds: seekTimeoutSeconds,
             endTimeoutSeconds: endTimeoutSeconds,
             segmentEndSeconds: segmentEndSeconds,
-            segmentTimeoutSeconds: segmentTimeoutSeconds
+            segmentTimeoutSeconds: segmentTimeoutSeconds,
+            postSeekObservationSeconds: postSeekObservationSeconds
         )
     }
 
@@ -207,6 +215,7 @@ private enum ProbeUsage: Error, CustomStringConvertible {
       --end-timeout seconds         Wait timeout for natural playback end. Default: 10
       --segment-end seconds         Verify bounded playback from --start to this timestamp
       --segment-timeout seconds     Wait timeout for segment completion. Default: 6
+      --post-seek-observation secs  Keep playing after each successful seek. Default: 0.1
     """
 }
 
@@ -328,7 +337,7 @@ private final class NativePlayerSeekProbeRunner {
         }
         try player.setPaused(false)
 
-        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s segment_end=\(config.segmentEndSeconds.map(format) ?? "none")s pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") pause_before_seek=\(config.pauseBeforeSeek ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no") wait_for_end_before_seek=\(config.waitForPlaybackEndBeforeSeek ? "yes" : "no")")
+        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s segment_end=\(config.segmentEndSeconds.map(format) ?? "none")s pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") pause_before_seek=\(config.pauseBeforeSeek ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no") wait_for_end_before_seek=\(config.waitForPlaybackEndBeforeSeek ? "yes" : "no") post_seek_observation=\(format(config.postSeekObservationSeconds))s")
         printCounters(prefix: "PLAYER_SEEK_COUNTERS_INITIAL")
 
         if config.segmentEndSeconds != nil {
@@ -539,7 +548,7 @@ private final class NativePlayerSeekProbeRunner {
                 failures.append("seek \(seekIndex + 1) did not satisfy frame/time/counter checks")
             }
             seekIndex += 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + config.postSeekObservationSeconds) { [weak self] in
                 Task { @MainActor in
                     self?.runNextSeek()
                 }
@@ -592,7 +601,7 @@ private final class NativePlayerSeekProbeRunner {
     }
 
     private func printCounters(prefix: String) {
-        print("\(prefix) open_count=\(player.nativeSessionOpenCount) in_session_seek_count=\(player.nativeInSessionSeekCount) frame_count=\(player.nativePresentedVideoFrameCount) last_video_ms=\(player.nativeLastSubmittedVideoFrameMilliseconds) last_audio_start_ms=\(player.nativeLastScheduledAudioStartMilliseconds) last_audio_end_ms=\(player.nativeLastScheduledAudioEndMilliseconds) segment_count=\(player.nativeSegmentFinishNotificationCount) segment_end_ms=\(player.nativeLastFinishedSegmentEndMilliseconds)")
+        print("\(prefix) open_count=\(player.nativeSessionOpenCount) in_session_seek_count=\(player.nativeInSessionSeekCount) frame_count=\(player.nativePresentedVideoFrameCount) last_video_ms=\(player.nativeLastSubmittedVideoFrameMilliseconds) last_audio_start_ms=\(player.nativeLastScheduledAudioStartMilliseconds) last_audio_end_ms=\(player.nativeLastScheduledAudioEndMilliseconds) segment_count=\(player.nativeSegmentFinishNotificationCount) segment_end_ms=\(player.nativeLastFinishedSegmentEndMilliseconds) rebuffer_count=\(player.nativeRebufferCount) last_rebuffer_ms=\(player.nativeLastRebufferDurationMilliseconds) last_rebuffer_waiting_for_packet=\(player.nativeLastRebufferStartedWhileWaitingForPacket ? "yes" : "no")")
     }
 
     private func format(_ value: Double) -> String {

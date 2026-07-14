@@ -784,6 +784,9 @@ static int SFXOutputChannelCount(int inputChannels) {
 @property (nonatomic, readonly) NSInteger lastScheduledAudioEndMilliseconds;
 @property (nonatomic, readonly) NSUInteger segmentFinishNotificationCount;
 @property (nonatomic, readonly) NSInteger lastFinishedSegmentEndMilliseconds;
+@property (nonatomic, readonly) NSUInteger rebufferCount;
+@property (nonatomic, readonly) NSInteger lastRebufferDurationMilliseconds;
+@property (nonatomic, readonly) BOOL lastRebufferStartedWhileWaitingForPacket;
 @property (nonatomic, readonly, getter=isFinished) BOOL finished;
 @end
 
@@ -862,6 +865,9 @@ static int SFXOutputChannelCount(int inputChannels) {
     NSInteger _lastScheduledAudioEndMilliseconds;
     NSUInteger _segmentFinishNotificationCount;
     NSInteger _lastFinishedSegmentEndMilliseconds;
+    NSUInteger _rebufferCount;
+    NSInteger _lastRebufferDurationMilliseconds;
+    BOOL _lastRebufferStartedWhileWaitingForPacket;
 
     BOOL _flushDisplayBeforeStart;
     BOOL _flushDisplayOnFirstFrame;
@@ -895,6 +901,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    atomic_bool _segmentEnding;
 	    atomic_bool _finishingForAutomaticRecycle;
     atomic_bool _decodeLoopFinished;
+    atomic_bool _decodeWaitingForPacket;
     atomic_bool _paused;
     atomic_bool _playing;
 }
@@ -944,6 +951,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _lastScheduledAudioStartMilliseconds = -1;
     _lastScheduledAudioEndMilliseconds = -1;
     _lastFinishedSegmentEndMilliseconds = -1;
+    _lastRebufferDurationMilliseconds = -1;
     _packetQueueCondition = [[NSCondition alloc] init];
     _segmentAudioBoundaryReached = NO;
     _segmentVideoBoundaryReached = NO;
@@ -953,6 +961,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    atomic_init(&_segmentEnding, false);
 	    atomic_init(&_finishingForAutomaticRecycle, false);
     atomic_init(&_decodeLoopFinished, false);
+    atomic_init(&_decodeWaitingForPacket, false);
     atomic_init(&_paused, false);
     atomic_init(&_playing, false);
 
@@ -1026,6 +1035,24 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (NSInteger)lastFinishedSegmentEndMilliseconds {
     @synchronized (self) {
         return _lastFinishedSegmentEndMilliseconds;
+    }
+}
+
+- (NSUInteger)rebufferCount {
+    @synchronized (self) {
+        return _rebufferCount;
+    }
+}
+
+- (NSInteger)lastRebufferDurationMilliseconds {
+    @synchronized (self) {
+        return _lastRebufferDurationMilliseconds;
+    }
+}
+
+- (BOOL)lastRebufferStartedWhileWaitingForPacket {
+    @synchronized (self) {
+        return _lastRebufferStartedWhileWaitingForPacket;
     }
 }
 
@@ -1983,8 +2010,10 @@ static int SFXOutputChannelCount(int inputChannels) {
 	           && !_packetQueueEOF
 	           && ![self hasPendingSeekRequestLocked]
            && _packetQueueHead == NULL) {
+        atomic_store(&_decodeWaitingForPacket, true);
         [_packetQueueCondition wait];
     }
+    atomic_store(&_decodeWaitingForPacket, false);
 
     if ([self hasPendingSeekRequestLocked]) {
         [_packetQueueCondition unlock];
@@ -2283,6 +2312,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     }
 
     double now = CACurrentMediaTime();
+    BOOL waitingForPacket = atomic_load(&_decodeWaitingForPacket);
     BOOL shouldPauseAudio = NO;
     double starvationSeconds = 0;
     @synchronized (self) {
@@ -2300,6 +2330,8 @@ static int SFXOutputChannelCount(int inputChannels) {
 
         _isRebuffering = YES;
         _rebufferStartedHostSeconds = now;
+        _rebufferCount += 1;
+        _lastRebufferStartedWhileWaitingForPacket = waitingForPacket;
         shouldPauseAudio = YES;
     }
 
@@ -2309,9 +2341,10 @@ static int SFXOutputChannelCount(int inputChannels) {
             [audioPlayer pause];
         });
         printf(
-            "Native playback rebuffer: state=start starvation=%.3fs threshold=%.3fs\n",
+            "Native playback rebuffer: state=start starvation=%.3fs threshold=%.3fs waiting_for_packet=%s\n",
             starvationSeconds,
-            SFXVideoStarvationThresholdSeconds
+            SFXVideoStarvationThresholdSeconds,
+            waitingForPacket ? "yes" : "no"
         );
     }
 }
@@ -2334,6 +2367,7 @@ static int SFXOutputChannelCount(int inputChannels) {
         _isRebuffering = NO;
         _rebufferStartedHostSeconds = 0;
         _lastVideoOutputHostSeconds = hostSeconds;
+        _lastRebufferDurationMilliseconds = (NSInteger)llround(rebufferDuration * 1000.0);
         shouldResumeAudio = _audioPlayerStarted && !atomic_load(&_paused);
     }
 
@@ -3220,6 +3254,18 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (NSInteger)nativeLastFinishedSegmentEndMilliseconds {
     return _session.lastFinishedSegmentEndMilliseconds;
+}
+
+- (NSUInteger)nativeRebufferCount {
+    return _session.rebufferCount;
+}
+
+- (NSInteger)nativeLastRebufferDurationMilliseconds {
+    return _session.lastRebufferDurationMilliseconds;
+}
+
+- (BOOL)nativeLastRebufferStartedWhileWaitingForPacket {
+    return _session.lastRebufferStartedWhileWaitingForPacket;
 }
 
 - (float)volume {
