@@ -310,9 +310,9 @@ extension AppCoordinator {
         playback.playbackStatus = .opening
         playbackSubtitleCuesTask?.cancel()
         let subtitleCues = initialPlaybackSubtitleCues(for: shiori)
-        playback.playbackViewModel?.setSubtitleCues(
-            subtitleCues,
-            currentTimeMilliseconds: shiori.startMilliseconds
+        playback.playbackViewModel?.preparePresentationTransition(
+            to: Double(shiori.startMilliseconds) / 1_000,
+            subtitleCues: subtitleCues
         )
 
         do {
@@ -332,25 +332,31 @@ extension AppCoordinator {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
+            let generation: UInt
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
-                player.loadSubtitleSource(request.subtitleSource)
                 if let segment {
-                    try player.seek(to: segment)
+                    generation = try player.seek(
+                        to: segment,
+                        subtitleSource: request.subtitleSource
+                    )
                 } else {
-                    try player.seek(toMilliseconds: shiori.startMilliseconds)
+                    generation = try player.seek(
+                        toMilliseconds: shiori.startMilliseconds,
+                        subtitleSource: request.subtitleSource
+                    )
                 }
             } else {
-                try player.open(request)
+                generation = try player.open(request)
             }
 
-            try player.setPaused(false)
-            playback.playbackStatus = .playing
+            playback.playbackViewModel?.bindPendingPresentation(to: generation)
             startPlaybackSubtitleCuesLoad(
                 forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
                 format: shiori.subtitleFormat,
                 videoPath: shiori.videoPath
             )
         } catch {
+            playback.playbackViewModel?.cancelPendingPresentation()
             clearCueSegmentPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
