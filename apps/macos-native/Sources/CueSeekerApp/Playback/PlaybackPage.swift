@@ -35,6 +35,7 @@ struct PlaybackPageView: View {
                         onExecuteAction:
                             appState.executePlaybackSubtitleFocusAction
                     )
+                        .id(subtitleFocusSession.token.sessionGeneration)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                 }
 

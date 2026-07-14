@@ -29,6 +29,59 @@ enum PlaybackSubtitleFocusState: Equatable, Sendable {
     case cueSelection(SubtitleFocusSnapshot)
 }
 
+enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
+    case current
+    case playlist
+    case search
+    case recent
+    case library
+    case shiori
+
+    static let standardModules: [Self] = [
+        .current,
+        .search,
+        .recent,
+        .library,
+        .shiori,
+    ]
+
+    static func modules(hasPlaylist: Bool) -> [Self] {
+        hasPlaylist ? allCases : standardModules
+    }
+
+    var label: String {
+        switch self {
+        case .current:
+            "Current"
+        case .playlist:
+            "Playlist"
+        case .search:
+            "Search"
+        case .recent:
+            "Recent"
+        case .library:
+            "Library"
+        case .shiori:
+            "Shiori"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .current, .recent:
+            "clock"
+        case .playlist:
+            "list.bullet"
+        case .search:
+            "magnifyingglass"
+        case .library:
+            "folder"
+        case .shiori:
+            "bookmark"
+        }
+    }
+}
+
 struct PlaybackSubtitleFocusKeyboardNavigationRequest: Equatable, Sendable {
     let sequence: Int
     let direction: SubtitleFocusNavigationDirection
@@ -46,6 +99,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var pendingKeyboardAction: PlaybackSubtitleFocusAction? = nil
     @Published private(set) var activeKeyboardAction: PlaybackSubtitleFocusActionExecution? = nil
     @Published private(set) var completeCueBatch: SubtitleFocusCueBatch? = nil
+    @Published private(set) var availableModules: [PlaybackOverlayModule]
+    @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
 
     private var keyboardActionGeneration = 0
     private var isSessionActive = true
@@ -56,9 +111,18 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     init(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
-        sessionGeneration: Int
+        sessionGeneration: Int,
+        availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules
     ) {
         self.openSnapshot = openSnapshot
+        let requestedModules = Set(availableModules)
+        var normalizedModules = PlaybackOverlayModule.allCases.filter {
+            requestedModules.contains($0)
+        }
+        if !normalizedModules.contains(.current) {
+            normalizedModules.insert(.current, at: 0)
+        }
+        self.availableModules = normalizedModules
         token = PlaybackSubtitleFocusSessionToken(
             source: openSnapshot.source,
             sessionGeneration: sessionGeneration
@@ -88,6 +152,38 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return nil
         }
         return snapshot.totalCount
+    }
+
+    @discardableResult
+    func selectModule(_ module: PlaybackOverlayModule) -> Bool {
+        guard isSessionActive,
+              availableModules.contains(module),
+              selectedModule != module
+        else {
+            return false
+        }
+
+        prepareCurrentReelForModuleTransition()
+        selectedModule = module
+        return true
+    }
+
+    @discardableResult
+    func selectNextModule() -> Bool {
+        guard isSessionActive,
+              let selectedModule,
+              let currentIndex = availableModules.firstIndex(of: selectedModule),
+              !availableModules.isEmpty
+        else {
+            return false
+        }
+
+        let nextIndex = availableModules.index(
+            after: currentIndex
+        ) == availableModules.endIndex
+            ? availableModules.startIndex
+            : availableModules.index(after: currentIndex)
+        return selectModule(availableModules[nextIndex])
     }
 
     func cue(at ordinal: Int) -> SubtitleFocusCue? {
@@ -411,6 +507,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         keyboardNavigationRequest = nil
     }
 
+    private func prepareCurrentReelForModuleTransition() {
+        pendingKeyboardAction = nil
+        isScrollbarDragging = false
+        isCueReelMotionActive = false
+        cancelKeyboardNavigationIntent()
+    }
+
     private func closeSession() -> Bool {
         let wasPlaying = openSnapshot.wasPlaying
         isSessionActive = false
@@ -420,6 +523,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isCueReelMotionActive = false
         completeCueBatch = nil
         cancelKeyboardNavigationIntent()
+        selectedModule = nil
+        availableModules = []
         state = .closed
         return wasPlaying
     }

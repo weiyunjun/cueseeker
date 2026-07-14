@@ -24,6 +24,107 @@ func playbackStoreCreatesSubtitleFocusSessionOnlyAfterOpen() throws {
 
 @MainActor
 @Test
+func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws {
+    let withoutPlaylist = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1
+    )
+    #expect(withoutPlaylist.availableModules == [
+        .current,
+        .search,
+        .recent,
+        .library,
+        .shiori,
+    ])
+    #expect(withoutPlaylist.selectedModule == .current)
+
+    let withPlaylist = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 2,
+        availableModules: PlaybackOverlayModule.modules(hasPlaylist: true)
+    )
+    #expect(withPlaylist.availableModules == PlaybackOverlayModule.allCases)
+    #expect(withPlaylist.selectedModule == .current)
+
+    let reorderedAndDuplicated = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 3,
+        availableModules: [.shiori, .playlist, .shiori]
+    )
+    #expect(reorderedAndDuplicated.availableModules == [
+        .current,
+        .playlist,
+        .shiori,
+    ])
+}
+
+@MainActor
+@Test
+func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1,
+        availableModules: PlaybackOverlayModule.allCases
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    #expect(session.commitNativeReelSelection(ordinal: 13))
+
+    for expectedModule in [
+        PlaybackOverlayModule.playlist,
+        .search,
+        .recent,
+        .library,
+        .shiori,
+        .current,
+    ] {
+        #expect(session.selectNextModule())
+        #expect(session.selectedModule == expectedModule)
+    }
+
+    #expect(session.currentSnapshot?.selectedOrdinal == 13)
+    #expect(!session.selectModule(.current))
+    #expect(session.selectModule(.library))
+    #expect(session.selectModule(.playlist))
+}
+
+@MainActor
+@Test
+func playbackOverlaySessionClearsModuleAndCurrentDataOnCloseThenReopensFresh() throws {
+    let playback = PlaybackStore(userDefaults: .standard)
+    let first = try #require(playback.beginSubtitleFocusSession(
+        openSnapshot: focusOpenSnapshot(wasPlaying: true),
+        availableModules: PlaybackOverlayModule.allCases
+    ))
+    #expect(first.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: first.token
+    ))
+    #expect(first.selectModule(.search))
+    let firstToken = first.token
+
+    #expect(first.dismissByUser() == true)
+    #expect(first.selectedModule == nil)
+    #expect(first.availableModules.isEmpty)
+    #expect(first.retainedCueCount == 0)
+    playback.releaseSubtitleFocusSession(first)
+
+    let second = try #require(playback.beginSubtitleFocusSession(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false)
+    ))
+    #expect(second.token.sessionGeneration == firstToken.sessionGeneration + 1)
+    #expect(second.selectedModule == .current)
+    #expect(second.availableModules == PlaybackOverlayModule.standardModules)
+    #expect(!first.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: firstToken
+    ))
+}
+
+@MainActor
+@Test
 func subtitleFocusInitialSnapshotPublishesOnlyThroughChildStore() throws {
     let playback = PlaybackStore(userDefaults: .standard)
     var playbackInvalidations = 0

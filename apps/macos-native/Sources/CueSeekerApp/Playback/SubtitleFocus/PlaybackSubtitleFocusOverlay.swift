@@ -23,9 +23,52 @@ struct PlaybackSubtitleFocusLayer: View {
         case .closed, .opening:
             EmptyView()
         case .cueSelection(let snapshot):
-            PlaybackSubtitleFocusOverlay(
+            PlaybackMultiModuleOverlay(
+                session: session,
                 snapshot: snapshot,
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
+                uiProbeScope: uiProbeScope,
+                onExecuteAction: onExecuteAction
+            )
+        }
+    }
+}
+
+struct PlaybackMultiModuleOverlay: View {
+    @ObservedObject var session: PlaybackSubtitleFocusSessionStore
+    let snapshot: SubtitleFocusSnapshot
+    let cues: [SubtitleFocusCue]
+    let uiProbeScope: String?
+    let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+
+    var body: some View {
+        ZStack {
+            PlaybackTheme.subtitleFocusOverlayBackground
+
+            PlaybackSubtitleFocusPointerShield()
+
+            HStack(spacing: 0) {
+                PlaybackModuleSidebar(
+                    modules: session.availableModules,
+                    selectedModule: session.selectedModule,
+                    onSelect: session.selectModule
+                )
+                .frame(width: PlaybackMultiModuleOverlayMetrics.sidebarWidth)
+                .frame(maxHeight: .infinity)
+
+                moduleContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .environment(\.colorScheme, .dark)
+    }
+
+    @ViewBuilder
+    private var moduleContent: some View {
+        if session.selectedModule == .current {
+            PlaybackSubtitleFocusOverlay(
+                snapshot: snapshot,
+                cues: cues,
                 uiProbeScope: uiProbeScope,
                 keyboardNavigationRequest: session.keyboardNavigationRequest,
                 blocksNewNavigation: session.pendingKeyboardAction != nil
@@ -39,7 +82,81 @@ struct PlaybackSubtitleFocusLayer: View {
                 onCueReelMotionChanged: session.noteCueReelMotion,
                 onExecuteAction: onExecuteAction
             )
+        } else {
+            PlaybackTheme.subtitleFocusOverlayBackground
+                .contentShape(Rectangle())
         }
+    }
+}
+
+struct PlaybackModuleSidebar: View {
+    let modules: [PlaybackOverlayModule]
+    let selectedModule: PlaybackOverlayModule?
+    let onSelect: (PlaybackOverlayModule) -> Bool
+
+    var body: some View {
+        VStack(
+            alignment: .leading,
+            spacing: PlaybackMultiModuleOverlayMetrics.sidebarItemGap
+        ) {
+            ForEach(modules, id: \.self) { module in
+                Button {
+                    _ = onSelect(module)
+                } label: {
+                    HStack(spacing: PlaybackMultiModuleOverlayMetrics.sidebarLabelGap) {
+                        Image(systemName: module.systemImage)
+                            .font(.system(
+                                size: PlaybackMultiModuleOverlayMetrics.sidebarItemIconSize,
+                                weight: .medium
+                            ))
+                            .frame(
+                                width: PlaybackMultiModuleOverlayMetrics.sidebarItemIconSize,
+                                height: PlaybackMultiModuleOverlayMetrics.sidebarItemIconSize
+                            )
+
+                        Text(module.label)
+                            .font(.system(
+                                size: PlaybackMultiModuleOverlayMetrics.sidebarItemFontSize,
+                                weight: .regular
+                            ))
+                            .lineLimit(1)
+
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(
+                        selectedModule == module
+                            ? PlaybackTheme.subtitleFocusCueSelected
+                            : PlaybackTheme.subtitleFocusCueUnselected
+                    )
+                    .padding(
+                        .horizontal,
+                        PlaybackMultiModuleOverlayMetrics.sidebarItemHorizontalPadding
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: PlaybackMultiModuleOverlayMetrics.sidebarItemHeight,
+                        maxHeight: PlaybackMultiModuleOverlayMetrics.sidebarItemHeight
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .accessibilityLabel(module.label)
+                .accessibilityIdentifier("playback-module-\(module.rawValue)")
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(
+            .horizontal,
+            PlaybackMultiModuleOverlayMetrics.sidebarHorizontalPadding
+        )
+        .padding(
+            .vertical,
+            PlaybackMultiModuleOverlayMetrics.sidebarVerticalPadding
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(PlaybackTheme.subtitleFocusOverlayBackground)
     }
 }
 

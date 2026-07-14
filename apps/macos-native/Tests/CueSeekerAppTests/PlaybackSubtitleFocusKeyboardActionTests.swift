@@ -42,7 +42,38 @@ func subtitleFocusActionContextPreservesExactCueIdentityAndContent() {
 
 @MainActor
 @Test
-func subtitleFocusEnterIsConsumedWithoutOpeningActionUI() async throws {
+func playbackOverlayEnterQueuesPlayWhileSpaceRemainsInactive() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+        session.noteCueReelMotion(true)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 49, modifierFlagsRawValue: 0))
+        #expect(session.pendingKeyboardAction == nil)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(session.pendingKeyboardAction == .playFromThisCue)
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: 0,
+            isRepeat: true
+        ))
+        #expect(app.playback.subtitleFocusSession === session)
+        #expect(session.pendingKeyboardAction == .playFromThisCue)
+        #expect(session.activeKeyboardAction == nil)
+        #expect(session.currentSnapshot?.selectedOrdinal == 12)
+        #expect(app.playback.playbackViewModel?.feedback == nil)
+    }
+}
+
+@MainActor
+@Test
+func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
@@ -52,17 +83,23 @@ func subtitleFocusEnterIsConsumedWithoutOpeningActionUI() async throws {
             token: session.token
         ))
 
-        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+        #expect(session.selectedModule == .search)
         #expect(app.handlePlaybackKeyDown(
-            keyCode: 36,
+            keyCode: 48,
             modifierFlagsRawValue: 0,
             isRepeat: true
         ))
-        #expect(app.playback.subtitleFocusSession === session)
-        #expect(session.pendingKeyboardAction == nil)
-        #expect(session.activeKeyboardAction == nil)
-        #expect(session.currentSnapshot?.selectedOrdinal == 12)
-        #expect(app.playback.playbackViewModel?.feedback == nil)
+        #expect(session.selectedModule == .search)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+        #expect(session.selectedModule == .recent)
+        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+        #expect(session.selectedModule == .library)
+        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+        #expect(session.selectedModule == .shiori)
+        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+        #expect(session.selectedModule == .current)
     }
 }
 
@@ -261,7 +298,7 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
 
 @MainActor
 @Test
-func subtitleFocusSpaceUsesExactCueThenClosesForContinuousPlayback() async throws {
+func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)

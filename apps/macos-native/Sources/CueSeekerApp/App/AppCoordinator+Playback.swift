@@ -558,48 +558,75 @@ extension AppCoordinator {
         }
 
         if let subtitleFocusSession = playback.subtitleFocusSession {
+            let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
+            let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
+            let moduleSwitchModifiers: NSEvent.ModifierFlags = [
+                .command,
+                .control,
+                .option,
+                .shift,
+            ]
+
+            if keyCode == 48,
+               modifierFlags.intersection(moduleSwitchModifiers).isEmpty {
+                if !isRepeat {
+                    _ = subtitleFocusSession.selectNextModule()
+                }
+                return true
+            }
+
+            if keyCode == 53,
+               modifierFlags.intersection(disallowedModifiers).isEmpty {
+                guard !isRepeat else {
+                    return true
+                }
+                return dismissPlaybackSubtitleFocusFromUser()
+            }
+
             guard !Self.isEditableTextInputFocused() else {
                 return false
             }
 
-            let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
-            let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
             guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
                 return false
             }
 
             switch keyCode {
-            case 53:
-                guard !isRepeat else {
-                    return true
-                }
-                return dismissPlaybackSubtitleFocusFromUser()
             case 126:
-                _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
+                if subtitleFocusSession.selectedModule == .current {
+                    _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
+                }
                 return true
             case 125:
-                _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
+                if subtitleFocusSession.selectedModule == .current {
+                    _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
+                }
                 return true
             case 1:
                 guard !isRepeat else {
                     return true
                 }
-                _ = requestPlaybackSubtitleFocusAction(.shiori)
+                if subtitleFocusSession.selectedModule == .current {
+                    _ = requestPlaybackSubtitleFocusAction(.shiori)
+                }
                 return true
             case 8:
                 guard !isRepeat else {
                     return true
                 }
-                _ = requestPlaybackSubtitleFocusAction(.copyCueText)
+                if subtitleFocusSession.selectedModule == .current {
+                    _ = requestPlaybackSubtitleFocusAction(.copyCueText)
+                }
                 return true
-            case 49:
+            case 36, 76:
                 guard !isRepeat else {
                     return true
                 }
-                _ = requestPlaybackSubtitleFocusAction(.playFromThisCue)
+                if subtitleFocusSession.selectedModule == .current {
+                    _ = requestPlaybackSubtitleFocusAction(.playFromThisCue)
+                }
                 return true
-            case 36, 76:
-                // Enter is intentionally consumed without opening action UI.
+            case 49:
                 return true
             default:
                 return true
