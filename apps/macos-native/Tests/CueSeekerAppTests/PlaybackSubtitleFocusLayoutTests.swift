@@ -8,6 +8,7 @@ import Testing
 func subtitleFocusMetricsMatchDocumentedDynamicGeometry() {
     #expect(PlaybackSubtitleFocusMetrics.cueVerticalPadding == 12)
     #expect(PlaybackSubtitleFocusMetrics.cueGap == 8)
+    #expect(PlaybackSubtitleFocusMetrics.internalLineGap == 5)
     #expect(PlaybackSubtitleFocusMetrics.minimumNaturalCueHeight == 76)
     #expect(PlaybackSubtitleFocusMetrics.contentMaxWidth == 960)
     #expect(PlaybackSubtitleFocusMetrics.contentInset == 32)
@@ -76,6 +77,7 @@ func subtitleFocusTextMeasurementUsesEveryHardAndSoftVisualLine() {
             viewportHeight: 1_000
         )
         #expect(measurement.visualLineCount == expectedLines)
+        #expect(measurement.resolvedContentHeight == CGFloat(expectedLines) * 52)
         #expect(measurement.naturalHeight == expectedHeight)
         #expect(measurement.resolvedHeight == expectedHeight)
         #expect(!measurement.isOversized)
@@ -95,7 +97,71 @@ func subtitleFocusTextMeasurementUsesEveryHardAndSoftVisualLine() {
 
 @MainActor
 @Test
-func subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtFixedLineHeight() throws {
+func subtitleFocusVisualLineStackPreservesEverySourceLineAtStrictFivePointGap() {
+    let layout = PlaybackVisualLineStackLayout()
+
+    for (text, expectedLineCount) in [
+        ("one", 1),
+        ("one\ntwo", 2),
+        ("one\r\ntwo", 2),
+        ("one\rtwo", 2),
+        ("one\n", 2),
+        ("one\n\nthree", 3),
+        ("", 1),
+    ] {
+        let plan = layout.prepare(
+            text: text,
+            color: .white,
+            width: 2_000
+        )
+        #expect(plan.visualLineCount == expectedLineCount)
+        #expect(
+            plan.nominalContentHeight
+                == CGFloat(expectedLineCount)
+                    * PlaybackSubtitleFocusMetrics.cueLineHeight
+        )
+        assertStrictPlaybackVisualLineGaps(plan)
+    }
+}
+
+@MainActor
+@Test
+func subtitleFocusVisualLineStackUsesStrictFivePointGapAcrossSoftWraps() {
+    let layout = PlaybackVisualLineStackLayout()
+    let plan = layout.prepare(
+        text: Array(repeating: "wrap", count: 40).joined(separator: " "),
+        color: .white,
+        width: 120
+    )
+
+    #expect(plan.visualLineCount > 3)
+    assertStrictPlaybackVisualLineGaps(plan)
+}
+
+@MainActor
+@Test
+func subtitleFocusVisualLineStackUsesResolvedFontRunsInsteadOfLineSlots() throws {
+    let layout = PlaybackVisualLineStackLayout()
+    let plan = layout.prepare(
+        text: "矛盾しない\nภาษาไทย 😀",
+        color: .white,
+        width: 2_000
+    )
+
+    #expect(plan.visualLineCount == 2)
+    assertStrictPlaybackVisualLineGaps(plan)
+    let first = try #require(plan.lines.first)
+    #expect(first.typographicHeight > 0)
+    #expect(abs(first.typographicHeight - first.usedRect.height) > 1)
+    #expect(
+        plan.resolvedContentHeight
+            == max(plan.nominalContentHeight, plan.stackHeight)
+    )
+}
+
+@MainActor
+@Test
+func subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtStrictInternalGap() throws {
     let layout = PlaybackSubtitleFocusNativeTextLayout()
     let cueRect = CGRect(x: 0, y: 0, width: 800, height: 180)
     let lineRects = layout.visibleLineRects(
@@ -108,8 +174,8 @@ func subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtFixedLineHeight() throw
     let second = try #require(lineRects.dropFirst().first)
     let third = try #require(lineRects.last)
     #expect(first.minY >= 12)
-    #expect(abs(second.minY - first.minY - 52) < 0.75)
-    #expect(abs(third.minY - second.minY - 52) < 0.75)
+    #expect(abs(second.minY - first.maxY - 5) < 0.001)
+    #expect(abs(third.minY - second.maxY - 5) < 0.001)
     #expect(lineRects.allSatisfy { cueRect.contains($0) })
 
     #expect(
@@ -132,14 +198,34 @@ func subtitleFocusOversizedTextStartsAtHeadAndClipsTrailingLines() throws {
     let text = "first\nsecond\nthird"
     let cue = focusLayoutCue(ordinal: 0, content: text)
     let layout = PlaybackSubtitleFocusNativeTextLayout()
+    let fitRects = layout.visibleLineRects(
+        text: cue.text,
+        in: CGRect(x: 0, y: 0, width: 800, height: 180)
+    )
     let cueRect = CGRect(x: 0, y: 0, width: 800, height: 100)
     let visibleRects = layout.visibleLineRects(text: cue.text, in: cueRect)
 
     let first = try #require(visibleRects.first)
+    let fitFirst = try #require(fitRects.first)
     #expect(first.minY >= 12)
+    #expect(abs(first.minY - fitFirst.minY) < 0.001)
     #expect(visibleRects.count < 3)
     #expect(visibleRects.allSatisfy { cueRect.contains($0) })
     #expect(cue.text == text)
+}
+
+private func assertStrictPlaybackVisualLineGaps(
+    _ plan: PlaybackVisualLineStackPlan
+) {
+    for (previous, next) in zip(plan.lines, plan.lines.dropFirst()) {
+        #expect(
+            abs(
+                next.typographicTop
+                    - previous.typographicBottom
+                    - PlaybackSubtitleFocusMetrics.internalLineGap
+            ) < 0.000_001
+        )
+    }
 }
 
 @MainActor

@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 import CueSeekerCore
 import SwiftUI
 
@@ -27,16 +28,77 @@ struct PlaybackSubtitleFocusScrollSample: Equatable {
 
 struct PlaybackSubtitleFocusCueMeasurement: Equatable {
     let visualLineCount: Int
+    let visualLineStackHeight: CGFloat
+    let resolvedContentHeight: CGFloat
     let naturalHeight: CGFloat
     let resolvedHeight: CGFloat
     let isOversized: Bool
 }
 
+struct PlaybackVisualLineStackLine: Equatable {
+    let glyphRange: NSRange
+    let usedRect: CGRect
+    let originalBaseline: CGFloat
+    let ascent: CGFloat
+    let descent: CGFloat
+    let typographicTop: CGFloat
+
+    var typographicHeight: CGFloat {
+        ascent + descent
+    }
+
+    var typographicBottom: CGFloat {
+        typographicTop + typographicHeight
+    }
+}
+
+struct PlaybackVisualLineStackPlan: Equatable {
+    let lines: [PlaybackVisualLineStackLine]
+    let stackHeight: CGFloat
+    let nominalContentHeight: CGFloat
+    let resolvedContentHeight: CGFloat
+
+    var visualLineCount: Int {
+        lines.count
+    }
+
+    func typographicRects(in contentRect: CGRect) -> [CGRect] {
+        lines.map { line in
+            CGRect(
+                x: contentRect.minX + line.usedRect.minX,
+                y: contentRect.minY + line.typographicTop,
+                width: line.usedRect.width,
+                height: line.typographicHeight
+            )
+        }
+    }
+}
+
 @MainActor
-final class PlaybackSubtitleFocusCueTextMeasurer {
+final class PlaybackVisualLineStackLayout {
+    private struct DraftLine {
+        let glyphRange: NSRange
+        let usedRect: CGRect
+        let originalBaseline: CGFloat
+        let ascent: CGFloat
+        let descent: CGFloat
+
+        var typographicHeight: CGFloat {
+            ascent + descent
+        }
+    }
+
+    private static let terminalLineSentinel = "\u{200B}"
+
     private let textStorage = NSTextStorage()
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
+    private(set) var plan = PlaybackVisualLineStackPlan(
+        lines: [],
+        stackHeight: 0,
+        nominalContentHeight: 0,
+        resolvedContentHeight: 0
+    )
 
     init() {
         textContainer.lineFragmentPadding = 0
@@ -47,23 +109,221 @@ final class PlaybackSubtitleFocusCueTextMeasurer {
         textStorage.addLayoutManager(layoutManager)
     }
 
+    @discardableResult
+    func prepare(
+        text: String,
+        color: NSColor,
+        width: CGFloat
+    ) -> PlaybackVisualLineStackPlan {
+        let normalizedText = Self.normalizedText(text)
+        let attributedText = NSMutableAttributedString(
+            attributedString: PlaybackSubtitleFocusCueTextMeasurer.attributedString(
+                normalizedText,
+                color: color
+            )
+        )
+        if normalizedText.isEmpty || normalizedText.hasSuffix("\n") {
+            attributedText.append(
+                PlaybackSubtitleFocusCueTextMeasurer.attributedString(
+                    Self.terminalLineSentinel,
+                    color: .clear
+                )
+            )
+        }
+
+        textStorage.setAttributedString(attributedText)
+        textContainer.size = CGSize(
+            width: max(1, width),
+            height: 1_000_000
+        )
+        layoutManager.ensureLayout(for: textContainer)
+
+        let glyphRange = layoutManager.glyphRange(for: textContainer)
+        var draftLines: [DraftLine] = []
+        layoutManager.enumerateLineFragments(
+            forGlyphRange: glyphRange
+        ) { [self] lineRect, usedRect, _, lineGlyphRange, _ in
+            let metrics = typographicMetrics(for: lineGlyphRange)
+            let originalBaseline = lineRect.minY
+                + layoutManager.location(forGlyphAt: lineGlyphRange.location).y
+            draftLines.append(DraftLine(
+                glyphRange: lineGlyphRange,
+                usedRect: usedRect,
+                originalBaseline: originalBaseline,
+                ascent: metrics.ascent,
+                descent: metrics.descent
+            ))
+        }
+
+        if draftLines.isEmpty {
+            let font = Self.fallbackFont
+            draftLines = [DraftLine(
+                glyphRange: NSRange(location: 0, length: 0),
+                usedRect: .zero,
+                originalBaseline: font.ascender,
+                ascent: font.ascender,
+                descent: -font.descender
+            )]
+        }
+
+        let stackHeight = draftLines.reduce(CGFloat.zero) {
+            $0 + $1.typographicHeight
+        } + CGFloat(max(0, draftLines.count - 1))
+            * PlaybackSubtitleFocusMetrics.internalLineGap
+        let nominalContentHeight = CGFloat(draftLines.count)
+            * PlaybackSubtitleFocusMetrics.cueLineHeight
+        let resolvedContentHeight = max(nominalContentHeight, stackHeight)
+        var nextTop = max(0, (resolvedContentHeight - stackHeight) / 2)
+        let resolvedLines = draftLines.map { line in
+            defer {
+                nextTop += line.typographicHeight
+                    + PlaybackSubtitleFocusMetrics.internalLineGap
+            }
+            return PlaybackVisualLineStackLine(
+                glyphRange: line.glyphRange,
+                usedRect: line.usedRect,
+                originalBaseline: line.originalBaseline,
+                ascent: line.ascent,
+                descent: line.descent,
+                typographicTop: nextTop
+            )
+        }
+
+        plan = PlaybackVisualLineStackPlan(
+            lines: resolvedLines,
+            stackHeight: stackHeight,
+            nominalContentHeight: nominalContentHeight,
+            resolvedContentHeight: resolvedContentHeight
+        )
+        return plan
+    }
+
+    func drawPreparedPlan(in contentRect: CGRect) {
+        guard contentRect.width > 0,
+              contentRect.height > 0,
+              !plan.lines.isEmpty,
+              let context = NSGraphicsContext.current
+        else {
+            return
+        }
+
+        context.saveGraphicsState()
+        NSBezierPath(rect: contentRect).addClip()
+        for line in plan.lines {
+            guard line.glyphRange.length > 0 else {
+                continue
+            }
+            let targetBaseline = contentRect.minY
+                + line.typographicTop
+                + line.ascent
+            layoutManager.drawGlyphs(
+                forGlyphRange: line.glyphRange,
+                at: CGPoint(
+                    x: contentRect.minX,
+                    y: targetBaseline - line.originalBaseline
+                )
+            )
+        }
+        context.restoreGraphicsState()
+    }
+
+    private func typographicMetrics(
+        for glyphRange: NSRange
+    ) -> (ascent: CGFloat, descent: CGFloat) {
+        let characterRange = layoutManager.characterRange(
+            forGlyphRange: glyphRange,
+            actualGlyphRange: nil
+        )
+        let metricRange = rangeWithoutLineTerminators(characterRange)
+        guard metricRange.length > 0 else {
+            let font = Self.fallbackFont
+            return (font.ascender, -font.descender)
+        }
+
+        let attributedLine = textStorage.attributedSubstring(from: metricRange)
+        let coreTextLine = CTLineCreateWithAttributedString(attributedLine)
+        let runs = CTLineGetGlyphRuns(coreTextLine) as NSArray
+        var resolvedAscent: CGFloat = 0
+        var resolvedDescent: CGFloat = 0
+        for case let run as CTRun in runs {
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            var leading: CGFloat = 0
+            _ = CTRunGetTypographicBounds(
+                run,
+                CFRange(location: 0, length: 0),
+                &ascent,
+                &descent,
+                &leading
+            )
+            resolvedAscent = max(resolvedAscent, ascent)
+            resolvedDescent = max(resolvedDescent, descent)
+        }
+
+        guard resolvedAscent > 0 || resolvedDescent > 0 else {
+            let font = Self.fallbackFont
+            return (font.ascender, -font.descender)
+        }
+        return (resolvedAscent, resolvedDescent)
+    }
+
+    private func rangeWithoutLineTerminators(_ range: NSRange) -> NSRange {
+        var result = range
+        let string = textStorage.string as NSString
+        while result.length > 0 {
+            let characterRange = string.rangeOfComposedCharacterSequence(
+                at: NSMaxRange(result) - 1
+            )
+            let character = string.substring(with: characterRange)
+            guard character == "\n"
+                    || character == "\r"
+                    || character == Self.terminalLineSentinel
+            else {
+                break
+            }
+            result.length = characterRange.location - result.location
+        }
+        return result
+    }
+
+    private static var fallbackFont: NSFont {
+        NSFont.systemFont(
+            ofSize: PlaybackSubtitleFocusMetrics.cueFontSize,
+            weight: .semibold
+        )
+    }
+
+    private static func normalizedText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+    }
+}
+
+@MainActor
+final class PlaybackSubtitleFocusCueTextMeasurer {
+    private let visualLineLayout = PlaybackVisualLineStackLayout()
+
     func measurement(
         text: String,
         width: CGFloat,
         viewportHeight: CGFloat
     ) -> PlaybackSubtitleFocusCueMeasurement {
-        let lineCount = sourceLines(in: text).reduce(into: 0) { result, line in
-            result += wrappedLineCount(line, width: width)
-        }
-        let resolvedLineCount = max(1, lineCount)
+        let plan = visualLineLayout.prepare(
+            text: text,
+            color: .white,
+            width: width
+        )
         let naturalHeight = max(
             PlaybackSubtitleFocusMetrics.minimumNaturalCueHeight,
-            CGFloat(resolvedLineCount) * PlaybackSubtitleFocusMetrics.cueLineHeight
+            plan.resolvedContentHeight
                 + PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
         )
         let safeViewportHeight = max(0, viewportHeight)
         return PlaybackSubtitleFocusCueMeasurement(
-            visualLineCount: resolvedLineCount,
+            visualLineCount: plan.visualLineCount,
+            visualLineStackHeight: plan.stackHeight,
+            resolvedContentHeight: plan.resolvedContentHeight,
             naturalHeight: naturalHeight,
             resolvedHeight: min(naturalHeight, safeViewportHeight),
             isOversized: naturalHeight > safeViewportHeight
@@ -92,33 +352,6 @@ final class PlaybackSubtitleFocusCueTextMeasurer {
         style.lineSpacing = 0
         style.paragraphSpacing = 0
         return style
-    }
-
-    private func wrappedLineCount(_ line: String, width: CGFloat) -> Int {
-        guard !line.isEmpty else {
-            return 1
-        }
-        textStorage.setAttributedString(Self.attributedString(line, color: .white))
-        textContainer.size = CGSize(width: max(1, width), height: 1_000_000)
-        layoutManager.ensureLayout(for: textContainer)
-        let glyphRange = layoutManager.glyphRange(for: textContainer)
-        guard glyphRange.length > 0 else {
-            return 1
-        }
-        var count = 0
-        layoutManager.enumerateLineFragments(
-            forGlyphRange: glyphRange
-        ) { _, _, _, _, _ in
-            count += 1
-        }
-        return max(1, count)
-    }
-
-    private func sourceLines(in text: String) -> [String] {
-        text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: "\n")
     }
 }
 
@@ -294,7 +527,7 @@ private final class PlaybackSubtitleFocusCueMeasurementCache {
             text: cue.text,
             width: width,
             viewportHeight: viewportHeight,
-            styleRevision: 1
+            styleRevision: 2
         )
         if var entry = entries[key] {
             entry.lastAccess = accessSequence
@@ -1847,68 +2080,48 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
 @MainActor
 final class PlaybackSubtitleFocusNativeTextLayout {
-    private let textStorage = NSTextStorage()
-    private let layoutManager = NSLayoutManager()
-    private let textContainer = NSTextContainer()
-
-    init() {
-        layoutManager.usesFontLeading = false
-        textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = 0
-        textContainer.lineBreakMode = .byWordWrapping
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-    }
+    private let visualLineLayout = PlaybackVisualLineStackLayout()
 
     func draw(
         text: String,
         color: NSColor,
         in rect: CGRect
     ) {
-        guard let glyphRange = prepare(
-            text: text,
-            color: color,
-            in: rect
-        ) else {
+        let textRect = Self.textRect(in: rect)
+        guard textRect.width > 0, textRect.height > 0 else {
             return
         }
-
-        let textRect = Self.textRect(in: rect)
-        layoutManager.drawGlyphs(forGlyphRange: glyphRange, at: textRect.origin)
+        visualLineLayout.prepare(
+            text: text,
+            color: color,
+            width: textRect.width
+        )
+        visualLineLayout.drawPreparedPlan(in: textRect)
     }
 
     func visibleLineRects(
         text: String,
         in rect: CGRect
     ) -> [CGRect] {
-        guard let glyphRange = prepare(
-            text: text,
-            color: .white,
-            in: rect
-        ) else {
+        let textRect = Self.textRect(in: rect)
+        guard textRect.width > 0, textRect.height > 0 else {
             return []
         }
-        return hitRects(for: glyphRange, in: Self.textRect(in: rect))
-    }
-
-    private func prepare(
-        text: String,
-        color: NSColor,
-        in rect: CGRect
-    ) -> NSRange? {
-        let textRect = Self.textRect(in: rect)
-        guard textRect.width > 0, textRect.height > 0, !text.isEmpty else {
-            return nil
-        }
-        textContainer.size = textRect.size
-        textStorage.setAttributedString(
-            PlaybackSubtitleFocusCueTextMeasurer.attributedString(
-                text,
-                color: color
-            )
+        let plan = visualLineLayout.prepare(
+            text: text,
+            color: .white,
+            width: textRect.width
         )
-        layoutManager.ensureLayout(for: textContainer)
-        return layoutManager.glyphRange(for: textContainer)
+        return plan.typographicRects(in: textRect).compactMap { lineRect in
+            let visibleRect = lineRect.intersection(textRect)
+            guard !visibleRect.isNull,
+                  visibleRect.width > 0,
+                  visibleRect.height > 0
+            else {
+                return nil
+            }
+            return visibleRect
+        }
     }
 
     private static func textRect(in cueRect: CGRect) -> CGRect {
@@ -1924,27 +2137,6 @@ final class PlaybackSubtitleFocusNativeTextLayout {
         )
     }
 
-    private func hitRects(
-        for glyphRange: NSRange,
-        in rect: CGRect
-    ) -> [CGRect] {
-        var hitRects: [CGRect] = []
-        layoutManager.enumerateLineFragments(
-            forGlyphRange: glyphRange
-        ) { _, usedRect, _, _, stop in
-            guard usedRect.minY < rect.height else {
-                stop.pointee = true
-                return
-            }
-            let hitRect = usedRect
-                .offsetBy(dx: rect.minX, dy: rect.minY)
-                .intersection(rect)
-            if !hitRect.isNull, hitRect.width > 0, hitRect.height > 0 {
-                hitRects.append(hitRect)
-            }
-        }
-        return hitRects
-    }
 }
 
 @MainActor

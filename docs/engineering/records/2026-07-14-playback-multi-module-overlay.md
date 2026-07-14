@@ -38,6 +38,28 @@ capability will be enabled when the Playlist snapshot is implemented.
   destroyed session dismantles the previous native reel before a later session
   is mounted.
 
+### 2. Strict Five-Point Visual Line Stack
+
+- Added the documented five-point internal-line token without changing the
+  eight-point gap between independent Current cue containers.
+- Replaced Current's fixed per-line slot drawing with one Visual Line Stack
+  planner shared by measurement and native drawing.
+- Kept TextKit responsible for hard-line and soft-wrap fragmentation, then used
+  CoreText run typographic bounds to resolve the actual fallback-font ascender
+  and descender for every visual line. Ink bounds and fixed line-fragment
+  heights do not participate in vertical placement.
+- Placed every line from the second onward exactly five points below the prior
+  line's typographic bottom. The complete stack is centered once inside
+  `max(52 * line count, stack height)` so ordinary one-, two-, and three-line
+  Current heights remain 76, 128, and 180 points.
+- Normalized CRLF and CR for layout and used an invisible zero-width sentinel
+  only when needed to retain empty text and a trailing empty source line.
+- Kept the complete natural layout anchored at the top of oversized cue rows
+  and clipped only the trailing overflow. No internal reading offset or
+  ellipsis was introduced.
+- Incremented the measurement style revision so pre-change cached geometry
+  cannot be reused.
+
 ## Verification
 
 ### Step 1
@@ -51,13 +73,27 @@ capability will be enabled when the Playlist snapshot is implemented.
 - `git diff --check`
   - Passed.
 
+### Step 2
+
+- `swift test --filter subtitleFocus`
+  - Passed 64 tests, including strict hard/soft line gaps, CRLF/CR, empty and
+    trailing lines, fallback-font metrics, oversized clipping, and existing
+    50,000-cue virtualization coverage.
+- `swift test`
+  - Passed 7 XCTest tests and 645 Swift Testing tests.
+- `swift test --filter subtitleFocusVisualLineStack`
+  - Passed the 3 focused strict-gap and resolved-font-run tests after the final
+    cross-version assertion hardening.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Implement strict five-point Visual Line Stack geometry before extracting the
-  virtual reel, so typography and infrastructure regressions remain separable.
+- Extract the Current virtual reel into item-agnostic infrastructure while
+  retaining this step's Visual Line Stack behavior unchanged.
 - Define and capture the real Playlist snapshot before enabling its sidebar
   capability in production.

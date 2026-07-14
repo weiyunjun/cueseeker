@@ -185,6 +185,8 @@ enum PlaybackSubtitleFocusMetrics {
     static let cueVerticalPadding: CGFloat = 12
     /// --gap-subtitle-focus-cue
     static let cueGap: CGFloat = 8
+    /// --gap-subtitle-focus-internal-line
+    static let internalLineGap: CGFloat = 5
     static let minimumNaturalCueHeight: CGFloat = 76
     /// --width-subtitle-focus-content-max
     static let contentMaxWidth: CGFloat = 960
