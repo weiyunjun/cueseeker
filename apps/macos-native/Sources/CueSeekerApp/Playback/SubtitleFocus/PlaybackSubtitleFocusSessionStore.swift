@@ -133,6 +133,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var availableModules: [PlaybackOverlayModule]
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
+    @Published private(set) var searchStore: PlaybackSearchSessionStore?
     @Published private(set) var shioriWindow: PlaybackCueResultSessionWindowStore?
 
     private var keyboardActionGeneration = 0
@@ -143,6 +144,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?
     private var shioriSource: PlaybackCueResultSource?
+    private var searchWindowCancellable: AnyCancellable?
     private var cueResultWindowSnapshotCancellables: [
         PlaybackOverlayModule: AnyCancellable
     ] = [:]
@@ -155,6 +157,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         sessionGeneration: Int,
         availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules,
         playlistSource: PlaybackPlaylistSource? = nil,
+        searchStore: PlaybackSearchSessionStore? = nil,
         shioriSource: PlaybackCueResultSource? = nil
     ) {
         self.openSnapshot = openSnapshot
@@ -168,6 +171,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         self.availableModules = normalizedModules
         let playlistWindow = playlistSource?.makeSessionWindowStore()
         self.playlistWindow = playlistWindow
+        self.searchStore = searchStore
         self.shioriSource = shioriSource
         let shioriWindow = shioriSource?.makeSessionWindowStore(
             includingEmpty: true
@@ -179,6 +183,12 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         )
         if let playlistWindow {
             observeCueResultWindow(playlistWindow, module: .playlist)
+        }
+        if let searchStore {
+            searchWindowCancellable = searchStore.$window
+                .sink { [weak self] window in
+                    self?.replaceSearchWindow(window)
+                }
         }
         if let shioriWindow {
             observeCueResultWindow(shioriWindow, module: .shiori)
@@ -340,7 +350,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             contentDatasetID = nil
             contentGeneration = nil
             targetIdentity = nil
-        case .playlist, .shiori:
+        case .playlist, .search, .shiori:
             guard let window = cueResultWindow(for: selectedModule),
                   let selectedOrdinal = window.selectedOrdinal,
                   let reelDatasetID = window.reelDatasetID
@@ -523,6 +533,24 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         return .ready(execution)
     }
 
+    func requestSettledSearchPlayAction()
+        -> PlaybackSubtitleFocusKeyboardActionRequestResult {
+        guard isSessionActive,
+              selectedModule == .search,
+              pendingKeyboardAction == nil,
+              activeKeyboardAction == nil,
+              pendingKeyboardNavigationTargetOrdinal == nil,
+              keyboardNavigationRequest == nil,
+              !isCueReelMotionActive,
+              !isScrollbarDragging,
+              selectedActionTarget() != nil,
+              let execution = beginKeyboardAction(.playFromThisCue)
+        else {
+            return .rejected
+        }
+        return .ready(execution)
+    }
+
     func consumeDeferredKeyboardActionIfReady(
         module: PlaybackOverlayModule? = nil
     ) -> PlaybackSubtitleFocusActionExecution? {
@@ -624,6 +652,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 playlistItem: item,
                 generation: keyboardActionGeneration
             )
+        case .search(let item):
+            execution = PlaybackSubtitleFocusActionExecution(
+                searchItem: item,
+                generation: keyboardActionGeneration
+            )
         case .shiori(let item):
             execution = PlaybackSubtitleFocusActionExecution(
                 action: action,
@@ -642,7 +675,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch selectedModule {
         case .current:
             return currentSnapshot?.selectedCue != nil
-        case .playlist, .shiori:
+        case .playlist, .search, .shiori:
             let window = cueResultWindow(for: selectedModule)
             return window?.selectedOrdinal.flatMap {
                 window?.item(at: $0)
@@ -673,6 +706,14 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return .playlist(item)
+        case .search:
+            guard let searchWindow = searchStore?.window,
+                  let selectedOrdinal = searchWindow.selectedOrdinal,
+                  let item = searchWindow.item(at: selectedOrdinal)
+            else {
+                return nil
+            }
+            return .search(item)
         case .shiori:
             guard let shioriWindow,
                   let selectedOrdinal = shioriWindow.selectedOrdinal,
@@ -692,11 +733,27 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch module {
         case .playlist:
             playlistWindow
+        case .search:
+            searchStore?.window
         case .shiori:
             shioriWindow
         default:
             nil
         }
+    }
+
+    func promoteSearchForPlayback(
+        selectedItem: PlaybackCueResultItem
+    ) -> PlaybackSearchPromotion? {
+        guard isSessionActive,
+              selectedModule == .search,
+              let searchStore
+        else {
+            return nil
+        }
+        return searchStore.promoteForPlayback(
+            selectedItem: selectedItem
+        )
     }
 
     @discardableResult
@@ -743,6 +800,20 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         keyboardNavigationRequest = nil
     }
 
+    private func replaceSearchWindow(
+        _ window: PlaybackCueResultSessionWindowStore?
+    ) {
+        cueResultWindowSnapshotCancellables[.search]?.cancel()
+        cueResultWindowSnapshotCancellables[.search] = nil
+        observedCueResultSnapshots[.search] = nil
+        if selectedModule == .search {
+            prepareReelForModuleTransition()
+        }
+        if let window {
+            observeCueResultWindow(window, module: .search)
+        }
+    }
+
     private func observeCueResultWindow(
         _ window: PlaybackCueResultSessionWindowStore,
         module: PlaybackOverlayModule
@@ -781,6 +852,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
               changesDataset || clearsSameDatasetWindow
         else {
             return
+        }
+        if module == .search {
+            prepareReelForModuleTransition()
         }
         if snapshot.totalCount == 0 {
             isScrollbarDragging = false
@@ -838,8 +912,12 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
         cueResultWindowSnapshotCancellables.removeAll(keepingCapacity: false)
         observedCueResultSnapshots.removeAll(keepingCapacity: false)
+        searchWindowCancellable?.cancel()
+        searchWindowCancellable = nil
         playlistWindow?.invalidate()
         playlistWindow = nil
+        searchStore?.invalidate()
+        searchStore = nil
         shioriWindow?.invalidate()
         shioriWindow = nil
         shioriSource?.invalidate()

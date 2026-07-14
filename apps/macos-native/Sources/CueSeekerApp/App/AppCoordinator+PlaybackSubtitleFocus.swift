@@ -34,11 +34,14 @@ extension AppCoordinator {
             ),
             wasPlaying: playbackViewModel.isPlaying
         )
+        let searchStore = makePlaybackSearchSessionStore()
         let shioriSource = makePlaybackShioriOverlaySource()
         guard let session = playback.beginSubtitleFocusSession(
             openSnapshot: openSnapshot,
+            searchStore: searchStore,
             shioriSource: shioriSource
         ) else {
+            searchStore.invalidate()
             shioriSource.invalidate()
             return false
         }
@@ -105,6 +108,22 @@ extension AppCoordinator {
                 openPlaylistItem: openPlaybackPlaylistItem,
                 openShioriItem: openPlaybackShioriItem
             )
+        }
+    }
+
+    @discardableResult
+    func requestPlaybackSearchPlayAction() -> Bool {
+        guard let session = playback.subtitleFocusSession else {
+            return false
+        }
+
+        switch session.requestSettledSearchPlayAction() {
+        case .rejected:
+            return false
+        case .deferred:
+            return false
+        case .ready(let execution):
+            return executePlaybackSubtitleFocusAction(execution)
         }
     }
 
@@ -225,6 +244,21 @@ extension AppCoordinator {
                 invalidatePlaybackSubtitleFocusForSourceReplacement()
                 openPlaylistItem(item)
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
+            case .search(let item):
+                guard case .search(let result) = item.target,
+                      let promotion = session.promoteSearchForPlayback(
+                          selectedItem: item
+                      )
+                else {
+                    _ = session.finishKeyboardAction(execution)
+                    return true
+                }
+                openSearchResult(
+                    result,
+                    playsContinuouslyFromStart: true,
+                    playbackSearchPromotion: promotion
+                )
+                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             case .shiori(let item):
                 invalidatePlaybackSubtitleFocusForSourceReplacement()
                 openShioriItem(item)
@@ -336,9 +370,20 @@ extension AppCoordinator {
     private func openPlaybackPlaylistItem(_ item: PlaybackPlaylistItem) {
         switch item.target {
         case .search(let result):
+            let playbackSearchPromotion: PlaybackSearchPromotion?
+            if let source = playback.playlistSource,
+               source === activePlaybackSearchPlaylistContext?.source {
+                playbackSearchPromotion = PlaybackSearchPromotion(
+                    source: source,
+                    selectedOrdinal: item.ordinal
+                )
+            } else {
+                playbackSearchPromotion = nil
+            }
             openSearchResult(
                 result,
-                playsContinuouslyFromStart: true
+                playsContinuouslyFromStart: true,
+                playbackSearchPromotion: playbackSearchPromotion
             )
         case .shiori(let shiori):
             openShiori(

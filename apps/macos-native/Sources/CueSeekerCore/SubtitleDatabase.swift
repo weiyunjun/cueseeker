@@ -4022,6 +4022,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
+        progressResultLimit: Int? = nil,
         mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         try searchPage(
@@ -4035,6 +4036,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             filterSet: filterSet,
             diagnostics: diagnostics,
             progress: progress,
+            progressResultLimit: progressResultLimit,
             mode: mode
         )
     }
@@ -4907,6 +4909,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
+        progressResultLimit: Int? = nil,
         mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         try Task.checkCancellation()
@@ -4998,6 +5001,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             var exactCueIDs: [Int64] = []
             var exactPageResults: [OrderedSearchResult] = []
             var exactRenderableResults: [OrderedSearchResult] = []
+            let resolvedProgressResultLimit = progressResultLimit.map {
+                max(0, $0)
+            }
             var visiblePrefixResults: [OrderedSearchResult] = []
             var visibleWindowResults: [OrderedSearchResult] = []
             var progressFileSummaries = SearchFileSummaryAccumulator()
@@ -5252,7 +5258,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                         case .exact:
                             exactCueIDs.append(result.result.entryID)
                             progressFileSummaries.add(result)
-                            if progress != nil {
+                            if progress != nil,
+                               resolvedProgressResultLimit.map({
+                                   exactRenderableResults.count < $0
+                               }) ?? true {
                                 exactRenderableResults.append(result)
                             }
                             if acceptedSearchResultCount >= offset && exactPageResults.count < limit {

@@ -23,13 +23,14 @@ enum PlaybackSubtitleFocusAction: Equatable, Sendable {
 enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
     case current(PlaybackSubtitleFocusActionContext)
     case playlist(PlaybackPlaylistItem)
+    case search(PlaybackCueResultItem)
     case shiori(PlaybackCueResultItem)
 
     var primaryCueText: String {
         switch self {
         case .current(let context):
             context.cue.text
-        case .playlist(let item), .shiori(let item):
+        case .playlist(let item), .search(let item), .shiori(let item):
             item.primaryCueText
         }
     }
@@ -38,7 +39,7 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
         switch self {
         case .current(let context):
             context
-        case .playlist(let item), .shiori(let item):
+        case .playlist(let item), .search(let item), .shiori(let item):
             item.actionContext
         }
     }
@@ -50,6 +51,8 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
             return nil
         case .playlist(let playlistItem):
             item = playlistItem
+        case .search(let searchItem):
+            item = searchItem
         case .shiori(let shioriItem):
             item = shioriItem
         }
@@ -65,7 +68,7 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
         switch self {
         case .current:
             return false
-        case .playlist(let item), .shiori(let item):
+        case .playlist(let item), .search(let item), .shiori(let item):
             if case .shiori = item.target {
                 return true
             }
@@ -113,6 +116,15 @@ struct PlaybackSubtitleFocusActionExecution: Equatable, Sendable {
     ) {
         self.action = action
         target = .playlist(playlistItem)
+        self.generation = generation
+    }
+
+    init(
+        searchItem: PlaybackCueResultItem,
+        generation: Int
+    ) {
+        action = .playFromThisCue
+        target = .search(searchItem)
         self.generation = generation
     }
 

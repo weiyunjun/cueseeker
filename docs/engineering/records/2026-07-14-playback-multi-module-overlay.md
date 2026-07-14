@@ -276,6 +276,56 @@ Overlay window without changing their established behavior.
   Therefore rapid repeated text such as `foo -> bar -> foo` cannot accept
   progress from the first `foo` run into the latest run.
 
+### 9. Playback Search Module
+
+- Added an independent Session-owned Playback Search store. It captures the
+  opening Search scope, language, watch-state, and filter configuration without
+  reading from or publishing into Workbench Search query, results, counts, or
+  navigation state. User input uses the same named 100-millisecond debounce;
+  every query revision synchronously cancels the prior debounce, visible read,
+  Exact read, source, window, selection, and retained data.
+- Reused the established visible-page then Exact-completion pipeline with a
+  unique run identity, cumulative Exact progress, and generation-validated
+  publication. Repeated text such as `foo -> bar -> foo` cannot accept the
+  first run's late result. Every accepted boundary resets selection to the
+  first Result and cancels stale Reel navigation or motion intent.
+- Added an optional Core Exact-progress result limit. Its default remains
+  unlimited for Workbench compatibility; Playback Search passes the standard
+  32-item Reel window size. Exact still retains the complete lightweight Cue ID
+  order, count, and file summaries, while hydrated Result objects and known
+  identity publication remain bounded to one window.
+- Mounted Search through the shared Playback Cue Result overlay, item adapter,
+  dynamic-height measurement, Focus Anchor, scrollbar, motion, recycling, and
+  32-item virtual window. Search shows no Sequence Number, uses the persistent
+  Show Cue Group setting, and adds only a fixed-dark Playback Search Box above
+  the Reel with the existing Search Box geometry, icon, placeholder, and clear
+  affordance tokens.
+- Kept the Search Box focused while Up and Down drive the Result Reel. Tab and
+  Escape retain their global Overlay meanings; Enter acts only on an already
+  loaded and settled Result. Ordinary text, S, C, Space, native Command-A/C,
+  and marked-text IME input stay with the editor. Clear removes the query and
+  restores editor focus without adding a Focus Ring or focused color change.
+- Search Enter transfers the exact same run and source into the existing
+  playback-origin Playlist before destroying the Overlay Session. Ownership
+  transfer lets an in-flight Exact completion continue updating Playlist; an
+  unpromoted dismissal cancels it. Source replacement or Playback stop still
+  invalidates the transferred source and cancels all work.
+- Bound the promoted source's immutable query and scope to its source origin,
+  and stored the current playback cursor as the authoritative Playlist ordinal.
+  Subsequent Playlist Enter and Playback Previous/Next reuse that same source,
+  query, scope, count, and order instead of falling back to Workbench Search or
+  assuming `SubtitleSearchResult.searchRank` is the Playlist cursor.
+- Added a Playback-specific adjacent-navigation task and current-source
+  boundary subscription. Exact total changes refresh Chrome availability;
+  generation or revision changes during a window read retry only against the
+  newer boundary. Source replacement, cursor change, a newer navigation intent,
+  or Playback stop rejects late responses without affecting Workbench Search's
+  independent navigation task.
+- Unified Session teardown now cancels the Search query debounce, source and
+  window observations, virtual-window load, motion, selection, and retained
+  Results, then clears the query and module references. Reopening creates a new
+  empty Search state; no Search Session state survives Overlay dismissal.
+
 ## Verification
 
 ### Step 1
@@ -432,11 +482,49 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Step 9
+
+- `swift test --filter PlaybackSearch`
+  - Passed 9 tests covering latest-run publication, the production
+    100-millisecond debounce, debounce cancellation on Session dismissal,
+    bounded 32-item hydration, full Cue ID retention, strict teardown, Search
+    keyboard and IME routing, complete Enter promotion, Exact ownership
+    transfer, Workbench isolation, Playlist re-entry, ordinal-based adjacent
+    navigation, Chrome count refresh, stale-generation retry, and late-response
+    rejection after Playlist source replacement.
+- `swift test --filter searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts`
+  - Passed the 5,100-result Core Exact-progress test with at most 32 hydrated
+    Results, ordered rank `0..<32`, complete ordered known Cue ID prefixes, and
+    the full final Cue ID order and count.
+- `swift test --quiet --filter 'playbackSearch|PlaybackSearch|playbackPlaylist|PlaybackPlaylist|subtitleFocus|SubtitleFocus|searchInput|liveSearch|PlaybackNavigation'`
+  - Passed 160 Playback Search, Playlist, Current, shared-Reel, Workbench live
+    Search, navigation-history, action, and lifecycle regression tests.
+- `swift build`
+  - Passed.
+- `swift test --quiet --no-parallel --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 734 Swift Testing tests, including
+    the Native Playback presentation cases that can miss their frame deadline
+    when the complete suite runs concurrently.
+- `swift test --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated persistence migration test.
+- `swift test --quiet --no-parallel`
+  - The combined serial run passed all 7 XCTest tests and 734 of 735 Swift
+    Testing tests. The one failure was the already-recorded order-dependent
+    `ApplicationPersistenceTests` case from Step 4: a registered
+    `workbenchPanelMode = search` default was visible instead of the isolated
+    fixture's legacy `shiori` value. It passes alone; Step 9 does not modify
+    persistence code or tests.
+- Three Native Playback frame-presentation cases that failed only during
+  concurrent full-suite attempts all passed individually and in the complete
+  serial run. Step 9 does not modify the native playback pipeline or tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Connect Playback Search to the established 100-millisecond live query and
-  existing visible-page/Exact-completion semantics.
+- Add the Session-owned Recent module using the existing Recent Watching Card
+  layout and documented selection contract.

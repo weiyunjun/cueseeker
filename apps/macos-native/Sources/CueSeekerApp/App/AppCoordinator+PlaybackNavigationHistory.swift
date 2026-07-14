@@ -52,13 +52,21 @@ extension AppCoordinator {
         .library(PlaybackNavigationLibraryPayload(videoPath: video.videoPath))
     }
 
-    func playbackNavigationPayload(for result: SubtitleSearchResult) -> PlaybackNavigationPayload {
+    func playbackNavigationPayload(
+        for result: SubtitleSearchResult,
+        searchQuery: String? = nil,
+        scopePaths: [String]? = nil
+    ) -> PlaybackNavigationPayload {
         let indexRevision = (try? subtitleDatabase?.playbackNavigationIndexRevision()) ?? 0
-        let scopePaths = indexing.selectedFolders.map { $0.standardizedFileURL.path }
+        let resolvedScopePaths = scopePaths
+            ?? indexing.selectedFolders.map { $0.standardizedFileURL.path }
         return .search(
             PlaybackNavigationSearchPayload(
-                query: search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines),
-                scopePaths: scopePaths,
+                query: searchQuery
+                    ?? search.searchQuery.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ),
+                scopePaths: resolvedScopePaths,
                 entryID: result.entryID,
                 subtitlePath: result.subtitlePath,
                 videoPath: result.videoPath,

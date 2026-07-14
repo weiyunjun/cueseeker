@@ -1155,6 +1155,13 @@ extension AppCoordinator {
     }
 
     func openAdjacentSearchResult(_ direction: SearchResultNavigationDirection) {
+        if let context = activePlaybackSearchPlaylistContext {
+            openAdjacentPlaybackSearchPlaylistResult(
+                direction,
+                context: context
+            )
+            return
+        }
         loadSearchNavigationSnapshot(opening: direction)
     }
 

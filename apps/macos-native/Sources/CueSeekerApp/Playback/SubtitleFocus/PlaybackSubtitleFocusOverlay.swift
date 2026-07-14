@@ -101,6 +101,14 @@ struct PlaybackMultiModuleOverlay: View {
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction
             )
+        } else if session.selectedModule == .search,
+                  let searchStore = session.searchStore {
+            PlaybackSearchOverlay(
+                session: session,
+                searchStore: searchStore,
+                uiProbeScope: uiProbeScope,
+                onExecuteAction: onExecuteAction
+            )
         } else if session.selectedModule == .shiori,
                   let shioriWindow = session.shioriWindow {
             PlaybackCueResultOverlay(

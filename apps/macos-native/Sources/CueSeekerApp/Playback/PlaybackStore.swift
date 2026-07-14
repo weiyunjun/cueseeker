@@ -37,6 +37,7 @@ final class PlaybackStore: ObservableObject {
 
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
+    private(set) var playbackSearchPlaylistOrdinal: Int?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = false
@@ -59,6 +60,7 @@ final class PlaybackStore: ObservableObject {
     func beginSubtitleFocusSession(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
         availableModules: [PlaybackOverlayModule]? = nil,
+        searchStore: PlaybackSearchSessionStore? = nil,
         shioriSource: PlaybackCueResultSource? = nil
     ) -> PlaybackSubtitleFocusSessionStore? {
         guard subtitleFocusSession == nil else {
@@ -72,8 +74,9 @@ final class PlaybackStore: ObservableObject {
             availableModules: availableModules
                 ?? PlaybackOverlayModule.modules(
                     hasPlaylist: playlistSource?.hasItems == true
-                ),
+            ),
             playlistSource: playlistSource,
+            searchStore: searchStore,
             shioriSource: shioriSource
         )
         subtitleFocusSession = session
@@ -91,15 +94,28 @@ final class PlaybackStore: ObservableObject {
         subtitleFocusSession = nil
     }
 
-    func setPlaylistSource(_ source: PlaybackPlaylistSource) {
+    func setPlaylistSource(
+        _ source: PlaybackPlaylistSource,
+        playbackSearchSelectedOrdinal: Int? = nil
+    ) {
         guard playlistSource !== source else {
+            if let playbackSearchSelectedOrdinal,
+               case .playbackSearch = source.origin {
+                playbackSearchPlaylistOrdinal = playbackSearchSelectedOrdinal
+            }
             return
         }
         playlistSource?.invalidate()
+        if case .playbackSearch = source.origin {
+            playbackSearchPlaylistOrdinal = playbackSearchSelectedOrdinal
+        } else {
+            playbackSearchPlaylistOrdinal = nil
+        }
         playlistSource = source
     }
 
     func clearPlaylistSource() {
+        playbackSearchPlaylistOrdinal = nil
         playlistSource?.invalidate()
         playlistSource = nil
     }

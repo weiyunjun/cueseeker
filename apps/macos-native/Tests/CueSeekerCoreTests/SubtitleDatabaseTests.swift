@@ -1964,6 +1964,35 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     #expect(page.knownResultCount == 5_100)
     #expect(page.fileSummaries.map(\.matchCount) == [5_100])
     #expect(page.renderableResults.last?.content == "Progress count stream line 5099")
+
+    let boundedCollector = SearchProgressCollector()
+    let boundedPage = try database.searchPage(
+        "progress",
+        limit: 0,
+        cursor: .start,
+        progress: { snapshot in
+            boundedCollector.append(snapshot)
+        },
+        progressResultLimit: 32
+    )
+    let boundedProgress = boundedCollector.values()
+    let finalBoundedProgress = try #require(boundedProgress.last)
+
+    #expect(!boundedProgress.isEmpty)
+    #expect(boundedProgress.allSatisfy { $0.results.count <= 32 })
+    #expect(boundedProgress.allSatisfy {
+        $0.cueIDs.count == $0.knownResultCount
+    })
+    #expect(boundedPage.results.isEmpty)
+    #expect(boundedPage.renderableResults.count == 32)
+    #expect(boundedPage.renderableResults.map(\.searchRank) == Array(0..<32))
+    #expect(boundedPage.cueIDs.count == 5_100)
+    #expect(boundedPage.totalCount == 5_100)
+    #expect(finalBoundedProgress.results.count == 32)
+    #expect(finalBoundedProgress.results.map(\.searchRank) == Array(0..<32))
+    #expect(finalBoundedProgress.cueIDs == Array(
+        boundedPage.cueIDs.prefix(finalBoundedProgress.knownResultCount)
+    ))
 }
 
 @Test

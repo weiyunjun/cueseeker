@@ -3,6 +3,11 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
+struct PlaybackKeyboardTextInputState: Equatable, Sendable {
+    let isEditableFocused: Bool
+    let hasMarkedText: Bool
+}
+
 @MainActor
 extension AppCoordinator {
     func togglePlaybackFullscreenFromUser() {
@@ -173,10 +178,23 @@ extension AppCoordinator {
         recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil,
         returnPanelMode: WorkbenchPanelMode? = nil,
-        playsContinuouslyFromStart: Bool = false
+        playsContinuouslyFromStart: Bool = false,
+        playbackSearchPromotion: PlaybackSearchPromotion? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
-        installSearchPlaybackPlaylistSource(seed: result)
+        if let playbackSearchPromotion {
+            if playback.playlistSource !== playbackSearchPromotion.source {
+                searchNavigationTask?.cancel()
+                searchNavigationTask = nil
+            }
+            playback.setPlaylistSource(
+                playbackSearchPromotion.source,
+                playbackSearchSelectedOrdinal: playbackSearchPromotion
+                    .selectedOrdinal
+            )
+        } else {
+            installSearchPlaybackPlaylistSource(seed: result)
+        }
         playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResult.opened",
@@ -187,12 +205,20 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         if recordsNavigationHistory {
-            recordPlaybackNavigationEntry(playbackNavigationPayload(for: result))
+            recordPlaybackNavigationEntry(playbackNavigationPayload(
+                for: result,
+                searchQuery: playbackSearchPromotion?.query,
+                scopePaths: playbackSearchPromotion?.scopePaths
+            ))
         }
         clearCueSegmentPlayback()
         activePlaybackSource = .search
         search.selectedSearchResult = result
-        updateSearchNavigationSnapshotForOpenedResult(result)
+        if playbackSearchPromotion == nil {
+            updateSearchNavigationSnapshotForOpenedResult(result)
+        } else {
+            search.searchNavigationSnapshot = nil
+        }
         shiori.selectedShiori = nil
         library.selectedLibraryVideo = nil
         refreshPlaybackChromeSnapshot(
@@ -559,6 +585,24 @@ extension AppCoordinator {
         modifierFlagsRawValue: UInt,
         isRepeat: Bool = false
     ) -> Bool {
+        handlePlaybackKeyDown(
+            keyCode: keyCode,
+            modifierFlagsRawValue: modifierFlagsRawValue,
+            isRepeat: isRepeat,
+            textInputState: PlaybackKeyboardTextInputState(
+                isEditableFocused: Self.isEditableTextInputFocused(),
+                hasMarkedText: Self.hasMarkedTextInFocusedEditor()
+            )
+        )
+    }
+
+    @discardableResult
+    func handlePlaybackKeyDown(
+        keyCode: UInt16,
+        modifierFlagsRawValue: UInt,
+        isRepeat: Bool = false,
+        textInputState: PlaybackKeyboardTextInputState
+    ) -> Bool {
         let isPlaybackInterfaceVisible = currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen
 
         guard isPlaybackInterfaceVisible else {
@@ -595,7 +639,44 @@ extension AppCoordinator {
                 return dismissPlaybackSubtitleFocusFromUser()
             }
 
-            guard !Self.isEditableTextInputFocused() else {
+            if subtitleFocusSession.selectedModule == .search {
+                if textInputState.hasMarkedText {
+                    return false
+                }
+
+                let searchActionModifiers: NSEvent.ModifierFlags = [
+                    .command,
+                    .control,
+                    .option,
+                    .shift,
+                ]
+                if modifierFlags.intersection(searchActionModifiers).isEmpty {
+                    switch keyCode {
+                    case 126:
+                        _ = subtitleFocusSession.requestKeyboardNavigation(
+                            .backward
+                        )
+                        return true
+                    case 125:
+                        _ = subtitleFocusSession.requestKeyboardNavigation(
+                            .forward
+                        )
+                        return true
+                    case 36, 76:
+                        guard !isRepeat else {
+                            return true
+                        }
+                        _ = requestPlaybackSearchPlayAction()
+                        return true
+                    default:
+                        break
+                    }
+                }
+
+                return !textInputState.isEditableFocused
+            }
+
+            guard !textInputState.isEditableFocused else {
                 return false
             }
 
@@ -650,7 +731,7 @@ extension AppCoordinator {
             }
         }
 
-        guard !Self.isEditableTextInputFocused() else {
+        guard !textInputState.isEditableFocused else {
             return false
         }
 
@@ -724,6 +805,8 @@ extension AppCoordinator {
 
     func stopPlayback() {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
+        playbackSearchPlaylistNavigationTask?.cancel()
+        playbackSearchPlaylistNavigationTask = nil
         playback.clearPlaylistSource()
         do {
             saveCurrentLibraryPlaybackHistoryForPlaybackClose()
@@ -768,6 +851,15 @@ extension AppCoordinator {
         }
 
         return false
+    }
+
+    static func hasMarkedTextInFocusedEditor() -> Bool {
+        guard let textView = NSApplication.shared.keyWindow?.firstResponder
+            as? NSTextView
+        else {
+            return false
+        }
+        return textView.hasMarkedText()
     }
 
     func revealFile(atPath path: String) {

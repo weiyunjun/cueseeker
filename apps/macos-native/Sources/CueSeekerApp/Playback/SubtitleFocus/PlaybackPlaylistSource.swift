@@ -12,14 +12,23 @@ enum PlaybackPlaylistShioriScope: Hashable, Sendable {
     case databaseOrder
 }
 
+struct PlaybackSearchPlaylistContext: Hashable, Sendable {
+    let query: String
+    let scopePaths: [String]
+}
+
 enum PlaybackPlaylistSourceOrigin: Hashable, Sendable {
     case search(resultListGeneration: UInt64)
+    case playbackSearch(
+        runID: UUID,
+        context: PlaybackSearchPlaylistContext
+    )
     case shiori(scope: PlaybackPlaylistShioriScope)
     case unspecified(PlaybackPlaylistSourceKind)
 
     var kind: PlaybackPlaylistSourceKind {
         switch self {
-        case .search:
+        case .search, .playbackSearch:
             .search
         case .shiori:
             .shiori
@@ -204,6 +213,7 @@ final class PlaybackPlaylistSource: ObservableObject {
     @Published private(set) var boundary: PlaybackPlaylistSourceBoundary
 
     private let loader: PlaybackPlaylistSourceWindowLoader
+    private var invalidationHandler: (@MainActor () -> Void)?
     private var isActive = true
 
     convenience init(
@@ -216,6 +226,7 @@ final class PlaybackPlaylistSource: ObservableObject {
             origin: .unspecified(kind),
             totalCount: totalCount,
             knownItemIDsByOrdinal: knownItemIDsByOrdinal,
+            invalidationHandler: nil,
             loader: loader
         )
     }
@@ -224,10 +235,12 @@ final class PlaybackPlaylistSource: ObservableObject {
         origin: PlaybackPlaylistSourceOrigin,
         totalCount: Int,
         knownItemIDsByOrdinal: [Int: PlaybackPlaylistItemIdentity],
+        invalidationHandler: (@MainActor () -> Void)? = nil,
         loader: @escaping PlaybackPlaylistSourceWindowLoader
     ) {
         self.origin = origin
         self.loader = loader
+        self.invalidationHandler = invalidationHandler
         let resolvedTotalCount = max(0, totalCount)
         boundary = PlaybackPlaylistSourceBoundary(
             datasetID: UUID(),
@@ -329,6 +342,9 @@ final class PlaybackPlaylistSource: ObservableObject {
             totalCount: 0,
             knownItemIDsByOrdinal: [:]
         )
+        let handler = invalidationHandler
+        invalidationHandler = nil
+        handler?()
     }
 
     private func accepts(_ request: PlaybackPlaylistSourceWindowRequest) -> Bool {
@@ -409,6 +425,10 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
             return nil
         }
         return items[index]
+    }
+
+    func resetSelectionToFirst() {
+        selectedOrdinal = snapshot.totalCount > 0 ? 0 : nil
     }
 
     @discardableResult

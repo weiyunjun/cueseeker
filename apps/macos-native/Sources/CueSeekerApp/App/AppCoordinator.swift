@@ -289,6 +289,11 @@ final class AppCoordinator: ObservableObject {
             return false
         }
 
+        if let context = activePlaybackSearchPlaylistContext {
+            let ordinal = context.selectedOrdinal
+            return ordinal > 0 && ordinal < context.source.boundary.totalCount
+        }
+
         if let searchNavigationSnapshot = search.searchNavigationSnapshot {
             return searchNavigationSnapshot.previous != nil
         }
@@ -299,6 +304,11 @@ final class AppCoordinator: ObservableObject {
     var canOpenNextSearchResult: Bool {
         guard isSearchPlaybackActive, let selectedSearchResult = search.selectedSearchResult else {
             return false
+        }
+
+        if let context = activePlaybackSearchPlaylistContext {
+            let ordinal = context.selectedOrdinal
+            return ordinal + 1 < context.source.boundary.totalCount
         }
 
         if let searchNavigationSnapshot = search.searchNavigationSnapshot {
@@ -408,6 +418,7 @@ final class AppCoordinator: ObservableObject {
     var searchTask: Task<Void, Never>?
     var searchExactCompletionTask: Task<Void, Never>?
     var searchNavigationTask: Task<Void, Never>?
+    var playbackSearchPlaylistNavigationTask: Task<Void, Never>?
     var playbackSubtitleCuesTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
@@ -498,6 +509,29 @@ final class AppCoordinator: ObservableObject {
     }
 
     func setupSettingsObservers() {
+        playback.$playlistSource
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.playbackSearchPlaylistNavigationTask?.cancel()
+                self?.playbackSearchPlaylistNavigationTask = nil
+            }
+            .store(in: &settingsCancellables)
+
+        playback.$playlistSource
+            .map { source -> AnyPublisher<PlaybackPlaylistSourceBoundary?, Never> in
+                guard let source else {
+                    return Just(nil).eraseToAnyPublisher()
+                }
+                return source.$boundary
+                    .map(Optional.some)
+                    .eraseToAnyPublisher()
+            }
+            .switchToLatest()
+            .sink { [weak self] boundary in
+                self?.playbackPlaylistBoundaryDidChange(boundary)
+            }
+            .store(in: &settingsCancellables)
+
         settings.$playbackDecodeMode
             .dropFirst()
             .sink { [weak self] mode in

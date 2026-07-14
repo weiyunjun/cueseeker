@@ -3,6 +3,48 @@ import Foundation
 
 @MainActor
 extension AppCoordinator {
+    var activePlaybackSearchPlaylistContext: PlaybackSearchPromotion? {
+        guard activePlaybackSource == .search,
+              let source = playback.playlistSource,
+              let ordinal = playback.playbackSearchPlaylistOrdinal
+        else {
+            return nil
+        }
+        return PlaybackSearchPromotion(
+            source: source,
+            selectedOrdinal: ordinal
+        )
+    }
+
+    func playbackPlaylistBoundaryDidChange(
+        _ boundary: PlaybackPlaylistSourceBoundary?
+    ) {
+        guard let boundary,
+              let context = activePlaybackSearchPlaylistContext,
+              context.source.boundary.datasetID == boundary.datasetID,
+              search.selectedSearchResult != nil
+        else {
+            return
+        }
+        let ordinal = context.selectedOrdinal
+        setPlaybackChromeSnapshot(
+            displayTitle: playback.chromeSnapshot.displayTitle,
+            canGoPrevious: ordinal > 0 && ordinal < boundary.totalCount,
+            canGoNext: ordinal + 1 < boundary.totalCount
+        )
+    }
+
+    func makePlaybackSearchSessionStore() -> PlaybackSearchSessionStore {
+        PlaybackSearchSessionStore(configuration: PlaybackSearchConfiguration(
+            databaseURL: databaseURL,
+            folders: indexing.selectedFolders,
+            languageFilter: settings.primarySearchLanguage.searchLanguageFilter,
+            watchStateFilter: settings.searchScope.searchWatchStateFilter,
+            filterSet: search.activeFilterSet,
+            pageSize: Self.searchPageSize
+        ))
+    }
+
     func makePlaybackShioriOverlaySource() -> PlaybackCueResultSource {
         let totalCount = subtitleDatabase.flatMap {
             try? $0.shioriCount()
@@ -41,6 +83,115 @@ extension AppCoordinator {
                 print("Failed to load Playback Shiori window: \(error)")
                 return nil
             }
+        }
+    }
+
+    func openAdjacentPlaybackSearchPlaylistResult(
+        _ direction: SearchResultNavigationDirection,
+        context: PlaybackSearchPromotion
+    ) {
+        playbackSearchPlaylistNavigationTask?.cancel()
+
+        guard activePlaybackSearchPlaylistContext?.source === context.source,
+              let selectedResult = search.selectedSearchResult
+        else {
+            playback.playbackViewModel?.showSearchNavigationFeedback(
+                direction: direction,
+                hasResult: false
+            )
+            return
+        }
+
+        let anchorEntryID = selectedResult.entryID
+        let anchorOrdinal = context.selectedOrdinal
+        let targetOrdinal = anchorOrdinal + (direction == .previous ? -1 : 1)
+        let source = context.source
+        guard anchorOrdinal < source.boundary.totalCount,
+              targetOrdinal >= 0,
+              targetOrdinal < source.boundary.totalCount
+        else {
+            playback.playbackViewModel?.showSearchNavigationFeedback(
+                direction: direction,
+                hasResult: false
+            )
+            return
+        }
+
+        playbackSearchPlaylistNavigationTask = Task { @MainActor [weak self, weak source] in
+            guard let self, let source else {
+                return
+            }
+
+            var targetResult: SubtitleSearchResult?
+            while !Task.isCancelled {
+                guard !Task.isCancelled,
+                      self.activePlaybackSearchPlaylistContext?.source === source,
+                      self.search.selectedSearchResult?.entryID == anchorEntryID,
+                      self.playback.playbackSearchPlaylistOrdinal == anchorOrdinal
+                else {
+                    return
+                }
+
+                let boundary = source.boundary
+                guard targetOrdinal < boundary.totalCount else {
+                    break
+                }
+                let range = PlaybackVirtualReelWindowPolicy.standard.windowRange(
+                    totalCount: boundary.totalCount,
+                    targetOrdinal: targetOrdinal
+                )
+                let request = PlaybackPlaylistSourceWindowRequest(
+                    datasetID: boundary.datasetID,
+                    generation: boundary.generation,
+                    sourceRevision: boundary.revision,
+                    totalCount: boundary.totalCount,
+                    ordinalRange: range
+                )
+                if let response = await source.loadWindow(request),
+                   let item = response.items.first(where: {
+                       $0.ordinal == targetOrdinal
+                   }),
+                   case .search(let result) = item.target,
+                   source.boundary.datasetID == response.datasetID,
+                   source.boundary.generation == response.generation,
+                   source.boundary.revision == response.sourceRevision,
+                   source.boundary.totalCount == response.totalCount {
+                    targetResult = result
+                    break
+                }
+                guard source.boundary != boundary else {
+                    break
+                }
+                await Task.yield()
+            }
+
+            guard !Task.isCancelled,
+                  self.activePlaybackSearchPlaylistContext?.source === source,
+                  self.search.selectedSearchResult?.entryID == anchorEntryID,
+                  self.playback.playbackSearchPlaylistOrdinal == anchorOrdinal,
+                  let targetResult,
+                  let currentContext = PlaybackSearchPromotion(
+                      source: source,
+                      selectedOrdinal: targetOrdinal
+                  )
+            else {
+                if !Task.isCancelled {
+                    self.playback.playbackViewModel?.showSearchNavigationFeedback(
+                        direction: direction,
+                        hasResult: false
+                    )
+                }
+                return
+            }
+
+            self.playback.playbackViewModel?.showSearchNavigationFeedback(
+                direction: direction,
+                hasResult: true
+            )
+            self.openSearchResult(
+                targetResult,
+                playbackSearchPromotion: currentContext
+            )
         }
     }
 

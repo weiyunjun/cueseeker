@@ -5,6 +5,8 @@ struct PlaybackCueResultOverlay: View {
     @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
     let module: PlaybackOverlayModule
     let showsSequenceNumber: Bool
+    var contentTopInset = PlaybackSubtitleFocusMetrics.contentInset
+    var contentBottomInset = PlaybackSubtitleFocusMetrics.contentInset
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
@@ -16,7 +18,7 @@ struct PlaybackCueResultOverlay: View {
             let viewportSize = geometry.size
             let reelViewportHeight = max(
                 0,
-                viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset * 2
+                viewportSize.height - contentTopInset - contentBottomInset
             )
             let blocksInteraction = session.pendingKeyboardAction != nil
                 || session.activeKeyboardAction != nil
@@ -53,7 +55,7 @@ struct PlaybackCueResultOverlay: View {
                     height: reelViewportHeight,
                     alignment: .top
                 )
-                .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
+                .offset(y: contentTopInset)
             }
             .frame(width: viewportSize.width, height: viewportSize.height)
             .clipped()
