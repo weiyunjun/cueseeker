@@ -4072,6 +4072,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet()
     ) throws -> SubtitleSearchPage {
+        try Task.checkCancellation()
         let appliedCursor = cursor ?? .start
         let requestedLimit = max(0, limit)
         let offset = appliedCursor.offset
@@ -4204,6 +4205,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var results: [SubtitleSearchResult] = []
         results.reserveCapacity(accepted.count)
         for (index, item) in accepted.enumerated() {
+            try Task.checkCancellation()
             let groupRecords = groupRecordsByID[item.candidate.cueGroupID] ?? [item.cueLineRecord]
             var result = orderedSearchResult(
                 for: item.candidate,
@@ -4907,6 +4909,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
+        try Task.checkCancellation()
         let searchPageStart = Self.diagnosticNow()
         let appliedCursor = cursor ?? .start
 
@@ -5074,6 +5077,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
 
             let searchOrderRowsStart = Self.diagnosticNow()
+            try Task.checkCancellation()
             try requireCompleteSearchOrderRows(
                 pathPrefixes: pathPrefixes,
                 subtitlePath: subtitlePathFilter
@@ -5105,6 +5109,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             emit("statement_prepare", since: prepareStart)
 
             while true {
+                try Task.checkCancellation()
                 batchIndex += 1
                 let queryStart = Self.diagnosticNow()
                 try statement.reset()
@@ -5138,6 +5143,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
                 var candidates: [SearchCandidate] = []
                 while try statement.step() {
+                    try Task.checkCancellation()
                     candidates.append(
                         SearchCandidate(
                             cueGroupID: statement.int64Column(0),
@@ -5227,6 +5233,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 let acceptedBefore = acceptedSearchResultCount
                 var matchedCandidateCount = 0
                 for candidate in candidates {
+                    try Task.checkCancellation()
                     let orderedMatches = searchResults(
                         for: candidate,
                         cueLineRecords: cueLineRecordsByCueGroupID[candidate.cueGroupID] ?? [],
@@ -5315,6 +5322,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             if mode == .visibleWindow {
+                try Task.checkCancellation()
                 let pageStart = Self.diagnosticNow()
                 let hasMore = visibleWindowResults.count > limit
                 let pageOrderedResults = Array(visibleWindowResults.prefix(limit))
@@ -5401,6 +5409,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
 
             let sortStart = Self.diagnosticNow()
+            try Task.checkCancellation()
             let totalExactResultCount = exactCueIDs.count
             let orderSource = totalExactResultCount > 0 ? "ftsRowid" : "none"
             let materializedOrderRows = exactPageResults.count

@@ -192,6 +192,11 @@ func appCoordinatorOnlyBoundsCuePlaybackWhenAutoSwitchIsEnabled() async throws {
 
         #expect(segment.startMilliseconds == 1_000)
         #expect(segment.endMilliseconds == 2_500)
+        #expect(app.autoSwitchCuePlaybackSegment(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500,
+            playsContinuouslyFromStart: true
+        ) == nil)
     }
 }
 

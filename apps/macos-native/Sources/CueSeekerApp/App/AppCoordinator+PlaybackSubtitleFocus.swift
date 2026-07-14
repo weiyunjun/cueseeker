@@ -96,7 +96,8 @@ extension AppCoordinator {
             return executePlaybackSubtitleFocusAction(
                 execution,
                 session: session,
-                continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue
+                continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue,
+                openPlaylistItem: openPlaybackPlaylistItem
             )
         }
     }
@@ -111,7 +112,8 @@ extension AppCoordinator {
         return executePlaybackSubtitleFocusAction(
             execution,
             session: session,
-            continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue
+            continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue,
+            openPlaylistItem: openPlaybackPlaylistItem
         )
     }
 
@@ -126,14 +128,33 @@ extension AppCoordinator {
         return executePlaybackSubtitleFocusAction(
             execution,
             session: session,
-            continuousPlay: continuousPlay
+            continuousPlay: continuousPlay,
+            openPlaylistItem: openPlaybackPlaylistItem
+        )
+    }
+
+    @discardableResult
+    func executePlaybackSubtitleFocusAction(
+        _ execution: PlaybackSubtitleFocusActionExecution,
+        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool,
+        openPlaylistItem: (PlaybackPlaylistItem) -> Void
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession else {
+            return false
+        }
+        return executePlaybackSubtitleFocusAction(
+            execution,
+            session: session,
+            continuousPlay: continuousPlay,
+            openPlaylistItem: openPlaylistItem
         )
     }
 
     private func executePlaybackSubtitleFocusAction(
         _ execution: PlaybackSubtitleFocusActionExecution,
         session: PlaybackSubtitleFocusSessionStore,
-        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool
+        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool,
+        openPlaylistItem: (PlaybackPlaylistItem) -> Void
     ) -> Bool {
         guard playback.subtitleFocusSession === session,
               session.activeKeyboardAction == execution
@@ -143,25 +164,40 @@ extension AppCoordinator {
 
         switch execution.action {
         case .shiori:
-            startPlaybackSubtitleFocusShioriSave(execution, session: session)
-        case .copyCueText:
-            let copied = copyPlaybackSubtitleFocusCueText(execution.context.cue.text)
-            playback.playbackViewModel?.showSubtitleCopyFeedback(copied: copied)
-            _ = session.finishKeyboardAction(execution)
-        case .playFromThisCue:
-            guard continuousPlay(execution.context) else {
+            if case .playlist(let item) = execution.target,
+               case .shiori = item.target {
+                playback.playbackViewModel?.showShioriFeedback(.alreadySaved)
                 _ = session.finishKeyboardAction(execution)
                 return true
             }
-            clearCueSegmentPlayback()
-            playback.playbackStatus = .playing
-            playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
-            cancelPlaybackSubtitleFocusActionTask()
-            cancelPlaybackSubtitleFocusCueLoadTasks()
-            guard session.closeAfterPlay(execution) else {
-                return false
+            startPlaybackSubtitleFocusShioriSave(execution, session: session)
+        case .copyCueText:
+            let copied = copyPlaybackSubtitleFocusCueText(
+                execution.target.primaryCueText
+            )
+            playback.playbackViewModel?.showSubtitleCopyFeedback(copied: copied)
+            _ = session.finishKeyboardAction(execution)
+        case .playFromThisCue:
+            switch execution.target {
+            case .current(let context):
+                guard continuousPlay(context) else {
+                    _ = session.finishKeyboardAction(execution)
+                    return true
+                }
+                clearCueSegmentPlayback()
+                playback.playbackStatus = .playing
+                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
+                cancelPlaybackSubtitleFocusActionTask()
+                cancelPlaybackSubtitleFocusCueLoadTasks()
+                guard session.closeAfterPlay(execution) else {
+                    return false
+                }
+                playback.releaseSubtitleFocusSession(session)
+            case .playlist(let item):
+                invalidatePlaybackSubtitleFocusForSourceReplacement()
+                openPlaylistItem(item)
+                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             }
-            playback.releaseSubtitleFocusSession(session)
         }
         return true
     }
@@ -170,7 +206,9 @@ extension AppCoordinator {
         _ execution: PlaybackSubtitleFocusActionExecution,
         session: PlaybackSubtitleFocusSessionStore
     ) {
-        guard !execution.context.cue.text.isEmpty else {
+        guard let actionContext = execution.target.actionContext,
+              !actionContext.cue.text.isEmpty
+        else {
             playback.playbackViewModel?.showShioriFeedback(.unavailable)
             _ = session.finishKeyboardAction(execution)
             return
@@ -178,7 +216,7 @@ extension AppCoordinator {
         cancelPlaybackSubtitleFocusActionTask()
         let taskGeneration = playbackSubtitleFocusActionGeneration
         let databaseReader = playbackSubtitleFocusDatabaseReader
-        let videoName = currentPlaybackTitle
+        let videoName = execution.target.sourceVideoName ?? currentPlaybackTitle
         playbackSubtitleFocusActionTask = Task { @MainActor [weak self, weak session] in
             guard let self, let session else {
                 return
@@ -186,7 +224,7 @@ extension AppCoordinator {
 
             do {
                 let result = try await databaseReader.saveShiori(
-                    context: execution.context,
+                    context: actionContext,
                     videoName: videoName
                 )
                 self.finishPlaybackSubtitleFocusShioriSave(
@@ -258,6 +296,22 @@ extension AppCoordinator {
         }
 
         return true
+    }
+
+    private func openPlaybackPlaylistItem(_ item: PlaybackPlaylistItem) {
+        switch item.target {
+        case .search(let result):
+            openSearchResult(
+                result,
+                playsContinuouslyFromStart: true
+            )
+        case .shiori(let shiori):
+            openShiori(
+                shiori,
+                navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
+                playsContinuouslyFromStart: true
+            )
+        }
     }
 
     private func cancelPlaybackSubtitleFocusActionTask() {

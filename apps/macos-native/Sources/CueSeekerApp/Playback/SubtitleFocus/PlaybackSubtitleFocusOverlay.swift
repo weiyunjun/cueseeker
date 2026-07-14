@@ -83,6 +83,14 @@ struct PlaybackMultiModuleOverlay: View {
                 onCueReelMotionChanged: session.noteCueReelMotion,
                 onExecuteAction: onExecuteAction
             )
+        } else if session.selectedModule == .playlist,
+                  let playlistWindow = session.playlistWindow {
+            PlaybackPlaylistOverlay(
+                session: session,
+                windowStore: playlistWindow,
+                uiProbeScope: uiProbeScope,
+                onExecuteAction: onExecuteAction
+            )
         } else {
             PlaybackTheme.subtitleFocusOverlayBackground
                 .contentShape(Rectangle())

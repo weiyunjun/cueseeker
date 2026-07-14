@@ -266,7 +266,8 @@ extension AppCoordinator {
         _ shiori: Shiori,
         recordsNavigationHistory: Bool = true,
         navigationScopeIDs: [Int64]? = nil,
-        displayTitle: String? = nil
+        displayTitle: String? = nil,
+        playsContinuouslyFromStart: Bool = false
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
@@ -298,11 +299,17 @@ extension AppCoordinator {
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
-            play(shiori)
+            play(
+                shiori,
+                playsContinuouslyFromStart: playsContinuouslyFromStart
+            )
         }
     }
 
-    func play(_ shiori: Shiori) {
+    func play(
+        _ shiori: Shiori,
+        playsContinuouslyFromStart: Bool = false
+    ) {
         ensurePlayerInitialized()
         beginCueSegmentPlayback()
         saveCurrentLibraryPlaybackHistory()
@@ -319,7 +326,8 @@ extension AppCoordinator {
         do {
             let segment = autoSwitchCuePlaybackSegment(
                 startMilliseconds: shiori.startMilliseconds,
-                endMilliseconds: shiori.endMilliseconds
+                endMilliseconds: shiori.endMilliseconds,
+                playsContinuouslyFromStart: playsContinuouslyFromStart
             )
             activateCueSegmentPlayback(segment)
             let request = try PlaybackRequest(

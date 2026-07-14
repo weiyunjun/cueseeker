@@ -1670,6 +1670,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private func supersedePendingWindowIntent(
         clearsScrollbarPreview: Bool = true
     ) {
+        finishPendingWindowMotion(pendingWindowSelection)
         pendingWindowSelection = nil
         if clearsScrollbarPreview {
             pendingScrollbarPreview = nil
@@ -1984,11 +1985,14 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             guard let token = currentContentToken else {
                 return
             }
-            _ = requestWindow(
+            guard requestWindow(
                 targetOrdinal: request.targetOrdinal,
                 reason: .keyboard,
                 pendingSelection: .keyboard(token: token, request: request)
-            )
+            ) else {
+                return
+            }
+            setKeyboardMotionActive(true)
             return
         }
         UIInvalidationProbe.mark(
@@ -2135,11 +2139,14 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                     reason: .scrollbar
                 )
                 : nil
-            _ = requestWindow(
+            let didRequestWindow = requestWindow(
                 targetOrdinal: targetOrdinal,
                 reason: .scrollbar,
                 pendingSelection: pendingSelection
             )
+            if requestsCommit, didRequestWindow {
+                setWheelMotionActive(true)
+            }
             return false
         }
         setFractionalOrdinal(position, refreshesScrollbar: refreshesScrollbar)
@@ -2292,7 +2299,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             guard let token = currentContentToken else {
                 return
             }
-            _ = requestWindow(
+            guard requestWindow(
                 targetOrdinal: targetOrdinal,
                 reason: .wheel,
                 pendingSelection: .native(
@@ -2300,7 +2307,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                     ordinal: targetOrdinal,
                     reason: .wheel
                 )
-            )
+            ) else {
+                return
+            }
+            setWheelMotionActive(true)
             return
         }
         UIInvalidationProbe.mark(
@@ -2562,8 +2572,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         cancelPreciseSettle()
         preciseGestureStartOrdinal = nil
         documentView.updateSelection(selectedOrdinal)
-        setWheelMotionActive(false)
-        synchronizeFractionalOrdinalIfIdle()
+        setWheelMotionActive(true)
     }
 
     private func finishPendingWindowSelection(
@@ -2593,7 +2602,12 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         }
         guard !didCommit else {
             selectedOrdinal = pendingSelection.ordinal
+            fractionalOrdinal = CGFloat(pendingSelection.ordinal)
+            hasInitializedPosition = true
             documentView.updateSelection(selectedOrdinal)
+            updateDocumentGeometry()
+            updateScrollbarPresentation()
+            finishPendingWindowMotion(pendingSelection)
             return
         }
         if let fallbackSelectedOrdinal,
@@ -2624,6 +2638,20 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.updateSelection(selectedOrdinal)
         updateDocumentGeometry()
         updateScrollbarPresentation()
+        finishPendingWindowMotion(pendingSelection)
+    }
+
+    private func finishPendingWindowMotion(
+        _ pendingSelection: PendingWindowSelection?
+    ) {
+        switch pendingSelection {
+        case .keyboard:
+            setKeyboardMotionActive(false)
+        case .native:
+            setWheelMotionActive(false)
+        case .restore, nil:
+            break
+        }
     }
 
     private func selectionCommit(
@@ -2695,7 +2723,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     }
 
     private var hasActiveNativeMotion: Bool {
-        activeKeyboardRequest != nil
+        isKeyboardMotionActive
+            || isWheelMotionActive
+            || activeKeyboardRequest != nil
             || activeWheelTargetOrdinal != nil
             || preciseGestureStartOrdinal != nil
             || isScrollbarDragging

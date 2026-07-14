@@ -172,7 +172,8 @@ extension AppCoordinator {
         _ result: SubtitleSearchResult,
         recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil,
-        returnPanelMode: WorkbenchPanelMode? = nil
+        returnPanelMode: WorkbenchPanelMode? = nil,
+        playsContinuouslyFromStart: Bool = false
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         installSearchPlaybackPlaylistSource(seed: result)
@@ -204,7 +205,10 @@ extension AppCoordinator {
         workbenchLayout.selectPanelMode(.search)
         Task { @MainActor in
             await Task.yield()
-            play(result)
+            play(
+                result,
+                playsContinuouslyFromStart: playsContinuouslyFromStart
+            )
         }
     }
 
@@ -242,7 +246,10 @@ extension AppCoordinator {
         revealFile(atPath: currentPlaybackSubtitlePath)
     }
 
-    func play(_ result: SubtitleSearchResult) {
+    func play(
+        _ result: SubtitleSearchResult,
+        playsContinuouslyFromStart: Bool = false
+    ) {
         ensurePlayerInitialized()
         beginCueSegmentPlayback()
         saveCurrentLibraryPlaybackHistory()
@@ -259,7 +266,8 @@ extension AppCoordinator {
         do {
             let segment = autoSwitchCuePlaybackSegment(
                 startMilliseconds: result.startMilliseconds,
-                endMilliseconds: result.endMilliseconds
+                endMilliseconds: result.endMilliseconds,
+                playsContinuouslyFromStart: playsContinuouslyFromStart
             )
             activateCueSegmentPlayback(segment)
             let request = try PlaybackRequest(
@@ -307,9 +315,12 @@ extension AppCoordinator {
 
     func autoSwitchCuePlaybackSegment(
         startMilliseconds: Int,
-        endMilliseconds: Int
+        endMilliseconds: Int,
+        playsContinuouslyFromStart: Bool = false
     ) -> PlaybackSegment? {
-        guard settings.autoPlayCueSequenceEnabled else {
+        guard !playsContinuouslyFromStart,
+              settings.autoPlayCueSequenceEnabled
+        else {
             return nil
         }
 
@@ -594,12 +605,14 @@ extension AppCoordinator {
 
             switch keyCode {
             case 126:
-                if subtitleFocusSession.selectedModule == .current {
+                if subtitleFocusSession.selectedModule == .current
+                    || subtitleFocusSession.selectedModule == .playlist {
                     _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
                 }
                 return true
             case 125:
-                if subtitleFocusSession.selectedModule == .current {
+                if subtitleFocusSession.selectedModule == .current
+                    || subtitleFocusSession.selectedModule == .playlist {
                     _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
                 }
                 return true
@@ -607,7 +620,8 @@ extension AppCoordinator {
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.selectedModule == .current {
+                if subtitleFocusSession.selectedModule == .current
+                    || subtitleFocusSession.selectedModule == .playlist {
                     _ = requestPlaybackSubtitleFocusAction(.shiori)
                 }
                 return true
@@ -615,7 +629,8 @@ extension AppCoordinator {
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.selectedModule == .current {
+                if subtitleFocusSession.selectedModule == .current
+                    || subtitleFocusSession.selectedModule == .playlist {
                     _ = requestPlaybackSubtitleFocusAction(.copyCueText)
                 }
                 return true
@@ -623,7 +638,8 @@ extension AppCoordinator {
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.selectedModule == .current {
+                if subtitleFocusSession.selectedModule == .current
+                    || subtitleFocusSession.selectedModule == .playlist {
                     _ = requestPlaybackSubtitleFocusAction(.playFromThisCue)
                 }
                 return true

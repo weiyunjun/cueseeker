@@ -1219,10 +1219,12 @@ func playbackVirtualReelLoadsRemoteWindowBeforeScrollbarCommit() throws {
     view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
     view.allowsNativeScrollbarInput = { true }
     var commits: [PlaybackVirtualReelSelectionCommit] = []
+    var motionGateStates: [Bool] = []
     view.onCommitVirtualReelSelection = { commit in
         commits.append(commit)
         return true
     }
+    view.onNativeMotionGateChanged = { motionGateStates.append($0) }
     view.update(
         contentAdapter: initial,
         selectedOrdinal: 16,
@@ -1247,6 +1249,7 @@ func playbackVirtualReelLoadsRemoteWindowBeforeScrollbarCommit() throws {
     #expect(request.suggestedOrdinalRange.count == 32)
     #expect(request.suggestedOrdinalRange.contains(request.targetOrdinal))
     #expect(commits.isEmpty)
+    #expect(motionGateStates.last == true)
 
     let response = PlaybackVirtualReelTestAdapter(
         datasetID: "search",
@@ -1274,6 +1277,7 @@ func playbackVirtualReelLoadsRemoteWindowBeforeScrollbarCommit() throws {
     #expect(response.snapshot.loadedOrdinalRange.count == 32)
     #expect(!response.snapshot.isComplete)
     #expect(initial.invalidationCount == 1)
+    #expect(motionGateStates.last == false)
     view.invalidate()
 }
 
@@ -1532,10 +1536,12 @@ func playbackVirtualReelReissuesPendingRequestAcrossReplacementWindows() throws 
     let view = PlaybackVirtualReelContainerView()
     view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
     var commits: [PlaybackVirtualReelSelectionCommit] = []
+    var motionGateStates: [Bool] = []
     view.onCommitVirtualReelSelection = { commit in
         commits.append(commit)
         return true
     }
+    view.onNativeMotionGateChanged = { motionGateStates.append($0) }
     view.update(
         contentAdapter: initial,
         selectedOrdinal: 16,
@@ -1552,6 +1558,7 @@ func playbackVirtualReelReissuesPendingRequestAcrossReplacementWindows() throws 
     )
     let initialRequest = try #require(initial.requestedWindows.last)
     #expect(initialRequest.reason == .keyboard)
+    #expect(motionGateStates.last == true)
 
     let replacementTransport = PlaybackVirtualReelTestAdapter(
         datasetID: "search",
@@ -1617,6 +1624,7 @@ func playbackVirtualReelReissuesPendingRequestAcrossReplacementWindows() throws 
     )
     #expect(commits.map(\.ordinal) == [100])
     #expect(view.optionalSelectedOrdinalForTesting == 100)
+    #expect(motionGateStates.last == false)
     view.invalidate()
 }
 
@@ -1943,10 +1951,12 @@ func playbackVirtualReelWheelModesLoadAdjacentWindowBeforeCommit() {
         let view = PlaybackVirtualReelContainerView()
         view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
         var commits: [PlaybackVirtualReelSelectionCommit] = []
+        var motionGateStates: [Bool] = []
         view.onCommitVirtualReelSelection = { commit in
             commits.append(commit)
             return true
         }
+        view.onNativeMotionGateChanged = { motionGateStates.append($0) }
         view.update(
             contentAdapter: initial,
             selectedOrdinal: 31,
@@ -1967,6 +1977,7 @@ func playbackVirtualReelWheelModesLoadAdjacentWindowBeforeCommit() {
         }
         #expect(request.reason == .wheel)
         #expect(request.targetOrdinal == 32)
+        #expect(motionGateStates.last == true)
 
         let response = PlaybackVirtualReelTestAdapter(
             datasetID: "search",
@@ -1988,6 +1999,7 @@ func playbackVirtualReelWheelModesLoadAdjacentWindowBeforeCommit() {
         )
         #expect(commits.map(\.ordinal) == [32])
         #expect(view.optionalSelectedOrdinalForTesting == 32)
+        #expect(motionGateStates.last == false)
         view.invalidate()
     }
 }

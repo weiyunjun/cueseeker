@@ -538,7 +538,7 @@ final class AppCoordinator: ObservableObject {
             .store(in: &settingsCancellables)
     }
 
-    nonisolated private static func runCancellableDetached<T: Sendable>(
+    nonisolated static func runCancellableDetached<T: Sendable>(
         priority: TaskPriority,
         operation: @Sendable @escaping () throws -> T
     ) async throws -> T {

@@ -172,6 +172,45 @@ Overlay window without changing their established behavior.
   source intact. Reopening creates a fresh window; playback source replacement
   invalidates the origin source itself.
 
+### 6. Playlist Module and Shared Reel Interaction
+
+- Classified the Playlist module as platform UI/session presentation over the
+  existing playback-origin source, with only the final target dispatch entering
+  playback execution. No Playlist persistence, ordering, or independent
+  business semantics were introduced.
+- Enabled Playlist only when the current playback-origin source has items and
+  mounted its Session window through the item-agnostic shared Reel. The adapter
+  maps the existing dataset/generation/revision contract, retains the standard
+  32-item window, renders the shared Playback Cue Result, displays the one-based
+  source ordinal, and applies the persistent Show Cue Group setting.
+- Reused Current's Focus Anchor, dynamic extent, wheel, trackpad, keyboard,
+  scrollbar preview, settle, and recycling implementation. Remote keyboard,
+  wheel, and scrollbar commits now keep the shared motion gate active until the
+  matching window has loaded and the target selection has settled.
+- Preserved Playlist window data, selection, and Reel position when switching
+  modules inside one Overlay Session. Adapter dismantle releases only its
+  presentation measurements; Overlay dismissal destroys the Session window,
+  cancels its load, clears its items and selection, and releases the adapter
+  cache.
+- Added Playlist Up/Down and the shared S/C/Enter action contract. Actions wait
+  for the settled Primary Cue, including remote-window navigation. S saves only
+  a Search Primary Cue and reports an existing Shiori item as already saved; C
+  copies only Primary Cue text; Enter destroys the Overlay Session and opens the
+  selected existing Search or Shiori target.
+- Made Playlist Enter explicitly bypass Auto Play Cue Sequence segmentation so
+  both Search and Shiori targets continue from Primary Cue Start Time. Ordinary
+  Workbench and navigation-history playback retains its existing bounded-cue
+  behavior.
+- Rebound pending Playlist navigation across both generation changes and
+  same-generation revision refreshes, while leaving background Playlist updates
+  unable to disturb Current intent. Deferred actions survive a valid window
+  replacement, reject invalid or empty targets, and cannot remain permanently
+  interaction-blocking after the source becomes empty.
+- Replaced the three window-hydration detached reads used by Playlist with the
+  existing cancellation-propagating detached-task wrapper. Added cancellation
+  checkpoints to visible and all-cue database search loops so Session teardown
+  stops the worker instead of merely rejecting its late UI result.
+
 ## Verification
 
 ### Step 1
@@ -260,14 +299,28 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Step 6
+
+- `swift test --filter 'PlaybackPlaylist|visibleSearchReadersRejectPreCancelledTasks|appCoordinatorOnlyBoundsCuePlaybackWhenAutoSwitchIsEnabled'`
+  - Passed 28 tests covering the shared Playlist adapter and rendered View,
+    32-item and 50,000-item windows, module-state preservation, source refresh
+    rebinding, distant scrollbar actions, empty-boundary cleanup, Session worker
+    cancellation, Primary Cue actions, continuous Enter playback, and strict
+    Session destruction.
+- `swift test --filter 'subtitleFocus|playbackVirtualReel|PlaybackSegmentCompletion|SearchStore'`
+  - Passed 110 shared-Reel, Current, Search, keyboard-action, playback-segment,
+    and lifecycle regression tests.
+- `swift test --quiet`
+  - Passed 7 XCTest tests and all 711 Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Enable Playlist in the sidebar and connect its Session window to the shared
-  Playback Cue Result Reel, selection, and S/C/Enter actions.
 - Connect the standalone Shiori module through the same shared Reel without
   creating another virtual-list implementation.
 - Update Workbench Search to the documented 100ms live query before connecting

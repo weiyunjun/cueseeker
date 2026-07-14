@@ -55,6 +55,47 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
 }
 
 @Test
+func visibleSearchReadersRejectPreCancelledTasks() async throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let searchTask = Task.detached { () throws -> SubtitleSearchPage in
+        let database = try SubtitleDatabase(path: databaseURL)
+        try database.migrate()
+        withUnsafeCurrentTask { task in
+            task?.cancel()
+        }
+        return try database.searchVisiblePage(
+            "cue",
+            limit: 1,
+            cursor: .start
+        )
+    }
+    do {
+        _ = try await searchTask.value
+        Issue.record("Expected cancelled visible search to stop")
+    } catch is CancellationError {
+        // Expected.
+    }
+
+    let allCueTask = Task.detached { () throws -> SubtitleSearchPage in
+        let database = try SubtitleDatabase(path: databaseURL)
+        withUnsafeCurrentTask { task in
+            task?.cancel()
+        }
+        return try database.allCuesVisiblePage(limit: 1, cursor: .start)
+    }
+    do {
+        _ = try await allCueTask.value
+        Issue.record("Expected cancelled all-cue search to stop")
+    } catch is CancellationError {
+        // Expected.
+    }
+}
+
+@Test
 func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

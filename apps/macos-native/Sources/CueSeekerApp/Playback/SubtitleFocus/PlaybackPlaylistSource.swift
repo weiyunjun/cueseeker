@@ -2,17 +2,17 @@ import Combine
 import CueSeekerCore
 import Foundation
 
-enum PlaybackPlaylistSourceKind: Hashable {
+enum PlaybackPlaylistSourceKind: Hashable, Sendable {
     case search
     case shiori
 }
 
-enum PlaybackPlaylistShioriScope: Hashable {
+enum PlaybackPlaylistShioriScope: Hashable, Sendable {
     case explicitIDs([Int64])
     case databaseOrder
 }
 
-enum PlaybackPlaylistSourceOrigin: Hashable {
+enum PlaybackPlaylistSourceOrigin: Hashable, Sendable {
     case search(resultListGeneration: UInt64)
     case shiori(scope: PlaybackPlaylistShioriScope)
     case unspecified(PlaybackPlaylistSourceKind)
@@ -29,22 +29,22 @@ enum PlaybackPlaylistSourceOrigin: Hashable {
     }
 }
 
-enum PlaybackPlaylistItemIdentity: Hashable {
+enum PlaybackPlaylistItemIdentity: Hashable, Sendable {
     case search(Int64)
     case shiori(Int64)
 }
 
-enum PlaybackPlaylistPrimaryCueIdentity: Hashable {
+enum PlaybackPlaylistPrimaryCueIdentity: Hashable, Sendable {
     case cue(Int64)
     case legacyShiori(Int64)
 }
 
-enum PlaybackPlaylistItemTarget: Equatable {
+enum PlaybackPlaylistItemTarget: Equatable, Sendable {
     case search(SubtitleSearchResult)
     case shiori(Shiori)
 }
 
-struct PlaybackPlaylistItem: Equatable {
+struct PlaybackPlaylistItem: Equatable, Sendable {
     let identity: PlaybackPlaylistItemIdentity
     let primaryCueIdentity: PlaybackPlaylistPrimaryCueIdentity
     let ordinal: Int
@@ -388,6 +388,14 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         items.count
     }
 
+    var reelDatasetID: String? {
+        (snapshot.datasetID.base as? UUID)?.uuidString
+    }
+
+    func knownItemIdentity(at ordinal: Int) -> PlaybackPlaylistItemIdentity? {
+        source?.boundary.knownItemIDsByOrdinal[ordinal]
+    }
+
     func item(at ordinal: Int) -> PlaybackPlaylistItem? {
         guard let firstOrdinal = items.first?.ordinal else {
             return nil
@@ -397,6 +405,23 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
             return nil
         }
         return items[index]
+    }
+
+    @discardableResult
+    func commitSelection(
+        _ commit: PlaybackVirtualReelSelectionCommit
+    ) -> Bool {
+        guard isActive,
+              let reelDatasetID,
+              commit.datasetID == AnyHashable(reelDatasetID),
+              commit.generation == snapshot.generation,
+              snapshot.loadedOrdinalRange.contains(commit.ordinal),
+              item(at: commit.ordinal) != nil
+        else {
+            return false
+        }
+        selectedOrdinal = commit.ordinal
+        return true
     }
 
     @discardableResult

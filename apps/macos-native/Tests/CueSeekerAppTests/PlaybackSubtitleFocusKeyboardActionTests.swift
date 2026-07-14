@@ -298,6 +298,135 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
 
 @MainActor
 @Test
+func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
+    try await withKeyboardActionApp { app, database in
+        let result = keyboardActionPlaylistSearchResult(
+            id: 701,
+            videoPath: keyboardActionSource().videoPath,
+            subtitlePath: keyboardActionSource().subtitlePath,
+            startMilliseconds: 21_000,
+            content: "  playlist first  \n\nplaylist third"
+        )
+        let item = PlaybackPlaylistItem(searchResult: result, ordinal: 0)
+        let (session, window) = try await beginKeyboardActionPlaylistSession(
+            app: app,
+            item: item
+        )
+        NSPasteboard.general.clearContents()
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 8, modifierFlagsRawValue: 0))
+        #expect(
+            NSPasteboard.general.string(forType: .string)
+                == "  playlist first  \n\nplaylist third"
+        )
+        #expect(app.playback.playbackViewModel?.feedback?.text == "Subtitle Copied")
+        #expect(app.playback.subtitleFocusSession === session)
+        #expect(window.selectedOrdinal == 0)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
+        try await waitForKeyboardActionState {
+            session.activeKeyboardAction == nil
+                && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
+        }
+        let saved = try #require(try database.shiori(
+            subtitleFile: URL(fileURLWithPath: result.subtitlePath),
+            startMilliseconds: result.startMilliseconds,
+            endMilliseconds: result.endMilliseconds
+        ))
+
+        #expect(saved.content == result.content)
+        #expect(saved.videoName == result.videoName)
+        #expect(app.playback.subtitleFocusSession === session)
+        #expect(window.selectedOrdinal == 0)
+        #expect(app.playback.playbackStatus == .paused)
+
+        session.noteCueReelMotion(true)
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(session.pendingKeyboardAction == .playFromThisCue)
+    }
+}
+
+@MainActor
+@Test
+func playbackPlaylistShioriItemReportsAlreadySavedWithoutCreatingAnotherRow() async throws {
+    try await withKeyboardActionApp { app, database in
+        let shiori = Shiori(
+            id: 801,
+            subtitlePath: "/subtitle/playlist-shiori.ass",
+            subtitleFormat: .ass,
+            videoPath: "/video/playlist-shiori.mkv",
+            videoName: "playlist-shiori.mkv",
+            startMilliseconds: 31_000,
+            endMilliseconds: 31_900,
+            content: "existing playlist shiori",
+            isValid: true,
+            createdAt: "2026-07-15T00:00:00Z"
+        )
+        let item = PlaybackPlaylistItem(
+            shiori: shiori,
+            cuePresentation: nil,
+            ordinal: 0
+        )
+        let (session, window) = try await beginKeyboardActionPlaylistSession(
+            app: app,
+            item: item
+        )
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
+
+        #expect(
+            app.playback.playbackViewModel?.feedback?.text
+                == "Shiori Already Saved"
+        )
+        #expect(try database.shioriCount() == 0)
+        #expect(session.activeKeyboardAction == nil)
+        #expect(app.playback.subtitleFocusSession === session)
+        #expect(window.selectedOrdinal == 0)
+    }
+}
+
+@MainActor
+@Test
+func playbackPlaylistEnterDispatchesSelectedTargetAndDestroysOverlaySession() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let result = keyboardActionPlaylistSearchResult(
+            id: 901,
+            videoPath: "/video/playlist-target.mkv",
+            subtitlePath: "/subtitle/playlist-target.ass",
+            startMilliseconds: 41_000,
+            content: "playlist play target"
+        )
+        let item = PlaybackPlaylistItem(searchResult: result, ordinal: 0)
+        let (session, _) = try await beginKeyboardActionPlaylistSession(
+            app: app,
+            item: item
+        )
+
+        let execution: PlaybackSubtitleFocusActionExecution
+        switch session.requestKeyboardAction(.playFromThisCue) {
+        case .ready(let readyExecution):
+            execution = readyExecution
+        case .deferred, .rejected:
+            Issue.record("Expected an immediately ready Playlist play action")
+            return
+        }
+        var openedItem: PlaybackPlaylistItem?
+
+        #expect(app.executePlaybackSubtitleFocusAction(
+            execution,
+            continuousPlay: { _ in false },
+            openPlaylistItem: { openedItem = $0 }
+        ))
+
+        #expect(app.playback.subtitleFocusSession == nil)
+        #expect(session.state == .closed)
+        #expect(openedItem == item)
+        #expect(app.playback.playbackViewModel?.feedback?.text == "Play")
+    }
+}
+
+@MainActor
+@Test
 func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
@@ -408,6 +537,78 @@ private func withKeyboardActionApp(
     app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
     app.playback.playbackStatus = .paused
     try await body(app, database)
+}
+
+@MainActor
+private func beginKeyboardActionPlaylistSession(
+    app: AppCoordinator,
+    item: PlaybackPlaylistItem
+) async throws -> (
+    PlaybackSubtitleFocusSessionStore,
+    PlaybackPlaylistSessionWindowStore
+) {
+    let source = PlaybackPlaylistSource(
+        kind: item.target.playbackPlaylistSourceKind,
+        totalCount: 1,
+        knownItemIDsByOrdinal: [0: item.identity]
+    ) { request in
+        PlaybackPlaylistSourceWindowResponse(
+            request: request,
+            items: [item]
+        )
+    }
+    app.playback.setPlaylistSource(source)
+    let session = try #require(app.playback.beginSubtitleFocusSession(
+        openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+    ))
+    #expect(session.publishInitialSnapshot(
+        keyboardActionSnapshot(),
+        token: session.token
+    ))
+    let window = try #require(session.playlistWindow)
+    #expect(window.requestWindow(containing: 0))
+    try await waitForKeyboardActionState {
+        window.snapshot.loadedItemCount == 1
+    }
+    #expect(session.selectModule(.playlist))
+    return (session, window)
+}
+
+private func keyboardActionPlaylistSearchResult(
+    id: Int64,
+    videoPath: String,
+    subtitlePath: String,
+    startMilliseconds: Int,
+    content: String
+) -> SubtitleSearchResult {
+    SubtitleSearchResult(
+        entryID: id,
+        cueGroupID: id + 1,
+        cueEventIndex: Int(id),
+        cueDisplayOrder: 0,
+        primaryGroupIndex: 0,
+        subtitlePath: subtitlePath,
+        subtitleFormat: .ass,
+        videoPath: videoPath,
+        videoName: URL(fileURLWithPath: videoPath).lastPathComponent,
+        startMilliseconds: startMilliseconds,
+        endMilliseconds: startMilliseconds + 900,
+        content: content,
+        cueLines: [content],
+        cueGroupLines: [content],
+        searchRank: 0
+    )
+}
+
+private extension PlaybackPlaylistItemTarget {
+    var playbackPlaylistSourceKind: PlaybackPlaylistSourceKind {
+        switch self {
+        case .search:
+            .search
+        case .shiori:
+            .shiori
+        }
+    }
 }
 
 @MainActor

@@ -125,6 +125,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var isCueReelMotionActive = false
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationTargetOrdinal: Int?
+    private var pendingKeyboardNavigationTargetIdentity: PlaybackPlaylistItemIdentity?
+    private var playlistWindowSnapshotCancellable: AnyCancellable?
+    private var observedPlaylistDatasetID: AnyHashable?
+    private var observedPlaylistGeneration: UInt64?
+    private var observedPlaylistRevision: UInt64?
 
     init(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
@@ -141,11 +146,22 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             normalizedModules.insert(.current, at: 0)
         }
         self.availableModules = normalizedModules
-        playlistWindow = playlistSource?.makeSessionWindowStore()
+        let playlistWindow = playlistSource?.makeSessionWindowStore()
+        self.playlistWindow = playlistWindow
         token = PlaybackSubtitleFocusSessionToken(
             source: openSnapshot.source,
             sessionGeneration: sessionGeneration
         )
+        if let playlistWindow {
+            observedPlaylistDatasetID = playlistWindow.snapshot.datasetID
+            observedPlaylistGeneration = playlistWindow.snapshot.generation
+            observedPlaylistRevision = playlistWindow.snapshot.revision
+            playlistWindowSnapshotCancellable = playlistWindow.$snapshot
+                .dropFirst()
+                .sink { [weak self] snapshot in
+                    self?.observePlaylistSnapshot(snapshot)
+                }
+        }
     }
 
     var isActive: Bool {
@@ -182,7 +198,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
 
-        prepareCurrentReelForModuleTransition()
+        prepareReelForModuleTransition()
         selectedModule = module
         return true
     }
@@ -282,27 +298,66 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
               activeKeyboardAction == nil,
               (!isCueReelMotionActive
                   || pendingKeyboardNavigationTargetOrdinal != nil),
-              let snapshot = currentSnapshot
+              let selectedModule
         else {
             return false
         }
-        let currentTarget = pendingKeyboardNavigationTargetOrdinal
-            ?? snapshot.selectedOrdinal
+
+        let currentTarget: Int
+        let totalCount: Int
+        let contentDatasetID: String?
+        let contentGeneration: UInt64?
+        var targetIdentity: PlaybackPlaylistItemIdentity?
+        switch selectedModule {
+        case .current:
+            guard let snapshot = currentSnapshot else {
+                return false
+            }
+            currentTarget = pendingKeyboardNavigationTargetOrdinal
+                ?? snapshot.selectedOrdinal
+            totalCount = snapshot.totalCount
+            contentDatasetID = nil
+            contentGeneration = nil
+            targetIdentity = nil
+        case .playlist:
+            guard let playlistWindow,
+                  let selectedOrdinal = playlistWindow.selectedOrdinal,
+                  let reelDatasetID = playlistWindow.reelDatasetID
+            else {
+                return false
+            }
+            currentTarget = pendingKeyboardNavigationTargetOrdinal
+                ?? selectedOrdinal
+            totalCount = playlistWindow.snapshot.totalCount
+            contentDatasetID = reelDatasetID
+            contentGeneration = playlistWindow.snapshot.generation
+            targetIdentity = nil
+        default:
+            return false
+        }
+
         let targetOrdinal = direction == .backward
             ? currentTarget - 1
             : currentTarget + 1
         guard targetOrdinal >= 0,
-              targetOrdinal < snapshot.totalCount,
-              cue(at: targetOrdinal) != nil
+              targetOrdinal < totalCount,
+              selectedModule != .current || cue(at: targetOrdinal) != nil
         else {
             return false
         }
+        if selectedModule == .playlist {
+            targetIdentity = playlistWindow?.item(at: targetOrdinal)?.identity
+                ?? playlistWindow?.knownItemIdentity(at: targetOrdinal)
+        }
         keyboardNavigationSequence += 1
         pendingKeyboardNavigationTargetOrdinal = targetOrdinal
+        pendingKeyboardNavigationTargetIdentity = targetIdentity
         keyboardNavigationRequest = PlaybackSubtitleFocusKeyboardNavigationRequest(
             sequence: keyboardNavigationSequence,
             direction: direction,
-            targetOrdinal: targetOrdinal
+            targetOrdinal: targetOrdinal,
+            contentDatasetID: contentDatasetID,
+            contentGeneration: contentGeneration
         )
         return true
     }
@@ -312,6 +367,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         _ request: PlaybackSubtitleFocusKeyboardNavigationRequest
     ) -> Bool {
         guard isSessionActive,
+              selectedModule == .current,
               keyboardNavigationRequest == request,
               pendingKeyboardNavigationTargetOrdinal == request.targetOrdinal,
               activeKeyboardAction == nil,
@@ -327,6 +383,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @discardableResult
     func commitNativeReelSelection(ordinal: Int) -> Bool {
         guard isSessionActive,
+              selectedModule == .current,
               activeKeyboardAction == nil,
               (pendingKeyboardAction == nil
                   || isCueReelMotionActive
@@ -339,6 +396,33 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return true
         }
         return selectAvailableCue(ordinal: ordinal)
+    }
+
+    @discardableResult
+    func commitVirtualReelSelection(
+        _ commit: PlaybackVirtualReelSelectionCommit
+    ) -> Bool {
+        let commitsPendingKeyboardIntent =
+            pendingKeyboardNavigationTargetOrdinal == commit.ordinal
+        guard isSessionActive,
+              selectedModule == .playlist,
+              let playlistWindow,
+              activeKeyboardAction == nil,
+              (pendingKeyboardAction == nil
+                  || isCueReelMotionActive
+                  || isScrollbarDragging
+                  || commitsPendingKeyboardIntent),
+              pendingKeyboardNavigationTargetOrdinal == nil
+                  || commitsPendingKeyboardIntent,
+              playlistWindow.commitSelection(commit)
+        else {
+            return false
+        }
+
+        if commitsPendingKeyboardIntent {
+            cancelKeyboardNavigationIntent()
+        }
+        return true
     }
 
     func noteScrollbarDragging(_ isDragging: Bool) {
@@ -365,7 +449,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     func allowsNativeScrollbarInput() -> Bool {
         isSessionActive
-            && currentSnapshot != nil
+            && hasSelectedReelItem
             && pendingKeyboardAction == nil
             && activeKeyboardAction == nil
             && pendingKeyboardNavigationTargetOrdinal == nil
@@ -377,7 +461,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         _ action: PlaybackSubtitleFocusAction
     ) -> PlaybackSubtitleFocusKeyboardActionRequestResult {
         guard isSessionActive,
-              currentSnapshot?.selectedCue != nil,
+              selectedModule == .current || selectedModule == .playlist,
               pendingKeyboardAction == nil,
               activeKeyboardAction == nil
         else {
@@ -405,7 +489,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
               pendingKeyboardNavigationTargetOrdinal == nil,
               !isCueReelMotionActive,
               !isScrollbarDragging,
-              currentSnapshot?.selectedCue != nil
+              selectedActionTarget() != nil
         else {
             return nil
         }
@@ -476,22 +560,71 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard isSessionActive,
               pendingKeyboardAction == nil,
               activeKeyboardAction == nil,
-              let cue = currentSnapshot?.selectedCue
+              let target = selectedActionTarget()
         else {
             return nil
         }
 
         keyboardActionGeneration += 1
-        let execution = PlaybackSubtitleFocusActionExecution(
-            action: action,
-            context: PlaybackSubtitleFocusActionContext(
-                source: openSnapshot.source,
-                cue: cue
-            ),
-            generation: keyboardActionGeneration
-        )
+        let execution: PlaybackSubtitleFocusActionExecution
+        switch target {
+        case .current(let context):
+            execution = PlaybackSubtitleFocusActionExecution(
+                action: action,
+                context: context,
+                generation: keyboardActionGeneration
+            )
+        case .playlist(let item):
+            execution = PlaybackSubtitleFocusActionExecution(
+                action: action,
+                playlistItem: item,
+                generation: keyboardActionGeneration
+            )
+        }
         activeKeyboardAction = execution
         return execution
+    }
+
+    private var hasSelectedReelItem: Bool {
+        guard let selectedModule else {
+            return false
+        }
+        switch selectedModule {
+        case .current:
+            return currentSnapshot?.selectedCue != nil
+        case .playlist:
+            return playlistWindow?.selectedOrdinal.flatMap {
+                playlistWindow?.item(at: $0)
+            } != nil
+        default:
+            return false
+        }
+    }
+
+    private func selectedActionTarget() -> PlaybackSubtitleFocusActionTarget? {
+        guard let selectedModule else {
+            return nil
+        }
+        switch selectedModule {
+        case .current:
+            guard let cue = currentSnapshot?.selectedCue else {
+                return nil
+            }
+            return .current(PlaybackSubtitleFocusActionContext(
+                source: openSnapshot.source,
+                cue: cue
+            ))
+        case .playlist:
+            guard let playlistWindow,
+                  let selectedOrdinal = playlistWindow.selectedOrdinal,
+                  let item = playlistWindow.item(at: selectedOrdinal)
+            else {
+                return nil
+            }
+            return .playlist(item)
+        default:
+            return nil
+        }
     }
 
     private func selectAvailableCue(ordinal: Int) -> Bool {
@@ -523,10 +656,65 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     private func cancelKeyboardNavigationIntent() {
         pendingKeyboardNavigationTargetOrdinal = nil
+        pendingKeyboardNavigationTargetIdentity = nil
         keyboardNavigationRequest = nil
     }
 
-    private func prepareCurrentReelForModuleTransition() {
+    private func observePlaylistSnapshot(
+        _ snapshot: PlaybackVirtualReelSnapshot
+    ) {
+        guard isSessionActive else {
+            return
+        }
+        let changesDataset = observedPlaylistDatasetID != snapshot.datasetID
+            || observedPlaylistGeneration != snapshot.generation
+        let clearsSameDatasetWindow = !changesDataset
+            && observedPlaylistRevision != snapshot.revision
+            && snapshot.loadedItemCount == 0
+        observedPlaylistDatasetID = snapshot.datasetID
+        observedPlaylistGeneration = snapshot.generation
+        observedPlaylistRevision = snapshot.revision
+        guard selectedModule == .playlist,
+              changesDataset || clearsSameDatasetWindow
+        else {
+            return
+        }
+        if snapshot.totalCount == 0 {
+            isScrollbarDragging = false
+            isCueReelMotionActive = false
+        }
+        guard let targetOrdinal = pendingKeyboardNavigationTargetOrdinal else {
+            if snapshot.totalCount == 0 {
+                pendingKeyboardAction = nil
+            }
+            return
+        }
+        let targetRemainsValid = snapshot.totalCount > targetOrdinal
+            && pendingKeyboardNavigationTargetIdentity.map { identity in
+                playlistWindow?.knownItemIdentity(at: targetOrdinal).map {
+                    $0 == identity
+                } ?? true
+            } ?? true
+        guard targetRemainsValid,
+              let reelDatasetID = playlistWindow?.reelDatasetID,
+              let direction = keyboardNavigationRequest?.direction
+        else {
+            pendingKeyboardAction = nil
+            cancelKeyboardNavigationIntent()
+            return
+        }
+
+        keyboardNavigationSequence += 1
+        keyboardNavigationRequest = PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: keyboardNavigationSequence,
+            direction: direction,
+            targetOrdinal: targetOrdinal,
+            contentDatasetID: reelDatasetID,
+            contentGeneration: snapshot.generation
+        )
+    }
+
+    private func prepareReelForModuleTransition() {
         pendingKeyboardAction = nil
         isScrollbarDragging = false
         isCueReelMotionActive = false
@@ -541,6 +729,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isScrollbarDragging = false
         isCueReelMotionActive = false
         completeCueBatch = nil
+        playlistWindowSnapshotCancellable?.cancel()
+        playlistWindowSnapshotCancellable = nil
+        observedPlaylistDatasetID = nil
+        observedPlaylistGeneration = nil
+        observedPlaylistRevision = nil
         playlistWindow?.invalidate()
         playlistWindow = nil
         cancelKeyboardNavigationIntent()

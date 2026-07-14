@@ -196,7 +196,9 @@ extension AppCoordinator {
             let cueIDs = Array(resultCueIDs[lowerBound..<upperBound])
             let fileSummaries = search.searchFileSummaries
             do {
-                let page = try await Task.detached(priority: .userInitiated) {
+                let page = try await Self.runCancellableDetached(
+                    priority: .userInitiated
+                ) {
                     let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
                     let indexWindow = SubtitleSearchResultIDIndexWindow(
                         cueIDs: cueIDs,
@@ -213,7 +215,7 @@ extension AppCoordinator {
                             : nil
                     )
                     return try pageDatabase.searchIndexedVisiblePage(from: indexWindow)
-                }.value
+                }
 
                 guard !Task.isCancelled,
                       let page,
@@ -246,7 +248,9 @@ extension AppCoordinator {
         }
 
         do {
-            let page = try await Task.detached(priority: .userInitiated) {
+            let page = try await Self.runCancellableDetached(
+                priority: .userInitiated
+            ) {
                 let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
                 return try pageDatabase.searchVisiblePage(
                     trimmedQuery,
@@ -257,7 +261,7 @@ extension AppCoordinator {
                     watchStateFilter: watchStateFilter,
                     filterSet: filterSet
                 )
-            }.value
+            }
 
             guard !Task.isCancelled,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
@@ -294,7 +298,9 @@ extension AppCoordinator {
         guard lowerBound < upperBound else { return nil }
 
         do {
-            let page = try await Task.detached(priority: .userInitiated) {
+            let page = try await Self.runCancellableDetached(
+                priority: .userInitiated
+            ) {
                 let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
                 return try pageDatabase.allCuesVisiblePage(
                     limit: upperBound - lowerBound,
@@ -302,7 +308,7 @@ extension AppCoordinator {
                     under: folders,
                     filterSet: filterSet
                 )
-            }.value
+            }
 
             guard !Task.isCancelled,
                   indexing.selectedFolders.map(\.path) == folders.map(\.path),

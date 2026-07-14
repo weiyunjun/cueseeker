@@ -58,7 +58,7 @@ final class PlaybackStore: ObservableObject {
 
     func beginSubtitleFocusSession(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
-        availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules
+        availableModules: [PlaybackOverlayModule]? = nil
     ) -> PlaybackSubtitleFocusSessionStore? {
         guard subtitleFocusSession == nil else {
             return nil
@@ -68,7 +68,10 @@ final class PlaybackStore: ObservableObject {
         let session = PlaybackSubtitleFocusSessionStore(
             openSnapshot: openSnapshot,
             sessionGeneration: subtitleFocusSessionGeneration,
-            availableModules: availableModules,
+            availableModules: availableModules
+                ?? PlaybackOverlayModule.modules(
+                    hasPlaylist: playlistSource?.hasItems == true
+                ),
             playlistSource: playlistSource
         )
         subtitleFocusSession = session
