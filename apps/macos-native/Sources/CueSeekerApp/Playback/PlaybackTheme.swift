@@ -8,6 +8,7 @@ public enum PlaybackTheme {
     // MARK: - Subtitle Focus Colors
 
     private static let subtitleFocusCueSelectedOpacity = 0.94
+    private static let subtitleFocusCueGroupSelectedOpacity = 0.62
     private static let subtitleFocusCueUnselectedOpacity = 0.34
 
     /// --color-subtitle-focus-overlay-bg
@@ -29,6 +30,11 @@ public enum PlaybackTheme {
         Color.white.opacity(subtitleFocusCueSelectedOpacity)
     }
 
+    /// --color-subtitle-focus-cue-group-selected
+    public static var subtitleFocusCueGroupSelected: Color {
+        Color.white.opacity(subtitleFocusCueGroupSelectedOpacity)
+    }
+
     /// --color-subtitle-focus-cue-unselected
     public static var subtitleFocusCueUnselected: Color {
         Color.white.opacity(subtitleFocusCueUnselectedOpacity)
@@ -36,6 +42,9 @@ public enum PlaybackTheme {
 
     static let subtitleFocusCueSelectedNative = NSColor.white.withAlphaComponent(
         CGFloat(subtitleFocusCueSelectedOpacity)
+    )
+    static let subtitleFocusCueGroupSelectedNative = NSColor.white.withAlphaComponent(
+        CGFloat(subtitleFocusCueGroupSelectedOpacity)
     )
     static let subtitleFocusCueUnselectedNative = NSColor.white.withAlphaComponent(
         CGFloat(subtitleFocusCueUnselectedOpacity)
@@ -196,6 +205,18 @@ enum PlaybackSubtitleFocusMetrics {
     static let cueFontSize: CGFloat = 40
     /// --line-height-subtitle-focus-cue
     static let cueLineHeight: CGFloat = 52
+    /// --font-weight-subtitle-focus-cue
+    static let cueFontWeight = NSFont.Weight.semibold
+    /// --font-size-subtitle-focus-cue-group
+    static let cueGroupFontSize: CGFloat = 28
+    /// --line-height-subtitle-focus-cue-group
+    static let cueGroupLineHeight: CGFloat = 38
+    /// --font-weight-subtitle-focus-cue-group
+    static let cueGroupFontWeight = NSFont.Weight.medium
+    /// --width-playback-playlist-sequence
+    static let playlistSequenceWidth: CGFloat = 48
+    /// --font-size-body
+    static let playlistSequenceFontSize = WorkbenchControlMetrics.redesignFontSizeBody
     /// --duration-subtitle-focus-scroll
     static let reelTransitionDuration = 0.22
     static func resolvedReelTransitionDuration(

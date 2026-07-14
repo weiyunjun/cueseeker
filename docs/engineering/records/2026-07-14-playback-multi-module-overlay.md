@@ -94,6 +94,45 @@ capability will be enabled when the Playlist snapshot is implemented.
 - Kept Playback Cue Result rendering and all Playlist, Search, and Shiori data
   adapters out of this infrastructure-only step.
 
+### 4. Shared Playback Cue Result Rendering and Extents
+
+- Classified this step as platform UI/UX and kept the presentation model,
+  TextKit/CoreText layout, native drawing, and measurement cache inside
+  `CueSeekerApp`. No module store, durable product mutation, playback execution,
+  keyboard action, or real Playlist/Search/Shiori data source was added.
+- Added a Playback-specific Result presentation model that separates the stable
+  occurrence `itemID` used by the shared Reel from the stable Primary Cue
+  identity used by later module actions. This supports repeated occurrences of
+  the same Primary Cue without making Cue Group visibility part of identity.
+- Extended the existing Visual Line Stack planner from one uniform Current Cue
+  to mixed-style segments while retaining Current's original single-segment
+  entry point. Segment identity and nominal line height are carried through
+  ordinary text, Cue-boundary newlines, empty lines, and terminal sentinels.
+- Rendered all visible Additional Cues above the Primary Cue as one continuous
+  stack. Primary uses 40/52 semibold typography; Cue Group uses 28/38 medium
+  typography. Every adjacent typographic line remains exactly five points apart
+  across hard lines, soft wraps, Additional Cue boundaries, and the final
+  Additional-to-Primary boundary.
+- Calculated mixed nominal height by summing each visual line's 52- or 38-point
+  slot height, compared it with the actual font-run typographic stack, centered
+  the complete stack once, added 12-point top and bottom padding, and passed the
+  resulting natural/resolved/oversized extent through the shared Reel contract.
+- Added the documented selected Primary, selected Cue Group, and common
+  unselected colors. Show Cue Group changes presentation and extent without
+  changing the occurrence or Primary Cue identities.
+- Added the optional 48-point Playlist Sequence Number lane. It uses the 14-point
+  body font, the unselected color, right alignment, and the real baseline of the
+  Primary Cue's first visual line. The lane participates in wrapping width but
+  not Result height or identity, and it clips with the same vertically padded
+  content region as the Cue text.
+- Added a 64-entry LRU measurement cache keyed by all geometry inputs. The exact
+  Sequence Number and Selected color state intentionally do not invalidate
+  geometry; lane presence, content, order, Cue Group visibility, width, viewport,
+  identities, and style revision do.
+- Verified the Result core against the item-agnostic shared Reel with a lazy
+  50,000-item test adapter. Only visible/overscan Result extents are measured;
+  no production module adapter or second virtual-list implementation was added.
+
 ## Verification
 
 ### Step 1
@@ -136,15 +175,41 @@ capability will be enabled when the Playlist snapshot is implemented.
 - `git diff --check`
   - Passed.
 
+### Step 4
+
+- `swift test --filter playbackCueResult`
+  - Passed 11 tests covering tokens, mixed typography and resolved font runs,
+    hard/soft lines, role-aware empty and trailing lines, strict five-point
+    boundaries, whole-stack centering, Show Cue Group identity stability,
+    Sequence Number width/color/baseline, oversized clipping, bounded cache
+    invalidation, and 50,000-item shared-Reel virtualization.
+- `swift test --filter subtitleFocus`
+  - Passed all 64 Current regression tests after the Visual Line Stack gained
+    mixed-segment support.
+- `swift test --quiet --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed 7 XCTest tests and the other 679 Swift Testing tests.
+- `swift test --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated persistence migration test.
+- `swift test --quiet`
+  - One combined run passed 7 XCTest tests and all 680 Swift Testing tests.
+    Two later combined reruns exposed an existing order-dependent
+    `ApplicationPersistenceTests` failure: another test's registered
+    `workbenchPanelMode = search` default was visible instead of the isolated
+    fixture's legacy `shiori` value. The test passes alone, all other 679 tests
+    pass together, and Step 4 does not change persistence code or tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Add the shared Playback Cue Result renderer and its mixed Primary Cue and Cue
-  Group extent calculation without binding module-specific keyboard actions.
-- Connect Playlist, Search, and Shiori through dedicated adapters that use this
-  shared reel instead of creating independent or fully materialized lists.
-- Define and capture the real Playlist snapshot before enabling its sidebar
-  capability in production.
+- Define and capture the real Playlist data source and Overlay Session Snapshot
+  contract before enabling Playlist in the sidebar.
+- Connect Playlist and then Shiori through module adapters that feed this Result
+  core into the shared Reel without creating independent or fully materialized
+  lists.
+- Update Workbench Search to the documented 100ms live query before connecting
+  Playback Search to the same result semantics.

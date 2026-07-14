@@ -143,7 +143,16 @@ extension PlaybackVirtualReelContentAdapter {
     func requestWindow(_ request: PlaybackVirtualReelWindowRequest) {}
 }
 
+struct PlaybackVisualLineStackSegment {
+    let text: String
+    let font: NSFont
+    let color: NSColor
+    let nominalLineHeight: CGFloat
+}
+
 struct PlaybackVisualLineStackLine: Equatable {
+    let segmentIndex: Int
+    let nominalLineHeight: CGFloat
     let glyphRange: NSRange
     let usedRect: CGRect
     let originalBaseline: CGFloat
@@ -185,6 +194,8 @@ struct PlaybackVisualLineStackPlan: Equatable {
 @MainActor
 final class PlaybackVisualLineStackLayout {
     private struct DraftLine {
+        let segmentIndex: Int
+        let nominalLineHeight: CGFloat
         let glyphRange: NSRange
         let usedRect: CGRect
         let originalBaseline: CGFloat
@@ -197,6 +208,9 @@ final class PlaybackVisualLineStackLayout {
     }
 
     private static let terminalLineSentinel = "\u{200B}"
+    private static let segmentIndexAttribute = NSAttributedString.Key(
+        "CueSeeker.PlaybackVisualLineStack.segmentIndex"
+    )
 
     private let textStorage = NSTextStorage()
     private let layoutManager = NSLayoutManager()
@@ -223,21 +237,37 @@ final class PlaybackVisualLineStackLayout {
         color: NSColor,
         width: CGFloat
     ) -> PlaybackVisualLineStackPlan {
-        let normalizedText = Self.normalizedText(text)
-        let attributedText = NSMutableAttributedString(
-            attributedString: PlaybackSubtitleFocusCueTextMeasurer.attributedString(
-                normalizedText,
-                color: color
-            )
+        prepare(
+            segments: [PlaybackVisualLineStackSegment(
+                text: text,
+                font: NSFont.systemFont(
+                    ofSize: PlaybackSubtitleFocusMetrics.cueFontSize,
+                    weight: PlaybackSubtitleFocusMetrics.cueFontWeight
+                ),
+                color: color,
+                nominalLineHeight: PlaybackSubtitleFocusMetrics.cueLineHeight
+            )],
+            width: width
         )
-        if normalizedText.isEmpty || normalizedText.hasSuffix("\n") {
-            attributedText.append(
-                PlaybackSubtitleFocusCueTextMeasurer.attributedString(
-                    Self.terminalLineSentinel,
-                    color: .clear
-                )
-            )
-        }
+    }
+
+    @discardableResult
+    func prepare(
+        segments: [PlaybackVisualLineStackSegment],
+        width: CGFloat
+    ) -> PlaybackVisualLineStackPlan {
+        let resolvedSegments = segments.isEmpty
+            ? [PlaybackVisualLineStackSegment(
+                text: "",
+                font: NSFont.systemFont(
+                    ofSize: PlaybackSubtitleFocusMetrics.cueFontSize,
+                    weight: PlaybackSubtitleFocusMetrics.cueFontWeight
+                ),
+                color: .clear,
+                nominalLineHeight: PlaybackSubtitleFocusMetrics.cueLineHeight
+            )]
+            : segments
+        let attributedText = Self.attributedText(for: resolvedSegments)
 
         textStorage.setAttributedString(attributedText)
         textContainer.size = CGSize(
@@ -251,10 +281,24 @@ final class PlaybackVisualLineStackLayout {
         layoutManager.enumerateLineFragments(
             forGlyphRange: glyphRange
         ) { [self] lineRect, usedRect, _, lineGlyphRange, _ in
-            let metrics = typographicMetrics(for: lineGlyphRange)
+            let characterRange = layoutManager.characterRange(
+                forGlyphRange: lineGlyphRange,
+                actualGlyphRange: nil
+            )
+            let segmentIndex = resolvedSegmentIndex(
+                for: characterRange,
+                segmentCount: resolvedSegments.count
+            )
+            let segment = resolvedSegments[segmentIndex]
+            let metrics = typographicMetrics(
+                for: lineGlyphRange,
+                fallbackFont: segment.font
+            )
             let originalBaseline = lineRect.minY
                 + layoutManager.location(forGlyphAt: lineGlyphRange.location).y
             draftLines.append(DraftLine(
+                segmentIndex: segmentIndex,
+                nominalLineHeight: segment.nominalLineHeight,
                 glyphRange: lineGlyphRange,
                 usedRect: usedRect,
                 originalBaseline: originalBaseline,
@@ -264,8 +308,11 @@ final class PlaybackVisualLineStackLayout {
         }
 
         if draftLines.isEmpty {
-            let font = Self.fallbackFont
+            let segment = resolvedSegments[0]
+            let font = segment.font
             draftLines = [DraftLine(
+                segmentIndex: 0,
+                nominalLineHeight: segment.nominalLineHeight,
                 glyphRange: NSRange(location: 0, length: 0),
                 usedRect: .zero,
                 originalBaseline: font.ascender,
@@ -278,8 +325,9 @@ final class PlaybackVisualLineStackLayout {
             $0 + $1.typographicHeight
         } + CGFloat(max(0, draftLines.count - 1))
             * PlaybackSubtitleFocusMetrics.internalLineGap
-        let nominalContentHeight = CGFloat(draftLines.count)
-            * PlaybackSubtitleFocusMetrics.cueLineHeight
+        let nominalContentHeight = draftLines.reduce(CGFloat.zero) {
+            $0 + $1.nominalLineHeight
+        }
         let resolvedContentHeight = max(nominalContentHeight, stackHeight)
         var nextTop = max(0, (resolvedContentHeight - stackHeight) / 2)
         let resolvedLines = draftLines.map { line in
@@ -288,6 +336,8 @@ final class PlaybackVisualLineStackLayout {
                     + PlaybackSubtitleFocusMetrics.internalLineGap
             }
             return PlaybackVisualLineStackLine(
+                segmentIndex: line.segmentIndex,
+                nominalLineHeight: line.nominalLineHeight,
                 glyphRange: line.glyphRange,
                 usedRect: line.usedRect,
                 originalBaseline: line.originalBaseline,
@@ -336,7 +386,8 @@ final class PlaybackVisualLineStackLayout {
     }
 
     private func typographicMetrics(
-        for glyphRange: NSRange
+        for glyphRange: NSRange,
+        fallbackFont: NSFont
     ) -> (ascent: CGFloat, descent: CGFloat) {
         let characterRange = layoutManager.characterRange(
             forGlyphRange: glyphRange,
@@ -344,8 +395,7 @@ final class PlaybackVisualLineStackLayout {
         )
         let metricRange = rangeWithoutLineTerminators(characterRange)
         guard metricRange.length > 0 else {
-            let font = Self.fallbackFont
-            return (font.ascender, -font.descender)
+            return (fallbackFont.ascender, -fallbackFont.descender)
         }
 
         let attributedLine = textStorage.attributedSubstring(from: metricRange)
@@ -369,10 +419,25 @@ final class PlaybackVisualLineStackLayout {
         }
 
         guard resolvedAscent > 0 || resolvedDescent > 0 else {
-            let font = Self.fallbackFont
-            return (font.ascender, -font.descender)
+            return (fallbackFont.ascender, -fallbackFont.descender)
         }
         return (resolvedAscent, resolvedDescent)
+    }
+
+    private func resolvedSegmentIndex(
+        for characterRange: NSRange,
+        segmentCount: Int
+    ) -> Int {
+        guard textStorage.length > 0 else {
+            return 0
+        }
+        let location = min(characterRange.location, textStorage.length - 1)
+        let rawIndex = (textStorage.attribute(
+            Self.segmentIndexAttribute,
+            at: location,
+            effectiveRange: nil
+        ) as? NSNumber)?.intValue ?? 0
+        return min(max(0, rawIndex), max(0, segmentCount - 1))
     }
 
     private func rangeWithoutLineTerminators(_ range: NSRange) -> NSRange {
@@ -394,11 +459,59 @@ final class PlaybackVisualLineStackLayout {
         return result
     }
 
-    private static var fallbackFont: NSFont {
-        NSFont.systemFont(
-            ofSize: PlaybackSubtitleFocusMetrics.cueFontSize,
-            weight: .semibold
-        )
+    private static func attributedText(
+        for segments: [PlaybackVisualLineStackSegment]
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        for (index, segment) in segments.enumerated() {
+            let normalizedText = normalizedText(segment.text)
+            let attributes = attributes(for: segment, segmentIndex: index)
+            if !normalizedText.isEmpty {
+                result.append(NSAttributedString(
+                    string: normalizedText,
+                    attributes: attributes
+                ))
+            }
+
+            if index < segments.count - 1 {
+                result.append(NSAttributedString(
+                    string: "\n",
+                    attributes: attributes
+                ))
+            } else if normalizedText.isEmpty || normalizedText.hasSuffix("\n") {
+                var sentinelAttributes = attributes
+                sentinelAttributes[.foregroundColor] = NSColor.clear
+                result.append(NSAttributedString(
+                    string: terminalLineSentinel,
+                    attributes: sentinelAttributes
+                ))
+            }
+        }
+        return result
+    }
+
+    private static func attributes(
+        for segment: PlaybackVisualLineStackSegment,
+        segmentIndex: Int
+    ) -> [NSAttributedString.Key: Any] {
+        [
+            .font: segment.font,
+            .foregroundColor: segment.color,
+            .paragraphStyle: paragraphStyle(
+                lineHeight: segment.nominalLineHeight
+            ),
+            segmentIndexAttribute: NSNumber(value: segmentIndex),
+        ]
+    }
+
+    private static func paragraphStyle(lineHeight: CGFloat) -> NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byWordWrapping
+        style.minimumLineHeight = max(0, lineHeight)
+        style.maximumLineHeight = max(0, lineHeight)
+        style.lineSpacing = 0
+        style.paragraphSpacing = 0
+        return style
     }
 
     private static func normalizedText(_ text: String) -> String {
@@ -438,29 +551,6 @@ final class PlaybackSubtitleFocusCueTextMeasurer {
         )
     }
 
-    static func attributedString(
-        _ text: String,
-        color: NSColor
-    ) -> NSAttributedString {
-        NSAttributedString(string: text, attributes: [
-            .font: NSFont.systemFont(
-                ofSize: PlaybackSubtitleFocusMetrics.cueFontSize,
-                weight: .semibold
-            ),
-            .foregroundColor: color,
-            .paragraphStyle: paragraphStyle,
-        ])
-    }
-
-    static var paragraphStyle: NSParagraphStyle {
-        let style = NSMutableParagraphStyle()
-        style.lineBreakMode = .byWordWrapping
-        style.minimumLineHeight = PlaybackSubtitleFocusMetrics.cueLineHeight
-        style.maximumLineHeight = PlaybackSubtitleFocusMetrics.cueLineHeight
-        style.lineSpacing = 0
-        style.paragraphSpacing = 0
-        return style
-    }
 }
 
 struct PlaybackVirtualReelLayout: Equatable {
