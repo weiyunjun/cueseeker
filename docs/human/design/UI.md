@@ -164,6 +164,7 @@
 
 - `--color-subtitle-focus-overlay-bg`: Light `#242426`; Dark `#242426`
 - `--color-subtitle-focus-cue-selected`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
+- `--color-subtitle-focus-cue-group-selected`: Light `rgba(255,255,255,0.62)`; Dark `rgba(255,255,255,0.62)`
 - `--color-subtitle-focus-cue-unselected`: Light `rgba(255,255,255,0.34)`; Dark `rgba(255,255,255,0.34)`
 
 ### 1.2 字体与文本
@@ -190,6 +191,9 @@
 - `--font-size-subtitle-focus-cue`: `40px`
 - `--line-height-subtitle-focus-cue`: `52px`
 - `--font-weight-subtitle-focus-cue`: `600`
+- `--font-size-subtitle-focus-cue-group`: `28px`
+- `--line-height-subtitle-focus-cue-group`: `38px`
+- `--font-weight-subtitle-focus-cue-group`: `500`
 - `--font-size-section-title`: `18px`
 - `--font-size-library-title`: `14px`
 - `--font-size-library-meta`: `12px`
@@ -256,6 +260,7 @@
 - `--size-player-window-control-glyph`: `7px`
 - `--width-player-topbar-title-max`: `520px`
 - `--width-subtitle-focus-content-max`: `960px`
+- `--width-playback-playlist-sequence`: `48px`
 - `--aspect-library-cover`: `16 / 9`
 - `--width-library-recent-card-min`: `180px`
 - `--width-library-recent-card-max`: `220px`
@@ -275,6 +280,7 @@
 - `--spacing-6`: `24px`
 - `--spacing-8`: `32px`
 - `--gap-subtitle-focus-cue`: `8px`
+- `--gap-subtitle-focus-internal-line`: `5px`
 - `--gap-app-topbar-title-after-toggle`: `12px`
 - `--gap-player-bottom-left-controls`: `8px`
 - `--gap-player-bottom-right-controls`: `6px`
@@ -373,6 +379,8 @@
 
 #### System Symbols
 
+- Current: `clock`
+- Playlist: `list.bullet`
 - Search: `magnifyingglass`
 - Inline Clear: `xmark`, bold
 - Filter: existing filter symbol
@@ -422,6 +430,7 @@
 - 有边框控件使用 `--color-border-focus` 和 `--color-focus-ring`。
 - 无边框控件使用 `--color-focus-ring`、`--focus-ring-width` 和 `--focus-ring-offset`。
 - Search Box 和 Value Input Field 通过点击或键盘获得焦点时都显示 Focused 状态。
+- Playback Search Box 获得输入焦点时不显示额外 Focus Ring、边框色或背景变化，只显示 Caret。
 - Caret 只在可编辑输入区域获得焦点时出现。
 - Checkbox 的焦点只作用于 Checkbox 本体。
 - Sortable Header Cell 的焦点只作用于 Trigger Surface。
@@ -488,6 +497,19 @@
 - 状态：Empty、Focused Empty、Typing / Focused Filled、Filled、Clear Button Hover、Disabled。
 - 只有 Focused 或 Typing 状态显示 caret。
 - 有内容时显示 Inline Clear Button。
+- 输入区支持原生文字选择、`Cmd+A`、`Cmd+C`。
+
+#### Playback Search Box
+
+- 用途：在 Playback Multi-Module Overlay 的 Search 中输入查询词。
+- 复用 Search Box 的高度、圆角、水平内边距、文字、Placeholder、Search 图标和 Inline Clear Button。
+- 使用固定 Dark Appearance。
+- 状态：Empty、Typing、Filled、Clear Button Hover。
+- Empty、Typing 和 Filled 的容器外观保持一致。
+- 获得输入焦点时不增加 Focus Ring、焦点边框或焦点背景。
+- 获得输入焦点时显示 Caret。
+- 有内容时显示 Inline Clear Button。
+- 点击 Inline Clear Button 清除查询词并更新 Search 结果。
 - 输入区支持原生文字选择、`Cmd+A`、`Cmd+C`。
 
 #### Select Trigger Button
@@ -867,6 +889,21 @@
 - 状态：Default、Disabled。
 - 它是独立命令，不参与主要导航项的 Selected 状态。
 
+#### Playback Module Sidebar Item
+
+- 用途：在 Playback Multi-Module Overlay 的 Current、Playlist、Search、Recent、Library 和 Shiori 之间导航。
+- 尺寸复用 `--height-app-sidebar-item`、`--padding-app-sidebar-item-x`、`--size-app-sidebar-item-icon` 和 `--spacing-3`。
+- 文字使用 `--font-family-base` 和 `--font-size-app-sidebar-item`。
+- Selected 的文字和图标使用 `--color-subtitle-focus-cue-selected`。
+- Unselected 的文字和图标使用 `--color-subtitle-focus-cue-unselected`。
+- 背景始终透明。
+- 不显示选中背景、边框、Focus Ring 或其他颜色。
+- 状态仅包括 Unselected 和 Selected。
+- 同一时刻只有当前模块处于 Selected。
+- 点击 Unselected Item 切换到对应模块。
+- 点击当前 Selected Item 不重复导航。
+- Playlist 不存在时不显示对应 Item，不显示 Disabled 状态。
+
 ### 3.8 Player Controls
 
 #### Player Circle Button
@@ -933,27 +970,87 @@
 - 状态：Default、Truncated。
 - 只读，不承担播放或导航动作。
 
-### 3.9 Subtitle Focus
+### 3.9 Playback Multi-Module Overlay
 
 #### Subtitle Focus Cue
 
-- 用途：显示一个完整 Cue，并表达当前键盘动作目标。
-- Token：`--padding-subtitle-focus-cue-y`、`--font-family-base`、`--font-size-subtitle-focus-cue`、`--line-height-subtitle-focus-cue`、`--font-weight-subtitle-focus-cue`。
+- 用途：在 Current 中显示一个完整 Cue，并表达当前键盘动作目标。
+- Token：`--padding-subtitle-focus-cue-y`、`--font-family-base`、`--font-size-subtitle-focus-cue`、`--line-height-subtitle-focus-cue`、`--font-weight-subtitle-focus-cue`、`--gap-subtitle-focus-internal-line`。
 - Selected 使用 `--color-subtitle-focus-cue-selected`。
 - Unselected 使用 `--color-subtitle-focus-cue-unselected`。
 - 状态仅包括 Unselected 和 Selected。
 - 保留源行序和源换行，并按可用宽度自动换行。
+- 将源换行和自动换行展开为一个按显示顺序排列的 Visual Line Stack。
+- 每个 Visual Line 的 typographic bounds 使用实际解析后的 Font Runs 的 Ascender 和 Descender 计算，不使用随具体字形变化的 Ink Bounds。
+- 从第二个 Visual Line 开始，按下式排列：
+  `Next Visual Line Top = Previous Visual Line Bottom + --gap-subtitle-focus-internal-line`
+- 不将每个 Visual Line 分别居中到固定 Line Slot。
+- Resolved Content Height：
+  `max(Visual Line Count × --line-height-subtitle-focus-cue, Visual Line Stack Height)`
+- Visual Line Stack 在 Resolved Content Region 内整体垂直居中。
 - Natural Height：
-
-  `Visual Line Count × --line-height-subtitle-focus-cue + 2 × --padding-subtitle-focus-cue-y`
-
+  `Resolved Content Height + 2 × --padding-subtitle-focus-cue-y`
 - Resolved Height 不超过 Cue Reel Viewport Height。
 - Oversized Cue 从第一视觉行开始显示，只裁掉底部超出内容。
 - 不显示省略号。
-- 完整 Cue 原文继续作为 S、C 和 Space 的动作值。
+- 完整 Cue 原文继续作为 S、C 和 Enter 的动作值。
 - Cue 本身没有 Hover 或点击动作。
 - 点击不得改变选择，也不得穿透到底层 Video。
 - Wheel Event 交给所属 Cue Reel。
+
+#### Playback Cue Result
+
+- 用途：在 Playlist、Search 和 Shiori 中显示一个 Primary Cue，以及可选的 Cue Group。
+- Result 使用 `--padding-subtitle-focus-cue-y`。
+- Primary Cue 使用 `--font-size-subtitle-focus-cue`、`--line-height-subtitle-focus-cue` 和 `--font-weight-subtitle-focus-cue`。
+- Cue Group 使用 `--font-size-subtitle-focus-cue-group`、`--line-height-subtitle-focus-cue-group` 和 `--font-weight-subtitle-focus-cue-group`。
+- Show Cue Group 为 On 时，在 Primary Cue 上方显示全部 Additional Cues。
+- Show Cue Group 为 Off 时，只显示 Primary Cue。
+- Primary Cue Identity 不因 Show Cue Group 改变。
+- Selected：
+  - Primary Cue 使用 `--color-subtitle-focus-cue-selected`
+  - Cue Group 使用 `--color-subtitle-focus-cue-group-selected`
+- Unselected：
+  - Primary Cue 和 Cue Group 均使用 `--color-subtitle-focus-cue-unselected`
+- 状态仅包括 Unselected 和 Selected。
+- 所有 Cue 保留源行序和源换行，并按可用宽度自动换行。
+- 将全部 Additional Cues 和 Primary Cue 展开为一个按显示顺序排列的 Visual Line Stack。
+- 每个 Visual Line 的 typographic bounds 使用实际解析后的 Font Runs 的 Ascender 和 Descender 计算，不使用随具体字形变化的 Ink Bounds。
+- 从第二个 Visual Line 开始，按下式排列：
+
+  `Next Visual Line Top = Previous Visual Line Bottom + --gap-subtitle-focus-internal-line`
+
+- 上述间距同样适用于：
+  - 同一个 Cue 的源换行
+  - 同一个 Cue 的自动换行
+  - 两个 Additional Cue 的交界
+  - Additional Cue 与 Primary Cue 的交界
+- Cue 边界不增加额外 Padding、Paragraph Spacing 或 Cue Item Gap。
+- Nominal Content Height：
+
+  `Primary Visual Line Count × --line-height-subtitle-focus-cue + Cue Group Visual Line Count × --line-height-subtitle-focus-cue-group`
+
+- Resolved Content Height：
+
+  `max(Nominal Content Height, Visual Line Stack Height)`
+
+- Visual Line Stack 在 Resolved Content Region 内整体垂直居中。
+- Result Natural Height：
+
+  `Resolved Content Height + 2 × --padding-subtitle-focus-cue-y`
+
+- 两个独立 Result 之间使用 `--gap-subtitle-focus-cue`。
+- Playlist 可以显示 Sequence Number：
+  - 位于 Result 左侧
+  - 宽度使用 `--width-playback-playlist-sequence`
+  - 使用 `--font-size-body`
+  - 使用 `--color-subtitle-focus-cue-unselected`
+  - 右对齐
+  - 与 Primary Cue 第一视觉行对齐
+  - 数值表示 Playlist 内部序号
+- Playback Cue Result 本身不绑定键盘快捷键。
+- 所属 Module 提供的字幕动作均以 Primary Cue 为目标。
+- 具体快捷键和播放行为由所属 Module Layout 定义。
 
 ## 4. Layouts
 
@@ -1131,8 +1228,9 @@
   - Value Input Field
   - Inline Add Button
   - Neutral Button
-- 输入 Query 只更新当前输入内容。
-- 提交后更新结果。
+- 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果。
+- Query 后续发生变化时，以最新输入内容更新结果。
+- Return 不用于提交 Search。
 - Filter Trigger 负责打开、关闭和清除筛选。
 
 #### Search / Shiori Utility Bar Layout
@@ -1235,13 +1333,15 @@
   - Label：`Show Cue Group`
   - Default：Off
   - 跨 App 启动保留
-  - 适用于 Search、Shiori 和 Context
+  - 适用于 Workbench Search、Workbench Shiori 和 Context
+  - 同一设置同时适用于 Playback Multi-Module Overlay 的 Playlist、Search 和 Shiori
   - Off：只显示 Primary Cue
   - On：在 Primary Cue 上方显示全部 Additional Cues
   - Primary Cue Identity 不变
   - 所有默认动作继续以 Primary Cue 为目标
-  - 所有显示的 Cue 共用一个 Hover 和点击区域
-  - Primary Cue 与 Extra Cues 只通过字体和颜色区分
+  - Workbench Table 中所有显示的 Cue 共用一个 Hover 和点击区域
+  - Workbench Table 中 Primary Cue 与 Extra Cues 只通过字体和颜色区分
+  - Playback Multi-Module Overlay 中的显示规则使用 Playback Cue Result
 
 - 文字选择遵循 `2.5 文字选择与复制`。
 
@@ -1552,7 +1652,7 @@
 - Pointer Exit：
   - 非 Drag 状态隐藏 Preview、Thumb 和 Time Capsule
 
-#### Playback Subtitle Focus Overlay Layout
+#### Playback Multi-Module Overlay Layout
 
 - 覆盖完整 Playback Stage。
 - 不是独立原生窗口。
@@ -1560,19 +1660,75 @@
 - 位于现有 Playback Feedback Overlay 之下。
 - 背景使用 `--color-subtitle-focus-overlay-bg`。
 - Light 和 Dark Appearance 均使用固定 Dark Appearance。
-- 内容内边距使用 `--spacing-8`。
 - Overlay 显示时隐藏 Player Topbar、Bottom Chrome 和 Progress Bar。
 - Playback Feedback Overlay 继续显示在最上层且不参与 Hit Testing。
+- Overlay 显示期间 Playback 保持暂停，直到执行播放动作或退出 Overlay。
 
-- Subtitle Focus Cue Reel：
-  - 在 Overlay 内居中
+- 基本结构：
+  1. Playback Module Sidebar
+  2. Module Content Region
+
+- Playback Module Sidebar：
+  - 固定在 Overlay 左侧
+  - 宽度使用 `--width-app-sidebar`
+  - 高度占满 Overlay
+  - 背景使用 `--color-subtitle-focus-overlay-bg`
+  - 与 Module Content Region 之间不显示独立背景、边框或 Divider
+  - 水平内边距使用 `--padding-app-sidebar-x`
+  - 垂直内边距使用 `--padding-app-sidebar-y`
+  - Item 间距使用 `--spacing-1`
+  - 使用 Playback Module Sidebar Item
+  - 从上到下依次包括：
+    1. Current / `clock`
+    2. Playlist / `list.bullet`，仅存在 Playlist 时显示
+    3. Search / `magnifyingglass`
+    4. Recent / 当前项目资源
+    5. Library / 当前项目资源
+    6. Shiori / 当前项目资源
+  - Sidebar 始终显示，不允许折叠
+  - 当前模块使用 Selected 状态
+  - 点击 Item 切换对应模块
+  - Overlay 在任何 Module 和输入焦点状态下消费无修饰 Tab
+  - 无修饰 Tab 只切换到下一个当前可用模块，不执行原生焦点遍历
+  - Shiori 后再次按 Tab 返回 Current
+  - Playlist 不存在时 Tab 顺序跳过 Playlist
+  - 不提供其他模块切换按钮或模块切换快捷键
+
+- Module Content Region：
+  - 占据 Sidebar 以外的剩余区域
+  - 内容内边距使用 `--spacing-8`
+  - Current、Playlist、Search、Recent、Library 和 Shiori 共享同一 Content Region
+  - 模块切换只替换 Content Region 内容
+  - 模块切换不关闭 Overlay
+
+- 打开：
+  - Playback Page 活跃时按 Enter
+  - 每次打开创建一个新的临时 Overlay Session
+  - 立即暂停 Playback
+  - 默认模块为 Current
+  - 初始 Cue 准备期间保留暂停的视频画面
+  - 不显示 Loading Spinner 或 Progress Bar
+  - 初始 Cue 准备完成后显示 Overlay
+
+- Session：
+  - Current、Playlist、Search、Recent、Library 和 Shiori 的切换属于同一次 Overlay Session
+  - 模块切换期间保留本次 Session 内的模块状态
+  - Escape、播放动作、关闭 Playback Page 或其他关闭 Overlay 的路径结束当前 Session
+  - Session 结束后不保留当前模块、搜索词、搜索结果、选择位置、滚动位置或临时显示内容
+  - 再次打开时重新进入 Current，并按照各模块默认状态重新初始化
+  - Session 销毁不删除 Shiori、Recent、Library、Playlist、Playback History 或持久设置
+  - Session 生命周期以 Overlay 的产品级打开和关闭为边界，不以单个 Module View 的出现或消失为边界
+
+- Current：
+  - 内容维持现有 Subtitle Focus Cue Reel
+  - Cue Reel 在 Module Content Region 内居中
   - 最大宽度使用 `--width-subtitle-focus-content-max`
   - 纵向排列 Subtitle Focus Cue
   - Cue Gap 使用 `--gap-subtitle-focus-cue`
   - 允许顶部和底部出现部分可见的相邻 Cue
   - 不显示卡片、边框、背景或可见 Focus Marker
 
-- Focus Anchor：
+- Current / Focus Anchor：
   - 是不可见的 Screen-space Anchor
   - 固定在 Cue Reel Viewport 垂直中心
   - Fit Cue 的完整中心与 Focus Anchor 对齐
@@ -1580,25 +1736,30 @@
   - 第一和最后一个 Fit Cue 也可以使用相同 Anchor
   - 窗口宽度变化后保留当前 Cue，并恢复对应 Placement
 
-- Cue Geometry：
+- Current / Cue Geometry：
   - Visual Line Count 同时计算源换行和自动换行
+  - Visual Line 的测量和排列遵循 Subtitle Focus Cue
+  - Nominal Content Height：
+
+    `52 × Visual Line Count`
+
   - Natural Height：
 
-    `52 × Visual Line Count + 24px`
+    `max(Nominal Content Height, Visual Line Stack Height) + 24px`
 
   - Resolved Height：
 
     `min(Natural Height, Cue Reel Viewport Height)`
 
-  - 一行 Cue Natural Height：`76px`
-  - 两行 Cue Natural Height：`128px`
-  - 三行 Cue Natural Height：`180px`
+  - 当前字体度量下，一行 Cue Natural Height：`76px`
+  - 当前字体度量下，两行 Cue Natural Height：`128px`
+  - 当前字体度量下，三行 Cue Natural Height：`180px`
   - Fit Cue 显示全部内容
   - Oversized Cue 从第一视觉行开始，只裁剪底部超出内容
   - Oversized Cue 不保留内部阅读 Offset
 
-- Subtitle Focus Scrollbar：
-  - 位于 Overlay Trailing Edge
+- Current / Scrollbar：
+  - 位于 Module Content Region Trailing Edge
   - 使用纵向 Table Scrollbar
   - 存在 Cue 时持续可见
   - 完整 Cue 集合可用前可以显示为不可交互状态
@@ -1608,19 +1769,12 @@
   - Release 时选择最近的稳定 Cue
   - Thumb 不短于 `--scrollbar-min-thumb-length`
 
-- 打开：
-  - Playback Page 活跃时按 Enter
-  - 立即暂停 Playback
-  - 初始 Cue 准备期间保留暂停的视频画面
-  - 不显示 Loading Spinner 或 Progress Bar
-  - 初始 Cue 准备完成后显示 Overlay
-
-- Default Cue：
+- Current / Default Cue：
   - Timestamp 位于 Cue Group 内时，选择该组稳定显示顺序中物理位置最靠下的 Cue
   - Timestamp 不位于 Cue 内时，选择最近的 Previous Cue
   - 没有 Previous Cue 时选择第一个 Cue
 
-- Cue Navigation：
+- Current / Cue Navigation：
   - Up 选择 Previous Cue
   - Down 选择 Next Cue
   - 到达边界时无动作
@@ -1630,57 +1784,136 @@
   - Scroll 结束后 Oversized Cue 回到 Top Placement
   - Wheel、Trackpad 和 Scrollbar Navigation 不执行 Seek
 
-- Cue Pointer：
+- Current / Cue Pointer：
   - Cue 不显示 Hover
   - Cue 不响应左键动作
   - 点击不改变 Selected Cue
-  - 点击不打开 Menu
   - 点击不穿透到底层 Video
   - Wheel 和 Scrollbar 仍可使用
   - Cursor 使用 `default`
 
-- Keyboard Actions：
-  - 所有动作以已经 Settled 的 Selected Cue 为目标
+- Playback Cue Result Reel：
+  - 适用于 Playlist、Search 和 Shiori
+  - 使用 Playback Cue Result 作为纵向排列单元
+  - Focus Anchor、Scrollbar、Up、Down、Wheel、Trackpad、Scrollbar Drag 和 Settle 语义复用 Current Cue Reel
+  - Result Natural Height 代替 Current Cue Natural Height 参与 Placement 计算
+  - Playlist 和 Shiori 在本次 Session 首次初始化时默认选择第一条 Result
+  - Search 每次结果更新后默认选择第一条 Result
+  - 到达列表边界时继续导航无动作
+  - Result 不显示 Hover
+  - Result 不响应左键动作
+  - 点击不改变选择，也不执行播放
+  - 没有 Result 时不存在 Selected Result
+  - 不存在 Selected Result 时，所有字幕动作均无动作
+  - 切换 Module 后再次返回时，恢复本次 Session 内的选择和滚动位置
+
+- Playback Media Selection：
+  - 适用于 Recent、Library 一级界面和 Library 二级界面
+  - Selected Item 使用现有 Focus Ring Token，不新增颜色 Token
+  - 方向键选择对应视觉方向上最近的可用 Item
+  - Selected Item 始终滚动到可见区域
+  - Enter 执行 Selected Item 在原 Layout 中定义的左键主操作
+  - 原有鼠标 Hover、左键和右键行为保持不变
+  - 没有可用 Item 时不存在 Selected Item，Enter 无动作
+  - Module 切换后再次返回时，恢复本次 Session 内的层级、选择和滚动位置
+
+- Playlist：
+  - 使用 Playback Cue Result Reel
+  - 按 Playlist 内部顺序显示
+  - 每个 Result 左侧显示 Playlist Sequence Number
+  - 本次 Session 首次进入 Playlist 时默认选择第一条 Result
+  - Show Cue Group 为 Off 时只显示 Primary Cue
+  - Show Cue Group 为 On 时显示 Primary Cue 所属 Cue Group
+  - S、C 和 Enter 的动作目标均为 Selected Result 的 Primary Cue
+
+- Search：
+  - 顶部显示 Playback Search Box
+  - Search Box 下方显示纵向 Playback Cue Result 列表
+  - 不显示 Filter、Utility Bar、Table Header、Checkbox、Display Title、Tags、Time Range 或其他 Metadata
+  - 打开 Search 时自动聚焦 Search Box
+  - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果
+  - Search 不要求 Return 提交
+  - Query 为空时不显示 Cue Result
+  - 每次结果更新后默认选择第一条 Result
+  - Search Box 保持输入焦点
+  - Search Box 保持输入焦点时，Up 和 Down 由 Playback Cue Result Reel 响应，不用于移动 Caret
+  - Result 选择变化不移除 Search Box 的输入焦点
+  - 有输入内容时显示 Inline Clear Button
+  - Show Cue Group 为 Off 时只显示 Primary Cue
+  - Show Cue Group 为 On 时显示 Primary Cue 所属 Cue Group
+  - Search 输入优先于字母快捷键
+  - S 和 C 作为普通查询输入
+  - Search 的模块级字幕动作只响应 Enter
+  - 存在已经 Settled 的 Selected Result 时，Enter 从其 Primary Cue Start Time 播放
+  - 不存在 Selected Result 时，Enter 无动作
+
+- Recent：
+  - 复用 Recent Watching Card Layout
+  - 不显示 Workbench App Sidebar 或 App Topbar
+  - 本次 Session 首次进入 Recent 时默认选择第一项
+  - 使用 Playback Media Selection
+  - Enter 和鼠标播放动作沿用 Recent Watching Card Layout
+
+- Library：
+  - Library 一级界面复用 Library Folder Card Layout
+  - Library 二级界面复用 Library Episode Grid and Card Layout
+  - 不显示 Workbench App Sidebar 或 App Topbar
+  - 本次 Session 首次进入 Library 一级界面时默认选择第一项
+  - 每次进入 Library 二级界面时默认选择第一项
+  - 使用 Playback Media Selection
+  - Library 一级界面的 Enter 进入 Selected Library Folder
+  - Library 二级界面的 Enter 播放 Selected Episode
+  - Library Folder Detail 的 Back Button 只返回 Library 一级界面，不切换 Overlay Module
+  - 返回 Library 一级界面时恢复此前的选择和滚动位置
+  - 鼠标动作沿用对应 Library Layout
+
+- Shiori：
+  - 使用 Playback Cue Result Reel
+  - 只显示字幕内容
+  - 不显示 Filter、Utility Bar、Table Header、Checkbox、Display Title、Tags、Time Range、Date Added 或其他 Metadata
+  - 本次 Session 首次进入 Shiori 时默认选择第一条 Result
+  - Show Cue Group 为 Off 时只显示 Primary Cue
+  - Show Cue Group 为 On 时显示 Primary Cue 所属 Cue Group
+  - S、C 和 Enter 的动作目标均为 Selected Result 的 Primary Cue
+
+- Current、Playlist 和 Shiori Keyboard Actions：
+  - 所有动作以已经 Settled 的 Selected Primary Cue 为目标
   - Cue 正在移动时接受的动作，在当前目标 Settled 后执行一次
 
 - `S`：
-  - 保存 Selected Cue
+  - 保存 Selected Primary Cue
   - 已保存时不删除、不重复创建
   - 新保存显示 `Shiori Saved`
   - 已存在显示 `Shiori Already Saved`
   - Overlay 保持显示
   - Playback 保持暂停
-  - Cue 位置不变
+  - 当前选择和位置不变
 
 - `C`：
-  - 复制 Selected Cue 的完整多行文字
+  - 复制 Selected Primary Cue 的完整多行文字
+  - 不复制完整 Cue Group
   - 保留源行序和换行
   - 显示 `Subtitle Copied`
   - Overlay 保持显示
   - Playback 保持暂停
-  - Cue 位置不变
+  - 当前选择和位置不变
 
-- `Space`：
-  - Seek 至 Selected Cue Start Time
+- `Enter`：
+  - Seek 至 Selected Primary Cue Start Time
   - 关闭 Overlay
+  - 销毁当前 Overlay Session
   - 从该位置连续播放
   - 显示 `Play`
 
-- `Enter`：
-  - 被消费但无动作
-  - 不打开 Menu
-  - 不关闭 Overlay
-  - 不恢复播放
-  - 不改变 Selected Cue
-
 - Escape：
   - 关闭 Overlay
+  - 销毁当前 Overlay Session
   - 恢复打开前的 Playback State
   - 不执行隐式 Seek
 
 - Motion：
-  - Duration 使用 `--duration-subtitle-focus-scroll`
-  - Easing 使用 `--easing-subtitle-focus-scroll`
+  - Current Cue Reel Duration 使用 `--duration-subtitle-focus-scroll`
+  - Current Cue Reel Easing 使用 `--easing-subtitle-focus-scroll`
   - 动画距离由当前 Cue 和目标 Cue 的 Resolved Height 决定
   - Reduce Motion 下立即到达最终 Placement
   - Reduce Motion 不改变选择、Oversized Cue Placement 或 Scrollbar Drag 语义
