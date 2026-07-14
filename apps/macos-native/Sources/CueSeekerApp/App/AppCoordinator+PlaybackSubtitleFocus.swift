@@ -34,7 +34,12 @@ extension AppCoordinator {
             ),
             wasPlaying: playbackViewModel.isPlaying
         )
-        guard let session = playback.beginSubtitleFocusSession(openSnapshot: openSnapshot) else {
+        let shioriSource = makePlaybackShioriOverlaySource()
+        guard let session = playback.beginSubtitleFocusSession(
+            openSnapshot: openSnapshot,
+            shioriSource: shioriSource
+        ) else {
+            shioriSource.invalidate()
             return false
         }
 
@@ -97,7 +102,8 @@ extension AppCoordinator {
                 execution,
                 session: session,
                 continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue,
-                openPlaylistItem: openPlaybackPlaylistItem
+                openPlaylistItem: openPlaybackPlaylistItem,
+                openShioriItem: openPlaybackShioriItem
             )
         }
     }
@@ -113,7 +119,8 @@ extension AppCoordinator {
             execution,
             session: session,
             continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue,
-            openPlaylistItem: openPlaybackPlaylistItem
+            openPlaylistItem: openPlaybackPlaylistItem,
+            openShioriItem: openPlaybackShioriItem
         )
     }
 
@@ -129,7 +136,8 @@ extension AppCoordinator {
             execution,
             session: session,
             continuousPlay: continuousPlay,
-            openPlaylistItem: openPlaybackPlaylistItem
+            openPlaylistItem: openPlaybackPlaylistItem,
+            openShioriItem: openPlaybackShioriItem
         )
     }
 
@@ -146,7 +154,27 @@ extension AppCoordinator {
             execution,
             session: session,
             continuousPlay: continuousPlay,
-            openPlaylistItem: openPlaylistItem
+            openPlaylistItem: openPlaylistItem,
+            openShioriItem: openPlaybackShioriItem
+        )
+    }
+
+    @discardableResult
+    func executePlaybackSubtitleFocusAction(
+        _ execution: PlaybackSubtitleFocusActionExecution,
+        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool,
+        openPlaylistItem: (PlaybackPlaylistItem) -> Void,
+        openShioriItem: (PlaybackCueResultItem) -> Void
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession else {
+            return false
+        }
+        return executePlaybackSubtitleFocusAction(
+            execution,
+            session: session,
+            continuousPlay: continuousPlay,
+            openPlaylistItem: openPlaylistItem,
+            openShioriItem: openShioriItem
         )
     }
 
@@ -154,7 +182,8 @@ extension AppCoordinator {
         _ execution: PlaybackSubtitleFocusActionExecution,
         session: PlaybackSubtitleFocusSessionStore,
         continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool,
-        openPlaylistItem: (PlaybackPlaylistItem) -> Void
+        openPlaylistItem: (PlaybackPlaylistItem) -> Void,
+        openShioriItem: (PlaybackCueResultItem) -> Void
     ) -> Bool {
         guard playback.subtitleFocusSession === session,
               session.activeKeyboardAction == execution
@@ -164,8 +193,7 @@ extension AppCoordinator {
 
         switch execution.action {
         case .shiori:
-            if case .playlist(let item) = execution.target,
-               case .shiori = item.target {
+            if execution.target.representsSavedShiori {
                 playback.playbackViewModel?.showShioriFeedback(.alreadySaved)
                 _ = session.finishKeyboardAction(execution)
                 return true
@@ -196,6 +224,10 @@ extension AppCoordinator {
             case .playlist(let item):
                 invalidatePlaybackSubtitleFocusForSourceReplacement()
                 openPlaylistItem(item)
+                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
+            case .shiori(let item):
+                invalidatePlaybackSubtitleFocusForSourceReplacement()
+                openShioriItem(item)
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             }
         }
@@ -267,6 +299,9 @@ extension AppCoordinator {
             return
         }
         playbackSubtitleFocusActionTask = nil
+        if result == .saved {
+            _ = session.refreshShioriAfterSave()
+        }
         playback.playbackViewModel?.showShioriFeedback(
             result == .saved ? .saved : .alreadySaved
         )
@@ -312,6 +347,28 @@ extension AppCoordinator {
                 playsContinuouslyFromStart: true
             )
         }
+    }
+
+    private func openPlaybackShioriItem(_ item: PlaybackCueResultItem) {
+        _ = dispatchPlaybackShioriOverlayItem(item) { shiori, scope, continuous in
+            openShiori(
+                shiori,
+                navigationScopeIDs: scope,
+                playsContinuouslyFromStart: continuous
+            )
+        }
+    }
+
+    @discardableResult
+    func dispatchPlaybackShioriOverlayItem(
+        _ item: PlaybackCueResultItem,
+        open: (Shiori, [Int64]?, Bool) -> Void
+    ) -> Bool {
+        guard case .shiori(let shiori) = item.target else {
+            return false
+        }
+        open(shiori, nil, true)
+        return true
     }
 
     private func cancelPlaybackSubtitleFocusActionTask() {

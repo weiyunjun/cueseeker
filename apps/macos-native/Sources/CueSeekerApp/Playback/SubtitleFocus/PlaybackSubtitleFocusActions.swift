@@ -23,12 +23,13 @@ enum PlaybackSubtitleFocusAction: Equatable, Sendable {
 enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
     case current(PlaybackSubtitleFocusActionContext)
     case playlist(PlaybackPlaylistItem)
+    case shiori(PlaybackCueResultItem)
 
     var primaryCueText: String {
         switch self {
         case .current(let context):
             context.cue.text
-        case .playlist(let item):
+        case .playlist(let item), .shiori(let item):
             item.primaryCueText
         }
     }
@@ -37,20 +38,38 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
         switch self {
         case .current(let context):
             context
-        case .playlist(let item):
+        case .playlist(let item), .shiori(let item):
             item.actionContext
         }
     }
 
     var sourceVideoName: String? {
-        guard case .playlist(let item) = self else {
+        let item: PlaybackCueResultItem
+        switch self {
+        case .current:
             return nil
+        case .playlist(let playlistItem):
+            item = playlistItem
+        case .shiori(let shioriItem):
+            item = shioriItem
         }
         switch item.target {
         case .search(let result):
             return result.videoName
         case .shiori(let shiori):
             return shiori.videoName
+        }
+    }
+
+    var representsSavedShiori: Bool {
+        switch self {
+        case .current:
+            return false
+        case .playlist(let item), .shiori(let item):
+            if case .shiori = item.target {
+                return true
+            }
+            return false
         }
     }
 }
@@ -97,10 +116,22 @@ struct PlaybackSubtitleFocusActionExecution: Equatable, Sendable {
         self.generation = generation
     }
 
+    init(
+        action: PlaybackSubtitleFocusAction,
+        shioriItem: PlaybackCueResultItem,
+        generation: Int
+    ) {
+        self.action = action
+        target = .shiori(shioriItem)
+        self.generation = generation
+    }
+
     /// Compatibility accessor for Current-only callers and tests.
     var context: PlaybackSubtitleFocusActionContext {
         guard case .current(let context) = target else {
-            preconditionFailure("Playlist action execution has no required Current context")
+            preconditionFailure(
+                "Cue Result action execution has no required Current context"
+            )
         }
         return context
     }

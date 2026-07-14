@@ -275,8 +275,12 @@ final class PlaybackPlaylistSource: ObservableObject {
         return true
     }
 
-    func makeSessionWindowStore() -> PlaybackPlaylistSessionWindowStore? {
-        guard isActive, boundary.totalCount > 0 else {
+    func makeSessionWindowStore(
+        includingEmpty: Bool = false
+    ) -> PlaybackPlaylistSessionWindowStore? {
+        guard isActive,
+              includingEmpty || boundary.totalCount > 0
+        else {
             return nil
         }
         return PlaybackPlaylistSessionWindowStore(source: self)
@@ -580,3 +584,14 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         )
     }
 }
+
+// Playlist was the first playback module to consume this result-window
+// transport. The neutral names make the same bounded transport available to
+// standalone Shiori and Search modules without introducing another virtual
+// list or changing the established playback-origin Playlist semantics.
+typealias PlaybackCueResultItemIdentity = PlaybackPlaylistItemIdentity
+typealias PlaybackCueResultItem = PlaybackPlaylistItem
+typealias PlaybackCueResultSource = PlaybackPlaylistSource
+typealias PlaybackCueResultSourceWindowRequest = PlaybackPlaylistSourceWindowRequest
+typealias PlaybackCueResultSourceWindowResponse = PlaybackPlaylistSourceWindowResponse
+typealias PlaybackCueResultSessionWindowStore = PlaybackPlaylistSessionWindowStore

@@ -211,6 +211,46 @@ Overlay window without changing their established behavior.
   checkpoints to visible and all-cue database search loops so Session teardown
   stops the worker instead of merely rejecting its late UI result.
 
+### 7. Standalone Shiori Module
+
+- Classified standalone Shiori as platform UI/session presentation over the
+  existing persisted Shiori semantics. The module reads the established Core
+  `created_at DESC, id DESC` order and Cue Presentation data without adding a
+  second Shiori model, filter state, or Workbench row-store dependency.
+- Added a Session-owned Shiori source and bounded window that are independent
+  from the existing playback-origin Playlist. The source uses the exact Shiori
+  count and cancellation-aware page reader, always creates a window even when
+  the count is zero, and defaults a nonempty list to ordinal zero.
+- Exposed the existing Playlist result-window transport under neutral Playback
+  Cue Result names while preserving Playlist source identity, scope, and
+  lifetime. Playlist and Shiori now mount the same shared Result overlay,
+  native Reel, 32-item window policy, Focus Anchor, wheel, scrollbar, keyboard,
+  settlement, measurement, drawing, and recycling implementation.
+- Made Sequence Number a Result-module presentation policy. Playlist continues
+  to render the one-based source ordinal; Shiori passes no Sequence Number.
+  Both modules use the same persistent Show Cue Group state and cache
+  invalidation without changing item identity, Primary Cue identity, selection,
+  or data order.
+- Generalized Session Result routing by module for selection commits, pending
+  identity, remote keyboard targets, snapshot observation, motion, scrollbar
+  state, and deferred actions. Each module retains its own loaded window and
+  selected ordinal across Tab or sidebar transitions, and stale callbacks from
+  a disappeared module cannot mutate the currently selected module.
+- Added Shiori Up/Down and the shared S/C/Enter contract. S recognizes every
+  displayed Shiori as already saved without writing; C targets only the Primary
+  Cue; Enter destroys the Overlay Session and opens the existing Shiori target
+  for continuous playback. Standalone Shiori Enter explicitly passes a nil
+  navigation scope, restoring the complete database order instead of inheriting
+  a playback-origin Playlist's explicit Workbench scope.
+- Refresh the Session-owned Shiori boundary after a successful Current or
+  Playlist save so a newly saved Primary Cue appears at the head of Shiori
+  without reopening the Overlay. A transition from zero to one creates the
+  first selection and advances source generation before the new page loads.
+- Unified teardown now cancels both Result-window observers and loads, clears
+  their items and selections, invalidates only the Session-owned Shiori source,
+  releases all module references, and leaves the playback-origin Playlist
+  source available for a later Overlay Session.
+
 ## Verification
 
 ### Step 1
@@ -315,13 +355,37 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Step 7
+
+- `swift test --filter 'playbackShiori|playbackPlaylistAndShiori'`
+  - Passed 12 standalone Shiori tests covering canonical database order,
+    50,000-item bounded loading, empty and first-selection states, no Sequence
+    Number, Cue Group identity stability, shared-Reel View rebinding, independent
+    Playlist/Shiori windows, remote settled actions, late-module callback
+    isolation, idempotent S, independent Enter scope, save refresh, and strict
+    cancellation/destruction.
+- `swift test --filter 'PlaybackPlaylist|playbackShiori|playbackPlaylistAndShiori|subtitleFocus|playbackVirtualReel|PlaybackSegmentCompletion|SearchStore'`
+  - Passed 147 Shiori, Playlist, Current, shared-Reel, Search, action, playback,
+    and lifecycle regression tests.
+- `swift test --quiet --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed 7 XCTest tests and the other 722 Swift Testing tests.
+- `swift test --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated persistence migration test.
+- `swift test --quiet`
+  - The final combined run passed all 7 XCTest tests and 722 of 723 Swift
+    Testing tests. The one failure was the already-recorded order-dependent
+    `ApplicationPersistenceTests` case from Step 4: another parallel test's
+    registered `workbenchPanelMode = search` value was visible instead of the
+    isolated fixture's legacy `shiori` value. It passes alone; Step 7 does not
+    modify persistence code or tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Connect the standalone Shiori module through the same shared Reel without
-  creating another virtual-list implementation.
 - Update Workbench Search to the documented 100ms live query before connecting
   Playback Search to the same result semantics.

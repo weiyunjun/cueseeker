@@ -78,16 +78,36 @@ struct PlaybackMultiModuleOverlay: View {
                 onCommitNativeReelSelection: session.commitNativeReelSelection,
                 allowsNativeWheelInput: session.allowsNativeWheelInput,
                 allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
-                consumeDeferredAction: session.consumeDeferredKeyboardActionIfReady,
-                onScrollbarDraggingChanged: session.noteScrollbarDragging,
-                onCueReelMotionChanged: session.noteCueReelMotion,
+                consumeDeferredAction: {
+                    session.consumeDeferredKeyboardActionIfReady(
+                        module: .current
+                    )
+                },
+                onScrollbarDraggingChanged: {
+                    session.noteScrollbarDragging($0, module: .current)
+                },
+                onCueReelMotionChanged: {
+                    session.noteCueReelMotion($0, module: .current)
+                },
                 onExecuteAction: onExecuteAction
             )
         } else if session.selectedModule == .playlist,
                   let playlistWindow = session.playlistWindow {
-            PlaybackPlaylistOverlay(
+            PlaybackCueResultOverlay(
                 session: session,
                 windowStore: playlistWindow,
+                module: .playlist,
+                showsSequenceNumber: true,
+                uiProbeScope: uiProbeScope,
+                onExecuteAction: onExecuteAction
+            )
+        } else if session.selectedModule == .shiori,
+                  let shioriWindow = session.shioriWindow {
+            PlaybackCueResultOverlay(
+                session: session,
+                windowStore: shioriWindow,
+                module: .shiori,
+                showsSequenceNumber: false,
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction
             )

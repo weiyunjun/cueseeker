@@ -605,14 +605,14 @@ extension AppCoordinator {
 
             switch keyCode {
             case 126:
-                if subtitleFocusSession.selectedModule == .current
-                    || subtitleFocusSession.selectedModule == .playlist {
+                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
+                    == true {
                     _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
                 }
                 return true
             case 125:
-                if subtitleFocusSession.selectedModule == .current
-                    || subtitleFocusSession.selectedModule == .playlist {
+                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
+                    == true {
                     _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
                 }
                 return true
@@ -620,8 +620,8 @@ extension AppCoordinator {
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.selectedModule == .current
-                    || subtitleFocusSession.selectedModule == .playlist {
+                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
+                    == true {
                     _ = requestPlaybackSubtitleFocusAction(.shiori)
                 }
                 return true
@@ -629,8 +629,8 @@ extension AppCoordinator {
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.selectedModule == .current
-                    || subtitleFocusSession.selectedModule == .playlist {
+                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
+                    == true {
                     _ = requestPlaybackSubtitleFocusAction(.copyCueText)
                 }
                 return true
@@ -638,8 +638,8 @@ extension AppCoordinator {
                 guard !isRepeat else {
                     return true
                 }
-                if subtitleFocusSession.selectedModule == .current
-                    || subtitleFocusSession.selectedModule == .playlist {
+                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
+                    == true {
                     _ = requestPlaybackSubtitleFocusAction(.playFromThisCue)
                 }
                 return true

@@ -1,14 +1,15 @@
 import AppKit
 import Foundation
 
-/// Session-scoped presentation adapter between an existing playback-origin
-/// Playlist window and the shared virtual Reel.
+/// Session-scoped presentation adapter between a bounded Playback Cue Result
+/// window and the shared virtual Reel.
 @MainActor
-final class PlaybackPlaylistReelAdapter: PlaybackVirtualReelContentAdapter {
-    private let windowStore: PlaybackPlaylistSessionWindowStore
+final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
+    private let windowStore: PlaybackCueResultSessionWindowStore
     private let measurementCache: PlaybackCueResultMeasurementCache
     private let layout = PlaybackCueResultLayout()
     private let measurementCacheCapacity: Int
+    private let showsSequenceNumber: Bool
     private var presentationRevision: UInt64 = 0
     private var measurementAccessSequence: UInt64 = 0
     private var measuredOrdinalAccess: [Int: UInt64] = [:]
@@ -17,12 +18,14 @@ final class PlaybackPlaylistReelAdapter: PlaybackVirtualReelContentAdapter {
     private(set) var showsCueGroup: Bool
 
     init(
-        windowStore: PlaybackPlaylistSessionWindowStore,
+        windowStore: PlaybackCueResultSessionWindowStore,
         showsCueGroup: Bool,
+        showsSequenceNumber: Bool = true,
         measurementCacheCapacity: Int = 64
     ) {
         self.windowStore = windowStore
         self.showsCueGroup = showsCueGroup
+        self.showsSequenceNumber = showsSequenceNumber
         let resolvedCapacity = max(1, measurementCacheCapacity)
         self.measurementCacheCapacity = resolvedCapacity
         measurementCache = PlaybackCueResultMeasurementCache(
@@ -66,7 +69,7 @@ final class PlaybackPlaylistReelAdapter: PlaybackVirtualReelContentAdapter {
         return true
     }
 
-    func item(at ordinal: Int) -> PlaybackPlaylistItem? {
+    func item(at ordinal: Int) -> PlaybackCueResultItem? {
         guard isActive else {
             return nil
         }
@@ -77,7 +80,9 @@ final class PlaybackPlaylistReelAdapter: PlaybackVirtualReelContentAdapter {
         guard let item = item(at: ordinal), item.ordinal == ordinal else {
             return nil
         }
-        return item.cueResult(sequenceNumber: ordinal + 1)
+        return item.cueResult(
+            sequenceNumber: showsSequenceNumber ? ordinal + 1 : nil
+        )
     }
 
     func itemID(at ordinal: Int) -> AnyHashable? {
@@ -174,3 +179,5 @@ final class PlaybackPlaylistReelAdapter: PlaybackVirtualReelContentAdapter {
         }
     }
 }
+
+typealias PlaybackPlaylistReelAdapter = PlaybackCueResultReelAdapter

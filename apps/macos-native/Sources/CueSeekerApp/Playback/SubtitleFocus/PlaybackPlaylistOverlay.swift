@@ -1,8 +1,10 @@
 import SwiftUI
 
-struct PlaybackPlaylistOverlay: View {
+struct PlaybackCueResultOverlay: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
-    @ObservedObject var windowStore: PlaybackPlaylistSessionWindowStore
+    @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
+    let module: PlaybackOverlayModule
+    let showsSequenceNumber: Bool
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
@@ -23,9 +25,10 @@ struct PlaybackPlaylistOverlay: View {
             ZStack(alignment: .top) {
                 PlaybackTheme.subtitleFocusOverlayBackground
 
-                PlaybackPlaylistReelRepresentable(
+                PlaybackCueResultReelRepresentable(
                     windowStore: windowStore,
                     showsCueGroup: cueGroupPresentation.isEnabled,
+                    showsSequenceNumber: showsSequenceNumber,
                     selectedOrdinal: windowStore.selectedOrdinal,
                     uiProbeScope: uiProbeScope,
                     keyboardNavigationRequest: session.keyboardNavigationRequest,
@@ -36,7 +39,7 @@ struct PlaybackPlaylistOverlay: View {
                     allowsNativeWheelInput: session.allowsNativeWheelInput,
                     allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
                     onScrollbarDraggingChanged: { isDragging in
-                        session.noteScrollbarDragging(isDragging)
+                        session.noteScrollbarDragging(isDragging, module: module)
                         if !isDragging {
                             executeDeferredActionIfReady()
                         }
@@ -44,6 +47,7 @@ struct PlaybackPlaylistOverlay: View {
                     onNativeMotionGateChanged: handleReelMotionChanged,
                     onKeyboardMotionChanged: handleReelMotionChanged
                 )
+                .id("\(module.rawValue):\(windowStore.reelDatasetID ?? "empty")")
                 .frame(
                     width: viewportSize.width,
                     height: reelViewportHeight,
@@ -56,8 +60,8 @@ struct PlaybackPlaylistOverlay: View {
             .contentShape(Rectangle())
         }
         .onDisappear {
-            session.noteCueReelMotion(false)
-            session.noteScrollbarDragging(false)
+            session.noteCueReelMotion(false, module: module)
+            session.noteScrollbarDragging(false, module: module)
         }
         .onChange(of: windowStore.snapshot) { _ in
             Task { @MainActor in
@@ -67,7 +71,7 @@ struct PlaybackPlaylistOverlay: View {
     }
 
     private func handleReelMotionChanged(_ isActive: Bool) {
-        session.noteCueReelMotion(isActive)
+        session.noteCueReelMotion(isActive, module: module)
         if !isActive {
             executeDeferredActionIfReady()
         }
@@ -76,7 +80,10 @@ struct PlaybackPlaylistOverlay: View {
     private func commitReelSelection(
         _ commit: PlaybackVirtualReelSelectionCommit
     ) -> Bool {
-        let didCommit = session.commitVirtualReelSelection(commit)
+        let didCommit = session.commitVirtualReelSelection(
+            commit,
+            module: module
+        )
         if didCommit {
             Task { @MainActor in
                 executeDeferredActionIfReady()
@@ -86,7 +93,9 @@ struct PlaybackPlaylistOverlay: View {
     }
 
     private func executeDeferredActionIfReady() {
-        guard let execution = session.consumeDeferredKeyboardActionIfReady() else {
+        guard let execution = session.consumeDeferredKeyboardActionIfReady(
+            module: module
+        ) else {
             return
         }
         _ = onExecuteAction(execution)
@@ -94,24 +103,27 @@ struct PlaybackPlaylistOverlay: View {
 }
 
 @MainActor
-private struct PlaybackPlaylistReelRepresentable: NSViewRepresentable {
+private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     @MainActor
     final class Coordinator {
-        let adapter: PlaybackPlaylistReelAdapter
+        let adapter: PlaybackCueResultReelAdapter
 
         init(
-            windowStore: PlaybackPlaylistSessionWindowStore,
-            showsCueGroup: Bool
+            windowStore: PlaybackCueResultSessionWindowStore,
+            showsCueGroup: Bool,
+            showsSequenceNumber: Bool
         ) {
-            adapter = PlaybackPlaylistReelAdapter(
+            adapter = PlaybackCueResultReelAdapter(
                 windowStore: windowStore,
-                showsCueGroup: showsCueGroup
+                showsCueGroup: showsCueGroup,
+                showsSequenceNumber: showsSequenceNumber
             )
         }
     }
 
-    let windowStore: PlaybackPlaylistSessionWindowStore
+    let windowStore: PlaybackCueResultSessionWindowStore
     let showsCueGroup: Bool
+    let showsSequenceNumber: Bool
     let selectedOrdinal: Int?
     let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
@@ -128,13 +140,14 @@ private struct PlaybackPlaylistReelRepresentable: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             windowStore: windowStore,
-            showsCueGroup: showsCueGroup
+            showsCueGroup: showsCueGroup,
+            showsSequenceNumber: showsSequenceNumber
         )
     }
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusReelContainerView {
         UIInvalidationProbe.count(
-            "playback.playlist.native_make",
+            "playback.cue_result.native_make",
             scope: uiProbeScope
         )
         let view = PlaybackSubtitleFocusReelContainerView()
@@ -147,7 +160,7 @@ private struct PlaybackPlaylistReelRepresentable: NSViewRepresentable {
         context: Context
     ) {
         UIInvalidationProbe.count(
-            "playback.playlist.native_update",
+            "playback.cue_result.native_update",
             scope: uiProbeScope
         )
         update(nsView, adapter: context.coordinator.adapter)
@@ -162,7 +175,7 @@ private struct PlaybackPlaylistReelRepresentable: NSViewRepresentable {
 
     private func update(
         _ view: PlaybackSubtitleFocusReelContainerView,
-        adapter: PlaybackPlaylistReelAdapter
+        adapter: PlaybackCueResultReelAdapter
     ) {
         _ = adapter.setShowsCueGroup(showsCueGroup)
         view.uiProbeScope = uiProbeScope

@@ -3,6 +3,47 @@ import Foundation
 
 @MainActor
 extension AppCoordinator {
+    func makePlaybackShioriOverlaySource() -> PlaybackCueResultSource {
+        let totalCount = subtitleDatabase.flatMap {
+            try? $0.shioriCount()
+        } ?? 0
+        let databaseReader = playbackSubtitleFocusDatabaseReader
+
+        return PlaybackCueResultSource(
+            kind: .shiori,
+            totalCount: totalCount,
+            knownItemIDsByOrdinal: [:]
+        ) { request in
+            do {
+                let page = try await databaseReader.shioriPage(
+                    limit: request.ordinalRange.count,
+                    offset: request.ordinalRange.lowerBound
+                )
+                guard !Task.isCancelled,
+                      page.shioris.count == request.ordinalRange.count
+                else {
+                    return nil
+                }
+                let items = zip(request.ordinalRange, page.shioris).map {
+                    PlaybackCueResultItem(
+                        shiori: $1,
+                        cuePresentation: page.cuePresentationsByShioriID[$1.id],
+                        ordinal: $0
+                    )
+                }
+                return PlaybackCueResultSourceWindowResponse(
+                    request: request,
+                    items: items
+                )
+            } catch is CancellationError {
+                return nil
+            } catch {
+                print("Failed to load Playback Shiori window: \(error)")
+                return nil
+            }
+        }
+    }
+
     func installSearchPlaybackPlaylistSource(
         seed result: SubtitleSearchResult
     ) {
