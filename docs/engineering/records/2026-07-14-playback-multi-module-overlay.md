@@ -60,6 +60,40 @@ capability will be enabled when the Playlist snapshot is implemented.
 - Incremented the measurement style revision so pre-change cached geometry
   cannot be reused.
 
+### 3. Item-Agnostic Shared Virtual Reel
+
+- Extracted Current's local placement, dynamic extent measurement, direct
+  drawing, scrolling, selection, scrollbar, and view recycling behind a shared
+  item adapter without changing Current's accepted geometry or interactions.
+- Defined a snapshot contract with a stable dataset identity, generation,
+  monotonic revision, stable total count within one generation, and one
+  contiguous loaded ordinal range. Every loaded item must also provide a stable
+  item identity; missing identities fail closed instead of falling back to an
+  ordinal-derived identity.
+- Made adapters responsible only for item identity, extent measurement,
+  drawing, visible-window requests, measurement invalidation, and complete
+  teardown. The shared reel remains independent of Current, Playlist, Search,
+  and Shiori data models.
+- Routed Current through a dedicated adapter while preserving its five-point
+  internal Visual Line Stack, eight-point gap between independent cues,
+  50,000-item viewport-bounded work, exact cue actions, and existing motion.
+- Added the standard 32-item remote window policy for visible selection,
+  keyboard, wheel, and scrollbar navigation. An unloaded target is committed
+  only after a matching dataset and generation window is mounted.
+- Enforced latest-intent-wins behavior across external selection changes,
+  keyboard and wheel input, scrollbar commits, restore requests, and delayed
+  window responses. Scrollbar drag previews remain non-committing until mouse
+  up, including when the preview requires a remote window.
+- Reject stale generations, revision regressions, malformed replacement
+  snapshots, and same-generation total-count changes without allowing a late
+  replacement adapter to clear valid mounted content. Pending requests are
+  reissued when their adapter transport or intermediate partial window changes.
+- Bound Current's adapter generation to the overlay session generation. Session
+  dismantle cancels motion and pending requests, clears selection and geometry,
+  releases measurements, and invalidates the mounted adapter.
+- Kept Playback Cue Result rendering and all Playlist, Search, and Shiori data
+  adapters out of this infrastructure-only step.
+
 ## Verification
 
 ### Step 1
@@ -87,13 +121,30 @@ capability will be enabled when the Playlist snapshot is implemented.
 - `git diff --check`
   - Passed.
 
+### Step 3
+
+- `swift test --filter playbackVirtualReel`
+  - Passed 24 shared-reel tests covering 50,000-item bounded work, empty and
+    partial snapshots, stable identity, generation and revision rejection,
+    adapter replacement, pending-window reissue, latest-intent selection,
+    discrete and precise wheel window loading, rejected commits, exact remote
+    scrollbar preview, and preview cancellation.
+- `swift test --filter subtitleFocus`
+  - Passed all 64 Current regression tests.
+- `swift test`
+  - Passed 7 XCTest tests and 669 Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Extract the Current virtual reel into item-agnostic infrastructure while
-  retaining this step's Visual Line Stack behavior unchanged.
+- Add the shared Playback Cue Result renderer and its mixed Primary Cue and Cue
+  Group extent calculation without binding module-specific keyboard actions.
+- Connect Playlist, Search, and Shiori through dedicated adapters that use this
+  shared reel instead of creating independent or fully materialized lists.
 - Define and capture the real Playlist snapshot before enabling its sidebar
   capability in production.

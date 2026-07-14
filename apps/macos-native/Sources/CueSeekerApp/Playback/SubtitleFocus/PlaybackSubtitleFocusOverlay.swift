@@ -69,6 +69,7 @@ struct PlaybackMultiModuleOverlay: View {
             PlaybackSubtitleFocusOverlay(
                 snapshot: snapshot,
                 cues: cues,
+                contentGeneration: session.token.sessionGeneration,
                 uiProbeScope: uiProbeScope,
                 keyboardNavigationRequest: session.keyboardNavigationRequest,
                 blocksNewNavigation: session.pendingKeyboardAction != nil
@@ -163,6 +164,7 @@ struct PlaybackModuleSidebar: View {
 struct PlaybackSubtitleFocusOverlay: View {
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
+    let contentGeneration: Int
     let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let blocksNewNavigation: Bool
@@ -180,6 +182,7 @@ struct PlaybackSubtitleFocusOverlay: View {
     init(
         snapshot: SubtitleFocusSnapshot,
         cues: [SubtitleFocusCue]? = nil,
+        contentGeneration: Int = 0,
         uiProbeScope: String? = nil,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
         blocksNewNavigation: Bool = false,
@@ -196,6 +199,7 @@ struct PlaybackSubtitleFocusOverlay: View {
     ) {
         self.snapshot = snapshot
         self.cues = cues ?? snapshot.cues
+        self.contentGeneration = contentGeneration
         self.uiProbeScope = uiProbeScope
         self.keyboardNavigationRequest = keyboardNavigationRequest
         self.blocksNewNavigation = blocksNewNavigation
@@ -237,6 +241,7 @@ struct PlaybackSubtitleFocusOverlay: View {
                     cues: cues,
                     totalCount: snapshot.totalCount,
                     selectedOrdinal: snapshot.selectedOrdinal,
+                    contentGeneration: contentGeneration,
                     uiProbeScope: uiProbeScope,
                     keyboardNavigationRequest: keyboardNavigationRequest,
                     reducesMotion: reduceMotion,

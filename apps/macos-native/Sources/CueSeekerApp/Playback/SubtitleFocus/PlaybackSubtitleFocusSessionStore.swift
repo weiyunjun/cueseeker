@@ -86,6 +86,22 @@ struct PlaybackSubtitleFocusKeyboardNavigationRequest: Equatable, Sendable {
     let sequence: Int
     let direction: SubtitleFocusNavigationDirection
     let targetOrdinal: Int
+    let contentDatasetID: String?
+    let contentGeneration: UInt64?
+
+    init(
+        sequence: Int,
+        direction: SubtitleFocusNavigationDirection,
+        targetOrdinal: Int,
+        contentDatasetID: String? = nil,
+        contentGeneration: UInt64? = nil
+    ) {
+        self.sequence = sequence
+        self.direction = direction
+        self.targetOrdinal = targetOrdinal
+        self.contentDatasetID = contentDatasetID
+        self.contentGeneration = contentGeneration
+    }
 }
 
 @MainActor

@@ -436,6 +436,1711 @@ func subtitleFocusViewportWorkIsIndependentOfFiveHundredOrFiftyThousandCues() {
 
 @MainActor
 @Test
+func playbackVirtualReelUsesOnlyLocalWorkForContentAgnosticItems() throws {
+    _ = NSApplication.shared
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "test",
+        generation: 1,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<50_000,
+        isComplete: true,
+        itemPrefix: "generic"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 25_000,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    let selected = try #require(
+        view.placementsForTesting.first { $0.ordinal == 25_000 }
+    )
+    #expect(selected.itemID == AnyHashable("generic-25000"))
+    #expect(selected.extent.naturalHeight == 128)
+    #expect(view.placementsForTesting.count <= 18)
+    #expect(adapter.measuredOrdinals.count <= 18)
+    #expect(adapter.measuredOrdinals.allSatisfy {
+        abs($0 - 25_000) <= 9
+    })
+    view.invalidate()
+    #expect(adapter.invalidationCount == 1)
+    #expect(adapter.measuredOrdinals.isEmpty)
+}
+
+@MainActor
+@Test
+func playbackVirtualReelKeepsPositionAndCacheAcrossSameGenerationExpansion() {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "test",
+        generation: 4,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 6..<16,
+        isComplete: false,
+        itemPrefix: "window"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    let initiallyMeasured = adapter.measuredOrdinals
+    #expect(!view.acceptsScrollbarInteractionForTesting)
+
+    adapter.replaceSnapshot(
+        generation: 4,
+        revision: 2,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "window"
+    )
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    #expect(view.optionalSelectedOrdinalForTesting == 12)
+    #expect(view.fractionalOrdinalForTesting == 12)
+    #expect(initiallyMeasured.isSubset(of: adapter.measuredOrdinals))
+    #expect(adapter.invalidationCount == 0)
+    #expect(view.acceptsScrollbarInteractionForTesting)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelGenerationReplacementCancelsStaleCommitAndCache() async {
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    let first = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 8,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "old"
+    )
+    let replacement = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 9,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "new"
+    )
+    let staleRequest = PlaybackSubtitleFocusKeyboardNavigationRequest(
+        sequence: 1,
+        direction: .forward,
+        targetOrdinal: 13,
+        contentDatasetID: "search",
+        contentGeneration: 8
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: first,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: staleRequest,
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    view.update(
+        contentAdapter: replacement,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: staleRequest,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    try? await Task.sleep(nanoseconds: 300_000_000)
+
+    #expect(commits.isEmpty)
+    #expect(first.invalidationCount == 1)
+    #expect(first.measuredOrdinals.isEmpty)
+    #expect(view.optionalSelectedOrdinalForTesting == 4)
+    #expect(view.fractionalOrdinalForTesting == 4)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 4 }?.itemID
+            == AnyHashable("new-4")
+    )
+
+    view.update(
+        contentAdapter: replacement,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 5,
+            contentDatasetID: "search",
+            contentGeneration: 9
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    await Task.yield()
+    await Task.yield()
+    #expect(commits == [PlaybackVirtualReelSelectionCommit(
+        datasetID: AnyHashable("search"),
+        generation: 9,
+        ordinal: 5
+    )])
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelRejectsRequestFromOtherDatasetAtSameGeneration() async {
+    let first = PlaybackVirtualReelTestAdapter(
+        datasetID: "playlist",
+        generation: 1,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "playlist"
+    )
+    let replacement = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "search"
+    )
+    let staleRequest = PlaybackSubtitleFocusKeyboardNavigationRequest(
+        sequence: 1,
+        direction: .forward,
+        targetOrdinal: 13,
+        contentDatasetID: "playlist",
+        contentGeneration: 1
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: first,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: staleRequest,
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    view.update(
+        contentAdapter: replacement,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: staleRequest,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    try? await Task.sleep(nanoseconds: 300_000_000)
+    #expect(commits.isEmpty)
+    #expect(view.optionalSelectedOrdinalForTesting == 4)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 4 }?.itemID
+            == AnyHashable("search-4")
+    )
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelAcceptsEmptyContentWithoutSyntheticSelection() {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 1,
+        totalCount: 0,
+        loadedOrdinalRange: 0..<0,
+        isComplete: true,
+        itemPrefix: "empty"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: nil,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    #expect(view.placementsForTesting.isEmpty)
+    #expect(view.scrollbarPresentationForTesting.vertical == nil)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelRejectsRevisionRegressionAndReleasesReplacedAdapter() {
+    let current = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 3,
+        revision: 2,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "current"
+    )
+    let stale = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 3,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "stale"
+    )
+    let newer = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 3,
+        revision: 3,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "newer"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        contentAdapter: current,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    view.update(
+        contentAdapter: stale,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(stale.invalidationCount == 1)
+    #expect(current.invalidationCount == 0)
+    #expect(view.optionalSelectedOrdinalForTesting == 12)
+    #expect(view.fractionalOrdinalForTesting == 12)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 12 }?.itemID
+            == AnyHashable("current-12")
+    )
+
+    view.update(
+        contentAdapter: newer,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(current.invalidationCount == 1)
+    #expect(newer.invalidationCount == 0)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 12 }?.itemID
+            == AnyHashable("newer-12")
+    )
+    let invalidStale = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 3,
+        revision: 2,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<21,
+        isComplete: false,
+        itemPrefix: "invalid-stale"
+    )
+    view.update(
+        contentAdapter: invalidStale,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(invalidStale.invalidationCount == 1)
+    #expect(view.optionalSelectedOrdinalForTesting == 12)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 12 }?.itemID
+            == AnyHashable("newer-12")
+    )
+    let invalidFuture = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 4,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<21,
+        isComplete: false,
+        itemPrefix: "invalid-future"
+    )
+    view.update(
+        contentAdapter: invalidFuture,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(invalidFuture.invalidationCount == 1)
+    #expect(view.optionalSelectedOrdinalForTesting == 12)
+    let changedTotal = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 3,
+        revision: 4,
+        totalCount: 21,
+        loadedOrdinalRange: 0..<21,
+        isComplete: true,
+        itemPrefix: "changed-total"
+    )
+    view.update(
+        contentAdapter: changedTotal,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(changedTotal.invalidationCount == 1)
+    #expect(view.optionalSelectedOrdinalForTesting == 12)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelRejectedKeyboardCommitUnlocksNextRequest() async {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 5,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "result"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    var attempts: [Int] = []
+    var acceptsCommit = false
+    var motionGateStates: [Bool] = []
+    view.onCommitVirtualReelSelection = { commit in
+        attempts.append(commit.ordinal)
+        return acceptsCommit
+    }
+    view.onNativeMotionGateChanged = { motionGateStates.append($0) }
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 13,
+            contentDatasetID: "search",
+            contentGeneration: 5
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    await Task.yield()
+    await Task.yield()
+    #expect(attempts == [13])
+    #expect(view.optionalSelectedOrdinalForTesting == 12)
+    #expect(view.fractionalOrdinalForTesting == 12)
+    #expect(motionGateStates.last == false)
+
+    acceptsCommit = true
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 2,
+            direction: .forward,
+            targetOrdinal: 14,
+            contentDatasetID: "search",
+            contentGeneration: 5
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    await Task.yield()
+    await Task.yield()
+    #expect(attempts == [13, 14])
+    #expect(view.optionalSelectedOrdinalForTesting == 14)
+    #expect(motionGateStates.last == false)
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 14,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 15,
+            contentDatasetID: "search",
+            contentGeneration: 5
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    await Task.yield()
+    #expect(attempts == [13, 14])
+    #expect(view.optionalSelectedOrdinalForTesting == 14)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelInvalidateClearsStateAndCancelsPendingCommit() async {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 6,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "result"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    var motionGateStates: [Bool] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.onNativeMotionGateChanged = { motionGateStates.append($0) }
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 13,
+            contentDatasetID: "search",
+            contentGeneration: 6
+        ),
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    view.invalidate()
+    try? await Task.sleep(nanoseconds: 300_000_000)
+
+    #expect(commits.isEmpty)
+    #expect(motionGateStates.last == false)
+    #expect(adapter.invalidationCount == 1)
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    #expect(view.fractionalOrdinalForTesting == 0)
+    #expect(view.measurementCacheCountForTesting == 0)
+    #expect(view.scrollbarPresentationForTesting.vertical == nil)
+}
+
+@MainActor
+@Test
+func playbackVirtualReelEmptyContentRejectsAllInputAndOldRequest() async {
+    let empty = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 1,
+        totalCount: 0,
+        loadedOrdinalRange: 0..<0,
+        isComplete: true,
+        itemPrefix: "empty"
+    )
+    let populated = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 2,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "result"
+    )
+    let staleRequest = PlaybackSubtitleFocusKeyboardNavigationRequest(
+        sequence: 1,
+        direction: .forward,
+        targetOrdinal: 0,
+        contentDatasetID: "search",
+        contentGeneration: 1
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    var motionGateStates: [Bool] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.onNativeMotionGateChanged = { motionGateStates.append($0) }
+    view.update(
+        contentAdapter: empty,
+        selectedOrdinal: nil,
+        keyboardNavigationRequest: staleRequest,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.applyPreciseWheelDeltaForTesting(-500)
+    view.settlePreciseWheelForTesting()
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.5
+    ))
+    await Task.yield()
+    #expect(commits.isEmpty)
+    #expect(motionGateStates.allSatisfy { !$0 })
+
+    view.update(
+        contentAdapter: populated,
+        selectedOrdinal: 0,
+        keyboardNavigationRequest: staleRequest,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    await Task.yield()
+    #expect(commits.isEmpty)
+    view.update(
+        contentAdapter: populated,
+        selectedOrdinal: 0,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 2,
+            direction: .forward,
+            targetOrdinal: 1,
+            contentDatasetID: "search",
+            contentGeneration: 2
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: false
+    )
+    await Task.yield()
+    await Task.yield()
+    #expect(commits.map(\.ordinal) == [1])
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelSameAdapterGenerationClearsMeasurements() {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "old"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(!adapter.measuredOrdinals.isEmpty)
+    adapter.replaceSnapshot(
+        generation: 2,
+        revision: 1,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "new"
+    )
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(adapter.measurementInvalidationCount == 1)
+    #expect(adapter.invalidationCount == 0)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 4 }?.itemID
+            == AnyHashable("new-4")
+    )
+    adapter.replaceSnapshot(
+        generation: 1,
+        revision: 99,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "regressed"
+    )
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 4,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(adapter.invalidationCount == 1)
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    #expect(view.placementsForTesting.isEmpty)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelInvalidSnapshotInvalidatesMountedAdapterOnce() {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "valid"
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    adapter.replaceSnapshot(
+        generation: 1,
+        revision: 2,
+        loadedOrdinalRange: 0..<21,
+        isComplete: false,
+        itemPrefix: "invalid"
+    )
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(adapter.invalidationCount == 1)
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    #expect(view.placementsForTesting.isEmpty)
+}
+
+@MainActor
+@Test
+func playbackVirtualReelMissingStableIdentityFailsClosed() {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 1,
+        totalCount: 20,
+        loadedOrdinalRange: 0..<20,
+        isComplete: true,
+        itemPrefix: "result",
+        missingItemIDs: [12]
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(view.placementsForTesting.isEmpty)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelLoadsRemoteWindowBeforeScrollbarCommit() throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 7,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(initial.requestedWindows.isEmpty)
+    #expect(view.acceptsScrollbarInteractionForTesting)
+
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.75
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    let request = try #require(initial.requestedWindows.last)
+    #expect(request.reason == .scrollbar)
+    #expect(request.suggestedOrdinalRange.count == 32)
+    #expect(request.suggestedOrdinalRange.contains(request.targetOrdinal))
+    #expect(commits.isEmpty)
+
+    let response = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 7,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: request.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "remote",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: response,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(commits.map(\.ordinal) == [request.targetOrdinal])
+    #expect(view.optionalSelectedOrdinalForTesting == request.targetOrdinal)
+    #expect(view.fractionalOrdinalForTesting == CGFloat(request.targetOrdinal))
+    #expect(view.placementsForTesting.count <= 18)
+    #expect(response.snapshot.loadedOrdinalRange.count == 32)
+    #expect(!response.snapshot.isComplete)
+    #expect(initial.invalidationCount == 1)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelBootstrapsAnInitiallyEmptyRemoteWindow() throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 4,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<0,
+        isComplete: false,
+        itemPrefix: "empty-window",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 20_000,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    let request = try #require(initial.requestedWindows.last)
+    #expect(request.reason == .visible)
+    #expect(request.targetOrdinal == 20_000)
+    #expect(request.suggestedOrdinalRange.count == 32)
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+
+    let response = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 4,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: request.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "loaded-window",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: response,
+        selectedOrdinal: 20_000,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(commits.isEmpty)
+    #expect(view.optionalSelectedOrdinalForTesting == 20_000)
+    #expect(view.fractionalOrdinalForTesting == 20_000)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 20_000 }?.itemID
+            == AnyHashable("loaded-window-20000")
+    )
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelRejectedRemoteCommitReloadsPriorWindow() throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 10,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var attemptedOrdinals: [Int] = []
+    view.onCommitVirtualReelSelection = { commit in
+        attemptedOrdinals.append(commit.ordinal)
+        return false
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.75
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    let remoteRequest = try #require(initial.requestedWindows.last)
+    let remote = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 10,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: remoteRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "remote",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: remote,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(attemptedOrdinals == [remoteRequest.targetOrdinal])
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    let fallbackRequest = try #require(remote.requestedWindows.last)
+    #expect(fallbackRequest.reason == .visible)
+    #expect(fallbackRequest.targetOrdinal == 16)
+
+    let fallback = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 10,
+        revision: 3,
+        totalCount: 50_000,
+        loadedOrdinalRange: fallbackRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "fallback",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: fallback,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(attemptedOrdinals == [remoteRequest.targetOrdinal])
+    #expect(view.optionalSelectedOrdinalForTesting == 16)
+    #expect(view.fractionalOrdinalForTesting == 16)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 16 }?.itemID
+            == AnyHashable("fallback-16")
+    )
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelRejectsLateRemoteWindowFromOldGeneration() throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.75
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    let request = try #require(initial.requestedWindows.last)
+
+    let replacement = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 2,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "replacement",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: replacement,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    let staleResponse = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 1,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: request.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "stale",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: staleResponse,
+        selectedOrdinal: request.targetOrdinal,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(commits.isEmpty)
+    #expect(staleResponse.invalidationCount == 1)
+    #expect(view.optionalSelectedOrdinalForTesting == 16)
+    #expect(
+        view.placementsForTesting.first { $0.ordinal == 16 }?.itemID
+            == AnyHashable("replacement-16")
+    )
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelReissuesPendingRequestAcrossReplacementWindows() throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 20,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 100,
+            contentDatasetID: "search",
+            contentGeneration: 20
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    let initialRequest = try #require(initial.requestedWindows.last)
+    #expect(initialRequest.reason == .keyboard)
+
+    let replacementTransport = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 20,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "replacement",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: replacementTransport,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(initial.invalidationCount == 1)
+    #expect(replacementTransport.requestedWindows.last == initialRequest)
+
+    let intermediate = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 20,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: 200..<232,
+        isComplete: false,
+        itemPrefix: "intermediate",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: intermediate,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    let reissuedRequest = try #require(intermediate.requestedWindows.last)
+    #expect(reissuedRequest.reason == .keyboard)
+    #expect(reissuedRequest.targetOrdinal == 100)
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+
+    let response = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 20,
+        revision: 3,
+        totalCount: 50_000,
+        loadedOrdinalRange: reissuedRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "response",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: response,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(commits.map(\.ordinal) == [100])
+    #expect(view.optionalSelectedOrdinalForTesting == 100)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelNewKeyboardIntentSupersedesPendingRemoteCommit() async throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 21,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 100,
+            contentDatasetID: "search",
+            contentGeneration: 21
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    let staleRequest = try #require(initial.requestedWindows.last)
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 2,
+            direction: .forward,
+            targetOrdinal: 17,
+            contentDatasetID: "search",
+            contentGeneration: 21
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    await Task.yield()
+    #expect(commits.map(\.ordinal) == [17])
+
+    let staleResponse = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 21,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: staleRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "stale-response",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: staleResponse,
+        selectedOrdinal: 17,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(commits.map(\.ordinal) == [17])
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    let restoreRequest = try #require(staleResponse.requestedWindows.last)
+    #expect(restoreRequest.reason == .visible)
+    #expect(restoreRequest.targetOrdinal == 17)
+
+    let restored = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 21,
+        revision: 3,
+        totalCount: 50_000,
+        loadedOrdinalRange: restoreRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "restored",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: restored,
+        selectedOrdinal: 17,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(commits.map(\.ordinal) == [17])
+    #expect(view.optionalSelectedOrdinalForTesting == 17)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelExternalSelectionSupersedesPendingRestore() throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 22,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<0,
+        isComplete: false,
+        itemPrefix: "empty",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 100,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    let staleRestore = try #require(initial.requestedWindows.last)
+    #expect(staleRestore.targetOrdinal == 100)
+
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 200,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    let latestRestore = try #require(initial.requestedWindows.last)
+    #expect(latestRestore.targetOrdinal == 200)
+
+    let staleResponse = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 22,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: staleRestore.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "stale-response",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: staleResponse,
+        selectedOrdinal: 200,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    let reissuedRestore = try #require(staleResponse.requestedWindows.last)
+    #expect(reissuedRestore.targetOrdinal == 200)
+
+    let latestResponse = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 22,
+        revision: 3,
+        totalCount: 50_000,
+        loadedOrdinalRange: reissuedRestore.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "latest-response",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: latestResponse,
+        selectedOrdinal: 200,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(view.optionalSelectedOrdinalForTesting == 200)
+    #expect(view.displayedSelectedOrdinalForTesting == 200)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelRemoteScrollbarPreviewWaitsForMouseUpToCommit() async throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 23,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var commits: [PlaybackVirtualReelSelectionCommit] = []
+    view.onCommitVirtualReelSelection = { commit in
+        commits.append(commit)
+        return true
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .changed,
+        positionFraction: 0.75
+    ))
+    let previewRequest = try #require(initial.requestedWindows.last)
+    #expect(commits.isEmpty)
+
+    let previewResponse = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 23,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: previewRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "preview",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: previewResponse,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(commits.isEmpty)
+    #expect(previewResponse.requestedWindows.isEmpty)
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    #expect(view.displayedSelectedOrdinalForTesting == previewRequest.targetOrdinal)
+    #expect(
+        abs(view.fractionalOrdinalForTesting - 37_499.25) < 0.000_001
+    )
+
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.75
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    await Task.yield()
+    #expect(commits.map(\.ordinal) == [previewRequest.targetOrdinal])
+    #expect(view.optionalSelectedOrdinalForTesting == previewRequest.targetOrdinal)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelPendingTargetSuppressesOldSelectionPrefetch() throws {
+    let adapter = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 24,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 100..<110,
+        isComplete: false,
+        itemPrefix: "narrow-window",
+        supportsWindowRequests: true
+    )
+    let request = PlaybackSubtitleFocusKeyboardNavigationRequest(
+        sequence: 1,
+        direction: .forward,
+        targetOrdinal: 1_000,
+        contentDatasetID: "search",
+        contentGeneration: 24
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 105,
+        keyboardNavigationRequest: request,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(adapter.requestedWindows.count == 1)
+    let pendingRequest = try #require(adapter.requestedWindows.first)
+    #expect(pendingRequest.reason == .keyboard)
+    #expect(pendingRequest.targetOrdinal == 1_000)
+
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 105,
+        keyboardNavigationRequest: request,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(adapter.requestedWindows == [pendingRequest])
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelWheelModesLoadAdjacentWindowBeforeCommit() {
+    for (generation, usesPreciseWheel) in [(UInt64(25), false), (26, true)] {
+        let initial = PlaybackVirtualReelTestAdapter(
+            datasetID: "search",
+            generation: generation,
+            revision: 1,
+            totalCount: 50_000,
+            loadedOrdinalRange: 0..<32,
+            isComplete: false,
+            itemPrefix: "initial",
+            supportsWindowRequests: true
+        )
+        let view = PlaybackVirtualReelContainerView()
+        view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+        var commits: [PlaybackVirtualReelSelectionCommit] = []
+        view.onCommitVirtualReelSelection = { commit in
+            commits.append(commit)
+            return true
+        }
+        view.update(
+            contentAdapter: initial,
+            selectedOrdinal: 31,
+            keyboardNavigationRequest: nil,
+            reducesMotion: true,
+            isInteractionEnabled: true,
+            cancelsWheelMotion: false
+        )
+        if usesPreciseWheel {
+            view.applyPreciseWheelDeltaForTesting(-500)
+        } else {
+            view.applyDiscreteWheelForTesting(direction: .forward)
+        }
+        guard let request = initial.requestedWindows.last else {
+            Issue.record("Expected an adjacent wheel window request")
+            view.invalidate()
+            continue
+        }
+        #expect(request.reason == .wheel)
+        #expect(request.targetOrdinal == 32)
+
+        let response = PlaybackVirtualReelTestAdapter(
+            datasetID: "search",
+            generation: generation,
+            revision: 2,
+            totalCount: 50_000,
+            loadedOrdinalRange: request.suggestedOrdinalRange,
+            isComplete: false,
+            itemPrefix: "response",
+            supportsWindowRequests: true
+        )
+        view.update(
+            contentAdapter: response,
+            selectedOrdinal: 31,
+            keyboardNavigationRequest: nil,
+            reducesMotion: true,
+            isInteractionEnabled: true,
+            cancelsWheelMotion: false
+        )
+        #expect(commits.map(\.ordinal) == [32])
+        #expect(view.optionalSelectedOrdinalForTesting == 32)
+        view.invalidate()
+    }
+}
+
+@MainActor
+@Test
+func playbackVirtualReelRejectedLoadedScrollbarPreviewRestoresExternalSelection() async throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 27,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    var attempts: [Int] = []
+    view.onCommitVirtualReelSelection = { commit in
+        attempts.append(commit.ordinal)
+        return false
+    }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .changed,
+        positionFraction: 0.75
+    ))
+    let previewRequest = try #require(initial.requestedWindows.last)
+    let previewResponse = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 27,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: previewRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "preview",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: previewResponse,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.75
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    await Task.yield()
+    #expect(attempts == [previewRequest.targetOrdinal])
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    let restoreRequest = try #require(previewResponse.requestedWindows.last)
+    #expect(restoreRequest.reason == .visible)
+    #expect(restoreRequest.targetOrdinal == 16)
+
+    let restored = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 27,
+        revision: 3,
+        totalCount: 50_000,
+        loadedOrdinalRange: restoreRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "restored",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: restored,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    #expect(attempts == [previewRequest.targetOrdinal])
+    #expect(view.optionalSelectedOrdinalForTesting == 16)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func playbackVirtualReelCancellingRemotePreviewDoesNotReapplyIt() throws {
+    let initial = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 28,
+        revision: 1,
+        totalCount: 50_000,
+        loadedOrdinalRange: 0..<32,
+        isComplete: false,
+        itemPrefix: "initial",
+        supportsWindowRequests: true
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    view.update(
+        contentAdapter: initial,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .changed,
+        positionFraction: 0.75
+    ))
+    let previewRequest = try #require(initial.requestedWindows.last)
+    let previewResponse = PlaybackVirtualReelTestAdapter(
+        datasetID: "search",
+        generation: 28,
+        revision: 2,
+        totalCount: 50_000,
+        loadedOrdinalRange: previewRequest.suggestedOrdinalRange,
+        isComplete: false,
+        itemPrefix: "preview",
+        supportsWindowRequests: true
+    )
+    view.update(
+        contentAdapter: previewResponse,
+        selectedOrdinal: 16,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: true
+    )
+    #expect(view.optionalSelectedOrdinalForTesting == nil)
+    #expect(view.displayedSelectedOrdinalForTesting == nil)
+    #expect(abs(view.fractionalOrdinalForTesting - 37_499.25) > 0.000_001)
+    let restoreRequest = try #require(previewResponse.requestedWindows.last)
+    #expect(restoreRequest.targetOrdinal == 16)
+    view.invalidate()
+}
+
+@MainActor
+@Test
 func subtitleFocusMeasurementInstrumentationStaysBoundedAcrossDocument() {
     let cues = focusLayoutCues(0..<50_000)
     let view = PlaybackSubtitleFocusReelContainerView()
@@ -1133,6 +2838,121 @@ private final class PlaybackSubtitleFocusPointerSentinelView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         mouseDownCount += 1
+    }
+}
+
+@MainActor
+private final class PlaybackVirtualReelTestAdapter:
+    PlaybackVirtualReelContentAdapter
+{
+    private(set) var snapshot: PlaybackVirtualReelSnapshot
+    private(set) var measuredOrdinals: Set<Int> = []
+    private(set) var invalidationCount = 0
+    private(set) var measurementInvalidationCount = 0
+    private(set) var requestedWindows: [PlaybackVirtualReelWindowRequest] = []
+    let supportsWindowRequests: Bool
+    private var itemPrefix: String
+    private let missingItemIDs: Set<Int>
+
+    init(
+        datasetID: String,
+        generation: UInt64,
+        revision: UInt64,
+        totalCount: Int,
+        loadedOrdinalRange: Range<Int>,
+        isComplete: Bool,
+        itemPrefix: String,
+        supportsWindowRequests: Bool = false,
+        missingItemIDs: Set<Int> = []
+    ) {
+        snapshot = PlaybackVirtualReelSnapshot(
+            datasetID: AnyHashable(datasetID),
+            generation: generation,
+            revision: revision,
+            totalCount: totalCount,
+            loadedOrdinalRange: loadedOrdinalRange,
+            loadedItemCount: loadedOrdinalRange.count,
+            isComplete: isComplete
+        )
+        self.itemPrefix = itemPrefix
+        self.supportsWindowRequests = supportsWindowRequests
+        self.missingItemIDs = missingItemIDs
+    }
+
+    var measurementCacheCountForTesting: Int {
+        measuredOrdinals.count
+    }
+
+    var measuredOrdinalsForTesting: Set<Int> {
+        measuredOrdinals
+    }
+
+    func replaceSnapshot(
+        generation: UInt64,
+        revision: UInt64,
+        loadedOrdinalRange: Range<Int>,
+        isComplete: Bool,
+        itemPrefix: String
+    ) {
+        snapshot = PlaybackVirtualReelSnapshot(
+            datasetID: snapshot.datasetID,
+            generation: generation,
+            revision: revision,
+            totalCount: snapshot.totalCount,
+            loadedOrdinalRange: loadedOrdinalRange,
+            loadedItemCount: loadedOrdinalRange.count,
+            isComplete: isComplete
+        )
+        self.itemPrefix = itemPrefix
+    }
+
+    func itemID(at ordinal: Int) -> AnyHashable? {
+        guard snapshot.loadedOrdinalRange.contains(ordinal) else {
+            return nil
+        }
+        guard !missingItemIDs.contains(ordinal) else {
+            return nil
+        }
+        return AnyHashable("\(itemPrefix)-\(ordinal)")
+    }
+
+    func extent(
+        at ordinal: Int,
+        contentWidth: CGFloat,
+        viewportHeight: CGFloat,
+        uiProbeScope: String?
+    ) -> PlaybackVirtualReelItemExtent? {
+        guard snapshot.loadedOrdinalRange.contains(ordinal) else {
+            return nil
+        }
+        measuredOrdinals.insert(ordinal)
+        let visualLineCount = ordinal % 3 + 1
+        let naturalHeight = CGFloat(visualLineCount * 52 + 24)
+        return PlaybackVirtualReelItemExtent(
+            visualLineCount: visualLineCount,
+            visualLineStackHeight: naturalHeight - 24,
+            resolvedContentHeight: naturalHeight - 24,
+            naturalHeight: naturalHeight,
+            resolvedHeight: min(naturalHeight, max(0, viewportHeight)),
+            isOversized: naturalHeight > viewportHeight
+        )
+    }
+
+    func drawItem(at ordinal: Int, isSelected: Bool, in rect: CGRect) {}
+
+    func requestWindow(_ request: PlaybackVirtualReelWindowRequest) {
+        requestedWindows.append(request)
+    }
+
+    func invalidateMeasurements() {
+        measurementInvalidationCount += 1
+        measuredOrdinals.removeAll(keepingCapacity: false)
+    }
+
+    func invalidate() {
+        invalidationCount += 1
+        invalidateMeasurements()
+        requestedWindows.removeAll(keepingCapacity: false)
     }
 }
 
