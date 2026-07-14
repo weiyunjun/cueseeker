@@ -151,12 +151,6 @@ extension AppCoordinator {
                     return
                 }
                 self.playback.playbackStatus = isPlaying ? .playing : .paused
-            },
-            onPresentationFailed: { [weak self] message in
-                guard let self, self.hasPlaybackSelection else {
-                    return
-                }
-                self.playback.playbackStatus = .failed(message)
             }
         )
     }

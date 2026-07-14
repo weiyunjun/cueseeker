@@ -29,11 +29,6 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 	      presentationGeneration:(NSUInteger)presentationGeneration;
-- (BOOL)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
-shouldPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
-      presentationGeneration:(NSUInteger)presentationGeneration;
-- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
-didReachEndWithoutVideoFrameForPresentationGeneration:(NSUInteger)presentationGeneration;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didFinishSegmentAtMilliseconds:(NSInteger)endMilliseconds;
 @end
@@ -90,7 +85,6 @@ startMilliseconds:(NSInteger)startMilliseconds
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error;
 - (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error;
 - (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds;
-- (void)resumeVideoPresentationForGeneration:(NSUInteger)presentationGeneration;
 - (void)stop;
 
 @end

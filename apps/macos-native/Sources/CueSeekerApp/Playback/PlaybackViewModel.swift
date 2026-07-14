@@ -96,7 +96,6 @@ public final class PlaybackViewModel: ObservableObject {
     private let onPlaybackTimeUpdated: (Double, Double) -> Void
     private let onSegmentFinished: (Int) -> Void
     private let onPresentationCommitted: (Bool) -> Void
-    private let onPresentationFailed: (String) -> Void
     private let uiProbeScope: String?
     private var pendingPresentation: PendingPresentation?
 
@@ -113,8 +112,7 @@ public final class PlaybackViewModel: ObservableObject {
         onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in },
         onPlaybackTimeUpdated: @escaping (Double, Double) -> Void = { _, _ in },
         onSegmentFinished: @escaping (Int) -> Void = { _ in },
-        onPresentationCommitted: @escaping (Bool) -> Void = { _ in },
-        onPresentationFailed: @escaping (String) -> Void = { _ in }
+        onPresentationCommitted: @escaping (Bool) -> Void = { _ in }
     ) {
         self.player = player
         self.onVolumeChanged = onVolumeChanged
@@ -124,7 +122,6 @@ public final class PlaybackViewModel: ObservableObject {
         self.onPlaybackTimeUpdated = onPlaybackTimeUpdated
         self.onSegmentFinished = onSegmentFinished
         self.onPresentationCommitted = onPresentationCommitted
-        self.onPresentationFailed = onPresentationFailed
         self.uiProbeScope = uiProbeScope
 
         volume = Self.clampedVolume(initialVolume)
@@ -852,15 +849,7 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
     }
 
     nonisolated public func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
-        Task { @MainActor in
-            print("Native playback failed: \(message)")
-            guard self.pendingPresentation != nil else {
-                return
-            }
-            self.pendingPresentation = nil
-            self.clearProtectedSeekTarget()
-            self.onPresentationFailed(message)
-        }
+        print("Native playback failed: \(message)")
     }
 
     nonisolated public func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {

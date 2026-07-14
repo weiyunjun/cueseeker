@@ -115,39 +115,6 @@ func playbackPresentationRejectsSupersededGenerationAndCommitsOnlyLatestTarget()
     #expect(committedPlayingStates == [false])
 }
 
-@Test
-@MainActor
-func playbackPresentationFailureReleasesPendingStateWithoutReplacingOldPresentation() async {
-    let player = PlaybackPlayer()
-    var failureMessages: [String] = []
-    let viewModel = PlaybackViewModel(
-        player: player,
-        onPresentationFailed: { message in
-            failureMessages.append(message)
-        }
-    )
-    viewModel.setSubtitleCues(
-        [presentationCue(text: "old", startMilliseconds: 1_000)],
-        currentTimeMilliseconds: 1_000
-    )
-    viewModel.isPlaying = true
-
-    viewModel.preparePresentationTransition(
-        to: 6,
-        subtitleCues: [presentationCue(text: "target", startMilliseconds: 6_000)]
-    )
-    viewModel.bindPendingPresentation(to: 61)
-
-    viewModel.player(player, didFailWithMessage: "No target video frame was available.")
-    await Task.yield()
-
-    #expect(viewModel.currentTime == 1)
-    #expect(viewModel.displayedCurrentTime == 1)
-    #expect(viewModel.activeSubtitleText == "old")
-    #expect(viewModel.isPlaying)
-    #expect(failureMessages == ["No target video frame was available."])
-}
-
 private func presentationCue(
     text: String,
     startMilliseconds: Int
