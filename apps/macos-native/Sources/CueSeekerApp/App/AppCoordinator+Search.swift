@@ -590,7 +590,7 @@ extension AppCoordinator {
             do {
                 if debounce {
                     let debounceStart = SearchPerformanceLogger.now()
-                    try await Task.sleep(nanoseconds: 250_000_000)
+                    try await Task.sleep(nanoseconds: Self.searchInputDebounceNanoseconds)
                     SearchPerformanceLogger.mark(
                         searchPerformanceRun,
                         "search_debounce_finished",
@@ -600,7 +600,7 @@ extension AppCoordinator {
 
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_search_started")
                 let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
-                let pageLoad = try await Task.detached(priority: .userInitiated) {
+                let pageLoad = try await Self.runCancellableDetached(priority: .userInitiated) {
                     let databaseSearchStart = SearchPerformanceLogger.now()
                     let page = try database.searchVisiblePage(
                         trimmedQuery,
@@ -627,7 +627,7 @@ extension AppCoordinator {
                         page: page,
                         databaseSearchMilliseconds: databaseSearchMilliseconds
                     )
-                }.value
+                }
                 let page = pageLoad.page
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -649,7 +649,8 @@ extension AppCoordinator {
                     return
                 }
 
-                guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                guard resultListGeneration == searchResultListGeneration,
+                      search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folders.map(\.path),
                       settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
                       settings.searchScope.searchWatchStateFilter == watchStateFilter,
@@ -843,7 +844,8 @@ extension AppCoordinator {
         resultListGeneration: UInt64 = 0,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
-        guard progress.countState == .exactProgress,
+        guard resultListGeneration == searchResultListGeneration,
+              progress.countState == .exactProgress,
               search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
               indexing.selectedFolders.map(\.path) == folderPaths,
               settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
@@ -937,7 +939,7 @@ extension AppCoordinator {
             do {
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_exact_completion_started")
                 let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
-                let pageLoad = try await Task.detached(priority: .utility) {
+                let pageLoad = try await Self.runCancellableDetached(priority: .utility) {
                     let databaseSearchStart = SearchPerformanceLogger.now()
                     let page = try database.searchPage(
                         trimmedQuery,
@@ -957,7 +959,7 @@ extension AppCoordinator {
                         page: page,
                         databaseSearchMilliseconds: databaseSearchMilliseconds
                     )
-                }.value
+                }
                 let page = pageLoad.page
 
                 guard !Task.isCancelled else {
@@ -972,7 +974,8 @@ extension AppCoordinator {
                     return
                 }
 
-                guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                guard resultListGeneration == searchResultListGeneration,
+                      search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folderPaths,
                       settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
                       settings.searchScope.searchWatchStateFilter == watchStateFilter,
@@ -1061,7 +1064,8 @@ extension AppCoordinator {
                     return
                 }
 
-                guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
+                guard resultListGeneration == searchResultListGeneration,
+                      search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folderPaths,
                       settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
                       settings.searchScope.searchWatchStateFilter == watchStateFilter,

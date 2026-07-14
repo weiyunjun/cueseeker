@@ -6,6 +6,175 @@ import CueSeekerCore
 
 @MainActor
 @Test
+func searchInputDebounceIsOneHundredMilliseconds() {
+    #expect(AppCoordinator.searchInputDebounceNanoseconds == 100_000_000)
+}
+
+@MainActor
+@Test
+func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
+    let suiteName = "CueSeekerLiveSearchInputTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerLiveSearchInputTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    defer {
+        app.searchTask?.cancel()
+        app.searchExactCompletionTask?.cancel()
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+
+    let database = try #require(app.subtitleDatabase)
+    try database.replaceEntries(
+        subtitleFile: fixtureRoot.appendingPathComponent("Episode.srt"),
+        videoFile: fixtureRoot.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "alpha live query"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "beta live query"
+            ),
+        ]
+    )
+    app.indexing.selectedFolders = [fixtureRoot]
+
+    app.updateSearchQuery("alpha")
+    let alphaTask = try #require(app.searchTask)
+    let staleExactTask = Task<Void, Never> {
+        try? await Task.sleep(nanoseconds: 10_000_000_000)
+    }
+    app.searchExactCompletionTask = staleExactTask
+
+    app.updateSearchQuery("beta")
+    let betaTask = try #require(app.searchTask)
+
+    #expect(alphaTask.isCancelled)
+    #expect(staleExactTask.isCancelled)
+    #expect(app.search.searchQuery == "beta")
+    #expect(app.activeSearchPerformanceRun?.query == "beta")
+    #expect(app.activeSearchPerformanceRun?.debounce == true)
+
+    await betaTask.value
+
+    #expect(!app.search.searchResults.isEmpty)
+    #expect(app.search.searchResults.allSatisfy { $0.content.contains("beta") })
+    #expect(app.search.searchResults.allSatisfy { !$0.content.contains("alpha") })
+
+    app.updateSearchQuery("alpha")
+    let pendingAlphaTask = try #require(app.searchTask)
+    app.search.searchResults = [
+        makeTableSandboxSearchResult(
+            id: 999,
+            content: "stale pending row",
+            speakers: [],
+            searchRank: 0
+        )
+    ]
+    app.search.searchResultCueIDs = [999]
+    app.search.searchResultTotalCount = 1
+    app.search.hasMoreSearchResults = true
+
+    app.updateSearchQuery("")
+
+    #expect(pendingAlphaTask.isCancelled)
+    #expect(app.search.searchQuery.isEmpty)
+    #expect(app.search.searchStatus == .idle)
+    #expect(app.search.searchResults.isEmpty)
+    #expect(app.search.searchResultCueIDs.isEmpty)
+    #expect(app.search.searchResultTotalCount == 0)
+    #expect(app.search.searchResultGroups.isEmpty)
+    #expect(app.search.searchNavigationSnapshot == nil)
+    #expect(!app.search.hasMoreSearchResults)
+}
+
+@MainActor
+@Test
+func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
+    let suiteName = "CueSeekerRepeatedLiveSearchGenerationTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerRepeatedLiveSearchGenerationTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let currentResult = makeTableSandboxSearchResult(
+        id: 42,
+        content: "current foo result",
+        speakers: [],
+        searchRank: 0
+    )
+    let staleResult = makeTableSandboxSearchResult(
+        id: 7,
+        content: "stale first foo result",
+        speakers: [],
+        searchRank: 0
+    )
+    app.indexing.selectedFolders = [fixtureRoot]
+    app.searchResultListGeneration = 3
+    app.search.searchQuery = "foo"
+    app.search.searchStatus = .searching
+    app.search.searchResults = [currentResult]
+    app.search.searchResultCueIDs = [currentResult.entryID]
+    app.search.searchResultTotalCount = 1
+    app.search.searchCountState = .exactProgress
+    app.search.searchKnownResultCount = 1
+    app.search.searchKnownFileCount = 1
+
+    app.applySearchCountProgress(
+        SubtitleSearchProgressSnapshot(
+            countSnapshot: .exactProgress(
+                knownResultCount: 2,
+                knownFileCount: 1
+            ),
+            fileSummaries: [],
+            results: [staleResult],
+            cueIDs: [staleResult.entryID]
+        ),
+        query: "foo",
+        folderPaths: [fixtureRoot.path],
+        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
+        watchStateFilter: app.settings.searchScope.searchWatchStateFilter,
+        filterSignature: app.search.activeFilterSetSignature,
+        resultListGeneration: 1,
+        run: nil
+    )
+
+    #expect(app.search.searchResults == [currentResult])
+    #expect(app.search.searchResultCueIDs == [currentResult.entryID])
+    #expect(app.search.searchResultTotalCount == 1)
+    #expect(app.search.searchKnownResultCount == 1)
+}
+
+@MainActor
+@Test
 func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     let suiteName = "CueSeekerTableSandboxSearchContextTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))

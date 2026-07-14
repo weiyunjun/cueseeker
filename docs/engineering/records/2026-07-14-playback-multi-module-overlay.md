@@ -251,6 +251,31 @@ Overlay window without changing their established behavior.
   releases all module references, and leaves the playback-origin Playlist
   source available for a later Overlay Session.
 
+### 8. Workbench Search Live Input
+
+- Changed the Workbench Search Box from Return submission to live query input.
+  The Search field no longer receives an `onSearchSubmit` action, so Return is
+  consumed by the field without starting a second immediate search.
+- Routed only user edits and Inline Clear through a dedicated Binding setter.
+  Programmatic draft synchronization from URL Scheme, navigation restoration,
+  existing Search state, or Cue Context setup bypasses the setter and therefore
+  cannot replace those immediate searches with a debounced request.
+- User input exits any active Cue Context, clears its stored one-shot request
+  and empty-query suppression, preserves the existing injected filters, and
+  calls the existing `updateSearchQuery` path with the original input text.
+  Empty input uses the same path, cancelling pending work and resetting Search
+  before the Workbench selects its empty or filter-only presentation.
+- Replaced the former 250-millisecond delay with the documented named
+  100-millisecond input debounce. Pagination, URL Scheme, navigation history,
+  and other explicit `debounce: false` entry points remain immediate.
+- Preserved the existing visible-page then Exact-completion search pipeline and
+  its cumulative Playlist refresh. Visible and Exact database workers now use
+  cancellation-propagating detached execution, while visible publication,
+  Exact progress, Exact final publication, and Exact failure all validate the
+  current result-list generation in addition to query and filter state.
+  Therefore rapid repeated text such as `foo -> bar -> foo` cannot accept
+  progress from the first `foo` run into the latest run.
+
 ## Verification
 
 ### Step 1
@@ -381,11 +406,37 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Step 8
+
+- `swift test --filter 'searchInputDebounceIsOneHundredMilliseconds|liveSearchUsesLatestInputAndClearsWithoutSubmit|staleExactProgressCannotPublishIntoRepeatedQueryText'`
+  - Passed 3 focused tests covering the exact 100-millisecond setting,
+    latest-input cancellation, live results without submission, empty-query
+    reset, and repeated-query generation rejection.
+- `swift test --filter 'SearchStore|URLSchemeSearchRouting|searchPlaybackPlaylistFollowsExactProgressInsteadOfFreezingClickedRows'`
+  - Passed 20 Search, URL Scheme immediate-routing, Cue Context, Exact progress,
+    and Search-origin Playlist regression tests.
+- `swift test --filter 'SearchStore|URLSchemeSearchRouting|PlaybackPlaylist|playbackShiori|playbackPlaylistAndShiori|subtitleFocus|playbackVirtualReel|PlaybackSegmentCompletion'`
+  - Passed 156 Workbench Search, Playlist, Shiori, Current, shared-Reel,
+    URL Scheme, action, and playback lifecycle regression tests.
+- `swift test --quiet --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 725 Swift Testing tests.
+- `swift test --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated persistence migration test.
+- `swift test --quiet`
+  - The combined run passed all 7 XCTest tests and 725 of 726 Swift Testing
+    tests. The one failure was the already-recorded order-dependent
+    `ApplicationPersistenceTests` case from Step 4: another parallel test's
+    registered `workbenchPanelMode = search` value was visible instead of the
+    isolated fixture's legacy `shiori` value. It passes alone; Step 8 does not
+    modify persistence code or tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Update Workbench Search to the documented 100ms live query before connecting
-  Playback Search to the same result semantics.
+- Connect Playback Search to the established 100-millisecond live query and
+  existing visible-page/Exact-completion semantics.

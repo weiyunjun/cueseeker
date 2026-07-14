@@ -20,6 +20,7 @@ final class AppCoordinator: ObservableObject {
     static let assSubtitlePreparationCueLimit = 8
     static let searchPageSize = 100
     static let searchPrefetchThreshold = 10
+    static let searchInputDebounceNanoseconds: UInt64 = 100_000_000
     static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
     static let searchNavigationPanelRadius = 120
     nonisolated static let playbackSubtitleWindowRadius = 80

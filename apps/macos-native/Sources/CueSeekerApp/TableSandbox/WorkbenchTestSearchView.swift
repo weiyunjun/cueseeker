@@ -85,7 +85,7 @@ struct WorkbenchTestSearchView: View {
         )
         let textCopySource = tableTextCopySource
         SchemaWorkbenchSearchShell(
-            searchDraft: $searchDraft,
+            searchDraft: searchInputBinding,
             visibleColumnIDs: $visibleColumnIDs,
             activeFilterSetID: $activeFilterSetID,
             filterRules: $filterRules,
@@ -95,10 +95,7 @@ struct WorkbenchTestSearchView: View {
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
             tableSummaryAction: selectedSummaryActions,
-            filterableColumnIDs: ["display", "cues"],
-            onSearchSubmit: {
-                submitSearchDraft()
-            }
+            filterableColumnIDs: ["display", "cues"]
         ) { visibleColumns in
             ZStack {
                 SubtitleTableView(
@@ -252,6 +249,16 @@ struct WorkbenchTestSearchView: View {
         search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && search.activeFilterSet.isEffectivelyEmpty
+    }
+
+    private var searchInputBinding: Binding<String> {
+        Binding(
+            get: { searchDraft },
+            set: { newValue in
+                searchDraft = newValue
+                updateSearchDraft(newValue)
+            }
+        )
     }
 
     private var allowsTableResponse: Bool {
@@ -490,40 +497,17 @@ struct WorkbenchTestSearchView: View {
         }
     }
 
-    private func submitSearchDraft() {
-        let trimmedDraft = searchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedDraft.isEmpty else {
-            activeCueContextRequest = nil
-            tableScrollTargetRow = nil
-            cueContextLoadGeneration += 1
-            resetCueContextWindow()
-            appState.submitSearch(searchDraft)
+    private func updateSearchDraft(_ newValue: String) {
+        guard newValue != search.searchQuery else {
             return
         }
-
+        search.cueContextSearchRequest = nil
+        suppressNextEmptySearchQueryReload = false
         activeCueContextRequest = nil
         tableScrollTargetRow = nil
         cueContextLoadGeneration += 1
         resetCueContextWindow()
-        let releasedRows = max(
-            search.searchResults.count,
-            search.searchResultCueIDs.count,
-            search.searchResultTotalCount,
-            rowStore.snapshot.loadedReferenceCount,
-            rowStore.snapshot.totalRowCount
-        )
-        search.searchQuery = ""
-        search.searchResults = []
-        search.searchResultCueIDs = []
-        search.searchResultTotalCount = 0
-        search.searchNavigationSnapshot = nil
-        search.hasMoreSearchResults = false
-        if search.activeFilterSet.isEffectivelyEmpty {
-            clearTableRows(resetScroll: true)
-        } else {
-            loadAllCueRows(resetScroll: true)
-        }
-        AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
+        appState.updateSearchQuery(newValue)
     }
 
     private func updateRows(_ results: [SubtitleSearchResult]) {
