@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed the forced black transition from five-second seeks and previous/next
+  playback changes. CueSeeker now retains the previous video frame, subtitle,
+  and time state until the matching target frame is ready, commits the target
+  presentation as one generation-aware update, rejects superseded seeks, and
+  still clears the image immediately on stop or close.
 - Corrected repeated audio interruptions when opening or switching to Search
   results inside a long GOP. Native playback now feeds audio independently of
   video preroll and pacing, primes a bounded PCM reserve before synchronized

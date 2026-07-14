@@ -731,9 +731,9 @@ extension AppCoordinator {
             fallbackContent: "",
             fallbackCueGroupID: nil
         )
-        playback.playbackViewModel?.setSubtitleCues(
-            subtitleCues,
-            currentTimeMilliseconds: startMilliseconds
+        playback.playbackViewModel?.preparePresentationTransition(
+            to: Double(startMilliseconds) / 1_000,
+            subtitleCues: subtitleCues
         )
 
         do {
@@ -750,15 +750,17 @@ extension AppCoordinator {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
+            let generation: UInt
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
-                player.loadSubtitleSource(request.subtitleSource)
-                try player.seek(toMilliseconds: request.startMilliseconds)
+                generation = try player.seek(
+                    toMilliseconds: request.startMilliseconds,
+                    subtitleSource: request.subtitleSource
+                )
             } else {
-                try player.open(request)
+                generation = try player.open(request)
             }
 
-            try player.setPaused(false)
-            playback.playbackStatus = .playing
+            playback.playbackViewModel?.bindPendingPresentation(to: generation)
             startPlaybackSubtitleCuesLoad(
                 forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
                 format: video.subtitleFormat,
@@ -766,6 +768,7 @@ extension AppCoordinator {
             )
             startLibraryPlaybackHistoryTracking(videoPath: video.videoPath)
         } catch {
+            playback.playbackViewModel?.cancelPendingPresentation()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))

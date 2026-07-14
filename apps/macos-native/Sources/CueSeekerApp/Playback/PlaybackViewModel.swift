@@ -49,6 +49,13 @@ struct PlaybackFeedback: Identifiable, Equatable {
 
 @MainActor
 public final class PlaybackViewModel: ObservableObject {
+    private struct PendingPresentation {
+        var generation: UInt?
+        var targetTime: Double
+        let heldActiveSubtitleText: String?
+        var stagedSubtitleTrack: PlaybackSubtitleTrack?
+    }
+
     static let minimumPlaybackSpeed = 0.5
     static let maximumPlaybackSpeed = 2.0
     static let speedPresets = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -88,7 +95,10 @@ public final class PlaybackViewModel: ObservableObject {
     private let onSubtitlesVisibleChanged: (Bool) -> Void
     private let onPlaybackTimeUpdated: (Double, Double) -> Void
     private let onSegmentFinished: (Int) -> Void
+    private let onPresentationCommitted: (Bool) -> Void
+    private let onPresentationFailed: (String) -> Void
     private let uiProbeScope: String?
+    private var pendingPresentation: PendingPresentation?
 
     public init(
         player: PlaybackPlayer,
@@ -102,7 +112,9 @@ public final class PlaybackViewModel: ObservableObject {
         onPlaybackSpeedChanged: @escaping (Double) -> Void = { _ in },
         onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in },
         onPlaybackTimeUpdated: @escaping (Double, Double) -> Void = { _, _ in },
-        onSegmentFinished: @escaping (Int) -> Void = { _ in }
+        onSegmentFinished: @escaping (Int) -> Void = { _ in },
+        onPresentationCommitted: @escaping (Bool) -> Void = { _ in },
+        onPresentationFailed: @escaping (String) -> Void = { _ in }
     ) {
         self.player = player
         self.onVolumeChanged = onVolumeChanged
@@ -111,6 +123,8 @@ public final class PlaybackViewModel: ObservableObject {
         self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
         self.onPlaybackTimeUpdated = onPlaybackTimeUpdated
         self.onSegmentFinished = onSegmentFinished
+        self.onPresentationCommitted = onPresentationCommitted
+        self.onPresentationFailed = onPresentationFailed
         self.uiProbeScope = uiProbeScope
 
         volume = Self.clampedVolume(initialVolume)
@@ -139,28 +153,55 @@ public final class PlaybackViewModel: ObservableObject {
         performSeek(to: seconds, resetsAccumulatedFeedback: true)
     }
 
+    func preparePresentationTransition(
+        to seconds: Double,
+        subtitleCues: [PlaybackSubtitleCue]? = nil
+    ) {
+        let targetTime = seconds.isFinite ? max(seconds, 0) : 0
+        let heldActiveSubtitleText = pendingPresentation?.heldActiveSubtitleText
+            ?? activeSubtitleText
+        let stagedSubtitleTrack = subtitleCues.map { PlaybackSubtitleTrack(cues: $0) }
+            ?? pendingPresentation?.stagedSubtitleTrack
+        pendingPresentation = PendingPresentation(
+            generation: nil,
+            targetTime: targetTime,
+            heldActiveSubtitleText: heldActiveSubtitleText,
+            stagedSubtitleTrack: stagedSubtitleTrack
+        )
+    }
+
+    func bindPendingPresentation(to generation: UInt) {
+        guard pendingPresentation != nil else {
+            return
+        }
+        pendingPresentation?.generation = generation
+    }
+
+    func cancelPendingPresentation() {
+        pendingPresentation = nil
+        clearProtectedSeekTarget()
+        player.cancelPendingPresentation()
+    }
+
     @discardableResult
     public func playContinuously(from seconds: Double) -> Bool {
-        clearSubtitlePresentationHold()
         let targetTime = clampedPlaybackTime(seconds)
-        let previousTime = currentTime
-        let previousIsPlaying = isPlaying
-        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        preparePresentationTransition(
+            to: targetTime
+        )
         protectSeekTarget(targetTime)
         accumulatedForwardSeconds = 0
         accumulatedRewindSeconds = 0
 
         do {
-            try player.seek(
+            let generation = try player.seek(
                 toMilliseconds: Int(targetTime * 1_000),
                 pauseAfterFirstFrame: false
             )
-            isPlaying = true
+            bindPendingPresentation(to: generation)
             return true
         } catch {
-            clearProtectedSeekTarget()
-            updatePlaybackTime(previousTime, publishesControlsImmediately: true)
-            isPlaying = previousIsPlaying
+            cancelPendingPresentation()
             print("Failed to play continuously from cue: \(error)")
             return false
         }
@@ -201,25 +242,25 @@ public final class PlaybackViewModel: ObservableObject {
         timelineScrubbingWasPlaying = nil
 
         let targetTime = clampedPlaybackTime(seconds)
-        let previousTime = currentTime
-        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        preparePresentationTransition(
+            to: targetTime
+        )
         protectSeekTarget(targetTime)
         accumulatedForwardSeconds = 0
         accumulatedRewindSeconds = 0
 
         do {
-            try player.seek(
+            let generation = try player.seek(
                 toMilliseconds: Int(targetTime * 1000),
                 pauseAfterFirstFrame: !shouldResumePlayback
             )
+            bindPendingPresentation(to: generation)
             if shouldResumePlayback {
                 try player.setPaused(false)
             }
-            isPlaying = shouldResumePlayback
         } catch {
             try? player.endTimelineScrubbing()
-            clearProtectedSeekTarget()
-            updatePlaybackTime(previousTime, publishesControlsImmediately: true)
+            cancelPendingPresentation()
             print("Failed to end timeline scrubbing: \(error)")
         }
     }
@@ -242,11 +283,11 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
-        clearSubtitlePresentationHold()
         let targetTime = clampedPlaybackTime(seconds)
-        let previousTime = currentTime
         let shouldResumePlayback = isPlaying
-        updatePlaybackTime(targetTime, publishesControlsImmediately: true)
+        preparePresentationTransition(
+            to: targetTime
+        )
         protectSeekTarget(targetTime)
         if resetsAccumulatedFeedback {
             accumulatedForwardSeconds = 0
@@ -254,17 +295,16 @@ public final class PlaybackViewModel: ObservableObject {
         }
 
         do {
-            try player.seek(
+            let generation = try player.seek(
                 toMilliseconds: Int(targetTime * 1000),
                 pauseAfterFirstFrame: !shouldResumePlayback
             )
+            bindPendingPresentation(to: generation)
             if shouldResumePlayback {
                 try player.setPaused(false)
             }
-            isPlaying = shouldResumePlayback
         } catch {
-            clearProtectedSeekTarget()
-            updatePlaybackTime(previousTime, publishesControlsImmediately: true)
+            cancelPendingPresentation()
             print("Failed to seek: \(error)")
         }
     }
@@ -306,11 +346,12 @@ public final class PlaybackViewModel: ObservableObject {
 
     public func seekRelative(by seconds: Double) {
         let targetTime: Double
+        let baseTime = pendingPresentation?.targetTime ?? currentTime
 
         if duration > 0 {
-            targetTime = min(max(currentTime + seconds, 0), duration)
+            targetTime = min(max(baseTime + seconds, 0), duration)
         } else {
-            targetTime = max(currentTime + seconds, 0)
+            targetTime = max(baseTime + seconds, 0)
         }
 
         performSeek(to: targetTime, resetsAccumulatedFeedback: false)
@@ -406,6 +447,14 @@ public final class PlaybackViewModel: ObservableObject {
         _ cues: [PlaybackSubtitleCue],
         currentTimeMilliseconds: Int? = nil
     ) {
+        if pendingPresentation != nil {
+            pendingPresentation?.stagedSubtitleTrack = PlaybackSubtitleTrack(cues: cues)
+            if let currentTimeMilliseconds {
+                pendingPresentation?.targetTime = Double(max(0, currentTimeMilliseconds)) / 1_000
+            }
+            return
+        }
+
         clearSubtitlePresentationHold()
         subtitleTrack = PlaybackSubtitleTrack(cues: cues)
         if let currentTimeMilliseconds {
@@ -418,6 +467,11 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     public func clearSubtitleCues() {
+        if pendingPresentation != nil {
+            pendingPresentation?.stagedSubtitleTrack = .empty
+            return
+        }
+
         clearSubtitlePresentationHold()
         subtitleTrack = .empty
         refreshActiveSubtitleText()
@@ -591,6 +645,15 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     private func refreshActiveSubtitleText() {
+        if let pendingPresentation {
+            let nextText = areSubtitlesVisible
+                ? pendingPresentation.heldActiveSubtitleText
+                : nil
+            if activeSubtitleText != nextText {
+                activeSubtitleText = nextText
+            }
+            return
+        }
         let subtitleTime = subtitlePresentationHoldMilliseconds.map { Double($0) / 1_000 } ?? currentTime
         let nextText = areSubtitlesVisible ? subtitleTrack.activeText(at: subtitleTime) : nil
         if activeSubtitleText != nextText {
@@ -740,6 +803,13 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
     nonisolated public func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?) {
         Task { @MainActor in
             guard let value else { return }
+            if self.pendingPresentation != nil,
+               (name == "time-pos"
+                || name == "duration"
+                || name == "video-aspect-ratio"
+                || name == "pause") {
+                return
+            }
             switch name {
             case "time-pos":
                 if case .double(let d) = value {
@@ -782,7 +852,15 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
     }
 
     nonisolated public func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
-        print("Native playback failed: \(message)")
+        Task { @MainActor in
+            print("Native playback failed: \(message)")
+            guard self.pendingPresentation != nil else {
+                return
+            }
+            self.pendingPresentation = nil
+            self.clearProtectedSeekTarget()
+            self.onPresentationFailed(message)
+        }
     }
 
     nonisolated public func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {
@@ -791,5 +869,35 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
             self.publishDisplayedCurrentTimeIfNeeded(force: true)
             self.onSegmentFinished(endMilliseconds)
         }
+    }
+
+    public func player(
+        _ player: PlaybackPlayer,
+        didCommitPresentationAtMilliseconds milliseconds: Int,
+        generation: UInt,
+        playing: Bool
+    ) {
+        guard let pendingPresentation,
+              pendingPresentation.generation == generation
+        else {
+            return
+        }
+
+        self.pendingPresentation = nil
+        if let stagedSubtitleTrack = pendingPresentation.stagedSubtitleTrack {
+            subtitleTrack = stagedSubtitleTrack
+        }
+        subtitlePresentationHoldMilliseconds = nil
+        clearProtectedSeekTarget()
+        isPlaying = playing
+        if let committedDuration = try? player.getDoubleProperty("duration"),
+           duration != committedDuration {
+            duration = committedDuration
+        }
+        updatePlaybackTime(
+            Double(max(0, milliseconds)) / 1_000,
+            publishesControlsImmediately: true
+        )
+        onPresentationCommitted(playing)
     }
 }

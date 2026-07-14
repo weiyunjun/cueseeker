@@ -145,6 +145,18 @@ extension AppCoordinator {
             },
             onSegmentFinished: { [weak self] endMilliseconds in
                 self?.handlePlaybackSegmentFinished(endMilliseconds: endMilliseconds)
+            },
+            onPresentationCommitted: { [weak self] isPlaying in
+                guard let self, self.hasPlaybackSelection else {
+                    return
+                }
+                self.playback.playbackStatus = isPlaying ? .playing : .paused
+            },
+            onPresentationFailed: { [weak self] message in
+                guard let self, self.hasPlaybackSelection else {
+                    return
+                }
+                self.playback.playbackStatus = .failed(message)
             }
         )
     }
@@ -244,9 +256,9 @@ extension AppCoordinator {
         playback.playbackStatus = .opening
         playbackSubtitleCuesTask?.cancel()
         let subtitleCues = initialPlaybackSubtitleCues(for: result)
-        playback.playbackViewModel?.setSubtitleCues(
-            subtitleCues,
-            currentTimeMilliseconds: result.startMilliseconds
+        playback.playbackViewModel?.preparePresentationTransition(
+            to: Double(result.startMilliseconds) / 1_000,
+            subtitleCues: subtitleCues
         )
 
         do {
@@ -266,25 +278,31 @@ extension AppCoordinator {
                 throw PlaybackError.playbackPlayerUnavailable
             }
 
+            let generation: UInt
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
-                player.loadSubtitleSource(request.subtitleSource)
                 if let segment {
-                    try player.seek(to: segment)
+                    generation = try player.seek(
+                        to: segment,
+                        subtitleSource: request.subtitleSource
+                    )
                 } else {
-                    try player.seek(toMilliseconds: result.startMilliseconds)
+                    generation = try player.seek(
+                        toMilliseconds: result.startMilliseconds,
+                        subtitleSource: request.subtitleSource
+                    )
                 }
             } else {
-                try player.open(request)
+                generation = try player.open(request)
             }
 
-            try player.setPaused(false)
-            playback.playbackStatus = .playing
+            playback.playbackViewModel?.bindPendingPresentation(to: generation)
             startPlaybackSubtitleCuesLoad(
                 forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
                 format: result.subtitleFormat,
                 videoPath: result.videoPath
             )
         } catch {
+            playback.playbackViewModel?.cancelPendingPresentation()
             clearCueSegmentPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
@@ -364,7 +382,6 @@ extension AppCoordinator {
         cueSegmentPlaybackGeneration += 1
         activeCueSegmentEndMilliseconds = nil
         currentCueSegmentFinished = false
-        clearCueSubtitlePresentationHold()
         cancelAutoPlayCueSequenceTask()
     }
 
@@ -372,7 +389,6 @@ extension AppCoordinator {
         cueSegmentPlaybackGeneration += 1
         activeCueSegmentEndMilliseconds = nil
         currentCueSegmentFinished = false
-        clearCueSubtitlePresentationHold()
         cancelAutoPlayCueSequenceTask()
     }
 
@@ -674,6 +690,7 @@ extension AppCoordinator {
             saveCurrentLibraryPlaybackHistoryForPlaybackClose()
             stopLibraryPlaybackHistoryTracking()
             playbackFullscreenManager.exitFullscreen()
+            playback.playbackViewModel?.cancelPendingPresentation()
             try player?.stop()
             playbackSubtitleCuesTask?.cancel()
             playbackSubtitleCuesTask = nil

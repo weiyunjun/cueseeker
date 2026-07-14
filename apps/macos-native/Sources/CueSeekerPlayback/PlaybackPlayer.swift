@@ -8,10 +8,38 @@ public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
+    @MainActor func player(
+        _ player: PlaybackPlayer,
+        didCommitPresentationAtMilliseconds milliseconds: Int,
+        generation: UInt,
+        playing: Bool
+    )
 }
 
 public extension PlaybackPlayerDelegate {
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
+    @MainActor func player(
+        _ player: PlaybackPlayer,
+        didCommitPresentationAtMilliseconds milliseconds: Int,
+        generation: UInt,
+        playing: Bool
+    ) {}
+}
+
+private enum PendingSubtitleAction {
+    case preserve
+    case replace(PlaybackSubtitleSource?)
+}
+
+private struct PendingPresentation {
+    var generation: UInt?
+    let targetMilliseconds: Int
+    let heldMilliseconds: Int
+    var subtitleAction: PendingSubtitleAction
+    var preparedASSSubtitleToken: UUID?
+    var preparedASSSubtitleVideoFrameMilliseconds: Int?
+    var preparedASSSubtitleRenderMilliseconds: Int?
+    var isASSSubtitleReady: Bool
 }
 
 public final class PlaybackPlayer: NSObject, @unchecked Sendable {
@@ -25,6 +53,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var subtitleLoadTask: Task<Void, Never>?
     private var subtitleRenderTickTask: Task<Void, Never>?
     private var heldSubtitlePresentationMilliseconds: Int?
+    private var lastRenderedASSSubtitleMilliseconds = 0
+    private var pendingPresentation: PendingPresentation?
+    private var committedPresentationGeneration: UInt?
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -44,63 +75,183 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         nativePlayer.decodeMode = decodeMode.nativeDecodeMode
     }
 
-    public func open(_ request: PlaybackRequest) throws {
-        clearHeldSubtitlePresentationWithoutRendering()
+    @discardableResult
+    public func open(_ request: PlaybackRequest) throws -> UInt {
+        beginPresentationTransition(
+            targetMilliseconds: request.startMilliseconds,
+            subtitleAction: .replace(request.subtitleSource)
+        )
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
-        if let segmentEndMilliseconds = request.segmentEndMilliseconds {
-            try nativePlayer.openPath(
-                request.videoURL.path,
-                startMilliseconds: request.startMilliseconds,
-                endMilliseconds: segmentEndMilliseconds
-            )
-        } else {
-            try nativePlayer.openPath(
-                request.videoURL.path,
-                startMilliseconds: request.startMilliseconds
-            )
+        do {
+            if let segmentEndMilliseconds = request.segmentEndMilliseconds {
+                try nativePlayer.openPath(
+                    request.videoURL.path,
+                    startMilliseconds: request.startMilliseconds,
+                    endMilliseconds: segmentEndMilliseconds
+                )
+            } else {
+                try nativePlayer.openPath(
+                    request.videoURL.path,
+                    startMilliseconds: request.startMilliseconds
+                )
+            }
+        } catch {
+            cancelPendingPresentation()
+            throw error
         }
+        let generation = bindPendingPresentationToNativeGeneration()
         currentVideoURL = request.videoURL.standardizedFileURL
-        loadSubtitleSource(request.subtitleSource)
         Task { @MainActor in
             self.attachActiveRenderView()
         }
         emitInitialNativeState()
+        return generation
     }
 
-    public func seek(toMilliseconds milliseconds: Int) throws {
-        clearHeldSubtitlePresentationWithoutRendering()
-        try nativePlayer.seek(toMilliseconds: max(0, milliseconds))
-        updateASSSubtitleTime(milliseconds: max(0, milliseconds))
-    }
-
-    public func seek(to segment: PlaybackSegment) throws {
-        clearHeldSubtitlePresentationWithoutRendering()
-        try nativePlayer.seek(
-            toMilliseconds: segment.startMilliseconds,
-            endMilliseconds: segment.endMilliseconds
+    @discardableResult
+    public func seek(toMilliseconds milliseconds: Int) throws -> UInt {
+        try seek(
+            toMilliseconds: milliseconds,
+            pauseAfterFirstFrame: false,
+            subtitleAction: .preserve
         )
-        updateASSSubtitleTime(milliseconds: segment.startMilliseconds)
     }
 
-    public func seek(toMilliseconds milliseconds: Int, pauseAfterFirstFrame: Bool) throws {
+    @discardableResult
+    public func seek(
+        toMilliseconds milliseconds: Int,
+        subtitleSource: PlaybackSubtitleSource?
+    ) throws -> UInt {
+        try seek(
+            toMilliseconds: milliseconds,
+            pauseAfterFirstFrame: false,
+            subtitleAction: .replace(subtitleSource)
+        )
+    }
+
+    @discardableResult
+    public func seek(to segment: PlaybackSegment) throws -> UInt {
+        try seek(to: segment, pauseAfterFirstFrame: false, subtitleAction: .preserve)
+    }
+
+    @discardableResult
+    public func seek(
+        to segment: PlaybackSegment,
+        subtitleSource: PlaybackSubtitleSource?
+    ) throws -> UInt {
+        try seek(
+            to: segment,
+            pauseAfterFirstFrame: false,
+            subtitleAction: .replace(subtitleSource)
+        )
+    }
+
+    @discardableResult
+    public func seek(toMilliseconds milliseconds: Int, pauseAfterFirstFrame: Bool) throws -> UInt {
+        try seek(
+            toMilliseconds: milliseconds,
+            pauseAfterFirstFrame: pauseAfterFirstFrame,
+            subtitleAction: .preserve
+        )
+    }
+
+    @discardableResult
+    public func seek(to segment: PlaybackSegment, pauseAfterFirstFrame: Bool) throws -> UInt {
+        try seek(
+            to: segment,
+            pauseAfterFirstFrame: pauseAfterFirstFrame,
+            subtitleAction: .preserve
+        )
+    }
+
+    public func cancelPendingPresentation() {
+        pendingPresentation = nil
+        cancelPreparedASSSubtitleSource()
+    }
+
+    @discardableResult
+    private func seek(
+        toMilliseconds milliseconds: Int,
+        pauseAfterFirstFrame: Bool,
+        subtitleAction: PendingSubtitleAction
+    ) throws -> UInt {
         let safeMilliseconds = max(0, milliseconds)
-        clearHeldSubtitlePresentationWithoutRendering()
-        try nativePlayer.seek(
-            toMilliseconds: safeMilliseconds,
-            pauseAfterFirstFrame: pauseAfterFirstFrame
+        beginPresentationTransition(
+            targetMilliseconds: safeMilliseconds,
+            subtitleAction: subtitleAction
         )
-        updateASSSubtitleTime(milliseconds: safeMilliseconds)
+        do {
+            try nativePlayer.seek(
+                toMilliseconds: safeMilliseconds,
+                pauseAfterFirstFrame: pauseAfterFirstFrame
+            )
+        } catch {
+            cancelPendingPresentation()
+            throw error
+        }
+        return bindPendingPresentationToNativeGeneration()
     }
 
-    public func seek(to segment: PlaybackSegment, pauseAfterFirstFrame: Bool) throws {
-        clearHeldSubtitlePresentationWithoutRendering()
-        try nativePlayer.seek(
-            toMilliseconds: segment.startMilliseconds,
-            endMilliseconds: segment.endMilliseconds,
-            pauseAfterFirstFrame: pauseAfterFirstFrame
+    @discardableResult
+    private func seek(
+        to segment: PlaybackSegment,
+        pauseAfterFirstFrame: Bool,
+        subtitleAction: PendingSubtitleAction
+    ) throws -> UInt {
+        beginPresentationTransition(
+            targetMilliseconds: segment.startMilliseconds,
+            subtitleAction: subtitleAction
         )
-        updateASSSubtitleTime(milliseconds: segment.startMilliseconds)
+        do {
+            try nativePlayer.seek(
+                toMilliseconds: segment.startMilliseconds,
+                endMilliseconds: segment.endMilliseconds,
+                pauseAfterFirstFrame: pauseAfterFirstFrame
+            )
+        } catch {
+            cancelPendingPresentation()
+            throw error
+        }
+        return bindPendingPresentationToNativeGeneration()
+    }
+
+    private func beginPresentationTransition(
+        targetMilliseconds: Int,
+        subtitleAction: PendingSubtitleAction
+    ) {
+        let heldMilliseconds = pendingPresentation?.heldMilliseconds
+            ?? heldSubtitlePresentationMilliseconds
+            ?? lastRenderedASSSubtitleMilliseconds
+        cancelPreparedASSSubtitleSource()
+        pendingPresentation = PendingPresentation(
+            generation: nil,
+            targetMilliseconds: max(0, targetMilliseconds),
+            heldMilliseconds: max(0, heldMilliseconds),
+            subtitleAction: subtitleAction,
+            preparedASSSubtitleToken: nil,
+            preparedASSSubtitleVideoFrameMilliseconds: nil,
+            preparedASSSubtitleRenderMilliseconds: nil,
+            isASSSubtitleReady: false
+        )
+    }
+
+    private func bindPendingPresentationToNativeGeneration() -> UInt {
+        let generation = nativePlayer.nativePresentationGeneration
+        pendingPresentation?.generation = generation
+        return generation
+    }
+
+    private func cancelPreparedASSSubtitleSource() {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                (renderView as? PlaybackRenderContainerView)?.cancelPreparedASSSubtitleSource()
+            }
+        } else {
+            Task { @MainActor in
+                (self.renderView as? PlaybackRenderContainerView)?.cancelPreparedASSSubtitleSource()
+            }
+        }
     }
 
     public func beginTimelineScrubbing() throws {
@@ -127,12 +278,37 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         nativePlayer.stop()
         currentRequest = nil
         currentVideoURL = nil
+        pendingPresentation = nil
+        committedPresentationGeneration = nil
+        cancelPreparedASSSubtitleSource()
         clearHeldSubtitlePresentationWithoutRendering()
-        loadSubtitleSource(nil)
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                activateSubtitleSourceForCommittedPresentation(nil, milliseconds: 0)
+            }
+        } else {
+            Task { @MainActor in
+                self.activateSubtitleSourceForCommittedPresentation(nil, milliseconds: 0)
+            }
+        }
         emitPauseState(isPaused: true)
     }
 
     public func loadSubtitleSource(_ source: PlaybackSubtitleSource?) {
+        if pendingPresentation != nil {
+            let generation = pendingPresentation?.generation
+            pendingPresentation?.subtitleAction = .replace(source)
+            pendingPresentation?.preparedASSSubtitleToken = nil
+            pendingPresentation?.preparedASSSubtitleVideoFrameMilliseconds = nil
+            pendingPresentation?.preparedASSSubtitleRenderMilliseconds = nil
+            pendingPresentation?.isASSSubtitleReady = false
+            cancelPreparedASSSubtitleSource()
+            if let generation {
+                nativePlayer.resumeVideoPresentation(forGeneration: generation)
+            }
+            return
+        }
+
         subtitleLoadTask?.cancel()
         activeSubtitleSource = source
 
@@ -184,6 +360,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             container.setASSSubtitleTime(milliseconds: initialMilliseconds)
             container.setSourceFaithfulASSSubtitleSource(source)
             container.setSubtitlesVisible(self.subtitlesVisible)
+            self.lastRenderedASSSubtitleMilliseconds = initialMilliseconds
         }
         startASSSubtitleRenderTicks()
     }
@@ -303,6 +480,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds: effectiveMilliseconds)
         Task { @MainActor in
             (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: effectiveMilliseconds)
+            self.lastRenderedASSSubtitleMilliseconds = effectiveMilliseconds
         }
     }
 
@@ -312,6 +490,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         )
         Task { @MainActor in
             (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: effectiveMilliseconds)
+            self.lastRenderedASSSubtitleMilliseconds = effectiveMilliseconds
         }
     }
 
@@ -320,7 +499,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     private func effectiveASSSubtitleMilliseconds(_ milliseconds: Int) -> Int {
-        heldSubtitlePresentationMilliseconds ?? max(0, milliseconds)
+        pendingPresentation?.heldMilliseconds
+            ?? heldSubtitlePresentationMilliseconds
+            ?? max(0, milliseconds)
     }
 
     private func retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds milliseconds: Int) {
@@ -364,6 +545,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                     forNativeMilliseconds: self.currentNativePlaybackMilliseconds()
                 )
                 (self.renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(milliseconds: milliseconds)
+                self.lastRenderedASSSubtitleMilliseconds = milliseconds
                 try? await Task.sleep(nanoseconds: 33_000_000)
             }
         }
@@ -375,17 +557,273 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     private func emitInitialNativeState() {
-        delegate?.player(self, didChangeProperty: "duration", value: .double(nativePlayer.duration))
-        if let aspectRatio = currentNativeVideoAspectRatio() {
-            delegate?.player(self, didChangeProperty: "video-aspect-ratio", value: .double(aspectRatio))
+        if pendingPresentation == nil {
+            delegate?.player(self, didChangeProperty: "duration", value: .double(nativePlayer.duration))
+            if let aspectRatio = currentNativeVideoAspectRatio() {
+                delegate?.player(self, didChangeProperty: "video-aspect-ratio", value: .double(aspectRatio))
+            }
+            delegate?.player(self, didChangeProperty: "pause", value: .bool(false))
         }
-        delegate?.player(self, didChangeProperty: "pause", value: .bool(false))
         delegate?.player(self, didChangeProperty: "volume", value: .double(storedVolume))
         delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))
     }
 
     private func emitPauseState(isPaused: Bool) {
         delegate?.player(self, didChangeProperty: "pause", value: .bool(isPaused))
+    }
+
+    @MainActor
+    private func shouldPresentVideoFrame(
+        atMilliseconds milliseconds: Int,
+        generation: UInt
+    ) -> Bool {
+        guard var pendingPresentation else {
+            return committedPresentationGeneration == generation
+        }
+        guard pendingPresentation.generation == generation else {
+            return false
+        }
+
+        let source: PlaybackSubtitleSource?
+        switch pendingPresentation.subtitleAction {
+        case .preserve:
+            source = activeSubtitleSource
+        case .replace(let replacement):
+            source = replacement
+        }
+        guard let source, source.format == .ass else {
+            return true
+        }
+
+        let videoFrameMilliseconds = max(0, milliseconds)
+        let renderMilliseconds = source.initialRenderTimestamp(
+            fallbackMilliseconds: videoFrameMilliseconds
+        )
+        if pendingPresentation.isASSSubtitleReady,
+           pendingPresentation.preparedASSSubtitleToken != nil,
+           pendingPresentation.preparedASSSubtitleVideoFrameMilliseconds == videoFrameMilliseconds,
+           pendingPresentation.preparedASSSubtitleRenderMilliseconds == renderMilliseconds {
+            return true
+        }
+        if pendingPresentation.preparedASSSubtitleToken != nil,
+           pendingPresentation.preparedASSSubtitleVideoFrameMilliseconds == videoFrameMilliseconds,
+           pendingPresentation.preparedASSSubtitleRenderMilliseconds == renderMilliseconds {
+            return false
+        }
+
+        guard let container = renderView as? PlaybackRenderContainerView else {
+            failPendingPresentation(
+                generation: generation,
+                message: "ASS subtitle presentation could not attach to the playback view."
+            )
+            return false
+        }
+        let token = container.prepareSourceFaithfulASSSubtitleSource(
+            source,
+            at: renderMilliseconds,
+            videoSize: currentNativeVideoSize()
+        ) { [weak self] token, result in
+            guard let self,
+                  var current = self.pendingPresentation,
+                  current.generation == generation,
+                  current.preparedASSSubtitleToken == token,
+                  current.preparedASSSubtitleVideoFrameMilliseconds == videoFrameMilliseconds
+            else {
+                return
+            }
+
+            switch result {
+            case .success:
+                current.isASSSubtitleReady = true
+                self.pendingPresentation = current
+                self.nativePlayer.resumeVideoPresentation(forGeneration: generation)
+            case .failure(let error):
+                self.failPendingPresentation(
+                    generation: generation,
+                    message: error.message
+                )
+            }
+        }
+        pendingPresentation.preparedASSSubtitleToken = token
+        pendingPresentation.preparedASSSubtitleVideoFrameMilliseconds = videoFrameMilliseconds
+        pendingPresentation.preparedASSSubtitleRenderMilliseconds = renderMilliseconds
+        pendingPresentation.isASSSubtitleReady = false
+        self.pendingPresentation = pendingPresentation
+        return false
+    }
+
+    @MainActor
+    private func failPendingPresentation(generation: UInt, message: String) {
+        guard let pendingPresentation,
+              pendingPresentation.generation == generation
+        else {
+            return
+        }
+        heldSubtitlePresentationMilliseconds = pendingPresentation.heldMilliseconds
+        self.pendingPresentation = nil
+        (renderView as? PlaybackRenderContainerView)?.cancelPreparedASSSubtitleSource()
+        try? nativePlayer.setPaused(true)
+        delegate?.player(self, didFailWithMessage: message)
+    }
+
+    @MainActor
+    private func commitPendingPresentation(
+        atMilliseconds milliseconds: Int,
+        generation: UInt
+    ) {
+        guard let pendingPresentation,
+              pendingPresentation.generation == generation
+        else {
+            return
+        }
+
+        let safeMilliseconds = max(0, milliseconds)
+
+        let targetSubtitleSource: PlaybackSubtitleSource?
+        switch pendingPresentation.subtitleAction {
+        case .preserve:
+            targetSubtitleSource = activeSubtitleSource
+        case .replace(let source):
+            targetSubtitleSource = source
+        }
+
+        if let targetSubtitleSource, targetSubtitleSource.format == .ass {
+            guard let token = pendingPresentation.preparedASSSubtitleToken,
+                  pendingPresentation.isASSSubtitleReady,
+                  let renderMilliseconds = pendingPresentation.preparedASSSubtitleRenderMilliseconds,
+                  commitPreparedASSSubtitleSource(
+                    token: token,
+                    source: targetSubtitleSource,
+                    videoMilliseconds: safeMilliseconds,
+                    renderMilliseconds: renderMilliseconds
+                  )
+            else {
+                failPendingPresentation(
+                    generation: generation,
+                    message: "ASS subtitle presentation was not ready for the target video frame."
+                )
+                return
+            }
+        } else {
+            switch pendingPresentation.subtitleAction {
+            case .preserve:
+                retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds: safeMilliseconds)
+                (renderView as? PlaybackRenderContainerView)?.setASSSubtitleTime(
+                    milliseconds: safeMilliseconds
+                )
+                lastRenderedASSSubtitleMilliseconds = safeMilliseconds
+            case .replace(let source):
+                activateSubtitleSourceForCommittedPresentation(
+                    source,
+                    milliseconds: safeMilliseconds
+                )
+            }
+        }
+
+        self.pendingPresentation = nil
+        committedPresentationGeneration = generation
+        heldSubtitlePresentationMilliseconds = nil
+
+        let playing = nativePlayer.isPlaying
+        delegate?.player(
+            self,
+            didCommitPresentationAtMilliseconds: safeMilliseconds,
+            generation: generation,
+            playing: playing
+        )
+        delegate?.player(
+            self,
+            didChangeProperty: "duration",
+            value: .double(nativePlayer.duration)
+        )
+        if let aspectRatio = currentNativeVideoAspectRatio() {
+            delegate?.player(
+                self,
+                didChangeProperty: "video-aspect-ratio",
+                value: .double(aspectRatio)
+            )
+        }
+        delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
+        delegate?.player(
+            self,
+            didChangeProperty: "time-pos",
+            value: .double(Double(safeMilliseconds) / 1_000)
+        )
+    }
+
+    @MainActor
+    private func commitPreparedASSSubtitleSource(
+        token: UUID,
+        source: PlaybackSubtitleSource,
+        videoMilliseconds: Int,
+        renderMilliseconds: Int
+    ) -> Bool {
+        guard let container = renderView as? PlaybackRenderContainerView,
+              container.commitPreparedASSSubtitleSource(
+                token,
+                source: source,
+                milliseconds: renderMilliseconds,
+                videoSize: currentNativeVideoSize()
+              )
+        else {
+            return false
+        }
+
+        subtitleLoadTask?.cancel()
+        activeSubtitleSource = source
+        lastRenderedASSSubtitleMilliseconds = renderMilliseconds
+        let initialGate = PlaybackSubtitleRenderTimeGate(
+            source: source,
+            fallbackMilliseconds: videoMilliseconds
+        )
+        assSubtitleRenderTimeGate = initialGate?.retargetingHeldTimestamp(
+            forExplicitMilliseconds: renderMilliseconds
+        ) ?? initialGate
+        container.assRenderingFailureHandler = { [weak self] message in
+            guard let self else { return }
+            self.delegate?.player(self, didFailWithMessage: message)
+        }
+        container.setSubtitlesVisible(subtitlesVisible)
+        startASSSubtitleRenderTicks()
+        return true
+    }
+
+    @MainActor
+    private func activateSubtitleSourceForCommittedPresentation(
+        _ source: PlaybackSubtitleSource?,
+        milliseconds: Int
+    ) {
+        subtitleLoadTask?.cancel()
+        activeSubtitleSource = source
+        lastRenderedASSSubtitleMilliseconds = milliseconds
+
+        guard let source, source.format == .ass else {
+            assSubtitleRenderTimeGate = nil
+            stopASSSubtitleRenderTicks()
+            (renderView as? PlaybackRenderContainerView)?.clearSourceFaithfulASSSubtitleSource()
+            return
+        }
+
+        let initialGate = PlaybackSubtitleRenderTimeGate(
+            source: source,
+            fallbackMilliseconds: milliseconds
+        )
+        assSubtitleRenderTimeGate = initialGate?.retargetingHeldTimestamp(
+            forExplicitMilliseconds: milliseconds
+        ) ?? initialGate
+
+        guard let container = renderView as? PlaybackRenderContainerView else {
+            return
+        }
+        container.assRenderingFailureHandler = { [weak self] message in
+            guard let self else { return }
+            self.delegate?.player(self, didFailWithMessage: message)
+        }
+        container.setVideoSize(currentNativeVideoSize())
+        container.setASSSubtitleTime(milliseconds: milliseconds)
+        container.setSourceFaithfulASSSubtitleSource(source)
+        container.setSubtitlesVisible(subtitlesVisible)
+        startASSSubtitleRenderTicks()
     }
 }
 
@@ -396,6 +834,23 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         duration: Double,
         playing: Bool
     ) {
+        // The native player uses the generation-aware optional callback when
+        // available. Keep the required legacy callback only for protocol
+        // compatibility so untagged updates cannot cross a presentation gate.
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didUpdateTime time: Double,
+        duration: Double,
+        playing: Bool,
+        presentationGeneration: UInt
+    ) {
+        guard pendingPresentation == nil,
+              committedPresentationGeneration == presentationGeneration
+        else {
+            return
+        }
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
@@ -405,9 +860,86 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
 
     public func nativePlaybackPlayer(
         _ player: SFXNativePlaybackPlayer,
+        shouldPresentVideoFrameAtMilliseconds milliseconds: Int,
+        presentationGeneration: UInt
+    ) -> Bool {
+        guard Thread.isMainThread else {
+            return false
+        }
+        return MainActor.assumeIsolated {
+            shouldPresentVideoFrame(
+                atMilliseconds: milliseconds,
+                generation: presentationGeneration
+            )
+        }
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didPresentVideoFrameAtMilliseconds milliseconds: Int,
+        presentationGeneration: UInt
+    ) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                commitPendingPresentation(
+                    atMilliseconds: milliseconds,
+                    generation: presentationGeneration
+                )
+            }
+        } else {
+            Task { @MainActor in
+                self.commitPendingPresentation(
+                    atMilliseconds: milliseconds,
+                    generation: presentationGeneration
+                )
+            }
+        }
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
         didFailWithMessage message: String
     ) {
-        delegate?.player(self, didFailWithMessage: message)
+        let generation = player.nativePresentationGeneration
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                if pendingPresentation?.generation == generation {
+                    failPendingPresentation(generation: generation, message: message)
+                } else {
+                    delegate?.player(self, didFailWithMessage: message)
+                }
+            }
+        } else {
+            Task { @MainActor in
+                if self.pendingPresentation?.generation == generation {
+                    self.failPendingPresentation(generation: generation, message: message)
+                } else {
+                    self.delegate?.player(self, didFailWithMessage: message)
+                }
+            }
+        }
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didReachEndWithoutVideoFrameForPresentationGeneration presentationGeneration: UInt
+    ) {
+        let message = "No decodable video frame was available at the requested playback position."
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                failPendingPresentation(
+                    generation: presentationGeneration,
+                    message: message
+                )
+            }
+        } else {
+            Task { @MainActor in
+                self.failPendingPresentation(
+                    generation: presentationGeneration,
+                    message: message
+                )
+            }
+        }
     }
 
     public func nativePlaybackPlayer(
@@ -486,6 +1018,45 @@ public final class PlaybackRenderContainerView: NSView {
     func clearSourceFaithfulASSSubtitleSource() {
         currentASSSubtitleSource = nil
         sourceFaithfulASSOverlayView?.setSource(nil)
+    }
+
+    @discardableResult
+    func prepareSourceFaithfulASSSubtitleSource(
+        _ source: PlaybackSubtitleSource,
+        at milliseconds: Int,
+        videoSize: CGSize?,
+        completion: @escaping @MainActor @Sendable (
+            UUID,
+            Result<Void, SourceFaithfulASSSubtitlePreparationError>
+        ) -> Void
+    ) -> UUID {
+        ensureSourceFaithfulASSOverlayView()
+        return sourceFaithfulASSOverlayView!.prepareSource(
+            source,
+            at: milliseconds,
+            videoSize: videoSize,
+            completion: completion
+        )
+    }
+
+    @discardableResult
+    func commitPreparedASSSubtitleSource(
+        _ token: UUID,
+        source: PlaybackSubtitleSource,
+        milliseconds: Int,
+        videoSize: CGSize?
+    ) -> Bool {
+        guard sourceFaithfulASSOverlayView?.commitPreparedSource(token) == true else {
+            return false
+        }
+        currentASSSubtitleSource = source
+        currentASSSubtitleTimeMilliseconds = max(0, milliseconds)
+        currentVideoSize = videoSize
+        return true
+    }
+
+    func cancelPreparedASSSubtitleSource() {
+        sourceFaithfulASSOverlayView?.cancelPreparedSource()
     }
 
     func setASSSubtitleTime(milliseconds: Int) {

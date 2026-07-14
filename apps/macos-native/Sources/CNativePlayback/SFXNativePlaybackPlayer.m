@@ -160,16 +160,6 @@ static NSError *SFXNativePlaybackError(NSInteger code, NSString *message) {
                            userInfo:@{NSLocalizedDescriptionKey: message}];
 }
 
-static void SFXDispatchSyncOnMain(dispatch_block_t block) {
-    if ([NSThread isMainThread]) {
-        block();
-    } else {
-        CFTimeInterval start = SFXPerformanceNow();
-        dispatch_sync(dispatch_get_main_queue(), block);
-        SFXLogIfSlow(@"SFXDispatchSyncOnMain", start, 16);
-    }
-}
-
 static const AVCodecHWConfig *SFXFindVideoToolboxConfig(const AVCodec *decoder) {
     for (int index = 0;; index++) {
         const AVCodecHWConfig *config = avcodec_get_hw_config(decoder, index);
@@ -690,10 +680,12 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @interface SFXNativePlaybackView : NSView
 @property (nonatomic, strong, readonly) AVSampleBufferDisplayLayer *displayLayer;
+@property (nonatomic, readonly) NSUInteger displayImageRemovalCount;
 @end
 
 @implementation SFXNativePlaybackView {
     AVSampleBufferDisplayLayer *_displayLayer;
+    NSUInteger _displayImageRemovalCount;
 }
 
 - (instancetype)initWithFrame:(NSRect)frame {
@@ -737,7 +729,16 @@ static int SFXOutputChannelCount(int inputChannels) {
 - (void)flush {
     CFTimeInterval start = SFXPerformanceNow();
     [_displayLayer flushAndRemoveImage];
+    @synchronized (self) {
+        _displayImageRemovalCount += 1;
+    }
     SFXLogIfSlow(@"SFXNativePlaybackView.flush", start, 16);
+}
+
+- (NSUInteger)displayImageRemovalCount {
+    @synchronized (self) {
+        return _displayImageRemovalCount;
+    }
 }
 
 @end
@@ -746,8 +747,26 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 @interface SFXNativePlaybackPlayer ()
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session
-                                   atMilliseconds:(NSInteger)milliseconds;
+                                   atMilliseconds:(NSInteger)milliseconds
+                           presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)cancelTimelineScrubPreviewRequests;
+- (NSUInteger)beginPresentationTransition;
+- (void)restoreCurrentPresentationGeneration:(NSUInteger)previousGeneration
+                    ifCurrentGenerationIs:(NSUInteger)failedGeneration;
+- (BOOL)isCurrentPresentationForSession:(SFXNativePlaybackSession *)session
+                     presentationGeneration:(NSUInteger)presentationGeneration;
+- (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
+                 forSession:(SFXNativePlaybackSession *)session
+      presentationGeneration:(NSUInteger)presentationGeneration
+          flushBeforeEnqueue:(BOOL)flushBeforeEnqueue;
+- (BOOL)session:(SFXNativePlaybackSession *)session
+shouldPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
+presentationGeneration:(NSUInteger)presentationGeneration;
+- (void)session:(SFXNativePlaybackSession *)session
+didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
+presentationGeneration:(NSUInteger)presentationGeneration;
+- (void)sessionDidReachEndWithoutVideoFrame:(SFXNativePlaybackSession *)session
+                     presentationGeneration:(NSUInteger)presentationGeneration;
 @end
 
 @interface SFXNativePlaybackSession : NSObject
@@ -757,23 +776,25 @@ static int SFXOutputChannelCount(int inputChannels) {
 	                       layer:(AVSampleBufferDisplayLayer *)displayLayer
 	                    delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
 	                      owner:(SFXNativePlaybackPlayer *)owner
-                      volume:(float)volume
-                playbackRate:(float)playbackRate
-                   decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
-      flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
-          pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+	                      volume:(float)volume
+	                playbackRate:(float)playbackRate
+	                   decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
+	      presentationGeneration:(NSUInteger)presentationGeneration
+	          pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
  allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                        error:(NSError **)error;
 - (void)start;
 - (void)stopAndWait;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
-	      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+	 presentationGeneration:(NSUInteger)presentationGeneration
+		      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 	                     error:(NSError **)error;
 - (void)setPaused:(BOOL)paused;
 - (void)setReadAheadSuspended:(BOOL)suspended;
 - (void)setVolume:(float)volume;
 - (void)setPlaybackRate:(float)playbackRate;
+- (void)resumeVideoPresentationForGeneration:(NSUInteger)presentationGeneration;
 @property (nonatomic, copy, readonly) NSString *path;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
@@ -781,6 +802,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 @property (nonatomic, readonly) NSInteger videoWidth;
 @property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
+@property (nonatomic, readonly) NSUInteger presentationGeneration;
 @property (nonatomic, readonly) NSUInteger presentedVideoFrameCount;
 @property (nonatomic, readonly) NSInteger lastSubmittedVideoFrameMilliseconds;
 @property (nonatomic, readonly) NSInteger lastScheduledAudioStartMilliseconds;
@@ -807,7 +829,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     dispatch_queue_t _audioDecodeQueue;
     dispatch_queue_t _starvationQueue;
     dispatch_source_t _starvationTimer;
-    NSLock *_displaySubmissionLock;
+    NSCondition *_displaySubmissionCondition;
     NSCondition *_packetQueueCondition;
     SFXQueuedPacket *_packetQueueHead;
     SFXQueuedPacket *_packetQueueTail;
@@ -871,6 +893,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     CVPixelBufferRef _pendingDisplayPixelBuffer;
     CMTime _pendingDisplayPresentationTime;
     NSInteger _pendingDisplayAutomaticRecycleMilliseconds;
+    NSInteger _pendingDisplayFrameMilliseconds;
+    NSUInteger _pendingDisplayPresentationGeneration;
+    NSUInteger _lastPresentedPresentationGeneration;
+    NSUInteger _decodeCompletedPresentationGeneration;
     NSUInteger _presentedVideoFrameCount;
     NSInteger _lastSubmittedVideoFrameMilliseconds;
     NSInteger _lastScheduledAudioStartMilliseconds;
@@ -886,12 +912,14 @@ static int SFXOutputChannelCount(int inputChannels) {
     NSUInteger _outstandingAudioBufferCount;
     NSUInteger _pendingAudioCompletionRecordCount;
     NSUInteger _playbackGeneration;
+    NSUInteger _presentationGeneration;
 
-    BOOL _flushDisplayBeforeStart;
-    BOOL _flushDisplayOnFirstFrame;
     atomic_bool _pauseAfterFirstFrame;
     atomic_bool _didPauseAfterFirstFrame;
     BOOL _displaySubmissionScheduled;
+    BOOL _displaySubmissionDeferred;
+    BOOL _pendingDisplayPixelBufferIsGated;
+    NSUInteger _displaySubmissionScheduledGeneration;
     BOOL _usingHardwareDecode;
     BOOL _allowAutomaticSoftwareRecycle;
     BOOL _automaticSoftwareRecycleRequested;
@@ -909,6 +937,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    BOOL _seekRequestPending;
 	    BOOL _seekRequestInProgress;
 	    BOOL _pendingSeekPauseAfterFirstFrame;
+	    NSUInteger _pendingSeekPresentationGeneration;
 	    double _pendingSeekSeconds;
 	    double _pendingSeekSegmentEndSeconds;
 	    NSUInteger _seekRequestGeneration;
@@ -936,11 +965,11 @@ static int SFXOutputChannelCount(int inputChannels) {
 	                       layer:(AVSampleBufferDisplayLayer *)displayLayer
 	                    delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
 	                      owner:(SFXNativePlaybackPlayer *)owner
-                      volume:(float)volume
-                playbackRate:(float)playbackRate
-                  decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
-      flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
-         pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+	                      volume:(float)volume
+	                playbackRate:(float)playbackRate
+	                  decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
+	      presentationGeneration:(NSUInteger)presentationGeneration
+	         pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
  allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                        error:(NSError **)error {
     self = [super init];
@@ -955,8 +984,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     _volume = volume;
     atomic_init(&_playbackRate, SFXClampedPlaybackRate(playbackRate));
     _decodeMode = decodeMode;
-    _flushDisplayBeforeStart = flushDisplayBeforeStart;
-    _flushDisplayOnFirstFrame = !flushDisplayBeforeStart;
+    _presentationGeneration = presentationGeneration;
     atomic_init(&_pauseAfterFirstFrame, pauseAfterFirstFrame);
     atomic_init(&_didPauseAfterFirstFrame, false);
 	    _allowAutomaticSoftwareRecycle = allowAutomaticSoftwareRecycle;
@@ -970,9 +998,10 @@ static int SFXOutputChannelCount(int inputChannels) {
     _demuxQueue = dispatch_queue_create("CueSeeker.NativePlayback.Demux", DISPATCH_QUEUE_SERIAL);
     _audioDecodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.AudioDecode", DISPATCH_QUEUE_SERIAL);
     _starvationQueue = dispatch_queue_create("CueSeeker.NativePlayback.Starvation", DISPATCH_QUEUE_SERIAL);
-    _displaySubmissionLock = [[NSLock alloc] init];
+    _displaySubmissionCondition = [[NSCondition alloc] init];
     _pendingDisplayPresentationTime = kCMTimeInvalid;
     _pendingDisplayAutomaticRecycleMilliseconds = -1;
+    _pendingDisplayFrameMilliseconds = -1;
     _lastSubmittedVideoFrameMilliseconds = -1;
     _lastScheduledAudioStartMilliseconds = -1;
     _lastScheduledAudioEndMilliseconds = -1;
@@ -1029,6 +1058,13 @@ static int SFXOutputChannelCount(int inputChannels) {
         return NO;
     }
     return atomic_load(&_playing);
+}
+
+- (NSUInteger)presentationGeneration {
+    [_packetQueueCondition lock];
+    NSUInteger generation = _presentationGeneration;
+    [_packetQueueCondition unlock];
+    return generation;
 }
 
 - (NSUInteger)presentedVideoFrameCount {
@@ -1477,12 +1513,6 @@ static int SFXOutputChannelCount(int inputChannels) {
         avcodec_flush_buffers(_audioCodecContext);
     }
 
-    if (_flushDisplayBeforeStart) {
-        SFXDispatchSyncOnMain(^{
-            [_displayLayer flushAndRemoveImage];
-        });
-    }
-
     return YES;
 }
 
@@ -1746,6 +1776,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     dispatch_async(_decodeQueue, ^{
         @autoreleasepool {
             [self decodeLoop];
+            [self waitForCompletedPresentationSubmissionIfNeeded];
+            [self scheduleNoVideoFrameNotificationIfNeeded];
             [self startAudioForDrainAfterVideoDecodeIfNeeded];
             [self waitForSegmentAudioDrainIfNeeded];
             [self waitForNaturalAudioDrainIfNeeded];
@@ -1761,6 +1793,9 @@ static int SFXOutputChannelCount(int inputChannels) {
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [_displaySubmissionCondition lock];
+    [_displaySubmissionCondition broadcast];
+    [_displaySubmissionCondition unlock];
 
     if (_decodeQueue != NULL) {
         dispatch_sync(_decodeQueue, ^{});
@@ -1769,8 +1804,9 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
-	      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
-	                     error:(NSError **)error {
+	 presentationGeneration:(NSUInteger)presentationGeneration
+		      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+		                     error:(NSError **)error {
 	    double seekSeconds = MAX(0, (double)milliseconds / 1000.0);
 	    NSInteger safeEndMilliseconds = SFXSanitizedSegmentEndMilliseconds(milliseconds, endMilliseconds);
 	    double segmentEndSeconds = safeEndMilliseconds >= 0 ? (double)safeEndMilliseconds / 1000.0 : -1;
@@ -1794,6 +1830,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    _seekRequestGeneration = generation;
 	    _pendingSeekSeconds = seekSeconds;
 	    _pendingSeekSegmentEndSeconds = segmentEndSeconds;
+	    _pendingSeekPresentationGeneration = presentationGeneration;
 	    _pendingSeekPauseAfterFirstFrame = pauseAfterFirstFrame;
     _seekRequestPending = YES;
     _seekRequestSucceeded = NO;
@@ -2426,6 +2463,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    NSUInteger generation = _seekRequestGeneration;
 	    double seekSeconds = _pendingSeekSeconds;
 	    double segmentEndSeconds = _pendingSeekSegmentEndSeconds;
+	    NSUInteger presentationGeneration = _pendingSeekPresentationGeneration;
 	    BOOL pauseAfterFirstFrame = _pendingSeekPauseAfterFirstFrame;
     _seekRequestPending = NO;
     _seekRequestInProgress = YES;
@@ -2434,6 +2472,7 @@ static int SFXOutputChannelCount(int inputChannels) {
     NSError *seekError = nil;
 	    BOOL succeeded = [self applyInSessionSeekToSeconds:seekSeconds
 	                                  segmentEndSeconds:segmentEndSeconds
+	                             presentationGeneration:presentationGeneration
 	                                  pauseAfterFirstFrame:pauseAfterFirstFrame
 	                                                 error:&seekError];
 
@@ -2450,6 +2489,7 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (BOOL)applyInSessionSeekToSeconds:(double)seekSeconds
                   segmentEndSeconds:(double)segmentEndSeconds
+	         presentationGeneration:(NSUInteger)presentationGeneration
 	              pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 	                             error:(NSError **)error {
     if (_formatContext == NULL || _videoCodecContext == NULL || _videoStreamIndex < 0) {
@@ -2502,6 +2542,8 @@ static int SFXOutputChannelCount(int inputChannels) {
     [_packetQueueCondition lock];
     _playbackGeneration += 1;
     NSUInteger generation = _playbackGeneration;
+    _presentationGeneration = presentationGeneration;
+    _decodeCompletedPresentationGeneration = 0;
     _audioDrainScheduled = NO;
     _audioPrimed = _audioCodecContext == NULL;
     _audioInputEnded = NO;
@@ -2538,10 +2580,6 @@ static int SFXOutputChannelCount(int inputChannels) {
 
     [self clearPendingPixelBufferSubmission];
     [self resetSegmentBoundaryState];
-    AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [displayLayer flushAndRemoveImage];
-    });
 
     double now = CACurrentMediaTime();
 	    @synchronized (self) {
@@ -2562,7 +2600,6 @@ static int SFXOutputChannelCount(int inputChannels) {
         _lastDelegateUpdateHostSeconds = 0;
     }
 
-	    _flushDisplayOnFirstFrame = YES;
 	    atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);
 	    atomic_store(&_didPauseAfterFirstFrame, false);
 	    atomic_store(&_segmentEnding, false);
@@ -2610,6 +2647,11 @@ static int SFXOutputChannelCount(int inputChannels) {
             if ([self performPendingSeekIfNeeded]) {
                 continue;
             }
+            if (!atomic_load(&_cancelled)
+                && !atomic_load(&_segmentEnding)
+                && !atomic_load(&_finishingForAutomaticRecycle)) {
+                [self handleVideoPacket:NULL];
+            }
             break;
         }
 
@@ -2639,6 +2681,16 @@ static int SFXOutputChannelCount(int inputChannels) {
 	    if (!cancelled && !segmentEnding && !finishingForAutomaticRecycle) {
 	        [self notifyTimeIfNeeded:YES];
 	    }
+    [_packetQueueCondition lock];
+    if (!cancelled
+        && !finishingForAutomaticRecycle
+        && !_seekRequestPending
+        && !_seekRequestInProgress) {
+        _decodeCompletedPresentationGeneration = _presentationGeneration;
+    } else {
+        _decodeCompletedPresentationGeneration = 0;
+    }
+    [_packetQueueCondition unlock];
     atomic_store(&_decodeLoopFinished, true);
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
@@ -3000,6 +3052,9 @@ static int SFXOutputChannelCount(int inputChannels) {
         }
 
         CMTime presentationTime = SFXFramePresentationTime(_videoFrame, videoStream, _timelineOriginSeconds);
+        NSInteger frameMilliseconds = mediaSeconds >= 0
+            ? (NSInteger)llround(mediaSeconds * 1000.0)
+            : -1;
         NSInteger automaticRecycleMilliseconds = -1;
         BOOL submittedVideoFrame = NO;
         if (_videoFrame->format == SFXHardwarePixelFormat) {
@@ -3010,6 +3065,7 @@ static int SFXOutputChannelCount(int inputChannels) {
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
             [self enqueuePixelBuffer:pixelBuffer
                      presentationTime:presentationTime
+                   frameMilliseconds:frameMilliseconds
              automaticRecycleMilliseconds:automaticRecycleMilliseconds];
             submittedVideoFrame = YES;
         } else if (!_usingHardwareDecode) {
@@ -3032,6 +3088,7 @@ static int SFXOutputChannelCount(int inputChannels) {
             automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
             [self enqueuePixelBuffer:pixelBuffer
                      presentationTime:presentationTime
+                   frameMilliseconds:frameMilliseconds
              automaticRecycleMilliseconds:automaticRecycleMilliseconds];
             CVPixelBufferRelease(pixelBuffer);
             submittedVideoFrame = YES;
@@ -3345,32 +3402,89 @@ static int SFXOutputChannelCount(int inputChannels) {
 
 - (void)enqueuePixelBuffer:(CVPixelBufferRef)pixelBuffer
           presentationTime:(CMTime)presentationTime
+        frameMilliseconds:(NSInteger)frameMilliseconds
 automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     if (pixelBuffer == NULL) {
         return;
     }
 
+    [_packetQueueCondition lock];
+    BOOL presentationIsCurrent = !_seekRequestPending
+        && !_seekRequestInProgress
+        && !_audioResetInProgress
+        && !atomic_load(&_cancelled);
+    NSUInteger presentationGeneration = _presentationGeneration;
+    [_packetQueueCondition unlock];
+    if (!presentationIsCurrent) {
+        return;
+    }
+
     CVPixelBufferRetain(pixelBuffer);
     BOOL shouldScheduleSubmission = NO;
-    [_displaySubmissionLock lock];
+    BOOL shouldDropNewPixelBuffer = NO;
+    [_displaySubmissionCondition lock];
+    if (_pendingDisplayPixelBufferIsGated && _pendingDisplayPixelBuffer != NULL) {
+        if (_pendingDisplayPresentationGeneration == presentationGeneration) {
+            shouldDropNewPixelBuffer = YES;
+        } else {
+            _displaySubmissionDeferred = NO;
+            _pendingDisplayPixelBufferIsGated = NO;
+        }
+    } else if (_displaySubmissionDeferred) {
+        _displaySubmissionDeferred = NO;
+        _pendingDisplayPixelBufferIsGated = NO;
+    }
+    if (shouldDropNewPixelBuffer) {
+        [_displaySubmissionCondition unlock];
+        CVPixelBufferRelease(pixelBuffer);
+        return;
+    }
     if (_pendingDisplayPixelBuffer != NULL) {
         CVPixelBufferRelease(_pendingDisplayPixelBuffer);
     }
     _pendingDisplayPixelBuffer = pixelBuffer;
     _pendingDisplayPresentationTime = presentationTime;
     _pendingDisplayAutomaticRecycleMilliseconds = automaticRecycleMilliseconds;
+    _pendingDisplayFrameMilliseconds = frameMilliseconds;
+    _pendingDisplayPresentationGeneration = presentationGeneration;
     if (!_displaySubmissionScheduled) {
         _displaySubmissionScheduled = YES;
+        _displaySubmissionScheduledGeneration = presentationGeneration;
         shouldScheduleSubmission = YES;
     }
-    [_displaySubmissionLock unlock];
+    [_displaySubmissionCondition broadcast];
+    [_displaySubmissionCondition unlock];
 
     if (shouldScheduleSubmission) {
-        CFTimeInterval scheduledAt = SFXPerformanceNow();
-        dispatch_async(dispatch_get_main_queue(), ^{
-            SFXLogIfSlow(@"SFXNativePlaybackSession.displaySubmission.mainDelay", scheduledAt, 50);
-            [self drainPendingPixelBufferSubmission];
-        });
+        [self schedulePendingPixelBufferSubmission];
+    }
+}
+
+- (void)schedulePendingPixelBufferSubmission {
+    CFTimeInterval scheduledAt = SFXPerformanceNow();
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SFXLogIfSlow(@"SFXNativePlaybackSession.displaySubmission.mainDelay", scheduledAt, 50);
+        [self drainPendingPixelBufferSubmission];
+    });
+}
+
+- (void)finishPendingPixelBufferSubmission {
+    BOOL shouldScheduleSubmission = NO;
+    [_displaySubmissionCondition lock];
+    _displaySubmissionScheduled = NO;
+    _displaySubmissionScheduledGeneration = 0;
+    if (!_displaySubmissionDeferred
+        && _pendingDisplayPixelBuffer != NULL
+        && !atomic_load(&_cancelled)) {
+        _displaySubmissionScheduled = YES;
+        _displaySubmissionScheduledGeneration = _pendingDisplayPresentationGeneration;
+        shouldScheduleSubmission = YES;
+    }
+    [_displaySubmissionCondition broadcast];
+    [_displaySubmissionCondition unlock];
+
+    if (shouldScheduleSubmission) {
+        [self schedulePendingPixelBufferSubmission];
     }
 }
 
@@ -3379,79 +3493,279 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     CVPixelBufferRef pixelBuffer = NULL;
     CMTime presentationTime = kCMTimeInvalid;
     NSInteger automaticRecycleMilliseconds = -1;
+    NSInteger frameMilliseconds = -1;
+    NSUInteger presentationGeneration = 0;
 
-    [_displaySubmissionLock lock];
+    [_displaySubmissionCondition lock];
+    if (_displaySubmissionDeferred) {
+        _displaySubmissionScheduled = NO;
+        _displaySubmissionScheduledGeneration = 0;
+        [_displaySubmissionCondition broadcast];
+        [_displaySubmissionCondition unlock];
+        return;
+    }
     pixelBuffer = _pendingDisplayPixelBuffer;
     presentationTime = _pendingDisplayPresentationTime;
     automaticRecycleMilliseconds = _pendingDisplayAutomaticRecycleMilliseconds;
+    frameMilliseconds = _pendingDisplayFrameMilliseconds;
+    presentationGeneration = _pendingDisplayPresentationGeneration;
     _pendingDisplayPixelBuffer = NULL;
     _pendingDisplayPresentationTime = kCMTimeInvalid;
     _pendingDisplayAutomaticRecycleMilliseconds = -1;
-    _displaySubmissionScheduled = NO;
-    [_displaySubmissionLock unlock];
+    _pendingDisplayFrameMilliseconds = -1;
+    _pendingDisplayPresentationGeneration = 0;
+    _pendingDisplayPixelBufferIsGated = NO;
+    if (pixelBuffer != NULL) {
+        _displaySubmissionScheduledGeneration = presentationGeneration;
+    }
+    [_displaySubmissionCondition unlock];
 
     if (pixelBuffer == NULL) {
+        [self finishPendingPixelBufferSubmission];
         return;
     }
 
-    AVSampleBufferDisplayLayer *displayLayer = _displayLayer;
-    if (atomic_load(&_cancelled) || displayLayer == nil) {
+    if (atomic_load(&_cancelled) || _displayLayer == nil) {
         CVPixelBufferRelease(pixelBuffer);
+        [self finishPendingPixelBufferSubmission];
         return;
     }
 
     BOOL enqueued = NO;
+    BOOL firstFrameForPresentation = NO;
     CMSampleBufferRef sampleBuffer = [self sampleBufferForPixelBuffer:pixelBuffer
                                                      presentationTime:presentationTime];
     if (sampleBuffer != NULL) {
-        if (_flushDisplayOnFirstFrame
-            || displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-            [displayLayer flush];
-            _flushDisplayOnFirstFrame = NO;
+        [_packetQueueCondition lock];
+        BOOL sessionPresentationIsCurrent = presentationGeneration == _presentationGeneration
+            && !_seekRequestPending
+            && !_seekRequestInProgress
+            && !_audioResetInProgress
+            && !atomic_load(&_cancelled);
+        firstFrameForPresentation = sessionPresentationIsCurrent
+            && _lastPresentedPresentationGeneration != presentationGeneration;
+        [_packetQueueCondition unlock];
+
+        BOOL shouldPresent = YES;
+        if (firstFrameForPresentation) {
+            SFXNativePlaybackPlayer *owner = _owner;
+            shouldPresent = [owner session:self
+                shouldPresentVideoFrameAtMilliseconds:frameMilliseconds
+                presentationGeneration:presentationGeneration];
         }
-        [displayLayer enqueueSampleBuffer:sampleBuffer];
-        enqueued = YES;
-        CFRelease(sampleBuffer);
+
+        if (!shouldPresent) {
+            BOOL restoredDeferredPixelBuffer = NO;
+            [_displaySubmissionCondition lock];
+            [_packetQueueCondition lock];
+            BOOL presentationIsStillCurrent = presentationGeneration == _presentationGeneration
+                && !_seekRequestPending
+                && !_seekRequestInProgress
+                && !_audioResetInProgress
+                && !atomic_load(&_cancelled);
+            [_packetQueueCondition unlock];
+            SFXNativePlaybackPlayer *owner = _owner;
+            if (presentationIsStillCurrent
+                && [owner isCurrentPresentationForSession:self
+                                   presentationGeneration:presentationGeneration]) {
+                if (_pendingDisplayPixelBuffer != NULL) {
+                    CVPixelBufferRelease(_pendingDisplayPixelBuffer);
+                }
+                _pendingDisplayPixelBuffer = pixelBuffer;
+                _pendingDisplayPresentationTime = presentationTime;
+                _pendingDisplayAutomaticRecycleMilliseconds = automaticRecycleMilliseconds;
+                _pendingDisplayFrameMilliseconds = frameMilliseconds;
+                _pendingDisplayPresentationGeneration = presentationGeneration;
+                _displaySubmissionDeferred = YES;
+                _pendingDisplayPixelBufferIsGated = YES;
+                _displaySubmissionScheduled = NO;
+                _displaySubmissionScheduledGeneration = 0;
+                restoredDeferredPixelBuffer = YES;
+            }
+            [_displaySubmissionCondition broadcast];
+            [_displaySubmissionCondition unlock];
+            CFRelease(sampleBuffer);
+            if (restoredDeferredPixelBuffer) {
+                return;
+            }
+            sampleBuffer = NULL;
+        }
+
+        if (sampleBuffer != NULL && sessionPresentationIsCurrent) {
+            SFXNativePlaybackPlayer *owner = _owner;
+            enqueued = [owner enqueueSampleBuffer:sampleBuffer
+                                       forSession:self
+                            presentationGeneration:presentationGeneration
+                                flushBeforeEnqueue:firstFrameForPresentation];
+        }
+        if (sampleBuffer != NULL) {
+            CFRelease(sampleBuffer);
+        }
     }
     CVPixelBufferRelease(pixelBuffer);
 
     if (enqueued) {
+        [_packetQueueCondition lock];
+        if (presentationGeneration == _presentationGeneration) {
+            _lastPresentedPresentationGeneration = presentationGeneration;
+        }
+        [_packetQueueCondition unlock];
         @synchronized (self) {
             _presentedVideoFrameCount += 1;
+        }
+        if (firstFrameForPresentation) {
+            SFXNativePlaybackPlayer *owner = _owner;
+            [owner session:self
+                didPresentVideoFrameAtMilliseconds:frameMilliseconds
+                presentationGeneration:presentationGeneration];
         }
         if (automaticRecycleMilliseconds >= 0) {
             SFXNativePlaybackPlayer *owner = _owner;
             [owner requestAutomaticSoftwareRecycleForSession:self
-                                              atMilliseconds:automaticRecycleMilliseconds];
+                                              atMilliseconds:automaticRecycleMilliseconds
+                                      presentationGeneration:presentationGeneration];
         }
-        if (atomic_load(&_pauseAfterFirstFrame) && !atomic_load(&_didPauseAfterFirstFrame)) {
+        [_packetQueueCondition lock];
+        BOOL presentationIsStillCurrent = presentationGeneration == _presentationGeneration
+            && !_seekRequestPending
+            && !_seekRequestInProgress;
+        [_packetQueueCondition unlock];
+        if (presentationIsStillCurrent
+            && atomic_load(&_pauseAfterFirstFrame)
+            && !atomic_load(&_didPauseAfterFirstFrame)) {
             [self setPaused:YES];
             atomic_store(&_didPauseAfterFirstFrame, true);
         }
+    } else if (automaticRecycleMilliseconds >= 0
+               && atomic_load(&_finishingForAutomaticRecycle)
+               && !atomic_load(&_cancelled)) {
+        SFXNativePlaybackPlayer *owner = _owner;
+            [owner requestAutomaticSoftwareRecycleForSession:self
+                                           atMilliseconds:automaticRecycleMilliseconds
+                                   presentationGeneration:presentationGeneration];
     }
+    [self finishPendingPixelBufferSubmission];
     SFXLogIfSlow(@"SFXNativePlaybackSession.drainPendingPixelBufferSubmission", start, 8);
 }
 
 - (void)clearPendingPixelBufferSubmission {
     NSInteger automaticRecycleMilliseconds = -1;
+    NSUInteger presentationGeneration = 0;
 
-    [_displaySubmissionLock lock];
+    [_displaySubmissionCondition lock];
     if (_pendingDisplayPixelBuffer != NULL) {
         CVPixelBufferRelease(_pendingDisplayPixelBuffer);
         _pendingDisplayPixelBuffer = NULL;
     }
     automaticRecycleMilliseconds = _pendingDisplayAutomaticRecycleMilliseconds;
+    presentationGeneration = _pendingDisplayPresentationGeneration;
     _pendingDisplayPresentationTime = kCMTimeInvalid;
     _pendingDisplayAutomaticRecycleMilliseconds = -1;
-    [_displaySubmissionLock unlock];
+    _pendingDisplayFrameMilliseconds = -1;
+    _pendingDisplayPresentationGeneration = 0;
+    _displaySubmissionDeferred = NO;
+    _pendingDisplayPixelBufferIsGated = NO;
+    [_displaySubmissionCondition broadcast];
+    [_displaySubmissionCondition unlock];
 
     if (automaticRecycleMilliseconds >= 0
         && atomic_load(&_finishingForAutomaticRecycle)
         && !atomic_load(&_cancelled)) {
         SFXNativePlaybackPlayer *owner = _owner;
         [owner requestAutomaticSoftwareRecycleForSession:self
-                                           atMilliseconds:automaticRecycleMilliseconds];
+                                           atMilliseconds:automaticRecycleMilliseconds
+                                   presentationGeneration:presentationGeneration];
     }
+}
+
+- (void)resumeVideoPresentationForGeneration:(NSUInteger)presentationGeneration {
+    BOOL shouldScheduleSubmission = NO;
+    [_displaySubmissionCondition lock];
+    if (_displaySubmissionDeferred
+        && _pendingDisplayPixelBuffer != NULL
+        && _pendingDisplayPresentationGeneration == presentationGeneration
+        && !atomic_load(&_cancelled)) {
+        _displaySubmissionDeferred = NO;
+        if (!_displaySubmissionScheduled) {
+            _displaySubmissionScheduled = YES;
+            _displaySubmissionScheduledGeneration = presentationGeneration;
+            shouldScheduleSubmission = YES;
+        }
+    }
+    [_displaySubmissionCondition broadcast];
+    [_displaySubmissionCondition unlock];
+
+    if (shouldScheduleSubmission) {
+        [self schedulePendingPixelBufferSubmission];
+    }
+}
+
+- (void)waitForCompletedPresentationSubmissionIfNeeded {
+    [_packetQueueCondition lock];
+    NSUInteger presentationGeneration = _decodeCompletedPresentationGeneration;
+    [_packetQueueCondition unlock];
+    if (presentationGeneration == 0) {
+        return;
+    }
+
+    [_displaySubmissionCondition lock];
+    while (!atomic_load(&_cancelled)
+           && !atomic_load(&_finishingForAutomaticRecycle)) {
+        BOOL hasPendingPixelBuffer = _pendingDisplayPixelBuffer != NULL
+            && _pendingDisplayPresentationGeneration == presentationGeneration;
+        BOOL hasScheduledSubmission = _displaySubmissionScheduled
+            && _displaySubmissionScheduledGeneration == presentationGeneration;
+        if (!hasPendingPixelBuffer && !hasScheduledSubmission) {
+            break;
+        }
+        [_displaySubmissionCondition wait];
+    }
+    [_displaySubmissionCondition unlock];
+}
+
+- (void)scheduleNoVideoFrameNotificationIfNeeded {
+    [_packetQueueCondition lock];
+    NSUInteger presentationGeneration = _decodeCompletedPresentationGeneration;
+    BOOL presentationCompleted = presentationGeneration != 0
+        && presentationGeneration == _presentationGeneration
+        && _lastPresentedPresentationGeneration != presentationGeneration
+        && !_seekRequestPending
+        && !_seekRequestInProgress
+        && !atomic_load(&_cancelled)
+        && !atomic_load(&_finishingForAutomaticRecycle);
+    [_packetQueueCondition unlock];
+    if (!presentationCompleted) {
+        return;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [_packetQueueCondition lock];
+        BOOL presentationIsStillCompleted = presentationGeneration == _decodeCompletedPresentationGeneration
+            && presentationGeneration == _presentationGeneration
+            && _lastPresentedPresentationGeneration != presentationGeneration
+            && !_seekRequestPending
+            && !_seekRequestInProgress
+            && !atomic_load(&_cancelled)
+            && !atomic_load(&_finishingForAutomaticRecycle);
+        [_packetQueueCondition unlock];
+        if (!presentationIsStillCompleted) {
+            return;
+        }
+
+        [_displaySubmissionCondition lock];
+        BOOL hasPendingPixelBuffer = _pendingDisplayPixelBuffer != NULL
+            && _pendingDisplayPresentationGeneration == presentationGeneration;
+        BOOL hasScheduledSubmission = _displaySubmissionScheduled
+            && _displaySubmissionScheduledGeneration == presentationGeneration;
+        [_displaySubmissionCondition unlock];
+        if (hasPendingPixelBuffer || hasScheduledSubmission) {
+            return;
+        }
+
+        SFXNativePlaybackPlayer *owner = _owner;
+        [owner sessionDidReachEndWithoutVideoFrame:self
+                           presentationGeneration:presentationGeneration];
+    });
 }
 
 - (NSInteger)markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:(double)mediaSeconds {
@@ -3808,23 +4122,43 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     double currentTime = self.currentTime;
     double duration = _duration;
     BOOL playing = self.isPlaying;
+    [_packetQueueCondition lock];
+    NSUInteger presentationGeneration = _presentationGeneration;
+    [_packetQueueCondition unlock];
     id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;
     SFXNativePlaybackPlayer *owner = _owner;
     CFTimeInterval scheduledAt = SFXPerformanceNow();
 
     dispatch_async(dispatch_get_main_queue(), ^{
         SFXLogIfSlow(@"SFXNativePlaybackSession.timeDelegate.mainDelay", scheduledAt, 50);
-        [delegate nativePlaybackPlayer:owner
-                         didUpdateTime:currentTime
-                              duration:duration
-                               playing:playing];
+        if (![owner isCurrentPresentationForSession:self
+                             presentationGeneration:presentationGeneration]) {
+            return;
+        }
+        if ([delegate respondsToSelector:@selector(nativePlaybackPlayer:didUpdateTime:duration:playing:presentationGeneration:)]) {
+            [delegate nativePlaybackPlayer:owner
+                             didUpdateTime:currentTime
+                                  duration:duration
+                                   playing:playing
+                    presentationGeneration:presentationGeneration];
+        } else {
+            [delegate nativePlaybackPlayer:owner
+                             didUpdateTime:currentTime
+                                  duration:duration
+                                   playing:playing];
+        }
     });
 }
 
 - (void)notifyFailure:(NSString *)message {
-    id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;
     SFXNativePlaybackPlayer *owner = _owner;
+    NSUInteger presentationGeneration = self.presentationGeneration;
     dispatch_async(dispatch_get_main_queue(), ^{
+        if (![owner isCurrentPresentationForSession:self
+                             presentationGeneration:presentationGeneration]) {
+            return;
+        }
+        id<SFXNativePlaybackPlayerDelegate> delegate = owner.delegate;
         [delegate nativePlaybackPlayer:owner didFailWithMessage:message];
     });
 }
@@ -3893,6 +4227,10 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     BOOL _didRecycleInitialSoftwareSession;
     NSUInteger _nativeSessionOpenCount;
     NSUInteger _nativeInSessionSeekCount;
+    NSUInteger _nativePresentationGeneration;
+    NSUInteger _currentPresentationGeneration;
+    NSUInteger _lastNotifiedVideoPresentationGeneration;
+    NSUInteger _lastNotifiedNoVideoPresentationGeneration;
     dispatch_queue_t _scrubPreviewQueue;
     NSUInteger _scrubPreviewGeneration;
     NSInteger _lastScrubPreviewFrameMilliseconds;
@@ -3949,6 +4287,16 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (NSUInteger)nativeInSessionSeekCount {
     return _nativeInSessionSeekCount;
+}
+
+- (NSUInteger)nativePresentationGeneration {
+    @synchronized (self) {
+        return _nativePresentationGeneration;
+    }
+}
+
+- (NSUInteger)nativeDisplayImageRemovalCount {
+    return _nativeView.displayImageRemovalCount;
 }
 
 - (NSUInteger)nativePresentedVideoFrameCount {
@@ -4038,9 +4386,121 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
 }
 
+- (NSUInteger)beginPresentationTransition {
+    @synchronized (self) {
+        _nativePresentationGeneration += 1;
+        _currentPresentationGeneration = _nativePresentationGeneration;
+        return _nativePresentationGeneration;
+    }
+}
+
+- (void)restoreCurrentPresentationGeneration:(NSUInteger)previousGeneration
+                    ifCurrentGenerationIs:(NSUInteger)failedGeneration {
+    @synchronized (self) {
+        if (_currentPresentationGeneration == failedGeneration) {
+            _currentPresentationGeneration = previousGeneration;
+        }
+    }
+}
+
+- (BOOL)isCurrentPresentationForSession:(SFXNativePlaybackSession *)session
+                 presentationGeneration:(NSUInteger)presentationGeneration {
+    @synchronized (self) {
+        return _session == session
+            && _currentPresentationGeneration == presentationGeneration;
+    }
+}
+
+- (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
+                 forSession:(SFXNativePlaybackSession *)session
+      presentationGeneration:(NSUInteger)presentationGeneration
+          flushBeforeEnqueue:(BOOL)flushBeforeEnqueue {
+    if (sampleBuffer == NULL) {
+        return NO;
+    }
+
+    @synchronized (self) {
+        if (_session != session
+            || _currentPresentationGeneration != presentationGeneration) {
+            return NO;
+        }
+
+        AVSampleBufferDisplayLayer *displayLayer = _nativeView.displayLayer;
+        if (displayLayer == nil) {
+            return NO;
+        }
+        if (flushBeforeEnqueue
+            || displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+            [displayLayer flush];
+        }
+        [displayLayer enqueueSampleBuffer:sampleBuffer];
+        return YES;
+    }
+}
+
+- (BOOL)session:(SFXNativePlaybackSession *)session
+shouldPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
+presentationGeneration:(NSUInteger)presentationGeneration {
+    id<SFXNativePlaybackPlayerDelegate> delegate = nil;
+    @synchronized (self) {
+        if (_session != session
+            || _currentPresentationGeneration != presentationGeneration) {
+            return NO;
+        }
+        delegate = self.delegate;
+    }
+
+    if (![delegate respondsToSelector:@selector(nativePlaybackPlayer:shouldPresentVideoFrameAtMilliseconds:presentationGeneration:)]) {
+        return YES;
+    }
+    return [delegate nativePlaybackPlayer:self
+        shouldPresentVideoFrameAtMilliseconds:milliseconds
+        presentationGeneration:presentationGeneration];
+}
+
+- (void)session:(SFXNativePlaybackSession *)session
+didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
+presentationGeneration:(NSUInteger)presentationGeneration {
+    id<SFXNativePlaybackPlayerDelegate> delegate = nil;
+    @synchronized (self) {
+        if (_session != session
+            || _currentPresentationGeneration != presentationGeneration
+            || _lastNotifiedVideoPresentationGeneration == presentationGeneration) {
+            return;
+        }
+        _lastNotifiedVideoPresentationGeneration = presentationGeneration;
+        delegate = self.delegate;
+    }
+
+    if ([delegate respondsToSelector:@selector(nativePlaybackPlayer:didPresentVideoFrameAtMilliseconds:presentationGeneration:)]) {
+        [delegate nativePlaybackPlayer:self
+            didPresentVideoFrameAtMilliseconds:milliseconds
+            presentationGeneration:presentationGeneration];
+    }
+}
+
+- (void)sessionDidReachEndWithoutVideoFrame:(SFXNativePlaybackSession *)session
+                     presentationGeneration:(NSUInteger)presentationGeneration {
+    id<SFXNativePlaybackPlayerDelegate> delegate = nil;
+    @synchronized (self) {
+        if (_session != session
+            || _currentPresentationGeneration != presentationGeneration
+            || _lastNotifiedNoVideoPresentationGeneration == presentationGeneration) {
+            return;
+        }
+        _lastNotifiedNoVideoPresentationGeneration = presentationGeneration;
+        delegate = self.delegate;
+    }
+
+    if ([delegate respondsToSelector:@selector(nativePlaybackPlayer:didReachEndWithoutVideoFrameForPresentationGeneration:)]) {
+        [delegate nativePlaybackPlayer:self
+            didReachEndWithoutVideoFrameForPresentationGeneration:presentationGeneration];
+    }
+}
+
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
-	           error:(NSError **)error {
+           error:(NSError **)error {
     return [self openPath:path
         startMilliseconds:startMilliseconds
           endMilliseconds:SFXNoSegmentEndMilliseconds
@@ -4050,37 +4510,40 @@ startMilliseconds:(NSInteger)startMilliseconds
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
  endMilliseconds:(NSInteger)endMilliseconds
-	           error:(NSError **)error {
-	    return [self openPath:path
-	        startMilliseconds:startMilliseconds
-	          endMilliseconds:endMilliseconds
-	       flushDisplayBeforeStart:NO
-	      pauseAfterFirstFrame:NO
-	 allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+           error:(NSError **)error {
+    NSUInteger presentationGeneration = [self beginPresentationTransition];
+    return [self openPath:path
+        startMilliseconds:startMilliseconds
+          endMilliseconds:endMilliseconds
+       presentationGeneration:presentationGeneration
+       flushDisplayBeforeStart:NO
+      pauseAfterFirstFrame:NO
+ allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                     error:error];
 }
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
  endMilliseconds:(NSInteger)endMilliseconds
+presentationGeneration:(NSUInteger)presentationGeneration
 flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
-	 pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+ pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            error:(NSError **)error {
     [self cancelTimelineScrubPreviewRequests];
     [self stopAndFlushDisplay:flushDisplayBeforeStart];
 
-	    SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
-	        initWithPath:path
-	        startMilliseconds:startMilliseconds
-	        endMilliseconds:endMilliseconds
-	        layer:_nativeView.displayLayer
+    SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
+        initWithPath:path
+        startMilliseconds:startMilliseconds
+        endMilliseconds:endMilliseconds
+        layer:_nativeView.displayLayer
         delegate:self.delegate
         owner:self
         volume:_volume
         playbackRate:_playbackRate
         decodeMode:_decodeMode
-        flushDisplayBeforeStart:flushDisplayBeforeStart
+        presentationGeneration:presentationGeneration
         pauseAfterFirstFrame:pauseAfterFirstFrame
         allowAutomaticSoftwareRecycle:allowAutomaticSoftwareRecycle
         error:error
@@ -4089,23 +4552,25 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         return NO;
     }
 
-    _session = session;
-    _currentPath = [path copy];
-    _nativeSessionOpenCount += 1;
+    @synchronized (self) {
+        _session = session;
+        _currentPath = [path copy];
+        _nativeSessionOpenCount += 1;
+    }
     [_session start];
     return YES;
 }
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error {
-	    return [self seekToMilliseconds:milliseconds
+    return [self seekToMilliseconds:milliseconds
                    endMilliseconds:SFXNoSegmentEndMilliseconds
-	               pauseAfterFirstFrame:NO
-	                              error:error];
+                pauseAfterFirstFrame:NO
+                               error:error];
 }
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
-	      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
-	                     error:(NSError **)error {
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error {
     return [self seekToMilliseconds:milliseconds
                      endMilliseconds:SFXNoSegmentEndMilliseconds
                 pauseAfterFirstFrame:pauseAfterFirstFrame
@@ -4125,9 +4590,10 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            endMilliseconds:(NSInteger)endMilliseconds
       pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
                      error:(NSError **)error {
-	    if (_currentPath == nil) {
-	        if (error != NULL) {
-	            *error = SFXNativePlaybackError(40, @"Native playback has no current file to seek.");
+    NSString *currentPath = [_currentPath copy];
+    if (currentPath == nil) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(40, @"Native playback has no current file to seek.");
         }
         return NO;
     }
@@ -4139,25 +4605,62 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         return NO;
     }
 
+    SFXNativePlaybackSession *session = _session;
+    NSUInteger previousPresentationGeneration = session.presentationGeneration;
     [self cancelTimelineScrubPreviewRequests];
-	    if (_session.isFinished) {
-	        return [self openPath:_currentPath
-	            startMilliseconds:milliseconds
-	              endMilliseconds:endMilliseconds
-	           flushDisplayBeforeStart:NO
-	          pauseAfterFirstFrame:pauseAfterFirstFrame
-	     allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+    NSUInteger presentationGeneration = [self beginPresentationTransition];
+    if (session.isFinished) {
+        BOOL opened = [self openPath:currentPath
+            startMilliseconds:milliseconds
+              endMilliseconds:endMilliseconds
+           presentationGeneration:presentationGeneration
+           flushDisplayBeforeStart:NO
+          pauseAfterFirstFrame:pauseAfterFirstFrame
+     allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
                         error:error];
+        if (!opened) {
+            [self restoreCurrentPresentationGeneration:previousPresentationGeneration
+                               ifCurrentGenerationIs:presentationGeneration];
+        }
+        return opened;
     }
 
-	    if (![_session seekToMilliseconds:milliseconds
+    if (![session seekToMilliseconds:milliseconds
                       endMilliseconds:endMilliseconds
-	                 pauseAfterFirstFrame:pauseAfterFirstFrame
-	                                error:error]) {
+             presentationGeneration:presentationGeneration
+                 pauseAfterFirstFrame:pauseAfterFirstFrame
+                                error:error]) {
+        BOOL shouldReopenFinishedSession = NO;
+        @synchronized (self) {
+            shouldReopenFinishedSession = _session == session
+                && _currentPresentationGeneration == presentationGeneration
+                && _currentPath != nil
+                && session.isFinished;
+        }
+        if (shouldReopenFinishedSession) {
+            if (error != NULL) {
+                *error = nil;
+            }
+            BOOL opened = [self openPath:currentPath
+                startMilliseconds:milliseconds
+                  endMilliseconds:endMilliseconds
+               presentationGeneration:presentationGeneration
+               flushDisplayBeforeStart:NO
+              pauseAfterFirstFrame:pauseAfterFirstFrame
+         allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+                            error:error];
+            if (opened) {
+                return YES;
+            }
+        }
+        [self restoreCurrentPresentationGeneration:previousPresentationGeneration
+                           ifCurrentGenerationIs:presentationGeneration];
         return NO;
     }
 
-    _nativeInSessionSeekCount += 1;
+    @synchronized (self) {
+        _nativeInSessionSeekCount += 1;
+    }
     return YES;
 }
 
@@ -4259,6 +4762,17 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     });
 }
 
+- (void)resumeVideoPresentationForGeneration:(NSUInteger)presentationGeneration {
+    SFXNativePlaybackSession *session = nil;
+    @synchronized (self) {
+        if (_currentPresentationGeneration != presentationGeneration) {
+            return;
+        }
+        session = _session;
+    }
+    [session resumeVideoPresentationForGeneration:presentationGeneration];
+}
+
 - (void)cancelTimelineScrubPreviewRequests {
     @synchronized (self) {
         _scrubPreviewGeneration += 1;
@@ -4267,9 +4781,13 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 }
 
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session
-                                   atMilliseconds:(NSInteger)milliseconds {
+                                   atMilliseconds:(NSInteger)milliseconds
+                           presentationGeneration:(NSUInteger)presentationGeneration {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (_session != session || _currentPath == nil || _didRecycleInitialSoftwareSession) {
+        if (![self isCurrentPresentationForSession:session
+                            presentationGeneration:presentationGeneration]
+            || _currentPath == nil
+            || _didRecycleInitialSoftwareSession) {
             return;
         }
 
@@ -4279,6 +4797,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 	        BOOL opened = [self openPath:path
 	            startMilliseconds:MAX(0, milliseconds)
 	              endMilliseconds:session.segmentEndMilliseconds
+	           presentationGeneration:presentationGeneration
 	           flushDisplayBeforeStart:NO
 	          pauseAfterFirstFrame:NO
      allowAutomaticSoftwareRecycle:NO
@@ -4303,14 +4822,17 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 }
 
 - (void)stop {
+    [self beginPresentationTransition];
     [self stopAndFlushDisplay:YES];
 }
 
 - (void)stopAndFlushDisplay:(BOOL)flushDisplay {
     [self cancelTimelineScrubPreviewRequests];
     [_session stopAndWait];
-    _session = nil;
-    _currentPath = nil;
+    @synchronized (self) {
+        _session = nil;
+        _currentPath = nil;
+    }
     if (flushDisplay) {
         [_nativeView flush];
     }

@@ -90,11 +90,9 @@ struct PlaybackSubtitleOverlay: View {
                     .frame(maxWidth: 900)
                     .padding(.horizontal, 32)
                     .padding(.bottom, bottomPadding)
-                    .transition(.opacity)
             }
         }
         .allowsHitTesting(false)
-        .animation(.easeInOut(duration: 0.12), value: text)
     }
 }
 

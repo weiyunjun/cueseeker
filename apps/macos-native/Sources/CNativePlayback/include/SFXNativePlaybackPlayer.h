@@ -22,6 +22,19 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
 	        didFailWithMessage:(NSString *)message;
 @optional
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+	               didUpdateTime:(double)time
+	                    duration:(double)duration
+	                     playing:(BOOL)playing
+	      presentationGeneration:(NSUInteger)presentationGeneration;
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
+	      presentationGeneration:(NSUInteger)presentationGeneration;
+- (BOOL)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+shouldPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
+      presentationGeneration:(NSUInteger)presentationGeneration;
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+didReachEndWithoutVideoFrameForPresentationGeneration:(NSUInteger)presentationGeneration;
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didFinishSegmentAtMilliseconds:(NSInteger)endMilliseconds;
 @end
 
@@ -37,6 +50,8 @@ didFinishSegmentAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
 @property (nonatomic, readonly) NSUInteger nativeSessionOpenCount;
 @property (nonatomic, readonly) NSUInteger nativeInSessionSeekCount;
+@property (nonatomic, readonly) NSUInteger nativePresentationGeneration;
+@property (nonatomic, readonly) NSUInteger nativeDisplayImageRemovalCount;
 @property (nonatomic, readonly) NSUInteger nativePresentedVideoFrameCount;
 @property (nonatomic, readonly) NSInteger nativeLastSubmittedVideoFrameMilliseconds;
 @property (nonatomic, readonly) NSInteger nativeLastScheduledAudioStartMilliseconds;
@@ -75,6 +90,7 @@ startMilliseconds:(NSInteger)startMilliseconds
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error;
 - (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error;
 - (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds;
+- (void)resumeVideoPresentationForGeneration:(NSUInteger)presentationGeneration;
 - (void)stop;
 
 @end

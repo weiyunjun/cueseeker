@@ -63,6 +63,10 @@ private struct ASSRenderWorkerError: Error, Sendable {
     let message: String
 }
 
+struct SourceFaithfulASSSubtitlePreparationError: Error, Sendable, Equatable {
+    let message: String
+}
+
 private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private let queue = DispatchQueue(label: "CueSeeker.SourceFaithfulASSRenderer")
     private let invalidationLock = NSLock()
@@ -342,6 +346,16 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
 @MainActor
 final class SourceFaithfulASSSubtitleOverlayView: NSView {
+    private struct PreparedPresentation {
+        let token: UUID
+        let source: PlaybackSubtitleSource?
+        let timestampMilliseconds: Int
+        let videoSize: CGSize?
+        let worker: SourceFaithfulASSRendererWorker
+        let generation: UUID?
+        let frame: ASSRenderedFrame?
+    }
+
     var areSubtitlesVisible: Bool = true {
         didSet {
             if oldValue != areSubtitlesVisible {
@@ -365,7 +379,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     var videoSize: CGSize? {
         didSet {
             if oldValue != videoSize {
-                reloadRendererIfPossible()
+                if !isCommittingPreparedPresentation {
+                    cancelPreparedSource()
+                    reloadRendererIfPossible()
+                }
                 needsDisplay = true
             }
         }
@@ -384,6 +401,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private let subtitleContainerLayer = CALayer()
     private var subtitleSurfaceLayer: CALayer?
     private var rendererWorker = SourceFaithfulASSRendererWorker()
+    private var preparationToken: UUID?
+    private var preparationWorker: SourceFaithfulASSRendererWorker?
+    private var preparedPresentation: PreparedPresentation?
+    private var isCommittingPreparedPresentation = false
 
     override var isFlipped: Bool {
         true
@@ -414,10 +435,28 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     deinit {
         rendererWorker.invalidate()
+        preparationWorker?.invalidate()
+        preparedPresentation?.worker.invalidate()
     }
 
     var rendererWorkerIdentityForTesting: ObjectIdentifier {
         ObjectIdentifier(rendererWorker)
+    }
+
+    var activeSourceForTesting: PlaybackSubtitleSource? {
+        source
+    }
+
+    var preparedSourceForTesting: PlaybackSubtitleSource? {
+        preparedPresentation?.source
+    }
+
+    var hasPreparedPresentationForTesting: Bool {
+        preparedPresentation != nil
+    }
+
+    var hasVisibleSubtitleSurfaceForTesting: Bool {
+        subtitleSurfaceLayer != nil
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -436,6 +475,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     func setSource(_ source: PlaybackSubtitleSource?) {
+        cancelPreparedSource()
         self.source = source
         clearPresentationState()
 
@@ -447,6 +487,189 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         reloadRendererIfPossible()
         needsDisplay = true
+    }
+
+    @discardableResult
+    func prepareSource(
+        _ source: PlaybackSubtitleSource?,
+        at timestampMilliseconds: Int,
+        videoSize: CGSize?,
+        completion: @escaping @MainActor @Sendable (
+            UUID,
+            Result<Void, SourceFaithfulASSSubtitlePreparationError>
+        ) -> Void
+    ) -> UUID {
+        cancelPreparedSource()
+
+        let token = UUID()
+        let worker = SourceFaithfulASSRendererWorker()
+        let timestampMilliseconds = max(0, timestampMilliseconds)
+        let preparedVideoSize = videoSize ?? self.videoSize
+        preparationToken = token
+        preparationWorker = worker
+
+        guard let source else {
+            preparedPresentation = PreparedPresentation(
+                token: token,
+                source: nil,
+                timestampMilliseconds: timestampMilliseconds,
+                videoSize: preparedVideoSize,
+                worker: worker,
+                generation: nil,
+                frame: nil
+            )
+            preparationWorker = nil
+            DispatchQueue.main.async { [weak self] in
+                guard self?.preparationToken == token,
+                      self?.preparedPresentation?.token == token
+                else {
+                    return
+                }
+                completion(token, .success(()))
+            }
+            return token
+        }
+
+        guard let renderSize = Self.renderFrameSize(for: preparedVideoSize ?? bounds.size) else {
+            preparationToken = nil
+            preparationWorker = nil
+            worker.invalidate()
+            DispatchQueue.main.async {
+                completion(
+                    token,
+                    .failure(
+                        SourceFaithfulASSSubtitlePreparationError(
+                            message: "ASS renderer is waiting for a valid video size."
+                        )
+                    )
+                )
+            }
+            return token
+        }
+
+        _ = worker.load(
+            source: source,
+            frameWidth: renderSize.width,
+            frameHeight: renderSize.height,
+            initialTimestampMilliseconds: timestampMilliseconds
+        ) { [weak self, weak worker] returnedGeneration, result in
+            let scheduledAt = PlaybackPerformanceProbe.now()
+            DispatchQueue.main.async(execute: {
+                PlaybackPerformanceProbe.logElapsed(
+                    "SourceFaithfulASSSubtitleOverlayView.prepareLoadCompletion.mainDelay",
+                    since: scheduledAt,
+                    thresholdMilliseconds: 50
+                )
+                guard let self,
+                      let worker,
+                      self.preparationToken == token,
+                      self.preparationWorker === worker
+                else {
+                    return
+                }
+
+                switch result {
+                case .success:
+                    worker.render(
+                        generation: returnedGeneration,
+                        timestampMilliseconds: timestampMilliseconds
+                    ) { [weak self, weak worker] renderedGeneration, renderResult in
+                        let scheduledAt = PlaybackPerformanceProbe.now()
+                        DispatchQueue.main.async(execute: {
+                            PlaybackPerformanceProbe.logElapsed(
+                                "SourceFaithfulASSSubtitleOverlayView.prepareRenderCompletion.mainDelay",
+                                since: scheduledAt,
+                                thresholdMilliseconds: 50
+                            )
+                            guard let self,
+                                  let worker,
+                                  self.preparationToken == token,
+                                  self.preparationWorker === worker,
+                                  renderedGeneration == returnedGeneration
+                            else {
+                                return
+                            }
+
+                            switch renderResult {
+                            case .success(let frame):
+                                self.preparedPresentation = PreparedPresentation(
+                                    token: token,
+                                    source: source,
+                                    timestampMilliseconds: timestampMilliseconds,
+                                    videoSize: preparedVideoSize,
+                                    worker: worker,
+                                    generation: returnedGeneration,
+                                    frame: frame
+                                )
+                                self.preparationWorker = nil
+                                completion(token, .success(()))
+                            case .failure(let error):
+                                self.failPreparation(
+                                    token: token,
+                                    worker: worker,
+                                    message: error.message,
+                                    completion: completion
+                                )
+                            }
+                        })
+                    }
+                case .failure(let error):
+                    self.failPreparation(
+                        token: token,
+                        worker: worker,
+                        message: error.message,
+                        completion: completion
+                    )
+                }
+            })
+        }
+
+        return token
+    }
+
+    @discardableResult
+    func commitPreparedSource(_ token: UUID) -> Bool {
+        guard preparationToken == token,
+              let preparedPresentation,
+              preparedPresentation.token == token
+        else {
+            return false
+        }
+
+        let previousWorker = rendererWorker
+        clearPresentationState()
+        source = preparedPresentation.source
+        rendererWorker = preparedPresentation.worker
+        generation = preparedPresentation.generation
+        isCommittingPreparedPresentation = true
+        videoSize = preparedPresentation.videoSize
+        isCommittingPreparedPresentation = false
+        currentTimeMilliseconds = preparedPresentation.timestampMilliseconds
+        isRendererReady = preparedPresentation.source != nil && preparedPresentation.generation != nil
+
+        if let frame = preparedPresentation.frame {
+            renderedTimestampMilliseconds = frame.timestampMilliseconds
+            apply(frame)
+        }
+
+        preparationToken = nil
+        preparationWorker = nil
+        self.preparedPresentation = nil
+        previousWorker.invalidate()
+        needsDisplay = true
+        return true
+    }
+
+    func cancelPreparedSource() {
+        let preparingWorker = preparationWorker
+        let preparedWorker = preparedPresentation?.worker
+        preparationToken = nil
+        preparationWorker = nil
+        preparedPresentation = nil
+        preparingWorker?.invalidate()
+        if preparedWorker !== preparingWorker {
+            preparedWorker?.invalidate()
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -703,7 +926,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     private func renderFrameSize() -> (width: Int, height: Int)? {
-        let size = videoSize ?? bounds.size
+        Self.renderFrameSize(for: videoSize ?? bounds.size)
+    }
+
+    private static func renderFrameSize(for size: CGSize) -> (width: Int, height: Int)? {
         let width = Int(size.width.rounded())
         let height = Int(size.height.rounded())
         guard width > 1, height > 1 else {
@@ -711,6 +937,31 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         return (width, height)
+    }
+
+    private func failPreparation(
+        token: UUID,
+        worker: SourceFaithfulASSRendererWorker,
+        message: String,
+        completion: @escaping @MainActor @Sendable (
+            UUID,
+            Result<Void, SourceFaithfulASSSubtitlePreparationError>
+        ) -> Void
+    ) {
+        guard preparationToken == token,
+              preparationWorker === worker
+        else {
+            return
+        }
+
+        preparationToken = nil
+        preparationWorker = nil
+        preparedPresentation = nil
+        worker.invalidate()
+        completion(
+            token,
+            .failure(SourceFaithfulASSSubtitlePreparationError(message: message))
+        )
     }
 
     private func displayedVideoRect(in bounds: CGRect) -> CGRect {
