@@ -660,6 +660,7 @@ extension AppCoordinator {
         displayTitle: String? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
+        playback.clearPlaylistSource()
         playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
             "ACTION UI.LibraryVideo.opened",

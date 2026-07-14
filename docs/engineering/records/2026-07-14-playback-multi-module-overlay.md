@@ -12,10 +12,11 @@ overlay session. Preserve Current behavior while adding the shared shell,
 strict session cleanup, shared virtual-reel infrastructure, Playlist, Search,
 Recent, Library, and Shiori in independently verifiable implementation steps.
 
-The repository does not currently contain a Playlist model or store. The shell
-therefore accepts Playlist as an explicit session capability and does not infer
-it from unrelated Search, Shiori, or Library previous/next navigation. The
-capability will be enabled when the Playlist snapshot is implemented.
+Playlist is the Overlay name for the already-existing ordered result list that
+opened the current Search or Shiori playback item. It is not a new persistent
+business model. The implementation adapts those existing source-list identities,
+counts, order, exact-search progress, and navigation scope into a temporary
+Overlay window without changing their established behavior.
 
 ## Implementation Steps
 
@@ -133,6 +134,44 @@ capability will be enabled when the Playlist snapshot is implemented.
   50,000-item test adapter. Only visible/overscan Result extents are measured;
   no production module adapter or second virtual-list implementation was added.
 
+### 5. Existing Playback-Origin List Adapter
+
+- Classified Playlist source capture as application presentation/session state,
+  while keeping the ordered Shiori retrieval needed by that adapter inside
+  `CueSeekerCore`. No new Playlist business model, persistence, or independent
+  navigation semantics were introduced.
+- Captured the existing Search result-list run or Shiori playback navigation
+  scope as the current playback-origin source. Search adjacent playback reuses
+  its run; Shiori adjacent playback reuses the exact explicit ID scope or the
+  existing database-order fallback. Library playback and playback stop clear
+  this capability.
+- Kept Search as the list authority. The adapter mirrors its current `xx rows`
+  total independently from the identities already hydrated in memory, reads
+  loaded ranks directly when possible, and otherwise reuses the existing table
+  window loaders. Initial results, cumulative exact progress, and final exact
+  completion refresh the source without cancelling or replacing the existing
+  exact-completion task.
+- Preserved one dataset identity while Search exact work progresses. A change
+  to total, order, membership, or known identity boundary advances generation,
+  satisfying the shared Reel's stable-total-per-generation invariant; a
+  same-boundary content refresh advances only source revision. Requests and
+  responses validate dataset, generation, revision, total, range, ordinal, and
+  stable item identity so late work cannot publish into a newer boundary.
+- Adapted Shiori explicit scopes by loading only the requested IDs, in their
+  existing navigation order, with Cue Presentation metadata. Added a Core
+  batch API that preserves first-occurrence input order, ignores missing rows,
+  and reuses the established Shiori presentation resolver. Scope-free playback
+  continues to use `created_at DESC, id DESC` through the existing page API.
+- Mapped Search and Shiori rows to presentation/action items without changing
+  their Primary Cue. Cue Group siblings are removed by `primaryGroupIndex`, not
+  by text equality, so repeated subtitle text remains correct. Playlist sequence
+  remains the one-based source ordinal.
+- Added a Session-owned window store that retains at most the standard 32
+  items. Overlay dismissal cancels its load, rejects late publication, clears
+  loaded items and selection, and leaves the playback-origin Search/Shiori
+  source intact. Reopening creates a fresh window; playback source replacement
+  invalidates the origin source itself.
+
 ## Verification
 
 ### Step 1
@@ -200,16 +239,36 @@ capability will be enabled when the Playlist snapshot is implemented.
 - `git diff --check`
   - Passed.
 
+### Step 5
+
+- `swift test --filter PlaybackPlaylist`
+  - Passed 11 source mapping, existing Search exact-progress, Shiori scope,
+    generation/revision, 50,000-item bounded-window, stale-response, and two-level
+    lifecycle tests.
+- `swift test --filter shioriPageForIDs`
+  - Passed the ordered, deduplicated, missing-ID, empty-input, and Cue
+    Presentation Core batch test.
+- `swift test --filter SearchStore`
+  - Passed 11 existing Search source, count-progress, distant-window, all-cue,
+    navigation, and identity regressions.
+- `swift test --filter subtitleFocus`
+  - Passed all 64 Current Subtitle Focus regressions.
+- `swift test --filter shiori`
+  - Passed all 16 matching Shiori and new Playlist-scope tests.
+- `swift test --quiet`
+  - Passed 7 XCTest tests and all 692 Swift Testing tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Define and capture the real Playlist data source and Overlay Session Snapshot
-  contract before enabling Playlist in the sidebar.
-- Connect Playlist and then Shiori through module adapters that feed this Result
-  core into the shared Reel without creating independent or fully materialized
-  lists.
+- Enable Playlist in the sidebar and connect its Session window to the shared
+  Playback Cue Result Reel, selection, and S/C/Enter actions.
+- Connect the standalone Shiori module through the same shared Reel without
+  creating another virtual-list implementation.
 - Update Workbench Search to the documented 100ms live query before connecting
   Playback Search to the same result semantics.

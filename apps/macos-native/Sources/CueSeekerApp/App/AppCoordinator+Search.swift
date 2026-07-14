@@ -385,6 +385,9 @@ extension AppCoordinator {
         nextGlobalSearchCursor = search.hasMoreSearchResults
             ? SubtitleSearchCursor(offset: page.range.upperBound)
             : nil
+        refreshSearchPlaybackPlaylistSource(
+            resultListGeneration: searchResultListGeneration
+        )
     }
 
     var searchNavigationTotalCount: Int {
@@ -444,6 +447,10 @@ extension AppCoordinator {
         debounce: Bool,
         urlSchemeIntentID: UUID? = nil
     ) {
+        if !appending {
+            searchResultListGeneration &+= 1
+        }
+        let resultListGeneration = searchResultListGeneration
         if pendingURLSchemeDirectPlayIntent?.id != urlSchemeIntentID {
             pendingURLSchemeDirectPlayIntent = nil
         }
@@ -678,6 +685,9 @@ extension AppCoordinator {
                 }
                 search.hasMoreSearchResults = page.hasMore
                 nextGlobalSearchCursor = page.nextCursor
+                refreshSearchPlaybackPlaylistSource(
+                    resultListGeneration: resultListGeneration
+                )
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -751,6 +761,7 @@ extension AppCoordinator {
                         languageFilter: languageFilter,
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
+                        resultListGeneration: resultListGeneration,
                         run: searchPerformanceRun
                     )
                 }
@@ -823,6 +834,7 @@ extension AppCoordinator {
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter,
         filterSignature: String,
+        resultListGeneration: UInt64 = 0,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
         guard progress.countState == .exactProgress,
@@ -859,6 +871,9 @@ extension AppCoordinator {
         nextGlobalSearchCursor = search.hasMoreSearchResults
             ? (nextGlobalSearchCursor ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount))
             : nil
+        refreshSearchPlaybackPlaylistSource(
+            resultListGeneration: resultListGeneration
+        )
         rebuildSearchResultGroups()
 
         SearchPerformanceLogger.mark(
@@ -886,6 +901,7 @@ extension AppCoordinator {
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter,
         filterSet: SubtitleSearchFilterSet,
+        resultListGeneration: UInt64,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
         searchExactCompletionTask?.cancel()
@@ -906,6 +922,7 @@ extension AppCoordinator {
                     languageFilter: languageFilter,
                     watchStateFilter: watchStateFilter,
                     filterSignature: filterSignature,
+                    resultListGeneration: resultListGeneration,
                     run: searchPerformanceRun
                 )
             }
@@ -981,6 +998,9 @@ extension AppCoordinator {
                 nextGlobalSearchCursor = search.hasMoreSearchResults
                     ? (nextGlobalSearchCursor ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount))
                     : nil
+                refreshSearchPlaybackPlaylistSource(
+                    resultListGeneration: resultListGeneration
+                )
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
 
                 let rebuildStart = SearchPerformanceLogger.now()

@@ -3476,6 +3476,101 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
 }
 
 @Test
+func shioriPageForIDsPreservesInputOrderAndCuePresentations() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Shiori Scope.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Shiori Scope.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "First scoped cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Second scoped cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Third scoped cue."
+            ),
+        ]
+    )
+
+    var savedShioris: [Shiori] = []
+    for (milliseconds, createdAt) in [
+        (1_500, Date(timeIntervalSince1970: 1_700_000_000)),
+        (3_500, Date(timeIntervalSince1970: 1_800_000_000)),
+        (5_500, Date(timeIntervalSince1970: 1_900_000_000)),
+    ] {
+        let selection = try #require(try database.cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: milliseconds
+        ))
+        savedShioris.append(
+            try database.upsertShiori(
+                subtitleFile: subtitleFile,
+                subtitleFormat: .srt,
+                videoFile: videoFile,
+                videoName: videoFile.lastPathComponent,
+                selection: selection,
+                createdAt: createdAt
+            )
+        )
+    }
+
+    let first = savedShioris[0]
+    let second = savedShioris[1]
+    let third = savedShioris[2]
+    #expect(
+        try database.shioriPage(limit: 3, offset: 0).shioris.map(\.id)
+            == [third.id, second.id, first.id]
+    )
+
+    let page = try database.shioriPage(
+        shioriIDs: [first.id, third.id, first.id, -1, second.id]
+    )
+
+    #expect(page.shioris.map(\.id) == [first.id, third.id, second.id])
+    #expect(page.totalCount == 3)
+    #expect(Set(page.cuePresentationsByShioriID.keys) == Set(page.shioris.map(\.id)))
+    for shiori in page.shioris {
+        let presentation = try #require(page.cuePresentationsByShioriID[shiori.id])
+        #expect(presentation.cueID != nil)
+        #expect(presentation.primaryGroupIndex == 0)
+        #expect(presentation.cueGroupTexts == [shiori.content])
+    }
+
+    let emptyPage = try database.shioriPage(shioriIDs: [])
+    #expect(emptyPage.shioris.isEmpty)
+    #expect(emptyPage.totalCount == 0)
+    #expect(emptyPage.languagesByShioriID.isEmpty)
+    #expect(emptyPage.displayTitlesByShioriID.isEmpty)
+    #expect(emptyPage.cuePresentationsByShioriID.isEmpty)
+}
+
+@Test
 func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

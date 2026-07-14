@@ -7257,6 +7257,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return shioriPage(from: candidates, totalCount: totalCount)
     }
 
+    public func shioriPage(shioriIDs: [Int64]) throws -> ShioriPage {
+        var seenIDs: Set<Int64> = []
+        let orderedUniqueIDs = shioriIDs.filter { seenIDs.insert($0).inserted }
+        guard !orderedUniqueIDs.isEmpty else {
+            return ShioriPage(
+                shioris: [],
+                totalCount: 0,
+                languagesByShioriID: [:]
+            )
+        }
+
+        let candidates = try shioriTableCandidates(shioriIDs: orderedUniqueIDs)
+        return shioriPage(from: candidates, totalCount: candidates.count)
+    }
+
     public func shioriTablePage(
         limit: Int,
         offset: Int,
@@ -7316,44 +7331,48 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return shioriPage(from: candidates, totalCount: candidates.count)
     }
 
+    private static let shioriTableCandidateSelectSQL = """
+        SELECT s.id, s.subtitle_path, s.subtitle_format, s.video_path, s.video_name,
+               s.start_ms, s.end_ms, s.cue_event_index, s.cue_display_order,
+               s.content, s.is_valid, s.created_at,
+               sor.display_title,
+               sf.id,
+               l.id, l.cue_group_id, l.event_index, l.source_format,
+               l.source_style, l.source_layer, l.start_time, l.end_time,
+               l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+               l.display_order,
+               resolved_group.line_count,
+               (
+                   SELECT GROUP_CONCAT(cgl.language_code)
+                   FROM subtitle_cue_group_languages cgl
+                   WHERE cgl.cue_group_id = l.cue_group_id
+               ) AS language_values
+        FROM shioris s
+        LEFT JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
+        LEFT JOIN subtitle_cue_lines l ON l.id = (
+            SELECT candidate.id
+            FROM subtitle_cue_lines candidate
+            JOIN subtitle_cue_groups candidate_group
+              ON candidate_group.id = candidate.cue_group_id
+            JOIN subtitle_files candidate_file
+              ON candidate_file.id = candidate_group.subtitle_file_id
+            WHERE candidate_file.subtitle_path = s.subtitle_path
+              AND s.cue_event_index IS NOT NULL
+              AND candidate.event_index = s.cue_event_index
+              AND candidate.start_ms = s.start_ms
+              AND candidate.end_ms = s.end_ms
+            ORDER BY candidate.display_order ASC, candidate.id ASC
+            LIMIT 1
+        )
+        LEFT JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
+        LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
+        """
+
     private func shioriTableCandidates(limit: Int?, offset: Int) throws -> [ShioriTableCandidate] {
         let limitClause = limit == nil ? "" : "LIMIT ? OFFSET ?"
         let statement = try database.prepare(
             """
-            SELECT s.id, s.subtitle_path, s.subtitle_format, s.video_path, s.video_name,
-                   s.start_ms, s.end_ms, s.cue_event_index, s.cue_display_order,
-                   s.content, s.is_valid, s.created_at,
-                   sor.display_title,
-                   sf.id,
-                   l.id, l.cue_group_id, l.event_index, l.source_format,
-                   l.source_style, l.source_layer, l.start_time, l.end_time,
-                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
-                   l.display_order,
-                   resolved_group.line_count,
-                   (
-                       SELECT GROUP_CONCAT(cgl.language_code)
-                       FROM subtitle_cue_group_languages cgl
-                       WHERE cgl.cue_group_id = l.cue_group_id
-                   ) AS language_values
-            FROM shioris s
-            LEFT JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
-            LEFT JOIN subtitle_cue_lines l ON l.id = (
-                SELECT candidate.id
-                FROM subtitle_cue_lines candidate
-                JOIN subtitle_cue_groups candidate_group
-                  ON candidate_group.id = candidate.cue_group_id
-                JOIN subtitle_files candidate_file
-                  ON candidate_file.id = candidate_group.subtitle_file_id
-                WHERE candidate_file.subtitle_path = s.subtitle_path
-                  AND s.cue_event_index IS NOT NULL
-                  AND candidate.event_index = s.cue_event_index
-                  AND candidate.start_ms = s.start_ms
-                  AND candidate.end_ms = s.end_ms
-                ORDER BY candidate.display_order ASC, candidate.id ASC
-                LIMIT 1
-            )
-            LEFT JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
-            LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
+            \(Self.shioriTableCandidateSelectSQL)
             ORDER BY s.created_at DESC, s.id DESC
             \(limitClause);
             """
@@ -7364,6 +7383,36 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try statement.bind(max(0, offset), at: 2)
         }
 
+        return try shioriTableCandidates(from: statement)
+    }
+
+    private func shioriTableCandidates(shioriIDs: [Int64]) throws -> [ShioriTableCandidate] {
+        guard !shioriIDs.isEmpty else {
+            return []
+        }
+
+        let placeholders = shioriIDs.map { _ in "?" }.joined(separator: ", ")
+        let statement = try database.prepare(
+            """
+            \(Self.shioriTableCandidateSelectSQL)
+            WHERE s.id IN (\(placeholders))
+            ORDER BY s.id ASC;
+            """
+        )
+        for (offset, shioriID) in shioriIDs.enumerated() {
+            try statement.bind(shioriID, at: Int32(offset + 1))
+        }
+
+        let candidates = try shioriTableCandidates(from: statement)
+        let candidatesByID = Dictionary(uniqueKeysWithValues: candidates.map { candidate in
+            (candidate.shiori.id, candidate)
+        })
+        return shioriIDs.compactMap { candidatesByID[$0] }
+    }
+
+    private func shioriTableCandidates(
+        from statement: SQLiteStatement
+    ) throws -> [ShioriTableCandidate] {
         var unresolvedCandidates: [(
             shiori: Shiori,
             displayTitle: String,

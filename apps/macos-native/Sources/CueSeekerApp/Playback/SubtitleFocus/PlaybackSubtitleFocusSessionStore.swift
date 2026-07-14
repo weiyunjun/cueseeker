@@ -117,6 +117,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var completeCueBatch: SubtitleFocusCueBatch? = nil
     @Published private(set) var availableModules: [PlaybackOverlayModule]
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
+    @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
 
     private var keyboardActionGeneration = 0
     private var isSessionActive = true
@@ -128,7 +129,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     init(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
         sessionGeneration: Int,
-        availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules
+        availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules,
+        playlistSource: PlaybackPlaylistSource? = nil
     ) {
         self.openSnapshot = openSnapshot
         let requestedModules = Set(availableModules)
@@ -139,6 +141,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             normalizedModules.insert(.current, at: 0)
         }
         self.availableModules = normalizedModules
+        playlistWindow = playlistSource?.makeSessionWindowStore()
         token = PlaybackSubtitleFocusSessionToken(
             source: openSnapshot.source,
             sessionGeneration: sessionGeneration
@@ -538,6 +541,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isScrollbarDragging = false
         isCueReelMotionActive = false
         completeCueBatch = nil
+        playlistWindow?.invalidate()
+        playlistWindow = nil
         cancelKeyboardNavigationIntent()
         selectedModule = nil
         availableModules = []

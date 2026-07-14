@@ -429,6 +429,7 @@ final class AppCoordinator: ObservableObject {
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var autoPlayCueSequenceTask: Task<Void, Never>?
+    var searchResultListGeneration: UInt64 = 0
     var loadedGlobalSearchResultCount = 0
     var lastSearchCountProgressUpdate: UInt64 = 0
     var nextGlobalSearchCursor: SubtitleSearchCursor?

@@ -36,6 +36,7 @@ final class PlaybackStore: ObservableObject {
     let timeline = PlaybackTimelineInteractionStore()
 
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
+    @Published private(set) var playlistSource: PlaybackPlaylistSource?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = false
@@ -67,7 +68,8 @@ final class PlaybackStore: ObservableObject {
         let session = PlaybackSubtitleFocusSessionStore(
             openSnapshot: openSnapshot,
             sessionGeneration: subtitleFocusSessionGeneration,
-            availableModules: availableModules
+            availableModules: availableModules,
+            playlistSource: playlistSource
         )
         subtitleFocusSession = session
         return session
@@ -82,6 +84,19 @@ final class PlaybackStore: ObservableObject {
 
         session.invalidateForSourceReplacement()
         subtitleFocusSession = nil
+    }
+
+    func setPlaylistSource(_ source: PlaybackPlaylistSource) {
+        guard playlistSource !== source else {
+            return
+        }
+        playlistSource?.invalidate()
+        playlistSource = source
+    }
+
+    func clearPlaylistSource() {
+        playlistSource?.invalidate()
+        playlistSource = nil
     }
 
     func setChromeSnapshot(_ snapshot: PlaybackChromeSnapshot) {

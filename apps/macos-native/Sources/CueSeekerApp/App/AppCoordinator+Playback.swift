@@ -175,6 +175,7 @@ extension AppCoordinator {
         returnPanelMode: WorkbenchPanelMode? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
+        installSearchPlaybackPlaylistSource(seed: result)
         playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
             "ACTION UI.SearchResult.opened",
@@ -707,6 +708,7 @@ extension AppCoordinator {
 
     func stopPlayback() {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
+        playback.clearPlaylistSource()
         do {
             saveCurrentLibraryPlaybackHistoryForPlaybackClose()
             stopLibraryPlaybackHistoryTracking()

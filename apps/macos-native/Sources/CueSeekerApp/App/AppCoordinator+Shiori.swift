@@ -276,6 +276,7 @@ extension AppCoordinator {
         )
         preparePlaybackKeyboardFocus()
         shioriPlaybackNavigationScopeIDs = normalizedShioriPlaybackNavigationScopeIDs(navigationScopeIDs)
+        installShioriPlaybackPlaylistSource()
         refreshShioriPlaybackNavigationSnapshot(for: shiori)
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
