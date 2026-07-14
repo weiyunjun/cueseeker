@@ -14,7 +14,8 @@ main
 10. 边栏，这里只有2种颜色，参考现在字幕聚焦界面的选中色和非选中色就可以了。另外边栏不可以收起，视觉上更加一体化。边栏之间通过Tab键可以切换，也可以鼠标点击切换。
 11. Current，Playlist，Shiori共用一套快捷键逻辑：S键收藏，C键复制内容，Enter键播放。Search界面由于优先输入，因此只响应Enter键。后续我会想办法处理这里。
 12. 生命周期：综合菜单界面每次打开时创建一个独立的临时会话。Current、Playlist、Search、Recent、Library、Shiori 之间的切换属于会话内部，不触发销毁。通过 Escape、Enter 播放、关闭 Playback Page 或其他方式退出综合菜单时，立即销毁本次会话；清除当前模块、搜索词、搜索结果、选择位置、滚动位置及临时加载数据，并取消未完成的异步任务。再次打开时从 Current 和各模块默认状态重新创建。
-13. UI改动见# UI文档改动1，# UI文档改动2。
+13. 抽取并复用 Current 现有虚拟 Reel 机制。Playlist、Search、Shiori 共用同一套可见区加载、动态高度测量、Placement、滚动与回收逻辑。三者只替换数据源、Item Identity、Playback Cue Result 渲染和高度计算。禁止分别实现全量列表或三套独立虚拟化。Search 结果更新时重置或协调虚拟窗口；Session 销毁时释放缓存和未完成任务。
+14. UI改动见# UI文档改动1，# UI文档改动2。
 
 # UI文档改动1
 
