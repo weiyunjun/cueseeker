@@ -746,3 +746,102 @@ The gate passes only if:
   host, reruns Search, rebuilds Context scope, or reloads Shiori data.
 - No rainbow cursor, scroll jump, stale row, duplicate row, clipped Cue, or
   action retargeting occurs.
+
+## 7. Long-GOP Search Result Audio Continuity
+
+### Goal
+
+Confirm that opening and switching to the reported long-GOP Search result does
+not produce repeated audio interruptions, while bounded playback, pause,
+timeline seek, and playback-rate behavior remain intact.
+
+### Build And Launch
+
+Terminal A:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker/apps/macos-native
+swift build
+CUESEEKER_PERF_PLAYBACK=1 swift run CueSeeker 2>&1 | tee /tmp/cueseeker-long-gop-e2e.log
+```
+
+Terminal B:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker
+git rev-parse --short HEAD
+```
+
+Keep the output device, system volume, CueSeeker volume, and playback rate
+unchanged during each listening comparison.
+
+### Preconditions
+
+- `/Volumes/Samsung/影视/赛马娘 第1季` is mounted and indexed.
+- Searching for `年長組` returns the `12:36 - 12:39` result from
+  `[Nekomoe kissaten][Uma Musume][01][1080p][JPSC].ass`.
+- The paired media is
+  `[Nekomoe kissaten][Uma Musume][01][1080p][JPSC].mp4`.
+- Start with playback rate 1.0x and subtitles visible.
+
+### Actions
+
+1. Search for `年長組`, open the exact `12:36 - 12:39` result, and listen from
+   entry through bounded completion. Confirm speech and background audio remain
+   continuous; also confirm video and subtitles advance normally and playback
+   stops once at the cue end.
+2. Return to Search and repeat action 1 ten times. Record pass/fail for each
+   attempt. There must be no repeatable short mute, restart, double completion,
+   or late audio after the page returns to its paused end state.
+3. Open another result from the same episode, then switch directly back to the
+   reported result without closing Playback. Repeat this switch ten times and
+   listen through at least one second after each switch. The target must not
+   inherit old-position audio or pause three times near entry.
+4. While the reported result is playing, press the timeline near `12:32`, drag
+   to the target near `12:36`, and release. Confirm audio is silent while
+   dragging, resumes only after release, and then remains continuous with the
+   target video and subtitle.
+5. Reopen the reported result, pause after its first visible frame, wait one
+   second, and resume. Confirm there is no audio before resume and no mute or
+   restart immediately after resume.
+6. Play the reported result once at 0.5x and once at 2.0x. Confirm both runs
+   remain continuous and finish once at the same cue endpoint.
+7. Close Playback during a target run, reopen the same result, and listen
+   through completion. Confirm no old audio leaks across close/reopen and no
+   hang, crash, or stale segment-completion event occurs.
+
+### Log Review
+
+After the actions, stop Terminal A with Control-C and run:
+
+```bash
+rg -n "Native playback rebuffer|Native playback failed|PLAYER_.*fail" /tmp/cueseeker-long-gop-e2e.log
+```
+
+For this local mounted-media case, no `Native playback rebuffer` line is
+expected during the reported result. Preserve the matching log block if any
+line is returned.
+
+### Evidence To Paste Back
+
+- The short commit hash under test and the selected audio output device.
+- Pass/fail for actions 1 through 7, including all ten direct opens and all ten
+  same-episode switches.
+- Whether any audible mute, restart, click, or A/V offset was observed, with the
+  exact attempt and timestamp.
+- The complete output of the log-review command.
+- On failure, a short screen recording with audible output and the surrounding
+  `/tmp/cueseeker-long-gop-e2e.log` block.
+
+### Acceptance Criteria
+
+The gate passes only if:
+
+- All direct opens and in-session switches play continuously without the
+  reported repeatable audio interruption.
+- Timeline dragging is silent, release resumes the correct generation, and
+  pause-after-first-frame never starts audio early.
+- 0.5x, 1.0x, and 2.0x preserve continuous audio and one bounded completion.
+- No old PCM, callback, or segment event crosses seek, close, or reopen.
+- Video and subtitles remain synchronized enough for cue review, and no target
+  run logs a false native rebuffer event.

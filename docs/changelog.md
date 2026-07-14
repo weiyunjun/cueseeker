@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Corrected repeated audio interruptions when opening or switching to Search
+  results inside a long GOP. Native playback now feeds audio independently of
+  video preroll and pacing, primes a bounded PCM reserve before synchronized
+  start, treats only a real empty-video-queue wait as starvation, and isolates
+  scheduled audio across seek, close, segment completion, and EOF.
 - Completed the Search, Shiori, and Context table interaction refinement.
   Checkbox and Scrollbar Thumb cursors now remain the default arrow, Cue
   glyphs are visually centered inside their fixed line-height boxes, and a

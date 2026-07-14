@@ -19,6 +19,11 @@ private struct ProbeConfig {
     var segmentEndSeconds: Double?
     var segmentTimeoutSeconds: Double
     var postSeekObservationSeconds: Double
+    var playbackRate: Double
+    var expectedRebufferCount: Int?
+    var expectedUnexpectedAudioDrainCount: Int?
+    var expectedSegmentAudioDrainCount: Int?
+    var requireAudioPlaybackProgress: Bool
 
     static func parse(_ arguments: [String]) throws -> ProbeConfig {
         var videoPath: String?
@@ -35,6 +40,11 @@ private struct ProbeConfig {
         var segmentEndSeconds: Double?
         var segmentTimeoutSeconds = 6.0
         var postSeekObservationSeconds = 0.1
+        var playbackRate = 1.0
+        var expectedRebufferCount: Int?
+        var expectedUnexpectedAudioDrainCount: Int?
+        var expectedSegmentAudioDrainCount: Int?
+        var requireAudioPlaybackProgress = false
 
         var index = 1
         while index < arguments.count {
@@ -96,6 +106,32 @@ private struct ProbeConfig {
                     try parseString(valueAfter: argument, arguments: arguments, index: &index),
                     name: argument
                 )
+            case "--playback-rate":
+                playbackRate = try parsePositiveDouble(
+                    try parseString(valueAfter: argument, arguments: arguments, index: &index),
+                    name: argument
+                )
+                guard (0.5...2.0).contains(playbackRate) else {
+                    throw ProbeUsage.invalid("--playback-rate must be between 0.5 and 2.0.")
+                }
+            case "--expect-rebuffer-count":
+                expectedRebufferCount = try parseNonnegativeInt(
+                    try parseString(valueAfter: argument, arguments: arguments, index: &index),
+                    name: argument
+                )
+            case "--expect-unexpected-audio-drain-count":
+                expectedUnexpectedAudioDrainCount = try parseNonnegativeInt(
+                    try parseString(valueAfter: argument, arguments: arguments, index: &index),
+                    name: argument
+                )
+            case "--expect-segment-audio-drain-count":
+                expectedSegmentAudioDrainCount = try parseNonnegativeInt(
+                    try parseString(valueAfter: argument, arguments: arguments, index: &index),
+                    name: argument
+                )
+            case "--require-audio-playback-progress":
+                requireAudioPlaybackProgress = true
+                index += 1
             case "--help", "-h":
                 throw ProbeUsage.requested
             default:
@@ -111,6 +147,16 @@ private struct ProbeConfig {
         }
         guard !seekTargets.isEmpty || segmentEndSeconds != nil else {
             throw ProbeUsage.invalid("Missing --seek-list targets.")
+        }
+        if pauseAfterFirstFrame && requireAudioPlaybackProgress {
+            throw ProbeUsage.invalid(
+                "--pause-after-first-frame cannot be combined with --require-audio-playback-progress."
+            )
+        }
+        if pauseAfterFirstFrame && postSeekObservationSeconds < 0.25 {
+            throw ProbeUsage.invalid(
+                "--pause-after-first-frame requires --post-seek-observation of at least 0.25 seconds."
+            )
         }
 
         let videoURL = URL(fileURLWithPath: videoPath)
@@ -132,7 +178,12 @@ private struct ProbeConfig {
             endTimeoutSeconds: endTimeoutSeconds,
             segmentEndSeconds: segmentEndSeconds,
             segmentTimeoutSeconds: segmentTimeoutSeconds,
-            postSeekObservationSeconds: postSeekObservationSeconds
+            postSeekObservationSeconds: postSeekObservationSeconds,
+            playbackRate: playbackRate,
+            expectedRebufferCount: expectedRebufferCount,
+            expectedUnexpectedAudioDrainCount: expectedUnexpectedAudioDrainCount,
+            expectedSegmentAudioDrainCount: expectedSegmentAudioDrainCount,
+            requireAudioPlaybackProgress: requireAudioPlaybackProgress
         )
     }
 
@@ -166,6 +217,13 @@ private struct ProbeConfig {
     private static func parsePositiveInt(_ value: String, name: String) throws -> Int {
         guard let parsed = Int(value), parsed > 0 else {
             throw ProbeUsage.invalid("Invalid positive integer for \(name): \(value)")
+        }
+        return parsed
+    }
+
+    private static func parseNonnegativeInt(_ value: String, name: String) throws -> Int {
+        guard let parsed = Int(value), parsed >= 0 else {
+            throw ProbeUsage.invalid("Invalid nonnegative integer for \(name): \(value)")
         }
         return parsed
     }
@@ -205,7 +263,7 @@ private enum ProbeUsage: Error, CustomStringConvertible {
     Options:
       --seek-list-loops count       Repeat the seek list. Default: 1
       --start seconds               Initial open timestamp. Default: 0
-      --pause-after-first-frame     Seek should pause after the first new frame
+      --pause-after-first-frame     Pause after first frame; observation must be >= 0.25s
       --pause-before-seek           Pause playback immediately before each seek
       --timeline-scrub-before-seek  Enter timeline scrubbing before each seek
       --wait-for-playback-end-before-seek
@@ -216,6 +274,14 @@ private enum ProbeUsage: Error, CustomStringConvertible {
       --segment-end seconds         Verify bounded playback from --start to this timestamp
       --segment-timeout seconds     Wait timeout for segment completion. Default: 6
       --post-seek-observation secs  Keep playing after each successful seek. Default: 0.1
+      --playback-rate rate          Native playback rate from 0.5 through 2.0. Default: 1.0
+      --expect-rebuffer-count N     Require the aggregate rebuffer count
+      --expect-unexpected-audio-drain-count N
+                                    Require the aggregate unexpected PCM drain count
+      --expect-segment-audio-drain-count N
+                                    Require the aggregate completed segment drain count
+      --require-audio-playback-progress
+                                    Require at least one buffer to reach DataPlayedBack
     """
 }
 
@@ -299,6 +365,15 @@ private final class NativePlayerSeekProbeRunner {
     private(set) var exitCode: Int32 = 1
     private var playbackEndWaitStart: Double = 0
     private var segmentWaitStart: Double = 0
+    private var initialAudioPlayedBackBufferCount: UInt = 0
+    private var seekAudioPlayedBackCountBefore: UInt = 0
+    private var seekRebufferCountBefore: UInt = 0
+    private var seekUnexpectedAudioDrainCountBefore: UInt = 0
+    private var seekSegmentAudioDrainCountBefore: UInt = 0
+    private var completedSessionAudioPlayedBackBufferCount: UInt = 0
+    private var completedSessionRebufferCount: UInt = 0
+    private var completedSessionUnexpectedAudioDrainCount: UInt = 0
+    private var completedSessionSegmentAudioDrainCount: UInt = 0
 
     init(config: ProbeConfig) {
         self.config = config
@@ -308,6 +383,7 @@ private final class NativePlayerSeekProbeRunner {
     func start() throws {
         NSApplication.shared.setActivationPolicy(.regular)
         player.delegate = probeDelegate
+        player.playbackRate = Float(config.playbackRate)
 
         let window = NSWindow(
             contentRect: CGRect(x: 0, y: 0, width: 960, height: 540),
@@ -335,9 +411,10 @@ private final class NativePlayerSeekProbeRunner {
                 startMilliseconds: startMilliseconds
             )
         }
+        initialAudioPlayedBackBufferCount = player.nativeAudioPlayedBackBufferCount
         try player.setPaused(false)
 
-        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s segment_end=\(config.segmentEndSeconds.map(format) ?? "none")s pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") pause_before_seek=\(config.pauseBeforeSeek ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no") wait_for_end_before_seek=\(config.waitForPlaybackEndBeforeSeek ? "yes" : "no") post_seek_observation=\(format(config.postSeekObservationSeconds))s")
+        print("PLAYER_SEEK_PROBE_START targets=\(seekTargets.count) start=\(format(config.startSeconds))s segment_end=\(config.segmentEndSeconds.map(format) ?? "none")s playback_rate=\(format(config.playbackRate)) pause_after_first_frame=\(config.pauseAfterFirstFrame ? "yes" : "no") pause_before_seek=\(config.pauseBeforeSeek ? "yes" : "no") timeline_scrub_before_seek=\(config.timelineScrubBeforeSeek ? "yes" : "no") wait_for_end_before_seek=\(config.waitForPlaybackEndBeforeSeek ? "yes" : "no") post_seek_observation=\(format(config.postSeekObservationSeconds))s")
         printCounters(prefix: "PLAYER_SEEK_COUNTERS_INITIAL")
 
         if config.segmentEndSeconds != nil {
@@ -372,29 +449,53 @@ private final class NativePlayerSeekProbeRunner {
         let lastAudioEndMilliseconds = player.nativeLastScheduledAudioEndMilliseconds
         let nativeFinishCount = player.nativeSegmentFinishNotificationCount
         let nativeFinishedEndMilliseconds = player.nativeLastFinishedSegmentEndMilliseconds
+        let audioPlayedBackCount = player.nativeAudioPlayedBackBufferCount
+        let unexpectedAudioDrainCount = player.nativeUnexpectedAudioDrainCount
+        let segmentAudioDrainCount = player.nativeSegmentAudioDrainCount
         let videoEndGapMilliseconds = lastVideoFrameMilliseconds < 0
             ? 0
             : endMilliseconds - lastVideoFrameMilliseconds
+        let audioEndGapMilliseconds = lastAudioEndMilliseconds < 0
+            ? 0
+            : endMilliseconds - lastAudioEndMilliseconds
         let videoEndToleranceMilliseconds = 100
-        let videoOK = lastVideoFrameMilliseconds < 0
-            || (
-                lastVideoFrameMilliseconds < endMilliseconds
-                    && videoEndGapMilliseconds <= videoEndToleranceMilliseconds
+        let audioEndToleranceMilliseconds = 100
+        let videoOK = lastVideoFrameMilliseconds >= 0
+            && lastVideoFrameMilliseconds <= endMilliseconds
+            && videoEndGapMilliseconds <= videoEndToleranceMilliseconds
+        let audioOK = config.requireAudioPlaybackProgress
+            ? (
+                lastAudioEndMilliseconds >= 0
+                    && lastAudioEndMilliseconds <= endMilliseconds
+                    && audioEndGapMilliseconds <= audioEndToleranceMilliseconds
             )
-        let audioOK = lastAudioEndMilliseconds < 0 || lastAudioEndMilliseconds <= endMilliseconds
+            : lastAudioEndMilliseconds < 0 || lastAudioEndMilliseconds <= endMilliseconds
+        let audioProgressOK = !config.requireAudioPlaybackProgress
+            || audioPlayedBackCount > initialAudioPlayedBackBufferCount
+        let rebufferOK = config.expectedRebufferCount.map { player.nativeRebufferCount == $0 } ?? true
+        let unexpectedDrainOK = config.expectedUnexpectedAudioDrainCount.map {
+            player.nativeUnexpectedAudioDrainCount == $0
+        } ?? true
+        let segmentDrainOK = config.expectedSegmentAudioDrainCount.map {
+            player.nativeSegmentAudioDrainCount == $0
+        } ?? true
         let endEventOK = nativeFinishCount == 1
             && nativeFinishedEndMilliseconds == endMilliseconds
             && snapshot.lastFinishedSegmentEndMilliseconds == endMilliseconds
         let passed = segmentFinished
             && videoOK
             && audioOK
+            && audioProgressOK
+            && rebufferOK
+            && unexpectedDrainOK
+            && segmentDrainOK
             && endEventOK
             && snapshot.failures.isEmpty
 
         if passed || elapsed >= config.segmentTimeoutSeconds {
             let status = passed ? "pass" : "fail"
             print(
-                "PLAYER_SEGMENT_RESULT status=\(status) start_ms=\(Int((config.startSeconds * 1000).rounded())) end_ms=\(endMilliseconds) elapsed_ms=\(format(elapsed * 1000)) current=\(format(player.currentTime))s last_video_ms=\(lastVideoFrameMilliseconds) last_video_gap_ms=\(videoEndGapMilliseconds) last_audio_start_ms=\(lastAudioStartMilliseconds) last_audio_end_ms=\(lastAudioEndMilliseconds) delegate_segment_count=\(snapshot.segmentFinishCount) native_segment_count=\(nativeFinishCount) playing=\(player.isPlaying ? "yes" : "no") failures=\(snapshot.failures.count)"
+                "PLAYER_SEGMENT_RESULT status=\(status) start_ms=\(Int((config.startSeconds * 1000).rounded())) end_ms=\(endMilliseconds) elapsed_ms=\(format(elapsed * 1000)) current=\(format(player.currentTime))s last_video_ms=\(lastVideoFrameMilliseconds) last_video_gap_ms=\(videoEndGapMilliseconds) last_audio_start_ms=\(lastAudioStartMilliseconds) last_audio_end_ms=\(lastAudioEndMilliseconds) last_audio_gap_ms=\(audioEndGapMilliseconds) delegate_segment_count=\(snapshot.segmentFinishCount) native_segment_count=\(nativeFinishCount) audio_played_back_count=\(audioPlayedBackCount) unexpected_audio_drain_count=\(unexpectedAudioDrainCount) segment_audio_drain_count=\(segmentAudioDrainCount) playing=\(player.isPlaying ? "yes" : "no") failures=\(snapshot.failures.count)"
             )
             if !passed {
                 if !segmentFinished {
@@ -404,7 +505,13 @@ private final class NativePlayerSeekProbeRunner {
                     failures.append("last submitted video frame \(lastVideoFrameMilliseconds)ms is not within \(videoEndToleranceMilliseconds)ms before segment end \(endMilliseconds)ms")
                 }
                 if !audioOK {
-                    failures.append("last scheduled audio end \(lastAudioEndMilliseconds)ms exceeds segment end \(endMilliseconds)ms")
+                    failures.append("last scheduled audio end \(lastAudioEndMilliseconds)ms is not within \(audioEndToleranceMilliseconds)ms before segment end \(endMilliseconds)ms")
+                }
+                if !audioProgressOK {
+                    failures.append("segment audio did not reach DataPlayedBack")
+                }
+                if !rebufferOK || !unexpectedDrainOK || !segmentDrainOK {
+                    failures.append("segment audio diagnostics did not match the requested counts")
                 }
                 if !endEventOK {
                     failures.append("segment finish event did not match end \(endMilliseconds)ms")
@@ -438,11 +545,25 @@ private final class NativePlayerSeekProbeRunner {
         let currentTime = player.currentTime
         let ended = frameCount > 0
             && player.isPlaying == false
+            && player.nativeAudioOutputDrained
             && duration > 0
             && currentTime + 0.5 >= duration
 
         if ended {
-            print("PLAYER_SEEK_END_WAIT status=pass elapsed_ms=\(format(elapsed * 1000)) current=\(format(currentTime))s duration=\(format(duration))s frame_count=\(frameCount) open_count=\(player.nativeSessionOpenCount)")
+            let playedBackCount = player.nativeAudioPlayedBackBufferCount
+            let rebufferCount = player.nativeRebufferCount
+            let unexpectedDrainCount = player.nativeUnexpectedAudioDrainCount
+            let segmentDrainCount = player.nativeSegmentAudioDrainCount
+            let audioProgressOK = !config.requireAudioPlaybackProgress
+                || playedBackCount > initialAudioPlayedBackBufferCount
+            if !audioProgressOK {
+                failures.append("audio did not reach DataPlayedBack before natural EOF")
+            }
+            completedSessionAudioPlayedBackBufferCount += playedBackCount
+            completedSessionRebufferCount += rebufferCount
+            completedSessionUnexpectedAudioDrainCount += unexpectedDrainCount
+            completedSessionSegmentAudioDrainCount += segmentDrainCount
+            print("PLAYER_SEEK_END_WAIT status=\(audioProgressOK ? "pass" : "fail") elapsed_ms=\(format(elapsed * 1000)) current=\(format(currentTime))s duration=\(format(duration))s frame_count=\(frameCount) open_count=\(player.nativeSessionOpenCount) audio_played_back_count=\(playedBackCount) rebuffer_count=\(rebufferCount) unexpected_audio_drain_count=\(unexpectedDrainCount) segment_audio_drain_count=\(segmentDrainCount)")
             runNextSeek()
             return
         }
@@ -480,6 +601,9 @@ private final class NativePlayerSeekProbeRunner {
             }
         }
         let frameCountBeforeSeek = player.nativePresentedVideoFrameCount
+        seekRebufferCountBefore = player.nativeRebufferCount
+        seekUnexpectedAudioDrainCountBefore = player.nativeUnexpectedAudioDrainCount
+        seekSegmentAudioDrainCountBefore = player.nativeSegmentAudioDrainCount
         let openCountBeforeSeek = player.nativeSessionOpenCount
         let seekCountBeforeSeek = player.nativeInSessionSeekCount
         let expectedOpenCount = openCountBeforeSeek + (expectsReopenAfterEnd ? 1 : 0)
@@ -502,6 +626,13 @@ private final class NativePlayerSeekProbeRunner {
             finish()
             return
         }
+
+        if expectsReopenAfterEnd {
+            seekRebufferCountBefore = player.nativeRebufferCount
+            seekUnexpectedAudioDrainCountBefore = player.nativeUnexpectedAudioDrainCount
+            seekSegmentAudioDrainCountBefore = player.nativeSegmentAudioDrainCount
+        }
+        seekAudioPlayedBackCountBefore = player.nativeAudioPlayedBackBufferCount
 
         waitForSeekFrame(
             targetSeconds: targetSeconds,
@@ -548,9 +679,10 @@ private final class NativePlayerSeekProbeRunner {
                 failures.append("seek \(seekIndex + 1) did not satisfy frame/time/counter checks")
             }
             seekIndex += 1
+            let completedSeekIndex = seekIndex
             DispatchQueue.main.asyncAfter(deadline: .now() + config.postSeekObservationSeconds) { [weak self] in
                 Task { @MainActor in
-                    self?.runNextSeek()
+                    self?.completeSeekObservation(index: completedSeekIndex)
                 }
             }
             return
@@ -572,6 +704,51 @@ private final class NativePlayerSeekProbeRunner {
         }
     }
 
+    private func completeSeekObservation(index: Int) {
+        let playedBackDelta = counterDelta(
+            after: player.nativeAudioPlayedBackBufferCount,
+            before: seekAudioPlayedBackCountBefore
+        )
+        let rebufferDelta = counterDelta(after: player.nativeRebufferCount, before: seekRebufferCountBefore)
+        let unexpectedDrainDelta = counterDelta(
+            after: player.nativeUnexpectedAudioDrainCount,
+            before: seekUnexpectedAudioDrainCountBefore
+        )
+        let segmentDrainDelta = counterDelta(
+            after: player.nativeSegmentAudioDrainCount,
+            before: seekSegmentAudioDrainCountBefore
+        )
+        let progressOK = !config.requireAudioPlaybackProgress || playedBackDelta > 0
+        let pauseSilenceOK = !config.pauseAfterFirstFrame || playedBackDelta == 0
+        let rebufferOK = config.expectedRebufferCount.map {
+            $0 == 0 ? rebufferDelta == 0 : true
+        } ?? true
+        let unexpectedDrainOK = config.expectedUnexpectedAudioDrainCount.map {
+            $0 == 0 ? unexpectedDrainDelta == 0 : true
+        } ?? true
+        let segmentDrainOK = config.expectedSegmentAudioDrainCount.map {
+            $0 == 0 ? segmentDrainDelta == 0 : true
+        } ?? true
+        let passed = progressOK && pauseSilenceOK && rebufferOK && unexpectedDrainOK && segmentDrainOK
+        if !progressOK {
+            failures.append("seek \(index) audio did not reach DataPlayedBack during the observation window")
+        }
+        if !pauseSilenceOK {
+            failures.append("seek \(index) audio played before the explicit resume")
+        }
+        if !rebufferOK || !unexpectedDrainOK || !segmentDrainOK {
+            failures.append("seek \(index) audio diagnostics did not match the requested zero counts")
+        }
+        print(
+            "PLAYER_AUDIO_RESULT index=\(index) status=\(passed ? "pass" : "fail") observation_ms=\(format(config.postSeekObservationSeconds * 1000)) played_back_delta=\(playedBackDelta) rebuffer_delta=\(rebufferDelta) unexpected_audio_drain_delta=\(unexpectedDrainDelta) segment_audio_drain_delta=\(segmentDrainDelta)"
+        )
+        runNextSeek()
+    }
+
+    private func counterDelta(after: UInt, before: UInt) -> UInt {
+        after >= before ? after - before : after
+    }
+
     private func finish() {
         let delegateSnapshot = probeDelegate.snapshot()
         failures.append(contentsOf: delegateSnapshot.failures.map { "delegate failure: \($0)" })
@@ -588,7 +765,41 @@ private final class NativePlayerSeekProbeRunner {
             }
         }
 
-        printCounters(prefix: "PLAYER_SEEK_COUNTERS_FINAL")
+        let totalRebufferCount = completedSessionRebufferCount + player.nativeRebufferCount
+        let totalUnexpectedAudioDrainCount = completedSessionUnexpectedAudioDrainCount
+            + player.nativeUnexpectedAudioDrainCount
+        let totalSegmentAudioDrainCount = completedSessionSegmentAudioDrainCount
+            + player.nativeSegmentAudioDrainCount
+        if let expected = config.expectedRebufferCount,
+           totalRebufferCount != UInt(expected) {
+            failures.append("expected \(expected) rebuffer events, got \(totalRebufferCount)")
+        }
+        if let expected = config.expectedUnexpectedAudioDrainCount,
+           totalUnexpectedAudioDrainCount != UInt(expected) {
+            failures.append("expected \(expected) unexpected audio drains, got \(totalUnexpectedAudioDrainCount)")
+        }
+        if let expected = config.expectedSegmentAudioDrainCount,
+           totalSegmentAudioDrainCount != UInt(expected) {
+            failures.append("expected \(expected) segment audio drains, got \(totalSegmentAudioDrainCount)")
+        }
+        let totalAudioPlayedBackBufferCount = completedSessionAudioPlayedBackBufferCount
+            + player.nativeAudioPlayedBackBufferCount
+        let audioPlayedBackDelta = counterDelta(
+            after: totalAudioPlayedBackBufferCount,
+            before: initialAudioPlayedBackBufferCount
+        )
+        if config.requireAudioPlaybackProgress && audioPlayedBackDelta == 0 {
+            failures.append("audio did not reach DataPlayedBack during the observation window")
+        }
+
+        print(
+            "PLAYER_AUDIO_SUMMARY status=\(failures.isEmpty ? "pass" : "fail") played_back_delta=\(audioPlayedBackDelta) rebuffer_count=\(totalRebufferCount) unexpected_audio_drain_count=\(totalUnexpectedAudioDrainCount) segment_audio_drain_count=\(totalSegmentAudioDrainCount)"
+        )
+
+        let finalCountersPrefix = config.waitForPlaybackEndBeforeSeek
+            ? "PLAYER_SEEK_COUNTERS_FINAL_SESSION"
+            : "PLAYER_SEEK_COUNTERS_FINAL"
+        printCounters(prefix: finalCountersPrefix)
         print("PLAYER_SEEK_PROBE_RESULT status=\(failures.isEmpty ? "pass" : "fail") failures=\(failures.count)")
         for failure in failures {
             print("PLAYER_SEEK_FAILURE \(failure)")
@@ -601,7 +812,7 @@ private final class NativePlayerSeekProbeRunner {
     }
 
     private func printCounters(prefix: String) {
-        print("\(prefix) open_count=\(player.nativeSessionOpenCount) in_session_seek_count=\(player.nativeInSessionSeekCount) frame_count=\(player.nativePresentedVideoFrameCount) last_video_ms=\(player.nativeLastSubmittedVideoFrameMilliseconds) last_audio_start_ms=\(player.nativeLastScheduledAudioStartMilliseconds) last_audio_end_ms=\(player.nativeLastScheduledAudioEndMilliseconds) segment_count=\(player.nativeSegmentFinishNotificationCount) segment_end_ms=\(player.nativeLastFinishedSegmentEndMilliseconds) rebuffer_count=\(player.nativeRebufferCount) last_rebuffer_ms=\(player.nativeLastRebufferDurationMilliseconds) last_rebuffer_waiting_for_packet=\(player.nativeLastRebufferStartedWhileWaitingForPacket ? "yes" : "no")")
+        print("\(prefix) open_count=\(player.nativeSessionOpenCount) in_session_seek_count=\(player.nativeInSessionSeekCount) frame_count=\(player.nativePresentedVideoFrameCount) last_video_ms=\(player.nativeLastSubmittedVideoFrameMilliseconds) last_audio_start_ms=\(player.nativeLastScheduledAudioStartMilliseconds) last_audio_end_ms=\(player.nativeLastScheduledAudioEndMilliseconds) segment_count=\(player.nativeSegmentFinishNotificationCount) segment_end_ms=\(player.nativeLastFinishedSegmentEndMilliseconds) rebuffer_count=\(player.nativeRebufferCount) last_rebuffer_ms=\(player.nativeLastRebufferDurationMilliseconds) last_rebuffer_waiting_for_packet=\(player.nativeLastRebufferStartedWhileWaitingForPacket ? "yes" : "no") audio_played_back_count=\(player.nativeAudioPlayedBackBufferCount) unexpected_audio_drain_count=\(player.nativeUnexpectedAudioDrainCount) segment_audio_drain_count=\(player.nativeSegmentAudioDrainCount) audio_output_drained=\(player.nativeAudioOutputDrained ? "yes" : "no")")
     }
 
     private func format(_ value: Double) -> String {
