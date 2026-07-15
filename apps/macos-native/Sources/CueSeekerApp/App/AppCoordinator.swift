@@ -513,9 +513,19 @@ final class AppCoordinator: ObservableObject {
     func setupSettingsObservers() {
         playback.$playlistSource
             .dropFirst()
-            .sink { [weak self] _ in
-                self?.playbackSearchPlaylistNavigationTask?.cancel()
-                self?.playbackSearchPlaylistNavigationTask = nil
+            .sink { [weak self] source in
+                guard let self else {
+                    return
+                }
+                self.playbackSearchPlaylistNavigationTask?.cancel()
+                self.playbackSearchPlaylistNavigationTask = nil
+                guard let source,
+                      case .shiori = source.origin
+                else {
+                    self.shioriPlaybackNavigationScopeIDs = nil
+                    self.shioriPlaybackNavigationSnapshot = nil
+                    return
+                }
             }
             .store(in: &settingsCancellables)
 

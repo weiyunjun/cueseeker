@@ -47,7 +47,8 @@ extension AppCoordinator {
     func loadTableSandboxShioriRows(
         range: Range<Int>,
         searchText: String,
-        filterSet: SubtitleSearchFilterSet
+        filterSet: SubtitleSearchFilterSet,
+        resultShioriIDs: [Int64]? = nil
     ) async -> TableSandboxShioriHydrationPage? {
         guard subtitleDatabase != nil else {
             return nil
@@ -60,18 +61,34 @@ extension AppCoordinator {
 
         do {
             let pageDatabaseURL = databaseURL
-            let page = try await Task.detached(priority: .userInitiated) {
+            let page: TableSandboxShioriHydrationPage? = try await Self.runCancellableDetached(
+                priority: .userInitiated
+            ) {
                 let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
-                let rawPage = try pageDatabase.shioriTablePage(
-                    limit: upperBound - lowerBound,
-                    offset: lowerBound,
-                    searchText: trimmedSearchText,
-                    filterSet: filterSet
+                let resolvedShioriIDs = try resultShioriIDs
+                    ?? pageDatabase.shioriTableIDIndex(
+                        searchText: trimmedSearchText,
+                        filterSet: filterSet
+                    ).shioriIDs
+                try Task.checkCancellation()
+                let pageLowerBound = min(lowerBound, resolvedShioriIDs.count)
+                let pageUpperBound = min(upperBound, resolvedShioriIDs.count)
+                let pageShioriIDs = Array(
+                    resolvedShioriIDs[pageLowerBound..<pageUpperBound]
                 )
+                let rawPage = try pageDatabase.shioriPage(
+                    shioriIDs: pageShioriIDs
+                )
+                guard rawPage.shioris.map(\.id) == pageShioriIDs else {
+                    return nil
+                }
+                try Task.checkCancellation()
                 let tagsByShioriID = try pageDatabase.shioriTagsByShioriID(
                     forShioriIDs: rawPage.shioris.map(\.id)
                 )
+                try Task.checkCancellation()
                 let totalSavedRowCount = try pageDatabase.shioriCount()
+                try Task.checkCancellation()
                 let rows = tableSandboxShioriRowSources(
                     from: rawPage,
                     tagsByShioriID: tagsByShioriID
@@ -79,16 +96,19 @@ extension AppCoordinator {
                 return TableSandboxShioriHydrationPage(
                     range: lowerBound..<(lowerBound + rows.count),
                     rows: rows,
-                    totalRowCount: rawPage.totalCount,
-                    totalSavedRowCount: totalSavedRowCount
+                    totalRowCount: resolvedShioriIDs.count,
+                    totalSavedRowCount: totalSavedRowCount,
+                    resultShioriIDs: resolvedShioriIDs
                 )
-            }.value
+            }
 
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled, let page else {
                 return nil
             }
 
             return page
+        } catch is CancellationError {
+            return nil
         } catch {
             print("Failed to load Shiori table rows: \(error)")
             return nil
@@ -266,6 +286,7 @@ extension AppCoordinator {
         _ shiori: Shiori,
         recordsNavigationHistory: Bool = true,
         navigationScopeIDs: [Int64]? = nil,
+        playlistScope: PlaybackPlaylistShioriScope? = nil,
         displayTitle: String? = nil,
         playsContinuouslyFromStart: Bool = false
     ) {
@@ -276,8 +297,24 @@ extension AppCoordinator {
             details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
         )
         preparePlaybackKeyboardFocus()
-        shioriPlaybackNavigationScopeIDs = normalizedShioriPlaybackNavigationScopeIDs(navigationScopeIDs)
-        installShioriPlaybackPlaylistSource()
+        let keepsExistingPlaylistSnapshot = playlistScope.map { scope in
+            playback.playlistSource?.origin == .shiori(scope: scope)
+                && shioriPlaybackNavigationScopeIDs != nil
+        } ?? false
+        if !keepsExistingPlaylistSnapshot {
+            if case .table(let context)? = playlistScope,
+               let navigationScopeIDs,
+               navigationScopeIDs.count == context.totalCount {
+                // Core table snapshots are already ordered and unique by the
+                // Shiori primary key. Keep their copy-on-write ID buffer.
+                shioriPlaybackNavigationScopeIDs = navigationScopeIDs
+            } else {
+                shioriPlaybackNavigationScopeIDs = normalizedShioriPlaybackNavigationScopeIDs(
+                    navigationScopeIDs
+                )
+            }
+        }
+        installShioriPlaybackPlaylistSource(scope: playlistScope)
         refreshShioriPlaybackNavigationSnapshot(for: shiori)
         rememberPlaybackOriginatingPanelModeIfEntering()
         saveCurrentLibraryPlaybackHistory()
@@ -436,7 +473,11 @@ extension AppCoordinator {
         let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .previous, hasResult: hasResult)
         if let target {
-            openShiori(target, navigationScopeIDs: shioriPlaybackNavigationScopeIDs)
+            openShiori(
+                target,
+                navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
+                playlistScope: activeShioriPlaybackPlaylistScope
+            )
         }
     }
 
@@ -445,8 +486,21 @@ extension AppCoordinator {
         let hasResult = target != nil
         playback.playbackViewModel?.showShioriNavigationFeedback(direction: .next, hasResult: hasResult)
         if let target {
-            openShiori(target, navigationScopeIDs: shioriPlaybackNavigationScopeIDs)
+            openShiori(
+                target,
+                navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
+                playlistScope: activeShioriPlaybackPlaylistScope
+            )
         }
+    }
+
+    private var activeShioriPlaybackPlaylistScope: PlaybackPlaylistShioriScope? {
+        guard let source = playback.playlistSource,
+              case .shiori(let scope) = source.origin
+        else {
+            return nil
+        }
+        return scope
     }
 
     private func shioriPlaybackNavigationTarget(direction: ShioriNavigationDirection) -> Shiori? {
@@ -470,6 +524,41 @@ extension AppCoordinator {
 
     private func refreshShioriPlaybackNavigationSnapshot(for selectedShiori: Shiori) {
         let selectedID = selectedShiori.id
+
+        if let source = playback.playlistSource,
+           case .shiori(.table) = source.origin {
+            let selectedIdentity = PlaybackPlaylistItemIdentity.shiori(
+                selectedID
+            )
+            guard source.hasStableIdentityIndex,
+                  let index = source.ordinal(of: selectedIdentity)
+            else {
+                shioriPlaybackNavigationSnapshot = (
+                    currentID: selectedID,
+                    previousID: nil,
+                    nextID: nil
+                )
+                return
+            }
+            let previousID: Int64? = if index > 0,
+                case .shiori(let shioriID)? = source.itemIdentity(at: index - 1) {
+                shioriID
+            } else {
+                nil
+            }
+            let nextID: Int64? = if index + 1 < source.boundary.totalCount,
+                case .shiori(let shioriID)? = source.itemIdentity(at: index + 1) {
+                shioriID
+            } else {
+                nil
+            }
+            shioriPlaybackNavigationSnapshot = (
+                currentID: selectedID,
+                previousID: previousID,
+                nextID: nextID
+            )
+            return
+        }
 
         if let scopeIDs = shioriPlaybackNavigationScopeIDs,
            let index = scopeIDs.firstIndex(of: selectedID) {

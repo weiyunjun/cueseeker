@@ -17,6 +17,8 @@ final class ShioriStore: ObservableObject {
     @Published var tableResultRowCount = 0
     @Published var tableHasLoadedInitialPage = false
     @Published var tableDataRevision = 0
+    private(set) var tableResultSnapshotID = UUID()
+    private(set) var tableResultShioriIDs: [Int64]?
 
     let tableRowStore = TableSandboxRowModelStore()
 
@@ -40,6 +42,8 @@ final class ShioriStore: ObservableObject {
         tableHasLoadedInitialPage = false
         tableTotalSavedRowCount = 0
         tableResultRowCount = 0
+        tableResultSnapshotID = UUID()
+        tableResultShioriIDs = nil
         tableRowStore.updateShioriRows(
             [],
             tableName: tableName,
@@ -51,6 +55,11 @@ final class ShioriStore: ObservableObject {
     func markTableRowsLoaded(totalSavedRowCount: Int) {
         tableTotalSavedRowCount = totalSavedRowCount
         tableHasLoadedInitialPage = true
+    }
+
+    func installTableResultShioriIDs(_ shioriIDs: [Int64]) {
+        tableResultShioriIDs = shioriIDs
+        tableResultRowCount = shioriIDs.count
     }
 
     func invalidateTableRows(tableName: String = "shiori") {

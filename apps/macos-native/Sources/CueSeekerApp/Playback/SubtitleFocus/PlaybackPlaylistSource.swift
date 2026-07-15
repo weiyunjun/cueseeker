@@ -7,9 +7,31 @@ enum PlaybackPlaylistSourceKind: Hashable, Sendable {
     case shiori
 }
 
+struct PlaybackPlaylistShioriTableContext: Hashable, Sendable {
+    let runID: UUID
+    let searchText: String
+    let filterSet: SubtitleSearchFilterSet
+    let totalCount: Int
+
+    init(
+        runID: UUID = UUID(),
+        searchText: String,
+        filterSet: SubtitleSearchFilterSet,
+        totalCount: Int
+    ) {
+        self.runID = runID
+        self.searchText = searchText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        self.filterSet = filterSet
+        self.totalCount = max(0, totalCount)
+    }
+}
+
 enum PlaybackPlaylistShioriScope: Hashable, Sendable {
     case explicitIDs([Int64])
     case databaseOrder
+    case table(PlaybackPlaylistShioriTableContext)
 }
 
 struct PlaybackSearchPlaylistContext: Hashable, Sendable {
@@ -212,8 +234,9 @@ final class PlaybackPlaylistSource: ObservableObject {
 
     @Published private(set) var boundary: PlaybackPlaylistSourceBoundary
 
-    private let loader: PlaybackPlaylistSourceWindowLoader
+    private var loader: PlaybackPlaylistSourceWindowLoader?
     private var invalidationHandler: (@MainActor () -> Void)?
+    private var stableItemIdentities: [PlaybackPlaylistItemIdentity]?
     private var isActive = true
 
     convenience init(
@@ -226,6 +249,7 @@ final class PlaybackPlaylistSource: ObservableObject {
             origin: .unspecified(kind),
             totalCount: totalCount,
             knownItemIDsByOrdinal: knownItemIDsByOrdinal,
+            stableItemIdentities: nil,
             invalidationHandler: nil,
             loader: loader
         )
@@ -235,6 +259,7 @@ final class PlaybackPlaylistSource: ObservableObject {
         origin: PlaybackPlaylistSourceOrigin,
         totalCount: Int,
         knownItemIDsByOrdinal: [Int: PlaybackPlaylistItemIdentity],
+        stableItemIdentities: [PlaybackPlaylistItemIdentity]? = nil,
         invalidationHandler: (@MainActor () -> Void)? = nil,
         loader: @escaping PlaybackPlaylistSourceWindowLoader
     ) {
@@ -242,16 +267,24 @@ final class PlaybackPlaylistSource: ObservableObject {
         self.loader = loader
         self.invalidationHandler = invalidationHandler
         let resolvedTotalCount = max(0, totalCount)
+        let resolvedKnownItemIDs = Self.normalizedKnownItemIDs(
+            knownItemIDsByOrdinal,
+            totalCount: resolvedTotalCount
+        )
         boundary = PlaybackPlaylistSourceBoundary(
             datasetID: UUID(),
             generation: 1,
             revision: 0,
             totalCount: resolvedTotalCount,
-            knownItemIDsByOrdinal: Self.normalizedKnownItemIDs(
-                knownItemIDsByOrdinal,
-                totalCount: resolvedTotalCount
-            )
+            knownItemIDsByOrdinal: resolvedKnownItemIDs
         )
+        if let stableItemIdentities,
+           stableItemIdentities.count == resolvedTotalCount,
+           resolvedKnownItemIDs.allSatisfy({ entry in
+               stableItemIdentities[entry.key] == entry.value
+           }) {
+            self.stableItemIdentities = stableItemIdentities
+        }
     }
 
     var hasItems: Bool {
@@ -274,6 +307,9 @@ final class PlaybackPlaylistSource: ObservableObject {
         )
         let changesIdentityBoundary = boundary.totalCount != resolvedTotalCount
             || boundary.knownItemIDsByOrdinal != resolvedKnownIDs
+        if changesIdentityBoundary {
+            stableItemIdentities = nil
+        }
         boundary = PlaybackPlaylistSourceBoundary(
             datasetID: boundary.datasetID,
             generation: changesIdentityBoundary
@@ -286,6 +322,29 @@ final class PlaybackPlaylistSource: ObservableObject {
             knownItemIDsByOrdinal: resolvedKnownIDs
         )
         return true
+    }
+
+    var hasStableIdentityIndex: Bool {
+        stableItemIdentities?.count == boundary.totalCount
+    }
+
+    func itemIdentity(at ordinal: Int) -> PlaybackPlaylistItemIdentity? {
+        if let stableItemIdentities,
+           stableItemIdentities.indices.contains(ordinal) {
+            return stableItemIdentities[ordinal]
+        }
+        return boundary.knownItemIDsByOrdinal[ordinal]
+    }
+
+    func ordinal(
+        of identity: PlaybackPlaylistItemIdentity
+    ) -> Int? {
+        if let stableItemIdentities {
+            return stableItemIdentities.firstIndex(of: identity)
+        }
+        return boundary.knownItemIDsByOrdinal.first(where: {
+            $0.value == identity
+        })?.key
     }
 
     func makeSessionWindowStore(
@@ -302,7 +361,7 @@ final class PlaybackPlaylistSource: ObservableObject {
     func loadWindow(
         _ request: PlaybackPlaylistSourceWindowRequest
     ) async -> PlaybackPlaylistSourceWindowResponse? {
-        guard accepts(request) else {
+        guard accepts(request), let loader else {
             return nil
         }
         let response = await loader(request)
@@ -322,7 +381,7 @@ final class PlaybackPlaylistSource: ObservableObject {
         }
 
         for item in response.items {
-            if let knownID = boundary.knownItemIDsByOrdinal[item.ordinal],
+            if let knownID = itemIdentity(at: item.ordinal),
                knownID != item.identity {
                 return nil
             }
@@ -335,6 +394,8 @@ final class PlaybackPlaylistSource: ObservableObject {
             return
         }
         isActive = false
+        stableItemIdentities = nil
+        loader = nil
         boundary = PlaybackPlaylistSourceBoundary(
             datasetID: boundary.datasetID,
             generation: boundary.generation &+ 1,
@@ -397,7 +458,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         self.source = source
         let boundary = source.boundary
         selectedOrdinal = boundary.totalCount > 0 ? 0 : nil
-        selectedItemIdentity = boundary.knownItemIDsByOrdinal[0]
+        selectedItemIdentity = source.itemIdentity(at: 0)
         snapshot = Self.emptySnapshot(boundary: boundary, revision: 0)
         boundaryCancellable = source.$boundary
             .dropFirst()
@@ -415,7 +476,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
     }
 
     func knownItemIdentity(at ordinal: Int) -> PlaybackPlaylistItemIdentity? {
-        source?.boundary.knownItemIDsByOrdinal[ordinal]
+        source?.itemIdentity(at: ordinal)
     }
 
     func item(at ordinal: Int) -> PlaybackPlaylistItem? {
@@ -433,7 +494,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         selectedOrdinal = snapshot.totalCount > 0 ? 0 : nil
         selectedItemIdentity = selectedOrdinal.flatMap { ordinal in
             item(at: ordinal)?.identity
-                ?? source?.boundary.knownItemIDsByOrdinal[ordinal]
+                ?? source?.itemIdentity(at: ordinal)
         }
     }
 
@@ -445,7 +506,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         guard isActive,
               ordinal >= 0,
               ordinal < snapshot.totalCount,
-              source?.boundary.knownItemIDsByOrdinal[ordinal] == itemIdentity
+              source?.itemIdentity(at: ordinal) == itemIdentity
         else {
             return false
         }
@@ -615,11 +676,11 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
            selectedOrdinal >= boundary.totalCount {
             self.selectedOrdinal = boundary.totalCount > 0 ? 0 : nil
             selectedItemIdentity = self.selectedOrdinal.flatMap {
-                boundary.knownItemIDsByOrdinal[$0]
+                source?.itemIdentity(at: $0)
             }
         } else if selectedOrdinal == nil, boundary.totalCount > 0 {
             selectedOrdinal = 0
-            selectedItemIdentity = boundary.knownItemIDsByOrdinal[0]
+            selectedItemIdentity = source?.itemIdentity(at: 0)
         } else if boundary.totalCount == 0 {
             selectedItemIdentity = nil
         }

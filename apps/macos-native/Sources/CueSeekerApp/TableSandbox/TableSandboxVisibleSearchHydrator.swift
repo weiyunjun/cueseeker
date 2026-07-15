@@ -12,6 +12,7 @@ struct TableSandboxShioriHydrationPage: Equatable, Sendable {
     let rows: [TableSandboxShioriRowSource]
     let totalRowCount: Int
     let totalSavedRowCount: Int
+    let resultShioriIDs: [Int64]
 }
 
 enum TableSandboxHydrationPaging {

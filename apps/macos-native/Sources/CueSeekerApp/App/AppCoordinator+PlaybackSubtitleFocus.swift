@@ -518,9 +518,17 @@ extension AppCoordinator {
                 playbackSearchPromotion: playbackSearchPromotion
             )
         case .shiori(let shiori):
+            let playlistScope: PlaybackPlaylistShioriScope?
+            if let source = playback.playlistSource,
+               case .shiori(let scope) = source.origin {
+                playlistScope = scope
+            } else {
+                playlistScope = nil
+            }
             openShiori(
                 shiori,
                 navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
+                playlistScope: playlistScope,
                 playsContinuouslyFromStart: true
             )
         }

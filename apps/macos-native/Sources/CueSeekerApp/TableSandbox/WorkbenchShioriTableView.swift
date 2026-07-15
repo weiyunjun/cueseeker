@@ -7,6 +7,8 @@ private struct WorkbenchShioriTableTextCopySource {
     let filterSet: SubtitleSearchFilterSet
     let filterSignature: String
     let resultRowCount: Int
+    let resultSnapshotID: UUID
+    let resultShioriIDs: [Int64]
     let reloadGeneration: Int
     let dataRevision: Int
 }
@@ -40,6 +42,8 @@ private struct WorkbenchShioriTableContent: View {
     @State private var reloadGeneration = 0
     @State private var continuousLoadGeneration = 0
     @State private var isLoadingContinuousRows = false
+    @State private var initialRowsTask: Task<Void, Never>?
+    @State private var continuousRowsTask: Task<Void, Never>?
     @State private var pendingRemoval: Shiori?
     @State private var pendingTagDeletion: PendingShioriTagDeletion?
     @State private var canExportSelectedRowsAsCollage = false
@@ -201,7 +205,10 @@ private struct WorkbenchShioriTableContent: View {
 
     private var tableSummary: SchemaWorkbenchTableSummary {
         SchemaWorkbenchTableSummary(
-            totalRowCount: rowStore.snapshot.totalRowCount,
+            totalRowCount: max(
+                shioriStore.tableResultRowCount,
+                rowStore.snapshot.totalRowCount
+            ),
             selectedRowCount: rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
         )
     }
@@ -271,6 +278,8 @@ private struct WorkbenchShioriTableContent: View {
             filterSet: filterSet,
             filterSignature: filterSet.cacheSignature,
             resultRowCount: max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount),
+            resultSnapshotID: shioriStore.tableResultSnapshotID,
+            resultShioriIDs: shioriStore.tableResultShioriIDs ?? [],
             reloadGeneration: reloadGeneration,
             dataRevision: shioriStore.tableDataRevision
         )
@@ -290,7 +299,8 @@ private struct WorkbenchShioriTableContent: View {
         guard let page = await appState.loadTableSandboxShioriRows(
             range: range,
             searchText: source.searchText,
-            filterSet: source.filterSet
+            filterSet: source.filterSet,
+            resultShioriIDs: source.resultShioriIDs
         ),
             textCopySourceStillMatches(source),
             page.range == range,
@@ -311,6 +321,7 @@ private struct WorkbenchShioriTableContent: View {
             && shioriStore.tableSubmittedSearchText == source.searchText
             && shioriStore.tableFilterRules.subtitleSearchFilterSet.cacheSignature
                 == source.filterSignature
+            && shioriStore.tableResultSnapshotID == source.resultSnapshotID
             && max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount)
                 == source.resultRowCount
     }
@@ -353,21 +364,28 @@ private struct WorkbenchShioriTableContent: View {
             tableScrollResetToken += 1
         }
 
-        Task { @MainActor in
-            guard allowsTableResponse else { return }
+        initialRowsTask = Task { @MainActor in
+            guard allowsTableResponse, !Task.isCancelled else {
+                return
+            }
             guard let page = await loadRows(range: 0..<TableSandboxHydrationPaging.pageSize) else {
                 guard generation == reloadGeneration else { return }
-                shioriStore.markTableRowsLoaded(totalSavedRowCount: 0)
+                initialRowsTask = nil
+                if !Task.isCancelled {
+                    shioriStore.markTableRowsLoaded(totalSavedRowCount: 0)
+                }
                 return
             }
 
             guard allowsTableResponse,
-                  generation == reloadGeneration
+                  generation == reloadGeneration,
+                  !Task.isCancelled
             else {
                 return
             }
             applyHydrationPage(page)
             shioriStore.markTableRowsLoaded(totalSavedRowCount: page.totalSavedRowCount)
+            initialRowsTask = nil
             loadNextContinuousRowsIfNeeded(generation: continuousGeneration)
         }
     }
@@ -389,12 +407,17 @@ private struct WorkbenchShioriTableContent: View {
         return await appState.loadTableSandboxShioriRows(
             range: range,
             searchText: shioriStore.tableSubmittedSearchText,
-            filterSet: shioriStore.tableFilterRules.subtitleSearchFilterSet
+            filterSet: shioriStore.tableFilterRules.subtitleSearchFilterSet,
+            resultShioriIDs: shioriStore.tableResultShioriIDs
         )
     }
 
     private func resetContinuousRowLoading() {
         continuousLoadGeneration += 1
+        initialRowsTask?.cancel()
+        initialRowsTask = nil
+        continuousRowsTask?.cancel()
+        continuousRowsTask = nil
         isLoadingContinuousRows = false
     }
 
@@ -413,20 +436,25 @@ private struct WorkbenchShioriTableContent: View {
         let upperBound = min(shioriStore.tableResultRowCount, loadedRowCount + Self.continuousPageSize)
         let range = loadedRowCount..<upperBound
 
-        Task { @MainActor in
-            guard allowsTableResponse else { return }
+        continuousRowsTask = Task { @MainActor in
+            guard allowsTableResponse, !Task.isCancelled else {
+                return
+            }
             guard let page = await loadRows(range: range),
                   allowsTableResponse,
-                  generation == continuousLoadGeneration
+                  generation == continuousLoadGeneration,
+                  !Task.isCancelled
             else {
                 if generation == continuousLoadGeneration {
                     isLoadingContinuousRows = false
+                    continuousRowsTask = nil
                 }
                 return
             }
 
             let appended = appendContinuousRows(page, expectedStartIndex: loadedRowCount)
             isLoadingContinuousRows = false
+            continuousRowsTask = nil
             if appended {
                 loadNextContinuousRowsIfNeeded(generation: generation)
             }
@@ -457,7 +485,7 @@ private struct WorkbenchShioriTableContent: View {
 
     private func applyHydrationPage(_ page: TableSandboxShioriHydrationPage) {
         shioriStore.tableTotalSavedRowCount = page.totalSavedRowCount
-        shioriStore.tableResultRowCount = page.totalRowCount
+        shioriStore.installTableResultShioriIDs(page.resultShioriIDs)
         rowStore.hydrateShioriRows(
             page.rows,
             startIndex: page.range.lowerBound,
@@ -473,10 +501,23 @@ private struct WorkbenchShioriTableContent: View {
         guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
             return
         }
-        let navigationScopeIDs = rowStore.snapshot.rows.map { Int64($0.id) }
+        guard let navigationScopeIDs = shioriStore.tableResultShioriIDs,
+              navigationScopeIDs.count == shioriStore.tableResultRowCount
+        else {
+            return
+        }
+        let playlistScope = PlaybackPlaylistShioriScope.table(
+            PlaybackPlaylistShioriTableContext(
+                runID: shioriStore.tableResultSnapshotID,
+                searchText: shioriStore.tableSubmittedSearchText,
+                filterSet: shioriStore.tableFilterRules.subtitleSearchFilterSet,
+                totalCount: navigationScopeIDs.count
+            )
+        )
         appState.openShiori(
             item,
             navigationScopeIDs: navigationScopeIDs,
+            playlistScope: playlistScope,
             displayTitle: row.displayTitle
         )
     }

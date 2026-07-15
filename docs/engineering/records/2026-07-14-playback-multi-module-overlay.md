@@ -755,6 +755,67 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Completion audit correction: Workbench Shiori Playlist scope
+
+- The completion audit found that Workbench Shiori passed only
+  `rowStore.snapshot.rows` into Playback. During continuous table hydration,
+  that array is only the loaded prefix, so Playlist incorrectly froze before
+  the visible `xx rows` boundary.
+- Core now produces a cancellable `ShioriTableIDIndex` by streaming candidates
+  in the existing `created_at DESC, id DESC` order. Search and Filter semantics
+  still use the established Swift matchers; only matching `Int64` identities
+  are retained. `shioriTablePage` uses the same scanner and materializes rich
+  Shiori/Cue Group presentation only for its requested page, including an exact
+  filtered count when `limit == 0`. The scanner uses an ID-only path for the
+  unfiltered order, title/content fields for ordinary Search and Filter rules,
+  and a dedicated primary-Cue Speaker path; Language metadata and full Cue
+  records are loaded only when Language matching requires them. Speaker values
+  use a lossless hex transport so embedded delimiter characters remain valid.
+- The Workbench Shiori result run owns one UUID-addressed ordered ID snapshot.
+  Its initial page establishes the exact `xx rows`; later continuous hydration
+  slices that same snapshot and calls `shioriPage(shioriIDs:)`. A database
+  mutation after the first page therefore cannot change the displayed run's
+  count, membership, or ordinal order. Initial and continuous hydration now
+  retain their task handles, so refresh, route departure, and teardown cancel
+  the detached database work instead of merely ignoring its eventual result.
+- `PlaybackPlaylistShioriScope.table` carries the result-run UUID and query
+  provenance without hashing the complete ID array. Opening a Workbench Shiori
+  transfers the same ordered identities into the durable playback-origin
+  Playlist source. Every Playlist window batch is loaded by an exact ID slice,
+  is rejected if an indexed item is missing or reordered, and still retains at
+  most the shared Reel's 32 rich items. Replacing or clearing the source releases
+  both the coordinator snapshot and the source's stable identities and loader
+  closure.
+- Playback from a prefix-external Playlist item and normal Shiori Previous/Next
+  resolve adjacency from the same stable source index. A table-scoped item that
+  is absent from that index fails closed instead of falling back to unfiltered
+  database adjacency. Reopening within the same result UUID reuses the source;
+  a new Workbench result UUID replaces and invalidates it.
+- The database-backed regression uses 80 saved Shiori, only three initially
+  hydrated rich rows, and a 40-row combined Search + Filter snapshot. It loads
+  ordinal 35 through the standard `8..<40` window, retains 32 rich items,
+  remains at 40 after a new matching Shiori is inserted, navigates to ordinal
+  34 within the snapshot, rejects a batch after an indexed row is deleted, and
+  rejects late reuse after result UUID replacement.
+- Core regressions prove ID-index Search/Filter equivalence, Language-filtered
+  slicing, exact filtered count-only pages, and row-iteration cancellation at
+  candidate 32 in both ordinary and Speaker scans, pre-cancelled Workbench
+  loads, and Speaker values containing the former delimiter character.
+- `swift test --filter 'shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredRowsBeyondLoadedPrefix|shioriTablePageAppliesSearchAndFiltersBeforeSlicing|shioriTableIDIndexStopsImmediatelyAfterCancellationDuringScan|shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata'`
+  - Passed all 4 focused snapshot, window, mutation, navigation, presentation,
+    and cancellation regressions.
+- `swift test --filter 'Shiori|shiori|Playlist|playlist|Navigation|navigation|Speaker|speaker'`
+  - Passed all 129 Shiori, Playlist, Navigation, and Speaker regressions.
+- `swift test`
+  - Passed all 7 XCTest tests and all 762 Swift Testing tests.
+- `swift build`
+  - Passed.
+- Three independent read-only reviews found no remaining correctness,
+  lifecycle, concurrency, snapshot-ownership, or navigation issue. The one
+  reported Speaker-only performance over-read was removed before this commit.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 All twelve implementation steps and automated verification are complete. The

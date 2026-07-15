@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 import Testing
-import CueSeekerCore
+@testable import CueSeekerCore
 
 private func mockChunks(_ items: [String]) -> [AIChunkItem] {
     items.map { AIChunkItem(item: $0, translation: $0) }
@@ -21,6 +21,23 @@ private final class SearchProgressCollector: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return snapshots
+    }
+}
+
+private final class ShioriTableCancellationRowReadProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var maximum = 0
+
+    func record(_ count: Int) {
+        lock.lock()
+        maximum = max(maximum, count)
+        lock.unlock()
+    }
+
+    var maximumReadCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return maximum
     }
 }
 
@@ -3817,7 +3834,7 @@ func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
         assignments: [
             SubtitleCueLineSpeakerAssignment(
                 cueLineID: currentJapaneseCue.id,
-                speakers: ["Japanese Speaker"]
+                speakers: ["Japanese Speaker", "Control\u{1f}Speaker"]
             ),
             SubtitleCueLineSpeakerAssignment(
                 cueLineID: currentChineseCue.id,
@@ -3856,7 +3873,7 @@ func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
     #expect(presentation.primaryGroupIndex == 0)
     #expect(presentation.cueGroupTexts == [japaneseText, chineseText])
     #expect(presentation.languages == [.japanese])
-    #expect(presentation.speakers == ["Japanese Speaker"])
+    #expect(presentation.speakers == ["Japanese Speaker", "Control\u{1f}Speaker"])
     #expect(page.languagesByShioriID[shiori.id] == [.japanese])
     #expect(
         try database.cueID(
@@ -3880,6 +3897,21 @@ func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
         )
     )
     #expect(japaneseSpeakerPage.totalCount == 1)
+    let controlSpeakerPage = try database.shioriTablePage(
+        limit: 10,
+        offset: 0,
+        searchText: "",
+        filterSet: SubtitleSearchFilterSet(
+            rules: [
+                SubtitleSearchFilterRule(
+                    field: .speaker,
+                    operatorID: .contains,
+                    value: "Control\u{1f}Speaker"
+                )
+            ]
+        )
+    )
+    #expect(controlSpeakerPage.totalCount == 1)
     let siblingSpeakerPage = try database.shioriTablePage(
         limit: 10,
         offset: 0,
@@ -4015,6 +4047,11 @@ func shioriTablePageAppliesSearchAndFiltersBeforeSlicing() throws {
     #expect(searchPage.totalCount == 1)
     #expect(searchPage.shioris.map(\.content) == ["Middle saved cue."])
     #expect(searchPage.displayTitlesByShioriID[searchPage.shioris[0].id]?.isEmpty == false)
+    let searchIndex = try database.shioriTableIDIndex(
+        searchText: "middle",
+        filterSet: SubtitleSearchFilterSet()
+    )
+    #expect(searchIndex.shioriIDs == searchPage.shioris.map(\.id))
 
     let languageFilter = SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(
@@ -4033,6 +4070,117 @@ func shioriTablePageAppliesSearchAndFiltersBeforeSlicing() throws {
     #expect(filteredPage.totalCount == 2)
     #expect(filteredPage.shioris.map(\.content) == ["Middle saved cue."])
     #expect(filteredPage.languagesByShioriID[filteredPage.shioris[0].id] == [.simplifiedChinese])
+    let filteredIndex = try database.shioriTableIDIndex(
+        searchText: "",
+        filterSet: languageFilter
+    )
+    #expect(filteredIndex.totalCount == 2)
+    #expect(filteredIndex.shioriIDs[1] == filteredPage.shioris[0].id)
+
+    let countOnlyPage = try database.shioriTablePage(
+        limit: 0,
+        offset: 0,
+        searchText: "",
+        filterSet: languageFilter
+    )
+    #expect(countOnlyPage.totalCount == 2)
+    #expect(countOnlyPage.shioris.isEmpty)
+}
+
+@Test
+func shioriTableIDIndexStopsImmediatelyAfterCancellationDuringScan() async throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    var insertedIDs: [Int64] = []
+    for ordinal in 0..<512 {
+        let shiori = try database.upsertShiori(
+            subtitleFile: URL(fileURLWithPath: "/Media/Shiori-Cancel-\(ordinal).srt"),
+            subtitleFormat: .srt,
+            videoFile: URL(fileURLWithPath: "/Media/Shiori-Cancel-\(ordinal).mkv"),
+            videoName: "Shiori-Cancel-\(ordinal).mkv",
+            selection: SubtitleCueTextSelection(
+                cueGroupID: Int64(ordinal + 1),
+                startMilliseconds: ordinal * 1_000,
+                endMilliseconds: ordinal * 1_000 + 500,
+                lines: ["keep \(ordinal)"]
+            ),
+            createdAt: Date(timeIntervalSince1970: TimeInterval(ordinal))
+        )
+        insertedIDs.append(shiori.id)
+    }
+
+    let unfilteredIndex = try database.shioriTableIDIndex(
+        searchText: "",
+        filterSet: SubtitleSearchFilterSet()
+    )
+    #expect(unfilteredIndex.shioriIDs == Array(insertedIDs.reversed()))
+
+    let rowReadProbe = ShioriTableCancellationRowReadProbe()
+    let task = Task.detached { () throws -> ShioriTableIDIndex in
+        let database = try SubtitleDatabase(path: databaseURL)
+        return try database.shioriTableIDIndex(
+            searchText: "",
+            filterSet: SubtitleSearchFilterSet(rules: [
+                SubtitleSearchFilterRule(
+                    field: .cues,
+                    operatorID: .contains,
+                    value: "keep"
+                )
+            ]),
+            didReadCandidate: { readCount in
+                rowReadProbe.record(readCount)
+                guard readCount == 32 else {
+                    return
+                }
+                withUnsafeCurrentTask { task in
+                    task?.cancel()
+                }
+            }
+        )
+    }
+
+    do {
+        _ = try await task.value
+        Issue.record("Expected Shiori table ID scan to stop during row iteration")
+    } catch is CancellationError {
+        // Expected.
+    }
+    #expect(rowReadProbe.maximumReadCount == 32)
+
+    let enrichedRowReadProbe = ShioriTableCancellationRowReadProbe()
+    let enrichedTask = Task.detached { () throws -> ShioriTableIDIndex in
+        let database = try SubtitleDatabase(path: databaseURL)
+        return try database.shioriTableIDIndex(
+            searchText: "",
+            filterSet: SubtitleSearchFilterSet(rules: [
+                SubtitleSearchFilterRule(
+                    field: .speaker,
+                    operatorID: .isEmpty
+                )
+            ]),
+            didReadCandidate: { readCount in
+                enrichedRowReadProbe.record(readCount)
+                guard readCount == 32 else {
+                    return
+                }
+                withUnsafeCurrentTask { task in
+                    task?.cancel()
+                }
+            }
+        )
+    }
+    do {
+        _ = try await enrichedTask.value
+        Issue.record("Expected enriched Shiori scan to stop during row iteration")
+    } catch is CancellationError {
+        // Expected.
+    }
+    #expect(enrichedRowReadProbe.maximumReadCount == 32)
 }
 
 @Test

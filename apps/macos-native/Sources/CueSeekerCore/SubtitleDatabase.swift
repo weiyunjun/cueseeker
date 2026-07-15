@@ -951,6 +951,18 @@ public struct ShioriPage: Equatable, Sendable {
     }
 }
 
+public struct ShioriTableIDIndex: Equatable, Sendable {
+    public let shioriIDs: [Int64]
+
+    public init(shioriIDs: [Int64]) {
+        self.shioriIDs = shioriIDs
+    }
+
+    public var totalCount: Int {
+        shioriIDs.count
+    }
+}
+
 public enum ShioriNavigationDirection: Equatable, Sendable {
     case previous
     case next
@@ -7318,6 +7330,33 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return shioriPage(from: candidates, totalCount: candidates.count)
     }
 
+    public func shioriTableIDIndex(
+        searchText: String,
+        filterSet: SubtitleSearchFilterSet
+    ) throws -> ShioriTableIDIndex {
+        try shioriTableIDIndex(
+            searchText: searchText,
+            filterSet: filterSet,
+            didReadCandidate: nil
+        )
+    }
+
+    func shioriTableIDIndex(
+        searchText: String,
+        filterSet: SubtitleSearchFilterSet,
+        didReadCandidate: ((Int) -> Void)?
+    ) throws -> ShioriTableIDIndex {
+        var shioriIDs: [Int64] = []
+        _ = try scanShioriTableMatches(
+            searchText: searchText,
+            filterSet: filterSet,
+            didReadCandidate: didReadCandidate
+        ) { shioriID, _ in
+            shioriIDs.append(shioriID)
+        }
+        return ShioriTableIDIndex(shioriIDs: shioriIDs)
+    }
+
     public func shioriTablePage(
         limit: Int,
         offset: Int,
@@ -7326,50 +7365,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
     ) throws -> ShioriPage {
         let safeLimit = max(0, limit)
         let safeOffset = max(0, offset)
-        guard safeLimit > 0 else {
-            return ShioriPage(
-                shioris: [],
-                totalCount: try shioriCount(),
-                languagesByShioriID: [:],
-                displayTitlesByShioriID: [:]
-            )
-        }
-
         let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedSearchText.isEmpty || !filterSet.isEffectivelyEmpty else {
             return try shioriPage(limit: safeLimit, offset: safeOffset)
         }
 
-        let candidates = try shioriTableCandidates(limit: nil, offset: 0)
-        var pageCandidates: [ShioriTableCandidate] = []
-        pageCandidates.reserveCapacity(safeLimit)
-        var acceptedCount = 0
-
-        for candidate in candidates {
-            try Task.checkCancellation()
-            guard Self.shioriMatchesSearchText(
-                trimmedSearchText,
-                displayTitle: candidate.displayTitle,
-                cues: candidate.shiori.content
-            ) else {
-                continue
+        let requestedUpperBound: Int
+        let (summedUpperBound, didOverflow) = safeOffset.addingReportingOverflow(
+            safeLimit
+        )
+        requestedUpperBound = didOverflow ? Int.max : summedUpperBound
+        let requestedRange = safeOffset..<requestedUpperBound
+        var pageIDs: [Int64] = []
+        pageIDs.reserveCapacity(min(safeLimit, 1_024))
+        let totalCount = try scanShioriTableMatches(
+            searchText: trimmedSearchText,
+            filterSet: filterSet,
+            didReadCandidate: nil
+        ) { shioriID, ordinal in
+            if requestedRange.contains(ordinal) {
+                pageIDs.append(shioriID)
             }
-            guard filterSet.matches(
-                display: candidate.displayTitle,
-                cues: candidate.shiori.content,
-                languages: Self.filterSetLanguageValues(candidate.languages),
-                speakers: Self.filterSetSpeakerValues(candidate.cuePresentation.speakers)
-            ) else {
-                continue
-            }
-
-            if acceptedCount >= safeOffset && pageCandidates.count < safeLimit {
-                pageCandidates.append(candidate)
-            }
-            acceptedCount += 1
         }
-
-        return shioriPage(from: pageCandidates, totalCount: acceptedCount)
+        let pageCandidates = try shioriTableCandidates(shioriIDs: pageIDs)
+        return shioriPage(from: pageCandidates, totalCount: totalCount)
     }
 
     public func shiorisWithLanguages() throws -> ShioriPage {
@@ -7413,6 +7432,339 @@ public final class SubtitleDatabase: @unchecked Sendable {
         LEFT JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
         LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
         """
+
+    private func scanShioriTableMatches(
+        searchText: String,
+        filterSet: SubtitleSearchFilterSet,
+        didReadCandidate: ((Int) -> Void)?,
+        onMatch: (Int64, Int) -> Void
+    ) throws -> Int {
+        let trimmedSearchText = searchText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let activeFields = Set(filterSet.rules.compactMap { rule in
+            rule.isActive ? rule.field : nil
+        })
+        let requiresLanguages = activeFields.contains(.language)
+        let requiresSpeakers = activeFields.contains(.speaker)
+
+        if trimmedSearchText.isEmpty, filterSet.isEffectivelyEmpty {
+            let statement = try database.prepare(
+                """
+                SELECT id
+                FROM shioris
+                ORDER BY created_at DESC, id DESC;
+                """
+            )
+            var readCount = 0
+            var acceptedCount = 0
+            while true {
+                try Task.checkCancellation()
+                guard try statement.step() else {
+                    break
+                }
+                try Task.checkCancellation()
+                readCount += 1
+                didReadCandidate?(readCount)
+                try Task.checkCancellation()
+                onMatch(statement.int64Column(0), acceptedCount)
+                acceptedCount += 1
+            }
+            try Task.checkCancellation()
+            return acceptedCount
+        }
+
+        if !requiresLanguages, !requiresSpeakers {
+            let statement = try database.prepare(
+                """
+                SELECT s.id, s.content, sor.display_title, s.subtitle_path
+                FROM shioris s
+                LEFT JOIN subtitle_search_order_rows sor
+                  ON sor.subtitle_path = s.subtitle_path
+                ORDER BY s.created_at DESC, s.id DESC;
+                """
+            )
+            var readCount = 0
+            var acceptedCount = 0
+            while true {
+                try Task.checkCancellation()
+                guard try statement.step() else {
+                    break
+                }
+                try Task.checkCancellation()
+                readCount += 1
+                didReadCandidate?(readCount)
+                try Task.checkCancellation()
+
+                let displayTitle = Self.shioriDisplayTitle(
+                    rawValue: statement.nullableStringColumn(2),
+                    subtitlePath: statement.stringColumn(3)
+                )
+                let cues = statement.stringColumn(1)
+                guard Self.shioriMatchesSearchText(
+                    trimmedSearchText,
+                    displayTitle: displayTitle,
+                    cues: cues
+                ), filterSet.matches(
+                    display: displayTitle,
+                    cues: cues,
+                    languages: [],
+                    speakers: []
+                ) else {
+                    continue
+                }
+                onMatch(statement.int64Column(0), acceptedCount)
+                acceptedCount += 1
+            }
+            try Task.checkCancellation()
+            return acceptedCount
+        }
+
+        if requiresSpeakers, !requiresLanguages {
+            let statement = try database.prepare(
+                """
+                SELECT s.id, s.content, sor.display_title, s.subtitle_path,
+                       (
+                           SELECT GROUP_CONCAT(speaker_hex, ',')
+                           FROM (
+                               SELECT hex(speaker) AS speaker_hex
+                               FROM subtitle_cue_line_speakers cls
+                               WHERE cls.cue_line_id = l.id
+                               GROUP BY speaker_key, speaker
+                               ORDER BY speaker_key ASC
+                           )
+                       ) AS speaker_hex_values
+                FROM shioris s
+                LEFT JOIN subtitle_cue_lines l ON l.id = (
+                    SELECT candidate.id
+                    FROM subtitle_cue_lines candidate
+                    JOIN subtitle_cue_groups candidate_group
+                      ON candidate_group.id = candidate.cue_group_id
+                    JOIN subtitle_files candidate_file
+                      ON candidate_file.id = candidate_group.subtitle_file_id
+                    WHERE candidate_file.subtitle_path = s.subtitle_path
+                      AND s.cue_event_index IS NOT NULL
+                      AND candidate.event_index = s.cue_event_index
+                      AND candidate.start_ms = s.start_ms
+                      AND candidate.end_ms = s.end_ms
+                    ORDER BY candidate.display_order ASC, candidate.id ASC
+                    LIMIT 1
+                )
+                LEFT JOIN subtitle_search_order_rows sor
+                  ON sor.subtitle_path = s.subtitle_path
+                ORDER BY s.created_at DESC, s.id DESC;
+                """
+            )
+            var readCount = 0
+            var acceptedCount = 0
+            while true {
+                try Task.checkCancellation()
+                guard try statement.step() else {
+                    break
+                }
+                try Task.checkCancellation()
+                readCount += 1
+                didReadCandidate?(readCount)
+                try Task.checkCancellation()
+
+                let displayTitle = Self.shioriDisplayTitle(
+                    rawValue: statement.nullableStringColumn(2),
+                    subtitlePath: statement.stringColumn(3)
+                )
+                let cues = statement.stringColumn(1)
+                let speakers = Self.speakerHexValues(
+                    from: statement.nullableStringColumn(4)
+                )
+                guard Self.shioriMatchesSearchText(
+                    trimmedSearchText,
+                    displayTitle: displayTitle,
+                    cues: cues
+                ), filterSet.matches(
+                    display: displayTitle,
+                    cues: cues,
+                    languages: [],
+                    speakers: Self.filterSetSpeakerValues(speakers)
+                ) else {
+                    continue
+                }
+                onMatch(statement.int64Column(0), acceptedCount)
+                acceptedCount += 1
+            }
+            try Task.checkCancellation()
+            return acceptedCount
+        }
+
+        let languageSelect = requiresLanguages ?
+            """
+            ,
+                   (
+                       SELECT GROUP_CONCAT(cgl.language_code)
+                       FROM subtitle_cue_group_languages cgl
+                       WHERE cgl.cue_group_id = l.cue_group_id
+                   ) AS language_values
+            """ : ""
+        let speakerSelect = requiresSpeakers ?
+            """
+            ,
+                   (
+                       SELECT GROUP_CONCAT(speaker_hex, ',')
+                       FROM (
+                           SELECT hex(speaker) AS speaker_hex
+                           FROM subtitle_cue_line_speakers cls
+                           WHERE cls.cue_line_id = l.id
+                           GROUP BY speaker_key, speaker
+                           ORDER BY speaker_key ASC
+                       )
+                   ) AS speaker_hex_values
+            """ : ""
+        let statement = try database.prepare(
+            """
+            SELECT s.id, s.subtitle_path, s.subtitle_format, s.content,
+                   sor.display_title, sf.id,
+                   l.id, l.cue_group_id, l.event_index, l.source_format,
+                   l.source_style, l.source_layer, l.start_time, l.end_time,
+                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.display_order, resolved_group.line_count
+                   \(languageSelect)
+                   \(speakerSelect)
+            FROM shioris s
+            LEFT JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
+            LEFT JOIN subtitle_cue_lines l ON l.id = (
+                SELECT candidate.id
+                FROM subtitle_cue_lines candidate
+                JOIN subtitle_cue_groups candidate_group
+                  ON candidate_group.id = candidate.cue_group_id
+                JOIN subtitle_files candidate_file
+                  ON candidate_file.id = candidate_group.subtitle_file_id
+                WHERE candidate_file.subtitle_path = s.subtitle_path
+                  AND s.cue_event_index IS NOT NULL
+                  AND candidate.event_index = s.cue_event_index
+                  AND candidate.start_ms = s.start_ms
+                  AND candidate.end_ms = s.end_ms
+                ORDER BY candidate.display_order ASC, candidate.id ASC
+                LIMIT 1
+            )
+            LEFT JOIN subtitle_cue_groups resolved_group
+              ON resolved_group.id = l.cue_group_id
+            LEFT JOIN subtitle_search_order_rows sor
+              ON sor.subtitle_path = s.subtitle_path
+            ORDER BY s.created_at DESC, s.id DESC;
+            """
+        )
+        let languageColumnIndex: Int? = requiresLanguages ? 21 : nil
+        let speakerColumnIndex: Int? = requiresSpeakers
+            ? (requiresLanguages ? 22 : 21)
+            : nil
+        var readCount = 0
+        var acceptedCount = 0
+        var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
+        while true {
+            try Task.checkCancellation()
+            guard try statement.step() else {
+                break
+            }
+            try Task.checkCancellation()
+            readCount += 1
+            didReadCandidate?(readCount)
+            try Task.checkCancellation()
+
+            let shioriID = statement.int64Column(0)
+            let subtitlePath = statement.stringColumn(1)
+            let subtitleFormat = SubtitleFormat(
+                rawValue: statement.stringColumn(2)
+            ) ?? .srt
+            let cues = statement.stringColumn(3)
+            let displayTitle = Self.shioriDisplayTitle(
+                rawValue: statement.nullableStringColumn(4),
+                subtitlePath: subtitlePath
+            )
+            let cueLineRecord: SubtitleCueLineRecord? = if statement
+                .nullableInt64Column(6) != nil {
+                cueLineRecord(from: statement, startingAt: 6)
+            } else {
+                nil
+            }
+            let languages: Set<SubtitleLanguageCode>
+            if let languageColumnIndex {
+                let cueGroupLanguages = Self.languageValues(
+                    from: statement.nullableStringColumn(
+                        Int32(languageColumnIndex)
+                    )
+                )
+                if let subtitleFileID = statement.nullableInt64Column(5),
+                   let cueLineRecord {
+                    let languageDetections: SearchLanguageDetections
+                    if let cached = languageDetectionsBySubtitleFileID[
+                        subtitleFileID
+                    ] {
+                        languageDetections = cached
+                    } else {
+                        try Task.checkCancellation()
+                        let loaded = try searchLanguageDetections(
+                            forSubtitleFileID: subtitleFileID
+                        )
+                        try Task.checkCancellation()
+                        languageDetectionsBySubtitleFileID[
+                            subtitleFileID
+                        ] = loaded
+                        languageDetections = loaded
+                    }
+                    let languageCandidate = SearchCandidate(
+                        cueGroupID: cueLineRecord.cueGroupID,
+                        subtitleFileID: subtitleFileID,
+                        subtitlePath: subtitlePath,
+                        subtitleFormat: subtitleFormat,
+                        videoPath: "",
+                        videoName: "",
+                        startMilliseconds: cueLineRecord.line.startMilliseconds,
+                        endMilliseconds: cueLineRecord.line.endMilliseconds,
+                        timeRange: "",
+                        searchContent: cueLineRecord.line.content,
+                        lineCount: statement.nullableIntColumn(20) ?? 1,
+                        order: SearchResultOrder(
+                            subtitleFileName: URL(
+                                fileURLWithPath: subtitlePath
+                            ).lastPathComponent,
+                            displayTitle: displayTitle,
+                            folderOrder: 0,
+                            fileOrder: 0
+                        )
+                    )
+                    languages = Self.displayLanguages(
+                        for: cueLineRecord.line,
+                        candidate: languageCandidate,
+                        detections: languageDetections,
+                        cueGroupLanguages: cueGroupLanguages
+                    )
+                } else {
+                    languages = cueGroupLanguages
+                }
+            } else {
+                languages = []
+            }
+            let speakers = speakerColumnIndex.map { columnIndex in
+                Self.speakerHexValues(
+                    from: statement.nullableStringColumn(Int32(columnIndex))
+                )
+            } ?? []
+            guard Self.shioriMatchesSearchText(
+                trimmedSearchText,
+                displayTitle: displayTitle,
+                cues: cues
+            ), filterSet.matches(
+                display: displayTitle,
+                cues: cues,
+                languages: Self.filterSetLanguageValues(languages),
+                speakers: Self.filterSetSpeakerValues(speakers)
+            ) else {
+                continue
+            }
+            onMatch(shioriID, acceptedCount)
+            acceptedCount += 1
+        }
+        try Task.checkCancellation()
+        return acceptedCount
+    }
 
     private func shioriTableCandidates(limit: Int?, offset: Int) throws -> [ShioriTableCandidate] {
         let limitClause = limit == nil ? "" : "LIMIT ? OFFSET ?"
@@ -7459,78 +7811,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private func shioriTableCandidates(
         from statement: SQLiteStatement
     ) throws -> [ShioriTableCandidate] {
-        var unresolvedCandidates: [(
-            shiori: Shiori,
-            displayTitle: String,
-            languages: Set<SubtitleLanguageCode>,
-            cueLineID: Int64?,
-            cueGroupID: Int64?
-        )] = []
+        var unresolvedCandidates: [ShioriTableUnresolvedCandidate] = []
         var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
-        while try statement.step() {
-            let shiori = shiori(from: statement)
-            let cueLineRecord: SubtitleCueLineRecord? = if statement.nullableInt64Column(14) != nil {
-                cueLineRecord(from: statement, startingAt: 14)
-            } else {
-                nil
+        while true {
+            try Task.checkCancellation()
+            guard try statement.step() else {
+                break
             }
-            let cueGroupLanguages = Self.languageValues(
-                from: statement.nullableStringColumn(29)
-            )
-            let languages: Set<SubtitleLanguageCode>
-            if let subtitleFileID = statement.nullableInt64Column(13),
-               let cueLineRecord {
-                let languageDetections: SearchLanguageDetections
-                if let cached = languageDetectionsBySubtitleFileID[subtitleFileID] {
-                    languageDetections = cached
-                } else {
-                    let loaded = try searchLanguageDetections(
-                        forSubtitleFileID: subtitleFileID
-                    )
-                    languageDetectionsBySubtitleFileID[subtitleFileID] = loaded
-                    languageDetections = loaded
-                }
-                let languageCandidate = SearchCandidate(
-                    cueGroupID: cueLineRecord.cueGroupID,
-                    subtitleFileID: subtitleFileID,
-                    subtitlePath: shiori.subtitlePath,
-                    subtitleFormat: shiori.subtitleFormat,
-                    videoPath: shiori.videoPath,
-                    videoName: shiori.videoName,
-                    startMilliseconds: cueLineRecord.line.startMilliseconds,
-                    endMilliseconds: cueLineRecord.line.endMilliseconds,
-                    timeRange: shiori.timeRange,
-                    searchContent: cueLineRecord.line.content,
-                    lineCount: statement.nullableIntColumn(28) ?? 1,
-                    order: SearchResultOrder(
-                        subtitleFileName: URL(fileURLWithPath: shiori.subtitlePath).lastPathComponent,
-                        displayTitle: "",
-                        folderOrder: 0,
-                        fileOrder: 0
-                    )
-                )
-                languages = Self.displayLanguages(
-                    for: cueLineRecord.line,
-                    candidate: languageCandidate,
-                    detections: languageDetections,
-                    cueGroupLanguages: cueGroupLanguages
-                )
-            } else {
-                languages = cueGroupLanguages
-            }
+            try Task.checkCancellation()
             unresolvedCandidates.append(
-                (
-                    shiori: shiori,
-                    displayTitle: Self.shioriDisplayTitle(
-                        rawValue: statement.nullableStringColumn(12),
-                        subtitlePath: shiori.subtitlePath
-                    ),
-                    languages: languages,
-                    cueLineID: cueLineRecord?.id,
-                    cueGroupID: cueLineRecord?.cueGroupID
+                try shioriTableUnresolvedCandidate(
+                    from: statement,
+                    languageDetectionsBySubtitleFileID: &languageDetectionsBySubtitleFileID
                 )
             )
         }
+        try Task.checkCancellation()
         let cueGroupIDs = Array(Set(unresolvedCandidates.compactMap(\.cueGroupID))).sorted()
         let groupRecordsByID = try cueLineRecords(forCueGroupIDs: cueGroupIDs)
         let cueIDs = unresolvedCandidates.compactMap(\.cueLineID)
@@ -7553,10 +7849,80 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     primaryGroupIndex: primaryGroupIndex,
                     cueGroupTexts: cueGroupTexts,
                     languages: candidate.languages,
-                    speakers: candidate.cueLineID.flatMap { speakersByCueID[$0] } ?? []
+                    speakers: candidate.cueLineID.flatMap {
+                        speakersByCueID[$0]
+                    } ?? []
                 )
             )
         }
+    }
+
+    private func shioriTableUnresolvedCandidate(
+        from statement: SQLiteStatement,
+        languageDetectionsBySubtitleFileID: inout [Int64: SearchLanguageDetections]
+    ) throws -> ShioriTableUnresolvedCandidate {
+        let shiori = shiori(from: statement)
+        let cueLineRecord: SubtitleCueLineRecord? = if statement.nullableInt64Column(14) != nil {
+            cueLineRecord(from: statement, startingAt: 14)
+        } else {
+            nil
+        }
+        let cueGroupLanguages = Self.languageValues(
+            from: statement.nullableStringColumn(29)
+        )
+        let languages: Set<SubtitleLanguageCode>
+        if let subtitleFileID = statement.nullableInt64Column(13),
+           let cueLineRecord {
+            let languageDetections: SearchLanguageDetections
+            if let cached = languageDetectionsBySubtitleFileID[subtitleFileID] {
+                languageDetections = cached
+            } else {
+                try Task.checkCancellation()
+                let loaded = try searchLanguageDetections(
+                    forSubtitleFileID: subtitleFileID
+                )
+                try Task.checkCancellation()
+                languageDetectionsBySubtitleFileID[subtitleFileID] = loaded
+                languageDetections = loaded
+            }
+            let languageCandidate = SearchCandidate(
+                cueGroupID: cueLineRecord.cueGroupID,
+                subtitleFileID: subtitleFileID,
+                subtitlePath: shiori.subtitlePath,
+                subtitleFormat: shiori.subtitleFormat,
+                videoPath: shiori.videoPath,
+                videoName: shiori.videoName,
+                startMilliseconds: cueLineRecord.line.startMilliseconds,
+                endMilliseconds: cueLineRecord.line.endMilliseconds,
+                timeRange: shiori.timeRange,
+                searchContent: cueLineRecord.line.content,
+                lineCount: statement.nullableIntColumn(28) ?? 1,
+                order: SearchResultOrder(
+                    subtitleFileName: URL(fileURLWithPath: shiori.subtitlePath).lastPathComponent,
+                    displayTitle: "",
+                    folderOrder: 0,
+                    fileOrder: 0
+                )
+            )
+            languages = Self.displayLanguages(
+                for: cueLineRecord.line,
+                candidate: languageCandidate,
+                detections: languageDetections,
+                cueGroupLanguages: cueGroupLanguages
+            )
+        } else {
+            languages = cueGroupLanguages
+        }
+        return ShioriTableUnresolvedCandidate(
+            shiori: shiori,
+            displayTitle: Self.shioriDisplayTitle(
+                rawValue: statement.nullableStringColumn(12),
+                subtitlePath: shiori.subtitlePath
+            ),
+            languages: languages,
+            cueLineID: cueLineRecord?.id,
+            cueGroupID: cueLineRecord?.cueGroupID
+        )
     }
 
     private func shioriPage(
@@ -7866,6 +8232,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let displayTitle: String
         let languages: Set<SubtitleLanguageCode>
         let cuePresentation: ShioriCuePresentation
+    }
+
+    private struct ShioriTableUnresolvedCandidate {
+        let shiori: Shiori
+        let displayTitle: String
+        let languages: Set<SubtitleLanguageCode>
+        let cueLineID: Int64?
+        let cueGroupID: Int64?
     }
 
     private struct SearchLanguageDetections {
@@ -8273,6 +8647,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 .map(String.init)
                 .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         )
+    }
+
+    private static func speakerHexValues(from rawValue: String?) -> Set<String> {
+        guard let rawValue, !rawValue.isEmpty else {
+            return []
+        }
+
+        return Set(rawValue.split(separator: ",").compactMap { encodedSpeaker in
+            guard encodedSpeaker.count.isMultiple(of: 2) else {
+                return nil
+            }
+            var bytes: [UInt8] = []
+            bytes.reserveCapacity(encodedSpeaker.count / 2)
+            var index = encodedSpeaker.startIndex
+            while index < encodedSpeaker.endIndex {
+                let nextIndex = encodedSpeaker.index(index, offsetBy: 2)
+                guard let byte = UInt8(encodedSpeaker[index..<nextIndex], radix: 16) else {
+                    return nil
+                }
+                bytes.append(byte)
+                index = nextIndex
+            }
+            return String(bytes: bytes, encoding: .utf8)
+        })
     }
 
     private static func languagesForMatchingLine(
