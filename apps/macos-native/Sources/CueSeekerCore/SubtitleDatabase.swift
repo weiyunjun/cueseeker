@@ -6017,6 +6017,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         under folders: [URL],
         limit: Int = 5
     ) throws -> [RecentLibraryWatchingPresentation] {
+        try Task.checkCancellation()
         let cappedLimit = max(0, limit)
         guard cappedLimit > 0 else {
             return []
@@ -6075,6 +6076,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var seenFolderPaths = Set<String>()
 
         while try statement.step(), rows.count < cappedLimit {
+            try Task.checkCancellation()
             let folderPath = statement.stringColumn(0)
             guard seenFolderPaths.insert(folderPath).inserted else {
                 continue
@@ -6403,6 +6405,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var videos: [CompleteLibraryVideoPresentation] = []
 
         while try statement.step() {
+            try Task.checkCancellation()
             if resolvedFolderPath == nil {
                 resolvedFolderPath = statement.stringColumn(0)
                 folderTitle = statement.stringColumn(1)

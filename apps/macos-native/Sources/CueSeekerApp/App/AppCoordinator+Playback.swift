@@ -676,6 +676,40 @@ extension AppCoordinator {
                 return !textInputState.isEditableFocused
             }
 
+            if subtitleFocusSession.selectedModule == .recent {
+                guard !textInputState.isEditableFocused else {
+                    return false
+                }
+
+                let mediaActionModifiers: NSEvent.ModifierFlags = [
+                    .command,
+                    .control,
+                    .option,
+                    .shift,
+                ]
+                guard modifierFlags.intersection(mediaActionModifiers).isEmpty else {
+                    return false
+                }
+
+                switch keyCode {
+                case 123:
+                    _ = subtitleFocusSession.requestMediaSelectionNavigation(.left)
+                case 124:
+                    _ = subtitleFocusSession.requestMediaSelectionNavigation(.right)
+                case 126:
+                    _ = subtitleFocusSession.requestMediaSelectionNavigation(.up)
+                case 125:
+                    _ = subtitleFocusSession.requestMediaSelectionNavigation(.down)
+                case 36, 76:
+                    if !isRepeat {
+                        _ = requestPlaybackRecentOpenAction()
+                    }
+                default:
+                    break
+                }
+                return true
+            }
+
             guard !textInputState.isEditableFocused else {
                 return false
             }

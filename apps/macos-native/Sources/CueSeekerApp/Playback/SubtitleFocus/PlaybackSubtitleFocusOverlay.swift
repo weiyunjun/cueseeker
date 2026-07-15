@@ -5,17 +5,20 @@ struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
-        onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil
+        onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
+        onOpenRecentItem: ((RecentLibraryWatchingPresentation) -> Bool)? = nil
     ) {
         self.session = session
         self.uiProbeScope = uiProbeScope
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
+        self.onOpenRecentItem = onOpenRecentItem ?? { _ in false }
     }
 
     var body: some View {
@@ -28,7 +31,8 @@ struct PlaybackSubtitleFocusLayer: View {
                 snapshot: snapshot,
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
-                onExecuteAction: onExecuteAction
+                onExecuteAction: onExecuteAction,
+                onOpenRecentItem: onOpenRecentItem
             )
         }
     }
@@ -40,6 +44,7 @@ struct PlaybackMultiModuleOverlay: View {
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
 
     var body: some View {
         ZStack {
@@ -108,6 +113,12 @@ struct PlaybackMultiModuleOverlay: View {
                 searchStore: searchStore,
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction
+            )
+        } else if session.selectedModule == .recent,
+                  let recentStore = session.recentStore {
+            PlaybackRecentOverlay(
+                store: recentStore,
+                onOpenItem: onOpenRecentItem
             )
         } else if session.selectedModule == .shiori,
                   let shioriWindow = session.shioriWindow {

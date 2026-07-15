@@ -326,6 +326,50 @@ Overlay window without changing their established behavior.
   Results, then clears the query and module references. Reopening creates a new
   empty Search state; no Search Session state survives Overlay dismissal.
 
+### 10. Recent Module
+
+- Classified Recent as Session-owned platform UI/UX over the existing Library
+  history semantics. Its lazy loader reads the same complete Recent Watching
+  dataset and database order as the Workbench surface without reading from or
+  publishing into the Workbench Library route, status, items, selection, or
+  scroll state.
+- Reused the existing Recent Watching adaptive grid and card instead of adding
+  a Playback-specific card design. The Overlay adds only the established Focus
+  Ring selection treatment and frame reporting; existing hover, pointer,
+  availability, context-menu, and watch-state behavior remains owned by the
+  shared card. Accepted watch-state mutations trigger an independent Overlay
+  snapshot refresh; returning after a mutation completed in another module also
+  rereads the snapshot while preserving Session selection and scroll position.
+  Load generation and requested-source revision gate both success and failure;
+  a revision change during an in-flight read replaces or follows that read, and
+  a cancelled late task cannot overwrite the latest snapshot or task state.
+- Added a Session-local media selection model that defaults to the first
+  available item, navigates the actual visible card geometry with an adaptive
+  grid fallback for unloaded cards, and requests visibility after keyboard
+  selection or grid-width changes. Module switches preserve selection, visible
+  anchor, and exact native clip-view pixel offset.
+- Added a native scroll-position bridge that observes and restores the exact
+  AppKit clip-view offset while item anchors remain a content-change fallback.
+  Attachment and restoration are cancellable and tolerate SwiftUI hierarchy
+  and document-layout delay; the bridge mounts only after the Recent grid is
+  available so a loading placeholder cannot consume restoration at offset zero.
+- Routed Left, Right, Up, Down, and nonrepeating Enter only while Recent is the
+  active module. Repeats are consumed without reopening; S and C remain no-ops.
+  Keyboard Enter and an explicit card click share one dispatcher, and a click
+  opens the clicked item rather than the previously selected item.
+- Recent playback first validates the active Session and requested item, then
+  destroys the Overlay synchronously. A guarded asynchronous transition loads
+  the existing same-folder Library navigation scope and calls the established
+  Library video opening path, preserving saved position, display title,
+  playback history, Chrome state, and previous/next behavior. An in-flight gate
+  prevents reopening the Overlay, and generation/source validation rejects a
+  late transition after playback state changes.
+- Module switching retains an in-flight Recent load, while Overlay dismissal,
+  playback close, or source replacement cancels it, clears every retained item
+  and selection field, and releases the store. Recent and complete-folder Core
+  readers now propagate task cancellation during row iteration; the Recent
+  Session task also avoids retaining its store across the database await.
+
 ## Verification
 
 ### Step 1
@@ -520,11 +564,41 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Step 10
+
+- `swift test --filter 'PlaybackRecent|playbackRecent|playbackMedia|recentLibraryWatchingRejectsPreCancelledTasks'`
+  - Passed 11 tests covering the complete production Recent dataset, first
+    available selection, adaptive and visible-frame navigation, exact pixel
+    offset restoration and observation, module-state preservation, independent
+    snapshot refresh without selection or offset loss, stale success and failure
+    rejection across revision races, strict load cancellation and release,
+    pre-cancelled Core reads, keyboard teardown and re-entry gating, and explicit
+    clicked-item playback with same-folder navigation and saved-position
+    restoration.
+- `swift test --quiet --filter 'PlaybackRecent|playbackRecent|playbackMedia|PlaybackSearch|playbackSearch|PlaybackPlaylist|playbackPlaylist|playbackShiori|playbackPlaylistAndShiori|subtitleFocus|SubtitleFocus|PlaybackNavigation|Library'`
+  - Passed 213 Recent, Library, Search, Playlist, Shiori, Current, navigation,
+    action, and lifecycle regression tests.
+- `swift build`
+  - Passed.
+- `swift test --quiet --no-parallel --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 745 Swift Testing tests.
+- `swift test --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated persistence migration test.
+- `swift test --quiet --no-parallel`
+  - The combined serial run passed all 7 XCTest tests and 745 of 746 Swift
+    Testing tests. The one failure was the already-recorded order-dependent
+    `ApplicationPersistenceTests` case from Step 4: a registered
+    `workbenchPanelMode = search` default was visible instead of the isolated
+    fixture's legacy `shiori` value. It passes alone; Step 10 does not modify
+    persistence code or tests.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Add the Session-owned Recent module using the existing Recent Watching Card
-  layout and documented selection contract.
+- Add the Session-owned two-level Library module using the existing Folder and
+  Episode layouts and documented selection contract.

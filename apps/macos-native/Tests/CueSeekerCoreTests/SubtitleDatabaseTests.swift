@@ -96,6 +96,34 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
 }
 
 @Test
+func recentLibraryWatchingRejectsPreCancelledTasks() async throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let recentTask = Task.detached { () throws -> [RecentLibraryWatchingPresentation] in
+        let database = try SubtitleDatabase(path: databaseURL)
+        withUnsafeCurrentTask { task in
+            task?.cancel()
+        }
+        return try database.recentLibraryWatching(
+            under: [URL(fileURLWithPath: "/Media")],
+            limit: Int.max
+        )
+    }
+    do {
+        _ = try await recentTask.value
+        Issue.record("Expected cancelled Recent query to stop")
+    } catch is CancellationError {
+        // Expected.
+    }
+}
+
+@Test
 func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

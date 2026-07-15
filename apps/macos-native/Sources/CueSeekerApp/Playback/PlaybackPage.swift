@@ -33,7 +33,9 @@ struct PlaybackPageView: View {
                         session: subtitleFocusSession,
                         uiProbeScope: appState.uiProbeScope,
                         onExecuteAction:
-                            appState.executePlaybackSubtitleFocusAction
+                            appState.executePlaybackSubtitleFocusAction,
+                        onOpenRecentItem:
+                            appState.openPlaybackRecentItemFromOverlay
                     )
                         .id(subtitleFocusSession.token.sessionGeneration)
                         .frame(width: geometry.size.width, height: geometry.size.height)

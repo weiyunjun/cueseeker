@@ -258,9 +258,12 @@ struct LibrarySectionTitle: View {
     }
 }
 
-private struct RecentWatchingGrid: View {
+struct RecentWatchingGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
     let items: [RecentLibraryWatchingPresentation]
+    var selectedItemID: String? = nil
+    var itemFrameCoordinateSpace: String? = nil
+    var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
     private var columns: [GridItem] {
@@ -282,15 +285,48 @@ private struct RecentWatchingGrid: View {
                 ForEach(items) { item in
                     RecentWatchingCard(
                         item: item,
+                        isSelected: selectedItemID == item.id,
                         actions: .appState(appState),
                         openContextMenu: openContextMenu
                     ) {
                         onOpen(item)
                     }
+                    .background {
+                        if let itemFrameCoordinateSpace {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: RecentWatchingItemFramePreferenceKey.self,
+                                    value: [
+                                        item.id: proxy.frame(
+                                            in: .named(itemFrameCoordinateSpace)
+                                        )
+                                    ]
+                                )
+                            }
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onPreferenceChange(RecentWatchingItemFramePreferenceKey.self) {
+                frames in
+                guard itemFrameCoordinateSpace != nil else {
+                    return
+                }
+                onItemFramesChange(frames)
+            }
         }
+    }
+}
+
+private struct RecentWatchingItemFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+
+    static func reduce(
+        value: inout [String: CGRect],
+        nextValue: () -> [String: CGRect]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, newValue in newValue })
     }
 }
 
@@ -315,6 +351,7 @@ private struct LibraryCardActionHandlers {
 
 private struct RecentWatchingCard: View {
     let item: RecentLibraryWatchingPresentation
+    let isSelected: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
@@ -352,6 +389,19 @@ private struct RecentWatchingCard: View {
             )
             .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
         )
+        .overlay {
+            if isSelected {
+                RoundedRectangle(
+                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                    style: .continuous
+                )
+                .stroke(
+                    WorkbenchRedesignColors.focusRing,
+                    lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                )
+                .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+            }
+        }
         .opacity(isAvailable ? 1 : 0.55)
         .contentShape(
             RoundedRectangle(

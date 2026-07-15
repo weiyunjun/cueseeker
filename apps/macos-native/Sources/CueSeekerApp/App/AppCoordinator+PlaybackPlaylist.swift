@@ -45,6 +45,15 @@ extension AppCoordinator {
         ))
     }
 
+    func makePlaybackRecentSessionStore() -> PlaybackRecentSessionStore {
+        PlaybackRecentSessionStore(loader: .live(
+            databaseURL: databaseURL,
+            folders: indexing.selectedFolders
+        ), sourceRevision: { [weak self] in
+            self?.library.recentWatchingRevision ?? 0
+        })
+    }
+
     func makePlaybackShioriOverlaySource() -> PlaybackCueResultSource {
         let totalCount = subtitleDatabase.flatMap {
             try? $0.shioriCount()

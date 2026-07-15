@@ -134,6 +134,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: PlaybackSearchSessionStore?
+    @Published private(set) var recentStore: PlaybackRecentSessionStore?
     @Published private(set) var shioriWindow: PlaybackCueResultSessionWindowStore?
 
     private var keyboardActionGeneration = 0
@@ -158,6 +159,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules,
         playlistSource: PlaybackPlaylistSource? = nil,
         searchStore: PlaybackSearchSessionStore? = nil,
+        recentStore: PlaybackRecentSessionStore? = nil,
         shioriSource: PlaybackCueResultSource? = nil
     ) {
         self.openSnapshot = openSnapshot
@@ -172,6 +174,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         let playlistWindow = playlistSource?.makeSessionWindowStore()
         self.playlistWindow = playlistWindow
         self.searchStore = searchStore
+        self.recentStore = recentStore
         self.shioriSource = shioriSource
         let shioriWindow = shioriSource?.makeSessionWindowStore(
             includingEmpty: true
@@ -231,7 +234,28 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
         prepareReelForModuleTransition()
         selectedModule = module
+        if module == .recent {
+            recentStore?.activate(refreshesExistingSnapshot: true)
+        }
         return true
+    }
+
+    @discardableResult
+    func requestMediaSelectionNavigation(
+        _ direction: PlaybackMediaSelectionDirection
+    ) -> Bool {
+        guard isSessionActive, selectedModule == .recent else {
+            return false
+        }
+        return recentStore?.selection.move(direction) == true
+    }
+
+    func selectedRecentPrimaryActionItem()
+        -> RecentLibraryWatchingPresentation? {
+        guard isSessionActive, selectedModule == .recent else {
+            return nil
+        }
+        return recentStore?.primaryActionItem()
     }
 
     @discardableResult
@@ -918,6 +942,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         playlistWindow = nil
         searchStore?.invalidate()
         searchStore = nil
+        recentStore?.invalidate()
+        recentStore = nil
         shioriWindow?.invalidate()
         shioriWindow = nil
         shioriSource?.invalidate()

@@ -9,6 +9,9 @@ extension AppCoordinator {
         if playback.subtitleFocusSession != nil {
             return true
         }
+        if playbackRecentOpenTask != nil {
+            return true
+        }
 
         guard !playback.isTimelineScrubbing,
               playback.playbackStatus == .playing || playback.playbackStatus == .paused,
@@ -35,13 +38,16 @@ extension AppCoordinator {
             wasPlaying: playbackViewModel.isPlaying
         )
         let searchStore = makePlaybackSearchSessionStore()
+        let recentStore = makePlaybackRecentSessionStore()
         let shioriSource = makePlaybackShioriOverlaySource()
         guard let session = playback.beginSubtitleFocusSession(
             openSnapshot: openSnapshot,
             searchStore: searchStore,
+            recentStore: recentStore,
             shioriSource: shioriSource
         ) else {
             searchStore.invalidate()
+            recentStore.invalidate()
             shioriSource.invalidate()
             return false
         }
@@ -77,6 +83,7 @@ extension AppCoordinator {
     }
 
     func invalidatePlaybackSubtitleFocusForSourceReplacement() {
+        cancelPlaybackRecentOpenTask()
         cancelPlaybackSubtitleFocusActionTask()
         cancelPlaybackSubtitleFocusCueLoadTasks()
         guard let session = playback.subtitleFocusSession else {
@@ -85,6 +92,73 @@ extension AppCoordinator {
 
         session.invalidateForSourceReplacement()
         playback.releaseSubtitleFocusSession(session)
+    }
+
+    @discardableResult
+    func requestPlaybackRecentOpenAction() -> Bool {
+        guard let item = playback.subtitleFocusSession?
+            .selectedRecentPrimaryActionItem()
+        else {
+            return false
+        }
+        return openPlaybackRecentItemFromOverlay(item)
+    }
+
+    @discardableResult
+    func openPlaybackRecentItemFromOverlay(
+        _ requestedItem: RecentLibraryWatchingPresentation
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              session.selectedModule == .recent,
+              let recentStore = session.recentStore,
+              let item = recentStore.primaryActionItem(itemID: requestedItem.id),
+              item == requestedItem
+        else {
+            return false
+        }
+
+        let source = session.openSnapshot.source
+        invalidatePlaybackSubtitleFocusForSourceReplacement()
+
+        playbackRecentOpenGeneration &+= 1
+        let generation = playbackRecentOpenGeneration
+        playbackRecentOpenTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                if playbackRecentOpenGeneration == generation {
+                    playbackRecentOpenTask = nil
+                }
+            }
+
+            await prepareRecentLibraryNavigation(for: item)
+            guard !Task.isCancelled,
+                  playbackRecentOpenGeneration == generation,
+                  currentPlaybackVideoPath.map({
+                      URL(fileURLWithPath: $0).standardizedFileURL.path
+                  }) == source.videoPath,
+                  currentPlaybackSubtitlePath.map({
+                      URL(fileURLWithPath: $0).standardizedFileURL.path
+                  }) == source.subtitlePath,
+                  currentPlaybackSubtitleFormat == source.subtitleFormat
+            else {
+                return
+            }
+
+            playbackRecentOpenTask = nil
+            openLibraryVideo(item.libraryVideo, displayTitle: item.displayTitle)
+        }
+        return true
+    }
+
+    func cancelPlaybackRecentOpenTask() {
+        guard playbackRecentOpenTask != nil else {
+            return
+        }
+        playbackRecentOpenGeneration &+= 1
+        playbackRecentOpenTask?.cancel()
+        playbackRecentOpenTask = nil
     }
 
     @discardableResult

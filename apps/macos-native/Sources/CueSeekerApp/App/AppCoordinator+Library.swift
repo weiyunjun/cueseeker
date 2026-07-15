@@ -459,6 +459,7 @@ extension AppCoordinator {
     func loadCompleteLibraryFolderDetail(
         folderPath: String
     ) async throws -> CompleteLibraryFolderDetailPresentation? {
+        try Task.checkCancellation()
         guard let database = subtitleDatabase else {
             throw NSError(
                 domain: "CueSeeker.Library",
@@ -467,9 +468,9 @@ extension AppCoordinator {
             )
         }
 
-        return try await Task.detached(priority: .userInitiated) {
+        return try await Self.runCancellableDetached(priority: .userInitiated) {
             try database.completeLibraryFolderDetail(folderPath: folderPath)
-        }.value
+        }
     }
 
     func prepareLibraryNavigationVideos(_ videos: [CompleteLibraryVideoPresentation]) {
@@ -479,13 +480,22 @@ extension AppCoordinator {
     func prepareRecentLibraryNavigation(for item: RecentLibraryWatchingPresentation) async {
         do {
             if let folderDetail = try await loadCompleteLibraryFolderDetail(folderPath: item.folderPath) {
+                guard !Task.isCancelled else {
+                    return
+                }
                 prepareLibraryNavigationVideos(folderDetail.videos)
                 return
             }
         } catch {
+            guard !Task.isCancelled else {
+                return
+            }
             print("Failed to load Recent Library navigation detail: \(error)")
         }
 
+        guard !Task.isCancelled else {
+            return
+        }
         if !library.libraryPlaybackNavigationVideos.contains(where: { $0.videoPath == item.videoPath }) {
             library.libraryPlaybackNavigationVideos = library.libraryVideos
         }
