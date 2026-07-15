@@ -54,6 +54,22 @@ extension AppCoordinator {
         })
     }
 
+    func makePlaybackLibrarySessionStore() -> PlaybackLibrarySessionStore {
+        PlaybackLibrarySessionStore(
+            loader: .live(
+                databaseURL: databaseURL,
+                folders: indexing.selectedFolders
+            ),
+            sourceRevision: { [weak self] in
+                PlaybackLibrarySourceRevision(
+                    folders: self?.library.completeLibraryRevision ?? 0,
+                    playbackHistory:
+                        self?.library.libraryPlaybackHistoryRevision ?? 0
+                )
+            }
+        )
+    }
+
     func makePlaybackShioriOverlaySource() -> PlaybackCueResultSource {
         let totalCount = subtitleDatabase.flatMap {
             try? $0.shioriCount()

@@ -6,12 +6,14 @@ struct PlaybackSubtitleFocusLayer: View {
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
     let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
+    let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
         onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
-        onOpenRecentItem: ((RecentLibraryWatchingPresentation) -> Bool)? = nil
+        onOpenRecentItem: ((RecentLibraryWatchingPresentation) -> Bool)? = nil,
+        onOpenLibraryEpisode: ((CompleteLibraryVideoPresentation) -> Bool)? = nil
     ) {
         self.session = session
         self.uiProbeScope = uiProbeScope
@@ -19,6 +21,7 @@ struct PlaybackSubtitleFocusLayer: View {
             session.finishKeyboardAction(execution)
         }
         self.onOpenRecentItem = onOpenRecentItem ?? { _ in false }
+        self.onOpenLibraryEpisode = onOpenLibraryEpisode ?? { _ in false }
     }
 
     var body: some View {
@@ -32,7 +35,8 @@ struct PlaybackSubtitleFocusLayer: View {
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction,
-                onOpenRecentItem: onOpenRecentItem
+                onOpenRecentItem: onOpenRecentItem,
+                onOpenLibraryEpisode: onOpenLibraryEpisode
             )
         }
     }
@@ -45,6 +49,7 @@ struct PlaybackMultiModuleOverlay: View {
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
     let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
+    let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     var body: some View {
         ZStack {
@@ -119,6 +124,12 @@ struct PlaybackMultiModuleOverlay: View {
             PlaybackRecentOverlay(
                 store: recentStore,
                 onOpenItem: onOpenRecentItem
+            )
+        } else if session.selectedModule == .library,
+                  let libraryStore = session.libraryStore {
+            PlaybackLibraryOverlay(
+                store: libraryStore,
+                onOpenEpisode: onOpenLibraryEpisode
             )
         } else if session.selectedModule == .shiori,
                   let shioriWindow = session.shioriWindow {

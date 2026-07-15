@@ -30,10 +30,20 @@ final class PlaybackMediaSelectionStore: ObservableObject {
     private(set) var itemFramesByID: [String: CGRect] = [:]
 
     private var scrollRequestSequence: UInt64 = 0
+    private var handledScrollRequestSequence: UInt64 = 0
     private var isActive = true
 
     var restorationItemID: String? {
         scrollAnchorItemID ?? selectedItemID
+    }
+
+    var pendingScrollRequest: PlaybackMediaSelectionScrollRequest? {
+        guard let scrollRequest,
+              scrollRequest.sequence > handledScrollRequestSequence
+        else {
+            return nil
+        }
+        return scrollRequest
     }
 
     func replaceItems(
@@ -158,6 +168,19 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         scrollOffsetY = max(0, offset)
     }
 
+    func markScrollRequestHandled(sequence: UInt64) {
+        guard isActive,
+              let scrollRequest,
+              scrollRequest.sequence == sequence
+        else {
+            return
+        }
+        handledScrollRequestSequence = max(
+            handledScrollRequestSequence,
+            sequence
+        )
+    }
+
     func invalidate() {
         guard isActive else {
             return
@@ -169,6 +192,7 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         scrollAnchorItemID = nil
         scrollOffsetY = 0
         scrollRequest = nil
+        handledScrollRequestSequence = 0
         columnCount = 1
         itemFramesByID = [:]
     }

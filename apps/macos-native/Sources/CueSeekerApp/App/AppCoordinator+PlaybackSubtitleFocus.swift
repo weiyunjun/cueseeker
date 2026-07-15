@@ -39,15 +39,18 @@ extension AppCoordinator {
         )
         let searchStore = makePlaybackSearchSessionStore()
         let recentStore = makePlaybackRecentSessionStore()
+        let libraryStore = makePlaybackLibrarySessionStore()
         let shioriSource = makePlaybackShioriOverlaySource()
         guard let session = playback.beginSubtitleFocusSession(
             openSnapshot: openSnapshot,
             searchStore: searchStore,
             recentStore: recentStore,
+            libraryStore: libraryStore,
             shioriSource: shioriSource
         ) else {
             searchStore.invalidate()
             recentStore.invalidate()
+            libraryStore.invalidate()
             shioriSource.invalidate()
             return false
         }
@@ -159,6 +162,51 @@ extension AppCoordinator {
         playbackRecentOpenGeneration &+= 1
         playbackRecentOpenTask?.cancel()
         playbackRecentOpenTask = nil
+    }
+
+    @discardableResult
+    func requestPlaybackLibraryPrimaryAction() -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              session.selectedModule == .library,
+              let libraryStore = session.libraryStore
+        else {
+            return false
+        }
+        switch libraryStore.level {
+        case .folders:
+            return session.enterSelectedLibraryFolder()
+        case .folderDetail:
+            guard let video = session.selectedLibraryPrimaryActionVideo() else {
+                return false
+            }
+            return openPlaybackLibraryEpisodeFromOverlay(video)
+        }
+    }
+
+    @discardableResult
+    func openPlaybackLibraryEpisodeFromOverlay(
+        _ requestedVideo: CompleteLibraryVideoPresentation
+    ) -> Bool {
+        guard let session = playback.subtitleFocusSession,
+              session.selectedModule == .library,
+              let libraryStore = session.libraryStore,
+              let video = libraryStore.primaryActionVideo(
+                  itemID: requestedVideo.id
+              ),
+              video == requestedVideo,
+              let detail = libraryStore.detail,
+              detail.videos.contains(where: { $0.id == video.id })
+        else {
+            return false
+        }
+
+        prepareLibraryNavigationVideos(detail.videos)
+        invalidatePlaybackSubtitleFocusForSourceReplacement()
+        openLibraryVideo(
+            video.libraryVideo,
+            displayTitle: video.displayTitle
+        )
+        return true
     }
 
     @discardableResult

@@ -370,6 +370,50 @@ Overlay window without changing their established behavior.
   readers now propagate task cancellation during row iteration; the Recent
   Session task also avoids retaining its store across the database await.
 
+### 11. Library Module
+
+- Classified Library as Session-owned platform UI/UX over the existing complete
+  Library semantics. Its independent lazy loader opens its own database reads
+  through the established complete-folder summary and detail APIs, preserving
+  their order and presentation without reading from or publishing into the
+  Workbench Library route, load status, hierarchy, selection, or scroll state.
+- Reused the existing Folder and Episode grids instead of adding Playback-only
+  cards. Optional selection, item-frame reporting, and passive Focus Rings were
+  added without changing Workbench defaults: Folder hover, click, and context
+  menu still cover the full card, while Episode playback and context actions
+  remain restricted to the existing Cover Region.
+- Added an independently lazy two-level Session store. Folder and Detail each
+  own their task, generation, requested revision, loaded revision, data,
+  selection, and exact scroll offset. Entering a Folder creates fresh Episode
+  state with the first available item selected; Back cancels and clears only
+  Detail, restoring the exact Folder selection and pixel offset.
+- Refreshes use the current Folder and playback-history revisions only as
+  invalidation signals. Matching in-flight reads are retained; changed
+  revisions reload the affected level, preserve a still-valid selection and
+  exact offset, reject stale success and failure, and return to Folder level if
+  the open Folder no longer exists.
+- Rendered Folder as the existing adaptive grid with a 32-point outer inset.
+  Detail keeps the existing header fixed above its independent Episode
+  ScrollView and composes the same 32-point outer inset across header and list.
+  Left, Right, Up, and Down use the shared media selection model; nonrepeating
+  Enter enters the selected Folder or opens the selected Episode. Repeats are
+  consumed, while S and C remain no-ops.
+- Kept exact AppKit clip-view restoration separate for Folder and Detail. A
+  pending selection request now suppresses old-offset restoration for that
+  bridge lifetime, scrolls the requested card after layout, and acknowledges
+  the request only afterward, so delayed bridge attachment cannot move a newly
+  selected item back out of view.
+- Keyboard Enter and explicit Episode clicks share one validated dispatcher.
+  It captures the currently open Folder's existing ordered videos, installs
+  that Folder as the previous/next navigation scope, synchronously destroys the
+  Overlay Session, and calls the established Library opening path with its
+  saved position, display title, history, and playback behavior unchanged.
+- Module switching preserves both levels and their in-flight work. Overlay
+  dismissal, playback close, or failed Session creation cancels both levels,
+  clears their retained hierarchy and selection state, and releases the store.
+  Complete-folder Core readers now reject pre-cancelled tasks and cooperate
+  with cancellation during row iteration.
+
 ## Verification
 
 ### Step 1
@@ -594,11 +638,44 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Step 11
+
+- `swift test --filter 'playbackMediaSelection|playbackLibrary|playbackRecent'`
+  - Passed 15 Library, Recent, and shared media-selection tests covering both
+    hierarchy levels, Workbench-compatible database order, independent Session
+    state, revision refresh, stale success and failure rejection, Back and
+    module restoration, keyboard routing, explicit Episode dispatch, current
+    Folder navigation scope, and strict teardown.
+- `swift test --filter playbackMediaScrollBridge`
+  - Passed 2 native bridge tests covering exact pixel restoration and the
+    pending-selection precedence that suppresses a stale offset while retaining
+    scroll observation.
+- `swift test --quiet --filter 'PlaybackLibrary|playbackLibrary|playbackMedia|PlaybackRecent|playbackRecent|Library|completeLibrary'`
+  - Passed 54 complete Library, Recent, selection, navigation, cancellation,
+    reusable-layout, persistence, and playback regression tests.
+- `swift build`
+  - Passed.
+- `swift test --quiet --no-parallel --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 753 Swift Testing tests.
+- `swift test --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated persistence migration test.
+- `swift test --quiet --no-parallel`
+  - The combined serial run passed all 7 XCTest tests and 753 of 754 Swift
+    Testing tests. The one failure was the already-recorded order-dependent
+    `ApplicationPersistenceTests` case from Step 4: a registered
+    `workbenchPanelMode = search` default was visible instead of the isolated
+    fixture's legacy `shiori` value. It passes alone; Step 11 does not modify
+    persistence code or tests.
+- Two independent read-only final reviews found no P0, P1, or P2 code, Session
+  lifecycle, asynchronous-state, playback-dispatch, or UI interaction issues.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 In progress.
 
 ## Follow-ups
 
-- Add the Session-owned two-level Library module using the existing Folder and
-  Episode layouts and documented selection contract.
+- Run the final cross-module integration, lifecycle, and manual Playback E2E
+  verification for the complete Overlay.

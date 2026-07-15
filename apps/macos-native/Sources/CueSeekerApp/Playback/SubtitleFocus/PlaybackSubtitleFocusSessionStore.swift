@@ -135,6 +135,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: PlaybackSearchSessionStore?
     @Published private(set) var recentStore: PlaybackRecentSessionStore?
+    @Published private(set) var libraryStore: PlaybackLibrarySessionStore?
     @Published private(set) var shioriWindow: PlaybackCueResultSessionWindowStore?
 
     private var keyboardActionGeneration = 0
@@ -160,6 +161,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         playlistSource: PlaybackPlaylistSource? = nil,
         searchStore: PlaybackSearchSessionStore? = nil,
         recentStore: PlaybackRecentSessionStore? = nil,
+        libraryStore: PlaybackLibrarySessionStore? = nil,
         shioriSource: PlaybackCueResultSource? = nil
     ) {
         self.openSnapshot = openSnapshot
@@ -175,6 +177,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         self.playlistWindow = playlistWindow
         self.searchStore = searchStore
         self.recentStore = recentStore
+        self.libraryStore = libraryStore
         self.shioriSource = shioriSource
         let shioriWindow = shioriSource?.makeSessionWindowStore(
             includingEmpty: true
@@ -236,6 +239,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         selectedModule = module
         if module == .recent {
             recentStore?.activate(refreshesExistingSnapshot: true)
+        } else if module == .library {
+            libraryStore?.activate(refreshesExistingSnapshot: true)
         }
         return true
     }
@@ -244,10 +249,17 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     func requestMediaSelectionNavigation(
         _ direction: PlaybackMediaSelectionDirection
     ) -> Bool {
-        guard isSessionActive, selectedModule == .recent else {
+        guard isSessionActive else {
             return false
         }
-        return recentStore?.selection.move(direction) == true
+        switch selectedModule {
+        case .recent:
+            return recentStore?.selection.move(direction) == true
+        case .library:
+            return libraryStore?.moveSelection(direction) == true
+        default:
+            return false
+        }
     }
 
     func selectedRecentPrimaryActionItem()
@@ -256,6 +268,22 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return nil
         }
         return recentStore?.primaryActionItem()
+    }
+
+    @discardableResult
+    func enterSelectedLibraryFolder() -> Bool {
+        guard isSessionActive, selectedModule == .library else {
+            return false
+        }
+        return libraryStore?.enterFolder() == true
+    }
+
+    func selectedLibraryPrimaryActionVideo()
+        -> CompleteLibraryVideoPresentation? {
+        guard isSessionActive, selectedModule == .library else {
+            return nil
+        }
+        return libraryStore?.primaryActionVideo()
     }
 
     @discardableResult
@@ -944,6 +972,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         searchStore = nil
         recentStore?.invalidate()
         recentStore = nil
+        libraryStore?.invalidate()
+        libraryStore = nil
         shioriWindow?.invalidate()
         shioriWindow = nil
         shioriSource?.invalidate()

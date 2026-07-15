@@ -124,6 +124,51 @@ func recentLibraryWatchingRejectsPreCancelledTasks() async throws {
 }
 
 @Test
+func completeLibraryReadersRejectPreCancelledTasks() async throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let summariesTask = Task.detached {
+        () throws -> [CompleteLibraryFolderSummaryPresentation] in
+        let database = try SubtitleDatabase(path: databaseURL)
+        withUnsafeCurrentTask { task in
+            task?.cancel()
+        }
+        return try database.completeLibraryFolderSummaries(
+            under: [URL(fileURLWithPath: "/Media")]
+        )
+    }
+    do {
+        _ = try await summariesTask.value
+        Issue.record("Expected cancelled Library summary query to stop")
+    } catch is CancellationError {
+        // Expected.
+    }
+
+    let detailTask = Task.detached {
+        () throws -> CompleteLibraryFolderDetailPresentation? in
+        let database = try SubtitleDatabase(path: databaseURL)
+        withUnsafeCurrentTask { task in
+            task?.cancel()
+        }
+        return try database.completeLibraryFolderDetail(
+            folderPath: "/Media/Show"
+        )
+    }
+    do {
+        _ = try await detailTask.value
+        Issue.record("Expected cancelled Library detail query to stop")
+    } catch is CancellationError {
+        // Expected.
+    }
+}
+
+@Test
 func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

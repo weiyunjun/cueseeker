@@ -7,11 +7,23 @@ import SwiftUI
 @MainActor
 struct PlaybackMediaScrollPositionBridge: NSViewRepresentable {
     let restorationOffsetY: CGFloat
+    let restoresInitialOffset: Bool
     let onOffsetChanged: (CGFloat) -> Void
+
+    init(
+        restorationOffsetY: CGFloat,
+        restoresInitialOffset: Bool = true,
+        onOffsetChanged: @escaping (CGFloat) -> Void
+    ) {
+        self.restorationOffsetY = restorationOffsetY
+        self.restoresInitialOffset = restoresInitialOffset
+        self.onOffsetChanged = onOffsetChanged
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
             restorationOffsetY: restorationOffsetY,
+            restoresInitialOffset: restoresInitialOffset,
             onOffsetChanged: onOffsetChanged
         )
     }
@@ -27,6 +39,7 @@ struct PlaybackMediaScrollPositionBridge: NSViewRepresentable {
     func updateNSView(_ nsView: AttachmentView, context: Context) {
         context.coordinator.update(
             restorationOffsetY: restorationOffsetY,
+            restoresInitialOffset: restoresInitialOffset,
             onOffsetChanged: onOffsetChanged
         )
         context.coordinator.attach(toEnclosingScrollViewOf: nsView)
@@ -45,21 +58,33 @@ struct PlaybackMediaScrollPositionBridge: NSViewRepresentable {
         private var attachmentTask: Task<Void, Never>?
         private var restorationTask: Task<Void, Never>?
         private var didRestore = false
+        private var suppressesInitialRestoration: Bool
 
         init(
             restorationOffsetY: CGFloat,
+            restoresInitialOffset: Bool,
             onOffsetChanged: @escaping (CGFloat) -> Void
         ) {
             self.restorationOffsetY = max(0, restorationOffsetY)
+            suppressesInitialRestoration = !restoresInitialOffset
+            didRestore = suppressesInitialRestoration
             self.onOffsetChanged = onOffsetChanged
         }
 
         func update(
             restorationOffsetY: CGFloat,
+            restoresInitialOffset: Bool,
             onOffsetChanged: @escaping (CGFloat) -> Void
         ) {
             self.restorationOffsetY = max(0, restorationOffsetY)
             self.onOffsetChanged = onOffsetChanged
+            guard !restoresInitialOffset, !suppressesInitialRestoration else {
+                return
+            }
+            suppressesInitialRestoration = true
+            restorationTask?.cancel()
+            restorationTask = nil
+            didRestore = true
         }
 
         func attach(toEnclosingScrollViewOf view: NSView) {
@@ -94,7 +119,7 @@ struct PlaybackMediaScrollPositionBridge: NSViewRepresentable {
 
             restorationTask?.cancel()
             restorationTask = nil
-            didRestore = false
+            didRestore = suppressesInitialRestoration
             stopObserving()
             scrollView = resolvedScrollView
             resolvedScrollView.contentView.postsBoundsChangedNotifications = true

@@ -34,12 +34,16 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
     #expect(selection.selectedItemID == "0")
     let initialRequest = try #require(selection.scrollRequest)
     #expect(initialRequest.itemID == "0")
+    #expect(selection.pendingScrollRequest == initialRequest)
+    selection.markScrollRequestHandled(sequence: initialRequest.sequence)
+    #expect(selection.pendingScrollRequest == nil)
 
     #expect(selection.move(.right))
     #expect(selection.selectedItemID == "4")
     let rightRequest = try #require(selection.scrollRequest)
     #expect(rightRequest.itemID == "4")
     #expect(rightRequest.sequence > initialRequest.sequence)
+    #expect(selection.pendingScrollRequest == rightRequest)
 
     #expect(selection.move(.left))
     #expect(selection.selectedItemID == "3")
@@ -148,6 +152,50 @@ func playbackMediaScrollBridgeRestoresAndObservesExactPixelOffset() async throws
     #expect(observedManualScroll)
     #expect(abs(observedOffsetY - 246.25) < 1)
     withExtendedLifetime((hostingView, window)) {}
+}
+
+@MainActor
+@Test
+func playbackMediaScrollBridgeLetsPendingSelectionOverrideOldOffset() async throws {
+    var observedOffsetY: CGFloat = -1
+    let hostingView = NSHostingView(
+        rootView: ScrollView {
+            Color.clear
+                .frame(height: 1_000)
+                .background(alignment: .topLeading) {
+                    PlaybackMediaScrollPositionBridge(
+                        restorationOffsetY: 137.5,
+                        restoresInitialOffset: false,
+                        onOffsetChanged: { observedOffsetY = $0 }
+                    )
+                    .frame(width: 0, height: 0)
+                }
+        }
+        .frame(width: 320, height: 180)
+    )
+    hostingView.frame = CGRect(x: 0, y: 0, width: 320, height: 180)
+    let window = NSWindow(
+        contentRect: hostingView.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = hostingView
+    window.layoutIfNeeded()
+    hostingView.layoutSubtreeIfNeeded()
+
+    try await Task.sleep(for: .milliseconds(100))
+    window.layoutIfNeeded()
+    hostingView.layoutSubtreeIfNeeded()
+    let scrollView = try #require(findScrollView(in: hostingView))
+    #expect(abs(scrollView.contentView.bounds.origin.y) < 0.5)
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 73))
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+    let observed = await waitForPlaybackMediaScrollCondition {
+        abs(observedOffsetY - 73) < 0.5
+    }
+    #expect(observed)
 }
 
 @MainActor

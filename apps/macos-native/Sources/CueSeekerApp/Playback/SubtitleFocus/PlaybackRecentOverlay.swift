@@ -32,8 +32,7 @@ struct PlaybackRecentOverlay: View {
                     store.activate()
                     updateGridWidth(geometry.size.width)
                     scheduleScroll(
-                        to: selection.restorationItemID,
-                        anchor: .top,
+                        selection.pendingScrollRequest,
                         using: scrollProxy
                     )
                 }
@@ -42,8 +41,7 @@ struct PlaybackRecentOverlay: View {
                 }
                 .onChange(of: selection.scrollRequest) { request in
                     scheduleScroll(
-                        to: request?.itemID,
-                        anchor: .center,
+                        request,
                         using: scrollProxy
                     )
                 }
@@ -89,6 +87,7 @@ struct PlaybackRecentOverlay: View {
             .background(alignment: .topLeading) {
                 PlaybackMediaScrollPositionBridge(
                     restorationOffsetY: selection.scrollOffsetY,
+                    restoresInitialOffset: selection.pendingScrollRequest == nil,
                     onOffsetChanged: selection.recordScrollOffsetY
                 )
                 .frame(width: 0, height: 0)
@@ -109,12 +108,11 @@ struct PlaybackRecentOverlay: View {
     }
 
     private func scheduleScroll(
-        to itemID: String?,
-        anchor: UnitPoint,
+        _ request: PlaybackMediaSelectionScrollRequest?,
         using proxy: ScrollViewProxy
     ) {
         scrollTask?.cancel()
-        guard let itemID else {
+        guard let request else {
             scrollTask = nil
             return
         }
@@ -123,7 +121,8 @@ struct PlaybackRecentOverlay: View {
             guard !Task.isCancelled else {
                 return
             }
-            proxy.scrollTo(itemID, anchor: anchor)
+            proxy.scrollTo(request.itemID, anchor: .center)
+            selection.markScrollRequestHandled(sequence: request.sequence)
         }
     }
 }

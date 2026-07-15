@@ -295,7 +295,7 @@ struct RecentWatchingGrid: View {
                         if let itemFrameCoordinateSpace {
                             GeometryReader { proxy in
                                 Color.clear.preference(
-                                    key: RecentWatchingItemFramePreferenceKey.self,
+                                    key: LibraryItemFramePreferenceKey.self,
                                     value: [
                                         item.id: proxy.frame(
                                             in: .named(itemFrameCoordinateSpace)
@@ -308,7 +308,7 @@ struct RecentWatchingGrid: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onPreferenceChange(RecentWatchingItemFramePreferenceKey.self) {
+            .onPreferenceChange(LibraryItemFramePreferenceKey.self) {
                 frames in
                 guard itemFrameCoordinateSpace != nil else {
                     return
@@ -319,7 +319,7 @@ struct RecentWatchingGrid: View {
     }
 }
 
-private struct RecentWatchingItemFramePreferenceKey: PreferenceKey {
+private struct LibraryItemFramePreferenceKey: PreferenceKey {
     static let defaultValue: [String: CGRect] = [:]
 
     static func reduce(
@@ -400,6 +400,7 @@ private struct RecentWatchingCard: View {
                     lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
                 )
                 .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                .allowsHitTesting(false)
             }
         }
         .opacity(isAvailable ? 1 : 0.55)
@@ -475,9 +476,12 @@ private struct RecentWatchingCard: View {
     }
 }
 
-private struct CompleteLibraryFolderGrid: View {
+struct CompleteLibraryFolderGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
     let folders: [CompleteLibraryFolderSummaryPresentation]
+    var selectedItemID: String? = nil
+    var itemFrameCoordinateSpace: String? = nil
+    var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     let onOpen: (CompleteLibraryFolderSummaryPresentation) -> Void
 
     private var columns: [GridItem] {
@@ -499,20 +503,42 @@ private struct CompleteLibraryFolderGrid: View {
                 ForEach(folders) { folder in
                     LibraryFolderCard(
                         folder: folder,
+                        isSelected: selectedItemID == folder.id,
                         actions: .appState(appState),
                         openContextMenu: openContextMenu
                     ) {
                         onOpen(folder)
                     }
+                    .background {
+                        if let itemFrameCoordinateSpace {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: LibraryItemFramePreferenceKey.self,
+                                    value: [
+                                        folder.id: proxy.frame(
+                                            in: .named(itemFrameCoordinateSpace)
+                                        )
+                                    ]
+                                )
+                            }
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
+                guard itemFrameCoordinateSpace != nil else {
+                    return
+                }
+                onItemFramesChange(frames)
+            }
         }
     }
 }
 
 private struct LibraryFolderCard: View {
     let folder: CompleteLibraryFolderSummaryPresentation
+    let isSelected: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
@@ -541,6 +567,20 @@ private struct LibraryFolderCard: View {
             )
             .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
         )
+        .overlay {
+            if isSelected {
+                RoundedRectangle(
+                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                    style: .continuous
+                )
+                .stroke(
+                    WorkbenchRedesignColors.focusRing,
+                    lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                )
+                .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                .allowsHitTesting(false)
+            }
+        }
         .opacity(isAvailable ? 1 : 0.55)
         .contentShape(
             RoundedRectangle(
@@ -621,9 +661,12 @@ struct LibraryFolderDetailHeader: View {
     }
 }
 
-private struct CompleteLibraryEpisodeGrid: View {
+struct CompleteLibraryEpisodeGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
     let videos: [CompleteLibraryVideoPresentation]
+    var selectedItemID: String? = nil
+    var itemFrameCoordinateSpace: String? = nil
+    var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
     var body: some View {
@@ -635,6 +678,7 @@ private struct CompleteLibraryEpisodeGrid: View {
                     ForEach(videos) { video in
                         LibraryEpisodeCard(
                             video: video,
+                            isSelected: selectedItemID == video.id,
                             actions: .appState(appState),
                             openContextMenu: openContextMenu
                         ) {
@@ -645,10 +689,31 @@ private struct CompleteLibraryEpisodeGrid: View {
                             maxWidth: .infinity,
                             alignment: .leading
                         )
+                        .background {
+                            if let itemFrameCoordinateSpace {
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: LibraryItemFramePreferenceKey.self,
+                                        value: [
+                                            video.id: proxy.frame(
+                                                in: .named(itemFrameCoordinateSpace)
+                                            )
+                                        ]
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 .padding(.top, WorkbenchTestLibraryMetrics.episodeGridTopPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .onPreferenceChange(LibraryItemFramePreferenceKey.self) {
+                    frames in
+                    guard itemFrameCoordinateSpace != nil else {
+                        return
+                    }
+                    onItemFramesChange(frames)
+                }
             }
         }
     }
@@ -656,6 +721,7 @@ private struct CompleteLibraryEpisodeGrid: View {
 
 private struct LibraryEpisodeCard: View {
     let video: CompleteLibraryVideoPresentation
+    let isSelected: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let onOpen: () -> Void
@@ -712,6 +778,20 @@ private struct LibraryEpisodeCard: View {
         .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
         .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay {
+            if isSelected {
+                RoundedRectangle(
+                    cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius,
+                    style: .continuous
+                )
+                .stroke(
+                    WorkbenchRedesignColors.focusRing,
+                    lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                )
+                .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                .allowsHitTesting(false)
+            }
+        }
         .opacity(isAvailable ? 1 : 0.55)
         .animation(.easeOut(duration: 0.12), value: isHovered)
         .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")

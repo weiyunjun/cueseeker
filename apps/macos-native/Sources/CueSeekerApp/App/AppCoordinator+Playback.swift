@@ -676,7 +676,8 @@ extension AppCoordinator {
                 return !textInputState.isEditableFocused
             }
 
-            if subtitleFocusSession.selectedModule == .recent {
+            if subtitleFocusSession.selectedModule == .recent
+                || subtitleFocusSession.selectedModule == .library {
                 guard !textInputState.isEditableFocused else {
                     return false
                 }
@@ -702,7 +703,11 @@ extension AppCoordinator {
                     _ = subtitleFocusSession.requestMediaSelectionNavigation(.down)
                 case 36, 76:
                     if !isRepeat {
-                        _ = requestPlaybackRecentOpenAction()
+                        if subtitleFocusSession.selectedModule == .recent {
+                            _ = requestPlaybackRecentOpenAction()
+                        } else {
+                            _ = requestPlaybackLibraryPrimaryAction()
+                        }
                     }
                 default:
                     break

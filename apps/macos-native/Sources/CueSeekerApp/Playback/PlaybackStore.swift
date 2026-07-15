@@ -62,6 +62,7 @@ final class PlaybackStore: ObservableObject {
         availableModules: [PlaybackOverlayModule]? = nil,
         searchStore: PlaybackSearchSessionStore? = nil,
         recentStore: PlaybackRecentSessionStore? = nil,
+        libraryStore: PlaybackLibrarySessionStore? = nil,
         shioriSource: PlaybackCueResultSource? = nil
     ) -> PlaybackSubtitleFocusSessionStore? {
         guard subtitleFocusSession == nil else {
@@ -79,6 +80,7 @@ final class PlaybackStore: ObservableObject {
             playlistSource: playlistSource,
             searchStore: searchStore,
             recentStore: recentStore,
+            libraryStore: libraryStore,
             shioriSource: shioriSource
         )
         subtitleFocusSession = session

@@ -6274,6 +6274,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func completeLibraryFolderSummaries(
         under folders: [URL]
     ) throws -> [CompleteLibraryFolderSummaryPresentation] {
+        try Task.checkCancellation()
         let pathPrefixes = Self.folderPathPrefixes(for: folders)
         guard !pathPrefixes.isEmpty else {
             return []
@@ -6336,6 +6337,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var summaries: [CompleteLibraryFolderSummaryPresentation] = []
         while try statement.step() {
+            try Task.checkCancellation()
             let folderCoverPath = statement.nullableStringColumn(3)
             let fallbackCoverPath = statement.nullableStringColumn(4)
             let coverPath: String?
@@ -6366,6 +6368,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func completeLibraryFolderDetail(
         folderPath: String
     ) throws -> CompleteLibraryFolderDetailPresentation? {
+        try Task.checkCancellation()
         let statement = try database.prepare(
             """
             SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
