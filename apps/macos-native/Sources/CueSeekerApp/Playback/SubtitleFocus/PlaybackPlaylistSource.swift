@@ -224,6 +224,45 @@ typealias PlaybackPlaylistSourceWindowLoader = @MainActor (
     PlaybackPlaylistSourceWindowRequest
 ) async -> PlaybackPlaylistSourceWindowResponse?
 
+enum PlaybackCueResultCompleteLoadPolicy {
+    static let batchSize = 256
+    static let yieldInterval = 8
+
+    static func batchRanges(in range: Range<Int>) -> [Range<Int>] {
+        guard !range.isEmpty else {
+            return []
+        }
+
+        var ranges: [Range<Int>] = []
+        let batchCount = range.count / batchSize
+            + (range.count.isMultiple(of: batchSize) ? 0 : 1)
+        ranges.reserveCapacity(batchCount)
+        var lowerBound = range.lowerBound
+        while lowerBound < range.upperBound {
+            let (candidateUpperBound, didOverflow) = lowerBound
+                .addingReportingOverflow(batchSize)
+            let upperBound = didOverflow
+                ? range.upperBound
+                : min(candidateUpperBound, range.upperBound)
+            ranges.append(lowerBound..<upperBound)
+            lowerBound = upperBound
+        }
+        return ranges
+    }
+}
+
+private final class PlaybackCueResultLoadAccumulator {
+    var items: [PlaybackPlaylistItem] = []
+
+    init(capacity: Int) {
+        items.reserveCapacity(capacity)
+    }
+
+    func clear() {
+        items.removeAll(keepingCapacity: false)
+    }
+}
+
 @MainActor
 final class PlaybackPlaylistSource: ObservableObject {
     let origin: PlaybackPlaylistSourceOrigin
@@ -417,7 +456,7 @@ final class PlaybackPlaylistSource: ObservableObject {
             && request.ordinalRange.lowerBound >= 0
             && request.ordinalRange.upperBound <= boundary.totalCount
             && request.ordinalRange.count
-                <= PlaybackVirtualReelWindowPolicy.standard.itemCount
+                <= PlaybackCueResultCompleteLoadPolicy.batchSize
     }
 
     private static func normalizedKnownItemIDs(
@@ -450,6 +489,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
     private var source: PlaybackPlaylistSource?
     private var boundaryCancellable: AnyCancellable?
     private var loadTask: Task<Void, Never>?
+    private var loadAccumulator: PlaybackCueResultLoadAccumulator?
     private var pendingRequest: PlaybackPlaylistSourceWindowRequest?
     private var revision: UInt64 = 0
     private var isActive = true
@@ -543,10 +583,12 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         }
         let boundary = source.boundary
         let target = min(max(0, targetOrdinal), boundary.totalCount - 1)
-        let ordinalRange = PlaybackVirtualReelWindowPolicy.standard.windowRange(
-            totalCount: boundary.totalCount,
-            targetOrdinal: target
-        )
+        if snapshot.isComplete,
+           snapshot.loadedOrdinalRange.contains(target),
+           item(at: target) != nil {
+            return true
+        }
+        let ordinalRange = 0..<boundary.totalCount
         let request = PlaybackPlaylistSourceWindowRequest(
             datasetID: boundary.datasetID,
             generation: boundary.generation,
@@ -554,13 +596,29 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
             totalCount: boundary.totalCount,
             ordinalRange: ordinalRange
         )
+        if pendingRequest == request, loadTask != nil {
+            return true
+        }
         loadTask?.cancel()
+        loadAccumulator?.clear()
+        loadAccumulator = nil
         pendingRequest = request
         loadTask = Task { @MainActor [weak self, weak source] in
             guard let self, let source else {
                 return
             }
-            guard let response = await source.loadWindow(request) else {
+            defer {
+                if self.pendingRequest == request {
+                    self.loadTask = nil
+                    self.loadAccumulator?.clear()
+                    self.loadAccumulator = nil
+                    self.pendingRequest = nil
+                }
+            }
+            guard let response = await self.loadCompleteDataset(
+                from: source,
+                request: request
+            ) else {
                 return
             }
             guard !Task.isCancelled else {
@@ -599,14 +657,18 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
               source.boundary.generation == response.generation,
               source.boundary.revision == response.sourceRevision,
               source.boundary.totalCount == response.totalCount,
-              response.items.count == response.ordinalRange.count,
-              response.items.count
-                <= PlaybackVirtualReelWindowPolicy.standard.itemCount
+              response.ordinalRange == 0..<response.totalCount,
+              response.items.count == response.totalCount,
+              response.items.enumerated().allSatisfy({ offset, item in
+                  item.ordinal == response.ordinalRange.lowerBound + offset
+              }),
+              Set(response.items.map(\.identity)).count == response.items.count
         else {
             return false
         }
 
         loadTask = nil
+        loadAccumulator = nil
         pendingRequest = nil
         items = response.items
         revision &+= 1
@@ -633,6 +695,103 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         return true
     }
 
+    private func loadCompleteDataset(
+        from source: PlaybackPlaylistSource,
+        request: PlaybackPlaylistSourceWindowRequest
+    ) async -> PlaybackPlaylistSourceWindowResponse? {
+        let accumulator = PlaybackCueResultLoadAccumulator(
+            capacity: request.ordinalRange.count
+        )
+        loadAccumulator = accumulator
+        let batchRanges = PlaybackCueResultCompleteLoadPolicy.batchRanges(
+            in: request.ordinalRange
+        )
+        for (index, batchRange) in batchRanges.enumerated() {
+            guard isActive,
+                  !Task.isCancelled,
+                  pendingRequest == request
+            else {
+                return nil
+            }
+            let batchRequest = PlaybackPlaylistSourceWindowRequest(
+                datasetID: request.datasetID,
+                generation: request.generation,
+                sourceRevision: request.sourceRevision,
+                totalCount: request.totalCount,
+                ordinalRange: batchRange
+            )
+            guard let response = await source.loadWindow(batchRequest) else {
+                return nil
+            }
+            accumulator.items.append(contentsOf: response.items)
+            if index == 0, batchRanges.count > 1 {
+                guard publishInitialBatch(
+                    response,
+                    completeRequest: request
+                ) else {
+                    return nil
+                }
+            }
+            if (index + 1).isMultiple(
+                of: PlaybackCueResultCompleteLoadPolicy.yieldInterval
+            ), index + 1 < batchRanges.count {
+                await Task.yield()
+            }
+        }
+        guard !Task.isCancelled,
+              pendingRequest == request,
+              accumulator.items.count == request.ordinalRange.count
+        else {
+            return nil
+        }
+        return PlaybackPlaylistSourceWindowResponse(
+            request: request,
+            items: accumulator.items
+        )
+    }
+
+    private func publishInitialBatch(
+        _ response: PlaybackPlaylistSourceWindowResponse,
+        completeRequest: PlaybackPlaylistSourceWindowRequest
+    ) -> Bool {
+        guard isActive,
+              let source,
+              pendingRequest == completeRequest,
+              response.datasetID == completeRequest.datasetID,
+              response.generation == completeRequest.generation,
+              response.sourceRevision == completeRequest.sourceRevision,
+              response.totalCount == completeRequest.totalCount,
+              response.ordinalRange.lowerBound
+                == completeRequest.ordinalRange.lowerBound,
+              response.ordinalRange.count
+                <= PlaybackCueResultCompleteLoadPolicy.batchSize,
+              response.items.count == response.ordinalRange.count,
+              source.boundary.datasetID == response.datasetID,
+              source.boundary.generation == response.generation,
+              source.boundary.revision == response.sourceRevision,
+              source.boundary.totalCount == response.totalCount
+        else {
+            return false
+        }
+
+        items = response.items
+        revision &+= 1
+        snapshot = PlaybackVirtualReelSnapshot(
+            datasetID: AnyHashable(response.datasetID),
+            generation: response.generation,
+            revision: revision,
+            totalCount: response.totalCount,
+            loadedOrdinalRange: response.ordinalRange,
+            loadedItemCount: response.items.count,
+            isComplete: false
+        )
+        if let selectedOrdinal,
+           let selectedItem = item(at: selectedOrdinal) {
+            selectedItemIdentity = selectedItem.identity
+        }
+        return true
+    }
+
     func invalidate() {
         guard isActive else {
             return
@@ -640,6 +799,8 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         isActive = false
         loadTask?.cancel()
         loadTask = nil
+        loadAccumulator?.clear()
+        loadAccumulator = nil
         pendingRequest = nil
         boundaryCancellable?.cancel()
         boundaryCancellable = nil
@@ -664,6 +825,8 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         }
         loadTask?.cancel()
         loadTask = nil
+        loadAccumulator?.clear()
+        loadAccumulator = nil
         pendingRequest = nil
         items.removeAll(keepingCapacity: true)
         if snapshot.datasetID != AnyHashable(boundary.datasetID)
@@ -703,10 +866,9 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
     }
 }
 
-// Playlist was the first playback module to consume this result-window
-// transport. The neutral names make the same bounded transport available to
-// standalone Shiori and Search modules without introducing another virtual
-// list or changing the established playback-origin Playlist semantics.
+// Playlist was the first playback module to consume this result transport.
+// The neutral names let Playlist, Search, and Shiori retain their complete
+// session dataset while sharing one viewport-virtualized Reel.
 typealias PlaybackCueResultItemIdentity = PlaybackPlaylistItemIdentity
 typealias PlaybackCueResultItem = PlaybackPlaylistItem
 typealias PlaybackCueResultSource = PlaybackPlaylistSource

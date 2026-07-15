@@ -224,7 +224,7 @@ func shioriPlaybackPlaylistUsesExistingNavigationScopeOrderAndCount() throws {
 
 @MainActor
 @Test
-func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredRowsBeyondLoadedPrefix() async throws {
+func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredDataset() async throws {
     _ = NSApplication.shared
     let suiteName = "PlaybackPlaylistShioriTable-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -323,12 +323,13 @@ func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredRowsBeyondLoadedPrefix
     #expect(source.boundary.totalCount > loadedRichPrefixIDs.count)
     #expect(window.requestWindow(containing: 35))
     #expect(await waitForPlaybackPlaylistCondition(attempts: 1_000) {
-        window.snapshot.loadedItemCount == 32
+        window.snapshot.loadedItemCount == expectedIDs.count
     })
 
-    #expect(window.snapshot.loadedOrdinalRange == (8..<40))
-    #expect(window.retainedItemCount == PlaybackVirtualReelWindowPolicy.standard.itemCount)
-    #expect(window.items.map(\.identity) == Array(expectedIDs[8..<40]).map {
+    #expect(window.snapshot.loadedOrdinalRange == (0..<expectedIDs.count))
+    #expect(window.snapshot.isComplete)
+    #expect(window.retainedItemCount == expectedIDs.count)
+    #expect(window.items.map(\.identity) == expectedIDs.map {
         PlaybackPlaylistItemIdentity.shiori($0)
     })
     #expect(window.item(at: 35)?.identity == .shiori(expectedIDs[35]))
@@ -365,10 +366,9 @@ func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredRowsBeyondLoadedPrefix
     #expect(source.boundary.totalCount == 40)
     #expect(source.itemIdentity(at: 0) == .shiori(expectedIDs[0]))
     #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition(attempts: 1_000) {
-        window.snapshot.loadedOrdinalRange == (0..<32)
-    })
-    #expect(window.items.map(\.identity) == Array(expectedIDs[0..<32]).map {
+    await Task.yield()
+    #expect(window.snapshot.loadedOrdinalRange == (0..<expectedIDs.count))
+    #expect(window.items.map(\.identity) == expectedIDs.map {
         PlaybackPlaylistItemIdentity.shiori($0)
     })
 
@@ -425,14 +425,18 @@ func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredRowsBeyondLoadedPrefix
 
 @MainActor
 @Test
-func playbackPlaylistSessionUsesStandardThirtyTwoItemWindowAndInternalSequence() async throws {
+func playbackPlaylistSessionRetainsCompleteDatasetAndInternalSequence() async throws {
     let totalCount = 50_000
+    let expectedInitialLoadCalls = PlaybackCueResultCompleteLoadPolicy
+        .batchRanges(in: 0..<totalCount).count
+    var loaderCallCount = 0
     let source = PlaybackPlaylistSource(
         kind: .search,
         totalCount: totalCount,
         knownItemIDsByOrdinal: [:]
     ) { request in
-        PlaybackPlaylistSourceWindowResponse(
+        loaderCallCount += 1
+        return PlaybackPlaylistSourceWindowResponse(
             request: request,
             items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
         )
@@ -441,18 +445,24 @@ func playbackPlaylistSessionUsesStandardThirtyTwoItemWindowAndInternalSequence()
 
     #expect(session.requestWindow(containing: 25_000))
     let didLoad = await waitForPlaybackPlaylistCondition {
-        session.snapshot.loadedItemCount == 32
+        session.snapshot.loadedItemCount == totalCount
     }
     let item = try #require(session.item(at: 25_000))
     let cueResult = item.cueResult(sequenceNumber: item.ordinal + 1)
 
     #expect(didLoad)
     #expect(session.snapshot.totalCount == totalCount)
-    #expect(session.snapshot.loadedOrdinalRange == (24_984..<25_016))
-    #expect(session.snapshot.loadedItemCount == PlaybackVirtualReelWindowPolicy.standard.itemCount)
-    #expect(session.retainedItemCount == PlaybackVirtualReelWindowPolicy.standard.itemCount)
+    #expect(session.snapshot.loadedOrdinalRange == (0..<totalCount))
+    #expect(session.snapshot.isComplete)
+    #expect(session.snapshot.loadedItemCount == totalCount)
+    #expect(session.retainedItemCount == totalCount)
     #expect(item.identity == .search(26_000))
     #expect(cueResult.sequenceNumber == 25_001)
+    #expect(loaderCallCount == expectedInitialLoadCalls)
+
+    #expect(session.requestWindow(containing: totalCount - 1))
+    await Task.yield()
+    #expect(loaderCallCount == expectedInitialLoadCalls)
 }
 
 @MainActor
@@ -487,7 +497,7 @@ func playbackPlaylistSessionUsesSharedReelSelectionAndSettledActionTarget() asyn
     #expect(session.availableModules == PlaybackOverlayModule.allCases)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 32
+        window.snapshot.loadedItemCount == 40
     })
     #expect(session.selectModule(.playlist))
     #expect(session.requestKeyboardNavigation(.forward))
@@ -618,7 +628,7 @@ func playbackPlaylistViewLoadsSharedWindowAndModuleSwitchPreservesSessionState()
 
 @MainActor
 @Test
-func playbackPlaylistSelectionRejectsStaleOrUnloadedSharedReelCommits() async throws {
+func playbackPlaylistSelectionRejectsStaleOrOutOfRangeSharedReelCommits() async throws {
     let source = PlaybackPlaylistSource(
         kind: .search,
         totalCount: 40,
@@ -632,7 +642,7 @@ func playbackPlaylistSelectionRejectsStaleOrUnloadedSharedReelCommits() async th
     let window = try #require(source.makeSessionWindowStore())
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 32
+        window.snapshot.loadedItemCount == 40
     })
     let datasetID = AnyHashable(source.boundary.datasetID.uuidString)
     let generation = source.boundary.generation
@@ -650,6 +660,11 @@ func playbackPlaylistSelectionRejectsStaleOrUnloadedSharedReelCommits() async th
     #expect(!window.commitSelection(PlaybackVirtualReelSelectionCommit(
         datasetID: datasetID,
         generation: generation,
+        ordinal: 40
+    )))
+    #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
+        datasetID: datasetID,
+        generation: generation,
         ordinal: 39
     )))
     #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
@@ -663,7 +678,7 @@ func playbackPlaylistSelectionRejectsStaleOrUnloadedSharedReelCommits() async th
 
 @MainActor
 @Test
-func playbackPlaylistUnloadedKeyboardTargetSettlesBeforeDeferredAction() async throws {
+func playbackPlaylistCompleteDatasetKeyboardTargetSettlesBeforeDeferredAction() async throws {
     let source = PlaybackPlaylistSource(
         kind: .search,
         totalCount: 40,
@@ -692,7 +707,7 @@ func playbackPlaylistUnloadedKeyboardTargetSettlesBeforeDeferredAction() async t
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedOrdinalRange == (0..<32)
+        window.snapshot.loadedOrdinalRange == (0..<40)
     })
     #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
         datasetID: AnyHashable(source.boundary.datasetID.uuidString),
@@ -704,10 +719,7 @@ func playbackPlaylistUnloadedKeyboardTargetSettlesBeforeDeferredAction() async t
     #expect(session.keyboardNavigationRequest?.targetOrdinal == 32)
     #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
 
-    #expect(window.requestWindow(containing: 32))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedOrdinalRange.contains(32)
-    })
+    #expect(window.item(at: 32) != nil)
     #expect(session.commitVirtualReelSelection(
         PlaybackVirtualReelSelectionCommit(
             datasetID: AnyHashable(source.boundary.datasetID.uuidString),
@@ -1064,7 +1076,7 @@ func playbackPlaylistEmptyBoundaryCancelsDeferredNativeMotionAction() async thro
 
 @MainActor
 @Test
-func playbackPlaylistRemoteScrollbarTargetAcceptsActionBeforeWindowSettles() async throws {
+func playbackPlaylistCompleteDatasetScrollbarTargetAcceptsActionBeforeSettle() async throws {
     let source = PlaybackPlaylistSource(
         kind: .search,
         totalCount: 100,
@@ -1093,15 +1105,14 @@ func playbackPlaylistRemoteScrollbarTargetAcceptsActionBeforeWindowSettles() asy
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedOrdinalRange == (0..<32)
+        window.snapshot.loadedOrdinalRange == (0..<100)
     })
     #expect(session.selectModule(.playlist))
     session.noteScrollbarDragging(true)
     #expect(window.requestWindow(containing: 80))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedOrdinalRange.contains(80)
-    })
-    #expect(window.item(at: 0) == nil)
+    await Task.yield()
+    #expect(window.item(at: 0) != nil)
+    #expect(window.item(at: 80) != nil)
     #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
     #expect(session.commitVirtualReelSelection(
         PlaybackVirtualReelSelectionCommit(
@@ -1233,6 +1244,217 @@ func playbackPlaylistSourceRejectsResponseThatArrivesAfterBoundaryChanges() asyn
     )
 
     #expect(await loadTask.value == nil)
+}
+
+@MainActor
+@Test
+func playbackPlaylistPublishesFirstBatchThenAtomicallyCompletesDataset() async throws {
+    let totalCount = PlaybackCueResultCompleteLoadPolicy.batchSize + 1
+    let deferredLoader = DeferredPlaybackPlaylistWindowLoader()
+    var requestedRanges: [Range<Int>] = []
+    let source = PlaybackPlaylistSource(
+        kind: .search,
+        totalCount: totalCount,
+        knownItemIDsByOrdinal: [:]
+    ) { request in
+        requestedRanges.append(request.ordinalRange)
+        if request.ordinalRange.lowerBound == 0 {
+            return PlaybackPlaylistSourceWindowResponse(
+                request: request,
+                items: makePlaybackPlaylistSearchItems(
+                    in: request.ordinalRange
+                )
+            )
+        }
+        return await deferredLoader.load(request)
+    }
+    let window = try #require(source.makeSessionWindowStore())
+
+    #expect(window.requestWindow(containing: 0))
+    #expect(await waitForPlaybackPlaylistCondition {
+        window.snapshot.loadedItemCount
+            == PlaybackCueResultCompleteLoadPolicy.batchSize
+            && deferredLoader.pendingRequest != nil
+    })
+    #expect(window.snapshot.loadedOrdinalRange
+        == (0..<PlaybackCueResultCompleteLoadPolicy.batchSize))
+    #expect(!window.snapshot.isComplete)
+    #expect(window.retainedItemCount
+        == PlaybackCueResultCompleteLoadPolicy.batchSize)
+    #expect(requestedRanges == [
+        0..<PlaybackCueResultCompleteLoadPolicy.batchSize,
+        PlaybackCueResultCompleteLoadPolicy.batchSize..<totalCount,
+    ])
+
+    #expect(window.requestWindow(containing: totalCount - 1))
+    await Task.yield()
+    #expect(requestedRanges.count == 2)
+
+    let finalBatchRequest = try #require(deferredLoader.pendingRequest)
+    deferredLoader.resolve(PlaybackPlaylistSourceWindowResponse(
+        request: finalBatchRequest,
+        items: makePlaybackPlaylistSearchItems(
+            in: finalBatchRequest.ordinalRange
+        )
+    ))
+    #expect(await waitForPlaybackPlaylistCondition {
+        window.snapshot.loadedItemCount == totalCount
+    })
+    #expect(window.snapshot.loadedOrdinalRange == (0..<totalCount))
+    #expect(window.snapshot.isComplete)
+    #expect(window.retainedItemCount == totalCount)
+
+    window.invalidate()
+    source.invalidate()
+}
+
+@MainActor
+@Test
+func playbackPlaylistInvalidationReleasesPartialLoadAndRejectsLateBatch() async throws {
+    let totalCount = PlaybackCueResultCompleteLoadPolicy.batchSize + 1
+    let deferredLoader = DeferredPlaybackPlaylistWindowLoader()
+    let source = PlaybackPlaylistSource(
+        kind: .search,
+        totalCount: totalCount,
+        knownItemIDsByOrdinal: [:]
+    ) { request in
+        if request.ordinalRange.lowerBound == 0 {
+            return PlaybackPlaylistSourceWindowResponse(
+                request: request,
+                items: makePlaybackPlaylistSearchItems(
+                    in: request.ordinalRange
+                )
+            )
+        }
+        return await deferredLoader.load(request)
+    }
+    let window = try #require(source.makeSessionWindowStore())
+
+    #expect(window.requestWindow(containing: 0))
+    #expect(await waitForPlaybackPlaylistCondition {
+        window.retainedItemCount
+            == PlaybackCueResultCompleteLoadPolicy.batchSize
+            && deferredLoader.pendingRequest != nil
+    })
+    let lateRequest = try #require(deferredLoader.pendingRequest)
+
+    window.invalidate()
+    #expect(window.retainedItemCount == 0)
+    #expect(window.items.isEmpty)
+    #expect(window.snapshot.totalCount == 0)
+    #expect(window.snapshot.isComplete)
+
+    deferredLoader.resolve(PlaybackPlaylistSourceWindowResponse(
+        request: lateRequest,
+        items: makePlaybackPlaylistSearchItems(in: lateRequest.ordinalRange)
+    ))
+    for _ in 0..<10 {
+        await Task.yield()
+    }
+    #expect(window.retainedItemCount == 0)
+    #expect(window.items.isEmpty)
+    #expect(window.snapshot.totalCount == 0)
+
+    source.invalidate()
+}
+
+@MainActor
+@Test
+func playbackPlaylistWindowRetriesCompleteRequestAfterNilResponse() async throws {
+    var loaderCallCount = 0
+    let source = PlaybackPlaylistSource(
+        kind: .search,
+        totalCount: 2,
+        knownItemIDsByOrdinal: [:]
+    ) { request in
+        loaderCallCount += 1
+        guard loaderCallCount > 1 else {
+            return nil
+        }
+        return PlaybackPlaylistSourceWindowResponse(
+            request: request,
+            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
+        )
+    }
+    let window = try #require(source.makeSessionWindowStore())
+
+    #expect(window.requestWindow(containing: 0))
+    #expect(await waitForPlaybackPlaylistCondition {
+        loaderCallCount == 1
+    })
+    #expect(window.retainedItemCount == 0)
+
+    #expect(window.requestWindow(containing: 0))
+    #expect(await waitForPlaybackPlaylistCondition {
+        window.snapshot.loadedItemCount == 2
+    })
+    #expect(loaderCallCount == 2)
+    #expect(window.snapshot.isComplete)
+
+    window.invalidate()
+    source.invalidate()
+}
+
+@MainActor
+@Test
+func playbackPlaylistCancelledRequestCannotClearNewCompleteRequest() async throws {
+    let probe = PlaybackPlaylistRequestRaceProbe()
+    let source = PlaybackPlaylistSource(
+        kind: .search,
+        totalCount: 1,
+        knownItemIDsByOrdinal: [0: .search(1_000)]
+    ) { request in
+        await probe.load(request)
+    }
+    let window = try #require(source.makeSessionWindowStore())
+
+    #expect(window.requestWindow(containing: 0))
+    #expect(await waitForPlaybackPlaylistCondition {
+        probe.requests.count == 1
+    })
+    let cancelledRequest = try #require(probe.requests.first)
+
+    #expect(source.updateBoundary(
+        totalCount: 2,
+        knownItemIDsByOrdinal: [
+            0: .search(1_000),
+            1: .search(1_001),
+        ]
+    ))
+    #expect(window.requestWindow(containing: 1))
+    #expect(await waitForPlaybackPlaylistCondition {
+        probe.requests.count == 2
+    })
+    let activeRequest = try #require(probe.requests.last)
+
+    probe.resolve(
+        cancelledRequest,
+        response: PlaybackPlaylistSourceWindowResponse(
+            request: cancelledRequest,
+            items: makePlaybackPlaylistSearchItems(
+                in: cancelledRequest.ordinalRange
+            )
+        )
+    )
+    for _ in 0..<10 {
+        await Task.yield()
+    }
+    probe.resolve(
+        activeRequest,
+        response: PlaybackPlaylistSourceWindowResponse(
+            request: activeRequest,
+            items: makePlaybackPlaylistSearchItems(in: activeRequest.ordinalRange)
+        )
+    )
+
+    #expect(await waitForPlaybackPlaylistCondition {
+        window.snapshot.loadedItemCount == 2
+    })
+    #expect(window.snapshot.generation == activeRequest.generation)
+    #expect(window.snapshot.isComplete)
+
+    window.invalidate()
+    source.invalidate()
 }
 
 @MainActor
@@ -1537,6 +1759,31 @@ private final class DeferredPlaybackPlaylistWindowLoader {
         self.continuation = nil
         pendingRequest = nil
         continuation?.resume(returning: response)
+    }
+}
+
+@MainActor
+private final class PlaybackPlaylistRequestRaceProbe {
+    private(set) var requests: [PlaybackPlaylistSourceWindowRequest] = []
+    private var continuations: [
+        UInt64: CheckedContinuation<PlaybackPlaylistSourceWindowResponse?, Never>
+    ] = [:]
+
+    func load(
+        _ request: PlaybackPlaylistSourceWindowRequest
+    ) async -> PlaybackPlaylistSourceWindowResponse? {
+        await withCheckedContinuation { continuation in
+            requests.append(request)
+            continuations[request.generation] = continuation
+        }
+    }
+
+    func resolve(
+        _ request: PlaybackPlaylistSourceWindowRequest,
+        response: PlaybackPlaylistSourceWindowResponse?
+    ) {
+        continuations.removeValue(forKey: request.generation)?
+            .resume(returning: response)
     }
 }
 

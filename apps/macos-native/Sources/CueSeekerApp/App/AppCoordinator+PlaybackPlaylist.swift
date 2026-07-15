@@ -333,9 +333,7 @@ extension AppCoordinator {
             )
             stableItemIdentities = explicitIdentities
             knownItemIDsByOrdinal = Dictionary(uniqueKeysWithValues:
-                explicitIdentities.prefix(
-                    PlaybackVirtualReelWindowPolicy.standard.itemCount
-                ).enumerated().map {
+                explicitIdentities.enumerated().map {
                     ($0.offset, $0.element)
                 }
             )
@@ -355,12 +353,7 @@ extension AppCoordinator {
                 ? tableIdentities
                 : nil
             knownItemIDsByOrdinal = Dictionary(uniqueKeysWithValues:
-                tableIdentities.prefix(
-                    min(
-                        totalCount,
-                        PlaybackVirtualReelWindowPolicy.standard.itemCount
-                    )
-                ).enumerated().map {
+                tableIdentities.prefix(totalCount).enumerated().map {
                     ($0.offset, $0.element)
                 }
             )
@@ -486,19 +479,30 @@ extension AppCoordinator {
     private func loadedSearchPlaybackPlaylistItems(
         in range: Range<Int>
     ) -> [PlaybackPlaylistItem]? {
-        var resultsByOrdinal: [Int: SubtitleSearchResult] = [:]
-        for result in search.searchResults {
-            resultsByOrdinal[max(0, result.searchRank)] = result
+        var items: [PlaybackPlaylistItem] = []
+        items.reserveCapacity(range.count)
+        for ordinal in range {
+            let indexedResult = search.searchResults.indices.contains(ordinal)
+                ? search.searchResults[ordinal]
+                : nil
+            let result: SubtitleSearchResult?
+            if let indexedResult,
+               max(0, indexedResult.searchRank) == ordinal {
+                result = indexedResult
+            } else if let selectedResult = search.selectedSearchResult,
+                      max(0, selectedResult.searchRank) == ordinal {
+                result = selectedResult
+            } else {
+                result = nil
+            }
+            guard let result else {
+                return nil
+            }
+            items.append(PlaybackPlaylistItem(
+                searchResult: result,
+                ordinal: ordinal
+            ))
         }
-        if let selectedResult = search.selectedSearchResult {
-            resultsByOrdinal[max(0, selectedResult.searchRank)] = selectedResult
-        }
-        let results = range.compactMap { resultsByOrdinal[$0] }
-        guard results.count == range.count else {
-            return nil
-        }
-        return zip(range, results).map {
-            PlaybackPlaylistItem(searchResult: $1, ordinal: $0)
-        }
+        return items
     }
 }

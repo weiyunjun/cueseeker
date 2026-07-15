@@ -82,9 +82,7 @@ struct PlaybackSearchPageLoader {
                         languageFilter: configuration.languageFilter,
                         watchStateFilter: configuration.watchStateFilter,
                         filterSet: configuration.filterSet,
-                        progress: progress,
-                        progressResultLimit: PlaybackVirtualReelWindowPolicy
-                            .standard.itemCount
+                        progress: progress
                     )
                 }
             },
@@ -284,6 +282,7 @@ final class PlaybackSearchSessionStore: ObservableObject {
         }
         debounceTask?.cancel()
         debounceTask = nil
+        currentRun.prepareForPlaybackPromotion()
         window.invalidate()
         self.window = nil
         self.currentRun = nil
@@ -387,6 +386,7 @@ private final class PlaybackSearchRun {
     private var knownResultCount = 0
     private var knownFileCount = 0
     private var lastProgressUpdateNanoseconds: UInt64 = 0
+    private var retainsCompleteHydratedResults = true
     private var isActive = true
 
     private init(
@@ -489,6 +489,19 @@ private final class PlaybackSearchRun {
         totalCount = 0
         knownResultCount = 0
         knownFileCount = 0
+    }
+
+    func prepareForPlaybackPromotion() {
+        guard isActive else {
+            return
+        }
+        retainsCompleteHydratedResults = false
+        hydratedResultsByOrdinal = hydratedResultsByOrdinal
+            .keys.sorted().prefix(
+                PlaybackVirtualReelWindowPolicy.standard.itemCount
+            ).reduce(into: [:]) { retained, ordinal in
+                retained[ordinal] = hydratedResultsByOrdinal[ordinal]
+            }
     }
 
     func loadWindow(
@@ -665,8 +678,12 @@ private final class PlaybackSearchRun {
     private func replaceHydratedResults(
         _ results: [SubtitleSearchResult]
     ) {
-        hydratedResultsByOrdinal = results
-            .prefix(PlaybackVirtualReelWindowPolicy.standard.itemCount)
+        let retainedResults = retainsCompleteHydratedResults
+            ? results[...]
+            : results.prefix(
+                PlaybackVirtualReelWindowPolicy.standard.itemCount
+            )
+        hydratedResultsByOrdinal = retainedResults
             .reduce(into: [:]) { indexed, result in
                 indexed[max(0, result.searchRank)] = result
             }

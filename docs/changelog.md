@@ -9,9 +9,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Implemented the Playback Multi-Module Overlay as one strictly temporary
   Session with a fixed Current, optional Playlist, Search, Recent, Library, and
   Shiori sidebar. Current retains its established Reel while Playlist, Search,
-  and Shiori share one viewport-bounded dynamic Cue Result Reel with uniform
-  internal typographic gaps, Cue Group presentation, and exact Primary Cue
-  actions. Workbench and Playback Search now run live after a 100-millisecond
+  and Shiori retain complete Session result collections behind one shared
+  viewport-virtualized dynamic Cue Result Reel with uniform internal
+  typographic gaps, Cue Group presentation, and exact Primary Cue actions.
+  Workbench and Playback Search now run live after a 100-millisecond
   debounce; Playback Search can promote its still-growing Exact source into
   Playlist. Recent and two-level Library reuse their existing card layouts with
   directional selection and exact Session-local scroll restoration. Escape,

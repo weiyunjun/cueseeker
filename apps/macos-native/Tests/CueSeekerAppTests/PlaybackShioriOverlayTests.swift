@@ -40,9 +40,22 @@ func playbackShioriEmptySourceRetainsModuleWindowWithoutSelectionOrActions() thr
 
 @MainActor
 @Test
-func playbackShioriDefaultsToFirstSelectionAndRetainsOnlyThirtyTwoItems() async throws {
+func playbackShioriRetainsCompleteSessionDatasetWithoutReloadingForDistantTargets() async throws {
     let totalCount = 50_000
-    let source = makePlaybackShioriSource(totalCount: totalCount)
+    let expectedInitialLoadCalls = PlaybackCueResultCompleteLoadPolicy
+        .batchRanges(in: 0..<totalCount).count
+    var loaderCallCount = 0
+    let source = PlaybackCueResultSource(
+        kind: .shiori,
+        totalCount: totalCount,
+        knownItemIDsByOrdinal: [:]
+    ) { request in
+        loaderCallCount += 1
+        return PlaybackCueResultSourceWindowResponse(
+            request: request,
+            items: request.ordinalRange.map(playbackShioriItem)
+        )
+    }
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackShioriOpenSnapshot(),
         sessionGeneration: 1,
@@ -53,16 +66,21 @@ func playbackShioriDefaultsToFirstSelectionAndRetainsOnlyThirtyTwoItems() async 
     #expect(window.selectedOrdinal == 0)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackShioriCondition {
-        window.snapshot.loadedItemCount
-            == PlaybackVirtualReelWindowPolicy.standard.itemCount
+        window.snapshot.loadedItemCount == totalCount
     })
 
     #expect(window.snapshot.totalCount == totalCount)
-    #expect(window.snapshot.loadedOrdinalRange == (0..<32))
-    #expect(window.retainedItemCount == 32)
+    #expect(window.snapshot.loadedOrdinalRange == (0..<totalCount))
+    #expect(window.snapshot.isComplete)
+    #expect(window.retainedItemCount == totalCount)
     #expect(window.selectedOrdinal == 0)
     #expect(window.item(at: 0)?.identity == .shiori(10_000))
-    #expect(window.item(at: 31)?.identity == .shiori(10_031))
+    #expect(window.item(at: totalCount - 1)?.identity == .shiori(59_999))
+    #expect(loaderCallCount == expectedInitialLoadCalls)
+
+    #expect(window.requestWindow(containing: totalCount - 1))
+    await Task.yield()
+    #expect(loaderCallCount == expectedInitialLoadCalls)
 
     _ = session.dismissByUser()
 }
@@ -132,8 +150,8 @@ func playbackPlaylistAndShioriKeepWindowsSelectionsAndActionTargetsIsolated() as
     #expect(playlistWindow.requestWindow(containing: 0))
     #expect(shioriWindow.requestWindow(containing: 0))
     #expect(await waitForPlaybackShioriCondition {
-        playlistWindow.snapshot.loadedItemCount == 32
-            && shioriWindow.snapshot.loadedItemCount == 32
+        playlistWindow.snapshot.loadedItemCount == 40
+            && shioriWindow.snapshot.loadedItemCount == 40
     })
 
     #expect(session.selectModule(.playlist))
@@ -366,6 +384,57 @@ func playbackShioriSourceUsesCanonicalDatabaseOrder() async throws {
 
 @MainActor
 @Test
+func playbackShioriAndPlaylistHydrateMultipleBatchesInStableOrder() async throws {
+    try await withTemporaryPlaybackShioriApp { app, database in
+        var savedShioris: [Shiori] = []
+        for ordinal in 0...PlaybackCueResultCompleteLoadPolicy.batchSize {
+            savedShioris.append(try makeDatabasePlaybackShiori(
+                in: database,
+                content: "batched-\(ordinal)",
+                createdAt: Date(timeIntervalSince1970: TimeInterval(
+                    10_000 + ordinal
+                ))
+            ))
+        }
+
+        let canonicalIDs = savedShioris.reversed().map(\.id)
+        let shioriSource = app.makePlaybackShioriOverlaySource()
+        let shioriWindow = try #require(shioriSource.makeSessionWindowStore())
+        #expect(shioriWindow.requestWindow(containing: canonicalIDs.count - 1))
+        #expect(await waitForPlaybackShioriCondition(attempts: 10_000) {
+            shioriWindow.snapshot.loadedItemCount == canonicalIDs.count
+        })
+        #expect(shioriWindow.snapshot.isComplete)
+        #expect(shioriWindow.items.map(\.identity) == canonicalIDs.map {
+            PlaybackCueResultItemIdentity.shiori($0)
+        })
+        shioriWindow.invalidate()
+        shioriSource.invalidate()
+
+        let explicitIDs = savedShioris.map(\.id)
+        app.installShioriPlaybackPlaylistSource(
+            scope: .explicitIDs(explicitIDs)
+        )
+        let playlistSource = try #require(app.playback.playlistSource)
+        let playlistWindow = try #require(
+            playlistSource.makeSessionWindowStore()
+        )
+        #expect(playlistWindow.requestWindow(containing: explicitIDs.count - 1))
+        #expect(await waitForPlaybackShioriCondition(attempts: 10_000) {
+            playlistWindow.snapshot.loadedItemCount == explicitIDs.count
+        })
+        #expect(playlistWindow.snapshot.isComplete)
+        #expect(playlistWindow.items.map(\.identity) == explicitIDs.map {
+            PlaybackPlaylistItemIdentity.shiori($0)
+        })
+
+        playlistWindow.invalidate()
+        app.playback.clearPlaylistSource()
+    }
+}
+
+@MainActor
+@Test
 func playbackShioriEnterDispatchesFullDatabaseScopeAndContinuousPlayback() async throws {
     try await withTemporaryPlaybackShioriApp { app, database in
         let shiori = try makeDatabasePlaybackShiori(
@@ -522,10 +591,9 @@ func playbackShioriSavePreservesSelectedResultIdentityAfterPrepend() async throw
     let selectedIdentity = try #require(window.item(at: 5)?.identity)
 
     #expect(window.requestWindow(containing: 70))
-    #expect(await waitForPlaybackShioriCondition {
-        window.snapshot.loadedOrdinalRange.contains(70)
-            && window.item(at: 5) == nil
-    })
+    await Task.yield()
+    #expect(window.snapshot.loadedOrdinalRange == (0..<before.count))
+    #expect(window.item(at: 5)?.identity == selectedIdentity)
     #expect(window.selectedOrdinal == 5)
     #expect(window.selectedItemIdentity == selectedIdentity)
 
@@ -557,7 +625,7 @@ private final class PlaybackShioriPrependProbe {
 
 @MainActor
 @Test
-func playbackShioriRemoteNavigationDefersOneActionUntilTargetSettles() async throws {
+func playbackShioriCompleteDatasetNavigationDefersOneActionUntilTargetSettles() async throws {
     let source = makePlaybackShioriSource(totalCount: 40)
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackShioriOpenSnapshot(),
@@ -568,7 +636,7 @@ func playbackShioriRemoteNavigationDefersOneActionUntilTargetSettles() async thr
     let window = try #require(session.shioriWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackShioriCondition {
-        window.snapshot.loadedOrdinalRange == (0..<32)
+        window.snapshot.loadedOrdinalRange == (0..<40)
     })
     #expect(session.selectModule(.shiori))
     #expect(session.commitVirtualReelSelection(
@@ -579,11 +647,7 @@ func playbackShioriRemoteNavigationDefersOneActionUntilTargetSettles() async thr
     #expect(session.requestKeyboardNavigation(.forward))
     #expect(session.keyboardNavigationRequest?.targetOrdinal == 32)
     #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-    #expect(window.requestWindow(containing: 32))
-    #expect(await waitForPlaybackShioriCondition {
-        window.snapshot.loadedOrdinalRange.contains(32)
-            && window.item(at: 32) != nil
-    })
+    #expect(window.item(at: 32) != nil)
     #expect(session.commitVirtualReelSelection(
         playbackShioriSelectionCommit(window: window, ordinal: 32),
         module: .shiori

@@ -149,14 +149,15 @@ func playbackSearchUsesDefaultDebounceAndCancelsItWithSession() async throws {
 
 @MainActor
 @Test
-func playbackSearchExactCompletionKeepsOnlyOneVirtualWindowHydrated() async throws {
+func playbackSearchExactCompletionRetainsCompleteDatasetWithoutWindowReloads() async throws {
     let allResults = (0..<40).map {
         playbackSearchResult(
             id: Int64(1_000 + $0),
             rank: $0,
-            text: "bounded result \($0)"
+            text: "complete result \($0)"
         )
     }
+    var windowPageCallCount = 0
     let store = PlaybackSearchSessionStore(
         configuration: playbackSearchTestConfiguration(pageSize: 8),
         debounceNanoseconds: 0,
@@ -171,8 +172,9 @@ func playbackSearchExactCompletionKeepsOnlyOneVirtualWindowHydrated() async thro
                 playbackSearchExactPage(results: allResults)
             },
             windowPage: { _, _, range, _, _, _ in
-                playbackSearchWindowPage(
-                    query: "bounded",
+                windowPageCallCount += 1
+                return playbackSearchWindowPage(
+                    query: "complete",
                     configuration: playbackSearchTestConfiguration(pageSize: 8),
                     range: range,
                     indexedCueIDs: allResults.map(\.entryID),
@@ -185,31 +187,31 @@ func playbackSearchExactCompletionKeepsOnlyOneVirtualWindowHydrated() async thro
     )
     defer { store.invalidate() }
 
-    store.updateQuery("bounded")
+    store.updateQuery("complete")
     try await waitForPlaybackSearchCondition {
         store.status == .completed
             && store.retainedCueIDCount == allResults.count
-            && store.window?.snapshot.loadedItemCount
-                == PlaybackVirtualReelWindowPolicy.standard.itemCount
+            && store.window?.snapshot.loadedItemCount == allResults.count
     }
     let window = try #require(store.window)
 
-    #expect(store.retainedResultCount <= PlaybackVirtualReelWindowPolicy.standard.itemCount)
+    #expect(store.retainedResultCount == allResults.count)
     #expect(store.retainedCueIDCount == 40)
     #expect(window.snapshot.totalCount == 40)
-    #expect(window.snapshot.loadedOrdinalRange == (0..<32))
-    #expect(window.retainedItemCount == 32)
+    #expect(window.snapshot.loadedOrdinalRange == (0..<40))
+    #expect(window.snapshot.isComplete)
+    #expect(window.retainedItemCount == 40)
     #expect(window.selectedOrdinal == 0)
     #expect(!store.hasActiveExactProgressDelivery)
+    #expect(windowPageCallCount == 0)
 
     #expect(window.requestWindow(containing: 39))
-    try await waitForPlaybackSearchCondition {
-        window.snapshot.loadedOrdinalRange == (8..<40)
-            && window.item(at: 39)?.identity == .search(1_039)
-    }
+    await Task.yield()
 
-    #expect(window.retainedItemCount == 32)
-    #expect(store.retainedResultCount <= 32)
+    #expect(window.item(at: 39)?.identity == .search(1_039))
+    #expect(window.retainedItemCount == 40)
+    #expect(store.retainedResultCount == 40)
+    #expect(windowPageCallCount == 0)
 }
 
 @MainActor
@@ -289,13 +291,14 @@ func playbackSearchExactProgressDeliveryPreservesLatestValueAndStopsOnFailure() 
 @Test
 func playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown() async throws {
     let gate = PlaybackSearchExactGate()
-    let allResults = (0..<8).map {
+    let allResults = (0..<40).map {
         playbackSearchResult(
             id: Int64(2_000 + $0),
             rank: $0,
             text: "promoted result \($0)"
         )
     }
+    var windowPageCallCount = 0
     let searchStore = PlaybackSearchSessionStore(
         configuration: playbackSearchTestConfiguration(pageSize: 2),
         debounceNanoseconds: 0,
@@ -310,7 +313,8 @@ func playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown() async th
                 try await gate.waitForCompletion(progress: progress)
             },
             windowPage: { _, _, range, _, _, _ in
-                playbackSearchWindowPage(
+                windowPageCallCount += 1
+                return playbackSearchWindowPage(
                     query: "promote",
                     configuration: playbackSearchTestConfiguration(pageSize: 2),
                     range: range,
@@ -346,12 +350,12 @@ func playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown() async th
     ))
 
     await gate.emitProgress(
-        results: Array(allResults.prefix(5)),
-        totalCount: 5
+        results: Array(allResults.prefix(35)),
+        totalCount: 35
     )
     try await waitForPlaybackSearchCondition {
-        searchStore.window?.snapshot.totalCount == 5
-            && searchStore.window?.snapshot.loadedItemCount == 5
+        searchStore.window?.snapshot.totalCount == 35
+            && searchStore.window?.snapshot.loadedItemCount == 35
     }
     #expect(searchStore.window?.selectedOrdinal == 0)
 
@@ -388,10 +392,11 @@ func playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown() async th
         return
     }
     let promotedWindow = try #require(promotedSource.makeSessionWindowStore())
-    #expect(promotedWindow.requestWindow(containing: 7))
+    #expect(promotedWindow.requestWindow(containing: 39))
     try await waitForPlaybackSearchCondition {
-        promotedWindow.item(at: 7)?.identity == .search(2_007)
+        promotedWindow.item(at: 39)?.identity == .search(2_039)
     }
+    #expect(windowPageCallCount == 1)
 
     promotedWindow.invalidate()
     promotedSource.invalidate()

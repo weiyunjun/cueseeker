@@ -913,6 +913,67 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Completion audit correction: complete Cue Result session collections
+
+- A playback regression review found that the Result modules had conflated
+  viewport virtualization with data retention. Playlist, Search, and Shiori
+  retained only one 32-item rich window, so distant scrollbar or keyboard
+  targets replaced that window and could query the database while playback was
+  moving. Current already keeps its complete Cue collection in Session memory
+  while the shared Reel measures, places, and draws only the visible region.
+- This correction supersedes the bounded 32-rich-item retention statements in
+  Steps 5, 6, 7, 9, and 12 and in the earlier Workbench Shiori completion-audit
+  note. The shared Reel's standard 32-item range remains a generic remote-target
+  suggestion and the existing playback-source adjacent-navigation range; it is
+  no longer the retained Result collection size.
+- The shared Playback Cue Result Session store now owns one complete collection
+  for Playlist, Search, and standalone Shiori. It first publishes the initial
+  batch so the first subtitles can render immediately, then hydrates the rest
+  in cancellation-aware 256-item Source batches and atomically publishes the
+  complete `0..<totalCount` collection. Requests for the same complete boundary
+  coalesce, a failed load can retry, and a cancelled older request cannot clear
+  a newer request.
+- Source loaders still accept bounded ranges for existing Search/Shiori loading
+  and playback Next/Previous behavior, but reject ranges larger than the safe
+  hydration batch. This prevents complete Session retention from becoming one
+  giant SQLite `IN` or `LIMIT` request. Database-backed tests cross the batch
+  boundary for both canonical Shiori order and explicit Playlist order.
+- Playback Search retains every rich Exact result while its Overlay Session is
+  active. Promotion still transfers Exact progress and the complete Cue ID
+  order, but compacts the persistent playback Source back to its small warm
+  cache before the Search Window is destroyed; a later Playlist Session safely
+  rehydrates its own complete collection. Workbench Search Playlist reads
+  rank-aligned results directly without adding a persistent full-result cache,
+  and falls back to safe database batches when a rich row is not already
+  present. Shiori explicit and table sources expose their complete stable
+  identity order.
+- Once the complete collection is published, the Result adapter disables data
+  window requests. The shared Reel continues to bound measurement cache entries
+  to 64 and creates only visible/overscan placements. A 50,000-item production
+  adapter regression performs 1,000 scrollbar drag updates without increasing
+  Source load calls after initial hydration.
+- Overlay teardown cancels an in-progress complete load, clears a published
+  initial batch and all accumulated items, and rejects a late final batch.
+  Playlist's existing playback-origin Source remains available across Overlay
+  Sessions; standalone Shiori and unpromoted Search Sources remain owned by and
+  destroyed with their Overlay Session.
+- The existing `Unreleased` changelog outcome now distinguishes complete
+  Session result retention from viewport-only Reel virtualization.
+- `swift test --filter 'PlaybackPlaylist|playbackPlaylist|PlaybackSearch|playbackSearch|PlaybackShiori|playbackShiori'`
+  - Passed all 59 Playlist, Search, Shiori, complete-collection, safe-batch,
+    retry, request-race, database-order, and teardown regressions.
+- `swift test --filter 'playbackMultiModule|PlaybackMultiModule|playbackVirtualReel|PlaybackVirtualReel|subtitleFocus|SubtitleFocus'`
+  - Passed all 106 shared-Reel, Current, cross-module, action, and lifecycle
+    regressions.
+- `swift test --quiet --no-parallel --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 771 Swift Testing tests.
+- `swift test --quiet --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated known order-dependent persistence test.
+- `swift build`
+  - Passed.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 All twelve implementation steps and automated verification are complete. The

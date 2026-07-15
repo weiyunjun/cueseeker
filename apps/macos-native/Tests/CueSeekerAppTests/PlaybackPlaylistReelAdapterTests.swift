@@ -6,7 +6,7 @@ import Testing
 
 @MainActor
 @Test
-func playbackPlaylistReelAdapterForwardsStringDatasetWindowRequestsAndSequence() async throws {
+func playbackPlaylistReelAdapterLoadsCompleteDatasetOnceAndPreservesSequence() async throws {
     _ = NSApplication.shared
     var loaderCallCount = 0
     let source = PlaybackPlaylistSource(
@@ -36,14 +36,92 @@ func playbackPlaylistReelAdapterForwardsStringDatasetWindowRequestsAndSequence()
         targetOrdinal: 20
     ))
     #expect(await waitForPlaybackPlaylistReelAdapter {
-        adapter.snapshot.loadedItemCount == 32
+        adapter.snapshot.loadedItemCount == 40
     })
 
     #expect(loaderCallCount == 1)
-    #expect(adapter.snapshot.loadedOrdinalRange == (4..<36))
+    #expect(adapter.snapshot.loadedOrdinalRange == (0..<40))
+    #expect(adapter.snapshot.isComplete)
+    #expect(!adapter.supportsWindowRequests)
     #expect(adapter.itemID(at: 20) == AnyHashable(PlaybackPlaylistItemIdentity.search(1_020)))
     #expect(adapter.cueResult(at: 20)?.sequenceNumber == 21)
     #expect(adapter.cueResult(at: 20)?.additionalCueTexts == ["context-20"])
+}
+
+@MainActor
+@Test
+func playbackCueResultReelRapidScrollbarDragUsesOnlyRetainedDataset() async throws {
+    _ = NSApplication.shared
+    let totalCount = 50_000
+    let expectedInitialLoadCalls = PlaybackCueResultCompleteLoadPolicy
+        .batchRanges(in: 0..<totalCount).count
+    var loaderCallCount = 0
+    let source = PlaybackCueResultSource(
+        kind: .shiori,
+        totalCount: totalCount,
+        knownItemIDsByOrdinal: [:]
+    ) { request in
+        loaderCallCount += 1
+        return PlaybackCueResultSourceWindowResponse(
+            request: request,
+            items: makePlaybackPlaylistReelItems(in: request.ordinalRange)
+        )
+    }
+    let dataset = try #require(source.makeSessionWindowStore())
+    #expect(dataset.requestWindow(containing: 0))
+    #expect(await waitForPlaybackPlaylistReelAdapter {
+        dataset.snapshot.loadedItemCount == totalCount
+    })
+    #expect(loaderCallCount == expectedInitialLoadCalls)
+    let adapter = PlaybackCueResultReelAdapter(
+        windowStore: dataset,
+        showsCueGroup: true,
+        showsSequenceNumber: false
+    )
+    let view = PlaybackVirtualReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    view.onCommitVirtualReelSelection = dataset.commitSelection
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: 0,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .began,
+        positionFraction: 0
+    ))
+    for step in 1...1_000 {
+        view.handleScrollbarDrag(TableScrollbarDragEvent(
+            axis: .vertical,
+            phase: .changed,
+            positionFraction: 0.75 * CGFloat(step) / 1_000
+        ))
+    }
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.75
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    await Task.yield()
+
+    #expect(loaderCallCount == expectedInitialLoadCalls)
+    #expect(dataset.selectedOrdinal == 37_499)
+    #expect(adapter.measurementCacheCountForTesting <= 64)
+    #expect(adapter.measuredOrdinalsForTesting.count <= 64)
+    #expect(view.placementsForTesting.count < 50)
+
+    view.invalidate()
+    dataset.invalidate()
+    source.invalidate()
 }
 
 @MainActor
@@ -128,9 +206,8 @@ func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() asy
         snapshot: adapter.snapshot,
         targetOrdinal: 1
     ))
-    #expect(await waitForPlaybackPlaylistReelAdapter {
-        loaderCallCount == 2
-    })
+    await Task.yield()
+    #expect(loaderCallCount == 1)
 }
 
 @MainActor

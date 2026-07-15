@@ -1,8 +1,8 @@
 import AppKit
 import Foundation
 
-/// Session-scoped presentation adapter between a bounded Playback Cue Result
-/// window and the shared virtual Reel.
+/// Session-scoped presentation adapter between a complete Playback Cue Result
+/// dataset and the shared viewport-virtualized Reel.
 @MainActor
 final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     private let windowStore: PlaybackCueResultSessionWindowStore
@@ -47,7 +47,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     }
 
     var supportsWindowRequests: Bool {
-        isActive
+        isActive && !snapshot.isComplete
     }
 
     var measurementCacheCountForTesting: Int {
