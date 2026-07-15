@@ -15,7 +15,7 @@ main
 11. Current，Playlist，Shiori共用一套快捷键逻辑：S键收藏，C键复制内容，Enter键播放。Search界面由于优先输入，因此只响应Enter键。后续我会想办法处理这里。
 12. 生命周期：综合菜单界面每次打开时创建一个独立的临时会话。Current、Playlist、Search、Recent、Library、Shiori 之间的切换属于会话内部，不触发销毁。通过 Escape、Enter 播放、关闭 Playback Page 或其他方式退出综合菜单时，立即销毁本次会话；清除当前模块、搜索词、搜索结果、选择位置、滚动位置及临时加载数据，并取消未完成的异步任务。再次打开时从 Current 和各模块默认状态重新创建。
 13. 抽取并复用 Current 现有虚拟 Reel 机制。Playlist、Search、Shiori 共用同一套可见区加载、动态高度测量、Placement、滚动与回收逻辑。三者只替换数据源、Item Identity、Playback Cue Result 渲染和高度计算。禁止分别实现全量列表或三套独立虚拟化。Search 结果更新时重置或协调虚拟窗口；Session 销毁时释放缓存和未完成任务。
-14. UI改动见# UI文档改动1，# UI文档改动2。
+14. UI改动见# UI文档改动1，# UI文档改动2，# UI文档改动3。
 
 # UI文档改动1
 
@@ -1116,4 +1116,62 @@ main
   - Library Folder Detail 的 Back Button 只返回 Library 一级界面，不切换 Overlay Module
   - 返回 Library 一级界面时恢复此前的选择和滚动位置
   - 鼠标动作沿用对应 Library Layout
+```
+
+# UI文档改动3
+
+### 4.5 Player
+
+#### Playback Multi-Module Overlay Layout
+
+修改前
+
+```md
+- Playback Cue Result Reel：
+  - 适用于 Playlist、Search 和 Shiori
+  - 使用 Playback Cue Result 作为纵向排列单元
+  - Focus Anchor、Scrollbar、Up、Down、Wheel、Trackpad、Scrollbar Drag 和 Settle 语义复用 Current Cue Reel
+  - Result Natural Height 代替 Current Cue Natural Height 参与 Placement 计算
+  - Playlist 和 Shiori 在本次 Session 首次初始化时默认选择第一条 Result
+  - Search 每次结果更新后默认选择第一条 Result
+```
+
+修改后
+
+```md
+- Playback Cue Result Reel：
+  - 适用于 Playlist、Search 和 Shiori
+  - 使用 Playback Cue Result 作为纵向排列单元
+  - Focus Anchor、Scrollbar、Up、Down、Wheel、Trackpad、Scrollbar Drag 和 Settle 语义复用 Current Cue Reel
+  - Result Natural Height 代替 Current Cue Natural Height 参与 Placement 计算
+  - Playlist 和 Shiori 在本次 Session 首次初始化时默认选择第一条 Result
+  - Search 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
+```
+
+修改前
+
+```md
+- Search：
+  - 顶部显示 Playback Search Box
+  - Search Box 下方显示纵向 Playback Cue Result 列表
+  - 不显示 Filter、Utility Bar、Table Header、Checkbox、Display Title、Tags、Time Range 或其他 Metadata
+  - 打开 Search 时自动聚焦 Search Box
+  - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果
+  - Search 不要求 Return 提交
+  - Query 为空时不显示 Cue Result
+  - 每次结果更新后默认选择第一条 Result
+```
+
+修改后
+
+```md
+- Search：
+  - 顶部显示 Playback Search Box
+  - Search Box 下方显示纵向 Playback Cue Result 列表
+  - 不显示 Filter、Utility Bar、Table Header、Checkbox、Display Title、Tags、Time Range 或其他 Metadata
+  - 打开 Search 时自动聚焦 Search Box
+  - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果
+  - Search 不要求 Return 提交
+  - Query 为空时不显示 Cue Result
+  - 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
 ```

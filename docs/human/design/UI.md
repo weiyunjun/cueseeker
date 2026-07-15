@@ -1798,7 +1798,7 @@
   - Focus Anchor、Scrollbar、Up、Down、Wheel、Trackpad、Scrollbar Drag 和 Settle 语义复用 Current Cue Reel
   - Result Natural Height 代替 Current Cue Natural Height 参与 Placement 计算
   - Playlist 和 Shiori 在本次 Session 首次初始化时默认选择第一条 Result
-  - Search 每次结果更新后默认选择第一条 Result
+  - Search 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
   - 到达列表边界时继续导航无动作
   - Result 不显示 Hover
   - Result 不响应左键动作
@@ -1834,7 +1834,7 @@
   - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果
   - Search 不要求 Return 提交
   - Query 为空时不显示 Cue Result
-  - 每次结果更新后默认选择第一条 Result
+  - 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
   - Search Box 保持输入焦点
   - Search Box 保持输入焦点时，Up 和 Down 由 Playback Cue Result Reel 响应，不用于移动 Caret
   - Result 选择变化不移除 Search Box 的输入焦点
