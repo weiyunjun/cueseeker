@@ -40,6 +40,7 @@ func playbackRecentDefaultsToFirstAvailableAndPreservesSessionState() async thro
         recentStore: store
     )
 
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     #expect(session.selectModule(.recent))
     try await waitForPlaybackRecentCondition { store.status == .completed }
     #expect(store.items == items)
@@ -196,6 +197,7 @@ func playbackRecentModuleSwitchKeepsLoadButDismissalCancelsAndClearsIt() async t
         recentStore: store
     )
 
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     #expect(session.selectModule(.recent))
     try await waitForPlaybackRecentCondition { await probe.didStart }
     #expect(store.status == .loading)
@@ -229,6 +231,7 @@ func playbackRecentKeyboardRoutesGridAndDestroysSessionBeforeOpening() async thr
             openSnapshot: playbackRecentOpenSnapshot(),
             recentStore: store
         ))
+        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
         #expect(session.selectModule(.recent))
         try await waitForPlaybackRecentCondition { store.status == .completed }
         store.selection.updateColumnCount(3)
@@ -292,6 +295,7 @@ func playbackRecentPointerDispatcherOpensClickedItemWithFolderNavigation() async
             openSnapshot: playbackRecentOpenSnapshot(),
             recentStore: store
         ))
+        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
         #expect(session.selectModule(.recent))
         try await waitForPlaybackRecentCondition { store.status == .completed }
         let selectedBeforeClick = store.selection.selectedItemID

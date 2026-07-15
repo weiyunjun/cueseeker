@@ -205,7 +205,7 @@ A subtitle cue line represents one displayable/searchable line inside a cue
 group.
 
 The cue line is the product-level Cue and the base unit for Search, Shiori,
-Context, Playback Subtitle Focus, copy actions, and exports.
+Context, Playback Multi-Module Overlay Cue results, copy actions, and exports.
 
 One source SRT block remains one Cue even when its text contains explicit line
 breaks. One searchable ASS `Dialogue` event is one Cue. Visual wrapping and

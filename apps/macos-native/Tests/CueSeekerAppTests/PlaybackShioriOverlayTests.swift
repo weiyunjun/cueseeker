@@ -22,6 +22,7 @@ func playbackShioriEmptySourceRetainsModuleWindowWithoutSelectionOrActions() thr
         openSnapshot: playbackShioriOpenSnapshot(),
         shioriSource: source
     ))
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.shioriWindow)
 
     #expect(window.snapshot.totalCount == 0)
@@ -124,6 +125,7 @@ func playbackPlaylistAndShioriKeepWindowsSelectionsAndActionTargetsIsolated() as
         playlistSource: playlistSource,
         shioriSource: shioriSource
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let playlistWindow = try #require(session.playlistWindow)
     let shioriWindow = try #require(session.shioriWindow)
 
@@ -409,6 +411,7 @@ func playbackShioriActionsStayIdempotentAndEnterDestroysSession() async throws {
             openSnapshot: playbackShioriOpenSnapshot(),
             shioriSource: source
         ))
+        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
         app.playback.playbackViewModel = PlaybackViewModel(
             player: PlaybackPlayer()
         )
@@ -561,6 +564,7 @@ func playbackShioriRemoteNavigationDefersOneActionUntilTargetSettles() async thr
         sessionGeneration: 1,
         shioriSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.shioriWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackShioriCondition {
@@ -604,6 +608,7 @@ func playbackShioriIgnoresLateCurrentMotionAndDeferredActionCallbacks() async th
         sessionGeneration: 1,
         shioriSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.shioriWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackShioriCondition {

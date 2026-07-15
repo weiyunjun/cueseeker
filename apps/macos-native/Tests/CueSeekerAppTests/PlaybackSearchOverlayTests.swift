@@ -200,6 +200,7 @@ func playbackSearchExactCompletionKeepsOnlyOneVirtualWindowHydrated() async thro
     #expect(window.snapshot.loadedOrdinalRange == (0..<32))
     #expect(window.retainedItemCount == 32)
     #expect(window.selectedOrdinal == 0)
+    #expect(!store.hasActiveExactProgressDelivery)
 
     #expect(window.requestWindow(containing: 39))
     try await waitForPlaybackSearchCondition {
@@ -209,6 +210,79 @@ func playbackSearchExactCompletionKeepsOnlyOneVirtualWindowHydrated() async thro
 
     #expect(window.retainedItemCount == 32)
     #expect(store.retainedResultCount <= 32)
+}
+
+@MainActor
+@Test
+func playbackSearchExactProgressDeliveryPreservesLatestValueAndStopsOnFailure() async throws {
+    let gate = PlaybackSearchExactGate()
+    let allResults = (0..<8).map {
+        playbackSearchResult(
+            id: Int64(1_500 + $0),
+            rank: $0,
+            text: "progress result \($0)"
+        )
+    }
+    let store = PlaybackSearchSessionStore(
+        configuration: playbackSearchTestConfiguration(pageSize: 2),
+        debounceNanoseconds: 0,
+        pageLoader: PlaybackSearchPageLoader(
+            visiblePage: { _, _ in
+                playbackSearchVisiblePage(
+                    results: Array(allResults.prefix(2)),
+                    countState: .exactProgress
+                )
+            },
+            exactPage: { _, _, progress in
+                try await gate.waitForCompletion(progress: progress)
+            },
+            windowPage: playbackSearchWindowPage
+        )
+    )
+    defer { store.invalidate() }
+
+    store.updateQuery("progress lifecycle")
+    try await waitForPlaybackSearchCondition {
+        await gate.hasStarted()
+            && store.hasActiveExactProgressDelivery
+            && store.window?.snapshot.totalCount == 2
+    }
+
+    await gate.emitProgress(
+        results: Array(allResults.prefix(4)),
+        totalCount: 4
+    )
+    try await waitForPlaybackSearchCondition {
+        store.window?.snapshot.totalCount == 4
+    }
+
+    try await Task.sleep(nanoseconds: 220_000_000)
+    await gate.emitProgress(
+        results: Array(allResults.prefix(6)),
+        totalCount: 6
+    )
+    try await waitForPlaybackSearchCondition {
+        store.window?.snapshot.totalCount == 6
+    }
+
+    await gate.failWhileRetainingProgressSink()
+    try await waitForPlaybackSearchCondition {
+        guard case .failed = store.status else {
+            return false
+        }
+        return !store.hasActiveExactProgressDelivery
+    }
+
+    try await Task.sleep(nanoseconds: 220_000_000)
+    await gate.emitProgress(results: allResults, totalCount: allResults.count)
+    try await Task.sleep(nanoseconds: 50_000_000)
+
+    guard case .failed = store.status else {
+        Issue.record("A late Exact progress callback must not revive a failed run")
+        return
+    }
+    #expect(store.window?.snapshot.totalCount == 6)
+    #expect(!store.hasActiveExactProgressDelivery)
 }
 
 @MainActor
@@ -253,6 +327,7 @@ func playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown() async th
         sessionGeneration: 1,
         searchStore: searchStore
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     searchStore.updateQuery("promote")
 
     try await waitForPlaybackSearchCondition {
@@ -357,12 +432,14 @@ func playbackSearchDismissalCancelsUnpromotedExactRunAndClearsSessionData() asyn
         sessionGeneration: 1,
         searchStore: searchStore
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     searchStore.updateQuery("dismiss")
 
     try await waitForPlaybackSearchCondition {
         await gate.hasStarted()
             && searchStore.window?.snapshot.loadedItemCount == 2
     }
+    #expect(searchStore.hasActiveExactProgressDelivery)
     let staleWindow = try #require(searchStore.window)
     #expect(session.selectModule(.search))
 
@@ -378,6 +455,7 @@ func playbackSearchDismissalCancelsUnpromotedExactRunAndClearsSessionData() asyn
     #expect(searchStore.activeRunID == nil)
     #expect(searchStore.retainedResultCount == 0)
     #expect(searchStore.retainedCueIDCount == 0)
+    #expect(!searchStore.hasActiveExactProgressDelivery)
     #expect(session.searchStore == nil)
     #expect(session.selectedModule == nil)
     #expect(staleWindow.selectedOrdinal == nil)
@@ -502,6 +580,7 @@ func playbackSearchKeyboardRoutingKeepsTextInputPrimaryAndRequiresSettledResult(
         openSnapshot: playbackSearchOpenSnapshot(),
         searchStore: searchStore
     ))
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     #expect(session.selectModule(.search))
     searchStore.updateQuery("keyboard")
     try await waitForPlaybackSearchCondition {
@@ -664,6 +743,7 @@ func playbackSearchEnterPreservesItsPlaylistAcrossAdjacentAndPlaylistPlayback() 
         openSnapshot: playbackSearchOpenSnapshot(),
         searchStore: searchStore
     ))
+    #expect(publishPlaybackOverlayInitialTestSnapshot(searchSession))
     #expect(searchSession.selectModule(.search))
     searchStore.updateQuery("playback integration")
     try await waitForPlaybackSearchCondition("initial Search window") {
@@ -719,6 +799,7 @@ func playbackSearchEnterPreservesItsPlaylistAcrossAdjacentAndPlaylistPlayback() 
     let playlistSession = try #require(app.playback.beginSubtitleFocusSession(
         openSnapshot: playbackSearchOpenSnapshot()
     ))
+    #expect(publishPlaybackOverlayInitialTestSnapshot(playlistSession))
     #expect(playlistSession.selectModule(.playlist))
     let playlistWindow = try #require(playlistSession.playlistWindow)
     #expect(playlistWindow.requestWindow(containing: 2))
@@ -1010,6 +1091,12 @@ private actor PlaybackSearchExactGate {
         cancelled
     }
 
+    func failWhileRetainingProgressSink() {
+        let pending = continuation
+        continuation = nil
+        pending?.resume(throwing: PlaybackSearchExactGateError.forcedFailure)
+    }
+
     private func cancel() {
         guard !cancelled else { return }
         cancelled = true
@@ -1018,6 +1105,10 @@ private actor PlaybackSearchExactGate {
         continuation = nil
         pending?.resume(throwing: CancellationError())
     }
+}
+
+private enum PlaybackSearchExactGateError: Error {
+    case forcedFailure
 }
 
 private func playbackSearchTestConfiguration(

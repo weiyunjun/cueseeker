@@ -337,16 +337,18 @@ For each query:
 1. Focus the topbar Search field.
 2. Select the full previous query text.
 3. Type the next query exactly.
-4. Press Return once.
-5. Wait for the initial Search result list to settle before recording
+4. Do not press Return; confirm input alone starts Search after the
+   100-millisecond debounce.
+5. Wait for the Search result list and Exact count to settle before recording
    observations or scrolling.
 
 "Settled" means the Search pane is no longer showing the empty `Searching`
 state or spinner, the `Found <count> results in <count> files` summary is
 visible, and the visible result list has not changed for at least two seconds.
 
-The current accepted Search flow is exact-count first: the summary count and
-file count must already be complete when the initial result list settles.
+Visible results may appear before Exact completion. For final benchmark
+observations, the summary count and file count must be complete when the result
+list is considered settled.
 
 ### Per-Query Actions
 
@@ -876,15 +878,18 @@ swift test --filter searchPlaybackPlaylistFollowsExactProgressInsteadOfFreezingC
 swift test --filter playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown
 swift test --filter playbackLibraryRejectsStaleDetailSuccessFailureAndDismissal
 swift test --filter playbackMultiModuleOverlayStopCancels
+swift test --filter 'subtitleFocusVisualLineStackPreservesEverySourceLineAtStrictFivePointGap|subtitleFocusVisualLineStackUsesStrictFivePointGapAcrossSoftWraps|subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtStrictInternalGap|playbackCueResultKeepsFivePointGapAcrossGroupHardSoftAndCueBoundaries'
 cd ../..
 ```
 
-All four commands must pass. The first two mechanically verify source growth,
+All five commands must pass. The first two mechanically verify source growth,
 final count, and fixed order positions for the Workbench-origin and
-Playback-Search-origin Playlist sources. The last two use suspended loaders to
+Playback-Search-origin Playlist sources. The next two use suspended loaders to
 prove that an in-flight Library Detail load and all other Session work are
-cancelled and cannot publish late success or failure. The manual gate below
-verifies the corresponding real UI;
+cancelled and cannot publish late success or failure. The fifth proves the
+strict 5-pixel typographic gap across hard breaks, soft wraps, Cue boundaries,
+and Additional-to-Primary boundaries. The manual gate below verifies the
+corresponding real UI;
 it does not depend on a human being fast enough to close a local database read
 while that read is still in flight.
 
@@ -968,8 +973,10 @@ pbpaste
    scrollbar. Hover and click selected and unselected Cue text and resize the
    window. There must be no Cue hover treatment or pointer cursor. Clicks must
    do nothing and not reach Video; selection and accepted placement survive
-   reflow. Multi-line typographic gaps must be visually uniform. Record the
-   selected Cue and take the Current-before screenshot.
+   reflow. Multi-line typographic gaps must look uniform; exact typographic
+   bounds are not inferred from visible glyph ink. The deterministic geometry
+   prerequisite proves the strict 5-pixel internal gap. Record the selected Cue
+   and take the Current-before screenshot.
 4. Press C on the known multi-line Current Cue, run `pbpaste`, and compare the
    complete source line breaks. Press S on the first unsaved Cue and then again.
    Confirm `Subtitle Copied`, `Shiori Saved`, then `Shiori Already Saved` render
@@ -977,10 +984,11 @@ pbpaste
    confirm it is consumed: the Overlay remains open and paused, with no seek,
    selection change, or playback action.
 5. Click every available Sidebar Item and confirm each click switches exactly
-   once; hover must not introduce a third color or selection background. Click
-   the Selected Item and confirm it does not navigate again. Return to Current
-   and take the Current-after screenshot: its recorded Cue and exact placement
-   must match action 3. Then use unmodified Tab through every module and back.
+   once; every enabled Item must show the pointing-hand cursor, while hover must
+   not introduce a third color or selection background. Click the Selected Item
+   and confirm it does not navigate again. Return to Current and take the
+   Current-after screenshot: its recorded Cue and exact placement must match
+   action 3. Then use unmodified Tab through every module and back.
    While Playback Search owns the editor focus, press and hold Tab; one physical
    key-down may advance only once, native focus traversal must not occur, and no
    other module-switch button or shortcut may appear.
@@ -1015,7 +1023,8 @@ pbpaste
    Return. Confirm Results update 100 milliseconds after the latest edit, the
    first Result becomes selected, Up/Down changes the Result while the caret
    remains in the field, and native selection plus Cmd+A/C continue to work.
-   Hover and click selected and unselected Results. There must be no Result
+   Hover Inline Clear and confirm its full `24 x 24pt` hit region shows the
+   pointing-hand cursor. Hover and click selected and unselected Results. There must be no Result
    hover state or pointer cursor, and neither click may change selection, start
    playback, reach Video, or remove editor focus.
    Select a non-first Result, scroll away from the start, and take Search-before.
@@ -1048,12 +1057,17 @@ pbpaste
     playback. Click another Sidebar module and then click Recent; take
     Recent-after and confirm the selected identity and named card's top-edge
     pixel coordinate are identical. In a separate fresh Session, left-click a
-    Recent card and confirm its existing primary playback action destroys the
-    Overlay and opens that exact media item; the Focus Ring must never block the
-    card's hover, left-click, or context-menu region.
+   Recent card and confirm its existing primary playback action destroys the
+   Overlay and opens that exact media item. The selected card's Focus Ring must
+   render as a `2px` stroke with a `2px` outward offset around the complete card
+   path, without clipping, and must never block the card's hover, left-click, or
+   context-menu region.
 11. Reopen the Overlay and enter Library. Confirm the first available Folder is
     selected, use all four arrows, scroll, and take Library-Folder-before.
-    Before entering, verify Folder hover and its card context menu. Press Enter
+    Before entering, verify Folder hover and its card context menu. The selected
+    Folder and Episode Focus Rings must each render as a `2px` stroke with a
+    `2px` outward offset around the complete card path, without clipping or
+    blocking pointer actions. Press Enter
     once to open the selected Folder and confirm a held/repeating Enter does not
     enter twice. Verify the fixed Detail Header, first available Episode
     selection, four-arrow navigation, Cover hover, and Cover context menu.
@@ -1084,14 +1098,16 @@ pbpaste
     must start on Current with empty Playback Search, Library at Folder level,
     and default first selections and initial offsets. A Playlist-capable origin
     must also reopen Playlist at its default first Result.
-14. In separate fresh Sessions, execute Enter from Current, Playlist, Playback
-    Search, Recent, Library Folder, Library Detail, and Shiori. For Current,
-    Playlist, and Shiori, also verify S and C against the settled Primary Cue;
-    use already saved targets for these repeated S checks so no third test
-    Shiori is created. Search continues to treat S/C as editor input. Every
+14. In separate fresh Sessions, execute playback Enter from Current, Playlist,
+    Playback Search, Recent, Library Detail, and Shiori. For Current, Playlist,
+    and Shiori, also verify S and C against the settled Primary Cue; use already
+    saved targets for these repeated S checks so no third test Shiori is
+    created. Search continues to treat S/C as editor input. Every playback
     Enter must execute at most once under key repeat, destroy the Session before
-    seek or media open, and use the exact selected Primary Cue, card, Folder, or
-    Episode action.
+    seek or media open, and use the exact selected Primary Cue, card, or Episode
+    action. In a separate fresh Library Session, press Enter on a Folder and
+    confirm it enters Detail exactly once while the same Overlay Session stays
+    active; it must not seek, open media, or destroy the Session.
 15. Start playback from Workbench Shiori, open the Overlay, and mechanically
     compare Playlist's final count and the Primary Cue texts at Sequence 1,
     Sequence 2, and the last Sequence against the existing Shiori

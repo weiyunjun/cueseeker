@@ -46,6 +46,7 @@ private struct PlaybackSearchBox: View {
 
     @FocusState private var isFocused: Bool
     @State private var isClearHovered = false
+    @State private var focusRequest = 0
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -74,7 +75,7 @@ private struct PlaybackSearchBox: View {
             if !text.isEmpty {
                 Button {
                     text = ""
-                    restoreInputFocus()
+                    focusRequest += 1
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(
@@ -130,12 +131,11 @@ private struct PlaybackSearchBox: View {
             .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
         }
         .subtitleTableTextSelectionInteractiveRegion(isActive: true)
-        .onAppear(perform: restoreInputFocus)
-    }
-
-    private func restoreInputFocus() {
-        Task { @MainActor in
+        .task(id: focusRequest) {
             await Task.yield()
+            guard !Task.isCancelled else {
+                return
+            }
             isFocused = true
         }
     }

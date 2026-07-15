@@ -861,6 +861,58 @@ Overlay window without changing their established behavior.
   app E2E because unit tests do not observe the system Cursor or rendered
   pixels.
 
+### Completion audit correction: strict Session teardown and live-Search guidance
+
+- A final requirement-by-requirement audit found that Current called its
+  continuous-play closure before closing the Overlay. Current now cancels
+  Overlay-owned coordinator work, closes and releases the Session, and only
+  then seeks or begins playback. Its regression asserts from inside the
+  playback closure that the coordinator no longer retains the Session and that
+  the Session is already closed and inactive.
+- Module selection now requires a published Current Cue snapshot. An unmodified
+  Tab received during the hidden opening phase is still consumed by playback
+  routing but cannot change the default Current module or start another
+  module's loading work before the Overlay appears.
+- Playback Search focus restoration now uses SwiftUI's view-scoped `.task(id:)`
+  lifetime. Cue Result deferred-action delivery retains one replaceable task
+  and cancels it on disappearance. Search Exact progress crosses its Sendable
+  callback through a newest-value `AsyncStream` consumed by one run-owned Main
+  Actor task; invalidation, cancellation, failure, and Exact completion all
+  finish the stream and cancel the consumer explicitly.
+- The shared Workbench empty-state copy no longer tells users to press Return.
+  Current product and architecture documents now describe the Workbench and
+  Playback live-Search debounce, the Multi-Module Overlay action map, shared
+  virtualization, and strict temporary Session lifecycle instead of the
+  superseded draft/submit and single-module Space-playback contracts. They also
+  use the accepted `max(52L, visual-line stack height) + 24` Current geometry
+  and apply `Show Cue Group` to Playback Playlist, Search, and Shiori.
+- The active Search and Overlay E2E steps now test input-triggered Search,
+  pointer cursors, and exact Focus Ring width and offset. A deterministic
+  prerequisite proves the strict 5-pixel internal gap from typographic metrics;
+  manual review checks visual uniformity without mistaking glyph Ink Bounds for
+  Font Run bounds. Library Folder Enter is explicitly same-Session Detail
+  navigation; only media playback Enter is required to destroy the Session
+  before opening its target.
+- `swift test --filter 'searchNoQueryStateExplainsLiveSearchWithoutSubmit|playbackOverlayPlayActionUsesExactCueThenDestroysSession|playbackOverlaySessionRejectsModuleSelectionWhileOpening|playbackSearchExactProgressDeliveryPreservesLatestValueAndStopsOnFailure|playbackSearchDismissalCancelsUnpromotedExactRunAndClearsSessionData|playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown'`
+  - Passed all 6 focused live-copy, synchronous teardown, opening gate, Exact
+    progress delivery, cancellation, and promotion regressions.
+- `swift test --filter 'subtitleFocusVisualLineStackPreservesEverySourceLineAtStrictFivePointGap|subtitleFocusVisualLineStackUsesStrictFivePointGapAcrossSoftWraps|subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtStrictInternalGap|playbackCueResultKeepsFivePointGapAcrossGroupHardSoftAndCueBoundaries'`
+  - Passed all 4 strict typographic-gap regressions.
+- `swift test --quiet --no-parallel --filter 'playbackOverlay|PlaybackOverlay|subtitleFocus|SubtitleFocus|playbackVirtualReel|PlaybackVirtualReel|playbackCueResult|PlaybackCueResult|playbackPlaylist|PlaybackPlaylist|playbackSearch|PlaybackSearch|playbackRecent|PlaybackRecent|playbackLibrary|PlaybackLibrary|playbackShiori|PlaybackShiori|playbackMultiModule|PlaybackMultiModule|playbackMedia|PlaybackMedia|InfoPageState|SearchStore|searchInputDebounce|liveSearch'`
+  - Passed all 200 Overlay, shared-Reel, module, media-selection, live-Search,
+    lifecycle, and empty-state regressions.
+- `swift test --quiet --no-parallel --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 765 Swift Testing tests.
+- `swift test --quiet --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated known order-dependent persistence test.
+- `swift build`
+  - Passed.
+- Three independent final read-only reviews found no remaining P0, P1, or P2
+  lifecycle, concurrency, test-validity, requirement-alignment, product-rule,
+  architecture-rule, or E2E-guidance issue after the corrections.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
 All twelve implementation steps and automated verification are complete. The

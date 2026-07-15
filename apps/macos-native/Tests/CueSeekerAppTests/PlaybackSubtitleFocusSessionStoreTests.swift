@@ -60,6 +60,27 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
 
 @MainActor
 @Test
+func playbackOverlaySessionRejectsModuleSelectionWhileOpening() {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1,
+        availableModules: PlaybackOverlayModule.allCases
+    )
+
+    #expect(session.state == .opening)
+    #expect(!session.selectModule(.search))
+    #expect(!session.selectNextModule())
+    #expect(session.selectedModule == .current)
+
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    #expect(session.selectModule(.search))
+}
+
+@MainActor
+@Test
 func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
@@ -746,6 +767,30 @@ private func focusOpenSnapshot(wasPlaying: Bool) -> PlaybackSubtitleFocusOpenSna
         ),
         timestampMilliseconds: 12_500,
         wasPlaying: wasPlaying
+    )
+}
+
+@MainActor
+func publishPlaybackOverlayInitialTestSnapshot(
+    _ session: PlaybackSubtitleFocusSessionStore
+) -> Bool {
+    let cue = SubtitleFocusCue(
+        id: 1,
+        cueGroupID: 1,
+        ordinal: 0,
+        eventIndex: 0,
+        displayOrder: 0,
+        startMilliseconds: 0,
+        endMilliseconds: 1_000,
+        content: "current"
+    )
+    return session.publishInitialSnapshot(
+        SubtitleFocusSnapshot(
+            totalCount: 1,
+            selectedOrdinal: 0,
+            cues: [cue]
+        ),
+        token: session.token
     )
 }
 

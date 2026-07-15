@@ -23,7 +23,6 @@ The accepted next Search workflow is:
 ```text
 Open app
 Type a query in the topbar Search field
-Press Return
 Review individual Cue rows in the native Search table
 Click the primary Cue content for a row
 Search-launched playback opens in the main content area
@@ -47,8 +46,9 @@ authoritative behavior in `docs/product/12_liquid_glass_ux_mapping.md`):
   mode is remembered.
 - Closing the video page (the top-bar close control) ends the session and
   returns to that originating info-page mode with its state intact.
-- A search performed from the video page updates shared Search state, so the
-  info page reflects it on return without a rebuild.
+- Playback Multi-Module Overlay Search is temporary Session state. It does not
+  replace the workbench query or result snapshot and is destroyed when the
+  Overlay exits.
 - Where older sections below describe a bottom-launched overlay, a squeezing
   right side panel, an expand/collapse video chevron, or a drawer that pauses
   playback, the video-page behavior in doc 12 (§5, §10.1, §10.4, §11)
@@ -79,9 +79,10 @@ Search should feel immediate.
 Accepted topbar Search transition:
 
 - A fixed-width Search field belongs in the topbar.
-- Typing in the topbar Search field edits a draft query only.
-- Pressing Return submits the draft query as the active Search query.
-- Submitted Search results appear in the main content area.
+- Typing in the topbar Search field updates the active query automatically
+  after a `100ms` debounce. The latest edit wins.
+- Return is not a Workbench Search submission command.
+- Live Search results appear in the main content area.
 - The Search results page should not render a duplicate Search field below the
   topbar.
 - The old side-panel Search entry should no longer be the active Search entry
@@ -262,8 +263,8 @@ Result row visual rules:
 
 ### Current Supporting Search Behavior
 
-- Return submits the topbar draft query; typing alone does not replace the
-  active result snapshot.
+- Typing updates the topbar active query after a `100ms` debounce and replaces
+  the result snapshot for the latest query revision. Return does not submit it.
 - Empty, searching, failed, no-result, populated, and incremental-loading states
   remain explicit and must not flicker through false intermediate counts.
 - Search loads individual Cues in 100-Cue pages. Display Title keeps the
@@ -274,7 +275,7 @@ Result row visual rules:
   generate thumbnails, or start extraction. While On, work is limited to loaded
   Cue rows and uses the existing primary-Cue midpoint preview pipeline.
 - Invalid search syntax returns an empty/failure state without crashing, and
-  repeating an unchanged submitted query must not start expensive work without
+  repeating an unchanged active query must not start expensive work without
   reason.
 
 ### Current Search Focus Behavior
@@ -488,18 +489,20 @@ Topbar Search playback interaction:
 - `Results` is a nearby Search-result context tab.
 - `Subtitles` is a current-subtitle-file context tab.
 
-Playback Subtitle Focus interaction:
+Playback Multi-Module Overlay interaction:
 
 - Enter on the Playback Page captures the current timestamp and source
-  identity, pauses playback, and opens a native virtual Cue reel. Each reel
-  item and every interaction target is one exact Cue.
+  identity, pauses playback, and creates a temporary Overlay Session on
+  Current. A fixed Sidebar exposes Current, optional Playlist, Search, Recent,
+  Library, and Shiori; unmodified Tab cycles the available modules.
 - If the captured timestamp lies within a Cue Group, the initial selection is
   the physically bottommost Cue in stable source display order. If it lies in
   no Cue, select the nearest preceding Cue; if none exists, select the first
   Cue.
-- Cue natural height is `52L + 24pt`, where `L` includes source line breaks and
-  automatic wrapping. Resolved height is the lesser of natural height and the
-  reel viewport height.
+- Cue nominal content height is `52L`, where `L` includes source line breaks
+  and automatic wrapping. Natural height is
+  `max(nominal content height, visual-line stack height) + 24pt`; resolved
+  height is the lesser of natural height and the reel viewport height.
 - The Focus Anchor remains fixed at the viewport's vertical center. A fitting
   Cue shows every line and centers its complete bounds on the anchor. An
   oversized Cue aligns its top edge with the viewport top, starts at its first
@@ -507,12 +510,28 @@ Playback Subtitle Focus interaction:
 - Up, Down, discrete wheel, precise wheel, and scrollbar navigation move among
   accepted Cue placements. Width reflow preserves stable selected Cue identity
   and restores its fitting-center or oversized-top placement.
-- `S`, `C`, and `Space` target the exact settled Cue. `S` saves it, `C` copies
-  its complete source-ordered text, and `Space` seeks to its own start time and
-  plays. An action accepted during motion executes once after the final Cue
+- In Current, Playlist, and Shiori, `S`, `C`, and Enter target the exact settled
+  Primary Cue. `S` saves it, `C` copies its complete source-ordered text, and
+  Enter synchronously destroys the Session before seeking to its own start
+  time and playing. Search keeps input focus, updates Results after the latest
+  edit's `100ms` debounce without Enter submission, and exposes only Enter as
+  its settled-Result Cue action. Space is consumed without an action in every
+  module. An action accepted during motion executes once after the final Cue
   settles.
 - Cue pointer hover and click do not select, seek, play, save, copy, or open an
   action menu. Pointer wheel and the scrollbar remain available.
+- Playlist, Search, and Shiori share Current's visible-range loading, dynamic
+  measurement, accepted placement, scrolling, and recycling behavior. Escape,
+  a playback action, Playback Page close, and source replacement cancel all
+  unfinished Session work and clear all temporary module state.
+- Playlist keeps its origin order and one-based internal Sequence Numbers.
+  `Show Cue Group` is presentation-only across Playlist, Search, and Shiori;
+  `S`, `C`, and Enter continue to target only the selected Primary Cue.
+- Recent and Library preserve their existing card primary actions and context
+  menus. Recent starts on the first available item. Library starts on the first
+  available Folder, Enter opens that Folder in the same Session, Back restores
+  the Folder selection and offset, and Detail starts on the first available
+  Episode. Media-card playback destroys the Session before opening its target.
 
 Keyboard interactions should not interfere with text input.
 
@@ -619,15 +638,15 @@ Current M2 implementation and accepted fullscreen correction:
   preserve reusable playback infrastructure, persisted playback preferences,
   Search result cache, and Library playback history rules.
 - Shortcut and control actions show transient feedback overlays for subtitle
-  visibility, play/pause, relative seek, volume, speed, and cue-scoped Subtitle
-  Focus actions.
+  visibility, play/pause, relative seek, volume, speed, and cue-scoped Overlay
+  actions.
 - The visible playback speed menu offers `0.5x`, `0.75x`, `1.0x`, `1.25x`, `1.5x`, `1.75x`, and `2.0x`.
 - The speed button hover area, speed button click area, and speed menu width are aligned to the same horizontal bounds.
 - Keyboard shortcuts adjust speed in `0.25x` steps and are clamped to the same `0.5x` through `2.0x` range as the playback controls.
 - The previous Flutter shortcut model was used as a reference, but the native
   M2 map uses `Q` for normal-playback subtitle visibility, reserves `S` and `C`
-  for Playback Subtitle Focus, removes the bottom-mask shortcut, and changes
-  speed adjustment to `Shift+,` and `Shift+.`.
+  for eligible Playback Multi-Module Overlay modules, removes the bottom-mask
+  shortcut, and changes speed adjustment to `Shift+,` and `Shift+.`.
 
 ## 8. Library And Timeline Interaction
 
@@ -808,16 +827,16 @@ M2 keyboard shortcut model:
 - `Left Arrow` and `Right Arrow` should seek backward or forward by 5 seconds.
 - `Up Arrow` and `Down Arrow` should adjust volume by 5 percentage points.
 - `Shift+,` and `Shift+.` should decrease or increase playback speed by 0.25x.
-- While Playback Subtitle Focus is visible, it consumes `S`, `C`, `Space`, and
-  `Enter` before normal playback shortcut routing. `S` saves the exact settled
-  cue, `C` copies its complete text, `Space` plays continuously from its start,
-  and `Enter` performs no action.
-- `S` and `C` keep Playback Subtitle Focus visible and playback paused;
-  `Space` closes it. Accepted actions during reel motion execute once against
-  the final settled cue.
+- While the Playback Multi-Module Overlay is visible, it consumes its keyboard
+  routing before normal playback shortcuts. Current, Playlist, and Shiori use
+  `S`, `C`, and Enter; Search uses Enter only and preserves letter input.
+  Space is consumed without an action.
+- `S` and `C` keep the Overlay visible and playback paused; Enter synchronously
+  destroys the Session before playback begins. Accepted actions during reel
+  motion execute once against the final settled Primary Cue.
 - Playback shortcut commands should show lightweight feedback overlays for
   subtitle visibility, play or pause, relative seek, volume, speed, and
-  Subtitle Focus actions.
+  Overlay actions.
 
 ## 13. Settings Interaction
 
@@ -842,8 +861,9 @@ Expected behavior:
   selected folders, remove folders with confirmation, and show indexing status.
 - `Search` contains Search Scope and, immediately below it, the native
   `Show Cue Group` switch. The switch defaults to Off, persists across launches,
-  and changes only Search, Shiori, and Context Cue presentation; it must not
-  rerun queries, rebuild scope, mutate Shiori, alter counts, or retarget actions.
+  and changes only Workbench Search, Shiori, Context, and Playback
+  Playlist/Search/Shiori Cue presentation; it must not rerun queries, rebuild
+  scope, mutate Shiori, alter counts or identity, or retarget actions.
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
 - `Maintenance` contains local database storage stats and the manual

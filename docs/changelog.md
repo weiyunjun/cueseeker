@@ -22,7 +22,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
   table rows are still continuously hydrating. Shared Focus Rings now use the
   documented 2-pixel width and 2-pixel offset, while Playback Sidebar items and
   the Search Inline Clear Button expose a pointer Cursor across their exact
-  clickable surfaces.
+  clickable surfaces. Current playback actions now destroy the Overlay Session
+  before invoking seek/play, hidden opening cannot switch modules early, and
+  view-scoped focus, deferred-action, and Exact-progress work is explicitly
+  cancelled on teardown. Live-Search copy, stable product documents, and the
+  manual E2E gate now consistently describe input-triggered Search rather than
+  Return submission.
 - Removed the forced black transition from five-second seeks and previous/next
   playback changes. CueSeeker now retains the previous video frame, subtitle,
   and time state until the matching target frame is ready, commits the target

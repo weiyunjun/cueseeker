@@ -236,10 +236,11 @@ Rules:
 - Large SwiftUI views must not subscribe to unrelated high-frequency or
   high-cardinality state when a smaller store, value model, or binding can
   express the same UI responsibility.
-- Editable input draft state must be separated from submitted application
-  state when background work can update the submitted state. For example, the
-  topbar Search field owns its own draft and focus state, while `searchQuery`
-  represents only the submitted query.
+- Editable input draft state may be separated from submitted application state
+  only when the product defines an explicit submission boundary. Workbench
+  Search has no such boundary: the field keeps its own focus and IME editing
+  state, while the latest committed text becomes `searchQuery` after the
+  100-millisecond debounce and revision guard. Return does not submit Search.
 - AppKit-backed editable controls must not overwrite focused text or active
   IME marked text from `updateNSView` during unrelated SwiftUI invalidations.
   Programmatic text replacement needs an explicit user action or focused-control
@@ -283,7 +284,7 @@ Rules:
   persisted Library snapshot. Toggling one folder, toggling all folders, or
   resetting all groups to collapsed must not rebuild Library presentation rows.
 - Search presentation rows are derived Cue query state. Their identity snapshot
-  should be cached and rebuilt only when the submitted query, loaded Cue page,
+  should be cached and rebuilt only when the active query, loaded Cue page,
   result ordering, or underlying indexed Cue data changes. Cues-column width
   changes and the persisted `Show Cue Group` preference are presentation inputs:
   they may remeasure visible rows plus overscan, but must not rebuild the query,
@@ -302,20 +303,35 @@ Rules:
   stable scroll anchor made from the primary Cue identity and its first visual
   line's screen-space position. Row-local hover, menu, measurement, and scroll
   state must remain outside Search, Shiori, Library, and Playback stores.
-- Playback Subtitle Focus uses a native virtual Cue document, not Cue Group
-  rows. Opening selects the physically bottommost Cue in the active Cue Group;
-  when no Cue is active it falls back to the nearest preceding Cue, then the
-  first Cue. Each Cue has natural height `52L + 24` and resolved height clamped
-  to the reel viewport. A fitting Cue centers its complete bounds on the fixed
-  Focus Anchor; an oversized Cue uses accepted head-first placement at the
-  viewport top. Width reflow preserves stable Cue identity and restores that
-  accepted placement.
-- Subtitle Focus actions operate on an immutable exact-Cue target after the
-  target's accepted placement settles: `S` saves that Cue idempotently, `C`
-  copies its complete text, and Space seeks and plays from its own start time.
-  Focus layout, selection, motion, deferred-action, and visible-plus-overscan
-  measurement state are overlay-local and must not invalidate tables or the
-  playback render host.
+- Playback Multi-Module Overlay owns one strictly temporary Session with
+  Current, optional Playlist, Search, Recent, Library, and Shiori. Module
+  switching stays inside that Session; Escape, playback, Playback Page close,
+  and source replacement cancel unfinished work and destroy all temporary
+  module state. The hidden opening phase remains on Current.
+- Current uses a native virtual Cue document, not Cue Group rows. Opening
+  selects the physically bottommost Cue in the active Cue Group; when no Cue is
+  active it falls back to the nearest preceding Cue, then the first Cue. For
+  visual-line count `L`, nominal content height is `52L`; natural height is
+  `max(nominal content height, visual-line stack height) + 24` and resolved
+  height is clamped to the reel viewport. Visual lines use measured font-run
+  typographic bounds with the shared internal-line-gap token instead of fixed
+  Line Slots. A fitting Cue centers its complete bounds on the fixed Focus
+  Anchor; an oversized Cue uses accepted head-first placement at the viewport
+  top. Width reflow preserves stable Cue identity and restores that placement.
+- Playlist, Search, and Shiori substitute Playback Cue Result identity,
+  rendering, and height calculation while reusing Current's visible-range
+  loading, measurement, accepted placement, scrolling, and recycling
+  infrastructure. They must not create independent full-list render paths.
+  `Show Cue Group` is a presentation-only input for these three modules and
+  must not change their count, order, identity, selection, or Primary Cue
+  action targets.
+- Current, Playlist, and Shiori actions operate on an immutable exact Primary
+  Cue after accepted placement settles: `S` saves it idempotently, `C` copies
+  its complete text, and Enter synchronously destroys the Session before seek
+  and play. Search preserves text input and accepts only Enter as its Cue
+  action. Space is consumed without action throughout the Overlay. Overlay
+  layout, selection, motion, deferred-action, and visible-plus-overscan state
+  must not invalidate Workbench tables or the playback render host.
 - Side-panel collapse or expand must not destroy and recreate large list state.
   Prefer stable panel shells whose layout width, visibility, opacity, or hit
   testing changes without discarding the panel's current presentation model.

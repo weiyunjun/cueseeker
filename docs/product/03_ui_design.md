@@ -45,9 +45,10 @@ First implementation requirements:
 - The topbar Search field uses a neutral white rounded rectangle with a
   `44pt` height, `14pt` corner radius, and gray border. Focus must not add a
   strong accent-color ring.
-- Treat text editing in the topbar Search field as a draft query.
-- Submit Search only when the user presses Return.
-- Show submitted Search results in the main content area.
+- Treat text editing in the topbar Search field as the active query. Apply the
+  latest edit automatically after a `100ms` debounce; Return is not a Search
+  submission command.
+- Show live Search results in the main content area.
 - Render Search results as individual Cue rows in the shared native virtual
   table described in section 4.1.
 - Render Shiori and Context with the same Cue-row table geometry and interaction
@@ -324,7 +325,7 @@ Current shell direction:
 - Traffic lights and the centered workbench title belong to the titlebar.
 - Library and Shiori mode controls are icon buttons immediately to the left of
   the topbar Search field.
-- Search is selected by focusing or submitting the topbar Search field.
+- Search is selected by focusing or editing the topbar Search field.
 - The visible Mode Rail, Shared Content Panel, right-side Search Panel, and
   sidebar-position setting are not part of the current workbench shell.
 - The fixed-width Search field is centered together with the Library and
@@ -816,27 +817,50 @@ Behavior:
   expanded in Search mode.
 - Clicking the embedded video toggles play/pause.
 - Clicking the playback operation controls should not toggle play/pause unless the play/pause control is targeted.
-- Playback Subtitle Focus has no cue hover state, cue click action, or cue
-  action menu. Up, Down, wheel, and scrollbar navigation remain available.
-- In Playback Subtitle Focus, `S` saves the exact focused cue and shows
-  `Shiori Saved` or `Shiori Already Saved`; `C` copies the exact focused cue and
-  shows `Subtitle Copied`; `Space` plays continuously from that cue and shows
-  `Play`.
-- Subtitle Focus feedback renders above the focus overlay. `S` and `C` keep the
-  focus overlay visible and playback paused; `Space` closes it.
-- Playback Subtitle Focus renders one exact Cue per virtual reel item. Its
-  natural height is `52L + 24pt`, where `L` includes source line breaks and
-  automatic wrapping; its resolved height is the lesser of that natural height
-  and the reel viewport height.
+- The Playback Multi-Module Overlay has a fixed, non-collapsible left Sidebar
+  ordered Current, optional Playlist, Search, Recent, Library, and Shiori.
+  Unmodified Tab is the only keyboard module-cycle command; Sidebar items also
+  accept pointer selection.
+- The Overlay has no Cue hover state, Cue click action, or Cue action menu. Up,
+  Down, wheel, and scrollbar navigation remain available for Cue reels.
+- Current, Playlist, and Shiori use `S` to save the exact selected Primary Cue,
+  `C` to copy it, and Enter to play it. Search keeps keyboard focus in its live
+  query field and exposes only Enter as a Cue action. Space is consumed without
+  action in every Overlay module.
+- Overlay feedback renders above the Overlay. `S` and `C` keep it visible and
+  playback paused; Enter synchronously destroys its temporary Session before
+  playback opens or resumes.
+- Current renders one exact Cue per virtual reel item. Its nominal content
+  height is `52L`, where `L` includes source line breaks and automatic wrapping.
+  Natural height is
+  `max(nominal content height, visual-line stack height) + 24pt`; resolved
+  height is the lesser of natural height and the reel viewport height. Visual
+  lines use measured font-run typographic bounds and the internal-line-gap
+  token rather than fixed Line Slots.
 - A fitting selected Cue shows every line and centers its complete bounds on
   the fixed screen-space Focus Anchor. An oversized selected Cue aligns its top
   edge with the reel viewport top, begins at its first visual line, and clips
   only trailing content below the viewport while retaining its complete action
   value.
-- Focus opening selects the physically bottommost Cue in the Cue Group that
+- Overlay opening starts a new temporary Session on Current and selects the
+  physically bottommost Cue in the Cue Group that
   contains the captured playback timestamp, otherwise the nearest preceding
   Cue, otherwise the first Cue. Width reflow preserves that stable Cue identity
   and restores its accepted fitting-center or oversized-top placement.
+- Playlist, Search, and Shiori reuse Current's virtual visible-range loading,
+  dynamic measurement, accepted placement, scrolling, and recycling while
+  rendering Playback Cue Results. Closing the Overlay cancels unfinished work
+  and clears every module's temporary query, rows, selection, and scroll state.
+- Playlist renders its one-based internal Sequence Number to the left of each
+  Result. With `Show Cue Group` On, Playlist, Search, and Shiori add muted,
+  smaller Additional Cues while the Primary Cue retains normal Cue styling.
+  Every adjacent Visual Line inside one Result uses the same strict 5-pixel
+  internal gap, including Additional-to-Primary boundaries. Only two separate
+  Results use the 8-pixel Cue gap. Presentation never changes Result identity
+  or action targets.
+- Recent reuses the Watching Card layout. Library reuses Folder cards, its fixed
+  Detail Header, and Episode cards. Their Focus Rings use the shared 2-pixel
+  width and 2-pixel offset without intercepting the cards' pointer regions.
 - Removing a Shiori should show transient playback feedback with the Shiori icon
   and `Shiori Removed`.
 - Collapsing the Shared Content Panel hides the active mode content.
@@ -859,8 +883,8 @@ Behavior:
 - Playback fullscreen should follow standard macOS Space, Dock, menu bar, app
   switching, and system overlay behavior.
 - Transient playback feedback overlays appear above the video for play/pause,
-  subtitle visibility, seek, volume, speed, and Subtitle Focus actions. The
-  feedback layer remains above Playback Subtitle Focus.
+  subtitle visibility, seek, volume, speed, and Overlay actions. The feedback
+  layer remains above the Playback Multi-Module Overlay.
 - The playback speed selector is an app-drawn menu that opens upward from the
   speed control.
 - The speed control must display fractional presets without truncation and must
@@ -986,10 +1010,11 @@ Required `Library` elements:
 
 The `Search` category exposes Search Scope and places a native macOS
 `Show Cue Group` switch immediately below it. The switch defaults to Off,
-persists across launches, and applies to Search, Shiori, and Context. Changing
-it updates only table presentation and visible-row measurement; it must not
-rerun Search, rebuild Context, alter Shiori data, change result count, or
-retarget any row action away from the primary Cue.
+persists across launches, and applies to Workbench Search, Shiori, and Context
+and to Playback Playlist, Search, and Shiori. Changing it updates only Cue
+presentation and visible-plus-overscan measurement; it must not rerun Search,
+rebuild Context, alter Shiori data, change result count or identity, or retarget
+any row action away from the Primary Cue.
 
 The `Appearance` category should expose `Appearance Mode` as its first setting.
 The control uses the same app-drawn segmented-control pattern as `Decode >

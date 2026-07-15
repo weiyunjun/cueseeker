@@ -456,7 +456,7 @@ Required behavior:
   blocking the UI restructure.
 - Playback commands should show transient feedback for subtitle visibility,
   play or pause, seek direction and amount, volume, playback speed, Shiori
-  removal, and cue-scoped Subtitle Focus actions.
+  removal, and cue-scoped Playback Multi-Module Overlay actions.
 - Continuous playback preferences must persist across app restarts. This
   includes volume, the last nonzero volume used when restoring from mute,
   subtitle visibility, and playback speed.
@@ -497,24 +497,31 @@ Current implementation notes and accepted fullscreen correction:
 - Subtitle visibility uses the playback engine subtitle state and shows feedback when toggled.
 - Normal playback exposes no current-timestamp Shiori or subtitle-copy command
   through either the bottom player or `S` / `C`.
-- Playback Subtitle Focus uses the exact settled Cue for Shiori, clipboard
-  text, and continuous playback. Clipboard text preserves source line order and
-  line breaks.
-- In Playback Subtitle Focus, `S` shows `Shiori Saved` or
+- The Playback Multi-Module Overlay uses the exact selected Primary Cue for
+  Shiori, clipboard text, and continuous playback. Clipboard text preserves
+  source line order and line breaks without copying the surrounding Cue Group.
+- In Current, Playlist, and Shiori, `S` shows `Shiori Saved` or
   `Shiori Already Saved` and `C` shows `Subtitle Copied` without dismissing the
-  overlay or resuming playback. `Space` dismisses the overlay, seeks to the
-  focused cue start, begins continuous playback, and shows `Play`.
-- Cue hover, cue click, and the cue action menu are absent. Enter is consumed
-  without action; Up, Down, wheel, and scrollbar navigation remain available.
+  Overlay or resuming playback. Enter synchronously destroys the Session,
+  seeks to the selected Primary Cue start, begins continuous playback, and
+  shows `Play`.
+- Playback Search reserves letter keys for query input and accepts only Enter
+  as its selected-Cue action. Its latest query edit updates Results after a
+  `100ms` debounce without Enter submission. Space is consumed without an
+  action in every module.
+- Cue hover, cue click, and the cue action menu are absent. Up, Down, wheel, and
+  scrollbar navigation remain available.
 - An action accepted during unresolved reel motion runs exactly once against
   the final settled focused cue and is cancelled if the Session closes first.
 
-Playback Subtitle Focus Cue contract:
+Playback Multi-Module Overlay Cue contract:
 
 - Enter captures playback state, source identity, and the current timestamp,
-  pauses playback, and opens a native virtual reel whose items are individual
-  Cues. Normal playback must not create Focus queries, collections, views, or
-  measurements before Enter.
+  pauses playback, and creates a temporary Overlay Session on Current. The
+  Session owns Current, optional Playlist, Search, Recent, Library, and Shiori
+  state and destroys all temporary state and unfinished work when the Overlay
+  exits. Normal playback must not create Overlay queries, collections, views,
+  or measurements before Enter.
 - If the captured timestamp lies within a Cue Group, the default selection is
   the physically bottommost Cue in stable source display order. If the
   timestamp lies within no Cue, select the nearest preceding Cue; if no
@@ -522,8 +529,9 @@ Playback Subtitle Focus Cue contract:
 - The initial window contains exactly 10 Cues when possible, preferring six
   preceding Cues, the selected Cue, and three following Cues. Boundary shortage
   is filled from the opposite side without changing stable Cue identity.
-- A Cue's natural height is `52L + 24pt`, where `L >= 1` includes source line
-  breaks and automatic wrapping at the current content width. Its resolved
+- A Cue's nominal content height is `52L`, where `L >= 1` includes source line
+  breaks and automatic wrapping at the current content width. Natural height is
+  `max(nominal content height, visual-line stack height) + 24pt`; resolved
   height is `min(natural height, reel viewport height)`.
 - The Focus Anchor stays fixed at the reel viewport's vertical center. A Cue
   that fits shows every visual line and centers its complete bounds on that
@@ -537,11 +545,19 @@ Playback Subtitle Focus Cue contract:
 - Scrollbar identity and progress are Cue-ordinal based rather than cumulative
   rendered height based. Virtual rendering lays out only viewport-visible Cues
   plus overscan and an explicit target when necessary.
-- `S`, `C`, and `Space` use the exact settled Cue identified by stable Cue
-  identity and ordinal. `S` saves that Cue, `C` copies its complete text, and
-  `Space` seeks to that Cue's own start time and begins continuous playback.
-  An accepted action during motion waits for the existing final placement and
+- Current, Playlist, and Shiori `S`, `C`, and Enter actions use the exact
+  settled Primary Cue identified by stable Cue identity and ordinal. `S` saves
+  that Cue, `C` copies its complete text, and Enter destroys the Session before
+  seeking to that Cue's own start time and beginning continuous playback. An
+  accepted action during motion waits for the existing final placement and
   executes once against the resulting Cue.
+- Playlist, Search, and Shiori reuse Current's visible-range loading, dynamic
+  measurement, accepted placement, scrolling, and recycling machinery with
+  Playback Cue Result data sources and identity.
+- Recent and Library reuse their existing card layouts, selection, primary
+  actions, and context menus. Library Folder navigation remains inside the
+  Session; Recent and Library Episode playback destroy the Session before the
+  media target opens.
 - Cue hover and click have no selection, action, seek, playback, or visual
   effect. Pointer clicks are consumed by the overlay; wheel and scrollbar
   navigation remain enabled.

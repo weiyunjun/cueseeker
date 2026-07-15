@@ -446,14 +446,18 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
         }
         var receivedContext: PlaybackSubtitleFocusActionContext?
 
-        #expect(app.executePlaybackSubtitleFocusAction(
+        let didExecute = app.executePlaybackSubtitleFocusAction(
             execution,
             continuousPlay: { context in
+                #expect(app.playback.subtitleFocusSession == nil)
+                #expect(session.state == .closed)
+                #expect(!session.isActive)
                 receivedContext = context
                 return true
             }
-        ))
+        )
 
+        #expect(didExecute)
         #expect(receivedContext == execution.context)
         #expect(receivedContext?.cue.startMilliseconds == 12_000)
         #expect(app.playback.subtitleFocusSession == nil)

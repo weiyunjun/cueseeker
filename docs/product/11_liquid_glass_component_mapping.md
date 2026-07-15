@@ -35,7 +35,8 @@ Included App surfaces:
 - Search results and Search-hosted Context use the native AppKit Cue table.
 - Library grouped episode grid.
 - Shiori uses the native AppKit Cue table.
-- Playback Subtitle Focus uses the native AppKit virtual Cue reel.
+- Playback Multi-Module Overlay uses the native Current Cue reel and the shared
+  AppKit Playback Cue Result reel for Playlist, Search, and Shiori.
 - Active-playback bottom player.
 - Video page video surface (dedicated full-window presentation).
 - Video page top bar (custom traffic-light cluster plus centered title).
@@ -130,7 +131,7 @@ live in that owner, not in individual call sites.
 | `ui-segmented-control__option` | Segmented control option | `LiquidGlassSegmentedControl.Option` | Search Results and Subtitles tab buttons. |
 | `ui-selectable-card` | Selectable card | `LiquidGlassSelectableCard` | Current production use is Library episode-card styling only. Search and Shiori `result-card` mappings are Superseded by the native Cue table. The Library episode card may draw the shared card tokens directly so its Library-launched playing treatment remains distinct from selection state. |
 | Native-only Cue table row | Content-driven primary-Cue row | `SubtitleTableView` | Search, Shiori, and Context. Height is `16 + 24P + 20S`; all Cue lines render; optional additional Cues appear above the unchanged primary Cue identity. Width and `Show Cue Group` reflow affect visible rows plus overscan only. |
-| Native-only Subtitle Focus Cue | Content-driven Cue reel item | `PlaybackSubtitleFocusReelRepresentable` | One exact Cue per item. Natural height is `52L + 24`; resolved height is viewport-clamped; fitting Cues center on the Focus Anchor and oversized Cues use head-first top placement. |
+| Native-only Current Cue | Content-driven Cue reel item | `PlaybackSubtitleFocusReelRepresentable` | One exact Cue per item. Nominal content height is `52L`; natural height is `max(52L, visual-line stack height) + 24`; resolved height is viewport-clamped; fitting Cues center on the Focus Anchor and oversized Cues use head-first top placement. |
 | `ui-selectable-row` | Selectable sidebar row | `LiquidGlassSelectableRow` | Playback side-panel result and subtitle rows. |
 | `ui-popup-menu` | Rounded-rectangle popup menu | `LiquidGlassPopupMenu` | Playback speed menu. |
 | `ui-popup-menu__item` | Popup menu item | `LiquidGlassPopupMenu.Item` | Playback speed options. |
@@ -180,7 +181,7 @@ Retired active-target components:
 | --- | --- | --- | --- |
 | Main workbench shell | `.window`, `.main`, `.toolbar` | `ContentView`, `AppTopBar`, `LiquidGlassSurface` | `AppCoordinator`, `WorkbenchLayoutState`, native window setup. The workbench `.toolbar` is the info-page chrome only and is hidden while the video page is shown. |
 | Topbar mode buttons | `ui-icon-button--topbar` | `LiquidGlassIconButton.Kind.topbar` | `activateWorkbenchPanelMode`. |
-| Topbar Search | `ui-input-capsule`, `ui-icon-button--embedded` | `LiquidGlassSearchField` | `TopbarSearchInputState`, Return-submit flow. |
+| Topbar Search | `ui-input-capsule`, `ui-icon-button--embedded` | `LiquidGlassSearchField` | `TopbarSearchInputState`, latest-edit-wins live Search with a `100ms` debounce; Return is not a submit command. |
 | Search page | Native-only Cue table; grouped-card prototype is Superseded | Search page shell plus `SubtitleTableView` | Individual-Cue query/pages/counts and stable row identity. Dynamic measurement, `Show Cue Group`, and scroll-anchor correction are table-presentation concerns only. |
 | Search-hosted Context | Native-only Cue table | Context mode plus `SubtitleTableView` | Exact primary-Cue Context scope, Search columns, dynamic geometry, and primary-Cue return identity. |
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
@@ -191,7 +192,7 @@ Retired active-target components:
 | Video page top bar | `.video-topbar`, `.video-traffic`, `.vt-dot`, `.vt-close`, `.vt-min`, `.vt-zoom`, `.video-title` | `LiquidGlassVideoTopBar`, `LiquidGlassWindowControlButton` | Player UI; shares `player-chrome-visible` show/hide with the bottom player. Close returns to the originating info page; zoom enters fullscreen. Native NSWindow traffic lights are suppressed on the video page. |
 | Video page overlay panel | `.sidebar`, `ui-segmented-control`, `ui-selectable-row` | Overlay-panel views plus segmented and row components | Search navigation snapshot, current subtitle entries, row activation. Right-aligned floating overlay over the video; does NOT squeeze the video stage; visibility is independent of `player-chrome-visible` and is driven only by the bottom-bar panel toggle; never auto-hides. The native scrollbar may show a fixed-width light thumb with transparent track/gutter. |
 | Fullscreen playback chrome | Prototype bottom-player and video-page top bar visual language plus `ui-feedback-overlay` | Fullscreen overlay using the same bottom-player, top-bar, and feedback component families | AppKit fullscreen lifecycle, render-view ownership, cursor and chrome visibility timing, playback input feedback. |
-| Playback Subtitle Focus | Native-only virtual Cue reel | `PlaybackSubtitleFocusReelRepresentable` | Exact-Cue initial selection fallback, `52L + 24` geometry, accepted fitting/oversized placement, ordinal navigation, and exact-Cue `S`/`C`/Space actions. |
+| Playback Multi-Module Overlay | Native-only full-stage Overlay with fixed Sidebar and virtual content region | `PlaybackMultiModuleOverlay`, `PlaybackModuleSidebar`, `PlaybackSubtitleFocusReelRepresentable`, `PlaybackCueResultReelRepresentable`, media-card overlays | Temporary Session lifecycle; Current initial selection and `max(52L, visual-line stack height) + 24` geometry; shared Playlist/Search/Shiori virtualization; live Playback Search; Recent/Library layouts; module-specific `S`/`C`/Enter actions; Space consumed without action. |
 
 Info-page state views note: the empty / loading / failed / no-results states
 are specified by a separate focused interactive prototype,
@@ -234,8 +235,8 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 Icon asset rule:
 
 - The copy glyph remains available to the shared feedback HUD for cue-scoped
-  Playback Subtitle Focus feedback; it is not a normal-playback bottom-player
-  button.
+  Playback Multi-Module Overlay feedback; it is not a normal-playback
+  bottom-player button.
 - Playback command feedback uses the same HUD component when its content
   changes repeatedly. Repeated commands may update text and run a small update
   pulse, but must not remount the HUD or replay the full entry animation.
@@ -270,7 +271,7 @@ role, not by copying CSS names mechanically.
 | `--accent`, `--accent-soft` | `LiquidGlassTokens.accent` | App accent emphasis and soft selected treatment. |
 | `--card-*`, `--card-selected-*`, `--row-*` | `LiquidGlassTokens.selectableCardSurface` | Library cards, playback-side-panel rows, and historical prototype references. They do not define native Search/Shiori/Context Cue-table geometry or selection. |
 | Native Table Row tokens | `SubtitleTableCueGeometry` plus table drawing tokens | Search/Shiori/Context row padding, 24-point primary line height, 20-point additional line height, dynamic measurement, and scoped hover/menu drawing. |
-| Native Subtitle Focus tokens | `PlaybackSubtitleFocusMetrics` | 52-point Cue line height, 12-point vertical padding, 8-point Cue gap, viewport-clamped resolved height, and accepted placement. |
+| Native Playback Multi-Module Overlay tokens | `PlaybackSubtitleFocusMetrics`, `PlaybackMultiModuleOverlayMetrics`, `PlaybackCueResultMetrics` | Current 52-point nominal line height, measured font-run typographic bounds, 5-pixel internal line gap, 12-point vertical padding, and 8-point Cue gap; fixed Sidebar; Cue Result Primary/Cue Group typography, equal internal line spacing, dynamic height, viewport-clamped placement, and shared virtual-reel behavior. |
 | `--highlight`, `--highlight-text` | `LiquidGlassTokens.searchHighlight` | Search match highlighting. |
 | `--search-page-*` | Page-specific semantic tokens | Info-page (Search / Library / Shiori) surface; page background light `#f4f4f6` / dark `#1f2027`. Concrete confirmed values: proposal "P5.2-B Confirmed Pixel Spec". |
 | `--search-page-pill-*`, `--field-*` (topbar) | `LiquidGlassTokens.topbarControlSurface` | Topbar search-field capsule (`LiquidGlassSearchField`) and topbar tool buttons (`LiquidGlassIconButton.Kind.topbar`); concrete values in proposal "P5.2-B Confirmed Pixel Spec". NSWindow traffic lights stay native and are not aligned. |

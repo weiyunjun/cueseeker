@@ -359,19 +359,18 @@ extension AppCoordinator {
         case .playFromThisCue:
             switch execution.target {
             case .current(let context):
-                guard continuousPlay(context) else {
-                    _ = session.finishKeyboardAction(execution)
-                    return true
-                }
-                clearCueSegmentPlayback()
-                playback.playbackStatus = .playing
-                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
                 cancelPlaybackSubtitleFocusActionTask()
                 cancelPlaybackSubtitleFocusCueLoadTasks()
                 guard session.closeAfterPlay(execution) else {
                     return false
                 }
                 playback.releaseSubtitleFocusSession(session)
+                guard continuousPlay(context) else {
+                    return true
+                }
+                clearCueSegmentPlayback()
+                playback.playbackStatus = .playing
+                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             case .playlist(let item):
                 invalidatePlaybackSubtitleFocusForSourceReplacement()
                 openPlaylistItem(item)

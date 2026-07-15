@@ -102,23 +102,28 @@ feed, or media library home screen.
   attach to that Cue.
 - The video-page Results list follows the same stable individual-Cue order.
 
-### Playback Subtitle Focus
+### Playback Multi-Module Overlay
 
-- Playback Subtitle Focus is also Cue-centric. Enter captures the playback
-  timestamp and pauses playback. If that timestamp lies within a Cue Group,
-  select the physically bottommost Cue in stable source display order;
-  otherwise select the nearest preceding Cue, or the first Cue when none
-  precedes it.
-- Cue natural height is `52L + 24pt`, including source line breaks and automatic
-  wrapping. Resolved height is the lesser of natural height and reel viewport
-  height.
+- Enter captures the playback timestamp, pauses playback, and creates a
+  temporary Playback Multi-Module Overlay Session on Current. Its fixed Sidebar
+  exposes Current, optional Playlist, Search, Recent, Library, and Shiori. If
+  the timestamp lies within a Cue Group, Current selects the physically
+  bottommost Cue in stable source display order; otherwise it selects the
+  nearest preceding Cue, or the first Cue when none precedes it.
+- Cue nominal content height is `52L`, including source line breaks and
+  automatic wrapping. Natural height is
+  `max(nominal content height, visual-line stack height) + 24pt`; resolved
+  height is the lesser of natural height and reel viewport height.
 - A fitting selected Cue shows every line and centers its complete bounds on
   the fixed Focus Anchor. An oversized selected Cue aligns its top edge with
   the viewport top, begins at its first visual line, and clips only trailing
   content below the viewport.
 - Width reflow preserves stable selected Cue identity and restores its accepted
-  fitting-center or oversized-top placement. `S`, `C`, and `Space` target the
-  exact settled Cue; `Space` plays from that Cue's own start time.
+  fitting-center or oversized-top placement. Current, Playlist, and Shiori use
+  `S`, `C`, and Enter against the exact settled Primary Cue. Search reserves
+  letter keys for its live query and exposes only Enter as its Cue action;
+  Space is consumed without action. Playlist, Search, and Shiori share Current's
+  virtual loading, measurement, placement, scrolling, and recycling behavior.
 
 The legacy detailed brief begins below.
 
@@ -797,11 +802,12 @@ If playback fails:
 Search focus is explicitly managed because the topbar Search field wraps an
 AppKit text editor inside SwiftUI.
 
-- Typing edits the draft query. Return submits it without inserting a newline.
+- Typing updates the active query automatically after a `100ms` debounce.
+  Return does not submit Search or insert a newline.
 - App-owned commands, topbar mode changes, Cue activation, playback controls,
   and Finder reveal actions may clear Search focus before executing.
 - Table hover, scrolling, dynamic-row remeasurement, Show Cue Group changes,
-  and unrelated background state publication must not rewrite the draft query
+  and unrelated background state publication must not rewrite the active query
   or force a false result-state transition.
 - App switching should not intentionally clear Search focus unless AppKit
   naturally changes first responder. Returning to the app preserves the focus
@@ -835,10 +841,11 @@ Relevant normal-playback shortcuts:
 - Shift + comma: speed down by 0.25.
 - Shift + period: speed up by 0.25.
 
-While Playback Subtitle Focus is visible, it consumes `S`, `C`, Space, and
-Enter before normal playback routing. `S` saves the exact settled cue, `C`
-copies its complete text, Space plays continuously from its start, and Enter
-performs no action.
+While the Playback Multi-Module Overlay is visible, it consumes module-specific
+input before normal playback routing. Current, Playlist, and Shiori use `S`,
+`C`, and Enter against the settled Primary Cue; Search uses Enter only and
+preserves query typing. Space is consumed without action. Enter synchronously
+destroys the temporary Session before playback begins.
 
 Design implication:
 
@@ -847,12 +854,12 @@ with playback shortcuts while video review is active.
 
 ## 16. Data and Loading Model
 
-- The topbar field owns a draft query; Return submits a stable active query
-  snapshot. Typing alone does not replace the displayed result snapshot.
+- The topbar field owns the active query. The latest edit replaces the query
+  snapshot after a `100ms` debounce; Return is not a submission command.
 - Database pagination returns individual Cue rows in pages of 100 plus the exact
   total matching Cue count. Two matching sibling Cues remain two rows and two
   count units.
-- Search state tracks the submitted query, loaded Cue pages, total count,
+- Search state tracks the active query, loaded Cue pages, total count,
   filter/sort inputs, row selection, and whether another Cue page exists.
 - Display Title and optional Cue Group presentation metadata may accompany a
   row, but subtitle-file grouping, collapsed paths, and per-group expansion are
@@ -959,8 +966,11 @@ Tags and Date Added. Rows show all subtitle text with content-driven height
 16 + 24P + 20S. Show Cue Group defaults Off and only adds muted context above
 the primary Cue; it never changes identity or action targets. There are no
 grouped cards, disclosure headers, or Collapse All. Selecting a row plays from
-that exact Cue. Playback Subtitle Focus is also Cue-centric, uses 52L + 24
-natural height, centers fitting Cues, top-aligns oversized Cues, and routes
-S/C/Space to the exact settled Cue. Keep the UI a dense native macOS utility,
+that exact Cue. Playback Multi-Module Overlay Current is Cue-centric, uses
+max(52L, visual-line stack height) + 24 natural height, centers fitting Cues,
+and top-aligns oversized Cues.
+Playlist, Search, and Shiori share its virtual reel mechanics. Current,
+Playlist, and Shiori route S/C/Enter to the exact settled Primary Cue; Search
+routes Enter only; Space is consumed. Keep the UI a dense native macOS utility,
 not a marketing page.
 ```

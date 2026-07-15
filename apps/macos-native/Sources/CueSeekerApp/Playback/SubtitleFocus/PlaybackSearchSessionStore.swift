@@ -201,6 +201,10 @@ final class PlaybackSearchSessionStore: ObservableObject {
         currentRun?.id
     }
 
+    var hasActiveExactProgressDelivery: Bool {
+        currentRun?.hasActiveExactProgressDelivery ?? false
+    }
+
     func updateQuery(_ newValue: String) {
         guard isActive, query != newValue else {
             return
@@ -372,6 +376,9 @@ private final class PlaybackSearchRun {
     private(set) weak var source: PlaybackCueResultSource?
     private var visibleTask: Task<Void, Never>?
     private var exactTask: Task<Void, Never>?
+    private var exactProgressContinuation:
+        AsyncStream<SubtitleSearchProgressSnapshot>.Continuation?
+    private var exactProgressDeliveryTask: Task<Void, Never>?
     private var hydratedResultsByOrdinal: [Int: SubtitleSearchResult] = [:]
     private var cueIDs: [Int64] = []
     private var fileSummaries: [SubtitleSearchFileSummary] = []
@@ -440,6 +447,10 @@ private final class PlaybackSearchRun {
         cueIDs.count
     }
 
+    var hasActiveExactProgressDelivery: Bool {
+        exactProgressDeliveryTask != nil
+    }
+
     func start() {
         guard isActive, visibleTask == nil else {
             return
@@ -470,6 +481,7 @@ private final class PlaybackSearchRun {
         visibleTask = nil
         exactTask?.cancel()
         exactTask = nil
+        stopExactProgressDelivery()
         source = nil
         hydratedResultsByOrdinal.removeAll(keepingCapacity: false)
         cueIDs.removeAll(keepingCapacity: false)
@@ -563,10 +575,22 @@ private final class PlaybackSearchRun {
         guard isActive, exactTask == nil else {
             return
         }
-        let progressSink: SubtitleSearchProgressSink = { [weak self] progress in
-            Task { @MainActor [weak self] in
-                self?.applyExactProgress(progress)
+
+        let (progressStream, progressContinuation) = AsyncStream.makeStream(
+            of: SubtitleSearchProgressSnapshot.self,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        exactProgressContinuation = progressContinuation
+        exactProgressDeliveryTask = Task { @MainActor [weak self] in
+            for await progress in progressStream {
+                guard !Task.isCancelled, let self else {
+                    return
+                }
+                self.applyExactProgress(progress)
             }
+        }
+        let progressSink: SubtitleSearchProgressSink = { progress in
+            progressContinuation.yield(progress)
         }
         exactTask = Task { @MainActor [weak self] in
             do {
@@ -579,6 +603,8 @@ private final class PlaybackSearchRun {
                 try Task.checkCancellation()
                 self.applyExactPage(page)
             } catch is CancellationError {
+                self?.exactTask = nil
+                self?.stopExactProgressDelivery()
                 return
             } catch {
                 self?.fail(error)
@@ -624,6 +650,7 @@ private final class PlaybackSearchRun {
             return
         }
         exactTask = nil
+        stopExactProgressDelivery()
         replaceHydratedResults(page.renderableResults)
         cueIDs = page.cueIDs
         fileSummaries = page.fileSummaries
@@ -683,6 +710,14 @@ private final class PlaybackSearchRun {
         }
         visibleTask = nil
         exactTask = nil
+        stopExactProgressDelivery()
         onStatusChanged(id, .failed(String(describing: error)))
+    }
+
+    private func stopExactProgressDelivery() {
+        exactProgressContinuation?.finish()
+        exactProgressContinuation = nil
+        exactProgressDeliveryTask?.cancel()
+        exactProgressDeliveryTask = nil
     }
 }

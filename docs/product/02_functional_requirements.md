@@ -517,7 +517,9 @@ Requirements:
   fullscreen, play or pause, Search-result navigation, relative seek, volume,
   and speed adjustment.
 - Provide cue-scoped Shiori, copy, and continuous-play keyboard actions only
-  while Playback Subtitle Focus is visible.
+  while the Playback Multi-Module Overlay is visible. Current, Playlist, and
+  Shiori use `S`, `C`, and Enter; Playback Search reserves letter keys for
+  input and exposes only Enter as its Cue action.
 - Limit keyboard speed adjustment to the same `0.5x` through `2.0x` range as the playback controls.
 - Adjust volume keyboard shortcuts in `5%` steps.
 - Provide transient visual feedback for shortcut and playback-control actions.
@@ -537,24 +539,43 @@ Persistence rule:
 - Muting volume should preserve the previous nonzero volume so unmuting restores
   the user's last listening level rather than jumping to a generic default.
 
-Playback Subtitle Focus cue action requirements:
+Playback Multi-Module Overlay cue action requirements:
 
-- `S`, `C`, and `Space` act on the exact cue settled at the Subtitle Focus
-  anchor, never on the current playback timestamp.
+- Current, Playlist, and Shiori `S`, `C`, and Enter actions target the exact
+  selected Primary Cue, never the current playback timestamp. Search accepts
+  Enter against its selected Primary Cue while `S` and `C` remain query input.
 - `S` saves that cue idempotently. It shows `Shiori Saved` after a new write or
   `Shiori Already Saved` when the durable record already exists.
-- `C` copies the exact focused Cue's complete text, preserving its source line
-  order and line breaks, and shows `Subtitle Copied`.
-- `S` and `C` keep Playback Subtitle Focus visible, keep playback paused, and
-  preserve cue selection and reel position.
-- `Space` closes Playback Subtitle Focus, seeks to the focused cue start, begins
-  continuous playback, and shows `Play`.
+- `C` copies the exact Primary Cue's complete text, preserving its source line
+  order and line breaks without copying the surrounding Cue Group, and shows
+  `Subtitle Copied`.
+- `S` and `C` keep the Overlay visible, keep playback paused, and preserve Cue
+  selection and reel position.
+- Enter synchronously destroys the Overlay Session, seeks to the selected
+  Primary Cue start, begins continuous playback, and shows `Play`.
+- Space is consumed without an action while the Overlay is visible.
+- Playback Search updates after the latest query edit's `100ms` debounce,
+  selects its first Result after each update, and does not require Enter to
+  submit; Enter plays only an already settled selected Result.
+- Playlist follows its existing origin snapshot and displays the Playlist's
+  one-based Sequence Number. `Show Cue Group` adds presentation-only context to
+  Playlist, Playback Search, and Playback Shiori without changing count,
+  ordering, identity, selection target, or Primary Cue actions.
+- Recent and Library reuse their established card layouts and directional
+  selection. Recent media actions and Library Episode media actions destroy the
+  Overlay Session before opening playback. Library Folder actions enter Detail
+  within the same Session, and Back restores the prior Folder state.
 - Cue hover and click have no cue-specific visual or command behavior. Up,
   Down, wheel, and scrollbar navigation remain available.
 - If an action key is accepted while cue motion is settling, execute it once
   against the final settled cue.
-- Each reel item represents one Cue. Its natural height is `52L + 24pt`, where
-  `L` is its complete visual-line count after source breaks and wrapping.
+- Current reel items represent one Cue. Their nominal content height is `52L`,
+  where `L` is the complete visual-line count after source breaks and wrapping.
+  Natural height is
+  `max(nominal content height, visual-line stack height) + 24pt`.
+- Playlist, Search, and Shiori share the Current virtual-reel loading,
+  placement, scrolling, measurement, and recycling infrastructure while using
+  Playback Cue Result identity and geometry.
 - A fitting Cue displays every line and keeps its complete center at the fixed
   Focus Anchor. An oversized Cue aligns its top edge with the reel viewport
   top, starts from its first visual line, and clips only trailing content.
@@ -611,10 +632,11 @@ Current Settings categories:
 - Do not apply `Search Scope` to Shiori search or Cue Context search.
 - Present a persisted native `Show Cue Group` switch immediately below
   `Search Scope` and default it to Off.
-- Apply `Show Cue Group` to Search, Shiori, and Context presentation only.
-  Changing it may remeasure visible rows plus overscan and restore the anchored
-  primary Cue, but must not rerun Search, rebuild Context scope, mutate Shiori
-  data, change result counts, or refresh hidden or playback-covered tables.
+- Apply `Show Cue Group` to Workbench Search, Shiori, and Context and to
+  Playback Playlist, Search, and Shiori presentation only. Changing it may
+  remeasure visible rows plus overscan and restore the anchored Primary Cue,
+  but must not rerun Search, rebuild Context scope, mutate Shiori data, change
+  result counts or identity, or refresh hidden or playback-covered tables.
 
 `Decode` settings requirements:
 
@@ -654,19 +676,20 @@ Initial Shiori save behavior:
 
 - The normal playback bottom bar has no Shiori command button, and normal
   playback has no current-timestamp Shiori save shortcut.
-- While Playback Subtitle Focus is visible, `S` saves the exact focused cue.
+- While Current, Playlist, or Shiori is active in the Playback Multi-Module
+  Overlay, `S` saves the exact selected Primary Cue.
 - Shiori shortcut handling must preserve native text input behavior and must not
   intercept editable text fields or modified shortcuts such as `Command-S`.
 - The save command uses the stable individual-Cue identity captured by the
-  active Subtitle Focus Session. Cue Group projection is not part of the saved
+  active Overlay Session. Cue Group projection is not part of the saved
   identity or payload.
 - If the resolved cue is not already saved, the app should persist it and show a
   playback feedback overlay with the Shiori icon and `Shiori Saved`.
 - If the resolved cue is already saved, `S` must not remove or duplicate it and
   should show a playback feedback overlay with the Shiori icon and
   `Shiori Already Saved`.
-- Shiori feedback must remain visible above Playback Subtitle Focus while the
-  focus overlay stays open.
+- Shiori feedback must remain visible above the Playback Multi-Module Overlay
+  while the Overlay stays open.
 - Shiori deletion must be available only from the Shiori table removal action.
 - When playback is opened from the Shiori table, previous and next Shiori
   navigation follows the table row order that was active at open time, including

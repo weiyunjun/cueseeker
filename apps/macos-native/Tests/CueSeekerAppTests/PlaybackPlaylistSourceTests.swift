@@ -481,6 +481,7 @@ func playbackPlaylistSessionUsesSharedReelSelectionAndSettledActionTarget() asyn
             wasPlaying: false
         )
     ))
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
 
     #expect(session.availableModules == PlaybackOverlayModule.allCases)
@@ -687,6 +688,7 @@ func playbackPlaylistUnloadedKeyboardTargetSettlesBeforeDeferredAction() async t
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
@@ -756,6 +758,7 @@ func playbackPlaylistGenerationChangeRebindsIntentAndPreservesDeferredAction() a
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
@@ -833,6 +836,7 @@ func playbackPlaylistRevisionRefreshRebindsIntentAndPreservesDeferredAction() as
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
@@ -906,6 +910,7 @@ func playbackPlaylistRevisionRefreshKeepsRemoteNativeActionDeferredUntilSettle()
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
@@ -973,6 +978,7 @@ func playbackPlaylistBoundaryRefreshSettlesDeferredNativeMotionActionAfterReload
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
@@ -1035,6 +1041,7 @@ func playbackPlaylistEmptyBoundaryCancelsDeferredNativeMotionAction() async thro
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {
@@ -1082,6 +1089,7 @@ func playbackPlaylistRemoteScrollbarTargetAcceptsActionBeforeWindowSettles() asy
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: source
     )
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     let window = try #require(session.playlistWindow)
     #expect(window.requestWindow(containing: 0))
     #expect(await waitForPlaybackPlaylistCondition {

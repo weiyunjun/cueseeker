@@ -89,6 +89,7 @@ func playbackLibraryModuleSwitchPreservesHierarchyAndDismissalClearsIt() async t
             libraryStore: libraryStore
         )
 
+        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
         #expect(session.selectModule(.library))
         try await waitForPlaybackLibraryCondition {
             libraryStore.folderStatus == .completed
@@ -222,6 +223,7 @@ func playbackLibraryKeyboardRoutesBothLevelsAndConsumesRepeat() async throws {
                 openSnapshot: playbackLibraryOpenSnapshot(),
                 libraryStore: libraryStore
             ))
+            #expect(publishPlaybackOverlayInitialTestSnapshot(session))
             #expect(session.selectModule(.library))
             try await waitForPlaybackLibraryCondition {
                 libraryStore.folderStatus == .completed
@@ -270,6 +272,7 @@ func playbackLibraryExplicitEpisodeOpenUsesCurrentFolderNavigation() async throw
                 openSnapshot: playbackLibraryOpenSnapshot(),
                 libraryStore: libraryStore
             ))
+            #expect(publishPlaybackOverlayInitialTestSnapshot(session))
             #expect(session.selectModule(.library))
             try await waitForPlaybackLibraryCondition {
                 libraryStore.folderStatus == .completed

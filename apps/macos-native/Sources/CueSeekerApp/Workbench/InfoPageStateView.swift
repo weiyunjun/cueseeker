@@ -24,7 +24,7 @@ enum InfoPageState: Equatable {
     case libraryNoVideos
     case shioriEmpty
 
-    /// Verbatim from the prior `SearchView.swift` call sites.
+    /// Shared steady copy for the current Search, Library, and Shiori states.
     var title: String {
         switch self {
         case .searchNoQuery: return "No Search Query"
@@ -54,7 +54,7 @@ enum InfoPageState: Equatable {
     var message: String {
         switch self {
         case .searchNoQuery:
-            return "Type a query in the topbar Search field and press Return."
+            return "Type a query in the topbar Search field to start searching."
         case .searching:
             return "Looking through indexed subtitle text."
         case .searchFailed(let message):

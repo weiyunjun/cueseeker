@@ -38,7 +38,8 @@ Surfaces covered by this UX mapping:
 - Search results and Search-hosted Context in the native Cue table.
 - Library grouped episode grid.
 - Shiori in the native Cue table.
-- Playback Subtitle Focus in the native virtual Cue reel.
+- Playback Multi-Module Overlay with the native Current Cue reel, shared
+  Playlist/Search/Shiori Cue Result reel, and Recent/Library media layouts.
 - Active-playback bottom player.
 - Video page video surface (dedicated full-window presentation).
 - Video page top bar (custom traffic-light cluster plus centered title).
@@ -102,8 +103,9 @@ Rules:
 
 ### 4.2 Required Behavior
 
-- Typing in the topbar Search field edits a draft query only.
-- Pressing Return submits the draft query as the active Search query.
+- Typing in the topbar Search field updates the active query automatically
+  after a `100ms` debounce. The latest edit wins.
+- Return is not a Workbench Search submission command.
 - Focusing the topbar Search field activates Search mode when another workbench
   mode is visible.
 - Activating Library or Shiori switches the content surface without pausing
@@ -140,7 +142,7 @@ Rules:
 - Search, Library, and Shiori pages do not show a collapsed bottom-player-only
   state and reserve no playback chrome space.
 - Switching between Library, Search, and Shiori preserves inactive mode state
-  where practical, including loaded result state, draft Search text, and
+  where practical, including loaded result state, active Search text, and
   presentation disclosure state that the existing App state already owns.
 - Switching modes must not rebuild large lists unless the underlying data or
   query inputs changed.
@@ -148,8 +150,9 @@ Rules:
   when a playable selection exists.
 - The originating info-page mode is remembered. Closing the video page returns
   to that mode with its state intact (query, results, scroll, disclosure).
-- A search performed from the video page updates shared Search state, so the
-  still-alive info page reflects it on return without a rebuild.
+- Playback Multi-Module Overlay Search belongs only to its temporary Session.
+  It must not replace Workbench Search text or Results, and closing the Overlay
+  discards its query, Results, selection, scroll state, and unfinished work.
 - Closing playback ends the active playback session, clears playback selection
   highlights, hides the bottom player and top bar, returns to the originating
   info page, and keeps Search, Library, and Shiori data intact.
@@ -180,24 +183,24 @@ prototype in sections 6.3-6.4:
   and must not rerun Search, rebuild Context scope, reload Shiori, change
   counts/ordering/identity, or recreate the playback render host.
 
-### 6.1 Search Submission And Page States
+### 6.1 Live Search Query And Page States
 
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
-| Search submits only on Return. | `#searchInput` | `LiquidGlassSearchField` | `TopbarSearchInputState.submit` |
-| Submitted results appear in the main content area. | `.search-state` | Search page view | `AppCoordinator.submitTopbarSearch` |
-| Empty, loading, failed, and no-results states remain explicit. | State demo `.state-view` / `.state-spinner` / `.load-more` (`ui/state-demos/info-page-card-states/`) | Search page state views | `SearchStatus`, submitted query |
+| Search follows the latest text edit after a `100ms` debounce; Return does not submit. | `#searchInput` | `LiquidGlassSearchField` | AppCoordinator live-query task and revision guard |
+| Live results appear in the main content area. | `.search-state` | Search page view | `SearchStore` active query and result snapshot |
+| Empty, loading, failed, and no-results states remain explicit. | State demo `.state-view` / `.state-spinner` / `.load-more` (`ui/state-demos/info-page-card-states/`) | Search page state views | `SearchStatus`, active query |
 | Search page shows a compact summary row above results. | `.results-header` | Search summary view | Search result counts |
 
 Rules:
 
-- Search results must not flicker or clear unnecessarily while a submitted
-  query is still valid.
+- Search results must not flicker or clear unnecessarily while the active query
+  revision is still valid.
 - Repeating the same query should not trigger expensive work without reason.
 - Search focus changes are UI state and must not invalidate Library, Shiori, or
   playback content.
 - Search page state, in this order (condition → state; title/message verbatim
-  from `SearchView.swift`): submitted query empty → "No Search Query";
+  from `SearchView.swift`): active query empty → "No Search Query";
   `SearchStatus.searching` with no results → "Searching" (animated spinner);
   `SearchStatus.failed(message)` with no results → "Search Failed" (shows the
   error message); completed with zero results → "No Results"; results present
@@ -386,9 +389,9 @@ Rules:
 - Width and `Show Cue Group` reflow may remeasure visible Shiori rows plus
   overscan, preserving the anchored primary Cue without rebuilding the Shiori
   snapshot, Search, Library, or playback render host.
-- Playback Subtitle Focus Shiori feedback uses the same transient playback
-  feedback system as other playback commands and renders above the focus
-  overlay.
+- Playback Multi-Module Overlay Shiori feedback uses the same transient
+  playback feedback system as other playback commands and renders above the
+  Overlay.
 - Shiori page state (condition → state; verbatim from `SearchView.swift`):
   `shioris` empty → "No Shiori"; shioris present → native Cue table. The App
   has no Shiori loading or failed state and the demo must not invent one. The
@@ -722,7 +725,7 @@ Rules:
   active playback identity. Native Search/Shiori/Context tables have no
   playback-derived card selection visual; Library's documented playing
   indicator is a separate source-specific state.
-- Close must not clear the submitted Search query, Search result list, database
+- Close must not clear the active Workbench Search query, Search result list, database
   search cache, Shiori records, Library rows, Library disclosure state,
   Cue-table presentation, or unrelated workbench state.
 - Close from playback fullscreen exits fullscreen and ends playback. It must not
@@ -901,8 +904,10 @@ Rules:
 - `Shift` is accepted only for the speed shortcuts defined below.
 - Playback shortcuts dispatch through the same command model as playback
   buttons, mouse video clicks, menu selections, and slider gestures.
-- While Playback Subtitle Focus is visible, its `S`, `C`, `Space`, and `Enter`
-  routing takes precedence over normal playback shortcuts.
+- While the Playback Multi-Module Overlay is visible, its module-specific
+  keyboard routing takes precedence over normal playback shortcuts. Current,
+  Playlist, and Shiori use `S`, `C`, and Enter; Search uses Enter only; Space is
+  consumed without action.
 - Commands that are unavailable for the current playback state must not mutate
   selection, playback, Search data, or Shiori data.
 
@@ -924,26 +929,33 @@ Rules:
 | `Shift+,` | Decrease speed by 0.25x | `#speedButton`, `ui-feedback-hud` | Speed value capsule and feedback overlay | Playback speed state | Current speed, such as `0.75×` | Keyboard: none. |
 | `Shift+.` | Increase speed by 0.25x | `#speedButton`, `ui-feedback-hud` | Speed value capsule and feedback overlay | Playback speed state | Current speed, such as `1.25×` | Keyboard: none. |
 
-Playback Subtitle Focus scoped mapping:
+Playback Multi-Module Overlay Cue-action mapping:
 
 | Input | Command | Target | Feedback HUD | Overlay result |
 | --- | --- | --- | --- | --- |
-| `S` | Save Shiori idempotently | Exact cue settled at the Focus Anchor | `Shiori Saved` or `Shiori Already Saved` | Remains visible; playback remains paused. |
-| `C` | Copy cue text | Exact cue's complete retained text | `Subtitle Copied` | Remains visible; playback remains paused. |
-| `Space` | Play from cue | Exact cue's retained start time | `Play` | Closes; continuous playback begins. |
-| `Enter` | Consume without action | None | None | Remains visible; no menu opens. |
+| `S` in Current/Playlist/Shiori | Save Shiori idempotently | Exact settled Primary Cue | `Shiori Saved` or `Shiori Already Saved` | Remains visible; playback remains paused. |
+| `C` in Current/Playlist/Shiori | Copy Cue text | Exact Primary Cue's complete retained text | `Subtitle Copied` | Remains visible; playback remains paused. |
+| `Enter` in Current/Playlist/Search/Shiori | Play from Cue | Exact selected Primary Cue start time | `Play` | Session is synchronously destroyed before continuous playback begins. |
+| `Enter` in Recent | Existing primary media action | Selected available Watching Card | Existing playback feedback | Session is synchronously destroyed before the media target opens. |
+| `Enter` in Library Folder level | Enter Folder | Selected available Folder card | None | Detail opens inside the same Session. |
+| `Enter` in Library Detail | Existing Episode media action | Selected available Episode card | Existing playback feedback | Session is synchronously destroyed before the Episode opens. |
+| `Space` in every module | Consume without action | None | None | Remains visible; playback remains paused. |
 
-If `S`, `C`, or `Space` is accepted while the reel is settling, the command is
-executed once against the final settled cue. Cue hover and click have no
-cue-specific response; Up, Down, wheel, and scrollbar navigation are unchanged.
+If an eligible `S`, `C`, or Enter action is accepted while a Cue reel is
+settling, the command is executed once against the final settled Primary Cue.
+Cue hover and click have no cue-specific response; Up, Down, wheel, and
+scrollbar navigation are unchanged.
 
-Playback Subtitle Focus geometry and selection are native-only:
+Playback Multi-Module Overlay Cue geometry and selection are native-only:
 
 - One item is one exact Cue. At opening, choose the physically bottommost Cue
   in the active Cue Group; with no active Cue, fall back to the nearest
   preceding Cue, then the first Cue.
-- Natural Cue height is `52L + 24`; resolved height is clamped to the reel
-  viewport. Source line breaks and automatic wrapping both contribute to `L`.
+- Nominal Current content height is `52L`, where source line breaks and
+  automatic wrapping both contribute to `L`. Natural height is
+  `max(nominal content height, visual-line stack height) + 24`; resolved height
+  is clamped to the reel viewport. Visual-line placement uses measured font-run
+  typographic bounds and the internal-line-gap token, not fixed Line Slots.
 - A fitting Cue displays every line and centers its complete bounds on the fixed
   Focus Anchor. An oversized Cue aligns its top to the reel viewport and always
   settles with the first visual line visible; only trailing display content may
@@ -951,6 +963,18 @@ Playback Subtitle Focus geometry and selection are native-only:
 - Up, Down, wheel, and scrollbar navigation use Cue ordinals and content-driven
   accepted placements. Width reflow preserves stable selected Cue identity and
   restores the fitting-center or oversized-head-first placement.
+- Playlist, Search, and Shiori use the same visible-range loading, dynamic
+  measurement, accepted placement, scrolling, and recycling infrastructure as
+  Current while substituting Playback Cue Result identity and geometry.
+- Playlist shows its one-based internal Sequence Number. `Show Cue Group` adds
+  muted Additional Cues to Playlist, Search, and Shiori without changing count,
+  order, Result identity, selection, or Primary Cue actions.
+- Playback Search keeps editor focus while Results update after the latest
+  edit's `100ms` debounce. Enter does not submit the query; it plays only an
+  already settled selected Result.
+- Every open creates a new temporary Session on Current. Escape, playback,
+  Playback Page close, and source replacement destroy all module state and
+  cancel unfinished work; module switching itself stays inside the Session.
 - Layout and drawing are limited to visible Cues plus overscan and an explicit
   navigation target. Focus selection, motion, measurement, and deferred action
   state remain overlay-local and must not invalidate Search, Shiori, Context,
@@ -1033,9 +1057,10 @@ Rules:
 - Search, Shiori, and Context use the native virtual Cue table so row view,
   measurement, and drawing work stays proportional to the visible range plus
   overscan rather than total Cue count.
-- Playback Subtitle Focus uses a separate native virtual Cue document. Its
-  retained collection must not create one view or text-layout object per Cue;
-  accepted placement reflow stays local to the Focus overlay.
+- Playback Multi-Module Overlay uses native virtual Cue documents. Current and
+  the shared Playlist/Search/Shiori Cue Result reel must not create one view or
+  text-layout object per retained Cue; accepted placement reflow stays local to
+  the Overlay.
 
 ## 15. Native Differences Allowed
 

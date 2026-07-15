@@ -12,6 +12,7 @@ struct PlaybackCueResultOverlay: View {
 
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var deferredActionTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geometry in
@@ -62,13 +63,13 @@ struct PlaybackCueResultOverlay: View {
             .contentShape(Rectangle())
         }
         .onDisappear {
+            deferredActionTask?.cancel()
+            deferredActionTask = nil
             session.noteCueReelMotion(false, module: module)
             session.noteScrollbarDragging(false, module: module)
         }
         .onChange(of: windowStore.snapshot) { _ in
-            Task { @MainActor in
-                executeDeferredActionIfReady()
-            }
+            scheduleDeferredActionIfReady()
         }
     }
 
@@ -87,11 +88,20 @@ struct PlaybackCueResultOverlay: View {
             module: module
         )
         if didCommit {
-            Task { @MainActor in
-                executeDeferredActionIfReady()
-            }
+            scheduleDeferredActionIfReady()
         }
         return didCommit
+    }
+
+    private func scheduleDeferredActionIfReady() {
+        deferredActionTask?.cancel()
+        deferredActionTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else {
+                return
+            }
+            executeDeferredActionIfReady()
+        }
     }
 
     private func executeDeferredActionIfReady() {

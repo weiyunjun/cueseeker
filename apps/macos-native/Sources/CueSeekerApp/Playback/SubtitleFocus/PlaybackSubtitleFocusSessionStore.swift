@@ -229,6 +229,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @discardableResult
     func selectModule(_ module: PlaybackOverlayModule) -> Bool {
         guard isSessionActive,
+              case .cueSelection = state,
               availableModules.contains(module),
               selectedModule != module
         else {

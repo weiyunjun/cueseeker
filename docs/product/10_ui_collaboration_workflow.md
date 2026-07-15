@@ -189,7 +189,7 @@ Style rules:
 Active App surface reference mapping:
 
 Current Cue-centric precedence rule: Search, Shiori, Search-hosted Context, and
-Playback Subtitle Focus are native-only accepted surfaces. The grouped Search /
+Playback Multi-Module Overlay are native-only accepted surfaces. The grouped Search /
 Shiori card and `Collapse All` behaviors in older HTML prototypes are
 **Superseded** and must not be used to regress the App. Native AppKit table
 virtualization, dynamic Cue geometry, `Show Cue Group` refresh isolation, and
@@ -213,10 +213,10 @@ the table below until the user accepts it.
 | Search results | Native App; older grouped-card HTML is Superseded | Current native virtual Cue table with dynamic rows; one primary Cue per row, optional Cue Group context above it | AppKit virtualization, exact Cue counts/pages, complete text, `16 + 24P + 20S` row geometry, stable-anchor reflow, and presentation-only `Show Cue Group` are App-authoritative |
 | Search-hosted Context | Native App only | Current native Cue table using the Search columns and interaction contract | Context scope and return identity use the exact primary Cue; width and `Show Cue Group` reflow remain presentation-only |
 | Search-launched playback overlay and bottom player | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the video surface, close capsule, subtitle overlay, right playback side panel, active-playback bottom player, speed menu, and visibility toggles | App playback, seeking, close lifecycle, file access, fullscreen presentation, subtitle rendering, and persisted playback state remain native behaviors |
-| Shiori playback control | Superseded | Retired from normal playback chrome | Exact-Cue Shiori saving is available inside Playback Subtitle Focus through `S`; idempotence and feedback remain native behaviors |
+| Shiori playback control | Superseded | Retired from normal playback chrome | Exact-Cue Shiori saving is available in eligible Playback Multi-Module Overlay modules through `S`; idempotence and feedback remain native behaviors |
 | Library view | Pending | Waiting for a dedicated accepted HTML prototype | Not yet documented |
 | Full Shiori view | Native App; older grouped-card HTML is Superseded | Current native virtual Cue table with dynamic rows, Tags, Time, and Date Added | Shiori identity/tag ownership is one Cue; optional Cue Group content is presentation-only and table refresh stays locally scoped |
-| Playback Subtitle Focus | Native App only | Current native virtual Cue reel; no HTML baseline | One Cue per item; natural height `52L + 24`, fitting center placement, oversized head-first placement, exact-Cue actions, and visible-plus-overscan work are App-authoritative |
+| Playback Multi-Module Overlay | Native App only | Current Cue reel, shared Playlist/Search/Shiori Cue Result reel, Recent/Library media layouts, and fixed Sidebar; no HTML baseline | Temporary Session lifecycle, module order, Current `max(52L, visual-line stack height) + 24` geometry, shared virtualization, live Search, exact-Primary-Cue actions, and visible-plus-overscan work are App-authoritative |
 | Settings windows | Pending | Waiting for a dedicated accepted HTML prototype | Native macOS settings-window behavior is expected |
 
 When a prototype is accepted or superseded, this registry must record the
