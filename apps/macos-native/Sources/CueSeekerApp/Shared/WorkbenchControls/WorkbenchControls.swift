@@ -33,8 +33,13 @@ enum WorkbenchControlMetrics {
     static let inlineClearSymbolFontSizeMacOS: CGFloat = 11
     /// --size-inline-clear-icon: 16px
     static let inlineClearIconSize: CGFloat = 16
-    /// --focus-ring-width: 3px
-    static let redesignFocusRingWidth: CGFloat = 3
+    /// --focus-ring-width: 2px
+    static let redesignFocusRingWidth: CGFloat = 2
+    /// --focus-ring-offset: 2px
+    static let redesignFocusRingOffset: CGFloat = 2
+    /// Centerline expansion that preserves the documented edge-to-ring offset.
+    static let redesignFocusRingPathExpansion: CGFloat =
+        redesignFocusRingOffset + redesignFocusRingWidth / 2
     /// --radius-inline-clear-button: 9999px
     static let redesignInlineClearButtonRadius: CGFloat = 9999
     /// --size-control-icon: 16px
@@ -227,7 +232,7 @@ struct WorkbenchInlineClearButton: View {
                 if isFocused {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 }
             }
         )
@@ -297,9 +302,9 @@ struct WorkbenchSearchField: View {
         .overlay(
             Group {
                 if isRedesign && isFocused {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 }
             }
         )
@@ -383,9 +388,9 @@ struct WorkbenchToolbarButton: View {
         .overlay(
             Group {
                 if isRedesign && isFocused && isEnabled {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 }
             }
         )
@@ -444,9 +449,9 @@ struct WorkbenchButton: View {
             .overlay(
                 Group {
                     if isRedesign && isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                             .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
                 }
             )
@@ -498,9 +503,9 @@ struct WorkbenchDestructiveButton: View {
             .overlay(
                 Group {
                     if isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                             .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
                 }
             )
@@ -551,9 +556,9 @@ struct WorkbenchPlainActionButton: View {
             .overlay(
                 Group {
                     if isRedesign && isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                             .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
                 }
             )
@@ -630,9 +635,9 @@ struct WorkbenchFilterPanelTriggerButton: View {
         .overlay(
             Group {
                 if isMainButtonFocused {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 }
             }
         )
@@ -751,9 +756,9 @@ struct WorkbenchSelectFieldLabel: View {
         .overlay(
             Group {
                 if isRedesign && isFocused && isEnabled {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 }
             }
         )
@@ -797,9 +802,9 @@ struct WorkbenchTextInputField: View {
             .overlay(
                 Group {
                     if isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                             .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
                 }
             )
@@ -1157,9 +1162,9 @@ struct WorkbenchIconButton: View {
             .overlay(
                 Group {
                     if isRedesign && isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth, style: .continuous)
+                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                             .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
                 }
             )

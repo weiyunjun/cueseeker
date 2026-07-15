@@ -816,6 +816,51 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Completion audit correction: Focus Ring and pointer Cursor
+
+- The completion audit found that the shared `--focus-ring-width` metric still
+  used the earlier 3-pixel implementation value even though the accepted UI
+  design defines a 2-pixel width and a separate 2-pixel offset.
+- The shared metrics now preserve width and offset as independent tokens. Focus
+  Ring paths expand by `offset + width / 2`, so the visible inner edge remains
+  exactly 2 pixels from its control while the stroke remains exactly 2 pixels.
+  Workbench controls, native and SwiftUI table checkboxes, sortable headers,
+  and the Recent, Library Folder, and Library Episode selection rings all use
+  the same derived geometry. The native Checkbox border is inset by half its
+  stroke width so it does not consume the documented Ring gap.
+- The Shiori Tag private hover-cursor implementation moved into a shared
+  modifier that balances AppKit Cursor stack changes on mouse exit, disabled
+  state changes, and View teardown. Playback Module Sidebar Items and the
+  Playback Search Inline Clear Button now use that modifier over their exact
+  Button surfaces. The Clear Button explicitly exposes its complete 24-by-24
+  token frame as the hit shape; Sidebar whitespace and the Search text input
+  are unchanged.
+- `swift test --filter 'workbenchFocusRingMetricsMatchDesignTokens|PlaybackMultiModuleOverlay|playbackMultiModule|PlaybackSearch|playbackSearch|ShioriTag|shioriTag|PlaybackRecent|playbackRecent|PlaybackLibrary|playbackLibrary'`
+  - Passed all 36 Focus Ring token, Playback module, Search, Shiori Tag, Recent,
+    and Library regressions.
+- `swift test --filter 'workbenchFocusRingMetricsMatchDesignTokens|Checkbox|checkbox|PlaybackSearch|playbackSearch|PlaybackMultiModule|playbackMultiModule'`
+  - Passed all 26 final Focus Ring, native and SwiftUI Checkbox, Search hit-area,
+    and Overlay regressions after the visual-gap and hit-shape corrections.
+- `swift test --quiet --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 762 Swift Testing tests.
+- `swift test --quiet --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated known order-dependent persistence test documented in
+    Step 12.
+- `swift build`
+  - Passed.
+- `scripts/package_macos_app.sh --output /private/tmp/CueSeeker-Overlay-E2E.app`
+  - Passed the latest production build, bundled-dylib validation, code-signing,
+    Designated Requirement, self-contained runtime, and ARM64 checks.
+- `git diff --check`
+  - Passed.
+- The independent test/document review found no P0, P1, or P2. The first final
+  code review found the native Checkbox border-gap and Clear Button hit-shape
+  details described above; both were corrected, and its read-only re-review
+  found no remaining P0, P1, or P2.
+- Cursor shape and ring appearance remain part of the owner-visible packaged
+  app E2E because unit tests do not observe the system Cursor or rendered
+  pixels.
+
 ## Outcome
 
 All twelve implementation steps and automated verification are complete. The

@@ -19,7 +19,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   temporary module state and cancel outstanding work before a later Session is
   created fresh. Workbench Shiori now carries one immutable, lightweight ID
   snapshot for its complete filtered `xx rows` into Playlist even while rich
-  table rows are still continuously hydrating.
+  table rows are still continuously hydrating. Shared Focus Rings now use the
+  documented 2-pixel width and 2-pixel offset, while Playback Sidebar items and
+  the Search Inline Clear Button expose a pointer Cursor across their exact
+  clickable surfaces.
 - Removed the forced black transition from five-second seeks and previous/next
   playback changes. CueSeeker now retains the previous video frame, subtitle,
   and time state until the matching target frame is ready, commits the target

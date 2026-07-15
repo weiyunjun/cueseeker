@@ -31,6 +31,7 @@ enum SubtitleTableMetrics {
     static let checkboxSize: CGFloat = 16
     static var checkboxLeadingInset: CGFloat { (indexColumnWidth - checkboxSize) / 2 }
     static let checkboxCornerRadius: CGFloat = 4
+    static let checkboxBorderWidth: CGFloat = 1.5
     static let checkboxHitSlop: CGFloat = 8
     static let tableCellHoverPaddingX = WorkbenchControlMetrics.redesignTableCellHoverPaddingX
     static let tableCellHoverPaddingY = WorkbenchControlMetrics.redesignTableCellHoverPaddingY
@@ -946,9 +947,15 @@ private enum WorkbenchCheckboxDrawing {
             ? WorkbenchRedesignColors.NS.borderFocus
             : (state == .unchecked ? WorkbenchRedesignColors.NS.borderCheckbox : nil)
         if let borderColor {
+            let borderInset = SubtitleTableMetrics.checkboxBorderWidth / 2
+            let borderPath = NSBezierPath(
+                roundedRect: rect.insetBy(dx: borderInset, dy: borderInset),
+                xRadius: SubtitleTableMetrics.checkboxCornerRadius - borderInset,
+                yRadius: SubtitleTableMetrics.checkboxCornerRadius - borderInset
+            )
             borderColor.setStroke()
-            path.lineWidth = 1.5
-            path.stroke()
+            borderPath.lineWidth = SubtitleTableMetrics.checkboxBorderWidth
+            borderPath.stroke()
         }
 
         switch state {
@@ -962,13 +969,13 @@ private enum WorkbenchCheckboxDrawing {
 
         if isFocused {
             let focusRect = rect.insetBy(
-                dx: -WorkbenchControlMetrics.redesignFocusRingWidth,
-                dy: -WorkbenchControlMetrics.redesignFocusRingWidth
+                dx: -WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                dy: -WorkbenchControlMetrics.redesignFocusRingPathExpansion
             )
             let focusPath = NSBezierPath(
                 roundedRect: focusRect,
-                xRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
-                yRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth
+                xRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                yRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion
             )
             WorkbenchRedesignColors.NS.focusRing.setStroke()
             focusPath.lineWidth = WorkbenchControlMetrics.redesignFocusRingWidth
@@ -1014,7 +1021,10 @@ private struct WorkbenchCheckboxButton: View {
                     .fill(backgroundColor)
                 if let borderColor {
                     RoundedRectangle(cornerRadius: SubtitleTableMetrics.checkboxCornerRadius, style: .continuous)
-                        .strokeBorder(borderColor, lineWidth: 1.5)
+                        .strokeBorder(
+                            borderColor,
+                            lineWidth: SubtitleTableMetrics.checkboxBorderWidth
+                        )
                 }
                 if state != .unchecked {
                     Image(systemName: state == .checked ? "checkmark" : "minus")
@@ -1027,11 +1037,11 @@ private struct WorkbenchCheckboxButton: View {
                 Group {
                     if showsKeyboardFocus {
                         RoundedRectangle(
-                            cornerRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
+                            cornerRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
                             style: .continuous
                         )
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
                 }
             )
@@ -6755,11 +6765,11 @@ struct SubtitleTableHeaderCellView: View {
                     Group {
                         if isFocused && isEnabled {
                             RoundedRectangle(
-                                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingWidth,
+                                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
                                 style: .continuous
                             )
                             .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                         }
                     }
                 )

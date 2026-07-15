@@ -536,36 +536,3 @@ private struct ShioriTagWrapLayout: Layout {
         )
     }
 }
-
-private struct PointerOnHoverModifier: ViewModifier {
-    let isEnabled: Bool
-    @State private var hasPushedCursor = false
-
-    func body(content: Content) -> some View {
-        content
-            .onHover { inside in
-                guard isEnabled else { return }
-                if inside {
-                    if !hasPushedCursor {
-                        NSCursor.pointingHand.push()
-                        hasPushedCursor = true
-                    }
-                } else if hasPushedCursor {
-                    NSCursor.pop()
-                    hasPushedCursor = false
-                }
-            }
-            .onDisappear {
-                if hasPushedCursor {
-                    NSCursor.pop()
-                    hasPushedCursor = false
-                }
-            }
-    }
-}
-
-private extension View {
-    func pointerOnHover(isEnabled: Bool) -> some View {
-        modifier(PointerOnHoverModifier(isEnabled: isEnabled))
-    }
-}

@@ -200,6 +200,7 @@ struct PlaybackModuleSidebar: View {
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
+                .pointerOnHover(isEnabled: true)
                 .accessibilityLabel(module.label)
                 .accessibilityIdentifier("playback-module-\(module.rawValue)")
             }

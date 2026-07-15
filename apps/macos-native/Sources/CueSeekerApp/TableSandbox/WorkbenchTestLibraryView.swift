@@ -392,14 +392,15 @@ private struct RecentWatchingCard: View {
         .overlay {
             if isSelected {
                 RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius
+                        + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
                     style: .continuous
                 )
                 .stroke(
                     WorkbenchRedesignColors.focusRing,
                     lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
                 )
-                .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 .allowsHitTesting(false)
             }
         }
@@ -570,14 +571,15 @@ private struct LibraryFolderCard: View {
         .overlay {
             if isSelected {
                 RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
+                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius
+                        + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
                     style: .continuous
                 )
                 .stroke(
                     WorkbenchRedesignColors.focusRing,
                     lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
                 )
-                .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 .allowsHitTesting(false)
             }
         }
@@ -781,14 +783,15 @@ private struct LibraryEpisodeCard: View {
         .overlay {
             if isSelected {
                 RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius,
+                    cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius
+                        + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
                     style: .continuous
                 )
                 .stroke(
                     WorkbenchRedesignColors.focusRing,
                     lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
                 )
-                .padding(-WorkbenchControlMetrics.redesignFocusRingWidth)
+                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                 .allowsHitTesting(false)
             }
         }

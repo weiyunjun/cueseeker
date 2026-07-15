@@ -100,10 +100,12 @@ private struct PlaybackSearchBox: View {
                                 .fill(WorkbenchRedesignColors.bgHover)
                             }
                         }
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
                 .onHover { isClearHovered = $0 }
+                .pointerOnHover(isEnabled: true)
                 .accessibilityLabel("Clear Search")
                 .accessibilityIdentifier("playback-search-clear")
             }
