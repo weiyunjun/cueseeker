@@ -487,6 +487,73 @@ func playbackShioriSaveRefreshesAnEmptySessionWindow() async throws {
 
 @MainActor
 @Test
+func playbackShioriSavePreservesSelectedResultIdentityAfterPrepend() async throws {
+    let before = (0..<80).map { ordinal in
+        playbackShioriItem(identityOrdinal: ordinal, ordinal: ordinal)
+    }
+    let probe = PlaybackShioriPrependProbe(items: before)
+    let source = PlaybackCueResultSource(
+        kind: .shiori,
+        totalCount: before.count,
+        knownItemIDsByOrdinal: [:]
+    ) { request in
+        PlaybackCueResultSourceWindowResponse(
+            request: request,
+            items: Array(probe.items[request.ordinalRange])
+        )
+    }
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: playbackShioriOpenSnapshot(),
+        sessionGeneration: 1,
+        shioriSource: source
+    )
+    let window = try #require(session.shioriWindow)
+    #expect(window.requestWindow(containing: 5))
+    #expect(await waitForPlaybackShioriCondition {
+        window.snapshot.loadedOrdinalRange.contains(5)
+    })
+    #expect(window.commitSelection(playbackShioriSelectionCommit(
+        window: window,
+        ordinal: 5
+    )))
+    let selectedIdentity = try #require(window.item(at: 5)?.identity)
+
+    #expect(window.requestWindow(containing: 70))
+    #expect(await waitForPlaybackShioriCondition {
+        window.snapshot.loadedOrdinalRange.contains(70)
+            && window.item(at: 5) == nil
+    })
+    #expect(window.selectedOrdinal == 5)
+    #expect(window.selectedItemIdentity == selectedIdentity)
+
+    probe.items = [playbackShioriItem(identityOrdinal: 10_000, ordinal: 0)]
+        + before.enumerated().map { ordinal, _ in
+            playbackShioriItem(identityOrdinal: ordinal, ordinal: ordinal + 1)
+        }
+    #expect(session.refreshShioriAfterSave())
+    #expect(window.snapshot.totalCount == 81)
+    #expect(window.selectedOrdinal == 6)
+    #expect(window.selectedItemIdentity == selectedIdentity)
+    #expect(window.requestWindow(containing: 6))
+    #expect(await waitForPlaybackShioriCondition {
+        window.snapshot.loadedOrdinalRange.contains(6)
+    })
+    #expect(window.item(at: 6)?.identity == selectedIdentity)
+
+    _ = session.dismissByUser()
+}
+
+@MainActor
+private final class PlaybackShioriPrependProbe {
+    var items: [PlaybackCueResultItem]
+
+    init(items: [PlaybackCueResultItem]) {
+        self.items = items
+    }
+}
+
+@MainActor
+@Test
 func playbackShioriRemoteNavigationDefersOneActionUntilTargetSettles() async throws {
     let source = makePlaybackShioriSource(totalCount: 40)
     let session = PlaybackSubtitleFocusSessionStore(
@@ -651,7 +718,14 @@ private func makePlaybackSearchPlaylistSource(
 }
 
 private func playbackShioriItem(ordinal: Int) -> PlaybackCueResultItem {
-    let shioriID = Int64(10_000 + ordinal)
+    playbackShioriItem(identityOrdinal: ordinal, ordinal: ordinal)
+}
+
+private func playbackShioriItem(
+    identityOrdinal: Int,
+    ordinal: Int
+) -> PlaybackCueResultItem {
+    let shioriID = Int64(10_000 + identityOrdinal)
     let content = "shiori-\(shioriID)"
     return PlaybackCueResultItem(
         shiori: Shiori(

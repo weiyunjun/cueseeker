@@ -219,6 +219,77 @@ func subtitleFocusDatabaseBatchReadsCompleteCurrentVideoCollection() throws {
 }
 
 @Test
+func subtitleFocusDatabaseBatchRejectsPreCancelledTasks() async throws {
+    let databaseURL = subtitleFocusTemporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    let task = Task.detached { () throws -> SubtitleFocusCueBatch in
+        let database = try SubtitleDatabase(path: databaseURL)
+        withUnsafeCurrentTask { task in
+            task?.cancel()
+        }
+        return try database.subtitleFocusCueBatch(
+            forSubtitleFile: URL(fileURLWithPath: "/Media/Cancelled.srt"),
+            totalCount: 1,
+            startingAtOrdinal: 0,
+            limit: 1
+        )
+    }
+
+    do {
+        _ = try await task.value
+        Issue.record("Expected cancelled Subtitle Focus batch to stop")
+    } catch is CancellationError {
+        // Expected.
+    }
+}
+
+@Test
+func subtitleFocusDatabaseBatchStopsAfterCancellationDuringRowIteration() async throws {
+    let databaseURL = subtitleFocusTemporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Cancellation-Iteration.srt")
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Cancellation-Iteration.mkv"),
+        entries: focusEntries(count: 2_500)
+    )
+
+    let rowReadProbe = SubtitleFocusCancellationRowReadProbe()
+    let task = Task.detached { () throws -> SubtitleFocusCueBatch in
+        let database = try SubtitleDatabase(path: databaseURL)
+        return try database.subtitleFocusCueBatch(
+            forSubtitleFile: subtitleFile,
+            totalCount: 2_500,
+            startingAtOrdinal: 0,
+            limit: 2_500,
+            didReadCue: { readCount in
+                rowReadProbe.record(readCount)
+                guard readCount == 32 else {
+                    return
+                }
+                withUnsafeCurrentTask { task in
+                    task?.cancel()
+                }
+            }
+        )
+    }
+
+    do {
+        _ = try await task.value
+        Issue.record("Expected Subtitle Focus batch to stop during row iteration")
+    } catch is CancellationError {
+        // Expected.
+    }
+    #expect(rowReadProbe.maximumReadCount == 32)
+}
+
+@Test
 func subtitleFocusDatabaseUsesOneStableOrderForSelectionAndWindow() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
     defer { try? FileManager.default.removeItem(at: databaseURL) }
@@ -269,6 +340,23 @@ private func focusBatch(_ ordinals: Range<Int>, totalCount: Int) -> SubtitleFocu
 private func subtitleFocusTemporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSubtitleFocusTests-\(UUID().uuidString).sqlite")
+}
+
+private final class SubtitleFocusCancellationRowReadProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedMaximumReadCount = 0
+
+    var maximumReadCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedMaximumReadCount
+    }
+
+    func record(_ readCount: Int) {
+        lock.lock()
+        storedMaximumReadCount = max(storedMaximumReadCount, readCount)
+        lock.unlock()
+    }
 }
 
 private func focusEntries(count: Int) -> [SubtitleEntry] {

@@ -480,7 +480,11 @@ The gate passes only if:
 - Search-performance diagnostics remain in logs or benchmark output unless a
   front-end diagnostic surface has already been explicitly accepted.
 
-## 5. Playback Subtitle Focus Keyboard Actions
+## 5. Superseded Playback Subtitle Focus Keyboard Actions
+
+> Superseded by section 8. Do not use the Space-playback or Enter-no-op steps
+> below for current acceptance. They are retained only as the historical gate
+> for the earlier single-module Subtitle Focus implementation.
 
 ### Goal
 
@@ -845,3 +849,391 @@ The gate passes only if:
 - No old PCM, callback, or segment event crosses seek, close, or reopen.
 - Video and subtitles remain synchronized enough for cue review, and no target
   run logs a false native rebuffer event.
+
+## 8. Playback Multi-Module Overlay
+
+### Goal
+
+Validate the complete Playback Multi-Module Overlay described by
+`docs/human/requirements/20260714-Feature-Playback Multi-Module Overlay.md` and
+`docs/human/design/UI.md`: one temporary Session contains Current, optional
+Playlist, Search, Recent, Library, and Shiori; module switches retain temporary
+state, while every Overlay exit destroys that state and cancels its work.
+
+This gate also verifies the real macOS behavior that Store and hosting tests
+cannot prove: fixed-dark visual hierarchy, first responder and IME behavior,
+pointer regions, trackpad and scrollbar input, card layout, feedback layering,
+and real playback pause, seek, and continuation.
+
+### Build And Launch
+
+Run the deterministic source-growth and cancellation prerequisites first:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker
+cd apps/macos-native
+swift test --filter searchPlaybackPlaylistFollowsExactProgressInsteadOfFreezingClickedRows
+swift test --filter playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown
+swift test --filter playbackLibraryRejectsStaleDetailSuccessFailureAndDismissal
+swift test --filter playbackMultiModuleOverlayStopCancels
+cd ../..
+```
+
+All four commands must pass. The first two mechanically verify source growth,
+final count, and fixed order positions for the Workbench-origin and
+Playback-Search-origin Playlist sources. The last two use suspended loaders to
+prove that an in-flight Library Detail load and all other Session work are
+cancelled and cannot publish late success or failure. The manual gate below
+verifies the corresponding real UI;
+it does not depend on a human being fast enough to close a local database read
+while that read is still in flight.
+
+Terminal A builds the packaged app, creates a fresh log, and writes visible run
+markers. Keep it open while performing the actions:
+
+```bash
+cd /Users/weiyunjun/Documents/Code/CueSeeker
+git rev-parse --short=7 HEAD
+scripts/verify_macos_media_runtime.sh .build/media-runtime/arm64-macos13
+scripts/package_macos_app.sh --output /private/tmp/CueSeeker-Overlay-E2E.app
+/usr/bin/env bash -o pipefail <<'BASH'
+LOG=/tmp/cueseeker-playback-multi-module-overlay.log
+APP=/private/tmp/CueSeeker-Overlay-E2E.app/Contents/MacOS/CueSeeker
+: > "$LOG"
+printf '=== CUESEEKER OVERLAY E2E START %s ===\n' \
+  "$(date '+%Y-%m-%d %H:%M:%S%z')" | tee -a "$LOG"
+"$APP" 2>&1 | tee -a "$LOG"
+app_status=${PIPESTATUS[0]}
+printf '=== CUESEEKER OVERLAY E2E END %s exit=%s ===\n' \
+  "$(date '+%Y-%m-%d %H:%M:%S%z')" "$app_status" | tee -a "$LOG"
+exit "$app_status"
+BASH
+```
+
+No diagnostic flag or temporary probe is required. After action 17, quit the
+packaged app normally and wait for Terminal A to print the End marker. A
+nonzero End status or any failure predicate in Log Review And Handoff fails the
+gate.
+
+Terminal B is used for clipboard checks and exact evidence capture:
+
+```bash
+pbpaste > /private/tmp/cueseeker-overlay-e2e-clipboard-before.txt
+pbpaste
+```
+
+### Preconditions
+
+- Use the normal indexed Library, not a test database. It must contain at least
+  two playable folders, one folder with multiple Episodes, Recent history, and
+  at least two Shiori rows.
+- Record the current Workbench Search query and filters, then clear all filters
+  so term-only Workbench Search and Playback Search have the same folder scope.
+- Choose two term-only Search queries with enough matches that visible results
+  appear before Exact completion. `の` is the standard first query for the
+  current Library; the second query must also expose visible-to-Exact growth.
+- Know one multi-line Primary Cue, one Result with Additional Cues, one already
+  saved Shiori, and two different unsaved Primary Cues. The first unsaved Cue
+  must belong to the video opened in action 1. The second must belong to the
+  Episode deliberately opened at the end of action 11; alternatively, choose a
+  different unsaved Cue from that Episode before action 12. The two newly saved
+  Shiori may be removed after the test.
+- Start with `Show Cue Group` On. Record its starting value and restore that
+  value during cleanup.
+- Close other CueSeeker processes before launching the packaged build.
+- Keep the window size and position unchanged while taking every before/after
+  scroll-restoration screenshot. Each pair must show the same selected identity
+  and the same screen-space top edge of a named visible Result or card.
+
+### Actions
+
+1. In Workbench Search, type the first broad query without pressing Return. As
+   soon as the first usable Result appears, record the clicked Primary Cue and
+   open it before Exact completion. Confirm input alone starts Search after the
+   100-millisecond debounce and Playback opens that Result.
+2. Press Enter during playback. Confirm playback pauses; the Overlay covers the
+   complete Stage; Playback Chrome and Progress disappear; feedback remains the
+   top layer; and the fixed-dark Sidebar reads Current, Playlist, Search,
+   Recent, Library, Shiori in that order with only two text/icon colors. Before
+   testing Current or any other module, immediately click Playlist, drag to its
+   end, and record the last Sequence Number as the early partial count `P`.
+   Sample the last Sequence once per second for three observations and record
+   the first larger value as `P1`. If no increase can be observed because the
+   source may already have reached Exact by first entry, mark this source-growth
+   sub-run `INCONCLUSIVE`, choose a broader query, and restart actions 1 and 2.
+   Do not report the feature as failed solely because this run missed the
+   partial state. Continue only after one run records `P1 > P`, then return to
+   Current.
+3. In Current, verify the default Cue, then use Up, Down, wheel, trackpad, and
+   scrollbar. Hover and click selected and unselected Cue text and resize the
+   window. There must be no Cue hover treatment or pointer cursor. Clicks must
+   do nothing and not reach Video; selection and accepted placement survive
+   reflow. Multi-line typographic gaps must be visually uniform. Record the
+   selected Cue and take the Current-before screenshot.
+4. Press C on the known multi-line Current Cue, run `pbpaste`, and compare the
+   complete source line breaks. Press S on the first unsaved Cue and then again.
+   Confirm `Subtitle Copied`, `Shiori Saved`, then `Shiori Already Saved` render
+   above the still-open paused Overlay without moving Current. Press Space and
+   confirm it is consumed: the Overlay remains open and paused, with no seek,
+   selection change, or playback action.
+5. Click every available Sidebar Item and confirm each click switches exactly
+   once; hover must not introduce a third color or selection background. Click
+   the Selected Item and confirm it does not navigate again. Return to Current
+   and take the Current-after screenshot: its recorded Cue and exact placement
+   must match action 3. Then use unmodified Tab through every module and back.
+   While Playback Search owns the editor focus, press and hold Tab; one physical
+   key-down may advance only once, native focus traversal must not occur, and no
+   other module-switch button or shortcut may appear.
+6. Return to the Workbench-origin Playlist and verify Sequence Numbers,
+   Additional Cues, and all Reel navigation methods. Hover and click selected
+   and unselected Results; there must be no Result hover state or pointer cursor,
+   and both clicks must remain inert. Select a non-first Result, scroll it to a
+   named screen position, and take Playlist-before. Leave with a Sidebar click,
+   return with a Sidebar click, and take Playlist-after without resizing;
+   selection and the named Result's top-edge pixel coordinate must be identical.
+   Drag to the end once per second until the last Sequence Number remains
+   unchanged for three consecutive observations. This stability is not proof of
+   Exact completion: record the value only as candidate count `N`, together with
+   the complete Primary Cue text at Sequence 1, Sequence 2, and Sequence `N` in
+   the Workbench-origin order ledger.
+7. Press Escape, close Playback, and wait for the original Workbench Search to
+   report its final Exact `{W} rows`. Record the complete Primary Cue text at
+   Workbench row 1, row 2, and row `W`. `W` must equal `N`, and all three
+   fixed-position texts must equal the corresponding Playlist ledger entries.
+   If `W != N`, the three-second sample ended before Exact completion; mark that
+   manual count/order sub-run `INCONCLUSIVE` and repeat actions 1 through 7 with
+   a broader query or a longer observation interval. Do not reinterpret this
+   timing mismatch as a product failure; the deterministic prerequisite is the
+   authoritative source-growth check. A passing manual ledger still requires
+   one completed run with `W == N` and all three texts equal. Reopen the same
+   Workbench Result, open the Overlay, and confirm its fresh Playlist again ends
+   at Sequence `W` in that recorded order.
+8. Open Playback Search. Type literal `s` and `c` and confirm both remain ordinary
+   editor input. Click Inline Clear before entering the second broad Japanese
+   query. Enter that query through a Japanese IME by observing marked
+   composition text, candidate conversion, and commit; do not paste it or press
+   Return. Confirm Results update 100 milliseconds after the latest edit, the
+   first Result becomes selected, Up/Down changes the Result while the caret
+   remains in the field, and native selection plus Cmd+A/C continue to work.
+   Hover and click selected and unselected Results. There must be no Result
+   hover state or pointer cursor, and neither click may change selection, start
+   playback, reach Video, or remove editor focus.
+   Select a non-first Result, scroll away from the start, and take Search-before.
+   Click Current and then Search in the Sidebar and take Search-after: query,
+   committed text, Results, selection, exact pixel offset, and editor focus must
+   be unchanged. Explicitly click Inline Clear and confirm an empty Result state
+   with no focus ring, then re-enter the same second broad Japanese query through
+   IME for action 9.
+9. Before Playback Search reaches Exact completion, press Enter on a settled
+   Result. Confirm playback starts at that Primary Cue and the old Overlay is
+   destroyed. Immediately reopen the Overlay and enter Playlist. Record its
+   partial last Sequence Number as `S0` and sample it once per second. Record
+   the first larger value as `S1`. If no
+   post-promotion increase is observed within three samples, mark this sub-run
+   `INCONCLUSIVE`, choose a broader query, and repeat actions 8 and 9. After at
+   least one increase with `S1 > S0`, use the same three-consecutive-observation
+   rule from action 6 to record candidate count `S`.
+   Record complete Primary Cue text at Sequence 1, Sequence 2, and Sequence `S`
+   in the Playback-Search-origin order ledger. Exit Playback, run the identical
+   term as a filter-free Workbench Search, wait for final Exact `{X} rows`, and
+   record the same three Workbench positions. If `X != S`, mark the manual
+   count/order sub-run `INCONCLUSIVE` and repeat actions 8 and 9 with a broader
+   query or longer observation; the deterministic promotion prerequisite, not
+   the three-second stability sample, decides source-growth correctness. A
+   passing manual ledger requires `X == S`, all three ordered texts equal, and at
+   least one observed post-promotion count increase.
+10. Reopen playback and the Overlay. In Recent, confirm the first available card
+    is selected. Use all four arrows, scroll away from the start, and take
+    Recent-before. Exercise card hover and the context menu without starting
+    playback. Click another Sidebar module and then click Recent; take
+    Recent-after and confirm the selected identity and named card's top-edge
+    pixel coordinate are identical. In a separate fresh Session, left-click a
+    Recent card and confirm its existing primary playback action destroys the
+    Overlay and opens that exact media item; the Focus Ring must never block the
+    card's hover, left-click, or context-menu region.
+11. Reopen the Overlay and enter Library. Confirm the first available Folder is
+    selected, use all four arrows, scroll, and take Library-Folder-before.
+    Before entering, verify Folder hover and its card context menu. Press Enter
+    once to open the selected Folder and confirm a held/repeating Enter does not
+    enter twice. Verify the fixed Detail Header, first available Episode
+    selection, four-arrow navigation, Cover hover, and Cover context menu.
+    Scroll Detail and take Library-Detail-before; leave and return with Sidebar
+    clicks, then take Library-Detail-after and compare the selected identity and
+    named Episode top-edge coordinate. Use Back and take Library-Folder-after;
+    it must match the earlier Folder selection and exact offset. Enter a Folder
+    by left-clicking its card and confirm Detail starts again at its first
+    available Episode and initial offset. Then, within that Session, left-click
+    the Cover of the Episode chosen for the second unsaved Cue; each original
+    pointer action must occur once, and Episode playback must destroy the Overlay
+    and open that exact Episode.
+12. Reopen the Overlay and enter Shiori. Confirm only subtitle Results appear.
+    Select a non-first Result, scroll to a named position, and take Shiori-before.
+    Click Current, navigate to the planned second unsaved Primary Cue, and save
+    it. If that Cue is no longer unsaved, select a different unsaved Cue from the
+    currently playing Episode and record its identity before saving. Click
+    Shiori again and take Shiori-after: the previously selected Result identity
+    and exact pixel offset must survive even though the new Shiori was inserted
+    first. Hover and click selected and unselected Shiori Results. There must be
+    no Result hover state or pointer cursor, and both clicks must remain inert.
+    Verify C preserves the selected Primary Cue's complete line breaks and S
+    reports `Shiori Already Saved` without deleting or duplicating it.
+13. Create nondefault state in Current, Playback Search, Recent, both Library
+    levels, Shiori, and Playlist when available, then press Escape. Confirm no
+    implicit seek and restoration of the playback state captured at Overlay
+    open. Reopen with Enter and visit every available module: the new Session
+    must start on Current with empty Playback Search, Library at Folder level,
+    and default first selections and initial offsets. A Playlist-capable origin
+    must also reopen Playlist at its default first Result.
+14. In separate fresh Sessions, execute Enter from Current, Playlist, Playback
+    Search, Recent, Library Folder, Library Detail, and Shiori. For Current,
+    Playlist, and Shiori, also verify S and C against the settled Primary Cue;
+    use already saved targets for these repeated S checks so no third test
+    Shiori is created. Search continues to treat S/C as editor input. Every
+    Enter must execute at most once under key repeat, destroy the Session before
+    seek or media open, and use the exact selected Primary Cue, card, Folder, or
+    Episode action.
+15. Start playback from Workbench Shiori, open the Overlay, and mechanically
+    compare Playlist's final count and the Primary Cue texts at Sequence 1,
+    Sequence 2, and the last Sequence against the existing Shiori
+    navigation scope. Start playback from Library and then Recent; Playlist must
+    be absent, Sidebar clicks must still work, and Tab must move directly from
+    Current to Search.
+16. Build a `Show Cue Group = On` comparison ledger using explicit count
+    bridges; Search and Shiori Overlay do not expose a numeric count of their
+    own. For Playlist, use the last Sequence Number from one fixed
+    Workbench-origin source and record `L_on`. For Playback Search, run one fixed
+    query, press Enter to promote it, reopen Playlist, and use its last Sequence
+    Number plus the matching filter-free Workbench Exact `xx rows` value using
+    the action 9 method; record the matched value as `Q_on`. For Shiori, record
+    Workbench Shiori's `xx rows` value as `H_on` before starting playback from
+    one fixed Shiori Result. On all three Overlay surfaces, also record one
+    Primary Cue's complete text and stable source order position as its
+    observable identity. Exit Playback, which destroys the Session, turn
+    `Show Cue Group` Off, and repeat the same three bridges with the same origin,
+    query, and Shiori scope to obtain `L_off`, `Q_off`, and `H_off`. Each new
+    Session must select its default first item; it must not preserve the prior
+    Session's selection. Navigate to each recorded Primary Cue by its stable
+    source position. Require `L_on == L_off`, `Q_on == Q_off`, and
+    `H_on == H_off`; order positions, Primary Cue text, identity, and actions
+    must also match exactly. Only Additional Cues may disappear; Current and
+    every Primary Cue must otherwise remain unchanged.
+17. Start a broad Playback Search and close the Playback Page immediately. In a
+    separate run, enter Library Detail and immediately close Playback; the
+    deterministic prerequisite, not human reaction time, proves cancellation
+    while the loader is in flight. In both manual runs, wait two seconds, open a
+    different video, and reopen the Overlay. No old query, Result, hierarchy,
+    selection, offset, feedback action, error, or late content may appear.
+18. Optionally repeat open, full Tab cycle, and Escape twenty times while
+    observing `scripts/watch_player_memory.sh`. After warm-up, retained memory
+    must not grow monotonically with every destroyed Session. Report this
+    optional observation separately; it is not required to pass this gate.
+
+### Log Review And Handoff
+
+After actions 1 through 17, optionally action 18, quit the packaged app and
+wait for the End marker. In Terminal B run this exact review:
+
+```bash
+LOG=/tmp/cueseeker-playback-multi-module-overlay.log
+FAILURE_PATTERN='(Fatal error:|Assertion failed:|Precondition failed:|NSInternalInconsistencyException|uncaught exception|Native playback failed:|Failed to (open Playback Subtitle Focus|play continuously from cue|load Playback Shiori window|load Shiori playback Playlist window|hydrate recent Library watching asynchronously|hydrate Complete Library asynchronously)|(Open|Prepare|Execute|Bind|Step) failed:)'
+start_count="$(rg -c '^=== CUESEEKER OVERLAY E2E START ' "$LOG" || true)"
+clean_end_count="$(rg -c '^=== CUESEEKER OVERLAY E2E END .* exit=0 ===$' "$LOG" || true)"
+failure_matches="$(rg -n "$FAILURE_PATTERN" "$LOG" || true)"
+if [[ "$start_count" == 1 && "$clean_end_count" == 1 && -z "$failure_matches" ]]; then
+  echo 'OVERLAY_E2E_LOG_REVIEW=PASS'
+else
+  echo 'OVERLAY_E2E_LOG_REVIEW=FAIL'
+  printf '%s\n' "$failure_matches"
+fi
+sed -n '/^=== CUESEEKER OVERLAY E2E START /,/^=== CUESEEKER OVERLAY E2E END /p' "$LOG"
+```
+
+The assistant interprets the log only as follows: exactly one Start marker,
+exactly one End marker with `exit=0`, no line matching `FAILURE_PATTERN`, and the
+literal `OVERLAY_E2E_LOG_REVIEW=PASS` are required. Paste the complete `sed`
+range from Start through End even when it contains no diagnostic lines. On a
+failure, identify the action and include the visible result plus the log from
+the Start marker through at least two seconds after that action; do not treat a
+missing log line as evidence that a visible failure passed.
+
+### Evidence To Paste Back
+
+- The seven-character commit hash and packaging verification result.
+- The complete output of all four deterministic prerequisite commands.
+- Pass/fail for actions 1 through 17; action 18 is optional.
+- `OVERLAY_E2E_LOG_REVIEW=PASS` and the complete Start-to-End log range.
+- `pbpaste` output for the multi-line Current Cue, one Playlist Primary Cue, and
+  the selected Shiori Result.
+- Both count/order ledgers. Each must include the early partial count, the first
+  larger count, candidate Playlist count, final Workbench `xx rows`, Primary Cue
+  text at first/second/last, and a per-field match result.
+- The Show Cue Group On/Off ledger with the Playlist Sequence, promoted Search
+  Playlist plus Workbench Exact, and Workbench Shiori count bridges, including
+  `L_on/L_off`, `Q_on/Q_off`, and `H_on/H_off` equality results.
+- Each inconclusive source-growth attempt, its query, and why it was retried;
+  inconclusive attempts are neither passes nor product failures.
+- One screenshot of the full Sidebar and one screenshot each of Playlist with
+  Sequence Numbers, focused Playback Search with marked IME text, Recent,
+  Library Detail, Shiori, and feedback above the Overlay.
+- The named before/after screenshot pairs for Current, Playlist, Playback
+  Search, Recent, Library Folder, Library Detail, and Shiori. State the selected
+  identity and screen-space top-edge coordinate used for every pixel comparison.
+- A recording from the early Workbench Result open through Playlist growth and
+  ledger capture, a recording of Playback Search promotion through its Playlist
+  growth, Shiori identity preservation after prepend, and one Enter
+  teardown/reopen cycle.
+- On failure, the exact action, visible result, and required marked log range.
+
+### Acceptance Criteria
+
+The gate passes only if:
+
+- Sidebar order, optional Playlist behavior, icons, fixed-dark appearance,
+  two-color selection, no Divider, and non-collapsible layout match the human
+  UI document. Unmodified Tab is the only module-cycle command.
+- Current retains its accepted Cue geometry and navigation. Playlist, Search,
+  and Shiori share the same Focus Anchor, dynamic Result geometry, scrollbar,
+  motion, and viewport-bounded behavior; Result clicks remain inert.
+- Workbench and Playback Search are live with the 100-millisecond debounce.
+  Playback Search preserves native IME editing focus and promotes the same
+  still-growing source into Playlist without freezing an early snapshot. Both
+  count/order ledgers and their deterministic prerequisites must match exactly.
+- Playlist sequence, Search/Shiori Primary Cue actions, Show Cue Group, Recent
+  cards, and both Library levels match their documented existing data order and
+  pointer behavior.
+- Every module restores its own within-Session selection and exact native scroll
+  offset, supported by its named before/after pair. A Shiori prepend preserves
+  the selected Result identity, and Library Back restores the previous Folder
+  state. Sidebar, Cue Result, Recent, and Library pointer checks all pass.
+- S/C keep the Overlay paused and open; Enter playback and media-card actions
+  synchronously destroy it. Space is consumed without an action. Escape restores
+  the captured playback state without seeking. The cancellation prerequisites
+  pass, and Playback Page close or source replacement never publishes stale
+  state in the manual runs.
+- Every reopened Overlay is a new Session beginning on Current with no prior
+  query, temporary rows, hierarchy, selection, offset, task, or cache. Turning
+  Show Cue Group Off across such Sessions preserves the recorded Primary Cue
+  content, identity, count, order, and action while correctly resetting the new
+  Session's selection to its default.
+- No crash, stale action, duplicate playback open, pointer-region regression,
+  hidden feedback, unexpected seek, or blocked input method is observed, and the
+  exact log review prints PASS.
+
+### Cleanup
+
+- In Workbench Shiori, remove both Shiori created solely for actions 4 and 12.
+- Restore the starting `Show Cue Group` value.
+- Restore the recorded Workbench Search query and filters.
+- After evidence is safely retained, restore the original clipboard and remove
+  the temporary artifacts:
+
+```bash
+pbcopy < /private/tmp/cueseeker-overlay-e2e-clipboard-before.txt
+rm -f /private/tmp/cueseeker-overlay-e2e-clipboard-before.txt
+rm -rf /private/tmp/CueSeeker-Overlay-E2E.app
+rm -f /tmp/cueseeker-playback-multi-module-overlay.log
+```
+
+- The Recent and Library playback actions update normal Playback History. Use
+  disposable media for this gate if those durable history updates must not
+  remain in the personal Library.

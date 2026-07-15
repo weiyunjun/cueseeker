@@ -238,16 +238,29 @@ Required M2 playback interaction checks:
   text input.
 - The normal bottom player has no Shiori or copy-current-subtitle button, and
   normal-playback `S` and `C` do not execute those removed commands.
-- Playback Subtitle Focus `S` saves the exact settled cue idempotently and keeps
-  the overlay visible and playback paused.
-- Playback Subtitle Focus `C` copies the exact settled cue's complete multi-line
-  text and keeps the overlay visible and playback paused.
-- Playback Subtitle Focus `Space` seeks to the exact settled cue start, closes
-  the overlay, and starts continuous playback.
-- Subtitle Focus action feedback renders above the focus overlay. Cue hover and
-  click do nothing; Up, Down, wheel, and scrollbar navigation still work.
-- A focus action accepted during cue motion executes once against the final
-  settled cue, and stale deferred actions cannot run after Session dismissal.
+- Enter during active playback opens the Playback Multi-Module Overlay, pauses
+  playback, hides Playback Chrome, starts on Current, and shows Playlist only
+  when the current playback-origin list exists.
+- Unmodified Tab cycles the available canonical module order even while the
+  Playback Search field is focused. It does not perform native focus traversal;
+  no other key switches modules.
+- Current, Playlist, and Shiori use exact settled Primary Cue `S`, `C`, and
+  Enter actions. `S` saves idempotently and `C` preserves complete source line
+  breaks without closing the paused Overlay. Enter destroys the Session before
+  continuous playback starts at the exact Primary Cue start. Space is consumed
+  without a playback action.
+- Playback Search keeps native text input priority, starts work 100 milliseconds
+  after the latest edit, keeps editor focus while Up and Down navigate Results,
+  and exposes only settled-result Enter as its module action. Recent and both
+  Library levels use four-direction media selection and nonrepeating Enter.
+- Overlay action feedback renders above the Overlay. Cue Result hover and click
+  do nothing; Up, Down, wheel, trackpad, and scrollbar navigation still work.
+  Existing Recent and Library pointer, hover, and context-menu regions remain
+  unchanged.
+- A Cue action accepted during reel motion executes once against the final
+  settled target. Module switching preserves each module's Session state;
+  Escape, playback actions, Playback Page close, source replacement, and stop
+  synchronously destroy the Session, cancel its workers, and reject stale work.
 - Mouse movement inside the player area reveals fullscreen player UI and cursor
   and restarts the idle timer. Mouse clicks and keyboard shortcuts do not reveal
   player UI.
@@ -803,11 +816,11 @@ Required renderer checks:
 - Subtitle visibility toggles renderer output without stopping the video.
 - SRT playback subtitle behavior does not regress.
 
-## 19. Cue-Centric Table And Subtitle Focus Coverage
+## 19. Cue-Centric Table And Playback Multi-Module Overlay Coverage
 
-Search, Shiori, Context, and Playback Subtitle Focus are complete only when
-their individual-Cue identity, dynamic geometry, and invalidation boundaries
-are verified together.
+Search, Shiori, Context, and the Playback Multi-Module Overlay are complete only
+when their individual-Cue identity, dynamic geometry, module state, and
+invalidation boundaries are verified together.
 
 Required Cue-table coverage:
 
@@ -836,16 +849,18 @@ Required Cue-table coverage:
   distinguish Search, Context, and Shiori measurement, draw, owner-update, and
   anchor-correction counters.
 
-Required Subtitle Focus coverage:
+Required Playback Multi-Module Overlay coverage:
 
-- Opening Focus at a timestamp inside a Cue Group selects that group's
+- Opening Current at a timestamp inside a Cue Group selects that group's
   physically bottommost Cue in stable source display order. With no active Cue,
   selection falls back to the nearest preceding Cue, then the first Cue.
 - The initial snapshot contains 10 Cues when available, preferring six before
   and three after the selected Cue, with stable Cue identity independent of the
   transient window index.
-- Natural Cue height is `52L + 24`; one-, two-, and three-line Cues therefore
-  measure 76, 128, and 180 points. Resolved height is clamped to the reel
+- Current natural Cue height is `max(52L, typographic stack height) + 24`;
+  one-, two-, and three-line Cues therefore measure 76, 128, and 180 points for
+  the current fonts. Every adjacent typographic Visual Line inside one Cue is
+  separated by exactly five points. Resolved height is clamped to the reel
   viewport while the complete Cue value remains available to actions.
 - A fitting Cue displays every visual line and centers its complete bounds on
   the fixed Focus Anchor. An oversized Cue uses accepted head-first placement:
@@ -855,13 +870,32 @@ Required Subtitle Focus coverage:
 - Resizing or width-dependent wrapping preserves stable selected Cue identity,
   recomputes natural and resolved height, and restores the selected Cue to its
   accepted placement.
-- Up, Down, wheel, and scrollbar navigation operate on Cue ordinals and accepted
-  placements rather than fixed Cue Group slots or cumulative rendered height.
-- `S`, `C`, and Space target the exact settled Cue. Tests verify idempotent
-  Shiori save, complete-text copy with source line breaks, exact start-time
-  seek/play, and once-only deferred execution when an action is accepted during
-  motion.
-- Normal playback before Enter creates no Focus query, Cue collection, Cue view,
-  or measurement. Focus layout and interaction invalidate neither Cue tables nor
-  the playback render host; closing or replacing the playback source releases
-  retained Focus Cue state and rejects late results.
+- Playlist, Search, and Shiori use one shared bounded virtual Reel, Result
+  renderer, dynamic extent path, Focus Anchor, scrollbar, motion, and recycling
+  contract. Primary and optional Cue Group lines retain the same strict
+  five-point internal typographic gap; Playlist alone shows the one-based
+  playback-origin sequence number.
+- Playlist preserves the established Search or Shiori source count, identity,
+  order, Exact progress, and navigation scope. Playback Search is independent
+  from Workbench Search until a settled Enter promotes its complete run into
+  Playlist; standalone Shiori uses persisted database order.
+- Recent and Library reuse their existing card layouts. Directional selection
+  follows visible geometry, defaults to the first available item, and preserves
+  exact native scroll offsets. Library independently preserves Folder and
+  Episode state; Back clears only Detail and restores Folder selection and
+  offset.
+- Module switching preserves Current, each Result Reel, Playback Search,
+  Recent, and both Library levels inside one Session. A newly saved Shiori that
+  prepends the database order must preserve an already selected Shiori by
+  Result identity, not by its previous ordinal.
+- `S`, `C`, and Enter target the exact settled Primary Cue in Current, Playlist,
+  and Shiori. Tests verify idempotent save, complete-text copy with source line
+  breaks, exact start-time continuous play, and once-only deferred execution.
+  Search responds only to settled Enter; Recent and Library Enter reuse their
+  existing primary playback actions.
+- Normal playback before Enter creates no Overlay Session or module data.
+  Closing or replacing the playback source releases Current batches, virtual
+  windows, Search runs, Recent and Library snapshots, selections, scroll state,
+  observers, and measurement caches. Database readers must cooperatively stop
+  long row iteration after cancellation, and late work cannot publish into a
+  closed or newer Session.

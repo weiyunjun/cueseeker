@@ -2,6 +2,16 @@ import AppKit
 import CueSeekerCore
 import Foundation
 
+typealias PlaybackSubtitleFocusInitialSnapshotLoader = @MainActor @Sendable (
+    _ subtitlePath: String,
+    _ timestampMilliseconds: Int
+) async throws -> SubtitleFocusSnapshot?
+
+typealias PlaybackSubtitleFocusCompleteCueBatchLoader = @MainActor @Sendable (
+    _ subtitlePath: String,
+    _ totalCount: Int
+) async throws -> SubtitleFocusCueBatch
+
 @MainActor
 extension AppCoordinator {
     @discardableResult
@@ -544,14 +554,22 @@ extension AppCoordinator {
         playbackSubtitleFocusActionTask = nil
     }
 
-    private func startPlaybackSubtitleFocusInitialLoad(
-        for session: PlaybackSubtitleFocusSessionStore
+    func startPlaybackSubtitleFocusInitialLoad(
+        for session: PlaybackSubtitleFocusSessionStore,
+        initialSnapshotLoader: PlaybackSubtitleFocusInitialSnapshotLoader? = nil,
+        completeCueBatchLoader: PlaybackSubtitleFocusCompleteCueBatchLoader? = nil
     ) {
         playbackSubtitleFocusInitialLoadTask?.cancel()
         let subtitlePath = session.openSnapshot.source.subtitlePath
         let timestampMilliseconds = session.openSnapshot.timestampMilliseconds
         let token = session.token
         let databaseReader = playbackSubtitleFocusDatabaseReader
+        let loadInitialSnapshot = initialSnapshotLoader ?? { subtitlePath, timestamp in
+            try await databaseReader.initialSnapshot(
+                subtitlePath: subtitlePath,
+                timestampMilliseconds: timestamp
+            )
+        }
 
         playbackSubtitleFocusInitialLoadTask = Task { @MainActor [weak self, weak session] in
             guard let self, let session else {
@@ -559,9 +577,9 @@ extension AppCoordinator {
             }
 
             do {
-                let snapshot = try await databaseReader.initialSnapshot(
-                    subtitlePath: subtitlePath,
-                    timestampMilliseconds: timestampMilliseconds
+                let snapshot = try await loadInitialSnapshot(
+                    subtitlePath,
+                    timestampMilliseconds
                 )
                 try Task.checkCancellation()
                 guard self.playback.subtitleFocusSession === session else {
@@ -579,7 +597,10 @@ extension AppCoordinator {
                     )
                     return
                 }
-                self.startPlaybackSubtitleFocusCompleteLoadIfNeeded(for: session)
+                self.startPlaybackSubtitleFocusCompleteLoadIfNeeded(
+                    for: session,
+                    loader: completeCueBatchLoader
+                )
             } catch is CancellationError {
                 return
             } catch {
@@ -596,8 +617,9 @@ extension AppCoordinator {
         }
     }
 
-    private func startPlaybackSubtitleFocusCompleteLoadIfNeeded(
-        for session: PlaybackSubtitleFocusSessionStore
+    func startPlaybackSubtitleFocusCompleteLoadIfNeeded(
+        for session: PlaybackSubtitleFocusSessionStore,
+        loader: PlaybackSubtitleFocusCompleteCueBatchLoader? = nil
     ) {
         guard let totalCount = session.completeCueLoadTotalCount else {
             return
@@ -607,15 +629,21 @@ extension AppCoordinator {
         let subtitlePath = session.openSnapshot.source.subtitlePath
         let token = session.token
         let databaseReader = playbackSubtitleFocusDatabaseReader
+        let loadCompleteCueBatch = loader ?? { subtitlePath, totalCount in
+            try await databaseReader.completeCueBatch(
+                subtitlePath: subtitlePath,
+                totalCount: totalCount
+            )
+        }
         playbackSubtitleFocusCompleteLoadTask = Task { @MainActor [weak self, weak session] in
             guard let self, let session else {
                 return
             }
 
             do {
-                let batch = try await databaseReader.completeCueBatch(
-                    subtitlePath: subtitlePath,
-                    totalCount: totalCount
+                let batch = try await loadCompleteCueBatch(
+                    subtitlePath,
+                    totalCount
                 )
                 try Task.checkCancellation()
                 guard self.playback.subtitleFocusSession === session else {

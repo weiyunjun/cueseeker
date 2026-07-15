@@ -385,6 +385,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
     @Published private(set) var selectedOrdinal: Int?
 
     private(set) var items: [PlaybackPlaylistItem] = []
+    private(set) var selectedItemIdentity: PlaybackPlaylistItemIdentity?
     private var source: PlaybackPlaylistSource?
     private var boundaryCancellable: AnyCancellable?
     private var loadTask: Task<Void, Never>?
@@ -396,6 +397,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         self.source = source
         let boundary = source.boundary
         selectedOrdinal = boundary.totalCount > 0 ? 0 : nil
+        selectedItemIdentity = boundary.knownItemIDsByOrdinal[0]
         snapshot = Self.emptySnapshot(boundary: boundary, revision: 0)
         boundaryCancellable = source.$boundary
             .dropFirst()
@@ -429,6 +431,27 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
 
     func resetSelectionToFirst() {
         selectedOrdinal = snapshot.totalCount > 0 ? 0 : nil
+        selectedItemIdentity = selectedOrdinal.flatMap { ordinal in
+            item(at: ordinal)?.identity
+                ?? source?.boundary.knownItemIDsByOrdinal[ordinal]
+        }
+    }
+
+    @discardableResult
+    func restoreSelection(
+        itemIdentity: PlaybackPlaylistItemIdentity,
+        at ordinal: Int
+    ) -> Bool {
+        guard isActive,
+              ordinal >= 0,
+              ordinal < snapshot.totalCount,
+              source?.boundary.knownItemIDsByOrdinal[ordinal] == itemIdentity
+        else {
+            return false
+        }
+        selectedOrdinal = ordinal
+        selectedItemIdentity = itemIdentity
+        return true
     }
 
     @discardableResult
@@ -440,11 +463,12 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
               commit.datasetID == AnyHashable(reelDatasetID),
               commit.generation == snapshot.generation,
               snapshot.loadedOrdinalRange.contains(commit.ordinal),
-              item(at: commit.ordinal) != nil
+              let selectedItem = item(at: commit.ordinal)
         else {
             return false
         }
         selectedOrdinal = commit.ordinal
+        selectedItemIdentity = selectedItem.identity
         return true
     }
 
@@ -539,6 +563,12 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
            selectedOrdinal >= response.totalCount {
             self.selectedOrdinal = response.totalCount > 0 ? 0 : nil
         }
+        if let selectedOrdinal,
+           let selectedItem = item(at: selectedOrdinal) {
+            selectedItemIdentity = selectedItem.identity
+        } else if selectedOrdinal == nil {
+            selectedItemIdentity = nil
+        }
         return true
     }
 
@@ -555,6 +585,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         source = nil
         items.removeAll(keepingCapacity: false)
         selectedOrdinal = nil
+        selectedItemIdentity = nil
         snapshot = PlaybackVirtualReelSnapshot(
             datasetID: snapshot.datasetID,
             generation: snapshot.generation &+ 1,
@@ -583,8 +614,14 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         if let selectedOrdinal,
            selectedOrdinal >= boundary.totalCount {
             self.selectedOrdinal = boundary.totalCount > 0 ? 0 : nil
+            selectedItemIdentity = self.selectedOrdinal.flatMap {
+                boundary.knownItemIDsByOrdinal[$0]
+            }
         } else if selectedOrdinal == nil, boundary.totalCount > 0 {
             selectedOrdinal = 0
+            selectedItemIdentity = boundary.knownItemIDsByOrdinal[0]
+        } else if boundary.totalCount == 0 {
+            selectedItemIdentity = nil
         }
         snapshot = Self.emptySnapshot(boundary: boundary, revision: revision)
     }

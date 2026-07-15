@@ -813,10 +813,39 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard isSessionActive, let shioriSource else {
             return false
         }
-        return shioriSource.updateBoundary(
-            totalCount: shioriSource.boundary.totalCount + 1,
-            knownItemIDsByOrdinal: [:]
+        let previousBoundary = shioriSource.boundary
+        guard previousBoundary.totalCount < Int.max else {
+            return false
+        }
+        let selectionToRestore = shioriWindow.flatMap { window in
+            window.selectedOrdinal.flatMap { ordinal in
+                window.selectedItemIdentity.map { identity in
+                    (identity: identity, ordinal: ordinal + 1)
+                }
+            }
+        }
+        var shiftedKnownIdentities = Dictionary(
+            uniqueKeysWithValues: previousBoundary.knownItemIDsByOrdinal.map {
+                ($0.key + 1, $0.value)
+            }
         )
+        if let selectionToRestore {
+            shiftedKnownIdentities[selectionToRestore.ordinal]
+                = selectionToRestore.identity
+        }
+        guard shioriSource.updateBoundary(
+            totalCount: previousBoundary.totalCount + 1,
+            knownItemIDsByOrdinal: shiftedKnownIdentities
+        ) else {
+            return false
+        }
+        if let selectionToRestore {
+            _ = shioriWindow?.restoreSelection(
+                itemIdentity: selectionToRestore.identity,
+                at: selectionToRestore.ordinal
+            )
+        }
+        return true
     }
 
     private func selectAvailableCue(ordinal: Int) -> Bool {

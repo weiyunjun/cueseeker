@@ -3659,6 +3659,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
         startingAtOrdinal requestedOrdinal: Int,
         limit requestedLimit: Int
     ) throws -> SubtitleFocusCueBatch {
+        try subtitleFocusCueBatch(
+            forSubtitleFile: subtitleFile,
+            totalCount: requestedTotalCount,
+            startingAtOrdinal: requestedOrdinal,
+            limit: requestedLimit,
+            didReadCue: nil
+        )
+    }
+
+    func subtitleFocusCueBatch(
+        forSubtitleFile subtitleFile: URL,
+        totalCount requestedTotalCount: Int,
+        startingAtOrdinal requestedOrdinal: Int,
+        limit requestedLimit: Int,
+        didReadCue: ((Int) -> Void)?
+    ) throws -> SubtitleFocusCueBatch {
+        try Task.checkCancellation()
         let totalCount = max(0, requestedTotalCount)
         let startOrdinal = min(max(0, requestedOrdinal), totalCount)
         let limit = min(max(0, requestedLimit), max(0, totalCount - startOrdinal))
@@ -3687,7 +3704,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var cues: [SubtitleFocusCue] = []
         cues.reserveCapacity(limit)
         var offset = 0
-        while try statement.step() {
+        while true {
+            try Task.checkCancellation()
+            guard try statement.step() else {
+                break
+            }
             cues.append(SubtitleFocusCue(
                 id: statement.int64Column(0),
                 cueGroupID: statement.int64Column(1),
@@ -3699,6 +3720,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 content: statement.stringColumn(6)
             ))
             offset += 1
+            didReadCue?(offset)
         }
         return SubtitleFocusCueBatch(totalCount: totalCount, cues: cues)
     }

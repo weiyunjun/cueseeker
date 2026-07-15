@@ -414,6 +414,40 @@ Overlay window without changing their established behavior.
   Complete-folder Core readers now reject pre-cancelled tasks and cooperate
   with cancellation during row iteration.
 
+### 12. Cross-Module Integration, Cancellation, and E2E Gate
+
+- Added a real temporary-SQLite integration fixture that traverses Current,
+  Playlist, live Playback Search, Recent, both Library levels, and Shiori in one
+  Session. It verifies each module's independent selection, query, hierarchy,
+  bounded window, and exact scroll state, then destroys every reference and
+  confirms that a later Session starts from documented defaults.
+- Added deterministic suspended-worker integration coverage for Current initial
+  and complete Cue loads, Playlist, Playback Search, Recent, Library Folder and
+  Detail, and Shiori. Playback stop must cancel every task, invalidate owned
+  sources and windows, clear all Session state, and reject each loader's result
+  even after the cancellation probe deliberately returns it late.
+- Kept the Current loader test seam internal and optional. The production path
+  still resolves the existing database actor; tests inject only the two Cue
+  loader closures needed to suspend the same Coordinator task and publication
+  gates deterministically.
+- Made Result-window selection retain the selected stable item identity
+  independently from the current 32-item virtual window. A Shiori prepend now
+  shifts the known identity boundary and restores the previous selected Result
+  at its new ordinal even when that Result had already been paged out of the
+  retained window.
+- Added cooperative cancellation before and during complete Current Cue row
+  iteration. A 2,500-row database test cancels on row 32 and uses a thread-safe
+  probe to prove that row 33 is never read, distinguishing true mid-iteration
+  cancellation from an entry-only or end-of-loop check.
+- Replaced the superseded Subtitle Focus keyboard acceptance text in the active
+  testing rules and added a complete packaged Playback Multi-Module Overlay E2E
+  gate. The gate includes deterministic source-growth and cancellation
+  prerequisites, marked log capture with exact failure predicates, mechanical
+  Playlist count/order ledgers, real IME and pointer checks, per-module
+  before/after state evidence, strict new-Session defaults, and cleanup.
+- Added the completed feature outcome to the engineering changelog without
+  changing either human-owned requirement or UI document.
+
 ## Verification
 
 ### Step 1
@@ -671,11 +705,65 @@ Overlay window without changing their established behavior.
 - `git diff --check`
   - Passed.
 
+### Step 12
+
+- `swift test --filter 'subtitleFocusDatabaseBatchStopsAfterCancellationDuringRowIteration|playbackMultiModuleOverlayStopCancels|playbackShioriSavePreservesSelectedResultIdentityAfterPrepend'`
+  - Passed 4 focused tests covering cross-window Shiori identity restoration,
+    Current initial and complete task cancellation, Library Folder and Detail
+    cancellation, all other module workers, late-result rejection, and an exact
+    row-32 database cancellation boundary.
+- `swift test --filter 'searchPlaybackPlaylistFollowsExactProgressInsteadOfFreezingClickedRows|playbackSearchEnterPromotesRunningExactSourcePastSessionTeardown|playbackLibraryRejectsStaleDetailSuccessFailureAndDismissal|playbackMultiModuleOverlayStopCancels'`
+  - Passed all 5 deterministic E2E prerequisite tests named by the manual gate.
+- `swift test --quiet --no-parallel --filter 'playbackOverlay|PlaybackOverlay|subtitleFocus|SubtitleFocus|playbackVirtualReel|PlaybackVirtualReel|playbackCueResult|PlaybackCueResult|playbackPlaylist|PlaybackPlaylist|playbackSearch|PlaybackSearch|playbackRecent|PlaybackRecent|playbackLibrary|PlaybackLibrary|playbackShiori|PlaybackShiori|playbackMultiModule|PlaybackMultiModule|playbackMedia|PlaybackMedia|SearchStore|searchInputDebounce|liveSearch'`
+  - Passed all 196 Overlay, Current, shared-Reel, Cue Result, Playlist, Search,
+    Recent, Library, Shiori, media-selection, Workbench Search, action, and
+    lifecycle regression tests. One first attempt hit an existing short Shiori
+    hydration deadline; that test passed immediately in isolation and the full
+    matrix rerun passed.
+- `swift build`
+  - Passed.
+- `scripts/verify_macos_media_runtime.sh .build/media-runtime/arm64-macos13`
+  - Passed.
+- `scripts/package_macos_app.sh --output /private/tmp/CueSeeker-Overlay-E2E.app`
+  - Passed the production build, bundled-dylib closure, code-signing,
+    Designated Requirement, self-contained runtime, and ARM64 checks.
+- Packaged-app launch smoke
+  - `/private/tmp/CueSeeker-Overlay-E2E.app` launched as the real CueSeeker
+    process and was then closed cleanly. This proves startup only; it is not
+    recorded as the manual interaction gate.
+- `swift test --quiet --no-parallel --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed all 7 XCTest tests and the other 759 Swift Testing tests.
+- `swift test --filter sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  - Passed the isolated persistence migration test.
+- `swift test --filter showCueGroupInvalidationIsScopedToMountedContext`
+  - Passed the isolated mounted Show Cue Group integration test.
+- `swift test --quiet --no-parallel`
+  - The combined serial run passed all 7 XCTest tests and 758 of 760 Swift
+    Testing tests. The already-recorded order-dependent persistence case saw a
+    registered `workbenchPanelMode = search` default instead of its isolated
+    `shiori` fixture. The mounted Show Cue Group integration also missed its
+    three-second table-hydration deadline only in this 116-second combined run.
+    Both pass alone, the complete 759-test run excluding the known persistence
+    case passes, and Step 12 changes neither persistence nor Workbench table
+    mounting behavior.
+- Two independent final code/test reviews found no remaining P0, P1, or P2
+  production-semantic, concurrency, lifecycle, or coverage issue after the
+  cross-window identity and complete cancellation matrix were added.
+- The final E2E-document review removed timing-dependent false failures, added
+  explicit inconclusive/retry rules and executable Search/Shiori count bridges,
+  and found no remaining P0, P1, or P2 after the corrections.
+- `git diff --check`
+  - Passed.
+
 ## Outcome
 
-In progress.
+All twelve implementation steps and automated verification are complete. The
+packaged owner-visible manual UI E2E remains required before final acceptance;
+the launch smoke above does not substitute for that interaction evidence.
 
 ## Follow-ups
 
-- Run the final cross-module integration, lifecycle, and manual Playback E2E
-  verification for the complete Overlay.
+- Run `Playback Multi-Module Overlay` in
+  `docs/engineering/08_end_to_end_testing.md` against the packaged app and paste
+  back actions 1 through 17, the marked log review, count/order ledgers,
+  before/after screenshots, clipboard values, and recordings.
