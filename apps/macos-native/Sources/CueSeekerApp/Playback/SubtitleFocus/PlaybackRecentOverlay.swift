@@ -2,8 +2,8 @@ import CueSeekerCore
 import SwiftUI
 
 struct PlaybackRecentOverlay: View {
-    @EnvironmentObject private var appState: AppCoordinator
     @ObservedObject var store: PlaybackRecentSessionStore
+    @ObservedObject private var library: LibraryStore
     @ObservedObject private var selection: PlaybackMediaSelectionStore
     let onOpenItem: (RecentLibraryWatchingPresentation) -> Bool
 
@@ -15,6 +15,7 @@ struct PlaybackRecentOverlay: View {
         onOpenItem: @escaping (RecentLibraryWatchingPresentation) -> Bool
     ) {
         self.store = store
+        _library = ObservedObject(wrappedValue: store.libraryStore)
         _selection = ObservedObject(wrappedValue: store.selection)
         self.onOpenItem = onOpenItem
     }
@@ -45,9 +46,6 @@ struct PlaybackRecentOverlay: View {
                         using: scrollProxy
                     )
                 }
-                .onChange(of: appState.library.recentWatchingRevision) { _ in
-                    store.refresh()
-                }
                 .onDisappear {
                     scrollTask?.cancel()
                     scrollTask = nil
@@ -60,18 +58,19 @@ struct PlaybackRecentOverlay: View {
 
     @ViewBuilder
     private func content(viewportHeight: CGFloat) -> some View {
-        if case .loading = store.status, store.items.isEmpty {
+        if case .loading = library.testRecentWatchingStatus,
+           library.testRecentWatchingItems.isEmpty {
             PlaybackRecentEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
-        } else if case .failed(let message) = store.status {
+        } else if case .failed(let message) = library.testRecentWatchingStatus {
             PlaybackRecentEmptyHint(message)
-        } else if store.items.isEmpty {
+        } else if library.testRecentWatchingItems.isEmpty {
             PlaybackRecentEmptyHint("No recent watching yet.")
         } else {
             RecentWatchingGrid(
-                items: store.items,
+                items: library.testRecentWatchingItems,
                 selectedItemID: selection.selectedItemID,
                 itemFrameCoordinateSpace: coordinateSpaceName,
                 onItemFramesChange: { frames in

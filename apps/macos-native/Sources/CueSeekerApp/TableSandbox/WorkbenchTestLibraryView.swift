@@ -51,8 +51,6 @@ struct WorkbenchTestLibraryView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
-    @State private var folderDetail: CompleteLibraryFolderDetailPresentation?
-    @State private var folderDetailStatus: LibraryStatus = .idle
 
     var body: some View {
         ScrollView {
@@ -75,7 +73,9 @@ struct WorkbenchTestLibraryView: View {
             guard let folderPath = selectedFolder?.folderPath else {
                 return
             }
-            await loadFolderDetail(folderPath: folderPath)
+            appState.hydrateCompleteLibraryFolderDetailAsync(
+                folderPath: folderPath
+            )
         }
         .onChange(of: indexing.selectedFolders) { _ in
             closeFolderDetail()
@@ -143,8 +143,6 @@ struct WorkbenchTestLibraryView: View {
 
     private func closeFolderDetail() {
         appState.workbenchLayout.clearTestLibraryFolder()
-        folderDetail = nil
-        folderDetailStatus = .idle
     }
 
     private func reconcileSelectedFolder() {
@@ -160,36 +158,26 @@ struct WorkbenchTestLibraryView: View {
         appState.workbenchLayout.selectTestLibraryFolder(updatedFolder)
     }
 
-    @MainActor
-    private func loadFolderDetail(folderPath: String) async {
-        folderDetailStatus = .loading
-        do {
-            let loadedDetail = try await appState.loadCompleteLibraryFolderDetail(folderPath: folderPath)
-            guard !Task.isCancelled,
-                  selectedFolder?.folderPath == folderPath else {
-                return
-            }
-            guard let loadedDetail else {
-                folderDetail = nil
-                folderDetailStatus = .failed("Folder detail is unavailable")
-                return
-            }
-            folderDetail = loadedDetail
-            folderDetailStatus = .completed
-        } catch {
-            guard !Task.isCancelled,
-                  selectedFolder?.folderPath == folderPath else {
-                return
-            }
-            folderDetail = nil
-            folderDetailStatus = .failed(AppCoordinator.errorMessage(for: error))
-        }
-    }
 }
 
 private extension WorkbenchTestLibraryView {
     var selectedFolder: CompleteLibraryFolderSummaryPresentation? {
         routeState.selectedTestLibraryFolder
+    }
+
+    var folderDetail: CompleteLibraryFolderDetailPresentation? {
+        selectedFolder.flatMap {
+            library.completeLibraryFolderDetailsByPath[$0.folderPath]
+        }
+    }
+
+    var folderDetailStatus: LibraryStatus {
+        guard let selectedFolder else {
+            return .idle
+        }
+        return library.completeLibraryFolderDetailStatusesByPath[
+            selectedFolder.folderPath
+        ] ?? .idle
     }
 }
 

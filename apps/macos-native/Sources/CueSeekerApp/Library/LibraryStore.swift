@@ -15,6 +15,10 @@ final class LibraryStore: ObservableObject {
     @Published var testRecentWatchingRevision = 0
     @Published var completeLibraryStatus: LibraryStatus = .idle
     @Published var completeLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] = []
+    @Published var completeLibraryFolderDetailsByPath:
+        [String: CompleteLibraryFolderDetailPresentation] = [:]
+    @Published var completeLibraryFolderDetailStatusesByPath:
+        [String: LibraryStatus] = [:]
     @Published var completeLibraryRevision = 0
     @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?

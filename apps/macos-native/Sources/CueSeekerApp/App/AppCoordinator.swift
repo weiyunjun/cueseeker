@@ -409,6 +409,8 @@ final class AppCoordinator: ObservableObject {
     var recentWatchingTask: Task<Void, Never>?
     var testRecentWatchingTask: Task<Void, Never>?
     var completeLibraryTask: Task<Void, Never>?
+    var completeLibraryFolderDetailTasks: [String: Task<Void, Never>] = [:]
+    var completeLibraryFolderDetailGeneration: UInt64 = 0
     let libraryDisplayRenditionCommitGate = LibraryCoverDisplayRenditionCommitGate()
     var libraryDisplayRenditionTask: Task<Void, Never>?
     var libraryDisplayRenditionAttemptedScopeKey: String?

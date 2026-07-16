@@ -456,7 +456,7 @@ extension AppCoordinator {
         }
     }
 
-    func loadCompleteLibraryFolderDetail(
+    private func loadCompleteLibraryFolderDetail(
         folderPath: String
     ) async throws -> CompleteLibraryFolderDetailPresentation? {
         try Task.checkCancellation()
@@ -473,24 +473,93 @@ extension AppCoordinator {
         }
     }
 
+    func completeLibraryFolderDetailFromStore(
+        folderPath: String
+    ) async -> CompleteLibraryFolderDetailPresentation? {
+        if let detail = library.completeLibraryFolderDetailsByPath[folderPath] {
+            return detail
+        }
+        hydrateCompleteLibraryFolderDetailAsync(folderPath: folderPath)
+        await completeLibraryFolderDetailTasks[folderPath]?.value
+        guard !Task.isCancelled else {
+            return nil
+        }
+        return library.completeLibraryFolderDetailsByPath[folderPath]
+    }
+
+    func hydrateCompleteLibraryFolderDetailAsync(folderPath: String) {
+        guard library.completeLibraryFolderDetailsByPath[folderPath] == nil,
+              completeLibraryFolderDetailTasks[folderPath] == nil
+        else {
+            return
+        }
+
+        let generation = completeLibraryFolderDetailGeneration
+        library.completeLibraryFolderDetailStatusesByPath[folderPath] = .loading
+        completeLibraryFolderDetailTasks[folderPath] = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                if completeLibraryFolderDetailGeneration == generation {
+                    completeLibraryFolderDetailTasks[folderPath] = nil
+                }
+            }
+
+            do {
+                let detail = try await loadCompleteLibraryFolderDetail(
+                    folderPath: folderPath
+                )
+                guard !Task.isCancelled,
+                      completeLibraryFolderDetailGeneration == generation
+                else {
+                    return
+                }
+                guard let detail else {
+                    library.completeLibraryFolderDetailStatusesByPath[folderPath]
+                        = .failed("Folder detail is unavailable")
+                    return
+                }
+                library.completeLibraryFolderDetailsByPath[folderPath] = detail
+                library.completeLibraryFolderDetailStatusesByPath[folderPath]
+                    = .completed
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      completeLibraryFolderDetailGeneration == generation
+                else {
+                    return
+                }
+                library.completeLibraryFolderDetailStatusesByPath[folderPath]
+                    = .failed(Self.errorMessage(for: error))
+            }
+        }
+    }
+
+    func invalidateCompleteLibraryFolderDetails() {
+        completeLibraryFolderDetailGeneration &+= 1
+        for task in completeLibraryFolderDetailTasks.values {
+            task.cancel()
+        }
+        completeLibraryFolderDetailTasks.removeAll(keepingCapacity: false)
+        library.completeLibraryFolderDetailsByPath = [:]
+        library.completeLibraryFolderDetailStatusesByPath = [:]
+    }
+
     func prepareLibraryNavigationVideos(_ videos: [CompleteLibraryVideoPresentation]) {
         library.libraryPlaybackNavigationVideos = videos.map(\.libraryVideo)
     }
 
     func prepareRecentLibraryNavigation(for item: RecentLibraryWatchingPresentation) async {
-        do {
-            if let folderDetail = try await loadCompleteLibraryFolderDetail(folderPath: item.folderPath) {
-                guard !Task.isCancelled else {
-                    return
-                }
-                prepareLibraryNavigationVideos(folderDetail.videos)
-                return
-            }
-        } catch {
+        if let folderDetail = await completeLibraryFolderDetailFromStore(
+            folderPath: item.folderPath
+        ) {
             guard !Task.isCancelled else {
                 return
             }
-            print("Failed to load Recent Library navigation detail: \(error)")
+            prepareLibraryNavigationVideos(folderDetail.videos)
+            return
         }
 
         guard !Task.isCancelled else {
@@ -519,15 +588,12 @@ extension AppCoordinator {
             guard let self else {
                 return
             }
-
-            do {
-                guard let detail = try await loadCompleteLibraryFolderDetail(folderPath: folderPath) else {
-                    return
-                }
-                markLibraryVideos(detail.videos.map(\.libraryVideo), as: state)
-            } catch {
-                print("Failed to load Library folder for watch-state update: \(error)")
+            guard let detail = await completeLibraryFolderDetailFromStore(
+                folderPath: folderPath
+            ) else {
+                return
             }
+            markLibraryVideos(detail.videos.map(\.libraryVideo), as: state)
         }
     }
 
@@ -557,6 +623,7 @@ extension AppCoordinator {
 
     private func refreshLibraryPlaybackHistoryPresentations() {
         library.libraryPlaybackHistoryRevision += 1
+        invalidateCompleteLibraryFolderDetails()
         UIInvalidationProbe.count(
             "library.snapshot_rebuild",
             scope: uiProbeScope,
@@ -614,6 +681,7 @@ extension AppCoordinator {
     }
 
     func applyCompleteLibrary(_ snapshot: [CompleteLibraryFolderSummaryPresentation]) {
+        invalidateCompleteLibraryFolderDetails()
         library.completeLibraryFolderSummaries = snapshot
         library.completeLibraryRevision += 1
         UIInvalidationProbe.count(
@@ -649,6 +717,7 @@ extension AppCoordinator {
     }
 
     func removeCompleteLibraryPresentation(under folder: URL) {
+        invalidateCompleteLibraryFolderDetails()
         library.completeLibraryFolderSummaries = library.completeLibraryFolderSummaries.filter { group in
             !Self.path(group.folderPath, isUnder: folder)
         }

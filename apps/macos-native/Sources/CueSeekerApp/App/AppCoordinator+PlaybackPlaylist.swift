@@ -38,25 +38,23 @@ extension AppCoordinator {
     }
 
     func makePlaybackRecentSessionStore() -> PlaybackRecentSessionStore {
-        PlaybackRecentSessionStore(loader: .live(
-            databaseURL: databaseURL,
-            folders: indexing.selectedFolders
-        ), sourceRevision: { [weak self] in
-            self?.library.recentWatchingRevision ?? 0
-        })
+        PlaybackRecentSessionStore(
+            libraryStore: library,
+            requestSource: { [weak self] in
+                self?.hydrateTestRecentWatchingAsync()
+            }
+        )
     }
 
     func makePlaybackLibrarySessionStore() -> PlaybackLibrarySessionStore {
         PlaybackLibrarySessionStore(
-            loader: .live(
-                databaseURL: databaseURL,
-                folders: indexing.selectedFolders
-            ),
-            sourceRevision: { [weak self] in
-                PlaybackLibrarySourceRevision(
-                    folders: self?.library.completeLibraryRevision ?? 0,
-                    playbackHistory:
-                        self?.library.libraryPlaybackHistoryRevision ?? 0
+            libraryStore: library,
+            requestFolders: { [weak self] in
+                self?.hydrateCompleteLibraryAsync()
+            },
+            requestFolderDetail: { [weak self] folderPath in
+                self?.hydrateCompleteLibraryFolderDetailAsync(
+                    folderPath: folderPath
                 )
             }
         )

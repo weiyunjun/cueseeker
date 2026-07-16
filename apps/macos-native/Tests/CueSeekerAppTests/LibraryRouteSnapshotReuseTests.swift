@@ -42,6 +42,23 @@ func libraryRouteHydrationReusesCompletedSnapshotsUntilExplicitRefresh() async t
         #expect(app.library.testRecentWatchingItems.count == 1)
         #expect(app.library.completeLibraryFolderSummaries.count == 1)
 
+        let folderPath = try #require(
+            app.library.completeLibraryFolderSummaries.first?.folderPath
+        )
+        let sharedDetail = try #require(
+            await app.completeLibraryFolderDetailFromStore(
+                folderPath: folderPath
+            )
+        )
+        #expect(
+            app.library.completeLibraryFolderDetailsByPath[folderPath]
+                == sharedDetail
+        )
+        let cachedDetail = await app.completeLibraryFolderDetailFromStore(
+            folderPath: folderPath
+        )
+        #expect(cachedDetail == sharedDetail)
+
         let libraryRevision = app.library.libraryPresentationRevision
         let recentRevision = app.library.recentWatchingRevision
         let testRecentRevision = app.library.testRecentWatchingRevision
@@ -81,6 +98,7 @@ func libraryRouteHydrationReusesCompletedSnapshotsUntilExplicitRefresh() async t
         #expect(app.library.recentWatchingRevision == recentRevision + 1)
         #expect(app.library.testRecentWatchingRevision == testRecentRevision + 1)
         #expect(app.library.completeLibraryRevision == completeRevision + 1)
+        #expect(app.library.completeLibraryFolderDetailsByPath.isEmpty)
     }
 }
 

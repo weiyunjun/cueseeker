@@ -2,9 +2,18 @@ import CueSeekerCore
 import SwiftUI
 
 struct PlaybackLibraryOverlay: View {
-    @EnvironmentObject private var appState: AppCoordinator
     @ObservedObject var store: PlaybackLibrarySessionStore
+    @ObservedObject private var library: LibraryStore
     let onOpenEpisode: (CompleteLibraryVideoPresentation) -> Bool
+
+    init(
+        store: PlaybackLibrarySessionStore,
+        onOpenEpisode: @escaping (CompleteLibraryVideoPresentation) -> Bool
+    ) {
+        self.store = store
+        _library = ObservedObject(wrappedValue: store.libraryStore)
+        self.onOpenEpisode = onOpenEpisode
+    }
 
     var body: some View {
         Group {
@@ -38,10 +47,10 @@ struct PlaybackLibraryOverlay: View {
         .onAppear {
             store.activate()
         }
-        .onChange(of: appState.library.completeLibraryRevision) { _ in
+        .onChange(of: library.completeLibraryRevision) { _ in
             store.refreshForSourceRevision()
         }
-        .onChange(of: appState.library.libraryPlaybackHistoryRevision) { _ in
+        .onChange(of: library.libraryPlaybackHistoryRevision) { _ in
             store.refreshForSourceRevision()
         }
         .background(PlaybackTheme.subtitleFocusOverlayBackground)

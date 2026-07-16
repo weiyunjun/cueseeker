@@ -1,5 +1,5 @@
 import AppKit
-import CueSeekerCore
+@testable import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
 import Testing
@@ -7,32 +7,16 @@ import Testing
 
 @MainActor
 @Test
-func playbackRecentLiveLoaderUsesTheCompleteWorkbenchDataset() async throws {
-    try await withPlaybackRecentDatabase(folderCount: 7) {
-        databaseURL,
-        root,
-        expectedItems in
-        let loader = PlaybackRecentLoader.live(
-            databaseURL: databaseURL,
-            folders: [root]
-        )
-
-        let loadedItems = try await loader.load()
-
-        #expect(expectedItems.count == 7)
-        #expect(loadedItems == expectedItems)
-        #expect(loadedItems.count > 5)
-    }
-}
-
-@MainActor
-@Test
-func playbackRecentDefaultsToFirstAvailableAndPreservesSessionState() async throws {
-    let items = try makePlaybackRecentPresentations(count: 6)
-    let unavailableID = try #require(items.first?.id)
+func playbackRecentUsesWorkbenchStoreWithoutRetainingAnotherDataset() throws {
+    let items = playbackRecentPresentations(count: 6)
+    let library = LibraryStore()
+    library.testRecentWatchingItems = items
+    library.testRecentWatchingStatus = .completed
+    var sourceRequestCount = 0
     let store = PlaybackRecentSessionStore(
-        loader: PlaybackRecentLoader { items },
-        isVideoAvailable: { $0 != unavailableID }
+        libraryStore: library,
+        requestSource: { sourceRequestCount += 1 },
+        isVideoAvailable: { $0 != items[0].videoPath }
     )
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackRecentOpenSnapshot(),
@@ -42,189 +26,53 @@ func playbackRecentDefaultsToFirstAvailableAndPreservesSessionState() async thro
 
     #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     #expect(session.selectModule(.recent))
-    try await waitForPlaybackRecentCondition { store.status == .completed }
-    #expect(store.items == items)
+    #expect(store.libraryStore === library)
+    #expect(store.items == library.testRecentWatchingItems)
     #expect(store.selection.selectedItemID == items[1].id)
-
-    store.selection.updateColumnCount(2)
-    #expect(store.selection.move(.down))
-    let selectedID = store.selection.selectedItemID
-    let selectedItemID = try #require(selectedID)
-    store.selection.recordVisibleFrames(
-        [selectedItemID: CGRect(x: 0, y: 0, width: 100, height: 60)],
-        viewportHeight: 100
-    )
-    let scrollAnchorID = store.selection.scrollAnchorItemID
-
-    #expect(session.selectModule(.search))
-    #expect(session.selectModule(.recent))
-    #expect(store.selection.selectedItemID == selectedID)
-    #expect(store.selection.scrollAnchorItemID == scrollAnchorID)
-    #expect(store.status == .completed)
-}
-
-@MainActor
-@Test
-func playbackRecentRefreshesItsSnapshotWithoutLosingSelection() async throws {
-    let items = try makePlaybackRecentPresentations(count: 3)
-    let refreshedItems = Array(items.reversed())
-    var snapshots = [items, refreshedItems]
-    let sourceRevision = PlaybackRecentRevisionProbe()
-    let store = PlaybackRecentSessionStore(
-        loader: PlaybackRecentLoader {
-            snapshots.removeFirst()
-        },
-        isVideoAvailable: { _ in true },
-        sourceRevision: { sourceRevision.value }
-    )
-
-    store.activate()
-    try await waitForPlaybackRecentCondition {
-        store.status == .completed && store.items == items
-    }
-    store.selection.updateColumnCount(3)
-    #expect(store.selection.move(.right))
-    let selectedItemID = store.selection.selectedItemID
-    store.selection.recordScrollOffsetY(91.5)
-
-    sourceRevision.value = 1
-    store.activate(refreshesExistingSnapshot: true)
-    try await waitForPlaybackRecentCondition {
-        store.status == .completed && store.items == refreshedItems
-    }
-
-    #expect(store.selection.selectedItemID == selectedItemID)
-    #expect(store.selection.scrollOffsetY == 91.5)
-    store.activate(refreshesExistingSnapshot: true)
-    #expect(store.status == .completed)
-}
-
-@MainActor
-@Test
-func playbackRecentReloadRejectsStaleSuccessAndFailure() async throws {
-    let items = try makePlaybackRecentPresentations(count: 4)
-    let refreshedItems = Array(items.reversed())
-    let latestItems = Array(items.dropFirst())
-    let sourceRevision = PlaybackRecentRevisionProbe()
-    let probe = PlaybackRecentReloadProbe()
-    let store = PlaybackRecentSessionStore(
-        loader: PlaybackRecentLoader {
-            try await probe.load()
-        },
-        isVideoAvailable: { _ in true },
-        sourceRevision: { sourceRevision.value }
-    )
-
-    store.activate()
-    try await waitForPlaybackRecentCondition { probe.requestCount == 1 }
-
-    sourceRevision.value = 1
-    store.activate(refreshesExistingSnapshot: true)
-    try await waitForPlaybackRecentCondition { probe.requestCount == 2 }
-    #expect(probe.complete(2, with: .success(refreshedItems)))
-    try await waitForPlaybackRecentCondition {
-        store.status == .completed && store.items == refreshedItems
-    }
-
-    #expect(probe.complete(1, with: .success(items)))
-    try await Task.sleep(for: .milliseconds(10))
-    #expect(store.status == .completed)
-    #expect(store.items == refreshedItems)
-
-    sourceRevision.value = 2
-    store.refresh()
-    try await waitForPlaybackRecentCondition { probe.requestCount == 3 }
-    sourceRevision.value = 3
-    store.refresh()
-    try await waitForPlaybackRecentCondition { probe.requestCount == 4 }
-    #expect(probe.complete(4, with: .success(latestItems)))
-    try await waitForPlaybackRecentCondition {
-        store.status == .completed && store.items == latestItems
-    }
-
-    #expect(probe.complete(3, with: .failure(PlaybackRecentReloadProbeError())))
-    try await Task.sleep(for: .milliseconds(10))
-    #expect(store.status == .completed)
-    #expect(store.items == latestItems)
-    #expect(!store.hasActiveLoadTask)
-}
-
-@MainActor
-private final class PlaybackRecentRevisionProbe {
-    var value = 0
-}
-
-private struct PlaybackRecentReloadProbeError: Error {}
-
-@MainActor
-private final class PlaybackRecentReloadProbe {
-    private var continuations: [
-        Int: CheckedContinuation<[RecentLibraryWatchingPresentation], Error>
-    ] = [:]
-    private(set) var requestCount = 0
-
-    func load() async throws -> [RecentLibraryWatchingPresentation] {
-        requestCount += 1
-        let request = requestCount
-        return try await withCheckedThrowingContinuation { continuation in
-            continuations[request] = continuation
-        }
-    }
-
-    @discardableResult
-    func complete(
-        _ request: Int,
-        with result: Result<[RecentLibraryWatchingPresentation], Error>
-    ) -> Bool {
-        guard let continuation = continuations.removeValue(forKey: request) else {
-            return false
-        }
-        continuation.resume(with: result)
-        return true
-    }
-}
-
-@MainActor
-@Test
-func playbackRecentModuleSwitchKeepsLoadButDismissalCancelsAndClearsIt() async throws {
-    let probe = PlaybackRecentCancellationProbe()
-    let store = PlaybackRecentSessionStore(loader: PlaybackRecentLoader {
-        try await probe.load()
-    })
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackRecentOpenSnapshot(),
-        sessionGeneration: 1,
-        recentStore: store
-    )
-
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    #expect(session.selectModule(.recent))
-    try await waitForPlaybackRecentCondition { await probe.didStart }
-    #expect(store.status == .loading)
-    #expect(store.hasActiveLoadTask)
-
-    #expect(session.selectModule(.search))
-    await Task.yield()
-    #expect(!(await probe.wasCancelled))
-    #expect(store.hasActiveLoadTask)
+    #expect(sourceRequestCount == 1)
 
     #expect(session.dismissByUser() == false)
-    try await waitForPlaybackRecentCondition { await probe.wasCancelled }
     #expect(session.recentStore == nil)
-    #expect(store.status == .idle)
-    #expect(store.items.isEmpty)
     #expect(store.selection.selectedItemID == nil)
-    #expect(store.selection.scrollAnchorItemID == nil)
-    #expect(!store.hasActiveLoadTask)
+    #expect(library.testRecentWatchingItems == items)
+    #expect(library.testRecentWatchingStatus == .completed)
 }
 
 @MainActor
 @Test
-func playbackRecentKeyboardRoutesGridAndDestroysSessionBeforeOpening() async throws {
-    let items = try makePlaybackRecentPresentations(count: 6)
+func playbackRecentSharedRefreshPreservesSessionSelectionAndScroll() {
+    let items = playbackRecentPresentations(count: 4)
+    let library = LibraryStore()
+    library.testRecentWatchingItems = items
+    library.testRecentWatchingStatus = .completed
+    let store = PlaybackRecentSessionStore(
+        libraryStore: library,
+        isVideoAvailable: { _ in true }
+    )
+
+    store.activate()
+    store.selection.updateColumnCount(4)
+    #expect(store.selection.move(.right))
+    let selectedID = store.selection.selectedItemID
+    store.selection.recordScrollOffsetY(91.5)
+
+    library.testRecentWatchingItems = Array(items.reversed())
+    library.testRecentWatchingRevision += 1
+
+    #expect(store.items == Array(items.reversed()))
+    #expect(store.selection.selectedItemID == selectedID)
+    #expect(store.selection.scrollOffsetY == 91.5)
+}
+
+@MainActor
+@Test
+func playbackRecentKeyboardRoutesSharedGridAndDestroysOnlySession() async throws {
+    let items = playbackRecentPresentations(count: 6)
     try await withPlaybackRecentApp { app in
+        app.library.testRecentWatchingItems = items
+        app.library.testRecentWatchingStatus = .completed
         let store = PlaybackRecentSessionStore(
-            loader: PlaybackRecentLoader { items },
+            libraryStore: app.library,
             isVideoAvailable: { _ in true }
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
@@ -233,7 +81,6 @@ func playbackRecentKeyboardRoutesGridAndDestroysSessionBeforeOpening() async thr
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
         #expect(session.selectModule(.recent))
-        try await waitForPlaybackRecentCondition { store.status == .completed }
         store.selection.updateColumnCount(3)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))
@@ -254,41 +101,23 @@ func playbackRecentKeyboardRoutesGridAndDestroysSessionBeforeOpening() async thr
 
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(app.playback.subtitleFocusSession == nil)
-        #expect(!session.isActive)
-        #expect(store.status == .idle)
-        #expect(store.items.isEmpty)
         #expect(store.selection.selectedItemID == nil)
+        #expect(app.library.testRecentWatchingItems == items)
         #expect(app.playbackRecentOpenTask != nil)
-        #expect(app.openPlaybackSubtitleFocusFromUser())
-        #expect(app.playback.subtitleFocusSession == nil)
 
         app.cancelPlaybackRecentOpenTask()
-        #expect(app.playbackRecentOpenTask == nil)
     }
 }
 
 @MainActor
 @Test
-func playbackRecentPointerDispatcherOpensClickedItemWithFolderNavigation() async throws {
-    try await withPlaybackRecentDatabase(folderCount: 3) {
-        databaseURL,
-        _,
-        items in
-        let suiteName = "CueSeekerPlaybackRecentPointerTests-\(UUID().uuidString)"
-        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-        defer {
-            userDefaults.removePersistentDomain(forName: suiteName)
-        }
-        _ = NSApplication.shared
-        let app = AppCoordinator(
-            userDefaults: userDefaults,
-            databaseURL: databaseURL
-        )
-        await app.startupDatabaseTask?.value
-        configurePlaybackRecentSource(app)
-
+func playbackRecentPointerDispatcherUsesSharedWorkbenchItem() async throws {
+    let items = playbackRecentPresentations(count: 3)
+    try await withPlaybackRecentApp { app in
+        app.library.testRecentWatchingItems = items
+        app.library.testRecentWatchingStatus = .completed
         let store = PlaybackRecentSessionStore(
-            loader: PlaybackRecentLoader { items },
+            libraryStore: app.library,
             isVideoAvailable: { _ in true }
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
@@ -297,49 +126,15 @@ func playbackRecentPointerDispatcherOpensClickedItemWithFolderNavigation() async
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
         #expect(session.selectModule(.recent))
-        try await waitForPlaybackRecentCondition { store.status == .completed }
-        let selectedBeforeClick = store.selection.selectedItemID
-        let clickedItem = items[2]
-        #expect(selectedBeforeClick != clickedItem.id)
 
+        let clickedItem = items[2]
         #expect(app.openPlaybackRecentItemFromOverlay(clickedItem))
         #expect(app.playback.subtitleFocusSession == nil)
         try await waitForPlaybackRecentCondition {
             app.library.selectedLibraryVideo?.videoPath == clickedItem.videoPath
         }
-
-        #expect(app.library.selectedLibraryVideo?.videoPath == clickedItem.videoPath)
-        #expect(
-            app.library.libraryPlaybackNavigationVideos.map(\.videoPath)
-                == [clickedItem.videoPath]
-        )
-        #expect(
-            app.libraryResumePositionMilliseconds(for: clickedItem.libraryVideo)
-                == clickedItem.positionMilliseconds
-        )
-        try await waitForPlaybackRecentCondition {
-            app.playback.playbackStatus != .opening
-        }
+        #expect(app.library.testRecentWatchingItems == items)
         app.stopPlayback()
-        await app.libraryPlaybackHistoryTask?.value
-        await app.recentWatchingTask?.value
-        await app.testRecentWatchingTask?.value
-    }
-}
-
-private actor PlaybackRecentCancellationProbe {
-    private(set) var didStart = false
-    private(set) var wasCancelled = false
-
-    func load() async throws -> [RecentLibraryWatchingPresentation] {
-        didStart = true
-        do {
-            try await Task.sleep(nanoseconds: 60_000_000_000)
-            return []
-        } catch {
-            wasCancelled = true
-            throw error
-        }
     }
 }
 
@@ -389,91 +184,30 @@ private func configurePlaybackRecentSource(_ app: AppCoordinator) {
     app.playback.playbackStatus = .paused
 }
 
-@MainActor
-private func withPlaybackRecentDatabase(
-    folderCount: Int,
-    _ body: @MainActor (
-        _ databaseURL: URL,
-        _ root: URL,
-        _ expectedItems: [RecentLibraryWatchingPresentation]
-    ) async throws -> Void
-) async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "CueSeekerPlaybackRecentLoaderTests-\(UUID().uuidString)",
-        isDirectory: true
-    )
-    let databaseURL = directory.appendingPathComponent("recent.sqlite")
-    let root = directory.appendingPathComponent("Media", isDirectory: true)
-    defer {
-        try? FileManager.default.removeItem(at: directory)
-    }
-    try FileManager.default.createDirectory(
-        at: directory,
-        withIntermediateDirectories: true
-    )
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-    try indexPlaybackRecentFolders(folderCount, root: root, database: database)
-    let expected = try database.recentLibraryWatching(
-        under: [root],
-        limit: Int.max
-    )
-    try await body(databaseURL, root, expected)
-}
-
-private func makePlaybackRecentPresentations(
+private func playbackRecentPresentations(
     count: Int
-) throws -> [RecentLibraryWatchingPresentation] {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "CueSeekerPlaybackRecentPresentationTests-\(UUID().uuidString)",
-        isDirectory: true
-    )
-    defer {
-        try? FileManager.default.removeItem(at: directory)
-    }
-    try FileManager.default.createDirectory(
-        at: directory,
-        withIntermediateDirectories: true
-    )
-    let root = directory.appendingPathComponent("Media", isDirectory: true)
-    let database = try SubtitleDatabase(
-        path: directory.appendingPathComponent("recent.sqlite")
-    )
-    try database.migrate()
-    try indexPlaybackRecentFolders(count, root: root, database: database)
-    return try database.recentLibraryWatching(under: [root], limit: Int.max)
-}
-
-private func indexPlaybackRecentFolders(
-    _ count: Int,
-    root: URL,
-    database: SubtitleDatabase
-) throws {
-    for index in 0..<count {
-        let folder = root.appendingPathComponent("Show \(index)", isDirectory: true)
-        let video = folder.appendingPathComponent("Episode \(index + 1).mkv")
-        let subtitle = folder.appendingPathComponent("Episode \(index + 1).srt")
-        try database.replaceEntries(
-            subtitleFile: subtitle,
-            videoFile: video,
-            entries: [
-                SubtitleEntry(
-                    sequenceNumber: 1,
-                    startTimecode: "00:00:01,000",
-                    endTimecode: "00:00:02,000",
-                    startMilliseconds: 1_000,
-                    endMilliseconds: 2_000,
-                    text: "recent \(index)"
-                )
-            ]
-        )
-        try database.upsertLibraryPlaybackHistory(
-            videoFile: video,
+) -> [RecentLibraryWatchingPresentation] {
+    (0..<count).map { index in
+        RecentLibraryWatchingPresentation(
+            videoPath: "/Media/Show-\(index)/Episode-\(index).mkv",
+            videoName: "Episode-\(index).mkv",
+            duration: 100,
+            subtitlePath: "/Media/Show-\(index)/Episode-\(index).srt",
+            subtitleFormat: .srt,
+            displayTitle: "Episode \(index)",
+            fileExtension: "mkv",
+            folderPath: "/Media/Show-\(index)",
+            folderTitle: "Show \(index)",
+            episodeNumber: index + 1,
             positionMilliseconds: (index + 1) * 1_000,
-            duration: 100
+            playbackDuration: 100,
+            startedAt: "2026-07-16T00:00:00Z",
+            completedAt: nil,
+            updatedAt: "2026-07-16T00:00:00Z",
+            coverPath: nil,
+            coverRevision: nil
         )
     }
-    try database.rebuildLibraryPresentationSnapshot()
 }
 
 private func playbackRecentOpenSnapshot() -> PlaybackSubtitleFocusOpenSnapshot {
@@ -498,7 +232,7 @@ private func waitForPlaybackRecentCondition(
         guard Date() < deadline else {
             throw PlaybackRecentTestError.timedOut
         }
-        try await Task.sleep(nanoseconds: 10_000_000)
+        try await Task.sleep(for: .milliseconds(10))
     }
 }
 

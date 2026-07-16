@@ -1,5 +1,5 @@
 import AppKit
-import CueSeekerCore
+@testable import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
 import Testing
@@ -7,498 +7,294 @@ import Testing
 
 @MainActor
 @Test
-func playbackLibraryLiveLoaderMatchesWorkbenchSummaryAndDetailOrder() async throws {
-    try await withPlaybackLibraryFixture(folderEpisodeCounts: [2, 3]) { fixture in
-        let loader = PlaybackLibraryLoader.live(
-            databaseURL: fixture.databaseURL,
-            folders: [fixture.root]
-        )
+func playbackLibraryUsesWorkbenchStoreAndKeepsHierarchySessionLocal() throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [2, 3])
+    let library = playbackLibraryStore(fixture)
+    let store = PlaybackLibrarySessionStore(
+        libraryStore: library,
+        isVideoAvailable: { _ in true }
+    )
 
-        let folders = try await loader.loadFolders()
-        #expect(folders == fixture.folders)
-        #expect(folders.map(\.episodeCount) == [2, 3])
+    store.activate()
+    #expect(store.libraryStore === library)
+    #expect(store.folders == library.completeLibraryFolderSummaries)
+    #expect(store.folderSelection.selectedItemID == fixture.folders[0].id)
 
-        for folder in folders {
-            let detail = try await loader.loadFolderDetail(folder.folderPath)
-            #expect(detail == fixture.detailsByFolderPath[folder.folderPath])
-            #expect(detail?.videos.map(\.episodeNumber) == Array(1...folder.episodeCount))
-        }
-    }
+    store.folderSelection.updateColumnCount(2)
+    #expect(store.folderSelection.move(.right))
+    let selectedFolderID = try #require(store.folderSelection.selectedItemID)
+    store.folderSelection.recordScrollOffsetY(123.5)
+
+    #expect(store.enterFolder())
+    let firstEpisodeSelection = try #require(store.episodeSelection)
+    let detail = try #require(store.detail)
+    #expect(firstEpisodeSelection.selectedItemID == detail.videos[0].id)
+    #expect(firstEpisodeSelection.move(.down))
+    firstEpisodeSelection.recordScrollOffsetY(76.25)
+
+    #expect(store.returnToFolders())
+    #expect(store.level == .folders)
+    #expect(store.folderSelection.selectedItemID == selectedFolderID)
+    #expect(store.folderSelection.scrollOffsetY == 123.5)
+    #expect(store.episodeSelection == nil)
+
+    #expect(store.enterFolder())
+    let secondEpisodeSelection = try #require(store.episodeSelection)
+    #expect(secondEpisodeSelection !== firstEpisodeSelection)
+    #expect(secondEpisodeSelection.selectedItemID == detail.videos[0].id)
+    #expect(secondEpisodeSelection.scrollOffsetY == 0)
 }
 
 @MainActor
 @Test
-func playbackLibraryDefaultsEachLevelAndBackRestoresFolderState() async throws {
-    try await withPlaybackLibraryFixture(folderEpisodeCounts: [2, 3]) { fixture in
-        let store = makePlaybackLibraryStore(fixture)
-        store.activate()
-        try await waitForPlaybackLibraryCondition {
-            store.folderStatus == .completed
-        }
+func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData() throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
+    let library = playbackLibraryStore(fixture)
+    let store = PlaybackLibrarySessionStore(
+        libraryStore: library,
+        isVideoAvailable: { _ in true }
+    )
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: playbackLibraryOpenSnapshot(),
+        sessionGeneration: 1,
+        libraryStore: store
+    )
 
-        #expect(store.folderSelection.selectedItemID == fixture.folders[0].id)
-        store.folderSelection.updateColumnCount(2)
-        #expect(store.folderSelection.move(.right))
-        let selectedFolderID = try #require(store.folderSelection.selectedItemID)
-        #expect(selectedFolderID == fixture.folders[1].id)
-        store.folderSelection.recordScrollOffsetY(123.5)
+    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
+    #expect(session.selectModule(.library))
+    store.folderSelection.recordScrollOffsetY(44.5)
+    #expect(store.enterFolder())
+    let episodeSelection = try #require(store.episodeSelection)
+    #expect(episodeSelection.move(.down))
+    episodeSelection.recordScrollOffsetY(88.75)
+    let selectedEpisodeID = episodeSelection.selectedItemID
 
-        #expect(store.enterFolder())
-        try await waitForPlaybackLibraryCondition {
-            store.detailStatus == .completed
-        }
-        let firstEpisodeSelection = try #require(store.episodeSelection)
-        let detail = try #require(store.detail)
-        #expect(firstEpisodeSelection.selectedItemID == detail.videos[0].id)
-        #expect(firstEpisodeSelection.move(.down))
-        firstEpisodeSelection.recordScrollOffsetY(76.25)
+    #expect(session.selectModule(.search))
+    #expect(session.selectModule(.library))
+    #expect(store.level != .folders)
+    #expect(store.folderSelection.scrollOffsetY == 44.5)
+    #expect(store.episodeSelection?.selectedItemID == selectedEpisodeID)
+    #expect(store.episodeSelection?.scrollOffsetY == 88.75)
 
-        #expect(store.returnToFolders())
-        #expect(store.level == .folders)
-        #expect(store.folderSelection.selectedItemID == selectedFolderID)
-        #expect(store.folderSelection.scrollOffsetY == 123.5)
-        #expect(store.detail == nil)
-        #expect(store.detailStatus == .idle)
-        #expect(store.episodeSelection == nil)
-
-        #expect(store.enterFolder())
-        try await waitForPlaybackLibraryCondition {
-            store.detailStatus == .completed
-        }
-        let secondEpisodeSelection = try #require(store.episodeSelection)
-        #expect(secondEpisodeSelection !== firstEpisodeSelection)
-        #expect(secondEpisodeSelection.selectedItemID == store.detail?.videos[0].id)
-        #expect(secondEpisodeSelection.scrollOffsetY == 0)
-    }
+    #expect(session.dismissByUser() == false)
+    #expect(session.libraryStore == nil)
+    #expect(store.level == .folders)
+    #expect(store.folderSelection.selectedItemID == nil)
+    #expect(store.episodeSelection == nil)
+    #expect(library.completeLibraryFolderSummaries == fixture.folders)
+    #expect(library.completeLibraryFolderDetailsByPath == fixture.detailsByFolderPath)
 }
 
 @MainActor
 @Test
-func playbackLibraryModuleSwitchPreservesHierarchyAndDismissalClearsIt() async throws {
-    try await withPlaybackLibraryFixture(folderEpisodeCounts: [3]) { fixture in
-        let probe = PlaybackLibraryImmediateLoadProbe(fixture: fixture)
-        let revision = PlaybackLibraryRevisionProbe()
-        let libraryStore = PlaybackLibrarySessionStore(
-            loader: probe.loader,
-            isVideoAvailable: { _ in true },
-            sourceRevision: { revision.value }
-        )
-        let session = PlaybackSubtitleFocusSessionStore(
-            openSnapshot: playbackLibraryOpenSnapshot(),
-            sessionGeneration: 1,
-            libraryStore: libraryStore
-        )
+func playbackLibrarySharedDetailRefreshPreservesEpisodeSelection() throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
+    let library = playbackLibraryStore(fixture)
+    let store = PlaybackLibrarySessionStore(
+        libraryStore: library,
+        isVideoAvailable: { _ in true }
+    )
+    store.activate()
+    #expect(store.enterFolder())
+    let selection = try #require(store.episodeSelection)
+    #expect(selection.move(.down))
+    let selectedID = selection.selectedItemID
+    selection.recordScrollOffsetY(88.75)
+    let folderPath = fixture.folders[0].folderPath
+    let detail = try #require(fixture.detailsByFolderPath[folderPath])
 
-        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-        #expect(session.selectModule(.library))
-        try await waitForPlaybackLibraryCondition {
-            libraryStore.folderStatus == .completed
-        }
-        libraryStore.folderSelection.recordScrollOffsetY(44.5)
-        #expect(libraryStore.enterFolder())
-        try await waitForPlaybackLibraryCondition {
-            libraryStore.detailStatus == .completed
-        }
-        let episodeSelection = try #require(libraryStore.episodeSelection)
-        #expect(episodeSelection.move(.down))
-        episodeSelection.recordScrollOffsetY(88.75)
-        let selectedEpisodeID = episodeSelection.selectedItemID
+    library.completeLibraryFolderDetailsByPath = [:]
+    library.completeLibraryFolderDetailStatusesByPath[folderPath] = .loading
+    library.completeLibraryFolderDetailsByPath[folderPath] = detail
+    library.completeLibraryFolderDetailStatusesByPath[folderPath] = .completed
 
-        revision.value = PlaybackLibrarySourceRevision(
-            folders: 0,
-            playbackHistory: 1
-        )
-        libraryStore.refreshForSourceRevision()
-        try await waitForPlaybackLibraryCondition {
-            libraryStore.detailStatus == .completed
-                && probe.detailLoadCount == 2
-        }
-        #expect(libraryStore.episodeSelection?.selectedItemID == selectedEpisodeID)
-        #expect(libraryStore.episodeSelection?.scrollOffsetY == 88.75)
-
-        #expect(session.selectModule(.search))
-        #expect(session.selectModule(.library))
-        #expect(probe.folderLoadCount == 1)
-        #expect(probe.detailLoadCount == 2)
-        #expect(libraryStore.level != .folders)
-        #expect(libraryStore.folderSelection.scrollOffsetY == 44.5)
-        #expect(libraryStore.episodeSelection?.selectedItemID == selectedEpisodeID)
-        #expect(libraryStore.episodeSelection?.scrollOffsetY == 88.75)
-
-        #expect(session.dismissByUser() == false)
-        #expect(session.libraryStore == nil)
-        #expect(libraryStore.folderStatus == .idle)
-        #expect(libraryStore.folders.isEmpty)
-        #expect(libraryStore.folderSelection.selectedItemID == nil)
-        #expect(libraryStore.folderSelection.scrollOffsetY == 0)
-        #expect(libraryStore.detail == nil)
-        #expect(libraryStore.episodeSelection == nil)
-        #expect(!libraryStore.hasActiveFolderLoadTask)
-        #expect(!libraryStore.hasActiveDetailLoadTask)
-    }
+    #expect(store.detail == library.completeLibraryFolderDetailsByPath[folderPath])
+    #expect(store.episodeSelection?.selectedItemID == selectedID)
+    #expect(store.episodeSelection?.scrollOffsetY == 88.75)
 }
 
 @MainActor
 @Test
-func playbackLibraryRejectsStaleDetailSuccessFailureAndDismissal() async throws {
-    try await withPlaybackLibraryFixture(folderEpisodeCounts: [2, 2]) { fixture in
-        let probe = PlaybackLibraryDetailLoadProbe(fixture: fixture)
+func playbackLibraryKeyboardRoutesBothSharedLevels() async throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
+    try await withPlaybackLibraryApp { app in
+        let library = playbackLibraryStore(fixture)
         let store = PlaybackLibrarySessionStore(
-            loader: probe.loader,
+            libraryStore: library,
             isVideoAvailable: { _ in true }
         )
-        store.activate()
-        try await waitForPlaybackLibraryCondition {
-            store.folderStatus == .completed
-        }
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: playbackLibraryOpenSnapshot(),
+            libraryStore: store
+        ))
+        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
+        #expect(session.selectModule(.library))
 
-        let firstFolder = fixture.folders[0]
-        let secondFolder = fixture.folders[1]
-        #expect(store.enterFolder(itemID: firstFolder.id))
-        try await waitForPlaybackLibraryCondition { probe.detailRequestCount == 1 }
-        #expect(store.returnToFolders())
-        #expect(store.enterFolder(itemID: secondFolder.id))
-        try await waitForPlaybackLibraryCondition { probe.detailRequestCount == 2 }
-        #expect(probe.completeDetailRequest(
-            2,
-            with: .success(fixture.detailsByFolderPath[secondFolder.folderPath])
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: 0,
+            isRepeat: true
         ))
-        try await waitForPlaybackLibraryCondition {
-            store.detailStatus == .completed
-        }
-        #expect(store.folderSelection.selectedItemID == firstFolder.id)
-        #expect(probe.completeDetailRequest(
-            1,
-            with: .success(fixture.detailsByFolderPath[firstFolder.folderPath])
-        ))
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(store.detail?.folderPath == secondFolder.folderPath)
-        #expect(store.folderSelection.selectedItemID == firstFolder.id)
-
-        #expect(store.returnToFolders())
-        #expect(store.enterFolder(itemID: firstFolder.id))
-        try await waitForPlaybackLibraryCondition { probe.detailRequestCount == 3 }
-        #expect(store.returnToFolders())
-        #expect(store.enterFolder(itemID: secondFolder.id))
-        try await waitForPlaybackLibraryCondition { probe.detailRequestCount == 4 }
-        #expect(probe.completeDetailRequest(
-            4,
-            with: .success(fixture.detailsByFolderPath[secondFolder.folderPath])
-        ))
-        try await waitForPlaybackLibraryCondition {
-            store.detailStatus == .completed
-        }
-        #expect(probe.completeDetailRequest(
-            3,
-            with: .failure(PlaybackLibraryProbeError())
-        ))
-        try await Task.sleep(for: .milliseconds(10))
-        #expect(store.detail?.folderPath == secondFolder.folderPath)
-        #expect(store.detailStatus == .completed)
-
-        #expect(store.returnToFolders())
-        #expect(store.enterFolder(itemID: firstFolder.id))
-        try await waitForPlaybackLibraryCondition { probe.detailRequestCount == 5 }
-        store.invalidate()
-        #expect(probe.completeDetailRequest(
-            5,
-            with: .success(fixture.detailsByFolderPath[firstFolder.folderPath])
-        ))
-        try await Task.sleep(for: .milliseconds(10))
         #expect(store.level == .folders)
-        #expect(store.detail == nil)
-        #expect(store.episodeSelection == nil)
-        #expect(store.folderStatus == .idle)
-        #expect(store.folders.isEmpty)
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(store.level != .folders)
+
+        let episodeSelection = try #require(store.episodeSelection)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(episodeSelection.selectedItemID == store.detail?.videos[1].id)
+        let selectedEpisodeID = episodeSelection.selectedItemID
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 125,
+            modifierFlagsRawValue: NSEvent.ModifierFlags.command.rawValue
+        ))
+        #expect(episodeSelection.selectedItemID == selectedEpisodeID)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: 0,
+            isRepeat: true
+        ))
+        #expect(app.playback.subtitleFocusSession === session)
     }
 }
 
 @MainActor
 @Test
-func playbackLibraryKeyboardRoutesBothLevelsAndConsumesRepeat() async throws {
-    try await withPlaybackLibraryFixture(folderEpisodeCounts: [3]) { fixture in
-        try await withPlaybackLibraryApp(databaseURL: fixture.databaseURL) { app in
-            let libraryStore = makePlaybackLibraryStore(fixture)
-            let session = try #require(app.playback.beginSubtitleFocusSession(
-                openSnapshot: playbackLibraryOpenSnapshot(),
-                libraryStore: libraryStore
-            ))
-            #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-            #expect(session.selectModule(.library))
-            try await waitForPlaybackLibraryCondition {
-                libraryStore.folderStatus == .completed
-            }
+func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [3, 2])
+    try await withPlaybackLibraryApp { app in
+        let library = playbackLibraryStore(fixture)
+        let store = PlaybackLibrarySessionStore(
+            libraryStore: library,
+            isVideoAvailable: { _ in true }
+        )
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: playbackLibraryOpenSnapshot(),
+            libraryStore: store
+        ))
+        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
+        #expect(session.selectModule(.library))
+        let folder = fixture.folders[0]
+        #expect(store.enterFolder(itemID: folder.id))
+        let detail = try #require(store.detail)
+        let clickedVideo = detail.videos[1]
 
-            #expect(app.handlePlaybackKeyDown(
-                keyCode: 36,
-                modifierFlagsRawValue: 0,
-                isRepeat: true
-            ))
-            #expect(libraryStore.level == .folders)
-            #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
-            try await waitForPlaybackLibraryCondition {
-                libraryStore.detailStatus == .completed
-            }
-            #expect(app.playback.subtitleFocusSession === session)
-
-            let episodeSelection = try #require(libraryStore.episodeSelection)
-            #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
-            #expect(episodeSelection.selectedItemID == libraryStore.detail?.videos[1].id)
-            let selectedEpisodeID = episodeSelection.selectedItemID
-            #expect(!app.handlePlaybackKeyDown(
-                keyCode: 125,
-                modifierFlagsRawValue: NSEvent.ModifierFlags.command.rawValue
-            ))
-            #expect(episodeSelection.selectedItemID == selectedEpisodeID)
-
-            #expect(app.handlePlaybackKeyDown(
-                keyCode: 36,
-                modifierFlagsRawValue: 0,
-                isRepeat: true
-            ))
-            #expect(app.playback.subtitleFocusSession === session)
-            #expect(libraryStore.detail != nil)
-        }
-    }
-}
-
-@MainActor
-@Test
-func playbackLibraryExplicitEpisodeOpenUsesCurrentFolderNavigation() async throws {
-    try await withPlaybackLibraryFixture(folderEpisodeCounts: [3, 2]) { fixture in
-        try await withPlaybackLibraryApp(databaseURL: fixture.databaseURL) { app in
-            let libraryStore = makePlaybackLibraryStore(fixture)
-            let session = try #require(app.playback.beginSubtitleFocusSession(
-                openSnapshot: playbackLibraryOpenSnapshot(),
-                libraryStore: libraryStore
-            ))
-            #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-            #expect(session.selectModule(.library))
-            try await waitForPlaybackLibraryCondition {
-                libraryStore.folderStatus == .completed
-            }
-            let folder = fixture.folders[0]
-            #expect(libraryStore.enterFolder(itemID: folder.id))
-            try await waitForPlaybackLibraryCondition {
-                libraryStore.detailStatus == .completed
-            }
-            let detail = try #require(libraryStore.detail)
-            let clickedVideo = detail.videos[1]
-            #expect(libraryStore.episodeSelection?.selectedItemID != clickedVideo.id)
-
-            #expect(app.openPlaybackLibraryEpisodeFromOverlay(clickedVideo))
-            #expect(app.playback.subtitleFocusSession == nil)
-            #expect(!session.isActive)
-            #expect(app.library.selectedLibraryVideo?.videoPath == clickedVideo.videoPath)
-            #expect(
-                app.library.libraryPlaybackNavigationVideos.map(\.videoPath)
-                    == detail.videos.map(\.videoPath)
-            )
-            #expect(
-                app.libraryResumePositionMilliseconds(for: clickedVideo.libraryVideo)
-                    == clickedVideo.positionMilliseconds
-            )
-            #expect(app.playback.chromeSnapshot.displayTitle == clickedVideo.displayTitle)
-            #expect(!app.openPlaybackLibraryEpisodeFromOverlay(clickedVideo))
-
-            try await waitForPlaybackLibraryCondition {
-                app.playback.playbackStatus != .opening
-            }
-            app.stopPlayback()
-            await app.libraryPlaybackHistoryTask?.value
-            await app.recentWatchingTask?.value
-            await app.testRecentWatchingTask?.value
-        }
+        #expect(app.openPlaybackLibraryEpisodeFromOverlay(clickedVideo))
+        #expect(app.playback.subtitleFocusSession == nil)
+        #expect(app.library.selectedLibraryVideo?.videoPath == clickedVideo.videoPath)
+        #expect(
+            app.library.libraryPlaybackNavigationVideos.map(\.videoPath)
+                == detail.videos.map(\.videoPath)
+        )
+        #expect(library.completeLibraryFolderDetailsByPath[folder.folderPath] == detail)
+        app.stopPlayback()
     }
 }
 
 private struct PlaybackLibraryFixture {
-    let databaseURL: URL
-    let root: URL
     let folders: [CompleteLibraryFolderSummaryPresentation]
     let detailsByFolderPath: [String: CompleteLibraryFolderDetailPresentation]
 }
 
-@MainActor
-private func withPlaybackLibraryFixture(
-    folderEpisodeCounts: [Int],
-    _ body: @MainActor (PlaybackLibraryFixture) async throws -> Void
-) async throws {
-    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "CueSeekerPlaybackLibraryTests-\(UUID().uuidString)",
-        isDirectory: true
-    )
-    let databaseURL = directory.appendingPathComponent("library.sqlite")
-    let root = directory.appendingPathComponent("Media", isDirectory: true)
-    defer {
-        try? FileManager.default.removeItem(at: directory)
-    }
-    try FileManager.default.createDirectory(
-        at: root,
-        withIntermediateDirectories: true
-    )
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-    for (folderIndex, episodeCount) in folderEpisodeCounts.enumerated() {
-        let folder = root.appendingPathComponent(
-            "Show \(folderIndex + 1)",
-            isDirectory: true
-        )
-        try FileManager.default.createDirectory(
-            at: folder,
-            withIntermediateDirectories: true
-        )
-        for episodeIndex in 0..<episodeCount {
-            let episodeNumber = episodeIndex + 1
-            let video = folder.appendingPathComponent("Episode \(episodeNumber).mkv")
-            let subtitle = folder.appendingPathComponent("Episode \(episodeNumber).srt")
-            try Data().write(to: video)
-            try Data("1\n00:00:01,000 --> 00:00:02,000\nLibrary\n".utf8)
-                .write(to: subtitle)
-            try database.replaceEntries(
-                subtitleFile: subtitle,
-                videoFile: video,
-                entries: [
-                    SubtitleEntry(
-                        sequenceNumber: 1,
-                        startTimecode: "00:00:01,000",
-                        endTimecode: "00:00:02,000",
-                        startMilliseconds: 1_000,
-                        endMilliseconds: 2_000,
-                        text: "library \(folderIndex) \(episodeIndex)"
-                    )
-                ]
-            )
-            try database.upsertLibraryPlaybackHistory(
-                videoFile: video,
-                positionMilliseconds: episodeNumber * 1_000,
-                duration: 100
-            )
-        }
-    }
-    try database.rebuildLibraryPresentationSnapshot()
-
-    let folders = try database.completeLibraryFolderSummaries(under: [root])
+private func playbackLibraryFixture(
+    folderEpisodeCounts: [Int]
+) -> PlaybackLibraryFixture {
+    var folders: [CompleteLibraryFolderSummaryPresentation] = []
     var detailsByFolderPath: [String: CompleteLibraryFolderDetailPresentation]
         = [:]
-    for folder in folders {
-        if let detail = try database.completeLibraryFolderDetail(
-            folderPath: folder.folderPath
-        ) {
-            detailsByFolderPath[folder.folderPath] = detail
+    for (folderIndex, episodeCount) in folderEpisodeCounts.enumerated() {
+        let folderPath = "/Media/Show-\(folderIndex)"
+        let folderTitle = "Show \(folderIndex)"
+        let folder = CompleteLibraryFolderSummaryPresentation(
+            folderPath: folderPath,
+            folderTitle: folderTitle,
+            coverPath: nil,
+            coverRevision: nil,
+            episodeCount: episodeCount
+        )
+        let videos = (0..<episodeCount).map { episodeIndex in
+            playbackLibraryVideo(
+                folderIndex: folderIndex,
+                episodeIndex: episodeIndex
+            )
         }
+        folders.append(folder)
+        detailsByFolderPath[folderPath] = CompleteLibraryFolderDetailPresentation(
+            folderPath: folderPath,
+            folderTitle: folderTitle,
+            videos: videos
+        )
     }
-    try await body(PlaybackLibraryFixture(
-        databaseURL: databaseURL,
-        root: root,
+    return PlaybackLibraryFixture(
         folders: folders,
         detailsByFolderPath: detailsByFolderPath
-    ))
+    )
 }
 
-@MainActor
-private func makePlaybackLibraryStore(
-    _ fixture: PlaybackLibraryFixture
-) -> PlaybackLibrarySessionStore {
-    PlaybackLibrarySessionStore(
-        loader: PlaybackLibraryLoader(
-            loadFolders: { fixture.folders },
-            loadFolderDetail: { folderPath in
-                fixture.detailsByFolderPath[folderPath]
-            }
-        )
+private func playbackLibraryVideo(
+    folderIndex: Int,
+    episodeIndex: Int
+) -> CompleteLibraryVideoPresentation {
+    let episodeNumber = episodeIndex + 1
+    return CompleteLibraryVideoPresentation(
+        videoPath: "/Media/Show-\(folderIndex)/Episode-\(episodeNumber).mkv",
+        videoName: "Episode-\(episodeNumber).mkv",
+        fileSize: nil,
+        videoCodec: nil,
+        videoWidth: nil,
+        videoHeight: nil,
+        frameRate: nil,
+        duration: 100,
+        subtitlePath: "/Media/Show-\(folderIndex)/Episode-\(episodeNumber).srt",
+        subtitleFormat: .srt,
+        displayTitle: "Episode \(episodeNumber)",
+        fileExtension: "mkv",
+        episodeNumber: episodeNumber,
+        positionMilliseconds: episodeNumber * 1_000,
+        playbackDuration: 100,
+        startedAt: "2026-07-16T00:00:00Z",
+        completedAt: nil,
+        historyUpdatedAt: "2026-07-16T00:00:00Z",
+        coverPath: nil,
+        coverRevision: nil
     )
 }
 
 @MainActor
-private final class PlaybackLibraryImmediateLoadProbe {
-    private let fixture: PlaybackLibraryFixture
-    private(set) var folderLoadCount = 0
-    private(set) var detailLoadCount = 0
-
-    init(fixture: PlaybackLibraryFixture) {
-        self.fixture = fixture
-    }
-
-    var loader: PlaybackLibraryLoader {
-        PlaybackLibraryLoader(
-            loadFolders: { [weak self] in
-                guard let self else {
-                    return []
-                }
-                folderLoadCount += 1
-                return fixture.folders
-            },
-            loadFolderDetail: { [weak self] folderPath in
-                guard let self else {
-                    return nil
-                }
-                detailLoadCount += 1
-                return fixture.detailsByFolderPath[folderPath]
-            }
-        )
-    }
-}
-
-private struct PlaybackLibraryProbeError: Error {}
-
-@MainActor
-private final class PlaybackLibraryRevisionProbe {
-    var value = PlaybackLibrarySourceRevision(folders: 0, playbackHistory: 0)
-}
-
-@MainActor
-private final class PlaybackLibraryDetailLoadProbe {
-    private let fixture: PlaybackLibraryFixture
-    private var continuations: [
-        Int: CheckedContinuation<CompleteLibraryFolderDetailPresentation?, Error>
-    ] = [:]
-    private(set) var detailRequestCount = 0
-
-    init(fixture: PlaybackLibraryFixture) {
-        self.fixture = fixture
-    }
-
-    var loader: PlaybackLibraryLoader {
-        PlaybackLibraryLoader(
-            loadFolders: { [fixture] in fixture.folders },
-            loadFolderDetail: { [weak self] _ in
-                guard let self else {
-                    return nil
-                }
-                detailRequestCount += 1
-                let request = detailRequestCount
-                return try await withCheckedThrowingContinuation { continuation in
-                    continuations[request] = continuation
-                }
-            }
-        )
-    }
-
-    @discardableResult
-    func completeDetailRequest(
-        _ request: Int,
-        with result: Result<CompleteLibraryFolderDetailPresentation?, Error>
-    ) -> Bool {
-        guard let continuation = continuations.removeValue(forKey: request) else {
-            return false
+private func playbackLibraryStore(
+    _ fixture: PlaybackLibraryFixture
+) -> LibraryStore {
+    let library = LibraryStore()
+    library.completeLibraryStatus = .completed
+    library.completeLibraryFolderSummaries = fixture.folders
+    library.completeLibraryFolderDetailsByPath = fixture.detailsByFolderPath
+    library.completeLibraryFolderDetailStatusesByPath = Dictionary(
+        uniqueKeysWithValues: fixture.folders.map {
+            ($0.folderPath, LibraryStatus.completed)
         }
-        continuation.resume(with: result)
-        return true
-    }
+    )
+    return library
 }
 
 @MainActor
 private func withPlaybackLibraryApp(
-    databaseURL: URL,
     _ body: @MainActor (AppCoordinator) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerPlaybackLibraryAppTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "CueSeekerPlaybackLibraryAppTests-\(UUID().uuidString)",
+        isDirectory: true
+    )
+    let databaseURL = directory.appendingPathComponent("library.sqlite")
     defer {
         userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: directory)
     }
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     await app.startupDatabaseTask?.value
@@ -534,19 +330,4 @@ private func playbackLibraryOpenSnapshot() -> PlaybackSubtitleFocusOpenSnapshot 
         timestampMilliseconds: 1_500,
         wasPlaying: false
     )
-}
-
-@MainActor
-private func waitForPlaybackLibraryCondition(
-    _ condition: @escaping @MainActor () async -> Bool
-) async throws {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: .seconds(2))
-    while !(await condition()) {
-        guard clock.now < deadline else {
-            Issue.record("Timed out waiting for Playback Library condition")
-            return
-        }
-        try await Task.sleep(for: .milliseconds(5))
-    }
 }
