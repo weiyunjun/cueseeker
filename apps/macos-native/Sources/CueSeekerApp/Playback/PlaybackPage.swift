@@ -5,6 +5,7 @@ struct PlaybackPageView: View {
     @ObservedObject var appState: AppCoordinator
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
+    @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -22,6 +23,7 @@ struct PlaybackPageView: View {
                     playbackSurface: playbackSurface,
                     appState: appState,
                     fullscreenManager: appState.playbackFullscreenManager,
+                    chrome: chrome,
                     onClose: onClose
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
@@ -56,7 +58,11 @@ struct PlaybackPageView: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .environment(\.playbackPointerIsVisible, chrome.isPointerVisible)
         }
         .background(Color.black)
+        .onChange(of: playback.pointerHideRequestGeneration) { _ in
+            chrome.keyboardInputReceived()
+        }
     }
 }

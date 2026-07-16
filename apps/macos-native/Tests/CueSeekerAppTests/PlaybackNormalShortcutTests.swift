@@ -12,18 +12,45 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
         let viewModel = try #require(app.playback.playbackViewModel)
 
         #expect(viewModel.areSubtitlesVisible)
+        let initialPointerHideGeneration = app.playback.pointerHideRequestGeneration
         #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
+        #expect(
+            app.playback.pointerHideRequestGeneration
+                == initialPointerHideGeneration + 1
+        )
         #expect(!viewModel.areSubtitlesVisible)
         #expect(viewModel.feedback?.text == "Subtitles Off")
 
         let feedbackAfterQ = viewModel.feedback
         #expect(!app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
         #expect(!app.handlePlaybackKeyDown(keyCode: 8, modifierFlagsRawValue: 0))
+        #expect(
+            app.playback.pointerHideRequestGeneration
+                == initialPointerHideGeneration + 3
+        )
 
         #expect(!viewModel.areSubtitlesVisible)
         #expect(viewModel.feedback == feedbackAfterQ)
         #expect(try database.shioriCount() == 0)
     }
+}
+
+@MainActor
+@Test
+func playbackPointerStartsHiddenAndOnlyMovementRestoresIt() {
+    let model = PlaybackChromeVisibilityModel()
+    let view = NSView()
+
+    model.enterVideoPage()
+    #expect(!model.isPointerVisible)
+
+    model.pointerMovedInPlayerArea(view: view)
+    #expect(model.isPointerVisible)
+
+    model.keyboardInputReceived()
+    #expect(!model.isPointerVisible)
+
+    model.leaveVideoPage()
 }
 
 @MainActor

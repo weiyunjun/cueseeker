@@ -1,11 +1,23 @@
 import AppKit
 import SwiftUI
 
+private struct PlaybackPointerIsVisibleKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var playbackPointerIsVisible: Bool {
+        get { self[PlaybackPointerIsVisibleKey.self] }
+        set { self[PlaybackPointerIsVisibleKey.self] = newValue }
+    }
+}
+
 /// Single explicit Player-UI / cursor visibility state machine (v4).
 ///
-/// Authoritative spec: `docs/product/12_liquid_glass_ux_mapping.md` §10.4 and
-/// the proposal's "Player-UI / Cursor Visibility State Machine (v4)". This is
-/// the only owner of Player-UI visibility and the playback cursor.
+/// Authoritative specs: `docs/product/12_liquid_glass_ux_mapping.md` §10.4 and
+/// the Playback Pointer Visibility delta in the Shared Workbench Playback
+/// Feature Surfaces requirement. This is the only owner of Player-UI visibility
+/// and the playback cursor.
 ///
 /// v4 separates Player UI state from cursor state. The current player decides
 /// cursor visibility only while the cursor is governed by that player: the
@@ -14,6 +26,7 @@ import SwiftUI
 @MainActor
 final class PlaybackChromeVisibilityModel: ObservableObject {
     @Published private(set) var isPlayerUIVisible = true
+    @Published private(set) var isPointerVisible = false
 
     private enum VisibilityState {
         case visible
@@ -37,7 +50,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         startObservingFocus()
         startObservingPointerDraggedEvents()
         setPlayerUIState(.visible)
-        cursorState = .visible
+        setCursorState(.hidden)
         applyCursorOwnership()
         restartIdleTimer()
     }
@@ -57,7 +70,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         idleTask?.cancel()
         idleTask = nil
         setPlayerUIState(.hidden)
-        cursorState = .hidden
+        setCursorState(.hidden)
         applyCursorOwnership()
     }
 
@@ -93,6 +106,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private func handlePhysicalPointerMovement() {
+        setCursorState(.visible)
         guard isCursorGovernedByCurrentPlayer else {
             if playerHasFocus, !isCursorInPlayerArea(), playerUIState == .visible {
                 transitionPlayerUIToHidden()
@@ -101,7 +115,6 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
 
-        cursorState = .visible
         if playerUIState == .hidden {
             setPlayerUIState(.visible)
         }
@@ -116,6 +129,11 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         if playerUIState == .visible {
             transitionPlayerUIToHidden()
         }
+        applyCursorOwnership()
+    }
+
+    func keyboardInputReceived() {
+        setCursorState(.hidden)
         applyCursorOwnership()
     }
 
@@ -177,7 +195,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
         transitionPlayerUIToHidden()
-        cursorState = .hidden
+        setCursorState(.hidden)
         applyCursorOwnership()
     }
 
@@ -187,6 +205,11 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         }
         playerUIState = state
         isPlayerUIVisible = state == .visible
+    }
+
+    private func setCursorState(_ state: VisibilityState) {
+        cursorState = state
+        isPointerVisible = state == .visible
     }
 
     // MARK: - Cursor ownership

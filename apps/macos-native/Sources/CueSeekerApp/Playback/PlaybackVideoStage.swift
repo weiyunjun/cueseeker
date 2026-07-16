@@ -4,10 +4,10 @@ struct PlaybackVideoStage: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    @ObservedObject var chrome: PlaybackChromeVisibilityModel
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
-    @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
     var body: some View {
         GeometryReader { geometry in

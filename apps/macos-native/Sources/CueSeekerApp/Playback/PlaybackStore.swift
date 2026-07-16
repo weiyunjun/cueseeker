@@ -43,6 +43,7 @@ final class PlaybackStore: ObservableObject {
     @Published var isPlaybackSidePanelVisible = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
+    @Published private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 
     init(userDefaults _: UserDefaults) {}
@@ -133,5 +134,9 @@ final class PlaybackStore: ObservableObject {
 
     func clearChromeSnapshot() {
         setChromeSnapshot(.empty)
+    }
+
+    func requestPointerHide() {
+        pointerHideRequestGeneration &+= 1
     }
 }
