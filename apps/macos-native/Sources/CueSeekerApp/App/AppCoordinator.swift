@@ -291,7 +291,7 @@ final class AppCoordinator: ObservableObject {
 
         if let context = activePlaybackSearchPlaylistContext {
             let ordinal = context.selectedOrdinal
-            return ordinal > 0 && ordinal < context.source.boundary.totalCount
+            return ordinal > 0 && ordinal < search.searchResults.count
         }
 
         if let searchNavigationSnapshot = search.searchNavigationSnapshot {
@@ -308,7 +308,7 @@ final class AppCoordinator: ObservableObject {
 
         if let context = activePlaybackSearchPlaylistContext {
             let ordinal = context.selectedOrdinal
-            return ordinal + 1 < context.source.boundary.totalCount
+            return ordinal + 1 < search.searchResults.count
         }
 
         if let searchNavigationSnapshot = search.searchNavigationSnapshot {
@@ -418,7 +418,6 @@ final class AppCoordinator: ObservableObject {
     var searchTask: Task<Void, Never>?
     var searchExactCompletionTask: Task<Void, Never>?
     var searchNavigationTask: Task<Void, Never>?
-    var playbackSearchPlaylistNavigationTask: Task<Void, Never>?
     var playbackSubtitleCuesTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
@@ -517,8 +516,6 @@ final class AppCoordinator: ObservableObject {
                 guard let self else {
                     return
                 }
-                self.playbackSearchPlaylistNavigationTask?.cancel()
-                self.playbackSearchPlaylistNavigationTask = nil
                 guard let source,
                       case .shiori = source.origin
                 else {

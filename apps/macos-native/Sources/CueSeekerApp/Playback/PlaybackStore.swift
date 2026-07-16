@@ -60,7 +60,7 @@ final class PlaybackStore: ObservableObject {
     func beginSubtitleFocusSession(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
         availableModules: [PlaybackOverlayModule]? = nil,
-        searchStore: PlaybackSearchSessionStore? = nil,
+        searchStore: SearchStore? = nil,
         recentStore: PlaybackRecentSessionStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
         shioriSource: PlaybackCueResultSource? = nil
@@ -104,13 +104,13 @@ final class PlaybackStore: ObservableObject {
     ) {
         guard playlistSource !== source else {
             if let playbackSearchSelectedOrdinal,
-               case .playbackSearch = source.origin {
+               case .search = source.origin {
                 playbackSearchPlaylistOrdinal = playbackSearchSelectedOrdinal
             }
             return
         }
         playlistSource?.invalidate()
-        if case .playbackSearch = source.origin {
+        if case .search = source.origin {
             playbackSearchPlaylistOrdinal = playbackSearchSelectedOrdinal
         } else {
             playbackSearchPlaylistOrdinal = nil

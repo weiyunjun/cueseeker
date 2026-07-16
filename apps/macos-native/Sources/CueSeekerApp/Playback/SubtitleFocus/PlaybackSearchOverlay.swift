@@ -2,23 +2,23 @@ import SwiftUI
 
 struct PlaybackSearchOverlay: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
-    @ObservedObject var searchStore: PlaybackSearchSessionStore
+    @ObservedObject var searchStore: SearchStore
     let uiProbeScope: String?
+    let onActivateSearch: () -> Void
+    let onUpdateSearchQuery: (String) -> Void
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
     var body: some View {
         VStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             PlaybackSearchBox(
                 text: Binding(
-                    get: { searchStore.query },
-                    set: { newValue in
-                        searchStore.updateQuery(newValue)
-                    }
+                    get: { searchStore.searchQuery },
+                    set: { onUpdateSearchQuery($0) }
                 )
             )
             .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
 
-            if let window = searchStore.window {
+            if let window = session.searchWindow {
                 PlaybackCueResultOverlay(
                     session: session,
                     windowStore: window,
@@ -38,6 +38,7 @@ struct PlaybackSearchOverlay: View {
         .padding(.top, PlaybackSubtitleFocusMetrics.contentInset)
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
         .environment(\.colorScheme, .dark)
+        .onAppear(perform: onActivateSearch)
     }
 }
 

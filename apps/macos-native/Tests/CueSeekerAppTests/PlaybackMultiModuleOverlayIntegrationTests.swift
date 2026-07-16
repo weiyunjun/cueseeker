@@ -16,6 +16,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
             items: playlistItems
         )
         let searchStore = playbackMultiModuleSearchStore(fixture)
+        searchStore.searchResults = fixture.searchResults
         let recentStore = PlaybackRecentSessionStore(
             loader: PlaybackRecentLoader { fixture.recentItems },
             isVideoAvailable: { _ in true }
@@ -55,13 +56,12 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         #expect(playbackMultiModuleCommit(ordinal: 1, in: playlistWindow))
 
         #expect(session.selectModule(.search))
-        searchStore.updateQuery("overlay")
+        searchStore.searchQuery = "overlay"
         try await waitForPlaybackMultiModuleCondition {
-            searchStore.status == .completed
-                && searchStore.window?.snapshot.totalCount == 3
-                && searchStore.window?.snapshot.loadedItemCount == 3
+            session.searchWindow?.snapshot.totalCount == 3
+                && session.searchWindow?.snapshot.loadedItemCount == 3
         }
-        let searchWindow = try #require(searchStore.window)
+        let searchWindow = try #require(session.searchWindow)
         #expect(playbackMultiModuleCommit(ordinal: 1, in: searchWindow))
 
         #expect(session.selectModule(.recent))
@@ -112,9 +112,9 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         #expect(session.currentSnapshot?.selectedOrdinal == 2)
         #expect(playlistWindow.selectedOrdinal == 1)
         #expect(playlistWindow.retainedItemCount == playlistItems.count)
-        #expect(searchStore.query == "overlay")
+        #expect(searchStore.searchQuery == "overlay")
         #expect(searchWindow.selectedOrdinal == 1)
-        #expect(searchWindow.retainedItemCount == 3)
+        #expect(searchWindow.retainedItemCount == 0)
         #expect(recentStore.selection.selectedItemID == recentSelection)
         #expect(recentStore.selection.scrollOffsetY == 41.5)
         #expect(libraryStore.level != .folders)
@@ -135,9 +135,8 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         #expect(session.shioriWindow == nil)
         #expect(playlistWindow.retainedItemCount == 0)
         #expect(playlistWindow.selectedOrdinal == nil)
-        #expect(!searchStore.isSessionActive)
-        #expect(searchStore.query.isEmpty)
-        #expect(searchStore.window == nil)
+        #expect(searchStore.searchQuery == "overlay")
+        #expect(searchStore.searchResults.count == 3)
         #expect(recentStore.status == .idle)
         #expect(recentStore.items.isEmpty)
         #expect(recentStore.selection.selectedItemID == nil)
@@ -174,9 +173,9 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         )
 
         #expect(freshSession.selectedModule == .current)
-        #expect(freshSearchStore.query.isEmpty)
-        #expect(freshSearchStore.status == .idle)
-        #expect(freshSearchStore.window == nil)
+        #expect(freshSearchStore.searchQuery.isEmpty)
+        #expect(freshSearchStore.searchStatus == .idle)
+        #expect(freshSession.searchWindow?.snapshot.totalCount == 0)
         #expect(freshRecentStore.status == .idle)
         #expect(freshRecentStore.selection.selectedItemID == nil)
         #expect(freshLibraryStore.level == .folders)
@@ -224,27 +223,7 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
             operation: .shiori,
             probe: probe
         )
-        let searchStore = PlaybackSearchSessionStore(
-            configuration: PlaybackSearchConfiguration(
-                databaseURL: fixture.databaseURL,
-                folders: [fixture.root],
-                languageFilter: .all,
-                watchStateFilter: .all,
-                filterSet: SubtitleSearchFilterSet(),
-                pageSize: 32
-            ),
-            debounceNanoseconds: 0,
-            pageLoader: PlaybackSearchPageLoader(
-                visiblePage: { _, _ in
-                    await probe.suspend(.search)
-                    return playbackMultiModuleEmptyVisiblePage()
-                },
-                exactPage: { _, _, _ in
-                    playbackMultiModuleEmptyExactPage()
-                },
-                windowPage: { _, _, _, _, _, _ in nil }
-            )
-        )
+        let searchStore = app.search
         let recentStore = PlaybackRecentSessionStore(
             loader: PlaybackRecentLoader {
                 await probe.suspend(.recent)
@@ -287,7 +266,6 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
         let shioriWindow = try #require(session.shioriWindow)
         #expect(playlistWindow.requestWindow(containing: 0))
         #expect(shioriWindow.requestWindow(containing: 0))
-        searchStore.updateQuery("overlay")
         recentStore.activate()
         libraryStore.activate()
         try await waitForPlaybackMultiModuleCondition {
@@ -297,7 +275,6 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
         let expectedOperations: Set<PlaybackMultiModuleCancellationOperation> = [
             .currentInitial,
             .playlist,
-            .search,
             .recent,
             .libraryDetail,
             .shiori,
@@ -325,9 +302,8 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
         #expect(shioriSource.boundary.totalCount == 0)
         #expect(playlistWindow.retainedItemCount == 0)
         #expect(shioriWindow.retainedItemCount == 0)
-        #expect(!searchStore.isSessionActive)
-        #expect(searchStore.query.isEmpty)
-        #expect(searchStore.window == nil)
+        #expect(app.search === searchStore)
+        #expect(session.searchStore == nil)
         #expect(recentStore.status == .idle)
         #expect(recentStore.items.isEmpty)
         #expect(!recentStore.hasActiveLoadTask)
@@ -557,19 +533,9 @@ private func withPlaybackMultiModuleFixture(
 
 @MainActor
 private func playbackMultiModuleSearchStore(
-    _ fixture: PlaybackMultiModuleFixture
-) -> PlaybackSearchSessionStore {
-    PlaybackSearchSessionStore(
-        configuration: PlaybackSearchConfiguration(
-            databaseURL: fixture.databaseURL,
-            folders: [fixture.root],
-            languageFilter: .all,
-            watchStateFilter: .all,
-            filterSet: SubtitleSearchFilterSet(),
-            pageSize: 32
-        ),
-        debounceNanoseconds: 0
-    )
+    _: PlaybackMultiModuleFixture
+) -> SearchStore {
+    SearchStore()
 }
 
 @MainActor
@@ -660,29 +626,6 @@ private final class PlaybackMultiModuleCancellationProbe {
             Issue.record("Unexpected cancellation probe error: \(error)")
         }
     }
-}
-
-private func playbackMultiModuleEmptyVisiblePage() -> SubtitleSearchPage {
-    SubtitleSearchPage(
-        results: [],
-        totalCount: 0,
-        fileSummaries: [],
-        countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0),
-        appliedCursor: .start,
-        nextCursor: nil,
-        pageMode: .visibleWindow
-    )
-}
-
-private func playbackMultiModuleEmptyExactPage() -> SubtitleSearchPage {
-    SubtitleSearchPage(
-        results: [],
-        renderableResults: [],
-        cueIDs: [],
-        totalCount: 0,
-        fileSummaries: [],
-        countSnapshot: .exact(totalCount: 0, fileSummaryCount: 0)
-    )
 }
 
 @MainActor

@@ -34,23 +34,26 @@ enum PlaybackPlaylistShioriScope: Hashable, Sendable {
     case table(PlaybackPlaylistShioriTableContext)
 }
 
-struct PlaybackSearchPlaylistContext: Hashable, Sendable {
+struct PlaybackSearchPromotion: Equatable, Sendable {
     let query: String
     let scopePaths: [String]
+    let selectedOrdinal: Int
+
+    init(query: String, scopePaths: [String], selectedOrdinal: Int) {
+        self.query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.scopePaths = scopePaths
+        self.selectedOrdinal = max(0, selectedOrdinal)
+    }
 }
 
 enum PlaybackPlaylistSourceOrigin: Hashable, Sendable {
     case search(resultListGeneration: UInt64)
-    case playbackSearch(
-        runID: UUID,
-        context: PlaybackSearchPlaylistContext
-    )
     case shiori(scope: PlaybackPlaylistShioriScope)
     case unspecified(PlaybackPlaylistSourceKind)
 
     var kind: PlaybackPlaylistSourceKind {
         switch self {
-        case .search, .playbackSearch:
+        case .search:
             .search
         case .shiori:
             .shiori
@@ -224,6 +227,10 @@ typealias PlaybackPlaylistSourceWindowLoader = @MainActor (
     PlaybackPlaylistSourceWindowRequest
 ) async -> PlaybackPlaylistSourceWindowResponse?
 
+typealias PlaybackPlaylistSharedItemProvider = @MainActor (
+    _ ordinal: Int
+) -> PlaybackPlaylistItem?
+
 enum PlaybackCueResultCompleteLoadPolicy {
     static let batchSize = 256
     static let yieldInterval = 8
@@ -274,6 +281,7 @@ final class PlaybackPlaylistSource: ObservableObject {
     @Published private(set) var boundary: PlaybackPlaylistSourceBoundary
 
     private var loader: PlaybackPlaylistSourceWindowLoader?
+    private var sharedItemProvider: PlaybackPlaylistSharedItemProvider?
     private var invalidationHandler: (@MainActor () -> Void)?
     private var stableItemIdentities: [PlaybackPlaylistItemIdentity]?
     private var isActive = true
@@ -326,8 +334,41 @@ final class PlaybackPlaylistSource: ObservableObject {
         }
     }
 
+    init(
+        origin: PlaybackPlaylistSourceOrigin,
+        totalCount: Int,
+        sharedItemProvider: @escaping PlaybackPlaylistSharedItemProvider
+    ) {
+        self.origin = origin
+        loader = nil
+        self.sharedItemProvider = sharedItemProvider
+        invalidationHandler = nil
+        stableItemIdentities = nil
+        boundary = PlaybackPlaylistSourceBoundary(
+            datasetID: UUID(),
+            generation: 1,
+            revision: 0,
+            totalCount: max(0, totalCount),
+            knownItemIDsByOrdinal: [:]
+        )
+    }
+
     var hasItems: Bool {
         isActive && boundary.totalCount > 0
+    }
+
+    var usesSharedItemProvider: Bool {
+        isActive && sharedItemProvider != nil
+    }
+
+    func sharedItem(at ordinal: Int) -> PlaybackPlaylistItem? {
+        guard isActive,
+              boundary.totalCount > ordinal,
+              ordinal >= 0
+        else {
+            return nil
+        }
+        return sharedItemProvider?(ordinal)
     }
 
     @discardableResult
@@ -368,6 +409,9 @@ final class PlaybackPlaylistSource: ObservableObject {
     }
 
     func itemIdentity(at ordinal: Int) -> PlaybackPlaylistItemIdentity? {
+        if let sharedItem = sharedItem(at: ordinal) {
+            return sharedItem.identity
+        }
         if let stableItemIdentities,
            stableItemIdentities.indices.contains(ordinal) {
             return stableItemIdentities[ordinal]
@@ -400,10 +444,24 @@ final class PlaybackPlaylistSource: ObservableObject {
     func loadWindow(
         _ request: PlaybackPlaylistSourceWindowRequest
     ) async -> PlaybackPlaylistSourceWindowResponse? {
-        guard accepts(request), let loader else {
+        guard accepts(request) else {
             return nil
         }
-        let response = await loader(request)
+        let response: PlaybackPlaylistSourceWindowResponse?
+        if let sharedItemProvider {
+            let items = request.ordinalRange.compactMap(sharedItemProvider)
+            guard items.count == request.ordinalRange.count else {
+                return nil
+            }
+            response = PlaybackPlaylistSourceWindowResponse(
+                request: request,
+                items: items
+            )
+        } else if let loader {
+            response = await loader(request)
+        } else {
+            response = nil
+        }
         guard !Task.isCancelled,
               accepts(request),
               let response,
@@ -435,6 +493,7 @@ final class PlaybackPlaylistSource: ObservableObject {
         isActive = false
         stableItemIdentities = nil
         loader = nil
+        sharedItemProvider = nil
         boundary = PlaybackPlaylistSourceBoundary(
             datasetID: boundary.datasetID,
             generation: boundary.generation &+ 1,
@@ -499,7 +558,9 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         let boundary = source.boundary
         selectedOrdinal = boundary.totalCount > 0 ? 0 : nil
         selectedItemIdentity = source.itemIdentity(at: 0)
-        snapshot = Self.emptySnapshot(boundary: boundary, revision: 0)
+        snapshot = source.usesSharedItemProvider
+            ? Self.sharedSnapshot(boundary: boundary, revision: 0)
+            : Self.emptySnapshot(boundary: boundary, revision: 0)
         boundaryCancellable = source.$boundary
             .dropFirst()
             .sink { [weak self] boundary in
@@ -520,6 +581,9 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
     }
 
     func item(at ordinal: Int) -> PlaybackPlaylistItem? {
+        if let sharedItem = source?.sharedItem(at: ordinal) {
+            return sharedItem
+        }
         guard let firstOrdinal = items.first?.ordinal else {
             return nil
         }
@@ -583,6 +647,9 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         }
         let boundary = source.boundary
         let target = min(max(0, targetOrdinal), boundary.totalCount - 1)
+        if source.usesSharedItemProvider {
+            return item(at: target) != nil
+        }
         if snapshot.isComplete,
            snapshot.loadedOrdinalRange.contains(target),
            item(at: target) != nil {
@@ -847,7 +914,24 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
         } else if boundary.totalCount == 0 {
             selectedItemIdentity = nil
         }
-        snapshot = Self.emptySnapshot(boundary: boundary, revision: revision)
+        snapshot = source?.usesSharedItemProvider == true
+            ? Self.sharedSnapshot(boundary: boundary, revision: revision)
+            : Self.emptySnapshot(boundary: boundary, revision: revision)
+    }
+
+    private static func sharedSnapshot(
+        boundary: PlaybackPlaylistSourceBoundary,
+        revision: UInt64
+    ) -> PlaybackVirtualReelSnapshot {
+        PlaybackVirtualReelSnapshot(
+            datasetID: AnyHashable(boundary.datasetID),
+            generation: boundary.generation,
+            revision: revision,
+            totalCount: boundary.totalCount,
+            loadedOrdinalRange: 0..<boundary.totalCount,
+            loadedItemCount: boundary.totalCount,
+            isComplete: true
+        )
     }
 
     private static func emptySnapshot(

@@ -5,13 +5,16 @@ import Foundation
 extension AppCoordinator {
     var activePlaybackSearchPlaylistContext: PlaybackSearchPromotion? {
         guard activePlaybackSource == .search,
-              let source = playback.playlistSource,
+              playback.playlistSource?.kind == .search,
               let ordinal = playback.playbackSearchPlaylistOrdinal
         else {
             return nil
         }
         return PlaybackSearchPromotion(
-            source: source,
+            query: search.searchQuery,
+            scopePaths: indexing.selectedFolders.map {
+                $0.standardizedFileURL.path
+            },
             selectedOrdinal: ordinal
         )
     }
@@ -21,7 +24,7 @@ extension AppCoordinator {
     ) {
         guard let boundary,
               let context = activePlaybackSearchPlaylistContext,
-              context.source.boundary.datasetID == boundary.datasetID,
+              playback.playlistSource?.boundary.datasetID == boundary.datasetID,
               search.selectedSearchResult != nil
         else {
             return
@@ -32,17 +35,6 @@ extension AppCoordinator {
             canGoPrevious: ordinal > 0 && ordinal < boundary.totalCount,
             canGoNext: ordinal + 1 < boundary.totalCount
         )
-    }
-
-    func makePlaybackSearchSessionStore() -> PlaybackSearchSessionStore {
-        PlaybackSearchSessionStore(configuration: PlaybackSearchConfiguration(
-            databaseURL: databaseURL,
-            folders: indexing.selectedFolders,
-            languageFilter: settings.primarySearchLanguage.searchLanguageFilter,
-            watchStateFilter: settings.searchScope.searchWatchStateFilter,
-            filterSet: search.activeFilterSet,
-            pageSize: Self.searchPageSize
-        ))
     }
 
     func makePlaybackRecentSessionStore() -> PlaybackRecentSessionStore {
@@ -115,10 +107,10 @@ extension AppCoordinator {
         _ direction: SearchResultNavigationDirection,
         context: PlaybackSearchPromotion
     ) {
-        playbackSearchPlaylistNavigationTask?.cancel()
-
-        guard activePlaybackSearchPlaylistContext?.source === context.source,
-              let selectedResult = search.selectedSearchResult
+        guard activePlaybackSource == .search,
+              playback.playlistSource?.kind == .search,
+              let selectedResult = search.selectedSearchResult,
+              playback.playbackSearchPlaylistOrdinal == context.selectedOrdinal
         else {
             playback.playbackViewModel?.showSearchNavigationFeedback(
                 direction: direction,
@@ -127,13 +119,12 @@ extension AppCoordinator {
             return
         }
 
-        let anchorEntryID = selectedResult.entryID
         let anchorOrdinal = context.selectedOrdinal
         let targetOrdinal = anchorOrdinal + (direction == .previous ? -1 : 1)
-        let source = context.source
-        guard anchorOrdinal < source.boundary.totalCount,
+        guard search.searchResults.indices.contains(anchorOrdinal),
+              search.searchResults[anchorOrdinal].entryID == selectedResult.entryID,
               targetOrdinal >= 0,
-              targetOrdinal < source.boundary.totalCount
+              search.searchResults.indices.contains(targetOrdinal)
         else {
             playback.playbackViewModel?.showSearchNavigationFeedback(
                 direction: direction,
@@ -142,82 +133,18 @@ extension AppCoordinator {
             return
         }
 
-        playbackSearchPlaylistNavigationTask = Task { @MainActor [weak self, weak source] in
-            guard let self, let source else {
-                return
-            }
-
-            var targetResult: SubtitleSearchResult?
-            while !Task.isCancelled {
-                guard !Task.isCancelled,
-                      self.activePlaybackSearchPlaylistContext?.source === source,
-                      self.search.selectedSearchResult?.entryID == anchorEntryID,
-                      self.playback.playbackSearchPlaylistOrdinal == anchorOrdinal
-                else {
-                    return
-                }
-
-                let boundary = source.boundary
-                guard targetOrdinal < boundary.totalCount else {
-                    break
-                }
-                let range = PlaybackVirtualReelWindowPolicy.standard.windowRange(
-                    totalCount: boundary.totalCount,
-                    targetOrdinal: targetOrdinal
-                )
-                let request = PlaybackPlaylistSourceWindowRequest(
-                    datasetID: boundary.datasetID,
-                    generation: boundary.generation,
-                    sourceRevision: boundary.revision,
-                    totalCount: boundary.totalCount,
-                    ordinalRange: range
-                )
-                if let response = await source.loadWindow(request),
-                   let item = response.items.first(where: {
-                       $0.ordinal == targetOrdinal
-                   }),
-                   case .search(let result) = item.target,
-                   source.boundary.datasetID == response.datasetID,
-                   source.boundary.generation == response.generation,
-                   source.boundary.revision == response.sourceRevision,
-                   source.boundary.totalCount == response.totalCount {
-                    targetResult = result
-                    break
-                }
-                guard source.boundary != boundary else {
-                    break
-                }
-                await Task.yield()
-            }
-
-            guard !Task.isCancelled,
-                  self.activePlaybackSearchPlaylistContext?.source === source,
-                  self.search.selectedSearchResult?.entryID == anchorEntryID,
-                  self.playback.playbackSearchPlaylistOrdinal == anchorOrdinal,
-                  let targetResult,
-                  let currentContext = PlaybackSearchPromotion(
-                      source: source,
-                      selectedOrdinal: targetOrdinal
-                  )
-            else {
-                if !Task.isCancelled {
-                    self.playback.playbackViewModel?.showSearchNavigationFeedback(
-                        direction: direction,
-                        hasResult: false
-                    )
-                }
-                return
-            }
-
-            self.playback.playbackViewModel?.showSearchNavigationFeedback(
-                direction: direction,
-                hasResult: true
+        playback.playbackViewModel?.showSearchNavigationFeedback(
+            direction: direction,
+            hasResult: true
+        )
+        openSearchResult(
+            search.searchResults[targetOrdinal],
+            playbackSearchPromotion: PlaybackSearchPromotion(
+                query: context.query,
+                scopePaths: context.scopePaths,
+                selectedOrdinal: targetOrdinal
             )
-            self.openSearchResult(
-                targetResult,
-                playbackSearchPromotion: currentContext
-            )
-        }
+        )
     }
 
     func installSearchPlaybackPlaylistSource(
@@ -227,67 +154,41 @@ extension AppCoordinator {
         let origin = PlaybackPlaylistSourceOrigin.search(
             resultListGeneration: resultListGeneration
         )
-        let boundary = searchPlaybackPlaylistBoundary(seed: result)
+        let selectedOrdinal = search.searchResults.firstIndex {
+            $0.entryID == result.entryID
+        }
         if let source = playback.playlistSource,
            source.origin == origin {
             _ = source.updateBoundary(
-                totalCount: boundary.totalCount,
-                knownItemIDsByOrdinal: boundary.knownItemIDsByOrdinal
+                totalCount: search.searchResults.count,
+                knownItemIDsByOrdinal: [:]
+            )
+            playback.setPlaylistSource(
+                source,
+                playbackSearchSelectedOrdinal: selectedOrdinal
             )
             return
         }
 
         let source = PlaybackPlaylistSource(
             origin: origin,
-            totalCount: boundary.totalCount,
-            knownItemIDsByOrdinal: boundary.knownItemIDsByOrdinal
-        ) { @MainActor [weak self] request in
+            totalCount: search.searchResults.count
+        ) { @MainActor [weak self] ordinal in
             guard let self,
                   self.searchResultListGeneration == resultListGeneration,
-                  self.playback.playlistSource?.origin == origin
+                  self.search.searchResults.indices.contains(ordinal)
             else {
                 return nil
             }
-
-            if let items = self.loadedSearchPlaybackPlaylistItems(
-                in: request.ordinalRange
-            ) {
-                return PlaybackPlaylistSourceWindowResponse(
-                    request: request,
-                    items: items
-                )
-            }
-
-            let page: TableSandboxSearchHydrationPage?
-            if self.search.searchQuery.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            ).isEmpty {
-                page = await self.loadTableSandboxAllCueRows(
-                    range: request.ordinalRange
-                )
-            } else {
-                page = await self.loadTableSandboxSearchRows(
-                    range: request.ordinalRange
-                )
-            }
-            guard !Task.isCancelled,
-                  self.searchResultListGeneration == resultListGeneration,
-                  self.playback.playlistSource?.origin == origin,
-                  let page,
-                  page.range == request.ordinalRange,
-                  page.results.count == request.ordinalRange.count
-            else {
-                return nil
-            }
-            let items = zip(request.ordinalRange, page.results).map {
-                PlaybackPlaylistItem(searchResult: $1, ordinal: $0)
-            }
-            return PlaybackPlaylistSourceWindowResponse(
-                request: request,
-                items: items
+            return PlaybackPlaylistItem(
+                searchResult: self.search.searchResults[ordinal],
+                ordinal: ordinal
             )
         }
-        playback.setPlaylistSource(source)
+        playback.setPlaylistSource(
+            source,
+            playbackSearchSelectedOrdinal: selectedOrdinal
+        )
     }
 
     func refreshSearchPlaybackPlaylistSource(
@@ -302,12 +203,9 @@ extension AppCoordinator {
             return
         }
 
-        let boundary = searchPlaybackPlaylistBoundary(
-            seed: search.selectedSearchResult
-        )
         _ = source.updateBoundary(
-            totalCount: boundary.totalCount,
-            knownItemIDsByOrdinal: boundary.knownItemIDsByOrdinal
+            totalCount: search.searchResults.count,
+            knownItemIDsByOrdinal: [:]
         )
     }
 
@@ -449,60 +347,4 @@ extension AppCoordinator {
         playback.setPlaylistSource(source)
     }
 
-    private func searchPlaybackPlaylistBoundary(
-        seed: SubtitleSearchResult?
-    ) -> (
-        totalCount: Int,
-        knownItemIDsByOrdinal: [Int: PlaybackPlaylistItemIdentity]
-    ) {
-        var knownIDs: [Int: PlaybackPlaylistItemIdentity] = [:]
-        var maximumOrdinal = -1
-        for result in search.searchResults {
-            let ordinal = max(0, result.searchRank)
-            knownIDs[ordinal] = .search(result.entryID)
-            maximumOrdinal = max(maximumOrdinal, ordinal)
-        }
-        if let seed {
-            let ordinal = max(0, seed.searchRank)
-            knownIDs[ordinal] = .search(seed.entryID)
-            maximumOrdinal = max(maximumOrdinal, ordinal)
-        }
-        return (
-            totalCount: max(
-                search.searchResultTotalCount,
-                maximumOrdinal + 1
-            ),
-            knownItemIDsByOrdinal: knownIDs
-        )
-    }
-
-    private func loadedSearchPlaybackPlaylistItems(
-        in range: Range<Int>
-    ) -> [PlaybackPlaylistItem]? {
-        var items: [PlaybackPlaylistItem] = []
-        items.reserveCapacity(range.count)
-        for ordinal in range {
-            let indexedResult = search.searchResults.indices.contains(ordinal)
-                ? search.searchResults[ordinal]
-                : nil
-            let result: SubtitleSearchResult?
-            if let indexedResult,
-               max(0, indexedResult.searchRank) == ordinal {
-                result = indexedResult
-            } else if let selectedResult = search.selectedSearchResult,
-                      max(0, selectedResult.searchRank) == ordinal {
-                result = selectedResult
-            } else {
-                result = nil
-            }
-            guard let result else {
-                return nil
-            }
-            items.append(PlaybackPlaylistItem(
-                searchResult: result,
-                ordinal: ordinal
-            ))
-        }
-        return items
-    }
 }

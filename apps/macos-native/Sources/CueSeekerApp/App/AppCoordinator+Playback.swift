@@ -181,19 +181,16 @@ extension AppCoordinator {
         playsContinuouslyFromStart: Bool = false,
         playbackSearchPromotion: PlaybackSearchPromotion? = nil
     ) {
-        invalidatePlaybackSubtitleFocusForSourceReplacement()
-        if let playbackSearchPromotion {
-            if playback.playlistSource !== playbackSearchPromotion.source {
-                searchNavigationTask?.cancel()
-                searchNavigationTask = nil
-            }
+        invalidatePlaybackSubtitleFocusForSourceReplacement(
+            finishesPlaybackSearchHost: playbackSearchPromotion == nil
+        )
+        installSearchPlaybackPlaylistSource(seed: result)
+        if let playbackSearchPromotion,
+           let source = playback.playlistSource {
             playback.setPlaylistSource(
-                playbackSearchPromotion.source,
-                playbackSearchSelectedOrdinal: playbackSearchPromotion
-                    .selectedOrdinal
+                source,
+                playbackSearchSelectedOrdinal: playbackSearchPromotion.selectedOrdinal
             )
-        } else {
-            installSearchPlaybackPlaylistSource(seed: result)
         }
         playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
@@ -231,10 +228,15 @@ extension AppCoordinator {
         workbenchLayout.selectPanelMode(.search)
         Task { @MainActor in
             await Task.yield()
-            play(
+            let didStartPlayback = play(
                 result,
                 playsContinuouslyFromStart: playsContinuouslyFromStart
             )
+            if playbackSearchPromotion != nil {
+                finishPlaybackSearchHost(
+                    committingEmptyFilter: didStartPlayback
+                )
+            }
         }
     }
 
@@ -272,10 +274,11 @@ extension AppCoordinator {
         revealFile(atPath: currentPlaybackSubtitlePath)
     }
 
+    @discardableResult
     func play(
         _ result: SubtitleSearchResult,
         playsContinuouslyFromStart: Bool = false
-    ) {
+    ) -> Bool {
         ensurePlayerInitialized()
         beginCueSegmentPlayback()
         saveCurrentLibraryPlaybackHistory()
@@ -330,12 +333,14 @@ extension AppCoordinator {
                 format: result.subtitleFormat,
                 videoPath: result.videoPath
             )
+            return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()
             clearCueSegmentPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            return false
         }
     }
 
@@ -844,8 +849,6 @@ extension AppCoordinator {
 
     func stopPlayback() {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
-        playbackSearchPlaylistNavigationTask?.cancel()
-        playbackSearchPlaylistNavigationTask = nil
         playback.clearPlaylistSource()
         do {
             saveCurrentLibraryPlaybackHistoryForPlaybackClose()

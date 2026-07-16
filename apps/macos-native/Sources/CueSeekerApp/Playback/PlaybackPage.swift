@@ -32,6 +32,10 @@ struct PlaybackPageView: View {
                     PlaybackSubtitleFocusLayer(
                         session: subtitleFocusSession,
                         uiProbeScope: appState.uiProbeScope,
+                        onActivateSearch:
+                            appState.activatePlaybackSearchHost,
+                        onUpdateSearchQuery:
+                            appState.updatePlaybackSearchQuery,
                         onExecuteAction:
                             appState.executePlaybackSubtitleFocusAction,
                         onOpenRecentItem:

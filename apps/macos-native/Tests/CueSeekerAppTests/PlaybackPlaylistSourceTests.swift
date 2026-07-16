@@ -186,7 +186,7 @@ func searchPlaybackPlaylistFollowsExactProgressInsteadOfFreezingClickedRows() as
     #expect(source.boundary.datasetID == initialBoundary.datasetID)
     #expect(source.boundary.generation == initialBoundary.generation + 1)
     #expect(source.boundary.totalCount == 5)
-    #expect(source.boundary.knownItemIDsByOrdinal[4] == .search(104))
+    #expect(source.boundary.knownItemIDsByOrdinal.isEmpty)
     #expect(window.snapshot.generation == source.boundary.generation)
     #expect(window.snapshot.totalCount == 5)
     #expect(window.retainedItemCount == 0)

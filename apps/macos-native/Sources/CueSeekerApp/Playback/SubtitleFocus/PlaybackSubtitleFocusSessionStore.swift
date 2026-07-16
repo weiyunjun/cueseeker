@@ -133,7 +133,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var availableModules: [PlaybackOverlayModule]
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
-    @Published private(set) var searchStore: PlaybackSearchSessionStore?
+    @Published private(set) var searchStore: SearchStore?
+    @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
     @Published private(set) var recentStore: PlaybackRecentSessionStore?
     @Published private(set) var libraryStore: PlaybackLibrarySessionStore?
     @Published private(set) var shioriWindow: PlaybackCueResultSessionWindowStore?
@@ -146,7 +147,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?
     private var shioriSource: PlaybackCueResultSource?
-    private var searchWindowCancellable: AnyCancellable?
+    private var searchSource: PlaybackCueResultSource?
+    private var searchResultsCancellable: AnyCancellable?
     private var cueResultWindowSnapshotCancellables: [
         PlaybackOverlayModule: AnyCancellable
     ] = [:]
@@ -159,7 +161,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         sessionGeneration: Int,
         availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules,
         playlistSource: PlaybackPlaylistSource? = nil,
-        searchStore: PlaybackSearchSessionStore? = nil,
+        searchStore: SearchStore? = nil,
         recentStore: PlaybackRecentSessionStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
         shioriSource: PlaybackCueResultSource? = nil
@@ -191,9 +193,44 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             observeCueResultWindow(playlistWindow, module: .playlist)
         }
         if let searchStore {
-            searchWindowCancellable = searchStore.$window
-                .sink { [weak self] window in
-                    self?.replaceSearchWindow(window)
+            let searchSource = PlaybackCueResultSource(
+                origin: .search(resultListGeneration: 0),
+                totalCount: searchStore.searchResults.count
+            ) { [weak searchStore] ordinal in
+                guard let searchStore,
+                      searchStore.searchResults.indices.contains(ordinal)
+                else {
+                    return nil
+                }
+                return PlaybackCueResultItem(
+                    searchResult: searchStore.searchResults[ordinal],
+                    ordinal: ordinal
+                )
+            }
+            self.searchSource = searchSource
+            let searchWindow = searchSource.makeSessionWindowStore(
+                includingEmpty: true
+            )
+            self.searchWindow = searchWindow
+            if let searchWindow {
+                observeCueResultWindow(searchWindow, module: .search)
+            }
+            searchResultsCancellable = searchStore.$searchResults
+                .dropFirst()
+                .sink { [weak self, weak searchStore, weak searchSource] _ in
+                    Task { @MainActor [weak self, weak searchStore, weak searchSource] in
+                        guard let self, let searchStore, let searchSource else {
+                            return
+                        }
+                        _ = searchSource.updateBoundary(
+                            totalCount: searchStore.searchResults.count,
+                            knownItemIDsByOrdinal: [:]
+                        )
+                        if searchSource.boundary.totalCount > 0,
+                           self.searchWindow?.selectedOrdinal == nil {
+                            self.searchWindow?.resetSelectionToFirst()
+                        }
+                    }
                 }
         }
         if let shioriWindow {
@@ -760,7 +797,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             }
             return .playlist(item)
         case .search:
-            guard let searchWindow = searchStore?.window,
+            guard let searchWindow,
                   let selectedOrdinal = searchWindow.selectedOrdinal,
                   let item = searchWindow.item(at: selectedOrdinal)
             else {
@@ -787,26 +824,12 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         case .playlist:
             playlistWindow
         case .search:
-            searchStore?.window
+            searchWindow
         case .shiori:
             shioriWindow
         default:
             nil
         }
-    }
-
-    func promoteSearchForPlayback(
-        selectedItem: PlaybackCueResultItem
-    ) -> PlaybackSearchPromotion? {
-        guard isSessionActive,
-              selectedModule == .search,
-              let searchStore
-        else {
-            return nil
-        }
-        return searchStore.promoteForPlayback(
-            selectedItem: selectedItem
-        )
     }
 
     @discardableResult
@@ -880,20 +903,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         pendingKeyboardNavigationTargetOrdinal = nil
         pendingKeyboardNavigationTargetIdentity = nil
         keyboardNavigationRequest = nil
-    }
-
-    private func replaceSearchWindow(
-        _ window: PlaybackCueResultSessionWindowStore?
-    ) {
-        cueResultWindowSnapshotCancellables[.search]?.cancel()
-        cueResultWindowSnapshotCancellables[.search] = nil
-        observedCueResultSnapshots[.search] = nil
-        if selectedModule == .search {
-            prepareReelForModuleTransition()
-        }
-        if let window {
-            observeCueResultWindow(window, module: .search)
-        }
     }
 
     private func observeCueResultWindow(
@@ -994,11 +1003,14 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
         cueResultWindowSnapshotCancellables.removeAll(keepingCapacity: false)
         observedCueResultSnapshots.removeAll(keepingCapacity: false)
-        searchWindowCancellable?.cancel()
-        searchWindowCancellable = nil
+        searchResultsCancellable?.cancel()
+        searchResultsCancellable = nil
         playlistWindow?.invalidate()
         playlistWindow = nil
-        searchStore?.invalidate()
+        searchWindow?.invalidate()
+        searchWindow = nil
+        searchSource?.invalidate()
+        searchSource = nil
         searchStore = nil
         recentStore?.invalidate()
         recentStore = nil

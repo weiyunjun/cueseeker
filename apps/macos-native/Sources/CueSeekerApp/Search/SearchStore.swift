@@ -42,6 +42,9 @@ final class SearchStore: ObservableObject {
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var cueContextSearchRequest: CueContextSearchRequest?
 
+    var resultFilterSet = SubtitleSearchFilterSet()
+    var isPlaybackTemporaryFilterActive = false
+
     var isSearching: Bool {
         if case .searching = searchStatus {
             return true
@@ -72,6 +75,10 @@ final class SearchStore: ObservableObject {
 
     var activeFilterSetSignature: String {
         activeFilterSet.cacheSignature
+    }
+
+    var resultFilterSetSignature: String {
+        resultFilterSet.cacheSignature
     }
 
 }

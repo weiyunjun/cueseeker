@@ -47,18 +47,16 @@ extension AppCoordinator {
             ),
             wasPlaying: playbackViewModel.isPlaying
         )
-        let searchStore = makePlaybackSearchSessionStore()
         let recentStore = makePlaybackRecentSessionStore()
         let libraryStore = makePlaybackLibrarySessionStore()
         let shioriSource = makePlaybackShioriOverlaySource()
         guard let session = playback.beginSubtitleFocusSession(
             openSnapshot: openSnapshot,
-            searchStore: searchStore,
+            searchStore: search,
             recentStore: recentStore,
             libraryStore: libraryStore,
             shioriSource: shioriSource
         ) else {
-            searchStore.invalidate()
             recentStore.invalidate()
             libraryStore.invalidate()
             shioriSource.invalidate()
@@ -83,6 +81,7 @@ extension AppCoordinator {
 
         cancelPlaybackSubtitleFocusActionTask()
         cancelPlaybackSubtitleFocusCueLoadTasks()
+        finishPlaybackSearchHost(committingEmptyFilter: false)
         guard let shouldResume = session.dismissByUser() else {
             playback.releaseSubtitleFocusSession(session)
             return false
@@ -95,10 +94,15 @@ extension AppCoordinator {
         return true
     }
 
-    func invalidatePlaybackSubtitleFocusForSourceReplacement() {
+    func invalidatePlaybackSubtitleFocusForSourceReplacement(
+        finishesPlaybackSearchHost: Bool = true
+    ) {
         cancelPlaybackRecentOpenTask()
         cancelPlaybackSubtitleFocusActionTask()
         cancelPlaybackSubtitleFocusCueLoadTasks()
+        if finishesPlaybackSearchHost {
+            finishPlaybackSearchHost(committingEmptyFilter: false)
+        }
         guard let session = playback.subtitleFocusSession else {
             return
         }
@@ -361,6 +365,7 @@ extension AppCoordinator {
             case .current(let context):
                 cancelPlaybackSubtitleFocusActionTask()
                 cancelPlaybackSubtitleFocusCueLoadTasks()
+                finishPlaybackSearchHost(committingEmptyFilter: false)
                 guard session.closeAfterPlay(execution) else {
                     return false
                 }
@@ -376,14 +381,17 @@ extension AppCoordinator {
                 openPlaylistItem(item)
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             case .search(let item):
-                guard case .search(let result) = item.target,
-                      let promotion = session.promoteSearchForPlayback(
-                          selectedItem: item
-                      )
-                else {
+                guard case .search(let result) = item.target else {
                     _ = session.finishKeyboardAction(execution)
                     return true
                 }
+                let promotion = PlaybackSearchPromotion(
+                    query: search.searchQuery,
+                    scopePaths: indexing.selectedFolders.map {
+                        $0.standardizedFileURL.path
+                    },
+                    selectedOrdinal: item.ordinal
+                )
                 openSearchResult(
                     result,
                     playsContinuouslyFromStart: true,
@@ -503,9 +511,13 @@ extension AppCoordinator {
         case .search(let result):
             let playbackSearchPromotion: PlaybackSearchPromotion?
             if let source = playback.playlistSource,
-               source === activePlaybackSearchPlaylistContext?.source {
+               source.kind == .search,
+               activePlaybackSearchPlaylistContext != nil {
                 playbackSearchPromotion = PlaybackSearchPromotion(
-                    source: source,
+                    query: search.searchQuery,
+                    scopePaths: indexing.selectedFolders.map {
+                        $0.standardizedFileURL.path
+                    },
                     selectedOrdinal: item.ordinal
                 )
             } else {

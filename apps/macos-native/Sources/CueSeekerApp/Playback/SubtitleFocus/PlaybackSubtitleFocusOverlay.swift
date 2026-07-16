@@ -4,6 +4,8 @@ import SwiftUI
 struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let uiProbeScope: String?
+    let onActivateSearch: () -> Void
+    let onUpdateSearchQuery: (String) -> Void
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
     let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
@@ -11,12 +13,16 @@ struct PlaybackSubtitleFocusLayer: View {
     init(
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
+        onActivateSearch: (() -> Void)? = nil,
+        onUpdateSearchQuery: ((String) -> Void)? = nil,
         onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
         onOpenRecentItem: ((RecentLibraryWatchingPresentation) -> Bool)? = nil,
         onOpenLibraryEpisode: ((CompleteLibraryVideoPresentation) -> Bool)? = nil
     ) {
         self.session = session
         self.uiProbeScope = uiProbeScope
+        self.onActivateSearch = onActivateSearch ?? {}
+        self.onUpdateSearchQuery = onUpdateSearchQuery ?? { _ in }
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
@@ -34,6 +40,8 @@ struct PlaybackSubtitleFocusLayer: View {
                 snapshot: snapshot,
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
+                onActivateSearch: onActivateSearch,
+                onUpdateSearchQuery: onUpdateSearchQuery,
                 onExecuteAction: onExecuteAction,
                 onOpenRecentItem: onOpenRecentItem,
                 onOpenLibraryEpisode: onOpenLibraryEpisode
@@ -47,6 +55,8 @@ struct PlaybackMultiModuleOverlay: View {
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
+    let onActivateSearch: () -> Void
+    let onUpdateSearchQuery: (String) -> Void
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
     let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
@@ -117,6 +127,8 @@ struct PlaybackMultiModuleOverlay: View {
                 session: session,
                 searchStore: searchStore,
                 uiProbeScope: uiProbeScope,
+                onActivateSearch: onActivateSearch,
+                onUpdateSearchQuery: onUpdateSearchQuery,
                 onExecuteAction: onExecuteAction
             )
         } else if session.selectedModule == .recent,
