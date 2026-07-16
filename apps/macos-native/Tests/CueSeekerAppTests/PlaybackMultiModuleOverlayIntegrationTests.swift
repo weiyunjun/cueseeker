@@ -41,10 +41,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     ))
     #expect(session.selectModule(.playlist))
     let playlistWindow = try #require(session.playlistWindow)
-    #expect(playlistWindow.requestWindow(containing: 0))
-    try await waitForPlaybackMultiModuleCondition {
-        playlistWindow.snapshot.loadedItemCount == playlistItems.count
-    }
+    #expect(playlistWindow.snapshot.loadedItemCount == playlistItems.count)
     #expect(playbackMultiModuleCommit(ordinal: 1, in: playlistWindow))
 
     #expect(session.selectModule(.search))
@@ -173,10 +170,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     let playlistItems = fixture.searchResults.enumerated().map {
         PlaybackCueResultItem(searchResult: $1, ordinal: $0)
     }
-    let playlistSource = playbackMultiModuleSuspendingSource(
-        items: playlistItems,
-        probe: probe
-    )
+    let playlistSource = playbackMultiModuleSource(items: playlistItems)
     let recentStore = PlaybackRecentSessionStore(
         libraryStore: featureLibrary,
         isVideoAvailable: { _ in true }
@@ -205,17 +199,16 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
             return SubtitleFocusCueBatch(totalCount: 0, cues: [])
         }
     )
-    let playlistWindow = try #require(session.playlistWindow)
-    #expect(playlistWindow.requestWindow(containing: 0))
+    _ = try #require(session.playlistWindow)
     recentStore.activate()
     libraryStore.activate()
     try await waitForPlaybackMultiModuleCondition {
-        probe.started == [.current, .playlist]
+        probe.started == [.current]
     }
 
     app.stopPlayback()
     try await waitForPlaybackMultiModuleCondition {
-        probe.cancelled == [.current, .playlist]
+        probe.cancelled == [.current]
     }
 
     #expect(app.playback.subtitleFocusSession == nil)
@@ -395,24 +388,17 @@ private func playbackMultiModuleSource(
 ) -> PlaybackCueResultSource {
     PlaybackCueResultSource(
         kind: .search,
-        totalCount: items.count,
-        knownItemIDsByOrdinal: Dictionary(
-            uniqueKeysWithValues: items.map { ($0.ordinal, $0.identity) }
-        )
-    ) { request in
-        guard request.ordinalRange.upperBound <= items.count else {
+        totalCount: items.count
+    ) { ordinal in
+        guard items.indices.contains(ordinal) else {
             return nil
         }
-        return PlaybackCueResultSourceWindowResponse(
-            request: request,
-            items: Array(items[request.ordinalRange])
-        )
+        return items[ordinal]
     }
 }
 
 private enum PlaybackMultiModuleCancellationOperation: Hashable {
     case current
-    case playlist
 }
 
 @MainActor
@@ -429,29 +415,6 @@ private final class PlaybackMultiModuleCancellationProbe {
         } catch {
             Issue.record("Unexpected cancellation probe error: \(error)")
         }
-    }
-}
-
-@MainActor
-private func playbackMultiModuleSuspendingSource(
-    items: [PlaybackCueResultItem],
-    probe: PlaybackMultiModuleCancellationProbe
-) -> PlaybackCueResultSource {
-    PlaybackCueResultSource(
-        kind: .search,
-        totalCount: items.count,
-        knownItemIDsByOrdinal: Dictionary(
-            uniqueKeysWithValues: items.map { ($0.ordinal, $0.identity) }
-        )
-    ) { request in
-        await probe.suspend(.playlist)
-        guard request.ordinalRange.upperBound <= items.count else {
-            return nil
-        }
-        return PlaybackCueResultSourceWindowResponse(
-            request: request,
-            items: Array(items[request.ordinalRange])
-        )
     }
 }
 

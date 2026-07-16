@@ -553,13 +553,9 @@ private func beginKeyboardActionPlaylistSession(
 ) {
     let source = PlaybackPlaylistSource(
         kind: item.target.playbackPlaylistSourceKind,
-        totalCount: 1,
-        knownItemIDsByOrdinal: [0: item.identity]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: [item]
-        )
+        totalCount: 1
+    ) { ordinal in
+        ordinal == 0 ? item : nil
     }
     app.playback.setPlaylistSource(source)
     let session = try #require(app.playback.beginSubtitleFocusSession(
@@ -570,10 +566,7 @@ private func beginKeyboardActionPlaylistSession(
         token: session.token
     ))
     let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    try await waitForKeyboardActionState {
-        window.snapshot.loadedItemCount == 1
-    }
+    #expect(window.snapshot.loadedItemCount == 1)
     #expect(session.selectModule(.playlist))
     return (session, window)
 }

@@ -25,8 +25,6 @@ func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async th
     #expect(window.snapshot.totalCount == 40)
     #expect(window.snapshot.loadedOrdinalRange == 0..<40)
     #expect(window.snapshot.isComplete)
-    #expect(window.retainedItemCount == 0)
-    #expect(window.requestWindow(containing: 39))
     #expect(window.item(at: 39)?.identity == .search(1_039))
 
     searchStore.searchResults.append(
@@ -36,7 +34,6 @@ func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async th
 
     #expect(window.snapshot.totalCount == 41)
     #expect(window.item(at: 40)?.identity == .search(1_040))
-    #expect(window.retainedItemCount == 0)
 
     _ = session.dismissByUser()
     #expect(searchStore.searchResults.count == 41)

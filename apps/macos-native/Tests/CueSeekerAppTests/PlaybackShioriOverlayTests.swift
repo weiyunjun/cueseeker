@@ -20,8 +20,6 @@ func playbackShioriUsesWorkbenchRowsWithoutRetainingAnotherDataset() throws {
     #expect(window.snapshot.totalCount == 40)
     #expect(window.snapshot.loadedOrdinalRange == 0..<40)
     #expect(window.snapshot.isComplete)
-    #expect(window.retainedItemCount == 0)
-    #expect(window.requestWindow(containing: 39))
     #expect(window.item(at: 39)?.identity == .shiori(10_039))
     #expect(window.item(at: 39)?.primaryCueText == "shiori-39")
 
@@ -45,7 +43,7 @@ func playbackShioriEmptyWorkbenchCollectionKeepsAnEmptyModuleWindow() throws {
     #expect(window.snapshot.totalCount == 0)
     #expect(window.snapshot.isComplete)
     #expect(window.selectedOrdinal == nil)
-    #expect(!window.requestWindow(containing: 0))
+    #expect(window.item(at: 0) == nil)
 }
 
 @MainActor
@@ -176,7 +174,6 @@ func sharedShioriPipelineAppliesWorkbenchSearchBeforePlaybackProjection() async 
     let window = try #require(session.shioriWindow)
     #expect(window.snapshot.totalCount == 1)
     #expect(window.item(at: 0)?.primaryCueText == "alpha shared shiori")
-    #expect(window.retainedItemCount == 0)
 }
 
 private struct PlaybackSharedShioriFixture {

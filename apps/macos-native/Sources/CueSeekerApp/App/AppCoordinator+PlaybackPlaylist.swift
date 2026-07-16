@@ -116,10 +116,7 @@ extension AppCoordinator {
         }
         if let source = playback.playlistSource,
            source.origin == origin {
-            _ = source.updateBoundary(
-                totalCount: search.searchResults.count,
-                knownItemIDsByOrdinal: [:]
-            )
+            _ = source.updateBoundary(totalCount: search.searchResults.count)
             playback.setPlaylistSource(
                 source,
                 playbackSearchSelectedOrdinal: selectedOrdinal
@@ -160,10 +157,7 @@ extension AppCoordinator {
             return
         }
 
-        _ = source.updateBoundary(
-            totalCount: search.searchResults.count,
-            knownItemIDsByOrdinal: [:]
-        )
+        _ = source.updateBoundary(totalCount: search.searchResults.count)
     }
 
     func installShioriPlaybackPlaylistSource(
@@ -181,10 +175,7 @@ extension AppCoordinator {
         let origin = PlaybackPlaylistSourceOrigin.shiori(scope: scope)
         if let source = playback.playlistSource,
            source.origin == origin {
-            _ = source.updateBoundary(
-                totalCount: totalCount,
-                knownItemIDsByOrdinal: [:]
-            )
+            _ = source.updateBoundary(totalCount: totalCount)
             return
         }
 
@@ -207,8 +198,7 @@ extension AppCoordinator {
             return
         }
         _ = source.updateBoundary(
-            totalCount: shioriPlaybackPlaylistCount(scope: scope),
-            knownItemIDsByOrdinal: [:]
+            totalCount: shioriPlaybackPlaylistCount(scope: scope)
         )
     }
 

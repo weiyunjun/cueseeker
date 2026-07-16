@@ -46,10 +46,6 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         )
     }
 
-    var supportsWindowRequests: Bool {
-        isActive && !snapshot.isComplete
-    }
-
     var measurementCacheCountForTesting: Int {
         measurementCache.count
     }
@@ -120,29 +116,6 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
             viewportHeight: rect.height
         )
         layout.drawPreparedPlan(in: rect)
-    }
-
-    func requestWindow(_ request: PlaybackVirtualReelWindowRequest) {
-        guard isActive else {
-            return
-        }
-        let adapterSnapshot = snapshot
-        let windowSnapshot = windowStore.snapshot
-        guard request.datasetID == adapterSnapshot.datasetID,
-              request.generation == adapterSnapshot.generation,
-              request.revision == adapterSnapshot.revision,
-              adapterSnapshot.generation == windowSnapshot.generation
-        else {
-            return
-        }
-        _ = windowStore.requestWindow(PlaybackVirtualReelWindowRequest(
-            datasetID: windowSnapshot.datasetID,
-            generation: windowSnapshot.generation,
-            revision: windowSnapshot.revision,
-            targetOrdinal: request.targetOrdinal,
-            suggestedOrdinalRange: request.suggestedOrdinalRange,
-            reason: request.reason
-        ))
     }
 
     func invalidateMeasurements() {

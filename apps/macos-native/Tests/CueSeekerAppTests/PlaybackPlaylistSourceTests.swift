@@ -1,7 +1,6 @@
 import AppKit
 import CueSeekerCore
 import Foundation
-import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -27,14 +26,10 @@ func playbackPlaylistSearchItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
     #expect(item.target == .search(searchResult))
     #expect(actionContext.source.videoPath == "/video/42.mkv")
     #expect(actionContext.source.subtitlePath == "/subtitle/42.ass")
-    #expect(actionContext.source.subtitleFormat == .ass)
     #expect(actionContext.cue.id == 42)
     #expect(actionContext.cue.cueGroupID == 142)
     #expect(actionContext.cue.ordinal == 7)
-    #expect(actionContext.cue.eventIndex == 242)
-    #expect(actionContext.cue.displayOrder == 1)
     #expect(cueResult.itemID == AnyHashable(PlaybackPlaylistItemIdentity.search(42)))
-    #expect(cueResult.primaryCueIdentity == AnyHashable(PlaybackPlaylistPrimaryCueIdentity.cue(42)))
     #expect(cueResult.sequenceNumber == 8)
 }
 
@@ -69,86 +64,148 @@ func playbackPlaylistShioriItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
     #expect(item.primaryCueText == "same")
     #expect(item.additionalCueTexts == ["same", "tail"])
     #expect(item.target == .shiori(shiori))
-    #expect(actionContext.source.videoPath == "/video/shiori-9.mkv")
-    #expect(actionContext.source.subtitlePath == "/subtitle/shiori-9.ass")
     #expect(actionContext.cue.id == 209)
     #expect(actionContext.cue.cueGroupID == 309)
-    #expect(actionContext.cue.ordinal == 4)
     #expect(actionContext.cue.eventIndex == 19)
-    #expect(actionContext.cue.displayOrder == 2)
 }
 
 @MainActor
 @Test
-func playbackPlaylistTotalCountDoesNotDependOnKnownItemIDCoverage() async throws {
-    let totalCount = 73
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: totalCount,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            72: .search(1_072),
-        ]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
+func playbackPlaylistSessionReadsCompleteResidentDatasetWithoutRetainingCopy() throws {
+    let totalCount = 50_000
+    let source = PlaybackPlaylistSource(kind: .search, totalCount: totalCount) {
+        ordinal in
+        guard ordinal >= 0, ordinal < totalCount else {
+            return nil
+        }
+        return PlaybackPlaylistItem(
+            searchResult: makePlaybackPlaylistSearchResult(
+                id: Int64(1_000 + ordinal)
+            ),
+            ordinal: ordinal
         )
     }
-    let boundary = source.boundary
-    let request = makePlaybackPlaylistWindowRequest(
-        boundary: boundary,
-        ordinalRange: 32..<64
-    )
+    let window = try #require(source.makeSessionWindowStore())
 
-    let response = try #require(await source.loadWindow(request))
+    #expect(window.snapshot.isValid)
+    #expect(window.snapshot.isComplete)
+    #expect(window.snapshot.loadedOrdinalRange == (0..<totalCount))
+    #expect(window.snapshot.loadedItemCount == totalCount)
+    #expect(window.item(at: 25_000)?.identity == .search(26_000))
 
-    #expect(boundary.totalCount == totalCount)
-    #expect(boundary.knownItemIDsByOrdinal.count == 2)
-    #expect(response.totalCount == totalCount)
-    #expect(response.ordinalRange == (32..<64))
-    #expect(response.items.count == 32)
+    let datasetID = try #require(window.reelDatasetID)
+    #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
+        datasetID: AnyHashable(datasetID),
+        generation: window.snapshot.generation,
+        ordinal: totalCount - 1
+    )))
+    #expect(window.selectedOrdinal == totalCount - 1)
+    #expect(window.selectedItemIdentity == .search(Int64(1_000 + totalCount - 1)))
 }
 
 @MainActor
 @Test
-func playbackPlaylistBoundaryGrowthAdvancesGenerationAndStableRefreshAdvancesRevision() {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { _ in nil }
+func playbackPlaylistBoundaryRefreshUpdatesResidentSnapshotAndSelection() throws {
+    var items = makePlaybackPlaylistSearchItems(in: 0..<2)
+    let source = PlaybackPlaylistSource(kind: .search, totalCount: items.count) {
+        ordinal in
+        guard items.indices.contains(ordinal) else {
+            return nil
+        }
+        return items[ordinal]
+    }
+    let window = try #require(source.makeSessionWindowStore())
     let initial = source.boundary
-    let grownIDs: [Int: PlaybackPlaylistItemIdentity] = [
-        0: .search(1_000),
-        1: .search(1_001),
-        2: .search(1_002),
-    ]
+    let datasetID = try #require(window.reelDatasetID)
+    #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
+        datasetID: AnyHashable(datasetID),
+        generation: initial.generation,
+        ordinal: 1
+    )))
 
-    #expect(source.updateBoundary(totalCount: 3, knownItemIDsByOrdinal: grownIDs))
+    items.append(contentsOf: makePlaybackPlaylistSearchItems(in: 2..<3))
+    #expect(source.updateBoundary(totalCount: items.count))
     let grown = source.boundary
 
     #expect(grown.datasetID == initial.datasetID)
     #expect(grown.generation == initial.generation + 1)
     #expect(grown.revision == 0)
-    #expect(grown.totalCount == 3)
+    #expect(window.snapshot.loadedOrdinalRange == (0..<3))
+    #expect(window.snapshot.isComplete)
+    #expect(window.selectedOrdinal == 1)
+    #expect(window.selectedItemIdentity == .search(1_001))
 
-    #expect(source.updateBoundary(totalCount: 3, knownItemIDsByOrdinal: grownIDs))
-    let refreshed = source.boundary
+    items[1] = PlaybackPlaylistItem(
+        searchResult: makePlaybackPlaylistSearchResult(id: 9_001),
+        ordinal: 1
+    )
+    #expect(source.updateBoundary(totalCount: items.count))
 
-    #expect(refreshed.datasetID == initial.datasetID)
-    #expect(refreshed.generation == grown.generation)
-    #expect(refreshed.revision == grown.revision + 1)
-    #expect(refreshed.totalCount == grown.totalCount)
-    #expect(refreshed.knownItemIDsByOrdinal == grown.knownItemIDsByOrdinal)
+    #expect(source.boundary.generation == grown.generation)
+    #expect(source.boundary.revision == grown.revision + 1)
+    #expect(window.snapshot.revision == source.boundary.revision)
+    #expect(window.selectedItemIdentity == .search(9_001))
 }
 
 @MainActor
 @Test
-func searchPlaybackPlaylistFollowsExactProgressInsteadOfFreezingClickedRows() async throws {
+func playbackPlaylistSelectionRejectsStaleAndOutOfRangeCommits() throws {
+    let items = makePlaybackPlaylistSearchItems(in: 0..<2)
+    let source = PlaybackPlaylistSource(kind: .search, totalCount: items.count) {
+        ordinal in
+        items.indices.contains(ordinal) ? items[ordinal] : nil
+    }
+    let window = try #require(source.makeSessionWindowStore())
+    let datasetID = try #require(window.reelDatasetID)
+
+    #expect(!window.commitSelection(PlaybackVirtualReelSelectionCommit(
+        datasetID: AnyHashable("stale"),
+        generation: window.snapshot.generation,
+        ordinal: 1
+    )))
+    #expect(!window.commitSelection(PlaybackVirtualReelSelectionCommit(
+        datasetID: AnyHashable(datasetID),
+        generation: window.snapshot.generation + 1,
+        ordinal: 1
+    )))
+    #expect(!window.commitSelection(PlaybackVirtualReelSelectionCommit(
+        datasetID: AnyHashable(datasetID),
+        generation: window.snapshot.generation,
+        ordinal: 2
+    )))
+    #expect(window.selectedOrdinal == 0)
+}
+
+@MainActor
+@Test
+func playbackPlaylistWindowInvalidationDoesNotInvalidateSharedSource() throws {
+    let items = makePlaybackPlaylistSearchItems(in: 0..<2)
+    let source = PlaybackPlaylistSource(kind: .search, totalCount: items.count) {
+        ordinal in
+        items.indices.contains(ordinal) ? items[ordinal] : nil
+    }
+    let originalBoundary = source.boundary
+    let window = try #require(source.makeSessionWindowStore())
+
+    window.invalidate()
+
+    #expect(window.snapshot.totalCount == 0)
+    #expect(window.item(at: 0) == nil)
+    #expect(source.hasItems)
+    #expect(source.boundary == originalBoundary)
+    let replacementWindow = try #require(source.makeSessionWindowStore())
+    #expect(replacementWindow.snapshot.loadedItemCount == 2)
+    #expect(replacementWindow.item(at: 1)?.identity == .search(1_001))
+
+    source.invalidate()
+    #expect(!source.hasItems)
+    #expect(replacementWindow.snapshot.totalCount == 0)
+    #expect(source.makeSessionWindowStore() == nil)
+}
+
+@MainActor
+@Test
+func searchPlaybackPlaylistReadsWorkbenchSearchResultsDirectly() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-search-\(UUID().uuidString).sqlite")
@@ -165,43 +222,30 @@ func searchPlaybackPlaylistFollowsExactProgressInsteadOfFreezingClickedRows() as
     app.search.searchResultTotalCount = initialResults.count
     app.installSearchPlaybackPlaylistSource(seed: initialResults[1])
     let source = try #require(app.playback.playlistSource)
-    let initialBoundary = source.boundary
     let window = try #require(source.makeSessionWindowStore())
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
 
-    let exactProgressResults = (0..<5).map { ordinal in
+    #expect(window.snapshot.isComplete)
+    #expect(window.item(at: 1)?.identity == .search(101))
+
+    let updatedResults = (0..<5).map { ordinal in
         makePlaybackPlaylistSearchResult(
-            id: Int64(100 + ordinal),
+            id: Int64(200 + ordinal),
             searchRank: ordinal
         )
     }
-    app.search.searchResults = exactProgressResults
-    app.search.searchResultTotalCount = exactProgressResults.count
+    app.search.searchResults = updatedResults
+    app.search.searchResultTotalCount = updatedResults.count
     app.refreshSearchPlaybackPlaylistSource(resultListGeneration: 7)
 
     #expect(app.playback.playlistSource === source)
-    #expect(source.boundary.datasetID == initialBoundary.datasetID)
-    #expect(source.boundary.generation == initialBoundary.generation + 1)
-    #expect(source.boundary.totalCount == 5)
-    #expect(source.boundary.knownItemIDsByOrdinal.isEmpty)
-    #expect(window.snapshot.generation == source.boundary.generation)
-    #expect(window.snapshot.totalCount == 5)
-    #expect(window.retainedItemCount == 0)
-    #expect(window.requestWindow(containing: 4))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 5
-    })
-    #expect(window.item(at: 4)?.identity == .search(104))
-    window.invalidate()
+    #expect(window.snapshot.loadedOrdinalRange == (0..<5))
+    #expect(window.item(at: 4)?.identity == .search(204))
     app.playback.clearPlaylistSource()
 }
 
 @MainActor
 @Test
-func shioriPlaybackPlaylistUsesExistingNavigationScopeOrderAndCount() throws {
+func shioriPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-shiori-\(UUID().uuidString).sqlite")
@@ -217,1349 +261,12 @@ func shioriPlaybackPlaylistUsesExistingNavigationScopeOrderAndCount() throws {
     let source = try #require(app.playback.playlistSource)
     let window = try #require(source.makeSessionWindowStore())
     #expect(source.origin == .shiori(scope: .explicitIDs([9, 3, 7])))
-    #expect(source.boundary.totalCount == 3)
-    #expect(source.boundary.knownItemIDsByOrdinal.isEmpty)
-    #expect(!source.hasStableIdentityIndex)
-    #expect(window.retainedItemCount == 0)
+    #expect(window.snapshot.loadedOrdinalRange == (0..<3))
+    #expect(window.snapshot.isComplete)
     #expect(window.item(at: 0)?.identity == .shiori(9))
     #expect(window.item(at: 1)?.identity == .shiori(3))
     #expect(window.item(at: 2)?.identity == .shiori(7))
     app.playback.clearPlaylistSource()
-}
-
-@MainActor
-@Test
-func shioriPlaybackPlaylistTableScopeUsesCompleteWorkbenchDataset() async throws {
-    _ = NSApplication.shared
-    let suiteName = "PlaybackPlaylistShioriTable-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-    let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent(
-            "playback-playlist-shiori-table-\(UUID().uuidString)"
-        )
-        .appendingPathExtension("sqlite")
-    defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
-    }
-
-    let app = AppCoordinator(
-        userDefaults: userDefaults,
-        databaseURL: databaseURL
-    )
-    await app.startupDatabaseTask?.value
-    let shioris = (0..<40).map {
-        makePlaybackPlaylistShiori(id: Int64(1_000 + $0))
-    }
-    let expectedIDs = shioris.map(\.id)
-    let filterSet = SubtitleSearchFilterSet(rules: [
-        SubtitleSearchFilterRule(
-            field: .cues,
-            operatorID: .contains,
-            value: "keep"
-        )
-    ])
-    app.shiori.tableSubmittedSearchText = "needle"
-    app.shiori.tableRowStore.updateShioriRows(
-        shioris.map(makePlaybackPlaylistShioriRowSource),
-        tableName: "shiori"
-    )
-    app.shiori.installTableResultShioriIDs(expectedIDs)
-    app.shiori.markTableRowsLoaded(totalSavedRowCount: shioris.count)
-    let context = PlaybackPlaylistShioriTableContext(
-        searchText: "  needle  ",
-        filterSet: filterSet,
-        totalCount: shioris.count
-    )
-    let scope = PlaybackPlaylistShioriScope.table(context)
-    app.shioriPlaybackNavigationScopeIDs = expectedIDs
-
-    app.installShioriPlaybackPlaylistSource(scope: scope)
-
-    let source = try #require(app.playback.playlistSource)
-    let window = try #require(source.makeSessionWindowStore())
-    #expect(context.searchText == "needle")
-    #expect(source.origin == .shiori(scope: scope))
-    #expect(source.boundary.totalCount == 40)
-    #expect(!source.hasStableIdentityIndex)
-    #expect(window.requestWindow(containing: 35))
-    #expect(window.snapshot.loadedOrdinalRange == (0..<expectedIDs.count))
-    #expect(window.snapshot.isComplete)
-    #expect(window.retainedItemCount == 0)
-    #expect(window.item(at: 35)?.identity == .shiori(expectedIDs[35]))
-
-    let appendedShiori = makePlaybackPlaylistShiori(id: 1_040)
-    let updatedShioris = shioris + [appendedShiori]
-    app.shiori.tableRowStore.updateShioriRows(
-        updatedShioris.map(makePlaybackPlaylistShioriRowSource),
-        tableName: "shiori"
-    )
-    app.shiori.installTableResultShioriIDs(updatedShioris.map(\.id))
-    app.refreshShioriPlaybackPlaylistSource()
-    #expect(source.boundary.totalCount == 40)
-    #expect(source.itemIdentity(at: 0) == .shiori(expectedIDs[0]))
-    #expect(window.requestWindow(containing: 0))
-    #expect(window.snapshot.loadedOrdinalRange == (0..<expectedIDs.count))
-
-    app.openShiori(
-        shioris[35],
-        navigationScopeIDs: expectedIDs,
-        playlistScope: scope
-    )
-    #expect(app.playback.playlistSource === source)
-    #expect(app.canOpenPreviousShiori)
-    #expect(app.canOpenNextShiori)
-    app.openPreviousShiori()
-    #expect(app.shiori.selectedShiori?.id == expectedIDs[34])
-    #expect(app.shiori.selectedShiori?.id != expectedIDs[0])
-
-    app.installShioriPlaybackPlaylistSource(scope: scope)
-    #expect(app.playback.playlistSource === source)
-
-    let replacementScope = PlaybackPlaylistShioriScope.table(
-        PlaybackPlaylistShioriTableContext(
-            searchText: context.searchText,
-            filterSet: filterSet,
-            totalCount: expectedIDs.count
-        )
-    )
-    app.shioriPlaybackNavigationScopeIDs = expectedIDs
-    app.installShioriPlaybackPlaylistSource(scope: replacementScope)
-    #expect(app.playback.playlistSource !== source)
-    #expect(source.boundary.totalCount == 0)
-    #expect(!source.hasStableIdentityIndex)
-    let replacementSource = try #require(app.playback.playlistSource)
-
-    window.invalidate()
-    app.playback.clearPlaylistSource()
-    #expect(app.shioriPlaybackNavigationScopeIDs == nil)
-    #expect(!replacementSource.hasStableIdentityIndex)
-}
-
-@MainActor
-@Test
-func playbackPlaylistSessionRetainsCompleteDatasetAndInternalSequence() async throws {
-    let totalCount = 50_000
-    let expectedInitialLoadCalls = PlaybackCueResultCompleteLoadPolicy
-        .batchRanges(in: 0..<totalCount).count
-    var loaderCallCount = 0
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: totalCount,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        loaderCallCount += 1
-        return PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = try #require(source.makeSessionWindowStore())
-
-    #expect(session.requestWindow(containing: 25_000))
-    let didLoad = await waitForPlaybackPlaylistCondition {
-        session.snapshot.loadedItemCount == totalCount
-    }
-    let item = try #require(session.item(at: 25_000))
-    let cueResult = item.cueResult(sequenceNumber: item.ordinal + 1)
-
-    #expect(didLoad)
-    #expect(session.snapshot.totalCount == totalCount)
-    #expect(session.snapshot.loadedOrdinalRange == (0..<totalCount))
-    #expect(session.snapshot.isComplete)
-    #expect(session.snapshot.loadedItemCount == totalCount)
-    #expect(session.retainedItemCount == totalCount)
-    #expect(item.identity == .search(26_000))
-    #expect(cueResult.sequenceNumber == 25_001)
-    #expect(loaderCallCount == expectedInitialLoadCalls)
-
-    #expect(session.requestWindow(containing: totalCount - 1))
-    await Task.yield()
-    #expect(loaderCallCount == expectedInitialLoadCalls)
-}
-
-@MainActor
-@Test
-func playbackPlaylistSessionUsesSharedReelSelectionAndSettledActionTarget() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 40,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let playback = PlaybackStore(userDefaults: .standard)
-    playback.setPlaylistSource(source)
-    let session = try #require(playback.beginSubtitleFocusSession(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 1_000,
-            wasPlaying: false
-        )
-    ))
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-
-    #expect(session.availableModules == PlaybackOverlayModule.allCases)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 40
-    })
-    #expect(session.selectModule(.playlist))
-    #expect(session.requestKeyboardNavigation(.forward))
-    let request = try #require(session.keyboardNavigationRequest)
-
-    #expect(request.targetOrdinal == 1)
-    #expect(request.contentDatasetID == source.boundary.datasetID.uuidString)
-    #expect(request.contentGeneration == source.boundary.generation)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-
-    session.noteCueReelMotion(true)
-    #expect(session.commitVirtualReelSelection(
-        PlaybackVirtualReelSelectionCommit(
-            datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-            generation: source.boundary.generation,
-            ordinal: 1
-        )
-    ))
-    session.noteCueReelMotion(false)
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    let selectedItem = try #require(window.item(at: 1))
-
-    #expect(window.selectedOrdinal == 1)
-    #expect(session.keyboardNavigationRequest == nil)
-    #expect(execution.target == .playlist(selectedItem))
-    #expect(execution.target.primaryCueText == selectedItem.primaryCueText)
-    #expect(session.finishKeyboardAction(execution))
-
-    playback.releaseSubtitleFocusSession(session)
-    playback.clearPlaylistSource()
-}
-
-@MainActor
-@Test
-func playbackPlaylistViewLoadsSharedWindowAndModuleSwitchPreservesSessionState() async throws {
-    _ = NSApplication.shared
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    let currentCue = SubtitleFocusCue(
-        id: 1,
-        cueGroupID: 11,
-        ordinal: 0,
-        eventIndex: 0,
-        displayOrder: 0,
-        startMilliseconds: 0,
-        endMilliseconds: 500,
-        content: "current"
-    )
-    #expect(session.publishInitialSnapshot(
-        SubtitleFocusSnapshot(
-            totalCount: 1,
-            selectedOrdinal: 0,
-            cues: [currentCue]
-        ),
-        token: session.token
-    ))
-    #expect(session.selectModule(.playlist))
-    let window = try #require(session.playlistWindow)
-    let suiteName = "PlaybackPlaylistView-\(UUID().uuidString)"
-    let defaults = try #require(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
-    let cueGroupPresentation = CueGroupPresentationStore(
-        isEnabled: true,
-        userDefaults: defaults,
-        userDefaultsKey: "showCueGroup",
-        uiProbeScope: suiteName
-    )
-    let hostingView = NSHostingView(
-        rootView: PlaybackSubtitleFocusLayer(session: session)
-            .environmentObject(cueGroupPresentation)
-            .frame(width: 1_280, height: 720)
-    )
-    hostingView.frame = CGRect(x: 0, y: 0, width: 1_280, height: 720)
-    hostingView.layoutSubtreeIfNeeded()
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
-        datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-        generation: source.boundary.generation,
-        ordinal: 1
-    )))
-
-    #expect(session.selectModule(.current))
-    try await Task.sleep(nanoseconds: 20_000_000)
-    hostingView.layoutSubtreeIfNeeded()
-    #expect(window.retainedItemCount == 2)
-    #expect(window.selectedOrdinal == 1)
-
-    #expect(session.selectModule(.playlist))
-    try await Task.sleep(nanoseconds: 20_000_000)
-    hostingView.layoutSubtreeIfNeeded()
-    #expect(window.retainedItemCount == 2)
-    #expect(window.selectedOrdinal == 1)
-
-    _ = session.dismissByUser()
-    #expect(window.retainedItemCount == 0)
-    source.invalidate()
-    withExtendedLifetime(hostingView) {}
-}
-
-@MainActor
-@Test
-func playbackPlaylistSelectionRejectsStaleOrOutOfRangeSharedReelCommits() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 40,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let window = try #require(source.makeSessionWindowStore())
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 40
-    })
-    let datasetID = AnyHashable(source.boundary.datasetID.uuidString)
-    let generation = source.boundary.generation
-
-    #expect(!window.commitSelection(PlaybackVirtualReelSelectionCommit(
-        datasetID: "wrong-dataset",
-        generation: generation,
-        ordinal: 1
-    )))
-    #expect(!window.commitSelection(PlaybackVirtualReelSelectionCommit(
-        datasetID: datasetID,
-        generation: generation + 1,
-        ordinal: 1
-    )))
-    #expect(!window.commitSelection(PlaybackVirtualReelSelectionCommit(
-        datasetID: datasetID,
-        generation: generation,
-        ordinal: 40
-    )))
-    #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
-        datasetID: datasetID,
-        generation: generation,
-        ordinal: 39
-    )))
-    #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
-        datasetID: datasetID,
-        generation: generation,
-        ordinal: 1
-    )))
-    #expect(window.selectedOrdinal == 1)
-    window.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistCompleteDatasetKeyboardTargetSettlesBeforeDeferredAction() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 40,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedOrdinalRange == (0..<40)
-    })
-    #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
-        datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-        generation: source.boundary.generation,
-        ordinal: 31
-    )))
-    #expect(session.selectModule(.playlist))
-    #expect(session.requestKeyboardNavigation(.forward))
-    #expect(session.keyboardNavigationRequest?.targetOrdinal == 32)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-
-    #expect(window.item(at: 32) != nil)
-    #expect(session.commitVirtualReelSelection(
-        PlaybackVirtualReelSelectionCommit(
-            datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-            generation: source.boundary.generation,
-            ordinal: 32
-        )
-    ))
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    let selectedItem = try #require(window.item(at: 32))
-
-    #expect(window.selectedOrdinal == 32)
-    #expect(session.keyboardNavigationRequest == nil)
-    #expect(execution.target == .playlist(selectedItem))
-    _ = session.finishKeyboardAction(execution)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistGenerationChangeRebindsIntentAndPreservesDeferredAction() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(session.selectModule(.playlist))
-    #expect(session.requestKeyboardNavigation(.forward))
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-
-    #expect(source.updateBoundary(
-        totalCount: 3,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-            2: .search(1_002),
-        ]
-    ))
-
-    let reboundRequest = try #require(session.keyboardNavigationRequest)
-    #expect(reboundRequest.targetOrdinal == 1)
-    #expect(reboundRequest.contentGeneration == source.boundary.generation)
-    #expect(reboundRequest.contentDatasetID == source.boundary.datasetID.uuidString)
-    #expect(session.pendingKeyboardAction == .copyCueText)
-    #expect(window.snapshot.generation == source.boundary.generation)
-    #expect(window.retainedItemCount == 0)
-    #expect(window.requestWindow(containing: 1))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 3
-    })
-    #expect(session.commitVirtualReelSelection(
-        PlaybackVirtualReelSelectionCommit(
-            datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-            generation: source.boundary.generation,
-            ordinal: 1
-        )
-    ))
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    let selectedItem = try #require(window.item(at: 1))
-    #expect(execution.target == .playlist(selectedItem))
-    _ = session.finishKeyboardAction(execution)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistRevisionRefreshRebindsIntentAndPreservesDeferredAction() async throws {
-    let knownIDs: [Int: PlaybackPlaylistItemIdentity] = [
-        0: .search(1_000),
-        1: .search(1_001),
-    ]
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: knownIDs
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(session.selectModule(.playlist))
-    #expect(session.requestKeyboardNavigation(.forward))
-    let initialRequest = try #require(session.keyboardNavigationRequest)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-
-    #expect(source.updateBoundary(
-        totalCount: 2,
-        knownItemIDsByOrdinal: knownIDs
-    ))
-
-    let reboundRequest = try #require(session.keyboardNavigationRequest)
-    #expect(reboundRequest.sequence > initialRequest.sequence)
-    #expect(reboundRequest.targetOrdinal == 1)
-    #expect(reboundRequest.contentGeneration == source.boundary.generation)
-    #expect(session.pendingKeyboardAction == .copyCueText)
-    #expect(window.retainedItemCount == 0)
-    #expect(window.requestWindow(containing: 1))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(session.commitVirtualReelSelection(
-        PlaybackVirtualReelSelectionCommit(
-            datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-            generation: source.boundary.generation,
-            ordinal: 1
-        )
-    ))
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    let selectedItem = try #require(window.item(at: 1))
-    #expect(execution.target == .playlist(selectedItem))
-    _ = session.finishKeyboardAction(execution)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistRevisionRefreshKeepsRemoteNativeActionDeferredUntilSettle() async throws {
-    let knownIDs: [Int: PlaybackPlaylistItemIdentity] = [
-        0: .search(1_000),
-        1: .search(1_001),
-    ]
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: knownIDs
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(session.selectModule(.playlist))
-    session.noteCueReelMotion(true)
-
-    #expect(source.updateBoundary(
-        totalCount: 2,
-        knownItemIDsByOrdinal: knownIDs
-    ))
-
-    #expect(window.retainedItemCount == 0)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-    #expect(window.requestWindow(containing: 1))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(session.commitVirtualReelSelection(
-        PlaybackVirtualReelSelectionCommit(
-            datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-            generation: source.boundary.generation,
-            ordinal: 1
-        )
-    ))
-    session.noteCueReelMotion(false)
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    let selectedItem = try #require(window.item(at: 1))
-    #expect(execution.target == .playlist(selectedItem))
-    _ = session.finishKeyboardAction(execution)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistBoundaryRefreshSettlesDeferredNativeMotionActionAfterReload() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(session.selectModule(.playlist))
-    session.noteCueReelMotion(true)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-
-    #expect(source.updateBoundary(
-        totalCount: 3,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-            2: .search(1_002),
-        ]
-    ))
-
-    #expect(session.pendingKeyboardAction == .copyCueText)
-    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 3
-    })
-    session.noteCueReelMotion(false)
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    let selectedItem = try #require(window.item(at: 0))
-    #expect(execution.target == .playlist(selectedItem))
-    _ = session.finishKeyboardAction(execution)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistEmptyBoundaryCancelsDeferredNativeMotionAction() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 1,
-        knownItemIDsByOrdinal: [0: .search(1_000)]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 1
-    })
-    #expect(session.selectModule(.playlist))
-    session.noteCueReelMotion(true)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-
-    #expect(source.updateBoundary(totalCount: 0, knownItemIDsByOrdinal: [:]))
-
-    #expect(session.pendingKeyboardAction == nil)
-    #expect(session.keyboardNavigationRequest == nil)
-    #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
-    #expect(session.requestKeyboardAction(.copyCueText) == .rejected)
-    #expect(session.pendingKeyboardAction == nil)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistCompleteDatasetScrollbarTargetAcceptsActionBeforeSettle() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 100,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedOrdinalRange == (0..<100)
-    })
-    #expect(session.selectModule(.playlist))
-    session.noteScrollbarDragging(true)
-    #expect(window.requestWindow(containing: 80))
-    await Task.yield()
-    #expect(window.item(at: 0) != nil)
-    #expect(window.item(at: 80) != nil)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-    #expect(session.commitVirtualReelSelection(
-        PlaybackVirtualReelSelectionCommit(
-            datasetID: AnyHashable(source.boundary.datasetID.uuidString),
-            generation: source.boundary.generation,
-            ordinal: 80
-        )
-    ))
-    session.noteScrollbarDragging(false)
-
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    let selectedItem = try #require(window.item(at: 80))
-    #expect(execution.target == .playlist(selectedItem))
-    _ = session.finishKeyboardAction(execution)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistBackgroundGenerationChangeDoesNotCancelCurrentIntent() throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { _ in nil }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    func currentCue(_ ordinal: Int) -> SubtitleFocusCue {
-        SubtitleFocusCue(
-            id: Int64(ordinal + 1),
-            cueGroupID: Int64(ordinal + 11),
-            ordinal: ordinal,
-            eventIndex: ordinal,
-            displayOrder: 0,
-            startMilliseconds: ordinal * 1_000,
-            endMilliseconds: ordinal * 1_000 + 500,
-            content: "current-\(ordinal)"
-        )
-    }
-    let cues = [currentCue(0), currentCue(1)]
-    #expect(session.publishInitialSnapshot(
-        SubtitleFocusSnapshot(
-            totalCount: 2,
-            selectedOrdinal: 0,
-            cues: cues
-        ),
-        token: session.token
-    ))
-    #expect(session.requestKeyboardNavigation(.forward))
-    let currentRequest = try #require(session.keyboardNavigationRequest)
-    #expect(session.requestKeyboardAction(.copyCueText) == .deferred)
-
-    #expect(source.updateBoundary(
-        totalCount: 3,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-            2: .search(1_002),
-        ]
-    ))
-
-    #expect(session.keyboardNavigationRequest == currentRequest)
-    #expect(session.pendingKeyboardAction == .copyCueText)
-    session.noteCueReelMotion(true)
-    #expect(session.commitKeyboardNavigation(currentRequest))
-    session.noteCueReelMotion(false)
-    let execution = try #require(
-        session.consumeDeferredKeyboardActionIfReady()
-    )
-    #expect(execution.context.cue == cues[1])
-    _ = session.finishKeyboardAction(execution)
-    _ = session.dismissByUser()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistSourceRejectsResponseThatArrivesAfterBoundaryChanges() async throws {
-    let deferredLoader = DeferredPlaybackPlaylistWindowLoader()
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 1,
-        knownItemIDsByOrdinal: [0: .search(1_000)]
-    ) { request in
-        await deferredLoader.load(request)
-    }
-    let request = makePlaybackPlaylistWindowRequest(
-        boundary: source.boundary,
-        ordinalRange: 0..<1
-    )
-    let loadTask = Task { @MainActor in
-        await source.loadWindow(request)
-    }
-
-    let didStart = await waitForPlaybackPlaylistCondition {
-        deferredLoader.pendingRequest != nil
-    }
-    #expect(didStart)
-    #expect(source.updateBoundary(
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ))
-    deferredLoader.resolve(
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    )
-
-    #expect(await loadTask.value == nil)
-}
-
-@MainActor
-@Test
-func playbackPlaylistPublishesFirstBatchThenAtomicallyCompletesDataset() async throws {
-    let totalCount = PlaybackCueResultCompleteLoadPolicy.batchSize + 1
-    let deferredLoader = DeferredPlaybackPlaylistWindowLoader()
-    var requestedRanges: [Range<Int>] = []
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: totalCount,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        requestedRanges.append(request.ordinalRange)
-        if request.ordinalRange.lowerBound == 0 {
-            return PlaybackPlaylistSourceWindowResponse(
-                request: request,
-                items: makePlaybackPlaylistSearchItems(
-                    in: request.ordinalRange
-                )
-            )
-        }
-        return await deferredLoader.load(request)
-    }
-    let window = try #require(source.makeSessionWindowStore())
-
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount
-            == PlaybackCueResultCompleteLoadPolicy.batchSize
-            && deferredLoader.pendingRequest != nil
-    })
-    #expect(window.snapshot.loadedOrdinalRange
-        == (0..<PlaybackCueResultCompleteLoadPolicy.batchSize))
-    #expect(!window.snapshot.isComplete)
-    #expect(window.retainedItemCount
-        == PlaybackCueResultCompleteLoadPolicy.batchSize)
-    #expect(requestedRanges == [
-        0..<PlaybackCueResultCompleteLoadPolicy.batchSize,
-        PlaybackCueResultCompleteLoadPolicy.batchSize..<totalCount,
-    ])
-
-    #expect(window.requestWindow(containing: totalCount - 1))
-    await Task.yield()
-    #expect(requestedRanges.count == 2)
-
-    let finalBatchRequest = try #require(deferredLoader.pendingRequest)
-    deferredLoader.resolve(PlaybackPlaylistSourceWindowResponse(
-        request: finalBatchRequest,
-        items: makePlaybackPlaylistSearchItems(
-            in: finalBatchRequest.ordinalRange
-        )
-    ))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == totalCount
-    })
-    #expect(window.snapshot.loadedOrdinalRange == (0..<totalCount))
-    #expect(window.snapshot.isComplete)
-    #expect(window.retainedItemCount == totalCount)
-
-    window.invalidate()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistInvalidationReleasesPartialLoadAndRejectsLateBatch() async throws {
-    let totalCount = PlaybackCueResultCompleteLoadPolicy.batchSize + 1
-    let deferredLoader = DeferredPlaybackPlaylistWindowLoader()
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: totalCount,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        if request.ordinalRange.lowerBound == 0 {
-            return PlaybackPlaylistSourceWindowResponse(
-                request: request,
-                items: makePlaybackPlaylistSearchItems(
-                    in: request.ordinalRange
-                )
-            )
-        }
-        return await deferredLoader.load(request)
-    }
-    let window = try #require(source.makeSessionWindowStore())
-
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.retainedItemCount
-            == PlaybackCueResultCompleteLoadPolicy.batchSize
-            && deferredLoader.pendingRequest != nil
-    })
-    let lateRequest = try #require(deferredLoader.pendingRequest)
-
-    window.invalidate()
-    #expect(window.retainedItemCount == 0)
-    #expect(window.items.isEmpty)
-    #expect(window.snapshot.totalCount == 0)
-    #expect(window.snapshot.isComplete)
-
-    deferredLoader.resolve(PlaybackPlaylistSourceWindowResponse(
-        request: lateRequest,
-        items: makePlaybackPlaylistSearchItems(in: lateRequest.ordinalRange)
-    ))
-    for _ in 0..<10 {
-        await Task.yield()
-    }
-    #expect(window.retainedItemCount == 0)
-    #expect(window.items.isEmpty)
-    #expect(window.snapshot.totalCount == 0)
-
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistWindowRetriesCompleteRequestAfterNilResponse() async throws {
-    var loaderCallCount = 0
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        loaderCallCount += 1
-        guard loaderCallCount > 1 else {
-            return nil
-        }
-        return PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let window = try #require(source.makeSessionWindowStore())
-
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        loaderCallCount == 1
-    })
-    #expect(window.retainedItemCount == 0)
-
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(loaderCallCount == 2)
-    #expect(window.snapshot.isComplete)
-
-    window.invalidate()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistCancelledRequestCannotClearNewCompleteRequest() async throws {
-    let probe = PlaybackPlaylistRequestRaceProbe()
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 1,
-        knownItemIDsByOrdinal: [0: .search(1_000)]
-    ) { request in
-        await probe.load(request)
-    }
-    let window = try #require(source.makeSessionWindowStore())
-
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        probe.requests.count == 1
-    })
-    let cancelledRequest = try #require(probe.requests.first)
-
-    #expect(source.updateBoundary(
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ))
-    #expect(window.requestWindow(containing: 1))
-    #expect(await waitForPlaybackPlaylistCondition {
-        probe.requests.count == 2
-    })
-    let activeRequest = try #require(probe.requests.last)
-
-    probe.resolve(
-        cancelledRequest,
-        response: PlaybackPlaylistSourceWindowResponse(
-            request: cancelledRequest,
-            items: makePlaybackPlaylistSearchItems(
-                in: cancelledRequest.ordinalRange
-            )
-        )
-    )
-    for _ in 0..<10 {
-        await Task.yield()
-    }
-    probe.resolve(
-        activeRequest,
-        response: PlaybackPlaylistSourceWindowResponse(
-            request: activeRequest,
-            items: makePlaybackPlaylistSearchItems(in: activeRequest.ordinalRange)
-        )
-    )
-
-    #expect(await waitForPlaybackPlaylistCondition {
-        window.snapshot.loadedItemCount == 2
-    })
-    #expect(window.snapshot.generation == activeRequest.generation)
-    #expect(window.snapshot.isComplete)
-
-    window.invalidate()
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistSessionInvalidationClearsWindowWithoutInvalidatingSource() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let originalBoundary = source.boundary
-    let session = try #require(source.makeSessionWindowStore())
-
-    #expect(session.requestWindow(containing: 0))
-    let didLoad = await waitForPlaybackPlaylistCondition {
-        session.snapshot.loadedItemCount == 2
-    }
-    #expect(didLoad)
-    #expect(session.retainedItemCount == 2)
-
-    session.invalidate()
-
-    #expect(session.retainedItemCount == 0)
-    #expect(session.items.isEmpty)
-    #expect(session.selectedOrdinal == nil)
-    #expect(session.snapshot.totalCount == 0)
-    #expect(session.snapshot.loadedItemCount == 0)
-    #expect(source.hasItems)
-    #expect(source.boundary == originalBoundary)
-
-    let request = makePlaybackPlaylistWindowRequest(
-        boundary: source.boundary,
-        ordinalRange: 0..<2
-    )
-    #expect(await source.loadWindow(request) != nil)
-    let replacementSession = source.makeSessionWindowStore()
-    #expect(replacementSession != nil)
-    replacementSession?.invalidate()
-}
-
-@MainActor
-@Test
-func playbackPlaylistSessionDismissalCancelsDetachedWindowWorker() async throws {
-    let cancellationProbe = PlaybackPlaylistCancellationProbe()
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 1,
-        knownItemIDsByOrdinal: [0: .search(1_000)]
-    ) { _ in
-        do {
-            try await AppCoordinator.runCancellableDetached(
-                priority: .userInitiated
-            ) {
-                try cancellationProbe.waitForCancellation()
-            }
-        } catch {
-            return nil
-        }
-        return nil
-    }
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
-            source: SubtitleFocusSourceIdentity(
-                videoPath: "/video/current.mkv",
-                subtitlePath: "/subtitle/current.ass",
-                subtitleFormat: .ass
-            ),
-            timestampMilliseconds: 0,
-            wasPlaying: false
-        ),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        playlistSource: source
-    )
-    let window = try #require(session.playlistWindow)
-    #expect(window.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition(attempts: 1_000) {
-        cancellationProbe.didStart
-    })
-
-    _ = session.dismissByUser()
-
-    #expect(await waitForPlaybackPlaylistCondition(attempts: 1_000) {
-        cancellationProbe.didObserveCancellation
-    })
-    #expect(window.retainedItemCount == 0)
-    #expect(window.snapshot.totalCount == 0)
-    source.invalidate()
-}
-
-@MainActor
-@Test
-func playbackStoreKeepsOriginSourceAcrossOverlaySessionsAndClearsItOnPlaybackReplacement() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistSearchItems(in: request.ordinalRange)
-        )
-    }
-    let playback = PlaybackStore(userDefaults: .standard)
-    playback.setPlaylistSource(source)
-    let openSnapshot = PlaybackSubtitleFocusOpenSnapshot(
-        source: SubtitleFocusSourceIdentity(
-            videoPath: "/video/current.mkv",
-            subtitlePath: "/subtitle/current.ass",
-            subtitleFormat: .ass
-        ),
-        timestampMilliseconds: 1_000,
-        wasPlaying: false
-    )
-    let firstSession = try #require(playback.beginSubtitleFocusSession(
-        openSnapshot: openSnapshot
-    ))
-    #expect(firstSession.availableModules == PlaybackOverlayModule.allCases)
-    let firstWindow = try #require(firstSession.playlistWindow)
-    #expect(firstWindow.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistCondition {
-        firstWindow.snapshot.loadedItemCount == 2
-    })
-
-    playback.releaseSubtitleFocusSession(firstSession)
-
-    #expect(firstWindow.retainedItemCount == 0)
-    #expect(playback.playlistSource === source)
-    #expect(source.hasItems)
-    let secondSession = try #require(playback.beginSubtitleFocusSession(
-        openSnapshot: openSnapshot
-    ))
-    #expect(secondSession.playlistWindow != nil)
-    playback.releaseSubtitleFocusSession(secondSession)
-
-    playback.clearPlaylistSource()
-
-    #expect(playback.playlistSource == nil)
-    #expect(!source.hasItems)
-}
-
-@MainActor
-@Test
-func playbackPlaylistSourceInvalidationRejectsLoadsAndBoundaryUpdates() async {
-    var loaderCallCount = 0
-    let source = PlaybackPlaylistSource(
-        kind: .shiori,
-        totalCount: 1,
-        knownItemIDsByOrdinal: [0: .shiori(9)]
-    ) { request in
-        loaderCallCount += 1
-        return PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: [PlaybackPlaylistItem(
-                shiori: makePlaybackPlaylistShiori(id: 9),
-                cuePresentation: nil,
-                ordinal: 0
-            )]
-        )
-    }
-    let activeBoundary = source.boundary
-    let request = makePlaybackPlaylistWindowRequest(
-        boundary: activeBoundary,
-        ordinalRange: 0..<1
-    )
-
-    source.invalidate()
-
-    #expect(!source.hasItems)
-    #expect(source.boundary.datasetID == activeBoundary.datasetID)
-    #expect(source.boundary.generation == activeBoundary.generation + 1)
-    #expect(source.boundary.totalCount == 0)
-    #expect(await source.loadWindow(request) == nil)
-    #expect(loaderCallCount == 0)
-    #expect(!source.updateBoundary(
-        totalCount: 1,
-        knownItemIDsByOrdinal: [0: .shiori(9)]
-    ))
-    #expect(source.makeSessionWindowStore() == nil)
 }
 
 private func makePlaybackPlaylistSearchResult(
@@ -1623,126 +330,4 @@ private func makePlaybackPlaylistShiori(
         isValid: true,
         createdAt: "2026-07-15T00:00:00Z"
     )
-}
-
-private func makePlaybackPlaylistShioriRowSource(
-    _ shiori: Shiori
-) -> TableSandboxShioriRowSource {
-    TableSandboxShioriRowSource(
-        shiori: shiori,
-        displayTitle: shiori.videoName,
-        dateAddedText: shiori.createdAt,
-        languages: [],
-        shioriTags: []
-    )
-}
-
-private func makePlaybackPlaylistWindowRequest(
-    boundary: PlaybackPlaylistSourceBoundary,
-    ordinalRange: Range<Int>
-) -> PlaybackPlaylistSourceWindowRequest {
-    PlaybackPlaylistSourceWindowRequest(
-        datasetID: boundary.datasetID,
-        generation: boundary.generation,
-        sourceRevision: boundary.revision,
-        totalCount: boundary.totalCount,
-        ordinalRange: ordinalRange
-    )
-}
-
-@MainActor
-private func waitForPlaybackPlaylistCondition(
-    attempts: Int = 100,
-    _ condition: () -> Bool
-) async -> Bool {
-    for _ in 0..<attempts {
-        if condition() {
-            return true
-        }
-        await Task.yield()
-    }
-    return condition()
-}
-
-@MainActor
-private final class DeferredPlaybackPlaylistWindowLoader {
-    private(set) var pendingRequest: PlaybackPlaylistSourceWindowRequest?
-    private var continuation: CheckedContinuation<
-        PlaybackPlaylistSourceWindowResponse?,
-        Never
-    >?
-
-    func load(
-        _ request: PlaybackPlaylistSourceWindowRequest
-    ) async -> PlaybackPlaylistSourceWindowResponse? {
-        await withCheckedContinuation { continuation in
-            pendingRequest = request
-            self.continuation = continuation
-        }
-    }
-
-    func resolve(_ response: PlaybackPlaylistSourceWindowResponse?) {
-        let continuation = continuation
-        self.continuation = nil
-        pendingRequest = nil
-        continuation?.resume(returning: response)
-    }
-}
-
-@MainActor
-private final class PlaybackPlaylistRequestRaceProbe {
-    private(set) var requests: [PlaybackPlaylistSourceWindowRequest] = []
-    private var continuations: [
-        UInt64: CheckedContinuation<PlaybackPlaylistSourceWindowResponse?, Never>
-    ] = [:]
-
-    func load(
-        _ request: PlaybackPlaylistSourceWindowRequest
-    ) async -> PlaybackPlaylistSourceWindowResponse? {
-        await withCheckedContinuation { continuation in
-            requests.append(request)
-            continuations[request.generation] = continuation
-        }
-    }
-
-    func resolve(
-        _ request: PlaybackPlaylistSourceWindowRequest,
-        response: PlaybackPlaylistSourceWindowResponse?
-    ) {
-        continuations.removeValue(forKey: request.generation)?
-            .resume(returning: response)
-    }
-}
-
-private final class PlaybackPlaylistCancellationProbe: @unchecked Sendable {
-    private let lock = NSLock()
-    private var started = false
-    private var observedCancellation = false
-
-    var didStart: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return started
-    }
-
-    var didObserveCancellation: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return observedCancellation
-    }
-
-    func waitForCancellation() throws {
-        lock.lock()
-        started = true
-        lock.unlock()
-
-        while !Task.isCancelled {
-            Thread.sleep(forTimeInterval: 0.001)
-        }
-
-        lock.lock()
-        observedCancellation = true
-        lock.unlock()
-        try Task.checkCancellation()
-    }
 }

@@ -6,40 +6,17 @@ import Testing
 
 @MainActor
 @Test
-func playbackPlaylistReelAdapterLoadsCompleteDatasetOnceAndPreservesSequence() async throws {
+func playbackPlaylistReelAdapterUsesResidentDatasetImmediately() throws {
     _ = NSApplication.shared
-    var loaderCallCount = 0
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 40,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        loaderCallCount += 1
-        return PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistReelItems(in: request.ordinalRange)
-        )
-    }
+    let source = playbackPlaylistReelSource(totalCount: 40)
     let window = try #require(source.makeSessionWindowStore())
     let adapter = PlaybackPlaylistReelAdapter(
         windowStore: window,
         showsCueGroup: false
     )
-    let initialSnapshot = adapter.snapshot
 
-    #expect(initialSnapshot.datasetID.base is String)
-    #expect(initialSnapshot.datasetID == AnyHashable(source.boundary.datasetID.uuidString))
-    #expect(adapter.supportsWindowRequests)
-
-    adapter.requestWindow(makePlaybackPlaylistReelRequest(
-        snapshot: initialSnapshot,
-        targetOrdinal: 20
-    ))
-    #expect(await waitForPlaybackPlaylistReelAdapter {
-        adapter.snapshot.loadedItemCount == 40
-    })
-
-    #expect(loaderCallCount == 1)
+    #expect(adapter.snapshot.datasetID.base is String)
+    #expect(adapter.snapshot.datasetID == AnyHashable(source.boundary.datasetID.uuidString))
     #expect(adapter.snapshot.loadedOrdinalRange == (0..<40))
     #expect(adapter.snapshot.isComplete)
     #expect(!adapter.supportsWindowRequests)
@@ -50,29 +27,14 @@ func playbackPlaylistReelAdapterLoadsCompleteDatasetOnceAndPreservesSequence() a
 
 @MainActor
 @Test
-func playbackCueResultReelRapidScrollbarDragUsesOnlyRetainedDataset() async throws {
+func playbackCueResultReelRapidScrollbarDragUsesResidentDataset() async throws {
     _ = NSApplication.shared
     let totalCount = 50_000
-    let expectedInitialLoadCalls = PlaybackCueResultCompleteLoadPolicy
-        .batchRanges(in: 0..<totalCount).count
-    var loaderCallCount = 0
-    let source = PlaybackCueResultSource(
+    let source = playbackPlaylistReelSource(
         kind: .shiori,
-        totalCount: totalCount,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        loaderCallCount += 1
-        return PlaybackCueResultSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistReelItems(in: request.ordinalRange)
-        )
-    }
+        totalCount: totalCount
+    )
     let dataset = try #require(source.makeSessionWindowStore())
-    #expect(dataset.requestWindow(containing: 0))
-    #expect(await waitForPlaybackPlaylistReelAdapter {
-        dataset.snapshot.loadedItemCount == totalCount
-    })
-    #expect(loaderCallCount == expectedInitialLoadCalls)
     let adapter = PlaybackCueResultReelAdapter(
         windowStore: dataset,
         showsCueGroup: true,
@@ -113,7 +75,7 @@ func playbackCueResultReelRapidScrollbarDragUsesOnlyRetainedDataset() async thro
     view.handleScrollbarDraggingChanged(false)
     await Task.yield()
 
-    #expect(loaderCallCount == expectedInitialLoadCalls)
+    #expect(dataset.snapshot.loadedItemCount == totalCount)
     #expect(dataset.selectedOrdinal == 37_499)
     #expect(adapter.measurementCacheCountForTesting <= 64)
     #expect(adapter.measuredOrdinalsForTesting.count <= 64)
@@ -126,33 +88,15 @@ func playbackCueResultReelRapidScrollbarDragUsesOnlyRetainedDataset() async thro
 
 @MainActor
 @Test
-func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() async throws {
+func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() throws {
     _ = NSApplication.shared
-    var loaderCallCount = 0
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 3,
-        knownItemIDsByOrdinal: [:]
-    ) { request in
-        loaderCallCount += 1
-        return PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistReelItems(in: request.ordinalRange)
-        )
-    }
+    let source = playbackPlaylistReelSource(totalCount: 3)
     let window = try #require(source.makeSessionWindowStore())
     let adapter = PlaybackPlaylistReelAdapter(
         windowStore: window,
         showsCueGroup: false,
         measurementCacheCapacity: 2
     )
-    adapter.requestWindow(makePlaybackPlaylistReelRequest(
-        snapshot: adapter.snapshot,
-        targetOrdinal: 0
-    ))
-    #expect(await waitForPlaybackPlaylistReelAdapter {
-        adapter.snapshot.loadedItemCount == 3
-    })
 
     let primaryOnlyExtent = try #require(adapter.extent(
         at: 0,
@@ -194,58 +138,25 @@ func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() asy
         uiProbeScope: nil
     ))
     #expect(cueGroupExtent.naturalHeight > primaryOnlyExtent.naturalHeight)
-
-    adapter.requestWindow(makePlaybackPlaylistReelRequest(
-        snapshot: beforeCueGroup,
-        targetOrdinal: 1
-    ))
-    await Task.yield()
-    #expect(loaderCallCount == 1)
-
-    adapter.requestWindow(makePlaybackPlaylistReelRequest(
-        snapshot: adapter.snapshot,
-        targetOrdinal: 1
-    ))
-    await Task.yield()
-    #expect(loaderCallCount == 1)
 }
 
 @MainActor
 @Test
-func playbackPlaylistReelAdapterInvalidationPreservesItsSessionWindow() async throws {
-    let source = PlaybackPlaylistSource(
-        kind: .search,
-        totalCount: 2,
-        knownItemIDsByOrdinal: [
-            0: .search(1_000),
-            1: .search(1_001),
-        ]
-    ) { request in
-        PlaybackPlaylistSourceWindowResponse(
-            request: request,
-            items: makePlaybackPlaylistReelItems(in: request.ordinalRange)
-        )
-    }
+func playbackPlaylistReelAdapterInvalidationPreservesItsSessionWindow() throws {
+    let source = playbackPlaylistReelSource(totalCount: 2)
     let originalBoundary = source.boundary
     let window = try #require(source.makeSessionWindowStore())
     let adapter = PlaybackPlaylistReelAdapter(
         windowStore: window,
         showsCueGroup: true
     )
-    adapter.requestWindow(makePlaybackPlaylistReelRequest(
-        snapshot: adapter.snapshot,
-        targetOrdinal: 0
-    ))
-    #expect(await waitForPlaybackPlaylistReelAdapter {
-        adapter.snapshot.loadedItemCount == 2
-    })
 
     adapter.invalidate()
 
     #expect(!adapter.supportsWindowRequests)
     #expect(adapter.snapshot.totalCount == 2)
     #expect(adapter.item(at: 0) == nil)
-    #expect(window.retainedItemCount == 2)
+    #expect(window.item(at: 0)?.identity == .search(1_000))
     #expect(window.selectedOrdinal == 0)
     #expect(source.hasItems)
     #expect(source.boundary == originalBoundary)
@@ -256,10 +167,15 @@ func playbackPlaylistReelAdapterInvalidationPreservesItsSessionWindow() async th
     replacementWindow.invalidate()
 }
 
-private func makePlaybackPlaylistReelItems(
-    in ordinalRange: Range<Int>
-) -> [PlaybackPlaylistItem] {
-    ordinalRange.map { ordinal in
+@MainActor
+private func playbackPlaylistReelSource(
+    kind: PlaybackPlaylistSourceKind = .search,
+    totalCount: Int
+) -> PlaybackPlaylistSource {
+    PlaybackPlaylistSource(kind: kind, totalCount: totalCount) { ordinal in
+        guard ordinal >= 0, ordinal < totalCount else {
+            return nil
+        }
         let id = Int64(1_000 + ordinal)
         let primary = "primary-\(ordinal)"
         return PlaybackPlaylistItem(
@@ -283,35 +199,4 @@ private func makePlaybackPlaylistReelItems(
             ordinal: ordinal
         )
     }
-}
-
-private func makePlaybackPlaylistReelRequest(
-    snapshot: PlaybackVirtualReelSnapshot,
-    targetOrdinal: Int
-) -> PlaybackVirtualReelWindowRequest {
-    PlaybackVirtualReelWindowRequest(
-        datasetID: snapshot.datasetID,
-        generation: snapshot.generation,
-        revision: snapshot.revision,
-        targetOrdinal: targetOrdinal,
-        suggestedOrdinalRange: PlaybackVirtualReelWindowPolicy.standard.windowRange(
-            totalCount: snapshot.totalCount,
-            targetOrdinal: targetOrdinal
-        ),
-        reason: .visible
-    )
-}
-
-@MainActor
-private func waitForPlaybackPlaylistReelAdapter(
-    attempts: Int = 100,
-    _ condition: () -> Bool
-) async -> Bool {
-    for _ in 0..<attempts {
-        if condition() {
-            return true
-        }
-        await Task.yield()
-    }
-    return condition()
 }

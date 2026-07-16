@@ -221,8 +221,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                             return
                         }
                         _ = searchSource.updateBoundary(
-                            totalCount: searchStore.searchResults.count,
-                            knownItemIDsByOrdinal: [:]
+                            totalCount: searchStore.searchResults.count
                         )
                         if searchSource.boundary.totalCount > 0,
                            self.searchWindow?.selectedOrdinal == nil {
@@ -269,8 +268,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                             return
                         }
                         _ = shioriPresentationSource.updateBoundary(
-                            totalCount: shioriStore.tableRowStore.snapshot.totalRowCount,
-                            knownItemIDsByOrdinal: [:]
+                            totalCount: shioriStore.tableRowStore.snapshot.totalRowCount
                         )
                         if shioriPresentationSource.boundary.totalCount > 0,
                            self.shioriWindow?.selectedOrdinal == nil {
