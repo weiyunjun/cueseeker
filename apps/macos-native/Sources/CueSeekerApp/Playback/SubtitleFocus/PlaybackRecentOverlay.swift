@@ -84,6 +84,7 @@ struct PlaybackRecentOverlay: View {
                 onHoverSelection: { item in
                     selection.selectFromPointer(item.id)
                 },
+                showsContextMenuItem: false,
                 onOpen: { item in
                     _ = onOpenItem(item)
                 }

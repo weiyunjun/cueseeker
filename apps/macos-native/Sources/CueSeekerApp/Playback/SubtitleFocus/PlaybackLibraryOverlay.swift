@@ -236,6 +236,7 @@ private struct PlaybackLibraryEpisodeLevel: View {
                 onHoverSelection: { video in
                     selection.selectFromPointer(video.id)
                 },
+                showsContextMenuItem: false,
                 onOpen: { video in
                     _ = onOpenEpisode(video)
                 }

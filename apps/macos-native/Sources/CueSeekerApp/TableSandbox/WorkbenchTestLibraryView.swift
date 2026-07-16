@@ -254,6 +254,7 @@ struct RecentWatchingGrid: View {
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHoverSelection = false
     var onHoverSelection: (RecentLibraryWatchingPresentation) -> Void = { _ in }
+    var showsContextMenuItem = true
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
     private var columns: [GridItem] {
@@ -279,7 +280,8 @@ struct RecentWatchingGrid: View {
                         actions: .appState(appState),
                         openContextMenu: openContextMenu,
                         allowsHoverSelection: allowsHoverSelection,
-                        onHoverSelection: { onHoverSelection(item) }
+                        onHoverSelection: { onHoverSelection(item) },
+                        showsContextMenuItem: showsContextMenuItem
                     ) {
                         onOpen(item)
                     }
@@ -348,6 +350,7 @@ private struct RecentWatchingCard: View {
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let allowsHoverSelection: Bool
     let onHoverSelection: () -> Void
+    let showsContextMenuItem: Bool
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -443,7 +446,7 @@ private struct RecentWatchingCard: View {
     }
 
     private var recentContextMenuItems: [LibraryCardContextMenuItem] {
-        [
+        var items = [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 actions.revealFile(item.videoPath)
             },
@@ -455,11 +458,16 @@ private struct RecentWatchingCard: View {
             },
             LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
                 actions.markVideo(item.libraryVideo, .watching)
-            },
-            LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
-                actions.openVideoContext(item.libraryVideo, contextDisplayTitle)
             }
         ]
+        if showsContextMenuItem {
+            items.append(
+                LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
+                    actions.openVideoContext(item.libraryVideo, contextDisplayTitle)
+                }
+            )
+        }
+        return items
     }
 
     private var episodeLabel: String {
@@ -687,6 +695,7 @@ struct CompleteLibraryEpisodeGrid: View {
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHoverSelection = false
     var onHoverSelection: (CompleteLibraryVideoPresentation) -> Void = { _ in }
+    var showsContextMenuItem = true
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
     var body: some View {
@@ -702,7 +711,8 @@ struct CompleteLibraryEpisodeGrid: View {
                             actions: .appState(appState),
                             openContextMenu: openContextMenu,
                             allowsHoverSelection: allowsHoverSelection,
-                            onHoverSelection: { onHoverSelection(video) }
+                            onHoverSelection: { onHoverSelection(video) },
+                            showsContextMenuItem: showsContextMenuItem
                         ) {
                             onOpen(video)
                         }
@@ -748,6 +758,7 @@ private struct LibraryEpisodeCard: View {
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let allowsHoverSelection: Bool
     let onHoverSelection: () -> Void
+    let showsContextMenuItem: Bool
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -875,7 +886,7 @@ private struct LibraryEpisodeCard: View {
     }
 
     private var episodeContextMenuItems: [LibraryCardContextMenuItem] {
-        [
+        var items = [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 actions.revealFile(video.videoPath)
             },
@@ -887,11 +898,16 @@ private struct LibraryEpisodeCard: View {
             },
             LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
                 actions.markVideo(video.libraryVideo, .watching)
-            },
-            LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
-                actions.openVideoContext(video.libraryVideo, displayTitle)
             }
         ]
+        if showsContextMenuItem {
+            items.append(
+                LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
+                    actions.openVideoContext(video.libraryVideo, displayTitle)
+                }
+            )
+        }
+        return items
     }
 
     private var displayTitle: String {
