@@ -959,7 +959,9 @@ pbpaste
 2. Press Enter during playback. Confirm playback pauses; the Overlay covers the
    complete Stage; Playback Chrome and Progress disappear; feedback remains the
    top layer; and the fixed-dark Sidebar reads Current, Playlist, Search,
-   Recent, Library, Shiori in that order with only two text/icon colors. Before
+   Recent, Library, Shiori in that order with only two text/icon colors. Confirm
+   Pointer starts hidden, Wheel alone does not reveal it, physical Pointer Move
+   reveals it, and any key-down hides it again. Before
    testing Current or any other module, immediately click Playlist, drag to its
    end, and record the last Sequence Number as the early partial count `P`.
    Sample the last Sequence once per second for three observations and record
@@ -1030,7 +1032,9 @@ pbpaste
    Select a non-first Result, scroll away from the start, and take Search-before.
    Click Current and then Search in the Sidebar and take Search-after: query,
    committed text, Results, selection, exact pixel offset, and editor focus must
-   be unchanged. Explicitly click Inline Clear and confirm an empty Result state
+   be unchanged. Confirm the Workbench Search Feature already exposes the same
+   current Query and loaded Result collection without copying a Playback-owned
+   dataset. Explicitly click Inline Clear and confirm an empty Result state
    with no focus ring, then re-enter the same second broad Japanese query through
    IME for action 9.
 9. Before Playback Search reaches Exact completion, press Enter on a settled
@@ -1043,9 +1047,10 @@ pbpaste
    least one increase with `S1 > S0`, use the same three-consecutive-observation
    rule from action 6 to record candidate count `S`.
    Record complete Primary Cue text at Sequence 1, Sequence 2, and Sequence `S`
-   in the Playback-Search-origin order ledger. Exit Playback, run the identical
-   term as a filter-free Workbench Search, wait for final Exact `{X} rows`, and
-   record the same three Workbench positions. If `X != S`, mark the manual
+   in the Playback-Search-origin order ledger. Exit Playback and confirm it
+   returns directly to Workbench Search with the identical shared Query and the
+   now-formal empty Filter; wait for final Exact `{X} rows`, and record the same
+   three Workbench positions. If `X != S`, mark the manual
    count/order sub-run `INCONCLUSIVE` and repeat actions 8 and 9 with a broader
    query or longer observation; the deterministic promotion prerequisite, not
    the three-second stability sample, decides source-growth correctness. A
@@ -1053,21 +1058,25 @@ pbpaste
    least one observed post-promotion count increase.
 10. Reopen playback and the Overlay. In Recent, confirm the first available card
     is selected. Use all four arrows, scroll away from the start, and take
-    Recent-before. Exercise card hover and the context menu without starting
-    playback. Click another Sidebar module and then click Recent; take
+    Recent-before. With Pointer visible, Hover another available card and
+    confirm it becomes Selected; move to blank space and confirm Selected stays.
+    Hide Pointer with a key and confirm Hover cannot change Selected; reveal it
+    by movement, then scroll a new card under the stationary Pointer and confirm
+    the new Hover target becomes Selected. Exercise the card context menu and
+    confirm it has the Workbench actions except `Context`, and that its actions
+    remain locked to the right-clicked card until close. Click another Sidebar
+    module and then click Recent; take
     Recent-after and confirm the selected identity and named card's top-edge
     pixel coordinate are identical. In a separate fresh Session, left-click a
-   Recent card and confirm its existing primary playback action destroys the
-   Overlay and opens that exact media item. The selected card's Focus Ring must
-   render as a `2px` stroke with a `2px` outward offset around the complete card
-   path, without clipping, and must never block the card's hover, left-click, or
-   context-menu region.
+    Recent card and confirm its existing primary playback action destroys the
+    Overlay and opens that exact media item. Selected must reuse the complete
+    card Hover visual with no Focus Ring, border, or independent selected fill.
 11. Reopen the Overlay and enter Library. Confirm the first available Folder is
     selected, use all four arrows, scroll, and take Library-Folder-before.
-    Before entering, verify Folder hover and its card context menu. The selected
-    Folder and Episode Focus Rings must each render as a `2px` stroke with a
-    `2px` outward offset around the complete card path, without clipping or
-    blocking pointer actions. Press Enter
+    Before entering, verify Folder Hover and its shared card context menu with
+    no `Context` item. Selected Folder must reuse the full-card Hover visual;
+    Selected Episode must reuse only the Cover Region Hover visual. Neither may
+    add a Focus Ring, border, or independent selected fill. Press Enter
     once to open the selected Folder and confirm a held/repeating Enter does not
     enter twice. Verify the fixed Detail Header, first available Episode
     selection, four-arrow navigation, Cover hover, and Cover context menu.
@@ -1095,9 +1104,11 @@ pbpaste
     levels, Shiori, and Playlist when available, then press Escape. Confirm no
     implicit seek and restoration of the playback state captured at Overlay
     open. Reopen with Enter and visit every available module: the new Session
-    must start on Current with empty Playback Search, Library at Folder level,
-    and default first selections and initial offsets. A Playlist-capable origin
-    must also reopen Playlist at its default first Result.
+    must start on Current; Playback Search must show the current shared Search
+    Query but reset its Overlay-local selection and offset; Library must start
+    at Folder level with default first selections and initial offsets. A
+    Playlist-capable origin must also reopen Playlist at its default first
+    Result.
 14. In separate fresh Sessions, execute playback Enter from Current, Playlist,
     Playback Search, Recent, Library Detail, and Shiori. For Current, Playlist,
     and Shiori, also verify S and C against the settled Primary Cue; use already
@@ -1108,6 +1119,12 @@ pbpaste
     action. In a separate fresh Library Session, press Enter on a Folder and
     confirm it enters Detail exactly once while the same Overlay Session stays
     active; it must not seek, open media, or destroy the Session.
+    Across separate successful runs, close Playback after playing from Search,
+    Shiori, Recent, and Library Detail. Require return to current Workbench
+    Search with its current Query, Workbench Shiori, Workbench Recent, and the
+    exact Workbench Library Folder Detail respectively. Failed playback and
+    module-only browsing must retain the prior Return Context; after close the
+    context must not leak into the next Playback Page.
 15. Start playback from Workbench Shiori, open the Overlay, and mechanically
     compare Playlist's final count and the Primary Cue texts at Sequence 1,
     Sequence 2, and the last Sequence against the existing Shiori
@@ -1133,12 +1150,14 @@ pbpaste
     `H_on == H_off`; order positions, Primary Cue text, identity, and actions
     must also match exactly. Only Additional Cues may disappear; Current and
     every Primary Cue must otherwise remain unchanged.
-17. Start a broad Playback Search and close the Playback Page immediately. In a
-    separate run, enter Library Detail and immediately close Playback; the
-    deterministic prerequisite, not human reaction time, proves cancellation
-    while the loader is in flight. In both manual runs, wait two seconds, open a
-    different video, and reopen the Overlay. No old query, Result, hierarchy,
-    selection, offset, feedback action, error, or late content may appear.
+17. Start a broad Playback Search and close the Playback Page immediately. The
+    shared Search Query and loaded Feature results must remain visible in
+    Workbench, while Overlay-local selection, offset, feedback, and pending
+    presentation work disappear. In a separate run, enter Library Detail and
+    immediately close Playback. Wait two seconds, open a different video, and
+    reopen the Overlay: no old Overlay hierarchy, selection, offset, feedback,
+    error, or late presentation work may appear, while shared Workbench Feature
+    data remains intact.
 18. Optionally repeat open, full Tab cycle, and Escape twenty times while
     observing `scripts/watch_player_memory.sh`. After warm-up, retained memory
     must not grow monotonically with every destroyed Session. Report this
@@ -1151,7 +1170,7 @@ wait for the End marker. In Terminal B run this exact review:
 
 ```bash
 LOG=/tmp/cueseeker-playback-multi-module-overlay.log
-FAILURE_PATTERN='(Fatal error:|Assertion failed:|Precondition failed:|NSInternalInconsistencyException|uncaught exception|Native playback failed:|Failed to (open Playback Subtitle Focus|play continuously from cue|load Playback Shiori window|load Shiori playback Playlist window|hydrate recent Library watching asynchronously|hydrate Complete Library asynchronously)|(Open|Prepare|Execute|Bind|Step) failed:)'
+FAILURE_PATTERN='(Fatal error:|Assertion failed:|Precondition failed:|NSInternalInconsistencyException|uncaught exception|Native playback failed:|Failed to (open Playback Subtitle Focus|play continuously from cue|load|hydrate)|(Open|Prepare|Execute|Bind|Step) failed:)'
 start_count="$(rg -c '^=== CUESEEKER OVERLAY E2E START ' "$LOG" || true)"
 clean_end_count="$(rg -c '^=== CUESEEKER OVERLAY E2E END .* exit=0 ===$' "$LOG" || true)"
 failure_matches="$(rg -n "$FAILURE_PATTERN" "$LOG" || true)"

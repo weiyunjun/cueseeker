@@ -72,8 +72,8 @@ Rules:
 - Playback render-view ownership, seek, volume, speed, subtitle track, and
   fullscreen lifecycle remain owned by the playback layer.
 - Playback close is owned by the playback session lifecycle. It must stop the
-  current session and clear playback-derived selection, then return to the
-  originating info page, but it must not clear Search results, database search
+  current session and clear playback-derived selection, then restore the
+  current Playback Return Context, but it must not clear Search results, database search
   caches, Library rows, Shiori records, or unrelated workbench presentation
   state.
 - The right-aligned overlay panel must never resize the video stage. Toggling the
@@ -148,14 +148,18 @@ Rules:
   query inputs changed.
 - The video page may be entered from Search, Library, or Shiori playback state
   when a playable selection exists.
-- The originating info-page mode is remembered. Closing the video page returns
-  to that mode with its state intact (query, results, scroll, disclosure).
-- Playback Multi-Module Overlay Search belongs only to its temporary Session.
-  It must not replace Workbench Search text or Results, and closing the Overlay
-  discards its query, Results, selection, scroll state, and unfinished work.
+- The Playback Page owns one Return Context initialized from the entering
+  Workbench Feature. Successful Playback Search, Shiori, Recent, or Library
+  Detail playback replaces it with that Feature target. Closing Playback
+  returns to the current Return Context and then destroys it.
+- Playback Search is a capability-restricted host of the Workbench Search
+  Feature. It uses the same query and result collection with a temporary empty
+  Filter context. Closing the Overlay discards only Overlay-local selection,
+  scroll, measurement, and unfinished presentation work; the Search query and
+  shared results remain Feature state.
 - Closing playback ends the active playback session, clears playback selection
-  highlights, hides the bottom player and top bar, returns to the originating
-  info page, and keeps Search, Library, and Shiori data intact.
+  highlights, hides the bottom player and top bar, restores the current
+  Playback Return Context, and keeps Search, Library, and Shiori data intact.
 
 ## 6. Search UX
 
@@ -539,8 +543,8 @@ Rules:
   sizing container; the workbench `.toolbar` is hidden.
 - The custom top bar spans the top of the video page: a left traffic-light
   cluster and a centered video title. It is player UI.
-- The traffic-light controls are custom-drawn with app semantics: close returns
-  to the originating info page (not quit), minimize miniaturizes the app window
+- The traffic-light controls are custom-drawn with app semantics: close restores
+  the current Playback Return Context (not quit), minimize miniaturizes the app window
   to the Dock (native `NSWindow.miniaturize`, a native-mechanics control outside
   the HTML prototype), zoom enters fullscreen. The real native NSWindow traffic
   lights are suppressed on the video page. The custom top bar is windowed-only;
@@ -634,8 +638,8 @@ Core rules:
 
 7. When the cursor is governed by the current player, mouse movement puts the
    cursor in the visible state.
-8. Initialization: entering the playback page puts Player UI and cursor in the
-   visible state.
+8. Initialization: entering the playback page puts Player UI in the visible
+   state and the cursor in the hidden state.
 9. Fullscreen special case: entering fullscreen forces Player UI and cursor to
    the hidden state.
 10. When Player UI is visible:
@@ -664,9 +668,15 @@ Supplementary rules:
 15. Visibility transitions are primarily driven by mouse movement. Mouse
     movement means physical pointer position changes, including ordinary
     movement and dragging while any mouse button is held. Mouse clicks, mouse
-    button down/up events without pointer-position changes, and keyboard input
-    do not count as movement.
+    button down/up events without pointer-position changes, and wheel input do
+    not count as movement and do not reveal the cursor.
 16. Player UI and cursor state transitions do not animate.
+17. Any keyboard key-down while the Playback Page is active puts the cursor in
+    the hidden state without changing Player UI visibility.
+18. Playback media-card Hover may update the session-local Selected Item only
+    while the cursor is visible. A hidden cursor cannot change Selected by
+    Hover. Once movement reveals it, ordinary Hover applies again, including a
+    new card moving under a stationary visible cursor because content scrolled.
 
 Mapping notes (App implementation):
 
@@ -708,7 +718,7 @@ Mapping notes (App implementation):
 | UX rule | Prototype anchor | SwiftUI owner | Behavior owner |
 | --- | --- | --- | --- |
 | Close is the red traffic-light control in the video-page top bar. | `.vt-close` in `.video-topbar` | `LiquidGlassWindowControlButton.Kind.close`, `LiquidGlassVideoTopBar` | Playback session lifecycle |
-| Close ends the active playback session and returns to the originating info page. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppCoordinator.stopPlayback` or successor close command |
+| Close ends the active playback session and restores the current Playback Return Context. | `.playback-closed` / no active session marker | `PlaybackExpandedLayout`, `BottomPlaybackBar` | `AppCoordinator.stopPlayback` or successor close command |
 | Close hides the bottom player after playback ends. | `.player-dock` hidden when no active playback | `BottomPlaybackBar` | Derived active playback session state |
 | Close clears playback-derived selection highlights. | `ui-is-selected` removed from overlay-panel rows | Overlay-panel views | Current playback source and selection state |
 
@@ -731,8 +741,8 @@ Rules:
 - Close from playback fullscreen exits fullscreen and ends playback. It must not
   leave the user in a video-only fullscreen surface without playback.
 - Closing playback is not the same as hiding the overlay panel, hiding chrome,
-  or exiting fullscreen. Those actions preserve playback; close ends playback
-  and returns to the originating info page.
+  or exiting fullscreen. Those actions preserve playback; close ends playback,
+  restores the current Return Context, and then destroys that context.
 
 ## 11. Video Page Overlay Panel UX
 
@@ -861,10 +871,11 @@ Rules:
   cursor visibility state machine (v4). Entering fullscreen forces Player UI
   and cursor into the hidden state; only real physical mouse movement while
   the cursor is governed by the current player reveals Player UI and cursor.
-  Keyboard input and clicks do not reveal them, and exiting fullscreen does
-  not by itself change either state. After three seconds without movement
-  while the cursor is governed by the current player, Player UI and cursor
-  hide again. There is no frozen display-check area.
+  Keyboard input forces the cursor hidden without revealing Player UI; clicks
+  and Wheel do not reveal either state. Exiting fullscreen does not by itself
+  change either state. After three seconds without movement while the cursor
+  is governed by the current player, Player UI and cursor hide again. There is
+  no frozen display-check area.
 - Clicking the video surface toggles play/pause unless the click targets a
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing
@@ -880,8 +891,8 @@ Rules:
   `titleVisibility` stays `.visible` only in fullscreen.
 - Clicking the native fullscreen close button is intercepted (via
   `windowShouldClose`) and performs the playback-close command: it exits
-  playback fullscreen, ends playback, and returns to the originating info page.
-  It must NOT quit the app or close the window, even though
+  playback fullscreen, ends playback, and restores the current Playback Return
+  Context. It must NOT quit the app or close the window, even though
   `applicationShouldTerminateAfterLastWindowClosed` is true.
 - The native fullscreen green button exits playback fullscreen through the
   existing fullscreen manager.
@@ -963,9 +974,10 @@ Playback Multi-Module Overlay Cue geometry and selection are native-only:
 - Up, Down, wheel, and scrollbar navigation use Cue ordinals and content-driven
   accepted placements. Width reflow preserves stable selected Cue identity and
   restores the fitting-center or oversized-head-first placement.
-- Playlist, Search, and Shiori use the same visible-range loading, dynamic
+- Playlist, Search, and Shiori use the same virtual rendering, dynamic
   measurement, accepted placement, scrolling, and recycling infrastructure as
-  Current while substituting Playback Cue Result identity and geometry.
+  Current. Their complete text collections remain resident in their shared
+  Feature or Playlist source; virtualization applies only to view work.
 - Playlist shows its one-based internal Sequence Number. `Show Cue Group` adds
   muted Additional Cues to Playlist, Search, and Shiori without changing count,
   order, Result identity, selection, or Primary Cue actions.
@@ -973,8 +985,10 @@ Playback Multi-Module Overlay Cue geometry and selection are native-only:
   edit's `100ms` debounce. Enter does not submit the query; it plays only an
   already settled selected Result.
 - Every open creates a new temporary Session on Current. Escape, playback,
-  Playback Page close, and source replacement destroy all module state and
-  cancel unfinished work; module switching itself stays inside the Session.
+  Playback Page close, and source replacement destroy Overlay-local module
+  state and cancel unfinished presentation work; module switching itself stays
+  inside the Session. Shared Search query/results, Shiori, Recent, and Library
+  Feature state are not destroyed with the Session.
 - Layout and drawing are limited to visible Cues plus overscan and an explicit
   navigation target. Focus selection, motion, measurement, and deferred action
   state remain overlay-local and must not invalidate Search, Shiori, Context,

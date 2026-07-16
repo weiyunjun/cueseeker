@@ -847,10 +847,12 @@ Behavior:
   contains the captured playback timestamp, otherwise the nearest preceding
   Cue, otherwise the first Cue. Width reflow preserves that stable Cue identity
   and restores its accepted fitting-center or oversized-top placement.
-- Playlist, Search, and Shiori reuse Current's virtual visible-range loading,
-  dynamic measurement, accepted placement, scrolling, and recycling while
-  rendering Playback Cue Results. Closing the Overlay cancels unfinished work
-  and clears every module's temporary query, rows, selection, and scroll state.
+- Playlist, Search, and Shiori reuse Current's virtual rendering, dynamic
+  measurement, accepted placement, scrolling, and recycling while rendering
+  Playback Cue Results. Their complete text collections remain resident in the
+  shared Feature or Playlist source. Closing the Overlay clears Overlay-local
+  selection, scroll, measurement, and unfinished presentation work; it does not
+  clear the shared Search query or Feature collections.
 - Playlist renders its one-based internal Sequence Number to the left of each
   Result. With `Show Cue Group` On, Playlist, Search, and Shiori add muted,
   smaller Additional Cues while the Primary Cue retains normal Cue styling.
@@ -859,8 +861,9 @@ Behavior:
   Results use the 8-pixel Cue gap. Presentation never changes Result identity
   or action targets.
 - Recent reuses the Watching Card layout. Library reuses Folder cards, its fixed
-  Detail Header, and Episode cards. Their Focus Rings use the shared 2-pixel
-  width and 2-pixel offset without intercepting the cards' pointer regions.
+  Detail Header, and Episode cards. Playback Selected state reuses each card's
+  existing Hover region and visual: full card for Recent/Folder and Cover only
+  for Episode. It adds no Focus Ring, border, or independent selected fill.
 - Removing a Shiori should show transient playback feedback with the Shiori icon
   and `Shiori Removed`.
 - Collapsing the Shared Content Panel hides the active mode content.

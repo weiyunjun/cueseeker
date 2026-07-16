@@ -506,9 +506,10 @@ Current implementation notes and accepted fullscreen correction:
   seeks to the selected Primary Cue start, begins continuous playback, and
   shows `Play`.
 - Playback Search reserves letter keys for query input and accepts only Enter
-  as its selected-Cue action. Its latest query edit updates Results after a
-  `100ms` debounce without Enter submission. Space is consumed without an
-  action in every module.
+  as its selected-Cue action. It reads and writes the Workbench Search Feature
+  query/results through a temporary empty Filter context. Its latest query edit
+  updates Results after a `100ms` debounce without Enter submission. Space is
+  consumed without an action in every module.
 - Cue hover, cue click, and the cue action menu are absent. Up, Down, wheel, and
   scrollbar navigation remain available.
 - An action accepted during unresolved reel motion runs exactly once against
@@ -518,10 +519,12 @@ Playback Multi-Module Overlay Cue contract:
 
 - Enter captures playback state, source identity, and the current timestamp,
   pauses playback, and creates a temporary Overlay Session on Current. The
-  Session owns Current, optional Playlist, Search, Recent, Library, and Shiori
-  state and destroys all temporary state and unfinished work when the Overlay
-  exits. Normal playback must not create Overlay queries, collections, views,
-  or measurements before Enter.
+  Session owns Current, optional Playlist, and only the Overlay-local
+  presentation state for Search, Recent, Library, and Shiori. Those four
+  modules host their Workbench Feature stores rather than owning another data
+  source. Overlay exit destroys Session state and unfinished presentation work,
+  but not shared Feature query or collections. Normal playback must not create
+  Overlay views or measurements before Enter.
 - If the captured timestamp lies within a Cue Group, the default selection is
   the physically bottommost Cue in stable source display order. If the
   timestamp lies within no Cue, select the nearest preceding Cue; if no
@@ -551,13 +554,18 @@ Playback Multi-Module Overlay Cue contract:
   seeking to that Cue's own start time and beginning continuous playback. An
   accepted action during motion waits for the existing final placement and
   executes once against the resulting Cue.
-- Playlist, Search, and Shiori reuse Current's visible-range loading, dynamic
-  measurement, accepted placement, scrolling, and recycling machinery with
-  Playback Cue Result data sources and identity.
+- Playlist, Search, and Shiori reuse Current's virtual rendering, dynamic
+  measurement, accepted placement, scrolling, and recycling machinery. Their
+  complete Cue text collections remain resident in the shared Feature or
+  Playlist source; keyboard and scrollbar navigation do not page text in.
 - Recent and Library reuse their existing card layouts, selection, primary
-  actions, and context menus. Library Folder navigation remains inside the
-  Session; Recent and Library Episode playback destroy the Session before the
-  media target opens.
+  actions, and context menus while omitting the Workbench-only `Context` menu
+  item. Selected state reuses the existing Hover visual with no Focus Ring.
+  Library Folder navigation remains inside the Session; Recent and Library
+  Episode playback destroy the Session before the media target opens.
+- The Playback Page keeps one Return Context across Overlay Sessions. Only a
+  successful Search, Shiori, Recent, or Library Detail playback replaces it;
+  closing Playback restores that target and then destroys the context.
 - Cue hover and click have no selection, action, seek, playback, or visual
   effect. Pointer clicks are consumed by the overlay; wheel and scrollbar
   navigation remain enabled.

@@ -42,13 +42,14 @@ authoritative behavior in `docs/product/12_liquid_glass_ux_mapping.md`):
   a dedicated full-window presentation layered above a still-alive info page,
   not a route swap, so info-page state, scroll, disclosure, and Search cache
   stay alive underneath.
-- Selecting a playable result opens the video page. The originating info-page
-  mode is remembered.
-- Closing the video page (the top-bar close control) ends the session and
-  returns to that originating info-page mode with its state intact.
-- Playback Multi-Module Overlay Search is temporary Session state. It does not
-  replace the workbench query or result snapshot and is destroyed when the
-  Overlay exits.
+- Selecting a playable result opens the video page and initializes its Playback
+  Return Context from the entering Workbench Feature.
+- Closing the video page (the top-bar close control) ends playback, restores
+  the current Playback Return Context, and then destroys that context.
+- Playback Multi-Module Overlay Search hosts the Workbench Search Feature. It
+  shares the current query and result collection, uses a temporary empty Filter
+  context, and destroys only Overlay-local selection, scroll, and presentation
+  state when the Overlay exits.
 - Where older sections below describe a bottom-launched overlay, a squeezing
   right side panel, an expand/collapse video chevron, or a drawer that pauses
   playback, the video-page behavior in doc 12 (§5, §10.1, §10.4, §11)
@@ -520,18 +521,22 @@ Playback Multi-Module Overlay interaction:
   settles.
 - Cue pointer hover and click do not select, seek, play, save, copy, or open an
   action menu. Pointer wheel and the scrollbar remain available.
-- Playlist, Search, and Shiori share Current's visible-range loading, dynamic
-  measurement, accepted placement, scrolling, and recycling behavior. Escape,
-  a playback action, Playback Page close, and source replacement cancel all
-  unfinished Session work and clear all temporary module state.
+- Playlist, Search, and Shiori share Current's virtual rendering, dynamic
+  measurement, accepted placement, scrolling, and recycling behavior. Complete
+  text collections remain resident in their shared Feature or Playlist source.
+  Escape, playback, Playback Page close, and source replacement cancel
+  unfinished Overlay-local work without clearing shared Feature state.
 - Playlist keeps its origin order and one-based internal Sequence Numbers.
   `Show Cue Group` is presentation-only across Playlist, Search, and Shiori;
   `S`, `C`, and Enter continue to target only the selected Primary Cue.
-- Recent and Library preserve their existing card primary actions and context
-  menus. Recent starts on the first available item. Library starts on the first
+- Recent and Library preserve their existing card primary actions and shared
+  context menus, except Playback omits the Workbench-only `Context` item.
+  Recent starts on the first available item. Library starts on the first
   available Folder, Enter opens that Folder in the same Session, Back restores
   the Folder selection and offset, and Detail starts on the first available
-  Episode. Media-card playback destroys the Session before opening its target.
+  Episode. Selected state reuses the card Hover visual without a Focus Ring.
+  Visible-Pointer Hover updates Selected; hidden Pointer Hover does not.
+  Media-card playback destroys the Session before opening its target.
 
 Keyboard interactions should not interfere with text input.
 
@@ -553,8 +558,8 @@ M2 playback interaction model:
 - The video page exposes its close command as the red traffic-light control in
   the video-page top bar. Close ends the current playback session, exits
   playback fullscreen if necessary, clears playback-derived selection
-  highlights, hides the bottom player and top bar, and returns to the
-  originating info-page mode with its state intact. There is no video-frame
+  highlights, hides the bottom player and top bar, and restores the current
+  Playback Return Context. There is no video-frame
   Close capsule. Minimize (yellow) collapses playback; zoom (green) enters
   fullscreen.
 - Playback fullscreen should fullscreen the video experience itself, not the full app shell.
@@ -568,8 +573,9 @@ M2 playback interaction model:
 - Entering playback fullscreen should immediately put Player UI and the cursor
   into their hidden states, regardless of whether Player UI was visible before
   fullscreen.
-- Player UI and cursor visibility are driven by mouse movement while the cursor
-  is governed by the current player, not by mouse clicks or keyboard shortcuts.
+- Playback Page initialization hides the cursor. Physical pointer movement
+  reveals it; Wheel and clicks do not. Any Playback Page key-down hides the
+  cursor without revealing Player UI.
 - While Player UI is visible, three seconds without mouse movement while the
   cursor is governed by the current player hides Player UI and the cursor.
   There is no frozen display-check area. The full chrome-visibility contract

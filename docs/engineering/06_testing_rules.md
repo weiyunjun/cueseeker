@@ -250,20 +250,26 @@ Required M2 playback interaction checks:
   continuous playback starts at the exact Primary Cue start. Space is consumed
   without a playback action.
 - Playback Search keeps native text input priority, starts work 100 milliseconds
-  after the latest edit, keeps editor focus while Up and Down navigate Results,
-  and exposes only settled-result Enter as its module action. Recent and both
-  Library levels use four-direction media selection and nonrepeating Enter.
+  after the latest edit through the shared Workbench Search pipeline, keeps
+  editor focus while Up and Down navigate Results, and exposes only
+  settled-result Enter as its module action. Recent and both Library levels use
+  four-direction media selection and nonrepeating Enter.
 - Overlay action feedback renders above the Overlay. Cue Result hover and click
   do nothing; Up, Down, wheel, trackpad, and scrollbar navigation still work.
-  Existing Recent and Library pointer, hover, and context-menu regions remain
-  unchanged.
+  Recent and Library reuse their existing pointer, hover, and context-menu
+  regions; Playback omits only the Workbench `Context` menu item. Selected
+  reuses Hover visuals and adds no Focus Ring.
 - A Cue action accepted during reel motion executes once against the final
   settled target. Module switching preserves each module's Session state;
   Escape, playback actions, Playback Page close, source replacement, and stop
   synchronously destroy the Session, cancel its workers, and reject stale work.
-- Mouse movement inside the player area reveals fullscreen player UI and cursor
-  and restarts the idle timer. Mouse clicks and keyboard shortcuts do not reveal
-  player UI.
+- Playback Return Context persists across Overlay Sessions, changes only after
+  successful Search, Shiori, Recent, or Library Detail playback, and is
+  destroyed after close restores the corresponding current Workbench Feature.
+- Playback Page initialization hides Pointer. Mouse movement inside the player
+  area reveals player UI and Pointer and restarts the idle timer; clicks and
+  Wheel do not. Every key-down hides Pointer without revealing player UI.
+  Hidden-Pointer Hover cannot change Playback Media Selection.
 - Selecting a search result, clicking app-owned feature buttons, selecting
   another main-window sidebar section when such sections exist, or clicking the
   Playback Area clears Search field focus.
@@ -876,14 +882,16 @@ Required Playback Multi-Module Overlay coverage:
   five-point internal typographic gap; Playlist alone shows the one-based
   playback-origin sequence number.
 - Playlist preserves the established Search or Shiori source count, identity,
-  order, Exact progress, and navigation scope. Playback Search is independent
-  from Workbench Search until a settled Enter promotes its complete run into
-  Playlist; standalone Shiori uses persisted database order.
+  order, Exact progress, and navigation scope. Playback Search shares the
+  Workbench Search query, complete resident result collection, and pipeline
+  while applying a temporary empty Filter context; standalone Shiori reads the
+  shared persisted Shiori order. Virtualization is render-only.
 - Recent and Library reuse their existing card layouts. Directional selection
   follows visible geometry, defaults to the first available item, and preserves
-  exact native scroll offsets. Library independently preserves Folder and
-  Episode state; Back clears only Detail and restores Folder selection and
-  offset.
+  exact native scroll offsets. Visible-Pointer Hover selects available items;
+  selection uses the existing Hover visual without a Focus Ring. Library
+  independently preserves Folder and Episode state; Back clears only Detail
+  and restores Folder selection and offset.
 - Module switching preserves Current, each Result Reel, Playback Search,
   Recent, and both Library levels inside one Session. A newly saved Shiori that
   prepends the database order must preserve an already selected Shiori by

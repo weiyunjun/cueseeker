@@ -556,15 +556,24 @@ Playback Multi-Module Overlay cue action requirements:
 - Space is consumed without an action while the Overlay is visible.
 - Playback Search updates after the latest query edit's `100ms` debounce,
   selects its first Result after each update, and does not require Enter to
-  submit; Enter plays only an already settled selected Result.
+  submit. It hosts the shared Workbench Search query/results with a temporary
+  empty Filter context; Enter plays only an already settled selected Result.
 - Playlist follows its existing origin snapshot and displays the Playlist's
   one-based Sequence Number. `Show Cue Group` adds presentation-only context to
   Playlist, Playback Search, and Playback Shiori without changing count,
   ordering, identity, selection target, or Primary Cue actions.
 - Recent and Library reuse their established card layouts and directional
-  selection. Recent media actions and Library Episode media actions destroy the
-  Overlay Session before opening playback. Library Folder actions enter Detail
-  within the same Session, and Back restores the prior Folder state.
+  selection and omit the Workbench-only `Context` menu item. Selected state
+  reuses the existing Hover visual without a Focus Ring. Recent media actions
+  and Library Episode media actions destroy the Overlay Session before opening
+  playback. Library Folder actions enter Detail within the same Session, and
+  Back restores the prior Folder state.
+- Playback Page initialization hides the Pointer. Only physical Pointer Move
+  reveals it; Wheel does not. Any key-down hides it. Media-card Hover can
+  update Selected only while Pointer is visible.
+- The Playback Page retains one Return Context across Overlay Sessions. A
+  successful Search, Shiori, Recent, or Library Detail playback replaces it;
+  closing Playback restores that Workbench target and destroys the context.
 - Cue hover and click have no cue-specific visual or command behavior. Up,
   Down, wheel, and scrollbar navigation remain available.
 - If an action key is accepted while cue motion is settling, execute it once
@@ -573,9 +582,10 @@ Playback Multi-Module Overlay cue action requirements:
   where `L` is the complete visual-line count after source breaks and wrapping.
   Natural height is
   `max(nominal content height, visual-line stack height) + 24pt`.
-- Playlist, Search, and Shiori share the Current virtual-reel loading,
-  placement, scrolling, measurement, and recycling infrastructure while using
-  Playback Cue Result identity and geometry.
+- Playlist, Search, and Shiori share the Current virtual-reel rendering,
+  placement, scrolling, measurement, and recycling infrastructure while their
+  complete text collections remain resident in the shared Feature or Playlist
+  source.
 - A fitting Cue displays every line and keeps its complete center at the fixed
   Focus Anchor. An oversized Cue aligns its top edge with the reel viewport
   top, starts from its first visual line, and clips only trailing content.

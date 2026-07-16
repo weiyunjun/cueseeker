@@ -633,9 +633,9 @@ preserved; the following points clarify how they apply.
   previously enumerated "bottom-player video overlay expand/collapse" control is
   removed by this refactor and no longer participates in that gate.
 - On the video page the native NSWindow traffic lights are suppressed and a
-  custom-drawn top-bar control cluster provides app semantics: close returns to
-  the originating info-page mode (not quit), minimize collapses playback, zoom
-  enters fullscreen. These are presentation/platform controls; they must
+  custom-drawn top-bar control cluster provides app semantics: close restores
+  the current Playback Return Context (not quit), minimize collapses playback,
+  zoom enters fullscreen. These are presentation/platform controls; they must
   dispatch through shared playback and navigation state and must not embed
   product semantics in the view.
 - Product semantics stay out of views: the overlay panel renders existing
