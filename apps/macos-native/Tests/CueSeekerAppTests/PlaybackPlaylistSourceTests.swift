@@ -208,23 +208,28 @@ func shioriPlaybackPlaylistUsesExistingNavigationScopeOrderAndCount() throws {
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     app.shioriPlaybackNavigationScopeIDs = [9, 3, 7]
+    app.shiori.shioris = [9, 3, 7].map {
+        makePlaybackPlaylistShiori(id: $0)
+    }
 
     app.installShioriPlaybackPlaylistSource()
 
     let source = try #require(app.playback.playlistSource)
+    let window = try #require(source.makeSessionWindowStore())
     #expect(source.origin == .shiori(scope: .explicitIDs([9, 3, 7])))
     #expect(source.boundary.totalCount == 3)
-    #expect(source.boundary.knownItemIDsByOrdinal == [
-        0: .shiori(9),
-        1: .shiori(3),
-        2: .shiori(7),
-    ])
+    #expect(source.boundary.knownItemIDsByOrdinal.isEmpty)
+    #expect(!source.hasStableIdentityIndex)
+    #expect(window.retainedItemCount == 0)
+    #expect(window.item(at: 0)?.identity == .shiori(9))
+    #expect(window.item(at: 1)?.identity == .shiori(3))
+    #expect(window.item(at: 2)?.identity == .shiori(7))
     app.playback.clearPlaylistSource()
 }
 
 @MainActor
 @Test
-func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredDataset() async throws {
+func shioriPlaybackPlaylistTableScopeUsesCompleteWorkbenchDataset() async throws {
     _ = NSApplication.shared
     let suiteName = "PlaybackPlaylistShioriTable-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -245,36 +250,10 @@ func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredDataset() async throws
         databaseURL: databaseURL
     )
     await app.startupDatabaseTask?.value
-    let database = try #require(app.subtitleDatabase)
-    var matchingShioris: [Shiori] = []
-    for ordinal in 0..<80 {
-        let content: String
-        if ordinal.isMultiple(of: 2) {
-            content = "needle keep \(ordinal)"
-        } else if ordinal.isMultiple(of: 3) {
-            content = "needle drop \(ordinal)"
-        } else {
-            content = "other keep \(ordinal)"
-        }
-        let shiori = try database.upsertShiori(
-            subtitleFile: URL(fileURLWithPath: "/Media/TableScope-\(ordinal).srt"),
-            subtitleFormat: .srt,
-            videoFile: URL(fileURLWithPath: "/Media/TableScope-\(ordinal).mkv"),
-            videoName: "TableScope-\(ordinal).mkv",
-            selection: SubtitleCueTextSelection(
-                cueGroupID: Int64(ordinal + 1),
-                startMilliseconds: ordinal * 1_000,
-                endMilliseconds: ordinal * 1_000 + 500,
-                lines: [content]
-            ),
-            createdAt: Date(timeIntervalSince1970: TimeInterval(1_000 + ordinal))
-        )
-        if ordinal.isMultiple(of: 2) {
-            matchingShioris.append(shiori)
-        }
+    let shioris = (0..<40).map {
+        makePlaybackPlaylistShiori(id: Int64(1_000 + $0))
     }
-
-    let expectedIDs = matchingShioris.reversed().map(\.id)
+    let expectedIDs = shioris.map(\.id)
     let filterSet = SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(
             field: .cues,
@@ -282,35 +261,20 @@ func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredDataset() async throws
             value: "keep"
         )
     ])
-    let initialTablePage = try #require(
-        await app.loadTableSandboxShioriRows(
-            range: 0..<3,
-            searchText: "  needle  ",
-            filterSet: filterSet
-        )
+    app.shiori.tableSubmittedSearchText = "needle"
+    app.shiori.tableRowStore.updateShioriRows(
+        shioris.map(makePlaybackPlaylistShioriRowSource),
+        tableName: "shiori"
     )
-    #expect(initialTablePage.rows.count == 3)
-    #expect(initialTablePage.resultShioriIDs == expectedIDs)
-    #expect(initialTablePage.totalRowCount == expectedIDs.count)
-    let cancelledTableLoad = Task { @MainActor in
-        withUnsafeCurrentTask { task in
-            task?.cancel()
-        }
-        return await app.loadTableSandboxShioriRows(
-            range: 0..<3,
-            searchText: "needle",
-            filterSet: filterSet
-        )
-    }
-    #expect(await cancelledTableLoad.value == nil)
+    app.shiori.installTableResultShioriIDs(expectedIDs)
+    app.shiori.markTableRowsLoaded(totalSavedRowCount: shioris.count)
     let context = PlaybackPlaylistShioriTableContext(
         searchText: "  needle  ",
         filterSet: filterSet,
-        totalCount: initialTablePage.totalRowCount
+        totalCount: shioris.count
     )
     let scope = PlaybackPlaylistShioriScope.table(context)
-    let loadedRichPrefixIDs = initialTablePage.rows.map { Int64($0.shiori.id) }
-    app.shioriPlaybackNavigationScopeIDs = initialTablePage.resultShioriIDs
+    app.shioriPlaybackNavigationScopeIDs = expectedIDs
 
     app.installShioriPlaybackPlaylistSource(scope: scope)
 
@@ -319,64 +283,28 @@ func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredDataset() async throws
     #expect(context.searchText == "needle")
     #expect(source.origin == .shiori(scope: scope))
     #expect(source.boundary.totalCount == 40)
-    #expect(source.hasStableIdentityIndex)
-    #expect(source.boundary.totalCount > loadedRichPrefixIDs.count)
+    #expect(!source.hasStableIdentityIndex)
     #expect(window.requestWindow(containing: 35))
-    #expect(await waitForPlaybackPlaylistCondition(attempts: 1_000) {
-        window.snapshot.loadedItemCount == expectedIDs.count
-    })
-
     #expect(window.snapshot.loadedOrdinalRange == (0..<expectedIDs.count))
     #expect(window.snapshot.isComplete)
-    #expect(window.retainedItemCount == expectedIDs.count)
-    #expect(window.items.map(\.identity) == expectedIDs.map {
-        PlaybackPlaylistItemIdentity.shiori($0)
-    })
+    #expect(window.retainedItemCount == 0)
     #expect(window.item(at: 35)?.identity == .shiori(expectedIDs[35]))
 
-    _ = try database.upsertShiori(
-        subtitleFile: URL(fileURLWithPath: "/Media/TableScope-New.srt"),
-        subtitleFormat: .srt,
-        videoFile: URL(fileURLWithPath: "/Media/TableScope-New.mkv"),
-        videoName: "TableScope-New.mkv",
-        selection: SubtitleCueTextSelection(
-            cueGroupID: 10_000,
-            startMilliseconds: 90_000,
-            endMilliseconds: 90_500,
-            lines: ["needle keep new"]
-        ),
-        createdAt: Date(timeIntervalSince1970: 9_000)
+    let appendedShiori = makePlaybackPlaylistShiori(id: 1_040)
+    let updatedShioris = shioris + [appendedShiori]
+    app.shiori.tableRowStore.updateShioriRows(
+        updatedShioris.map(makePlaybackPlaylistShioriRowSource),
+        tableName: "shiori"
     )
-    #expect(
-        try database.shioriTableIDIndex(
-            searchText: context.searchText,
-            filterSet: filterSet
-        ).totalCount == 41
-    )
-    let stableTablePage = try #require(
-        await app.loadTableSandboxShioriRows(
-            range: 35..<40,
-            searchText: context.searchText,
-            filterSet: filterSet,
-            resultShioriIDs: initialTablePage.resultShioriIDs
-        )
-    )
-    #expect(stableTablePage.totalRowCount == 40)
-    #expect(stableTablePage.rows.map { $0.shiori.id } == Array(expectedIDs[35..<40]))
+    app.shiori.installTableResultShioriIDs(updatedShioris.map(\.id))
+    app.refreshShioriPlaybackPlaylistSource()
     #expect(source.boundary.totalCount == 40)
     #expect(source.itemIdentity(at: 0) == .shiori(expectedIDs[0]))
     #expect(window.requestWindow(containing: 0))
-    await Task.yield()
     #expect(window.snapshot.loadedOrdinalRange == (0..<expectedIDs.count))
-    #expect(window.items.map(\.identity) == expectedIDs.map {
-        PlaybackPlaylistItemIdentity.shiori($0)
-    })
 
-    let outsideLoadedPrefix = try #require(
-        matchingShioris.first { $0.id == expectedIDs[35] }
-    )
     app.openShiori(
-        outsideLoadedPrefix,
+        shioris[35],
         navigationScopeIDs: expectedIDs,
         playlistScope: scope
     )
@@ -389,19 +317,6 @@ func shioriPlaybackPlaylistTableScopeKeepsCompleteFilteredDataset() async throws
 
     app.installShioriPlaybackPlaylistSource(scope: scope)
     #expect(app.playback.playlistSource === source)
-
-    _ = try database.removeShiori(id: expectedIDs[10])
-    let stableBoundary = source.boundary
-    let missingIndexedItemResponse = await source.loadWindow(
-        PlaybackPlaylistSourceWindowRequest(
-            datasetID: stableBoundary.datasetID,
-            generation: stableBoundary.generation,
-            sourceRevision: stableBoundary.revision,
-            totalCount: stableBoundary.totalCount,
-            ordinalRange: 0..<32
-        )
-    )
-    #expect(missingIndexedItemResponse == nil)
 
     let replacementScope = PlaybackPlaylistShioriScope.table(
         PlaybackPlaylistShioriTableContext(
@@ -1707,6 +1622,18 @@ private func makePlaybackPlaylistShiori(
         content: content ?? "shiori-\(id)",
         isValid: true,
         createdAt: "2026-07-15T00:00:00Z"
+    )
+}
+
+private func makePlaybackPlaylistShioriRowSource(
+    _ shiori: Shiori
+) -> TableSandboxShioriRowSource {
+    TableSandboxShioriRowSource(
+        shiori: shiori,
+        displayTitle: shiori.videoName,
+        dateAddedText: shiori.createdAt,
+        languages: [],
+        shioriTags: []
     )
 }
 

@@ -63,7 +63,7 @@ final class PlaybackStore: ObservableObject {
         searchStore: SearchStore? = nil,
         recentStore: PlaybackRecentSessionStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
-        shioriSource: PlaybackCueResultSource? = nil
+        shioriStore: ShioriStore? = nil
     ) -> PlaybackSubtitleFocusSessionStore? {
         guard subtitleFocusSession == nil else {
             return nil
@@ -81,7 +81,7 @@ final class PlaybackStore: ObservableObject {
             searchStore: searchStore,
             recentStore: recentStore,
             libraryStore: libraryStore,
-            shioriSource: shioriSource
+            shioriStore: shioriStore
         )
         subtitleFocusSession = session
         return session

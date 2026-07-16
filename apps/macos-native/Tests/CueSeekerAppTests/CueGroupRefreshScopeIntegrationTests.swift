@@ -643,6 +643,9 @@ private final class CueGroupRefreshScopeMountedHarness {
                 probeSurface: .shiori,
                 probeScope: uiProbeScope
             )
+            app.shiori.installTableResultShioriIDs(
+                sources.map { $0.shiori.id }
+            )
             app.shiori.markTableRowsLoaded(totalSavedRowCount: sources.count)
             app.activateWorkbenchPanelMode(.shiori)
         }

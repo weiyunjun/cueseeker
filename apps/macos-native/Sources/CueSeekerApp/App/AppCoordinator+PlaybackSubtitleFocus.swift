@@ -49,17 +49,16 @@ extension AppCoordinator {
         )
         let recentStore = makePlaybackRecentSessionStore()
         let libraryStore = makePlaybackLibrarySessionStore()
-        let shioriSource = makePlaybackShioriOverlaySource()
+        loadShioriTableRowsIfNeeded()
         guard let session = playback.beginSubtitleFocusSession(
             openSnapshot: openSnapshot,
             searchStore: search,
             recentStore: recentStore,
             libraryStore: libraryStore,
-            shioriSource: shioriSource
+            shioriStore: shiori
         ) else {
             recentStore.invalidate()
             libraryStore.invalidate()
-            shioriSource.invalidate()
             return false
         }
 
@@ -464,6 +463,8 @@ extension AppCoordinator {
     ) {
         if result == .saved {
             shiori.invalidateTableRows()
+            loadShioriTableRowsIfNeeded()
+            hydrateShiorisAsync(invalidatesTableRows: false)
         }
         guard playbackSubtitleFocusActionGeneration == taskGeneration,
               playback.subtitleFocusSession === session,
@@ -472,9 +473,6 @@ extension AppCoordinator {
             return
         }
         playbackSubtitleFocusActionTask = nil
-        if result == .saved {
-            _ = session.refreshShioriAfterSave()
-        }
         playback.playbackViewModel?.showShioriFeedback(
             result == .saved ? .saved : .alreadySaved
         )
@@ -547,9 +545,20 @@ extension AppCoordinator {
 
     private func openPlaybackShioriItem(_ item: PlaybackCueResultItem) {
         _ = dispatchPlaybackShioriOverlayItem(item) { shiori, scope, continuous in
+            let playlistScope = scope.map {
+                PlaybackPlaylistShioriScope.table(
+                    PlaybackPlaylistShioriTableContext(
+                        runID: self.shiori.tableResultSnapshotID,
+                        searchText: self.shiori.tableSubmittedSearchText,
+                        filterSet: self.shiori.tableFilterRules.subtitleSearchFilterSet,
+                        totalCount: $0.count
+                    )
+                )
+            }
             openShiori(
                 shiori,
                 navigationScopeIDs: scope,
+                playlistScope: playlistScope,
                 playsContinuouslyFromStart: continuous
             )
         }
@@ -563,7 +572,12 @@ extension AppCoordinator {
         guard case .shiori(let shiori) = item.target else {
             return false
         }
-        open(shiori, nil, true)
+        let resultIDs = self.shiori.tableResultShioriIDs.flatMap { shioriIDs in
+            shioriIDs.count == self.shiori.tableResultRowCount
+                ? shioriIDs
+                : nil
+        }
+        open(shiori, resultIDs, true)
         return true
     }
 

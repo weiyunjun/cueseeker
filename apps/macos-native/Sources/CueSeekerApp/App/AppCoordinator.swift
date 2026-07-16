@@ -414,6 +414,7 @@ final class AppCoordinator: ObservableObject {
     var libraryDisplayRenditionAttemptedScopeKey: String?
     var libraryDisplayRenditionGeneration = 0
     var shiorisTask: Task<Void, Never>?
+    var shioriTableRowsTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?
     var searchExactCompletionTask: Task<Void, Never>?

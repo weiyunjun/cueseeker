@@ -44,6 +44,112 @@ struct ShioriTagDeletionOutcome: Equatable {
 
 @MainActor
 extension AppCoordinator {
+    func loadShioriTableRowsIfNeeded() {
+        guard shioriTableRowsTask == nil else {
+            return
+        }
+        let snapshot = shiori.tableRowStore.snapshot
+        guard !shiori.tableHasLoadedInitialPage
+                || snapshot.totalRowCount != shiori.tableResultRowCount
+        else {
+            return
+        }
+        reloadShioriTableRows()
+    }
+
+    func reloadShioriTableRows() {
+        shioriTableRowsTask?.cancel()
+        shiori.clearTableRowsForReload()
+
+        let resultSnapshotID = shiori.tableResultSnapshotID
+        let searchText = shiori.tableSubmittedSearchText
+        let filterSet = shiori.tableFilterRules.subtitleSearchFilterSet
+        let dataRevision = shiori.tableDataRevision
+        shioriTableRowsTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                if self.shiori.tableResultSnapshotID == resultSnapshotID {
+                    self.shioriTableRowsTask = nil
+                }
+            }
+
+            var resultShioriIDs: [Int64]?
+            var nextOffset = 0
+            var isFirstPage = true
+            while !Task.isCancelled {
+                let pageSize = isFirstPage
+                    ? TableSandboxHydrationPaging.pageSize
+                    : 1_000
+                guard let page = await self.loadTableSandboxShioriRows(
+                    range: nextOffset..<(nextOffset + pageSize),
+                    searchText: searchText,
+                    filterSet: filterSet,
+                    resultShioriIDs: resultShioriIDs
+                ) else {
+                    if isFirstPage,
+                       self.shioriTableRequestMatches(
+                           resultSnapshotID: resultSnapshotID,
+                           searchText: searchText,
+                           filterSignature: filterSet.cacheSignature,
+                           dataRevision: dataRevision
+                       ) {
+                        self.shiori.markTableRowsLoaded(totalSavedRowCount: 0)
+                    }
+                    return
+                }
+                guard self.shioriTableRequestMatches(
+                    resultSnapshotID: resultSnapshotID,
+                    searchText: searchText,
+                    filterSignature: filterSet.cacheSignature,
+                    dataRevision: dataRevision
+                ) else {
+                    return
+                }
+
+                if isFirstPage {
+                    resultShioriIDs = page.resultShioriIDs
+                    self.shiori.installTableResultShioriIDs(page.resultShioriIDs)
+                    self.shiori.markTableRowsLoaded(
+                        totalSavedRowCount: page.totalSavedRowCount
+                    )
+                }
+                self.shiori.tableRowStore.hydrateShioriRows(
+                    page.rows,
+                    startIndex: page.range.lowerBound,
+                    totalRowCount: page.range.lowerBound + page.rows.count,
+                    tableName: "shiori",
+                    probeSurface: .shiori,
+                    probeScope: self.uiProbeScope
+                )
+                self.refreshShioriPlaybackPlaylistSource()
+
+                nextOffset = page.range.upperBound
+                isFirstPage = false
+                guard nextOffset < page.totalRowCount,
+                      !page.rows.isEmpty
+                else {
+                    return
+                }
+            }
+        }
+    }
+
+    private func shioriTableRequestMatches(
+        resultSnapshotID: UUID,
+        searchText: String,
+        filterSignature: String,
+        dataRevision: Int
+    ) -> Bool {
+        !Task.isCancelled
+            && shiori.tableResultSnapshotID == resultSnapshotID
+            && shiori.tableSubmittedSearchText == searchText
+            && shiori.tableFilterRules.subtitleSearchFilterSet.cacheSignature
+                == filterSignature
+            && shiori.tableDataRevision == dataRevision
+    }
+
     func loadTableSandboxShioriRows(
         range: Range<Int>,
         searchText: String,
@@ -182,7 +288,7 @@ extension AppCoordinator {
         }
     }
 
-    func hydrateShiorisAsync() {
+    func hydrateShiorisAsync(invalidatesTableRows: Bool = true) {
         guard let database = subtitleDatabase else {
             return
         }
@@ -196,7 +302,10 @@ extension AppCoordinator {
 
                 guard !Task.isCancelled else { return }
 
-                self?.applyShioris(loadedShioris)
+                self?.applyShioris(
+                    loadedShioris,
+                    invalidatesTableRows: invalidatesTableRows
+                )
             } catch {
                 guard !Task.isCancelled else { return }
                 print("Failed to load shioris asynchronously: \(error)")
@@ -204,9 +313,13 @@ extension AppCoordinator {
         }
     }
 
-    func applyShioris(_ nextShioris: [Shiori]) {
+    func applyShioris(
+        _ nextShioris: [Shiori],
+        invalidatesTableRows: Bool = true
+    ) {
         let sortedShioris = nextShioris.sorted(by: Self.shioriSort)
-        if shiori.shioris != sortedShioris {
+        if invalidatesTableRows,
+           shiori.shioris != sortedShioris {
             shiori.invalidateTableRows()
         }
         shiori.shioris = sortedShioris
@@ -527,11 +640,10 @@ extension AppCoordinator {
 
         if let source = playback.playlistSource,
            case .shiori(.table) = source.origin {
-            let selectedIdentity = PlaybackPlaylistItemIdentity.shiori(
-                selectedID
-            )
-            guard source.hasStableIdentityIndex,
-                  let index = source.ordinal(of: selectedIdentity)
+            let scopeIDs = shioriPlaybackNavigationScopeIDs
+                ?? shiori.tableResultShioriIDs
+            guard let scopeIDs,
+                  let index = scopeIDs.firstIndex(of: selectedID)
             else {
                 shioriPlaybackNavigationSnapshot = (
                     currentID: selectedID,
@@ -540,22 +652,12 @@ extension AppCoordinator {
                 )
                 return
             }
-            let previousID: Int64? = if index > 0,
-                case .shiori(let shioriID)? = source.itemIdentity(at: index - 1) {
-                shioriID
-            } else {
-                nil
-            }
-            let nextID: Int64? = if index + 1 < source.boundary.totalCount,
-                case .shiori(let shioriID)? = source.itemIdentity(at: index + 1) {
-                shioriID
-            } else {
-                nil
-            }
             shioriPlaybackNavigationSnapshot = (
                 currentID: selectedID,
-                previousID: previousID,
-                nextID: nextID
+                previousID: index > 0 ? scopeIDs[index - 1] : nil,
+                nextID: index + 1 < scopeIDs.count
+                    ? scopeIDs[index + 1]
+                    : nil
             )
             return
         }

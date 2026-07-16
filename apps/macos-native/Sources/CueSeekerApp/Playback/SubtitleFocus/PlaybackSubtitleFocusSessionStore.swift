@@ -137,6 +137,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
     @Published private(set) var recentStore: PlaybackRecentSessionStore?
     @Published private(set) var libraryStore: PlaybackLibrarySessionStore?
+    @Published private(set) var shioriStore: ShioriStore?
     @Published private(set) var shioriWindow: PlaybackCueResultSessionWindowStore?
 
     private var keyboardActionGeneration = 0
@@ -146,7 +147,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?
-    private var shioriSource: PlaybackCueResultSource?
+    private var shioriPresentationSource: PlaybackCueResultSource?
+    private var shioriResultsCancellable: AnyCancellable?
     private var searchSource: PlaybackCueResultSource?
     private var searchResultsCancellable: AnyCancellable?
     private var cueResultWindowSnapshotCancellables: [
@@ -164,7 +166,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         searchStore: SearchStore? = nil,
         recentStore: PlaybackRecentSessionStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
-        shioriSource: PlaybackCueResultSource? = nil
+        shioriStore: ShioriStore? = nil
     ) {
         self.openSnapshot = openSnapshot
         let requestedModules = Set(availableModules)
@@ -180,11 +182,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         self.searchStore = searchStore
         self.recentStore = recentStore
         self.libraryStore = libraryStore
-        self.shioriSource = shioriSource
-        let shioriWindow = shioriSource?.makeSessionWindowStore(
-            includingEmpty: true
-        )
-        self.shioriWindow = shioriWindow
+        self.shioriStore = shioriStore
         token = PlaybackSubtitleFocusSessionToken(
             source: openSnapshot.source,
             sessionGeneration: sessionGeneration
@@ -233,8 +231,53 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                     }
                 }
         }
-        if let shioriWindow {
-            observeCueResultWindow(shioriWindow, module: .shiori)
+        if let shioriStore {
+            let shioriPresentationSource = PlaybackCueResultSource(
+                origin: .unspecified(.shiori),
+                totalCount: shioriStore.tableRowStore.snapshot.totalRowCount
+            ) { [weak shioriStore] ordinal in
+                guard let shioriStore else {
+                    return nil
+                }
+                let snapshot = shioriStore.tableRowStore.snapshot
+                guard let row = snapshot.row(at: ordinal),
+                      let shiori = snapshot.shiori(entryID: row.id)
+                else {
+                    return nil
+                }
+                return PlaybackCueResultItem(
+                    shiori: shiori,
+                    cuePresentation: snapshot.shioriCuePresentation(
+                        entryID: row.id
+                    ),
+                    ordinal: ordinal
+                )
+            }
+            self.shioriPresentationSource = shioriPresentationSource
+            let shioriWindow = shioriPresentationSource.makeSessionWindowStore(
+                includingEmpty: true
+            )
+            self.shioriWindow = shioriWindow
+            if let shioriWindow {
+                observeCueResultWindow(shioriWindow, module: .shiori)
+            }
+            shioriResultsCancellable = shioriStore.tableRowStore.$snapshot
+                .dropFirst()
+                .sink { [weak self, weak shioriStore, weak shioriPresentationSource] _ in
+                    Task { @MainActor [weak self, weak shioriStore, weak shioriPresentationSource] in
+                        guard let self, let shioriStore, let shioriPresentationSource else {
+                            return
+                        }
+                        _ = shioriPresentationSource.updateBoundary(
+                            totalCount: shioriStore.tableRowStore.snapshot.totalRowCount,
+                            knownItemIDsByOrdinal: [:]
+                        )
+                        if shioriPresentationSource.boundary.totalCount > 0,
+                           self.shioriWindow?.selectedOrdinal == nil {
+                            self.shioriWindow?.resetSelectionToFirst()
+                        }
+                    }
+                }
         }
     }
 
@@ -832,46 +875,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
     }
 
-    @discardableResult
-    func refreshShioriAfterSave() -> Bool {
-        guard isSessionActive, let shioriSource else {
-            return false
-        }
-        let previousBoundary = shioriSource.boundary
-        guard previousBoundary.totalCount < Int.max else {
-            return false
-        }
-        let selectionToRestore = shioriWindow.flatMap { window in
-            window.selectedOrdinal.flatMap { ordinal in
-                window.selectedItemIdentity.map { identity in
-                    (identity: identity, ordinal: ordinal + 1)
-                }
-            }
-        }
-        var shiftedKnownIdentities = Dictionary(
-            uniqueKeysWithValues: previousBoundary.knownItemIDsByOrdinal.map {
-                ($0.key + 1, $0.value)
-            }
-        )
-        if let selectionToRestore {
-            shiftedKnownIdentities[selectionToRestore.ordinal]
-                = selectionToRestore.identity
-        }
-        guard shioriSource.updateBoundary(
-            totalCount: previousBoundary.totalCount + 1,
-            knownItemIDsByOrdinal: shiftedKnownIdentities
-        ) else {
-            return false
-        }
-        if let selectionToRestore {
-            _ = shioriWindow?.restoreSelection(
-                itemIdentity: selectionToRestore.identity,
-                at: selectionToRestore.ordinal
-            )
-        }
-        return true
-    }
-
     private func selectAvailableCue(ordinal: Int) -> Bool {
         guard let snapshot = currentSnapshot,
               ordinal >= 0,
@@ -1016,10 +1019,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         recentStore = nil
         libraryStore?.invalidate()
         libraryStore = nil
+        shioriResultsCancellable?.cancel()
+        shioriResultsCancellable = nil
         shioriWindow?.invalidate()
         shioriWindow = nil
-        shioriSource?.invalidate()
-        shioriSource = nil
+        shioriPresentationSource?.invalidate()
+        shioriPresentationSource = nil
+        shioriStore = nil
         cancelKeyboardNavigationIntent()
         selectedModule = nil
         availableModules = []

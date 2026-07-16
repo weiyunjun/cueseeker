@@ -6,6 +6,7 @@ struct TableSandboxRowsSnapshot {
     var rows: [SubtitleTableRow] = []
     var searchResultsByEntryID: [Int: SubtitleSearchResult] = [:]
     var shiorisByEntryID: [Int: Shiori] = [:]
+    var shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:]
     var version = 0
     var update = TableSandboxRowsUpdate.none
     var totalRowCount = 0
@@ -25,6 +26,10 @@ struct TableSandboxRowsSnapshot {
 
     func shiori(entryID: Int) -> Shiori? {
         shiorisByEntryID[entryID]
+    }
+
+    func shioriCuePresentation(entryID: Int) -> ShioriCuePresentation? {
+        shioriCuePresentationsByEntryID[entryID]
     }
 }
 
@@ -244,11 +249,15 @@ final class TableSandboxRowModelStore: ObservableObject {
         let shiorisByEntryID = Dictionary(uniqueKeysWithValues: shioris.map { item in
             (Int(item.shiori.id), item.shiori)
         })
+        let cuePresentationsByEntryID = Dictionary(uniqueKeysWithValues: shioris.compactMap { item in
+            item.cuePresentation.map { (Int(item.shiori.id), $0) }
+        })
 
         apply(
             rows,
             searchResultsByEntryID: [:],
             shiorisByEntryID: shiorisByEntryID,
+            shioriCuePresentationsByEntryID: cuePresentationsByEntryID,
             totalRowCount: shioris.count,
             prefixUnchanged: prefixUnchanged,
             tableName: tableName,
@@ -292,6 +301,7 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         var nextRows = snapshot.rows
         var nextShiorisByEntryID = snapshot.shiorisByEntryID
+        var nextCuePresentationsByEntryID = snapshot.shioriCuePresentationsByEntryID
         let oldRowCount = nextRows.count
         var lowerChangedIndex: Int?
         var upperChangedIndex: Int?
@@ -315,6 +325,10 @@ final class TableSandboxRowModelStore: ObservableObject {
                 actionCacheChanged = true
                 nextShiorisByEntryID[Int(item.shiori.id)] = item.shiori
             }
+            if nextCuePresentationsByEntryID[Int(item.shiori.id)] != item.cuePresentation {
+                actionCacheChanged = true
+                nextCuePresentationsByEntryID[Int(item.shiori.id)] = item.cuePresentation
+            }
         }
 
         guard lowerChangedIndex != nil || actionCacheChanged else { return }
@@ -332,6 +346,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             rows: nextRows,
             searchResultsByEntryID: [:],
             shiorisByEntryID: nextShiorisByEntryID,
+            shioriCuePresentationsByEntryID: nextCuePresentationsByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: nextRows.count
@@ -367,6 +382,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             rows: nextRows,
             searchResultsByEntryID: snapshot.searchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
+            shioriCuePresentationsByEntryID: snapshot.shioriCuePresentationsByEntryID,
             version: snapshot.version + 1,
             update: .cells([TableSandboxCellInvalidation(row: rowIndex, columnID: "tags")]),
             totalRowCount: snapshot.totalRowCount
@@ -407,6 +423,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             rows: nextRows,
             searchResultsByEntryID: snapshot.searchResultsByEntryID,
             shiorisByEntryID: snapshot.shiorisByEntryID,
+            shioriCuePresentationsByEntryID: snapshot.shioriCuePresentationsByEntryID,
             version: snapshot.version + 1,
             update: .cells(invalidations),
             totalRowCount: snapshot.totalRowCount
@@ -421,6 +438,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         _ rows: [SubtitleTableRow],
         searchResultsByEntryID: [Int: SubtitleSearchResult],
         shiorisByEntryID: [Int: Shiori],
+        shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:],
         totalRowCount: Int,
         prefixUnchanged: Bool,
         tableName: String,
@@ -433,6 +451,8 @@ final class TableSandboxRowModelStore: ObservableObject {
         let metadataChanged = totalRowCount != snapshot.totalRowCount
         let actionCacheChanged = searchResultsByEntryID != snapshot.searchResultsByEntryID
             || shiorisByEntryID != snapshot.shiorisByEntryID
+            || shioriCuePresentationsByEntryID
+                != snapshot.shioriCuePresentationsByEntryID
         let update = rowsUpdate == .none && metadataChanged ? .reload : rowsUpdate
         let changed = update != .none || metadataChanged || actionCacheChanged
 
@@ -444,6 +464,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             rows: rows,
             searchResultsByEntryID: searchResultsByEntryID,
             shiorisByEntryID: shiorisByEntryID,
+            shioriCuePresentationsByEntryID: shioriCuePresentationsByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: totalRowCount

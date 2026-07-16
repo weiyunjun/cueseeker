@@ -62,47 +62,6 @@ extension AppCoordinator {
         )
     }
 
-    func makePlaybackShioriOverlaySource() -> PlaybackCueResultSource {
-        let totalCount = subtitleDatabase.flatMap {
-            try? $0.shioriCount()
-        } ?? 0
-        let databaseReader = playbackSubtitleFocusDatabaseReader
-
-        return PlaybackCueResultSource(
-            kind: .shiori,
-            totalCount: totalCount,
-            knownItemIDsByOrdinal: [:]
-        ) { request in
-            do {
-                let page = try await databaseReader.shioriPage(
-                    limit: request.ordinalRange.count,
-                    offset: request.ordinalRange.lowerBound
-                )
-                guard !Task.isCancelled,
-                      page.shioris.count == request.ordinalRange.count
-                else {
-                    return nil
-                }
-                let items = zip(request.ordinalRange, page.shioris).map {
-                    PlaybackCueResultItem(
-                        shiori: $1,
-                        cuePresentation: page.cuePresentationsByShioriID[$1.id],
-                        ordinal: $0
-                    )
-                }
-                return PlaybackCueResultSourceWindowResponse(
-                    request: request,
-                    items: items
-                )
-            } catch is CancellationError {
-                return nil
-            } catch {
-                print("Failed to load Playback Shiori window: \(error)")
-                return nil
-            }
-        }
-    }
-
     func openAdjacentPlaybackSearchPlaylistResult(
         _ direction: SearchResultNavigationDirection,
         context: PlaybackSearchPromotion
@@ -213,9 +172,6 @@ extension AppCoordinator {
         scope requestedScope: PlaybackPlaylistShioriScope? = nil
     ) {
         let scope: PlaybackPlaylistShioriScope
-        let totalCount: Int
-        let knownItemIDsByOrdinal: [Int: PlaybackPlaylistItemIdentity]
-        let stableItemIdentities: [PlaybackPlaylistItemIdentity]?
         if let requestedScope {
             scope = requestedScope
         } else if let scopeIDs = shioriPlaybackNavigationScopeIDs {
@@ -223,128 +179,115 @@ extension AppCoordinator {
         } else {
             scope = .databaseOrder
         }
-        switch scope {
-        case .explicitIDs(let scopeIDs):
-            totalCount = scopeIDs.count
-            let explicitIdentities = scopeIDs.map(
-                PlaybackPlaylistItemIdentity.shiori
-            )
-            stableItemIdentities = explicitIdentities
-            knownItemIDsByOrdinal = Dictionary(uniqueKeysWithValues:
-                explicitIdentities.enumerated().map {
-                    ($0.offset, $0.element)
-                }
-            )
-        case .databaseOrder:
-            totalCount = subtitleDatabase.flatMap {
-                try? $0.shioriCount()
-            } ?? 0
-            knownItemIDsByOrdinal = [:]
-            stableItemIdentities = nil
-        case .table(let context):
-            totalCount = context.totalCount
-            let tableIDs = shioriPlaybackNavigationScopeIDs ?? []
-            let tableIdentities = tableIDs.map(
-                PlaybackPlaylistItemIdentity.shiori
-            )
-            stableItemIdentities = tableIdentities.count == totalCount
-                ? tableIdentities
-                : nil
-            knownItemIDsByOrdinal = Dictionary(uniqueKeysWithValues:
-                tableIdentities.prefix(totalCount).enumerated().map {
-                    ($0.offset, $0.element)
-                }
-            )
-        }
+        let totalCount = shioriPlaybackPlaylistCount(scope: scope)
         let origin = PlaybackPlaylistSourceOrigin.shiori(scope: scope)
         if let source = playback.playlistSource,
            source.origin == origin {
-            if case .table = scope {
-                return
-            }
             _ = source.updateBoundary(
                 totalCount: totalCount,
-                knownItemIDsByOrdinal: knownItemIDsByOrdinal
+                knownItemIDsByOrdinal: [:]
             )
             return
         }
 
-        let databaseReader = playbackSubtitleFocusDatabaseReader
         let source = PlaybackPlaylistSource(
             origin: origin,
-            totalCount: totalCount,
-            knownItemIDsByOrdinal: knownItemIDsByOrdinal,
-            stableItemIdentities: stableItemIdentities
-        ) { @MainActor [weak self] request in
-            guard let self,
-                  self.playback.playlistSource?.origin == origin
-            else {
-                return nil
-            }
-
-            do {
-                let page: ShioriPage
-                let expectedShioriIDs: [Int64]?
-                switch scope {
-                case .explicitIDs(let scopeIDs):
-                    let requestedIDs = Array(scopeIDs[request.ordinalRange])
-                    expectedShioriIDs = requestedIDs
-                    page = try await databaseReader.shioriPage(
-                        shioriIDs: requestedIDs
-                    )
-                case .databaseOrder:
-                    expectedShioriIDs = nil
-                    page = try await databaseReader.shioriPage(
-                        limit: request.ordinalRange.count,
-                        offset: request.ordinalRange.lowerBound
-                    )
-                case .table:
-                    guard let stableItemIdentities else {
-                        return nil
-                    }
-                    let requestedIDs = stableItemIdentities[request.ordinalRange]
-                        .compactMap { identity -> Int64? in
-                            guard case .shiori(let shioriID) = identity else {
-                                return nil
-                            }
-                            return shioriID
-                        }
-                    guard requestedIDs.count == request.ordinalRange.count else {
-                        return nil
-                    }
-                    expectedShioriIDs = requestedIDs
-                    page = try await databaseReader.shioriPage(
-                        shioriIDs: requestedIDs
-                    )
-                }
-                guard !Task.isCancelled,
-                      self.playback.playlistSource?.origin == origin,
-                      page.shioris.count == request.ordinalRange.count,
-                      expectedShioriIDs.map({
-                          page.shioris.map(\.id) == $0
-                      }) ?? true
-                else {
-                    return nil
-                }
-                let items = zip(request.ordinalRange, page.shioris).map {
-                    PlaybackPlaylistItem(
-                        shiori: $1,
-                        cuePresentation: page.cuePresentationsByShioriID[$1.id],
-                        ordinal: $0
-                    )
-                }
-                return PlaybackPlaylistSourceWindowResponse(
-                    request: request,
-                    items: items
-                )
-            } catch is CancellationError {
-                return nil
-            } catch {
-                print("Failed to load Shiori playback Playlist window: \(error)")
-                return nil
-            }
+            totalCount: totalCount
+        ) { @MainActor [weak self] ordinal in
+            self?.shioriPlaybackPlaylistItem(
+                scope: scope,
+                ordinal: ordinal
+            )
         }
         playback.setPlaylistSource(source)
+    }
+
+    func refreshShioriPlaybackPlaylistSource() {
+        guard let source = playback.playlistSource,
+              case .shiori(let scope) = source.origin
+        else {
+            return
+        }
+        _ = source.updateBoundary(
+            totalCount: shioriPlaybackPlaylistCount(scope: scope),
+            knownItemIDsByOrdinal: [:]
+        )
+    }
+
+    private func shioriPlaybackPlaylistCount(
+        scope: PlaybackPlaylistShioriScope
+    ) -> Int {
+        switch scope {
+        case .explicitIDs(let shioriIDs):
+            shioriIDs.count
+        case .databaseOrder:
+            shiori.shioris.count
+        case .table(let context):
+            min(
+                context.totalCount,
+                shiori.tableRowStore.snapshot.totalRowCount
+            )
+        }
+    }
+
+    private func shioriPlaybackPlaylistItem(
+        scope: PlaybackPlaylistShioriScope,
+        ordinal: Int
+    ) -> PlaybackPlaylistItem? {
+        switch scope {
+        case .table:
+            return shioriTablePlaybackItem(ordinal: ordinal)
+        case .databaseOrder:
+            guard shiori.shioris.indices.contains(ordinal) else {
+                return nil
+            }
+            return PlaybackPlaylistItem(
+                shiori: shiori.shioris[ordinal],
+                cuePresentation: nil,
+                ordinal: ordinal
+            )
+        case .explicitIDs(let shioriIDs):
+            guard shioriIDs.indices.contains(ordinal) else {
+                return nil
+            }
+            let shioriID = shioriIDs[ordinal]
+            let snapshot = shiori.tableRowStore.snapshot
+            if let rowOrdinal = snapshot.rows.firstIndex(where: {
+                $0.id == Int(shioriID)
+            }) {
+                return shioriTablePlaybackItem(
+                    ordinal: rowOrdinal,
+                    itemOrdinal: ordinal
+                )
+            }
+            guard let item = shiori.shioris.first(where: {
+                $0.id == shioriID
+            }) else {
+                return nil
+            }
+            return PlaybackPlaylistItem(
+                shiori: item,
+                cuePresentation: nil,
+                ordinal: ordinal
+            )
+        }
+    }
+
+    private func shioriTablePlaybackItem(
+        ordinal: Int,
+        itemOrdinal: Int? = nil
+    ) -> PlaybackPlaylistItem? {
+        let snapshot = shiori.tableRowStore.snapshot
+        guard let row = snapshot.row(at: ordinal),
+              let item = snapshot.shiori(entryID: row.id)
+        else {
+            return nil
+        }
+        return PlaybackPlaylistItem(
+            shiori: item,
+            cuePresentation: snapshot.shioriCuePresentation(entryID: row.id),
+            ordinal: itemOrdinal ?? ordinal
+        )
     }
 
 }

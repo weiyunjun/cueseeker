@@ -42,27 +42,6 @@ actor PlaybackSubtitleFocusDatabaseReader {
         return batch
     }
 
-    func shioriPage(shioriIDs: [Int64]) throws -> ShioriPage {
-        try Task.checkCancellation()
-        let page = try resolvedDatabase().shioriPage(shioriIDs: shioriIDs)
-        try Task.checkCancellation()
-        return page
-    }
-
-    func shioriPage(limit: Int, offset: Int) throws -> ShioriPage {
-        try Task.checkCancellation()
-        let page = try resolvedDatabase().shioriPage(limit: limit, offset: offset)
-        try Task.checkCancellation()
-        return page
-    }
-
-    func shioriCount() throws -> Int {
-        try Task.checkCancellation()
-        let count = try resolvedDatabase().shioriCount()
-        try Task.checkCancellation()
-        return count
-    }
-
     func saveShiori(
         context: PlaybackSubtitleFocusActionContext,
         videoName: String

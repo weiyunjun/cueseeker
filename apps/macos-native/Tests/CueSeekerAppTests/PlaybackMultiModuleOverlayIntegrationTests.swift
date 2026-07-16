@@ -22,14 +22,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
             isVideoAvailable: { _ in true }
         )
         let libraryStore = playbackMultiModuleLibraryStore(fixture)
-        let shioriSource = playbackMultiModuleSource(
-            kind: .shiori,
-            items: [PlaybackCueResultItem(
-                shiori: fixture.shiori,
-                cuePresentation: nil,
-                ordinal: 0
-            )]
-        )
+        let shioriStore = playbackMultiModuleShioriStore(fixture.shiori)
         let session = PlaybackSubtitleFocusSessionStore(
             openSnapshot: playbackMultiModuleOpenSnapshot(fixture),
             sessionGeneration: 1,
@@ -38,7 +31,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
             searchStore: searchStore,
             recentStore: recentStore,
             libraryStore: libraryStore,
-            shioriSource: shioriSource
+            shioriStore: shioriStore
         )
 
         #expect(session.availableModules == PlaybackOverlayModule.allCases)
@@ -122,7 +115,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         #expect(libraryStore.episodeSelection?.selectedItemID == selectedEpisodeID)
         #expect(libraryStore.episodeSelection?.scrollOffsetY == 82.75)
         #expect(shioriWindow.selectedOrdinal == 0)
-        #expect(shioriWindow.retainedItemCount == 1)
+        #expect(shioriWindow.retainedItemCount == 0)
 
         #expect(session.dismissByUser() == false)
         #expect(!session.isActive)
@@ -153,14 +146,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
             isVideoAvailable: { _ in true }
         )
         let freshLibraryStore = playbackMultiModuleLibraryStore(fixture)
-        let freshShioriSource = playbackMultiModuleSource(
-            kind: .shiori,
-            items: [PlaybackCueResultItem(
-                shiori: fixture.shiori,
-                cuePresentation: nil,
-                ordinal: 0
-            )]
-        )
+        let freshShioriStore = playbackMultiModuleShioriStore(fixture.shiori)
         let freshSession = PlaybackSubtitleFocusSessionStore(
             openSnapshot: playbackMultiModuleOpenSnapshot(fixture),
             sessionGeneration: 2,
@@ -169,7 +155,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
             searchStore: freshSearchStore,
             recentStore: freshRecentStore,
             libraryStore: freshLibraryStore,
-            shioriSource: freshShioriSource
+            shioriStore: freshShioriStore
         )
 
         #expect(freshSession.selectedModule == .current)
@@ -213,16 +199,7 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
             operation: .playlist,
             probe: probe
         )
-        let shioriSource = playbackMultiModuleSuspendingSource(
-            kind: .shiori,
-            items: [PlaybackCueResultItem(
-                shiori: fixture.shiori,
-                cuePresentation: nil,
-                ordinal: 0
-            )],
-            operation: .shiori,
-            probe: probe
-        )
+        let shioriStore = playbackMultiModuleShioriStore(fixture.shiori)
         let searchStore = app.search
         let recentStore = PlaybackRecentSessionStore(
             loader: PlaybackRecentLoader {
@@ -249,7 +226,7 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
             searchStore: searchStore,
             recentStore: recentStore,
             libraryStore: libraryStore,
-            shioriSource: shioriSource
+            shioriStore: shioriStore
         ))
         app.startPlaybackSubtitleFocusInitialLoad(
             for: session,
@@ -277,7 +254,6 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
             .playlist,
             .recent,
             .libraryDetail,
-            .shiori,
         ]
         try await waitForPlaybackMultiModuleCondition {
             probe.started == expectedOperations
@@ -299,7 +275,7 @@ func playbackMultiModuleOverlayStopCancelsAllWorkAndRejectsLateResults() async t
         #expect(!session.requestKeyboardNavigation(.forward))
         #expect(session.requestKeyboardAction(.copyCueText) == .rejected)
         #expect(playlistSource.boundary.totalCount == 0)
-        #expect(shioriSource.boundary.totalCount == 0)
+        #expect(shioriStore.tableRowStore.snapshot.totalRowCount == 1)
         #expect(playlistWindow.retainedItemCount == 0)
         #expect(shioriWindow.retainedItemCount == 0)
         #expect(app.search === searchStore)
@@ -536,6 +512,24 @@ private func playbackMultiModuleSearchStore(
     _: PlaybackMultiModuleFixture
 ) -> SearchStore {
     SearchStore()
+}
+
+@MainActor
+private func playbackMultiModuleShioriStore(_ shiori: Shiori) -> ShioriStore {
+    let store = ShioriStore()
+    store.tableRowStore.updateShioriRows(
+        [TableSandboxShioriRowSource(
+            shiori: shiori,
+            displayTitle: shiori.videoName,
+            dateAddedText: shiori.createdAt,
+            languages: [.unknown],
+            shioriTags: []
+        )],
+        tableName: "shiori"
+    )
+    store.installTableResultShioriIDs([shiori.id])
+    store.markTableRowsLoaded(totalSavedRowCount: 1)
+    return store
 }
 
 @MainActor
