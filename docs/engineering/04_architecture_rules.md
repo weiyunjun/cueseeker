@@ -303,28 +303,99 @@ Rules:
   stable scroll anchor made from the primary Cue identity and its first visual
   line's screen-space position. Row-local hover, menu, measurement, and scroll
   state must remain outside Search, Shiori, Library, and Playback stores.
-- Playback Multi-Module Overlay owns one strictly temporary Session with
-  Current, optional Playlist, Search, Recent, Library, and Shiori. Module
-  switching stays inside that Session; Escape, playback, Playback Page close,
-  and source replacement cancel unfinished work and destroy all temporary
-  module state. The hidden opening phase remains on Current.
-- Current uses a native virtual Cue document, not Cue Group rows. Opening
-  selects the physically bottommost Cue in the active Cue Group; when no Cue is
-  active it falls back to the nearest preceding Cue, then the first Cue. For
-  visual-line count `L`, nominal content height is `52L`; natural height is
+
+### 7.1 Shared Workbench Feature Hosts In Playback
+
+Search, Recent, Library, and Shiori in Playback are capability-restricted hosts
+of their Workbench features. They are not separate feature implementations.
+
+The Playback Multi-Module Overlay owns one strictly temporary Session with
+Current, optional Playlist, Search, Recent, Library, and Shiori. Module
+switching stays inside that Session; Escape, playback, Playback Page close, and
+source replacement cancel unfinished host-local work and destroy temporary
+module presentation state. The hidden opening phase remains on Current.
+
+Data ownership rules:
+
+- `SearchStore`, `ShioriStore`, and `LibraryStore` are the authoritative owners
+  of their feature state, database access, paging tasks, loaded result
+  collections, refresh rules, and product actions. Recent is a Library
+  projection and follows `LibraryStore` ownership.
+- Playback may observe those stores, dispatch their existing product actions,
+  and retain only host-local presentation state. It must not create a second
+  feature database reader, query runner, paging store, result accumulator,
+  refresh task, persistence path, or full result copy.
+- Search's temporary empty-filter behavior is a host context owned and executed
+  by `SearchStore`. It may produce a separate temporary result projection, but
+  Playback must not own the query, paging, result collection, or promotion
+  lifecycle for that projection.
+- Feature data may be queried in pages or batches. Playback must use the same
+  paging policy and accumulated result collection as Workbench. A load-more
+  signal already supported by a Workbench feature may be forwarded to that
+  feature store; Playback must not introduce an additional window-loading
+  policy or viewport cache.
+- Once a result item is published into the active feature collection, its
+  stable identity and complete text remain resident until the authoritative
+  feature replaces or releases that collection. Scrolling away from an item,
+  changing the selected item, switching Overlay modules, or promoting a Search
+  result into playback must not truncate or evict that loaded item.
+
+Presentation virtualization rules:
+
+- Workbench tables and Playback Reels may use different presentation renderers,
+  but both operate over the authoritative in-memory feature collection.
+- Playback virtualization is limited to visible-plus-overscan measurement,
+  drawing or view materialization, height indexing, accepted placement,
+  scrolling, and scrollbar geometry. It must not virtualize feature ownership
+  or replace complete loaded item text with a Playback-owned data window.
+- Current uses a native virtual Cue document over the complete Cue collection
+  owned by the active playback source. Opening selects the physically
+  bottommost Cue in the active Cue Group; when no Cue is active it falls back to
+  the nearest preceding Cue, then the first Cue. For visual-line count `L`,
+  nominal content height is `52L`; natural height is
   `max(nominal content height, visual-line stack height) + 24` and resolved
-  height is clamped to the reel viewport. Visual lines use measured font-run
+  height is clamped to the Reel viewport. Visual lines use measured font-run
   typographic bounds with the shared internal-line-gap token instead of fixed
   Line Slots. A fitting Cue centers its complete bounds on the fixed Focus
   Anchor; an oversized Cue uses accepted head-first placement at the viewport
   top. Width reflow preserves stable Cue identity and restores that placement.
-- Playlist, Search, and Shiori substitute Playback Cue Result identity,
-  rendering, and height calculation while reusing Current's visible-range
-  loading, measurement, accepted placement, scrolling, and recycling
-  infrastructure. They must not create independent full-list render paths.
-  `Show Cue Group` is a presentation-only input for these three modules and
-  must not change their count, order, identity, selection, or Primary Cue
-  action targets.
+- Playlist, Search, and Shiori reuse Current's measurement, accepted placement,
+  scrolling, scrollbar, and recycling behavior while substituting Cue Result
+  identity, rendering, and height calculation. `Show Cue Group` remains a
+  presentation-only input and must not change count, order, identity,
+  selection, or Primary Cue action targets.
+
+Playback-specific differences are limited to:
+
+- the fixed-dark full-stage Overlay shell, module Sidebar, Tab routing, Pointer
+  visibility rules, pause behavior, and Playback Feedback layer;
+- temporary Overlay Session state and Playback Return Context;
+- the documented capability mask, including removal of batch, export, folder,
+  Context, Filter-control, and table-copy entry points;
+- Playback Cue Reel layout, Focus Anchor, accepted placement, settled selection,
+  Playlist sequence number, and the Playback-only Current and Playlist modules;
+- Playback Search's temporary empty-filter context, text-field focus routing,
+  Up/Down Reel routing, and Enter-only Cue action;
+- Recent and Library persistent single selection, directional navigation,
+  session-local Library hierarchy and scroll position, Context-menu item
+  suppression, and locked menu target;
+- Playback-specific play, dismiss, resume, seek, feedback, and Return Context
+  side effects.
+
+Any behavior outside this list does not justify a parallel Playback feature
+implementation. In particular, database access, paging, loaded result retention,
+feature actions, and durable state remain shared with Workbench.
+
+Replacement and simplicity rules:
+
+- Each feature migration must delete the replaced Playback loader, store,
+  adapter, cache, compatibility branch, and obsolete tests in the same feature
+  commit. A shared type may remain only while an unmigrated live consumer still
+  requires it, and must be removed with the last such consumer.
+- Do not add shadow paths, fallback implementations, generalized transports, or
+  projection frameworks for hypothetical consumers. Extract an abstraction only
+  when both Workbench and Playback use it directly; otherwise prefer the
+  existing Feature Store plus the smallest host-local presentation state.
 - Current, Playlist, and Shiori actions operate on an immutable exact Primary
   Cue after accepted placement settles: `S` saves it idempotently, `C` copies
   its complete text, and Enter synchronously destroys the Session before seek
