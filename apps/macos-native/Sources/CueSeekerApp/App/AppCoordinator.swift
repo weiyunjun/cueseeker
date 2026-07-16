@@ -438,7 +438,7 @@ final class AppCoordinator: ObservableObject {
     var shioriPlaybackNavigationScopeIDs: [Int64]?
     var shioriPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
-    var playbackOriginatingPanelMode: WorkbenchPanelMode?
+    var playbackReturnContext: PlaybackReturnContext?
     var currentCueSegmentFinished = false
     var cueSegmentPlaybackGeneration = 0
     var activeCueSegmentEndMilliseconds: Int?

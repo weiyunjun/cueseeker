@@ -736,7 +736,8 @@ extension AppCoordinator {
     func openLibraryVideo(
         _ video: LibraryVideo,
         recordsNavigationHistory: Bool = true,
-        displayTitle: String? = nil
+        displayTitle: String? = nil,
+        playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.clearPlaylistSource()
@@ -746,7 +747,7 @@ extension AppCoordinator {
             details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"
         )
         preparePlaybackKeyboardFocus()
-        rememberPlaybackOriginatingPanelModeIfEntering()
+        initializePlaybackReturnContextIfEntering()
         if case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
@@ -769,7 +770,13 @@ extension AppCoordinator {
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
-            play(video)
+            let didStartPlayback = play(video)
+            if let playbackReturnContextOnSuccessfulPlay {
+                commitPlaybackReturnContext(
+                    playbackReturnContextOnSuccessfulPlay,
+                    afterSuccessfulPlayback: didStartPlayback
+                )
+            }
         }
     }
 
@@ -795,7 +802,8 @@ extension AppCoordinator {
         refreshLibraryPlaybackHistoryPresentations()
     }
 
-    func play(_ video: LibraryVideo) {
+    @discardableResult
+    func play(_ video: LibraryVideo) -> Bool {
         ensurePlayerInitialized()
         clearCueSegmentPlayback()
         stopLibraryPlaybackHistoryTracking()
@@ -847,11 +855,13 @@ extension AppCoordinator {
                 videoPath: video.videoPath
             )
             startLibraryPlaybackHistoryTracking(videoPath: video.videoPath)
+            return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            return false
         }
     }
 

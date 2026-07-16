@@ -94,6 +94,13 @@ enum ActivePlaybackSource: Equatable {
     case shiori
 }
 
+enum PlaybackReturnContext: Equatable {
+    case search
+    case shiori
+    case recent
+    case libraryFolderDetail(folderPath: String)
+}
+
 enum SearchResultNavigationDirection: Equatable {
     case previous
     case next

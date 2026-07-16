@@ -163,7 +163,11 @@ extension AppCoordinator {
             }
 
             playbackRecentOpenTask = nil
-            openLibraryVideo(item.libraryVideo, displayTitle: item.displayTitle)
+            openLibraryVideo(
+                item.libraryVideo,
+                displayTitle: item.displayTitle,
+                playbackReturnContextOnSuccessfulPlay: .recent
+            )
         }
         return true
     }
@@ -217,7 +221,10 @@ extension AppCoordinator {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         openLibraryVideo(
             video.libraryVideo,
-            displayTitle: video.displayTitle
+            displayTitle: video.displayTitle,
+            playbackReturnContextOnSuccessfulPlay: .libraryFolderDetail(
+                folderPath: detail.folderPath
+            )
         )
         return true
     }
@@ -559,7 +566,8 @@ extension AppCoordinator {
                 shiori,
                 navigationScopeIDs: scope,
                 playlistScope: playlistScope,
-                playsContinuouslyFromStart: continuous
+                playsContinuouslyFromStart: continuous,
+                playbackReturnContextOnSuccessfulPlay: .shiori
             )
         }
     }

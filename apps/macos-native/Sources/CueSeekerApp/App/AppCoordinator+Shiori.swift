@@ -401,7 +401,8 @@ extension AppCoordinator {
         navigationScopeIDs: [Int64]? = nil,
         playlistScope: PlaybackPlaylistShioriScope? = nil,
         displayTitle: String? = nil,
-        playsContinuouslyFromStart: Bool = false
+        playsContinuouslyFromStart: Bool = false,
+        playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
@@ -429,7 +430,7 @@ extension AppCoordinator {
         }
         installShioriPlaybackPlaylistSource(scope: playlistScope)
         refreshShioriPlaybackNavigationSnapshot(for: shiori)
-        rememberPlaybackOriginatingPanelModeIfEntering()
+        initializePlaybackReturnContextIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         if recordsNavigationHistory {
@@ -449,17 +450,24 @@ extension AppCoordinator {
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
-            play(
+            let didStartPlayback = play(
                 shiori,
                 playsContinuouslyFromStart: playsContinuouslyFromStart
             )
+            if let playbackReturnContextOnSuccessfulPlay {
+                commitPlaybackReturnContext(
+                    playbackReturnContextOnSuccessfulPlay,
+                    afterSuccessfulPlayback: didStartPlayback
+                )
+            }
         }
     }
 
+    @discardableResult
     func play(
         _ shiori: Shiori,
         playsContinuouslyFromStart: Bool = false
-    ) {
+    ) -> Bool {
         ensurePlayerInitialized()
         beginCueSegmentPlayback()
         saveCurrentLibraryPlaybackHistory()
@@ -514,12 +522,14 @@ extension AppCoordinator {
                 format: shiori.subtitleFormat,
                 videoPath: shiori.videoPath
             )
+            return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()
             clearCueSegmentPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            return false
         }
     }
 

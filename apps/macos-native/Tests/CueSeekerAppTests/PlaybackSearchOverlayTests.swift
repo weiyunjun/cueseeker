@@ -114,9 +114,12 @@ func playbackSearchFailedPlayDoesNotCommitTheTemporaryFilter() async throws {
     app.search.isPlaybackTemporaryFilterActive = true
     app.search.searchQuery = "shared"
     app.search.searchResults = [result]
+    app.playback.isPlaybackSurfaceExpanded = true
+    app.playbackReturnContext = .shiori
 
     app.openSearchResult(
         result,
+        returnPanelMode: .search,
         playbackSearchPromotion: PlaybackSearchPromotion(
             query: "shared",
             scopePaths: [],
@@ -130,6 +133,7 @@ func playbackSearchFailedPlayDoesNotCommitTheTemporaryFilter() async throws {
     #expect(!app.search.isPlaybackTemporaryFilterActive)
     #expect(app.search.activeFilterSet == formalFilter)
     #expect(app.search.resultFilterSet == formalFilter)
+    #expect(app.playbackReturnContext == .shiori)
 }
 
 private func playbackSharedSearchOpenSnapshot()

@@ -58,7 +58,7 @@ func urlSchemeDirectPlayFallsBackToSearchWhenFirstPageCannotProduceResults() thr
         content: "existing playback"
     )
     fixture.app.playback.isPlaybackSurfaceExpanded = true
-    fixture.app.playbackOriginatingPanelMode = .shiori
+    fixture.app.playbackReturnContext = .shiori
 
     var presentationReadyCount = 0
     var presentedFallbackSearch = false
@@ -182,7 +182,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(app.pendingURLSchemeDirectPlayIntent == nil)
 
     let originalPlaybackResult = try #require(app.search.selectedSearchResult)
-    app.playbackOriginatingPanelMode = .shiori
+    app.playbackReturnContext = .shiori
     var sameVideoPresentationReadyCount = 0
     app.handleURLSchemeCommand(.search(keyword: "shared pipeline")) {
         sameVideoPresentationReadyCount += 1
@@ -196,7 +196,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(sameVideoPresentationReadyCount == 1)
     #expect(app.search.selectedSearchResult?.videoPath == originalPlaybackResult.videoPath)
     #expect(app.playback.isPlaybackSurfaceExpanded)
-    #expect(app.playbackOriginatingPanelMode == .search)
+    #expect(app.playbackReturnContext == .shiori)
 
     let sameVideoPlaybackResult = try #require(app.search.selectedSearchResult)
     var differentVideoPresentationReadyCount = 0
@@ -212,10 +212,10 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(differentVideoPresentationReadyCount == 1)
     #expect(app.search.selectedSearchResult?.videoPath.hasSuffix("Alternate.mkv") == true)
     #expect(app.playback.isPlaybackSurfaceExpanded)
-    #expect(app.playbackOriginatingPanelMode == .search)
+    #expect(app.playbackReturnContext == .shiori)
 
     app.stopPlayback()
-    #expect(app.workbenchLayout.panelMode == .search)
+    #expect(app.workbenchLayout.panelMode == .shiori)
     #expect(app.search.searchQuery == "alternate source")
     #expect(!app.playback.isPlaybackSurfaceExpanded)
 }
