@@ -52,6 +52,7 @@ struct PlaybackSubtitleFocusLayer: View {
 
 struct PlaybackMultiModuleOverlay: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
+    @EnvironmentObject private var playback: PlaybackStore
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
@@ -137,12 +138,14 @@ struct PlaybackMultiModuleOverlay: View {
                 store: recentStore,
                 onOpenItem: onOpenRecentItem
             )
+            .environmentObject(playback.pointerVisibility)
         } else if session.selectedModule == .library,
                   let libraryStore = session.libraryStore {
             PlaybackLibraryOverlay(
                 store: libraryStore,
                 onOpenEpisode: onOpenLibraryEpisode
             )
+            .environmentObject(playback.pointerVisibility)
         } else if session.selectedModule == .shiori,
                   let shioriWindow = session.shioriWindow {
             PlaybackCueResultOverlay(

@@ -260,6 +260,25 @@ final class PlaybackPlaylistSource: ObservableObject {
             return false
         }
 
+        publishBoundary(totalCount: totalCount)
+        return true
+    }
+
+    @discardableResult
+    func replaceResidentItems(
+        totalCount: Int,
+        itemProvider: @escaping PlaybackPlaylistSharedItemProvider
+    ) -> Bool {
+        guard isActive else {
+            return false
+        }
+
+        self.itemProvider = itemProvider
+        publishBoundary(totalCount: totalCount)
+        return true
+    }
+
+    private func publishBoundary(totalCount: Int) {
         let resolvedTotalCount = max(0, totalCount)
         let changesIdentityBoundary = boundary.totalCount != resolvedTotalCount
         boundary = PlaybackPlaylistSourceBoundary(
@@ -272,7 +291,6 @@ final class PlaybackPlaylistSource: ObservableObject {
                 : boundary.revision &+ 1,
             totalCount: resolvedTotalCount
         )
-        return true
     }
 
     func itemIdentity(at ordinal: Int) -> PlaybackPlaylistItemIdentity? {

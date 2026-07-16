@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 struct PlaybackChromeSnapshot: Equatable {
@@ -32,8 +33,22 @@ final class PlaybackTimelineInteractionStore: ObservableObject {
 }
 
 @MainActor
+final class PlaybackPointerVisibilityStore: ObservableObject {
+    @Published private(set) var isVisible = false
+
+    func setVisible(_ isVisible: Bool) {
+        guard self.isVisible != isVisible else {
+            return
+        }
+        self.isVisible = isVisible
+    }
+}
+
+@MainActor
 final class PlaybackStore: ObservableObject {
     let timeline = PlaybackTimelineInteractionStore()
+    let pointerVisibility = PlaybackPointerVisibilityStore()
+    let pointerHideRequests = PassthroughSubject<Void, Never>()
 
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
@@ -43,7 +58,7 @@ final class PlaybackStore: ObservableObject {
     @Published var isPlaybackSidePanelVisible = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
-    @Published private(set) var pointerHideRequestGeneration: UInt64 = 0
+    private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 
     init(userDefaults _: UserDefaults) {}
@@ -138,5 +153,6 @@ final class PlaybackStore: ObservableObject {
 
     func requestPointerHide() {
         pointerHideRequestGeneration &+= 1
+        pointerHideRequests.send()
     }
 }

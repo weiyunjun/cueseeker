@@ -1,17 +1,6 @@
 import AppKit
 import SwiftUI
 
-private struct PlaybackPointerIsVisibleKey: EnvironmentKey {
-    static let defaultValue = true
-}
-
-extension EnvironmentValues {
-    var playbackPointerIsVisible: Bool {
-        get { self[PlaybackPointerIsVisibleKey.self] }
-        set { self[PlaybackPointerIsVisibleKey.self] = newValue }
-    }
-}
-
 /// Single explicit Player-UI / cursor visibility state machine (v4).
 ///
 /// Authoritative specs: `docs/product/12_liquid_glass_ux_mapping.md` §10.4 and
@@ -208,6 +197,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     private func setCursorState(_ state: VisibilityState) {
+        guard cursorState != state else {
+            return
+        }
         cursorState = state
         isPointerVisible = state == .visible
     }

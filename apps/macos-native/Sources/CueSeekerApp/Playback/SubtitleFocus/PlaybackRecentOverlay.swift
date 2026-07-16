@@ -2,7 +2,7 @@ import CueSeekerCore
 import SwiftUI
 
 struct PlaybackRecentOverlay: View {
-    @Environment(\.playbackPointerIsVisible) private var isPointerVisible
+    @EnvironmentObject private var pointerVisibility: PlaybackPointerVisibilityStore
     @ObservedObject var store: PlaybackRecentSessionStore
     @ObservedObject private var library: LibraryStore
     @ObservedObject private var selection: PlaybackMediaSelectionStore
@@ -80,7 +80,7 @@ struct PlaybackRecentOverlay: View {
                         viewportHeight: viewportHeight
                     )
                 },
-                allowsHoverSelection: isPointerVisible,
+                allowsHoverSelection: pointerVisibility.isVisible,
                 onHoverSelection: { item in
                     selection.selectFromPointer(item.id)
                 },

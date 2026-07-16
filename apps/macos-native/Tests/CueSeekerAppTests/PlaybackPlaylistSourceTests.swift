@@ -205,7 +205,7 @@ func playbackPlaylistWindowInvalidationDoesNotInvalidateSharedSource() throws {
 
 @MainActor
 @Test
-func searchPlaybackPlaylistReadsWorkbenchSearchResultsDirectly() throws {
+func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-search-\(UUID().uuidString).sqlite")
@@ -240,6 +240,18 @@ func searchPlaybackPlaylistReadsWorkbenchSearchResultsDirectly() throws {
     #expect(app.playback.playlistSource === source)
     #expect(window.snapshot.loadedOrdinalRange == (0..<5))
     #expect(window.item(at: 4)?.identity == .search(204))
+
+    app.searchResultListGeneration = 8
+    app.search.searchResults = []
+    app.search.searchResultTotalCount = 0
+    app.refreshSearchPlaybackPlaylistSource(resultListGeneration: 8)
+
+    #expect(source.boundary.totalCount == 5)
+    #expect(window.item(at: 4)?.identity == .search(204))
+    let reopenedWindow = try #require(source.makeSessionWindowStore())
+    #expect(reopenedWindow.snapshot.loadedOrdinalRange == (0..<5))
+    #expect(reopenedWindow.item(at: 0)?.identity == .search(200))
+    #expect(reopenedWindow.item(at: 4)?.identity == .search(204))
     app.playback.clearPlaylistSource()
 }
 

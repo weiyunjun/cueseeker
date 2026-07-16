@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
@@ -51,6 +52,26 @@ func playbackPointerStartsHiddenAndOnlyMovementRestoresIt() {
     #expect(!model.isPointerVisible)
 
     model.leaveVideoPage()
+}
+
+@MainActor
+@Test
+func playbackPointerHideRequestDoesNotInvalidatePlaybackStore() {
+    let store = PlaybackStore(userDefaults: .standard)
+    var playbackStoreInvalidations = 0
+    var pointerHideRequests = 0
+    let invalidationCancellable = store.objectWillChange.sink {
+        playbackStoreInvalidations += 1
+    }
+    let requestCancellable = store.pointerHideRequests.sink {
+        pointerHideRequests += 1
+    }
+
+    store.requestPointerHide()
+
+    #expect(pointerHideRequests == 1)
+    #expect(playbackStoreInvalidations == 0)
+    withExtendedLifetime((invalidationCancellable, requestCancellable)) {}
 }
 
 @MainActor

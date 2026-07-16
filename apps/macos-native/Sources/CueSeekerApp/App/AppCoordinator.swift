@@ -291,7 +291,8 @@ final class AppCoordinator: ObservableObject {
 
         if let context = activePlaybackSearchPlaylistContext {
             let ordinal = context.selectedOrdinal
-            return ordinal > 0 && ordinal < search.searchResults.count
+            let totalCount = playback.playlistSource?.boundary.totalCount ?? 0
+            return ordinal > 0 && ordinal < totalCount
         }
 
         if let searchNavigationSnapshot = search.searchNavigationSnapshot {
@@ -308,7 +309,8 @@ final class AppCoordinator: ObservableObject {
 
         if let context = activePlaybackSearchPlaylistContext {
             let ordinal = context.selectedOrdinal
-            return ordinal + 1 < search.searchResults.count
+            let totalCount = playback.playlistSource?.boundary.totalCount ?? 0
+            return ordinal + 1 < totalCount
         }
 
         if let searchNavigationSnapshot = search.searchNavigationSnapshot {

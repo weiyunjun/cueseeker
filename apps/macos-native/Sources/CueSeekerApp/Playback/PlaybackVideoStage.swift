@@ -4,10 +4,10 @@ struct PlaybackVideoStage: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
-    @ObservedObject var chrome: PlaybackChromeVisibilityModel
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
     var body: some View {
         GeometryReader { geometry in
@@ -101,9 +101,17 @@ struct PlaybackVideoStage: View {
             .clipped()
             .onAppear {
                 chrome.enterVideoPage()
+                playback.pointerVisibility.setVisible(chrome.isPointerVisible)
             }
             .onDisappear {
                 chrome.leaveVideoPage()
+                playback.pointerVisibility.setVisible(false)
+            }
+            .onReceive(playback.pointerHideRequests) {
+                chrome.keyboardInputReceived()
+            }
+            .onChange(of: chrome.isPointerVisible) { isVisible in
+                playback.pointerVisibility.setVisible(isVisible)
             }
             .onChange(of: fullscreenManager.state) { newState in
                 if newState == .enteringSystemFullscreen || newState == .activeFullscreen {

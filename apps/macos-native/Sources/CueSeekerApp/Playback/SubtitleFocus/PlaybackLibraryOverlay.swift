@@ -59,7 +59,7 @@ struct PlaybackLibraryOverlay: View {
 }
 
 private struct PlaybackLibraryFolderLevel: View {
-    @Environment(\.playbackPointerIsVisible) private var isPointerVisible
+    @EnvironmentObject private var pointerVisibility: PlaybackPointerVisibilityStore
     @ObservedObject var store: PlaybackLibrarySessionStore
     @ObservedObject var selection: PlaybackMediaSelectionStore
 
@@ -121,7 +121,7 @@ private struct PlaybackLibraryFolderLevel: View {
                         viewportHeight: viewportHeight
                     )
                 },
-                allowsHoverSelection: isPointerVisible,
+                allowsHoverSelection: pointerVisibility.isVisible,
                 onHoverSelection: { folder in
                     selection.selectFromPointer(folder.id)
                 },
@@ -173,7 +173,7 @@ private struct PlaybackLibraryFolderLevel: View {
 }
 
 private struct PlaybackLibraryEpisodeLevel: View {
-    @Environment(\.playbackPointerIsVisible) private var isPointerVisible
+    @EnvironmentObject private var pointerVisibility: PlaybackPointerVisibilityStore
     @ObservedObject var store: PlaybackLibrarySessionStore
     @ObservedObject var selection: PlaybackMediaSelectionStore
     let onOpenEpisode: (CompleteLibraryVideoPresentation) -> Bool
@@ -232,7 +232,7 @@ private struct PlaybackLibraryEpisodeLevel: View {
                         viewportHeight: viewportHeight
                     )
                 },
-                allowsHoverSelection: isPointerVisible,
+                allowsHoverSelection: pointerVisibility.isVisible,
                 onHoverSelection: { video in
                     selection.selectFromPointer(video.id)
                 },

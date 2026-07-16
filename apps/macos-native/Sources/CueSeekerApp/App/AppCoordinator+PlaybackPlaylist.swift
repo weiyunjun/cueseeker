@@ -65,7 +65,8 @@ extension AppCoordinator {
         context: PlaybackSearchPromotion
     ) {
         guard activePlaybackSource == .search,
-              playback.playlistSource?.kind == .search,
+              let source = playback.playlistSource,
+              source.kind == .search,
               let selectedResult = search.selectedSearchResult,
               playback.playbackSearchPlaylistOrdinal == context.selectedOrdinal
         else {
@@ -78,10 +79,12 @@ extension AppCoordinator {
 
         let anchorOrdinal = context.selectedOrdinal
         let targetOrdinal = anchorOrdinal + (direction == .previous ? -1 : 1)
-        guard search.searchResults.indices.contains(anchorOrdinal),
-              search.searchResults[anchorOrdinal].entryID == selectedResult.entryID,
+        guard let anchorItem = source.item(at: anchorOrdinal),
+              case .search(let anchorResult) = anchorItem.target,
+              anchorResult.entryID == selectedResult.entryID,
               targetOrdinal >= 0,
-              search.searchResults.indices.contains(targetOrdinal)
+              let targetItem = source.item(at: targetOrdinal),
+              case .search(let targetResult) = targetItem.target
         else {
             playback.playbackViewModel?.showSearchNavigationFeedback(
                 direction: direction,
@@ -95,7 +98,7 @@ extension AppCoordinator {
             hasResult: true
         )
         openSearchResult(
-            search.searchResults[targetOrdinal],
+            targetResult,
             playbackSearchPromotion: PlaybackSearchPromotion(
                 query: context.query,
                 scopePaths: context.scopePaths,
@@ -111,12 +114,18 @@ extension AppCoordinator {
         let origin = PlaybackPlaylistSourceOrigin.search(
             resultListGeneration: resultListGeneration
         )
-        let selectedOrdinal = search.searchResults.firstIndex {
+        let residentResults = search.searchResults
+        let selectedOrdinal = residentResults.firstIndex {
             $0.entryID == result.entryID
         }
         if let source = playback.playlistSource,
            source.origin == origin {
-            _ = source.updateBoundary(totalCount: search.searchResults.count)
+            _ = source.replaceResidentItems(
+                totalCount: residentResults.count,
+                itemProvider: Self.searchPlaylistItemProvider(
+                    results: residentResults
+                )
+            )
             playback.setPlaylistSource(
                 source,
                 playbackSearchSelectedOrdinal: selectedOrdinal
@@ -126,19 +135,11 @@ extension AppCoordinator {
 
         let source = PlaybackPlaylistSource(
             origin: origin,
-            totalCount: search.searchResults.count
-        ) { @MainActor [weak self] ordinal in
-            guard let self,
-                  self.searchResultListGeneration == resultListGeneration,
-                  self.search.searchResults.indices.contains(ordinal)
-            else {
-                return nil
-            }
-            return PlaybackPlaylistItem(
-                searchResult: self.search.searchResults[ordinal],
-                ordinal: ordinal
+            totalCount: residentResults.count,
+            itemProvider: Self.searchPlaylistItemProvider(
+                results: residentResults
             )
-        }
+        )
         playback.setPlaylistSource(
             source,
             playbackSearchSelectedOrdinal: selectedOrdinal
@@ -157,7 +158,27 @@ extension AppCoordinator {
             return
         }
 
-        _ = source.updateBoundary(totalCount: search.searchResults.count)
+        let residentResults = search.searchResults
+        _ = source.replaceResidentItems(
+            totalCount: residentResults.count,
+            itemProvider: Self.searchPlaylistItemProvider(
+                results: residentResults
+            )
+        )
+    }
+
+    private static func searchPlaylistItemProvider(
+        results: [SubtitleSearchResult]
+    ) -> PlaybackPlaylistSharedItemProvider {
+        { ordinal in
+            guard results.indices.contains(ordinal) else {
+                return nil
+            }
+            return PlaybackPlaylistItem(
+                searchResult: results[ordinal],
+                ordinal: ordinal
+            )
+        }
     }
 
     func installShioriPlaybackPlaylistSource(
