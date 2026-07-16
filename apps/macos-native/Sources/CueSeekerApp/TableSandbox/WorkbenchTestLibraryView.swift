@@ -384,23 +384,12 @@ private struct RecentWatchingCard: View {
                 cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
                 style: .continuous
             )
-            .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+            .fill(
+                (isHovered || isSelected) && isAvailable
+                    ? WorkbenchRedesignColors.libraryMediaCardHoverBg
+                    : Color.clear
+            )
         )
-        .overlay {
-            if isSelected {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius
-                        + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                    style: .continuous
-                )
-                .stroke(
-                    WorkbenchRedesignColors.focusRing,
-                    lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
-                )
-                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                .allowsHitTesting(false)
-            }
-        }
         .opacity(isAvailable ? 1 : 0.55)
         .contentShape(
             RoundedRectangle(
@@ -442,7 +431,9 @@ private struct RecentWatchingCard: View {
             positionMilliseconds: item.positionMilliseconds,
             duration: item.playbackDuration ?? item.duration
         )
-        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
+        .libraryCoverHoverEffect(
+            isActive: (isHovered || isSelected) && isAvailable
+        )
     }
 
     private var recentContextMenuItems: [LibraryCardContextMenuItem] {
@@ -582,23 +573,12 @@ private struct LibraryFolderCard: View {
                 cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
                 style: .continuous
             )
-            .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+            .fill(
+                (isHovered || isSelected) && isAvailable
+                    ? WorkbenchRedesignColors.libraryMediaCardHoverBg
+                    : Color.clear
+            )
         )
-        .overlay {
-            if isSelected {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius
-                        + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                    style: .continuous
-                )
-                .stroke(
-                    WorkbenchRedesignColors.focusRing,
-                    lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
-                )
-                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                .allowsHitTesting(false)
-            }
-        }
         .opacity(isAvailable ? 1 : 0.55)
         .contentShape(
             RoundedRectangle(
@@ -639,7 +619,9 @@ private struct LibraryFolderCard: View {
             coverRevision: folder.coverRevision,
             badgeText: episodeCountText
         )
-        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
+        .libraryCoverHoverEffect(
+            isActive: (isHovered || isSelected) && isAvailable
+        )
     }
 
     private var folderContextMenuItems: [LibraryCardContextMenuItem] {
@@ -813,21 +795,6 @@ private struct LibraryEpisodeCard: View {
         .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
         .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay {
-            if isSelected {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchTestLibraryMetrics.episodeListCardRadius
-                        + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                    style: .continuous
-                )
-                .stroke(
-                    WorkbenchRedesignColors.focusRing,
-                    lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
-                )
-                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                .allowsHitTesting(false)
-            }
-        }
         .opacity(isAvailable ? 1 : 0.55)
         .animation(.easeOut(duration: 0.12), value: isHovered)
         .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
@@ -840,7 +807,9 @@ private struct LibraryEpisodeCard: View {
             positionMilliseconds: video.positionMilliseconds,
             duration: video.playbackDuration ?? video.duration
         )
-        .libraryCoverHoverEffect(isActive: isHovered && isAvailable)
+        .libraryCoverHoverEffect(
+            isActive: (isHovered || isSelected) && isAvailable
+        )
         .frame(
             width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
             height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
@@ -850,7 +819,11 @@ private struct LibraryEpisodeCard: View {
                 cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
                 style: .continuous
             )
-            .fill(isHovered && isAvailable ? WorkbenchRedesignColors.libraryMediaCardHoverBg : Color.clear)
+            .fill(
+                (isHovered || isSelected) && isAvailable
+                    ? WorkbenchRedesignColors.libraryMediaCardHoverBg
+                    : Color.clear
+            )
             .padding(-WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
         )
         .contentShape(
