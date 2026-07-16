@@ -32,6 +32,11 @@ main
 2. 每次打开综合菜单界面创建Overlay Session，关闭综合菜单界面销毁Overlay Session。
 3. 对于第1点，整个Playback页面期间保留Playback Return Context，关闭视频时使用。
 
+# 约束边界
+1. 之前还有旧的综合菜单界面，替换了新的实现后需要删除旧的实现。
+2. 以Workbench作为单一数据源。
+3. 采用最简方案、减少无意义代码。
+
 # UI文档改动
 
 ## 1. Library Card Context Menu
