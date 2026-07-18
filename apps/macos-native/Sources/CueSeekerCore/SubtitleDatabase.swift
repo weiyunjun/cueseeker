@@ -1341,7 +1341,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 28
+    public static let currentSchemaVersion: Int = 29
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1416,16 +1416,21 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             CREATE TABLE IF NOT EXISTS subtitle_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                library_id INTEGER,
+                relative_path TEXT,
                 subtitle_path TEXT NOT NULL UNIQUE,
                 format TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
                 indexed_at TEXT NOT NULL,
-                index_algorithm_version INTEGER NOT NULL DEFAULT 0
+                index_algorithm_version INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY(library_id) REFERENCES search_paths(id)
             );
 
             CREATE TABLE IF NOT EXISTS video_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                library_id INTEGER,
+                relative_path TEXT,
                 path TEXT NOT NULL UNIQUE,
                 video_name TEXT NOT NULL,
                 file_size INTEGER,
@@ -1440,7 +1445,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 native_audio_candidate INTEGER,
                 native_compatibility_reason TEXT,
                 native_failure_reason TEXT,
-                compatibility_evaluated_at TEXT
+                compatibility_evaluated_at TEXT,
+                FOREIGN KEY(library_id) REFERENCES search_paths(id)
             );
 
             CREATE TABLE IF NOT EXISTS subtitle_video_matches (
@@ -1471,6 +1477,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE TABLE IF NOT EXISTS subtitle_cue_lines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subtitle_file_id INTEGER,
                 cue_group_id INTEGER NOT NULL,
                 event_index INTEGER NOT NULL,
                 source_format TEXT NOT NULL,
@@ -1484,6 +1491,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 display_x REAL,
                 display_y REAL,
                 display_order INTEGER NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id),
                 FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
             );
 
@@ -1644,21 +1652,27 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE TABLE IF NOT EXISTS library_playback_history (
                 video_path TEXT PRIMARY KEY,
+                video_file_id INTEGER,
                 position_ms INTEGER NOT NULL,
                 duration REAL,
                 started_at TEXT,
                 completed_at TEXT,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id)
             );
 
             CREATE TABLE IF NOT EXISTS library_watch_states (
                 video_path TEXT PRIMARY KEY,
+                video_file_id INTEGER,
                 state TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id)
             );
 
             CREATE TABLE IF NOT EXISTS library_video_rows (
                 video_path TEXT PRIMARY KEY,
+                video_file_id INTEGER,
+                subtitle_file_id INTEGER,
                 video_name TEXT NOT NULL,
                 duration REAL,
                 subtitle_path TEXT NOT NULL,
@@ -1669,7 +1683,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 file_extension TEXT NOT NULL,
                 folder_order INTEGER NOT NULL,
                 video_order INTEGER NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id),
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id)
             );
 
             CREATE INDEX IF NOT EXISTS idx_library_video_rows_scope
@@ -1710,13 +1726,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
                 subtitle_path TEXT PRIMARY KEY,
+                subtitle_file_id INTEGER,
                 folder_path TEXT NOT NULL,
                 folder_title TEXT NOT NULL,
                 subtitle_file_name TEXT NOT NULL,
                 display_title TEXT NOT NULL,
                 folder_order INTEGER NOT NULL,
                 file_order INTEGER NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id)
             );
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
@@ -1724,6 +1742,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE TABLE IF NOT EXISTS shioris (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cue_id INTEGER,
                 subtitle_path TEXT NOT NULL,
                 subtitle_format TEXT NOT NULL,
                 start_ms INTEGER NOT NULL,
@@ -1735,7 +1754,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 content TEXT NOT NULL,
                 is_valid INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
-                UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms)
+                UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms),
+                FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE SET NULL
             );
 
             CREATE INDEX IF NOT EXISTS idx_shioris_subtitle_path
@@ -1995,7 +2015,126 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
+        if previousVersion < 29 {
+            try migratePermanentIdentityColumns()
+        }
+
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
+    }
+
+    private func migratePermanentIdentityColumns() throws {
+        if try !columnExists(table: "subtitle_files", column: "library_id") {
+            try database.execute("ALTER TABLE subtitle_files ADD COLUMN library_id INTEGER REFERENCES search_paths(id);")
+        }
+        if try !columnExists(table: "subtitle_files", column: "relative_path") {
+            try database.execute("ALTER TABLE subtitle_files ADD COLUMN relative_path TEXT;")
+        }
+        if try !columnExists(table: "video_files", column: "library_id") {
+            try database.execute("ALTER TABLE video_files ADD COLUMN library_id INTEGER REFERENCES search_paths(id);")
+        }
+        if try !columnExists(table: "video_files", column: "relative_path") {
+            try database.execute("ALTER TABLE video_files ADD COLUMN relative_path TEXT;")
+        }
+        if try !columnExists(table: "subtitle_cue_lines", column: "subtitle_file_id") {
+            try database.execute("ALTER TABLE subtitle_cue_lines ADD COLUMN subtitle_file_id INTEGER REFERENCES subtitle_files(id);")
+        }
+        if try !columnExists(table: "library_playback_history", column: "video_file_id") {
+            try database.execute("ALTER TABLE library_playback_history ADD COLUMN video_file_id INTEGER REFERENCES video_files(id);")
+        }
+        if try !columnExists(table: "library_watch_states", column: "video_file_id") {
+            try database.execute("ALTER TABLE library_watch_states ADD COLUMN video_file_id INTEGER REFERENCES video_files(id);")
+        }
+        if try !columnExists(table: "library_video_rows", column: "video_file_id") {
+            try database.execute("ALTER TABLE library_video_rows ADD COLUMN video_file_id INTEGER REFERENCES video_files(id);")
+        }
+        if try !columnExists(table: "library_video_rows", column: "subtitle_file_id") {
+            try database.execute("ALTER TABLE library_video_rows ADD COLUMN subtitle_file_id INTEGER REFERENCES subtitle_files(id);")
+        }
+        if try !columnExists(table: "subtitle_search_order_rows", column: "subtitle_file_id") {
+            try database.execute("ALTER TABLE subtitle_search_order_rows ADD COLUMN subtitle_file_id INTEGER REFERENCES subtitle_files(id);")
+        }
+        if try !columnExists(table: "shioris", column: "cue_id") {
+            try database.execute("ALTER TABLE shioris ADD COLUMN cue_id INTEGER REFERENCES subtitle_cue_lines(id) ON DELETE SET NULL;")
+        }
+
+        try database.execute(
+            """
+            UPDATE subtitle_cue_lines
+            SET subtitle_file_id = (
+                SELECT g.subtitle_file_id
+                FROM subtitle_cue_groups g
+                WHERE g.id = subtitle_cue_lines.cue_group_id
+            )
+            WHERE subtitle_file_id IS NULL;
+
+            UPDATE library_playback_history
+            SET video_file_id = (
+                SELECT vf.id FROM video_files vf
+                WHERE vf.path = library_playback_history.video_path
+            )
+            WHERE video_file_id IS NULL;
+
+            UPDATE library_watch_states
+            SET video_file_id = (
+                SELECT vf.id FROM video_files vf
+                WHERE vf.path = library_watch_states.video_path
+            )
+            WHERE video_file_id IS NULL;
+
+            UPDATE library_video_rows
+            SET video_file_id = (
+                    SELECT vf.id FROM video_files vf
+                    WHERE vf.path = library_video_rows.video_path
+                ),
+                subtitle_file_id = (
+                    SELECT sf.id FROM subtitle_files sf
+                    WHERE sf.subtitle_path = library_video_rows.subtitle_path
+                )
+            WHERE video_file_id IS NULL OR subtitle_file_id IS NULL;
+
+            UPDATE subtitle_search_order_rows
+            SET subtitle_file_id = (
+                SELECT sf.id FROM subtitle_files sf
+                WHERE sf.subtitle_path = subtitle_search_order_rows.subtitle_path
+            )
+            WHERE subtitle_file_id IS NULL;
+
+            UPDATE shioris
+            SET cue_id = (
+                SELECT MIN(l.id)
+                FROM subtitle_cue_lines l
+                JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+                WHERE sf.subtitle_path = shioris.subtitle_path
+                  AND l.start_ms = shioris.start_ms
+                  AND l.end_ms = shioris.end_ms
+                  AND l.content = shioris.content
+                HAVING COUNT(*) = 1
+            )
+            WHERE cue_id IS NULL;
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_files_library_relative_path
+                ON subtitle_files(library_id, relative_path);
+            CREATE INDEX IF NOT EXISTS idx_video_files_library_relative_path
+                ON video_files(library_id, relative_path);
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_subtitle_file
+                ON subtitle_cue_lines(subtitle_file_id, id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_library_playback_history_video_file
+                ON library_playback_history(video_file_id)
+                WHERE video_file_id IS NOT NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_library_watch_states_video_file
+                ON library_watch_states(video_file_id)
+                WHERE video_file_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_library_video_rows_video_file
+                ON library_video_rows(video_file_id);
+            CREATE INDEX IF NOT EXISTS idx_library_video_rows_subtitle_file
+                ON library_video_rows(subtitle_file_id);
+            CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_file
+                ON subtitle_search_order_rows(subtitle_file_id);
+            CREATE INDEX IF NOT EXISTS idx_shioris_cue
+                ON shioris(cue_id);
+            """
+        )
     }
 
     private func backfillCueGroupTimeRanges() throws {

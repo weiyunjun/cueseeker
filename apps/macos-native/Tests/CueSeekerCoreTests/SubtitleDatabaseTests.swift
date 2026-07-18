@@ -55,6 +55,34 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
 }
 
 @Test
+func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    #expect(try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL).isSuperset(of: [
+        "id", "library_id", "relative_path"
+    ]))
+    #expect(try sqliteColumnNames(in: "video_files", databaseURL: databaseURL).isSuperset(of: [
+        "id", "library_id", "relative_path"
+    ]))
+    #expect(try sqliteColumnNames(in: "subtitle_cue_lines", databaseURL: databaseURL).isSuperset(of: [
+        "id", "subtitle_file_id"
+    ]))
+    #expect(try sqliteColumnNames(in: "library_playback_history", databaseURL: databaseURL).contains("video_file_id"))
+    #expect(try sqliteColumnNames(in: "library_watch_states", databaseURL: databaseURL).contains("video_file_id"))
+    #expect(try sqliteColumnNames(in: "library_video_rows", databaseURL: databaseURL).isSuperset(of: [
+        "video_file_id", "subtitle_file_id"
+    ]))
+    #expect(try sqliteColumnNames(in: "subtitle_search_order_rows", databaseURL: databaseURL).contains("subtitle_file_id"))
+    #expect(try sqliteColumnNames(in: "shioris", databaseURL: databaseURL).contains("cue_id"))
+}
+
+@Test
 func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -4390,7 +4418,7 @@ func migrationConvertsLegacyShioriToJapaneseCueAndBottommostFallback() throws {
     try database.migrate()
     try database.migrate()
 
-    #expect(try database.schemaVersion() == 28)
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
 
     let japanese = try #require(try database.shiori(id: 42))
     #expect(japanese.content == "日本語の下段です")
@@ -6576,6 +6604,40 @@ private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
+}
+
+private func sqliteColumnNames(in table: String, databaseURL: URL) throws -> Set<String> {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(database, "PRAGMA table_info(\(table));", -1, &statement, nil) == SQLITE_OK,
+          let statement
+    else {
+        let message = String(cString: sqlite3_errmsg(database))
+        throw SQLiteFixtureError.executeFailed(message)
+    }
+
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    var names: Set<String> = []
+    while sqlite3_step(statement) == SQLITE_ROW {
+        guard let value = sqlite3_column_text(statement, 1) else {
+            continue
+        }
+        names.insert(String(cString: value))
+    }
+    return names
 }
 
 private func sqliteIndexExists(_ name: String, databaseURL: URL) throws -> Bool {
