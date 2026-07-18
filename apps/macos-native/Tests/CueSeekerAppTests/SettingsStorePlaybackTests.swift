@@ -12,7 +12,7 @@ func settingsStoreDefaultsToValidOnOffPlaylistCueState() {
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(store.onlyPlayCuesInPlaylistEnabled)
+        #expect(store.autoStopAfterCueFinishesEnabled)
         #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
         #expect(store.autoSwitchCueSequenceGapMilliseconds == 500)
         #expect(!store.playbackSpeakerDisplayEnabled)
@@ -32,12 +32,12 @@ func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
         store.setAutoSwitchCueSequenceGapMilliseconds(750)
         store.playbackSpeakerDisplayEnabled = true
 
-        #expect(store.onlyPlayCuesInPlaylistEnabled)
+        #expect(store.autoStopAfterCueFinishesEnabled)
         #expect(store.autoSwitchToNextCuesInPlaylistEnabled)
 
-        store.onlyPlayCuesInPlaylistEnabled = false
+        store.autoStopAfterCueFinishesEnabled = false
 
-        #expect(!store.onlyPlayCuesInPlaylistEnabled)
+        #expect(!store.autoStopAfterCueFinishesEnabled)
         #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
 
         store.autoSwitchToNextCuesInPlaylistEnabled = true
@@ -49,7 +49,7 @@ func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(!reloadedStore.onlyPlayCuesInPlaylistEnabled)
+        #expect(!reloadedStore.autoStopAfterCueFinishesEnabled)
         #expect(!reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
         #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 750)
         #expect(reloadedStore.playbackSpeakerDisplayEnabled)
@@ -58,7 +58,7 @@ func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
 
 @MainActor
 @Test
-func settingsStoreNormalizesPersistedOffOnPlaylistCueState() {
+func settingsStoreMigratesAndNormalizesPersistedOffOnPlaylistCueState() {
     withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
         userDefaults.set(false, forKey: "onlyPlayCuesInPlaylistEnabled")
         userDefaults.set(true, forKey: "autoSwitchToNextCuesInPlaylistEnabled")
@@ -68,11 +68,31 @@ func settingsStoreNormalizesPersistedOffOnPlaylistCueState() {
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(!store.onlyPlayCuesInPlaylistEnabled)
+        #expect(!store.autoStopAfterCueFinishesEnabled)
         #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
         #expect(!userDefaults.bool(
             forKey: "autoSwitchToNextCuesInPlaylistEnabled"
         ))
+        #expect(userDefaults.object(forKey: "onlyPlayCuesInPlaylistEnabled") == nil)
+        #expect(!userDefaults.bool(forKey: "autoStopAfterCueFinishesEnabled"))
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreKeepsStoredAutoStopPreferenceOverLegacyOnlyPlayValue() {
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
+        userDefaults.set(false, forKey: "onlyPlayCuesInPlaylistEnabled")
+        userDefaults.set(true, forKey: "autoStopAfterCueFinishesEnabled")
+
+        let store = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(store.autoStopAfterCueFinishesEnabled)
+        #expect(userDefaults.object(forKey: "onlyPlayCuesInPlaylistEnabled") == nil)
+        #expect(userDefaults.bool(forKey: "autoStopAfterCueFinishesEnabled"))
     }
 }
 
@@ -87,7 +107,7 @@ func settingsStoreMigratesEnabledLegacyAutoPlayToBothPlaylistBehaviors() {
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(store.onlyPlayCuesInPlaylistEnabled)
+        #expect(store.autoStopAfterCueFinishesEnabled)
         #expect(store.autoSwitchToNextCuesInPlaylistEnabled)
 
         userDefaults.set(false, forKey: "autoPlayCueSequenceEnabled")
@@ -96,7 +116,7 @@ func settingsStoreMigratesEnabledLegacyAutoPlayToBothPlaylistBehaviors() {
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(reloadedStore.onlyPlayCuesInPlaylistEnabled)
+        #expect(reloadedStore.autoStopAfterCueFinishesEnabled)
         #expect(reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
     }
 }

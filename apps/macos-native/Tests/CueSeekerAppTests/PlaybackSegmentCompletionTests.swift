@@ -186,7 +186,7 @@ func appCoordinatorHoldsSearchCueSubtitleDuringAutoSwitchGap() async throws {
 func appCoordinatorKeepsStoppedCueSubtitleWithoutAutoSwitch() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()
-        app.settings.onlyPlayCuesInPlaylistEnabled = true
+        app.settings.autoStopAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
         let result = SubtitleSearchResult(
             entryID: 1,
@@ -230,7 +230,7 @@ func appCoordinatorKeepsStoppedCueSubtitleWithoutAutoSwitch() async throws {
 func appCoordinatorKeepsStoppedShioriSubtitleWithoutAutoSwitch() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()
-        app.settings.onlyPlayCuesInPlaylistEnabled = true
+        app.settings.autoStopAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
         let selectedShiori = Shiori(
             id: 1,
@@ -285,7 +285,7 @@ func playlistCueSettingsSupportOnlyThreeValidCombinations() async throws {
             (onlyPlay: false, autoSwitch: false)
         ] {
             app.beginCueSegmentPlayback()
-            app.settings.onlyPlayCuesInPlaylistEnabled = combination.onlyPlay
+            app.settings.autoStopAfterCueFinishesEnabled = combination.onlyPlay
             app.settings.autoSwitchToNextCuesInPlaylistEnabled = combination.autoSwitch
             app.playback.playbackStatus = .playing
 
@@ -321,7 +321,7 @@ func playlistCueSettingsSupportOnlyThreeValidCombinations() async throws {
 @Test
 func continuousFromStartBypassesBothPlaylistCueBehaviors() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
-        app.settings.onlyPlayCuesInPlaylistEnabled = true
+        app.settings.autoStopAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
 
         let segment = app.configureCuePlaybackBoundary(

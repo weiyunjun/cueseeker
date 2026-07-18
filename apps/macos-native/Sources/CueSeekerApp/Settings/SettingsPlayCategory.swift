@@ -14,12 +14,12 @@ struct SettingsPlayCategory: View {
             }
 
             HStack(spacing: 16) {
-                Text("Only Play Cues in Playlist")
+                Text("Auto Stop After a Cue Finishes")
                     .font(.headline)
 
                 Spacer()
 
-                Toggle("", isOn: $settingsStore.onlyPlayCuesInPlaylistEnabled)
+                Toggle("", isOn: $settingsStore.autoStopAfterCueFinishesEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
             }
@@ -33,7 +33,7 @@ struct SettingsPlayCategory: View {
                 Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .disabled(!settingsStore.onlyPlayCuesInPlaylistEnabled)
+                    .disabled(!settingsStore.autoStopAfterCueFinishesEnabled)
             }
 
             HStack(spacing: 16) {

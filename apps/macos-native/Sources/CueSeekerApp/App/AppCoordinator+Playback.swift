@@ -433,7 +433,7 @@ extension AppCoordinator {
         playsContinuouslyFromStart: Bool = false
     ) -> PlaybackSegment? {
         guard !playsContinuouslyFromStart,
-              settings.onlyPlayCuesInPlaylistEnabled
+              settings.autoStopAfterCueFinishesEnabled
         else {
             return nil
         }
