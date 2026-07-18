@@ -451,6 +451,7 @@ final class AppCoordinator: ObservableObject {
     var currentCueAutoStopReached = false
     var cuePlaybackGeneration = 0
     var activeCueAutoStopEndMilliseconds: Int?
+    var activePlaylistCueSettings: PlaylistCueEffectiveSettings?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []
@@ -584,16 +585,6 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &settingsCancellables)
 
-        settings.$autoSwitchToNextCuesInPlaylistEnabled
-            .dropFirst()
-            .sink { [weak self] isEnabled in
-                guard let self, !isEnabled else {
-                    return
-                }
-
-                self.cancelAutoSwitchCueSequenceTask()
-            }
-            .store(in: &settingsCancellables)
     }
 
     nonisolated static func runCancellableDetached<T: Sendable>(

@@ -94,6 +94,12 @@ enum ActivePlaybackSource: Equatable {
     case shiori
 }
 
+struct PlaylistCueEffectiveSettings: Equatable {
+    let autoPauseEnabled: Bool
+    let autoSwitchEnabled: Bool
+    let autoSwitchGapMilliseconds: Int
+}
+
 enum PlaybackReturnContext: Equatable {
     case search
     case shiori

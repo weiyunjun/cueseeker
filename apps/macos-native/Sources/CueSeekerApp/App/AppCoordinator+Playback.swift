@@ -439,7 +439,7 @@ extension AppCoordinator {
         playsContinuouslyFromStart: Bool = false
     ) -> PlaybackAutoStopBoundary? {
         guard !playsContinuouslyFromStart,
-              settings.autoPauseAfterCueFinishesEnabled
+              activePlaylistCueSettings?.autoPauseEnabled == true
         else {
             return nil
         }
@@ -510,8 +510,8 @@ extension AppCoordinator {
         playback.playbackStatus = .paused
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
 
-        guard settings.autoPauseAfterCueFinishesEnabled,
-              settings.autoSwitchToNextCuesInPlaylistEnabled
+        guard activePlaylistCueSettings?.autoPauseEnabled == true,
+              activePlaylistCueSettings?.autoSwitchEnabled == true
         else {
             return
         }
@@ -524,6 +524,11 @@ extension AppCoordinator {
         activeCueAutoStopEndMilliseconds = nil
         currentCueAutoStopReached = false
         cancelAutoSwitchCueSequenceTask()
+        activePlaylistCueSettings = PlaylistCueEffectiveSettings(
+            autoPauseEnabled: settings.autoPauseAfterCueFinishesEnabled,
+            autoSwitchEnabled: settings.autoSwitchToNextCuesInPlaylistEnabled,
+            autoSwitchGapMilliseconds: settings.autoSwitchCueSequenceGapMilliseconds
+        )
     }
 
     func clearCueAutoStopPlayback() {
@@ -531,6 +536,7 @@ extension AppCoordinator {
         activeCueAutoStopEndMilliseconds = nil
         currentCueAutoStopReached = false
         cancelAutoSwitchCueSequenceTask()
+        activePlaylistCueSettings = nil
     }
 
     func cancelAutoSwitchCueSequenceTask() {
@@ -601,11 +607,14 @@ extension AppCoordinator {
     private func scheduleAutoSwitchCueSequence() {
         let generation = cuePlaybackGeneration
         let source = activePlaybackSource
-        let gapMilliseconds = settings.autoSwitchCueSequenceGapMilliseconds
+        guard let effectiveSettings = activePlaylistCueSettings else {
+            return
+        }
+        let gapMilliseconds = effectiveSettings.autoSwitchGapMilliseconds
         guard currentCueAutoStopReached,
               playback.playbackStatus == .paused,
-              settings.autoPauseAfterCueFinishesEnabled,
-              settings.autoSwitchToNextCuesInPlaylistEnabled,
+              effectiveSettings.autoPauseEnabled,
+              effectiveSettings.autoSwitchEnabled,
               source == .search || source == .shiori
         else {
             return
@@ -627,8 +636,9 @@ extension AppCoordinator {
                       self.currentCueAutoStopReached,
                       self.playback.playbackStatus == .paused,
                       self.activePlaybackSource == source,
-                      self.settings.autoPauseAfterCueFinishesEnabled,
-                      self.settings.autoSwitchToNextCuesInPlaylistEnabled
+                      self.activePlaylistCueSettings == effectiveSettings,
+                      effectiveSettings.autoPauseEnabled,
+                      effectiveSettings.autoSwitchEnabled
                 else {
                     return
                 }
