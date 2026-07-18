@@ -6,7 +6,7 @@
 
 ## Status
 
-In progress.
+Ready for owner end-to-end acceptance.
 
 ## Scope
 
@@ -44,7 +44,10 @@ In progress.
    Primary Cues. It writes only the exact plain Markdown string with the CueID,
    leaves Overlay Search unchanged, and reports
    `Subtitle(markdown format) Copied`: completed.
-6. Full regression, packaging, and Launch Services verification: pending.
+6. Ran full regression and isolated reruns, built and verified the self-contained
+   ARM64 application, archived the previous installed bundle, installed the new
+   bundle, refreshed Launch Services, and verified both cold and running-state
+   URL dispatch: completed.
 
 ## Verification
 
@@ -76,7 +79,28 @@ In progress.
   plain-string clipboard output without HTML/RTF, Current and Playlist `X`
   routing, settled Shiori Primary Cue identity, exact success feedback, and the
   Overlay Search exclusion.
+- Two final full runs executed 761 tests each. All requirement-related tests
+  passed. The first run reported only the existing native first-frame timing
+  assertion
+  `nativePlaybackUsesCommonTimelineWhenVideoTrackStartsAfterAudio`; the second
+  non-parallel run reported only the existing shared-defaults isolation case
+  `sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`.
+  Each reported test passed immediately in isolation.
+- `scripts/package_macos_app.sh --output /private/tmp/CueSeeker.app`: passed,
+  including controlled-runtime, ARM64, dependency-closure, ad-hoc signature,
+  and bundle verification.
+- Archived the prior `/Applications/CueSeeker.app` as
+  `/Users/weiyunjun/Downloads/CueSeeker-20260712.app.zip`; `unzip -t` reported
+  no errors and its SHA-256 is
+  `c22c9caf4d1fef49e8818ac594b272b4f1d2b2f35d49dc812f02987024330b54`.
+- Installed and re-verified `/Applications/CueSeeker.app`; its bundle ID is
+  `com.cueseeker.app`, its declared URL Scheme is `cueseeker`, and its version
+  is `0.1.0`.
+- Refreshed Launch Services and opened distinct Search URLs from both cold and
+  already-running states. Both calls resolved to the same installed
+  `/Applications/CueSeeker.app/Contents/MacOS/CueSeeker` process.
 
 ## Outcome
 
-Pending implementation and verification.
+Implementation, automated verification, packaging, installation, and Launch
+Services verification are complete. Owner end-to-end acceptance remains.
