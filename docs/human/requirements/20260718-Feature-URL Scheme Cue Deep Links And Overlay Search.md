@@ -9,6 +9,7 @@ main
 5. URL Scheme的播放指定句子功能，被视为进入一个只有该句子的Playlist（这意味着在Overlay Playlist中也要有所体现）。
 6.  URL Scheme的播放指定句子功能的Return Context处理：退出Playback后应该回到Search界面。先这么处理，因为暂时没有更好的办法了。
 7. 新增复制当前字幕为markdown链接的功能，绑定快捷键X，只对Overlay界面且存在焦点字幕时有效，对Overlay Search界面无效。例如，字幕内容是xxx，那么复制的链接是[xxx](cueseeker://cue?id={CueID})。复制成功后提示参考C键的普通复制成功后提示，文字改为：Subtitle(markdown format) Copied。
+8. 复制当前字幕为markdown链接，这个版本先不做自适应处理，这意味着，不论粘贴在什么软件中，结果都是[xxx](cueseeker://cue?id={CueID})。
 
 # 注意事项
 1. 这里需要用打包出来的版本测试。目前已存在/Applications/CueSeeker.app，这里将旧包打包为CueSeeker-20260712.app.zip，放到其他文件夹。然后新包用CueSeeker.app，响应URL Scheme请求。
