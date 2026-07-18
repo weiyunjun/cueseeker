@@ -31,6 +31,9 @@ extension AppCoordinator {
     func playbackPlaylistBoundaryDidChange(
         _ boundary: PlaybackPlaylistSourceBoundary?
     ) {
+        if boundary != nil {
+            _ = playback.validatePlaylistPosition()
+        }
         guard let boundary,
               let context = activePlaybackSearchPlaylistContext,
               playback.playlistSource?.boundary.datasetID == boundary.datasetID,
@@ -44,6 +47,20 @@ extension AppCoordinator {
             canGoPrevious: ordinal > 0 && ordinal < boundary.totalCount,
             canGoNext: ordinal + 1 < boundary.totalCount
         )
+    }
+
+    func currentShioriPlaylistAdjacentOrdinal(
+        for shiori: Shiori,
+        direction: ShioriNavigationDirection
+    ) -> Int? {
+        guard let source = playback.playlistSource,
+              let position = playback.playlistPosition,
+              position.datasetID == source.boundary.datasetID,
+              position.itemIdentity == .shiori(shiori.id)
+        else {
+            return nil
+        }
+        return position.ordinal + (direction == .previous ? -1 : 1)
     }
 
     func makePlaybackRecentSessionStore() -> PlaybackRecentSessionStore {

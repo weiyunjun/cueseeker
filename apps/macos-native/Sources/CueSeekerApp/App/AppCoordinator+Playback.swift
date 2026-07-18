@@ -256,6 +256,12 @@ extension AppCoordinator {
         )
         if let playlistSourceOverride {
             playback.setPlaylistSource(playlistSourceOverride)
+            if case .cue = playlistSourceOverride.origin {
+                _ = playback.setPlaylistPosition(
+                    itemIdentity: .search(result.entryID),
+                    ordinal: 0
+                )
+            }
         } else {
             installSearchPlaybackPlaylistSource(seed: result)
         }

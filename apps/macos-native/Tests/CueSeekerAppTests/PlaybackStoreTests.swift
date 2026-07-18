@@ -1,4 +1,5 @@
 import Combine
+import CueSeekerCore
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -35,6 +36,63 @@ func timelineInteractionStateDoesNotInvalidatePlaybackStore() {
         withExtendedLifetime(timelineCancellable) {}
         withExtendedLifetime(scrubTimeCancellable) {}
     }
+}
+
+@MainActor
+@Test
+func playbackStoreOpensPlaylistOverlayAtLogicalPlayingItem() throws {
+    let suiteName = "CueSeekerPlaylistPositionTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    let targetOrdinal = 73
+    var requestedOrdinals: [Int] = []
+    let source = PlaybackPlaylistSource(kind: .search, totalCount: 100) {
+        ordinal in
+        requestedOrdinals.append(ordinal)
+        guard ordinal >= 0, ordinal < 100 else {
+            return nil
+        }
+        return PlaybackPlaylistItem(
+            searchResult: SubtitleSearchResult(
+                entryID: Int64(1_000 + ordinal),
+                subtitlePath: "/subtitle/\(ordinal).srt",
+                subtitleFormat: .srt,
+                videoPath: "/video/\(ordinal).mkv",
+                videoName: "\(ordinal).mkv",
+                startMilliseconds: ordinal * 1_000,
+                endMilliseconds: ordinal * 1_000 + 500,
+                content: "cue-\(ordinal)",
+                cueLines: ["cue-\(ordinal)"]
+            ),
+            ordinal: ordinal
+        )
+    }
+    let store = PlaybackStore(userDefaults: userDefaults)
+    store.setPlaylistSource(source)
+    #expect(store.setPlaylistPosition(
+        itemIdentity: .search(Int64(1_000 + targetOrdinal)),
+        ordinal: targetOrdinal
+    ))
+
+    let session = try #require(store.beginSubtitleFocusSession(
+        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+            source: SubtitleFocusSourceIdentity(
+                videoPath: "/video/\(targetOrdinal).mkv",
+                subtitlePath: "/subtitle/\(targetOrdinal).srt",
+                subtitleFormat: .srt
+            ),
+            timestampMilliseconds: targetOrdinal * 1_000,
+            wasPlaying: false
+        )
+    ))
+
+    #expect(session.playlistWindow?.selectedOrdinal == targetOrdinal)
+    #expect(session.playlistWindow?.selectedItemIdentity
+        == .search(Int64(1_000 + targetOrdinal)))
+    #expect(requestedOrdinals == [targetOrdinal, targetOrdinal])
+    store.releaseSubtitleFocusSession(session)
 }
 
 @Test

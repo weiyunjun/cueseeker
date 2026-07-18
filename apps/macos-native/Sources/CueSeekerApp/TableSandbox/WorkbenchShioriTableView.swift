@@ -371,6 +371,9 @@ private struct WorkbenchShioriTableContent: View {
             item,
             navigationScopeIDs: navigationScopeIDs,
             playlistScope: playlistScope,
+            playlistSelectedOrdinal: navigationScopeIDs.firstIndex(
+                of: Int64(row.id)
+            ),
             displayTitle: row.displayTitle
         )
     }

@@ -105,6 +105,41 @@ func playbackPlaylistSessionReadsCompleteResidentDatasetWithoutRetainingCopy() t
 
 @MainActor
 @Test
+func playbackPlaylistSessionRestoresHighLogicalPositionWithOneProviderRead() throws {
+    let totalCount = 50_000
+    let targetOrdinal = 37_499
+    var requestedOrdinals: [Int] = []
+    let source = PlaybackPlaylistSource(kind: .search, totalCount: totalCount) {
+        ordinal in
+        requestedOrdinals.append(ordinal)
+        guard ordinal >= 0, ordinal < totalCount else {
+            return nil
+        }
+        return PlaybackPlaylistItem(
+            searchResult: makePlaybackPlaylistSearchResult(
+                id: Int64(1_000 + ordinal)
+            ),
+            ordinal: ordinal
+        )
+    }
+    let position = PlaybackPlaylistPosition(
+        datasetID: source.boundary.datasetID,
+        itemIdentity: .search(Int64(1_000 + targetOrdinal)),
+        ordinal: targetOrdinal
+    )
+
+    let window = try #require(source.makeSessionWindowStore(
+        initialPosition: position
+    ))
+
+    #expect(window.selectedOrdinal == targetOrdinal)
+    #expect(window.selectedItemIdentity == position.itemIdentity)
+    #expect(requestedOrdinals == [targetOrdinal])
+    #expect(window.snapshot.loadedItemCount == totalCount)
+}
+
+@MainActor
+@Test
 func playbackPlaylistBoundaryRefreshUpdatesResidentSnapshotAndSelection() throws {
     var items = makePlaybackPlaylistSearchItems(in: 0..<2)
     let source = PlaybackPlaylistSource(kind: .search, totalCount: items.count) {
@@ -223,9 +258,17 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
     app.installSearchPlaybackPlaylistSource(seed: initialResults[1])
     let source = try #require(app.playback.playlistSource)
     let window = try #require(source.makeSessionWindowStore())
+    let logicalPosition = try #require(app.playback.playlistPosition)
 
     #expect(window.snapshot.isComplete)
     #expect(window.item(at: 1)?.identity == .search(101))
+    #expect(logicalPosition.datasetID == source.boundary.datasetID)
+    #expect(logicalPosition.itemIdentity == .search(101))
+    #expect(logicalPosition.ordinal == 1)
+    let focusedWindow = try #require(source.makeSessionWindowStore(
+        initialPosition: logicalPosition
+    ))
+    #expect(focusedWindow.selectedOrdinal == 1)
 
     let updatedResults = (0..<5).map { ordinal in
         makePlaybackPlaylistSearchResult(
@@ -238,6 +281,7 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
     app.refreshSearchPlaybackPlaylistSource(resultListGeneration: 7)
 
     #expect(app.playback.playlistSource === source)
+    #expect(app.playback.playlistPosition == nil)
     #expect(window.snapshot.loadedOrdinalRange == (0..<5))
     #expect(window.item(at: 4)?.identity == .search(204))
 
@@ -278,6 +322,22 @@ func shioriPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     #expect(window.item(at: 0)?.identity == .shiori(9))
     #expect(window.item(at: 1)?.identity == .shiori(3))
     #expect(window.item(at: 2)?.identity == .shiori(7))
+
+    app.openShiori(
+        app.shiori.shioris[1],
+        recordsNavigationHistory: false,
+        navigationScopeIDs: [9, 3, 7],
+        playlistScope: .explicitIDs([9, 3, 7]),
+        playlistSelectedOrdinal: 1
+    )
+    let position = try #require(app.playback.playlistPosition)
+    #expect(position.datasetID == source.boundary.datasetID)
+    #expect(position.itemIdentity == .shiori(3))
+    #expect(position.ordinal == 1)
+    let focusedWindow = try #require(source.makeSessionWindowStore(
+        initialPosition: position
+    ))
+    #expect(focusedWindow.selectedOrdinal == 1)
     app.playback.clearPlaylistSource()
 }
 

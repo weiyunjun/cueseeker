@@ -194,6 +194,12 @@ struct PlaybackPlaylistSourceBoundary: Equatable {
     let totalCount: Int
 }
 
+struct PlaybackPlaylistPosition: Equatable, Sendable {
+    let datasetID: UUID
+    let itemIdentity: PlaybackPlaylistItemIdentity
+    let ordinal: Int
+}
+
 typealias PlaybackPlaylistSharedItemProvider = @MainActor (
     _ ordinal: Int
 ) -> PlaybackPlaylistItem?
@@ -299,14 +305,18 @@ final class PlaybackPlaylistSource: ObservableObject {
     }
 
     func makeSessionWindowStore(
-        includingEmpty: Bool = false
+        includingEmpty: Bool = false,
+        initialPosition: PlaybackPlaylistPosition? = nil
     ) -> PlaybackPlaylistSessionWindowStore? {
         guard isActive,
               includingEmpty || boundary.totalCount > 0
         else {
             return nil
         }
-        return PlaybackPlaylistSessionWindowStore(source: self)
+        return PlaybackPlaylistSessionWindowStore(
+            source: self,
+            initialPosition: initialPosition
+        )
     }
 
     func invalidate() {
@@ -334,11 +344,27 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
     private var boundaryCancellable: AnyCancellable?
     private var isActive = true
 
-    init(source: PlaybackPlaylistSource) {
+    init(
+        source: PlaybackPlaylistSource,
+        initialPosition: PlaybackPlaylistPosition? = nil
+    ) {
         self.source = source
         let boundary = source.boundary
-        selectedOrdinal = boundary.totalCount > 0 ? 0 : nil
-        selectedItemIdentity = source.itemIdentity(at: 0)
+        if let initialPosition,
+           initialPosition.datasetID == boundary.datasetID,
+           initialPosition.ordinal >= 0,
+           initialPosition.ordinal < boundary.totalCount,
+           source.itemIdentity(at: initialPosition.ordinal)
+               == initialPosition.itemIdentity {
+            selectedOrdinal = initialPosition.ordinal
+            selectedItemIdentity = initialPosition.itemIdentity
+        } else {
+            let fallbackOrdinal = boundary.totalCount > 0 ? 0 : nil
+            selectedOrdinal = fallbackOrdinal
+            selectedItemIdentity = fallbackOrdinal.flatMap {
+                source.itemIdentity(at: $0)
+            }
+        }
         snapshot = Self.snapshot(boundary: boundary)
         boundaryCancellable = source.$boundary
             .dropFirst()

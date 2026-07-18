@@ -53,6 +53,7 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
     private(set) var playbackSearchPlaylistOrdinal: Int?
+    private(set) var playlistPosition: PlaybackPlaylistPosition?
     @Published var playbackStatus: PlaybackStatus = .idle
     @Published var isPlaybackSurfaceExpanded = false
     @Published var isPlaybackSidePanelVisible = false
@@ -94,6 +95,7 @@ final class PlaybackStore: ObservableObject {
                     hasPlaylist: playlistSource?.hasItems == true
             ),
             playlistSource: playlistSource,
+            playlistPosition: playlistPosition,
             searchStore: searchStore,
             recentStore: recentStore,
             libraryStore: libraryStore,
@@ -119,23 +121,85 @@ final class PlaybackStore: ObservableObject {
         playbackSearchSelectedOrdinal: Int? = nil
     ) {
         guard playlistSource !== source else {
-            if let playbackSearchSelectedOrdinal,
-               case .search = source.origin {
+            if case .search = source.origin {
                 playbackSearchPlaylistOrdinal = playbackSearchSelectedOrdinal
+                if let playbackSearchSelectedOrdinal {
+                    _ = setPlaylistPosition(at: playbackSearchSelectedOrdinal)
+                } else {
+                    playlistPosition = nil
+                }
             }
             return
         }
         playlistSource?.invalidate()
+        playlistPosition = nil
         if case .search = source.origin {
             playbackSearchPlaylistOrdinal = playbackSearchSelectedOrdinal
         } else {
             playbackSearchPlaylistOrdinal = nil
         }
         playlistSource = source
+        if let playbackSearchSelectedOrdinal {
+            _ = setPlaylistPosition(at: playbackSearchSelectedOrdinal)
+        }
+    }
+
+    @discardableResult
+    func setPlaylistPosition(
+        itemIdentity: PlaybackPlaylistItemIdentity,
+        ordinal: Int
+    ) -> Bool {
+        guard let source = playlistSource,
+              source.itemIdentity(at: ordinal) == itemIdentity
+        else {
+            playlistPosition = nil
+            return false
+        }
+        playlistPosition = PlaybackPlaylistPosition(
+            datasetID: source.boundary.datasetID,
+            itemIdentity: itemIdentity,
+            ordinal: ordinal
+        )
+        return true
+    }
+
+    @discardableResult
+    func setPlaylistPosition(at ordinal: Int) -> Bool {
+        guard let source = playlistSource,
+              let itemIdentity = source.itemIdentity(at: ordinal)
+        else {
+            playlistPosition = nil
+            return false
+        }
+        playlistPosition = PlaybackPlaylistPosition(
+            datasetID: source.boundary.datasetID,
+            itemIdentity: itemIdentity,
+            ordinal: ordinal
+        )
+        return true
+    }
+
+    @discardableResult
+    func validatePlaylistPosition() -> Bool {
+        guard let source = playlistSource,
+              let playlistPosition,
+              playlistPosition.datasetID == source.boundary.datasetID,
+              source.itemIdentity(at: playlistPosition.ordinal)
+                == playlistPosition.itemIdentity
+        else {
+            self.playlistPosition = nil
+            return false
+        }
+        return true
+    }
+
+    func clearPlaylistPosition() {
+        playlistPosition = nil
     }
 
     func clearPlaylistSource() {
         playbackSearchPlaylistOrdinal = nil
+        playlistPosition = nil
         playlistSource?.invalidate()
         playlistSource = nil
     }

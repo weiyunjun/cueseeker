@@ -44,8 +44,12 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     #expect(fixture.app.workbenchLayout.panelMode == .search)
 
     let source = try #require(fixture.app.playback.playlistSource)
+    let position = try #require(fixture.app.playback.playlistPosition)
     #expect(source.origin == .cue(cueID: cueID))
     #expect(source.boundary.totalCount == 1)
+    #expect(position.datasetID == source.boundary.datasetID)
+    #expect(position.itemIdentity == .search(cueID))
+    #expect(position.ordinal == 0)
     let item = try #require(source.item(at: 0))
     #expect(item.primaryCueIdentity == .cue(cueID))
     #expect(item.primaryCueText == "direct cue target with enough searchable text")
@@ -67,6 +71,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     ))
     #expect(overlaySession.availableModules.contains(.playlist))
     #expect(overlaySession.playlistWindow?.snapshot.totalCount == 1)
+    #expect(overlaySession.playlistWindow?.selectedOrdinal == 0)
     #expect(overlaySession.playlistWindow?.item(at: 0)?.primaryCueIdentity == .cue(cueID))
 
     for _ in 0..<100 where fixture.app.playbackReturnContext != .search {

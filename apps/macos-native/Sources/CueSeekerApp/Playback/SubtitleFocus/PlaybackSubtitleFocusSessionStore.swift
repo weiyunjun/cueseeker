@@ -163,6 +163,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         sessionGeneration: Int,
         availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules,
         playlistSource: PlaybackPlaylistSource? = nil,
+        playlistPosition: PlaybackPlaylistPosition? = nil,
         searchStore: SearchStore? = nil,
         recentStore: PlaybackRecentSessionStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
@@ -177,7 +178,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             normalizedModules.insert(.current, at: 0)
         }
         self.availableModules = normalizedModules
-        let playlistWindow = playlistSource?.makeSessionWindowStore()
+        let playlistWindow = playlistSource?.makeSessionWindowStore(
+            initialPosition: playlistPosition
+        )
         self.playlistWindow = playlistWindow
         self.searchStore = searchStore
         self.recentStore = recentStore

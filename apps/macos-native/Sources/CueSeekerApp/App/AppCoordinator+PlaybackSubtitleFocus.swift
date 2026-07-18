@@ -582,6 +582,7 @@ extension AppCoordinator {
                 shiori,
                 navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
                 playlistScope: playlistScope,
+                playlistSelectedOrdinal: item.ordinal,
                 playsContinuouslyFromStart: true
             )
         }
@@ -603,6 +604,7 @@ extension AppCoordinator {
                 shiori,
                 navigationScopeIDs: scope,
                 playlistScope: playlistScope,
+                playlistSelectedOrdinal: item.ordinal,
                 playsContinuouslyFromStart: continuous,
                 playbackReturnContextOnSuccessfulPlay: .shiori
             )

@@ -31,6 +31,11 @@ Implementation in progress.
    or Shiori playback. The delayed task now validates the playback generation,
    source, paused state, and both settings before advancing; manual resume,
    source replacement, or disabling Auto Switch cancels the pending task.
+4. Added a compact Playlist logical position containing only dataset identity,
+   item identity, and ordinal. Search, Shiori, Playlist actions, navigation, and
+   Cue deep links update that position; a new Overlay session validates the
+   single target ordinal and opens there without scanning or indexing the
+   dataset.
 
 ## Verification
 
@@ -44,7 +49,12 @@ Implementation in progress.
 - A real generated audio/video fixture verified that auto-stop presents no
   frame at or beyond Cue End, keeps the native session alive, and resumes with
   an in-session seek rather than reopening the media.
-- Pending focused Overlay verification.
+- Thirty cross-source Playlist, navigation, Overlay-session, and Cue deep-link
+  tests passed.
+- Sixteen focused Playlist source/store/Reel tests passed, including a 50,000
+  item dataset opening at ordinal 37,499 with exactly one provider read. The
+  existing 64-item measurement-cache bound and bounded visible placement
+  behavior remained unchanged.
 - Pending full regression verification.
 - Pending packaged application verification.
 
