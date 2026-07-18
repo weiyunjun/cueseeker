@@ -27,10 +27,17 @@ main
 | 音量、字幕显示、窗口操作 | 不影响 | 不影响 |
 
 ## 验证
-1. Auto Pause触发时要验证：仍是同一个Playlist Item、设置仍开启，否则不得自动暂停。
-2. 在Auto Switch倒计时结束时要重新验证：仍是同一个Playlist Item，倒计时仍属于最近一次有效的Auto Pause事件，仍因该事件保持暂停，没有进入Overlay，Auto Pause与Auto Switch均保持开启，否则不得切换。
+1. Auto Pause触发时要验证：当前Playlist Item的有效设置中Auto Pause为开启，否则不得自动暂停。
+2. 在Auto Switch倒计时结束时要重新验证：当前Playlist Item的有效设置中Auto Pause与Auto Switch均为开启，仍是同一个Playlist Item，倒计时仍属于最近一次有效的Auto Pause事件，仍因该事件保持暂停，没有进入Overlay，否则不得切换。
 
 ## Playlist状态初始化
 1. 以上提到的影响Auto Pause和Auto Switch的操作（## 操作规则），只对当前Playlist Item有效，不修改Auto Pause或Auto Switch的设置值。
 2. 当前Playlist索引成功改变时，应清除旧Item的Auto Pause运行状态和等待中的Auto Switch任务，并按照当前设置为新Item初始化。
 3. 这意味着，哪怕之前用户通过非设置界面的操作，例如seek到某个位置，取消了Auto Switch，在索引成功改变并初始化以后，也会根据持久化的设置，初始化Auto Pause和Auto Switch。
+
+## 持久化设置生效时机
+1. Auto Pause、Auto Switch和Auto Switch Gap的修改立即持久化，但不影响当前Playlist Item。
+2. 每个Playlist Item在索引初始化时，根据当时的持久化设置生成本Item的有效设置。
+3. 当前Item初始化后，即使持久化设置发生变化，其Auto Pause、Auto Switch和Gap也保持不变。
+4. 等待中的Auto Switch继续使用当前Item初始化时的Gap；修改设置本身不会取消、重启或改变本次倒计时。
+5. 当Playlist成功切换到其他索引时，新Item使用最新的持久化设置重新初始化。
