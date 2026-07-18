@@ -502,6 +502,19 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    func showSubtitleMarkdownLinkCopyFeedback(copied: Bool) {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                icon: copied ? .copy : .system("exclamationmark.triangle"),
+                text: copied
+                    ? "Subtitle(markdown format) Copied"
+                    : "No Subtitle"
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showShioriFeedback(_ state: ShioriFeedbackState) {
         let feedback: PlaybackFeedback = switch state {
         case .saved:

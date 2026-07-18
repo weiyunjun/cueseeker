@@ -380,6 +380,21 @@ extension AppCoordinator {
             )
             playback.playbackViewModel?.showSubtitleCopyFeedback(copied: copied)
             _ = session.finishKeyboardAction(execution)
+        case .copyCueMarkdownLink:
+            let copied: Bool
+            if let cueID = execution.target.cueID {
+                copied = PlaybackSubtitleFocusClipboard.copyMarkdownLink(
+                    cueText: execution.target.primaryCueText,
+                    cueID: cueID,
+                    to: .general
+                )
+            } else {
+                copied = false
+            }
+            playback.playbackViewModel?.showSubtitleMarkdownLinkCopyFeedback(
+                copied: copied
+            )
+            _ = session.finishKeyboardAction(execution)
         case .playFromThisCue:
             switch execution.target {
             case .current(let context):

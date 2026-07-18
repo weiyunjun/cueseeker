@@ -12,11 +12,26 @@ enum PlaybackSubtitleFocusClipboard {
         pasteboard.clearContents()
         return pasteboard.setString(text, forType: .string)
     }
+
+    static func copyMarkdownLink(
+        cueText: String,
+        cueID: Int64,
+        to pasteboard: NSPasteboard
+    ) -> Bool {
+        guard cueID > 0 else {
+            return false
+        }
+        return copy(
+            "[\(cueText)](cueseeker://cue?id=\(cueID))",
+            to: pasteboard
+        )
+    }
 }
 
 enum PlaybackSubtitleFocusAction: Equatable, Sendable {
     case shiori
     case copyCueText
+    case copyCueMarkdownLink
     case playFromThisCue
 }
 
@@ -42,6 +57,10 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
         case .playlist(let item), .search(let item), .shiori(let item):
             item.actionContext
         }
+    }
+
+    var cueID: Int64? {
+        actionContext?.cue.id
     }
 
     var sourceVideoName: String? {

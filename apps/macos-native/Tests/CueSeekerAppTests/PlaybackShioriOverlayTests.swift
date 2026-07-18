@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -89,6 +90,59 @@ func playbackShioriUsesWorkbenchCuePresentationForActions() throws {
     #expect(targetItem.additionalCueTexts == ["before-0", "after-0"])
     #expect(execution.target.actionContext?.cue.id == 20_000)
     #expect(execution.target.representsSavedShiori)
+}
+
+@MainActor
+@Test
+func playbackShioriCopiesSettledPrimaryCueAsMarkdownLink() throws {
+    _ = NSApplication.shared
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("playback-shiori-markdown-\(UUID().uuidString).sqlite")
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    let app = AppCoordinator(databaseURL: databaseURL)
+    app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
+    let store = playbackSharedShioriStore([playbackSharedShioriFixture(0)])
+    let session = try #require(app.playback.beginSubtitleFocusSession(
+        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        shioriStore: store
+    ))
+    #expect(session.publishInitialSnapshot(
+        SubtitleFocusSnapshot(
+            totalCount: 1,
+            selectedOrdinal: 0,
+            cues: [SubtitleFocusCue(
+                id: 1,
+                cueGroupID: 2,
+                ordinal: 0,
+                eventIndex: 0,
+                displayOrder: 0,
+                startMilliseconds: 0,
+                endMilliseconds: 900,
+                content: "current"
+            )]
+        ),
+        token: session.token
+    ))
+    #expect(session.selectModule(.shiori))
+    NSPasteboard.general.clearContents()
+
+    guard case .ready(let execution) = session.requestKeyboardAction(
+        .copyCueMarkdownLink
+    ) else {
+        Issue.record("Expected the settled Shiori Cue to be actionable")
+        return
+    }
+    #expect(app.executePlaybackSubtitleFocusAction(execution))
+
+    #expect(
+        NSPasteboard.general.string(forType: .string)
+            == "[shiori-0](cueseeker://cue?id=20000)"
+    )
+    #expect(
+        app.playback.playbackViewModel?.feedback?.text
+            == "Subtitle(markdown format) Copied"
+    )
+    #expect(session.activeKeyboardAction == nil)
 }
 
 @MainActor

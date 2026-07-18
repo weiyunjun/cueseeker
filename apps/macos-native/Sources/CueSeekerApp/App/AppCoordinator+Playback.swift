@@ -924,6 +924,15 @@ extension AppCoordinator {
                     _ = requestPlaybackSubtitleFocusAction(.copyCueText)
                 }
                 return true
+            case 7:
+                guard !isRepeat else {
+                    return true
+                }
+                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
+                    == true {
+                    _ = requestPlaybackSubtitleFocusAction(.copyCueMarkdownLink)
+                }
+                return true
             case 36, 76:
                 guard !isRepeat else {
                     return true

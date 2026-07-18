@@ -17,6 +17,32 @@ func subtitleFocusClipboardWritesExactCueText() throws {
 }
 
 @Test
+func subtitleFocusClipboardWritesPlainMarkdownCueLinkOnly() throws {
+    let pasteboard = NSPasteboard(
+        name: .init("SubtitleFocus-Markdown-\(UUID().uuidString)")
+    )
+    defer { pasteboard.releaseGlobally() }
+    let cueText = "  first line  \n\nthird line"
+
+    #expect(PlaybackSubtitleFocusClipboard.copyMarkdownLink(
+        cueText: cueText,
+        cueID: 42,
+        to: pasteboard
+    ))
+    #expect(
+        pasteboard.string(forType: .string)
+            == "[  first line  \n\nthird line](cueseeker://cue?id=42)"
+    )
+    #expect(pasteboard.data(forType: .html) == nil)
+    #expect(pasteboard.data(forType: .rtf) == nil)
+    #expect(!PlaybackSubtitleFocusClipboard.copyMarkdownLink(
+        cueText: cueText,
+        cueID: 0,
+        to: pasteboard
+    ))
+}
+
+@Test
 func subtitleFocusActionContextPreservesExactCueIdentityAndContent() {
     let cue = SubtitleFocusCue(
         id: 42,
@@ -123,6 +149,16 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
         #expect(session.currentSnapshot?.selectedOrdinal == 12)
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.playback.playbackViewModel?.feedback?.text == "Subtitle Copied")
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
+        #expect(
+            NSPasteboard.general.string(forType: .string)
+                == "[  exact first  \n\nexact third](cueseeker://cue?id=13)"
+        )
+        #expect(
+            app.playback.playbackViewModel?.feedback?.text
+                == "Subtitle(markdown format) Copied"
+        )
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 8,
@@ -313,6 +349,16 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
                 == "  playlist first  \n\nplaylist third"
         )
         #expect(app.playback.playbackViewModel?.feedback?.text == "Subtitle Copied")
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
+        #expect(
+            NSPasteboard.general.string(forType: .string)
+                == "[  playlist first  \n\nplaylist third](cueseeker://cue?id=22)"
+        )
+        #expect(
+            app.playback.playbackViewModel?.feedback?.text
+                == "Subtitle(markdown format) Copied"
+        )
         #expect(app.playback.subtitleFocusSession === session)
         #expect(window.selectedOrdinal == 0)
 
@@ -336,6 +382,29 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
         session.noteCueReelMotion(true)
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(session.pendingKeyboardAction == .playFromThisCue)
+    }
+}
+
+@MainActor
+@Test
+func playbackOverlaySearchDoesNotCopyMarkdownCueLink() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
+            searchStore: app.search
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+        #expect(session.selectModule(.search))
+        NSPasteboard.general.clearContents()
+        #expect(NSPasteboard.general.setString("unchanged", forType: .string))
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
+        #expect(NSPasteboard.general.string(forType: .string) == "unchanged")
+        #expect(session.activeKeyboardAction == nil)
+        #expect(app.playback.playbackViewModel?.feedback == nil)
     }
 }
 

@@ -40,7 +40,10 @@ In progress.
    Playlist, ignores unavailable CueIDs without replacing the current
    presentation, and fixes Playback Return Context to Workbench Search:
    completed.
-5. Markdown Cue-link copy: pending.
+5. Added the Overlay-only `X` action for Current, Playlist, and Shiori settled
+   Primary Cues. It writes only the exact plain Markdown string with the CueID,
+   leaves Overlay Search unchanged, and reports
+   `Subtitle(markdown format) Copied`: completed.
 6. Full regression, packaging, and Launch Services verification: pending.
 
 ## Verification
@@ -69,6 +72,10 @@ In progress.
   matching, one-item Playlist identity and Overlay availability, unavailable
   Cue behavior, command supersession, adjacent-navigation suppression, and
   Search Return Context on Playback close.
+- Overlay Markdown-copy focused test selection: 6 tests passed, covering exact
+  plain-string clipboard output without HTML/RTF, Current and Playlist `X`
+  routing, settled Shiori Primary Cue identity, exact success feedback, and the
+  Overlay Search exclusion.
 
 ## Outcome
 
