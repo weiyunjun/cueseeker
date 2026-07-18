@@ -460,14 +460,15 @@ Required behavior:
 - Continuous playback preferences must persist across app restarts. This
   includes volume, the last nonzero volume used when restoring from mute,
   subtitle visibility, and playback speed.
-- Playlist Cue behavior uses two independent persisted preferences. `Only Play
-  Cues in Playlist` defaults to on and determines whether playback stops at the
+- Playlist Cue behavior uses two related persisted preferences. `Only Play Cues
+  in Playlist` defaults to on and determines whether playback stops at the
   selected Cue's end. `Auto Switch to Next Cues in Playlist` defaults to off
-  and independently determines whether the next Playlist item starts after
-  `Auto Switch Gap`. All four on/off combinations are valid. With Only Play off
-  and Auto Switch on, the current video continues during the Gap and is then
-  replaced by the next Playlist item. The Gap remains editable regardless of
-  either toggle.
+  and, while Only Play is on, determines whether the next Playlist item starts
+  after `Auto Switch Gap`. Only on/on, on/off, and off/off are valid. Turning
+  Only Play off forces Auto Switch off and disables its toggle. The Gap remains
+  editable regardless of either toggle. When Only Play stops at a Cue end, the
+  current subtitle remains presented whether Auto Switch is off or waiting in
+  the Gap.
 - Search, Shiori, and CueID direct playback are Playlist-backed while playing.
   CueID direct playback supplies a one-item Playlist and closing that Playback
   returns to Workbench Search.

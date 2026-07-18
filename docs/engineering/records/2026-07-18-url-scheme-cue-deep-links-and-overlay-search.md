@@ -6,7 +6,7 @@
 
 ## Status
 
-Ready for owner end-to-end acceptance.
+In progress after owner requirement correction.
 
 ## Scope
 
@@ -23,12 +23,11 @@ Ready for owner end-to-end acceptance.
 1. Synchronized the engineering, product, and testing contracts with the
    human-owned requirement.
 2. Split the former coupled Playlist toggle into persisted `Only Play Cues in
-   Playlist` and `Auto Switch to Next Cues in Playlist` preferences. The
-   playback coordinator now applies the first only to native Cue-end stopping
-   and the second only to Gap-delayed Playlist navigation. When Only Play is
-   off and Auto Switch is on, playback-time boundary tracking starts the Gap
-   without pausing the current video. Added legacy preference migration and
-   four-combination coverage: completed.
+   Playlist` and `Auto Switch to Next Cues in Playlist` preferences. The first
+   controls native Cue-end stopping and the second controls Gap-delayed
+   Playlist navigation while the first is on. The initially implemented
+   four-state interpretation was superseded by the owner's correction:
+   on/on, on/off, and off/off are the only valid states.
 3. Routed URL Scheme Search through the shared non-debounced Search pipeline
    without closing active Playback. Active Playback now opens or reuses its
    Overlay Session on Search, including empty direct-play results; inactive
@@ -48,16 +47,20 @@ Ready for owner end-to-end acceptance.
    ARM64 application, archived the previous installed bundle, installed the new
    bundle, refreshed Launch Services, and verified both cold and running-state
    URL dispatch: completed.
+7. Normalize the persisted settings to the three valid states, disable Auto
+   Switch when Only Play is off, remove the invalid continuous OFF/ON playback
+   path, and retain the stopped Cue subtitle independently of Auto Switch:
+   pending.
 
 ## Verification
 
 - `git diff --check`: passed for the technical-contract change set.
 - Confirmed the updated URL, playback, functional, and testing documents cite
   the committed human-owned requirement without modifying `docs/human/`.
-- Playlist settings/playback focused test selection: 10 tests passed, including
-  defaults, persistence, legacy migration, Gap bounds, all four independent
-  toggle combinations, Cue-end pause, continuous playback through the Gap, and
-  continuous-from-start override behavior.
+- The original Playlist settings/playback focused selection passed against the
+  superseded four-state interpretation. The owner corrected that contract in
+  committed requirement version `b81e54b`; replacement three-state and subtitle
+  retention verification is pending.
 - `swift test --package-path apps/macos-native`: application and test targets
   built successfully and all tests related to this step passed. Repeated full
   runs each encountered one unrelated isolation/timeout failure
@@ -102,5 +105,5 @@ Ready for owner end-to-end acceptance.
 
 ## Outcome
 
-Implementation, automated verification, packaging, installation, and Launch
-Services verification are complete. Owner end-to-end acceptance remains.
+The original implementation and package require the accepted three-state and
+subtitle-retention correction before renewed owner end-to-end acceptance.

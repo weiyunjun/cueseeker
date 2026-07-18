@@ -6,14 +6,16 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
-- Split Playlist Cue playback into independent `Only Play Cues in Playlist`
-  and `Auto Switch to Next Cues in Playlist` settings with all four combinations
-  supported. URL Scheme Search now preserves active Playback and opens Overlay
-  Search when required. Added `cueseeker://cue?id={CueID}` direct playback as a
-  one-item Playlist with Search Return Context, plus Overlay `X` copying of the
-  settled Current, Playlist, or Shiori Primary Cue as the exact plain Markdown
-  link `[text](cueseeker://cue?id={CueID})`; Overlay Search does not perform
-  this copy action.
+- Split Playlist Cue playback into related `Only Play Cues in Playlist` and
+  `Auto Switch to Next Cues in Playlist` settings. Auto Switch is available only
+  while Only Play is on, producing the valid on/on, on/off, and off/off states;
+  stopped Cues retain their current subtitle both indefinitely and through the
+  automatic-switch Gap. URL Scheme Search now preserves active Playback and
+  opens Overlay Search when required. Added `cueseeker://cue?id={CueID}` direct
+  playback as a one-item Playlist with Search Return Context, plus Overlay `X`
+  copying of the settled Current, Playlist, or Shiori Primary Cue as the exact
+  plain Markdown link `[text](cueseeker://cue?id={CueID})`; Overlay Search does
+  not perform this copy action.
 - Implemented the Playback Multi-Module Overlay as one strictly temporary
   Session with a fixed Current, optional Playlist, Search, Recent, Library, and
   Shiori sidebar. Current retains its established Reel while Playlist, Search,

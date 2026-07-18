@@ -582,15 +582,16 @@ Playback Multi-Module Overlay cue action requirements:
   Down, wheel, and scrollbar navigation remain available.
 - If an action key is accepted while cue motion is settling, execute it once
   against the final settled cue.
-- Playlist Cue playback exposes independent `Only Play Cues in Playlist` and
-  `Auto Switch to Next Cues in Playlist` preferences. The first determines
-  whether playback stops at the current Cue end; the second independently
-  schedules the next Playlist item after the always-editable `Auto Switch Gap`.
-  All four toggle combinations are supported. With Only Play off and Auto
-  Switch on, the current video continues during the Gap before the next item
-  replaces it. Search, Shiori, and CueID direct playback use this Playlist
-  behavior; CueID direct playback has one item and restores Workbench Search
-  when Playback closes.
+- Playlist Cue playback exposes related `Only Play Cues in Playlist` and `Auto
+  Switch to Next Cues in Playlist` preferences. The first determines whether
+  playback stops at the current Cue end; the second schedules the next Playlist
+  item after the always-editable `Auto Switch Gap` only while the first is on.
+  Only on/on, on/off, and off/off are valid. Turning Only Play off forces Auto
+  Switch off and disables its toggle. A Cue stopped by Only Play keeps its
+  current subtitle visible whether Auto Switch is off or waiting in the Gap.
+  Search, Shiori, and CueID direct playback use this Playlist behavior; CueID
+  direct playback has one item and restores Workbench Search when Playback
+  closes.
 - Current reel items represent one Cue. Their nominal content height is `52L`,
   where `L` is the complete visual-line count after source breaks and wrapping.
   Natural height is

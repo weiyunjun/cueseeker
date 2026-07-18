@@ -253,9 +253,12 @@ Required M2 playback interaction checks:
   payload, CueID target, settled-action semantics, and success feedback.
   Playback Search must keep `X` as query input and must not publish adaptive
   HTML or RTF clipboard representations.
-- Playlist setting tests must cover all four combinations of Only Play and Auto
-  Switch, including continuation during the Gap for Only Play off plus Auto
-  Switch on. Gap editing and persistence remain available in every combination.
+- Playlist setting tests must cover the three valid Only Play and Auto Switch
+  combinations: on/on, on/off, and off/off. They must verify that turning Only
+  Play off forces Auto Switch off, persists the normalized state, and disables
+  only the Auto Switch toggle while Gap editing remains available. Cue-boundary
+  tests must verify that the current subtitle remains visible both when stopped
+  indefinitely and while waiting in the automatic-switch Gap.
 - URL Scheme tests must cover Workbench Search versus Overlay Search routing,
   direct-play first-result routing, empty-result routing with and without active
   Playback, CueID parsing and lookup, one-item Playlist presentation, command
