@@ -26,7 +26,9 @@
    indexed subtitle and video files. Existing media rows are backfilled when
    their library root is registered, and cue rows now directly record their
    SubtitleID.
-3. Pending: switch video, subtitle, and playback state persistence to IDs.
+3. Switched Library snapshot rows, playback history, watch state, and search
+   watch-state joins to VideoID/SubtitleID. Reindexing now preserves the
+   existing SubtitleID while rebuilding its derived cue data.
 4. Pending: switch normal Shiori persistence and lookup to CueID.
 5. Pending: remove remaining path-identity reads and run regression coverage.
 
@@ -38,8 +40,13 @@
 - Step 2: `swift test --filter indexedMediaStoresLibraryIDAndRelativePaths`
   passed 1 test.
 - Step 2: `swift test --filter SubtitleIndexer` passed 16 tests.
+- Step 3: `swift test --filter reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID`
+  passed 1 test.
+- Step 3: `swift test --filter libraryPlaybackHistory` passed 4 tests.
+- Step 3: `swift test --filter Library` passed 48 tests after two legacy
+  compatibility failures were corrected and rerun.
 
 ## Outcome
 
-- Schema migration and media-relative path persistence completed; runtime
-  state cutover remains in progress.
+- Schema migration, media-relative paths, and Library state ID cutover
+  completed; Shiori cutover remains in progress.

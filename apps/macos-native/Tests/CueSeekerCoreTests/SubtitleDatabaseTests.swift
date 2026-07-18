@@ -137,6 +137,83 @@ func indexedMediaStoresLibraryIDAndRelativePaths() throws {
 }
 
 @Test
+func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
+    let databaseURL = temporaryDatabaseURL()
+    let libraryFolder = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPermanentState-\(UUID().uuidString)")
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    _ = try database.addSearchPath(libraryFolder)
+    let subtitleFile = libraryFolder.appendingPathComponent("Episode.srt")
+    let videoFile = libraryFolder.appendingPathComponent("Episode.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [simpleTestEntry(text: "before")]
+    )
+    let originalSubtitleID = try #require(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: subtitleFile.path,
+            databaseURL: databaseURL
+        )
+    )
+    let videoID = try #require(
+        try sqliteRowID(
+            table: "video_files",
+            pathColumn: "path",
+            path: videoFile.path,
+            databaseURL: databaseURL
+        )
+    )
+
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 1_500,
+        duration: 24 * 60
+    )
+    try database.rebuildLibraryPresentationSnapshot()
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [simpleTestEntry(text: "after")]
+    )
+
+    #expect(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: subtitleFile.path,
+            databaseURL: databaseURL
+        ) == originalSubtitleID
+    )
+    #expect(
+        try sqliteReferencedID(
+            table: "library_playback_history",
+            idColumn: "video_file_id",
+            pathColumn: "video_path",
+            path: videoFile.path,
+            databaseURL: databaseURL
+        ) == videoID
+    )
+    #expect(
+        try sqliteReferencedID(
+            table: "library_watch_states",
+            idColumn: "video_file_id",
+            pathColumn: "video_path",
+            path: videoFile.path,
+            databaseURL: databaseURL
+        ) == videoID
+    )
+}
+
+@Test
 func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -6654,6 +6731,17 @@ func playbackNavigationIndexRevisionBumpsWhenIndexedContentChanges() throws {
     #expect(afterClear > afterReplace)
 }
 
+private func simpleTestEntry(text: String) -> SubtitleEntry {
+    SubtitleEntry(
+        sequenceNumber: 1,
+        startTimecode: "00:00:01,000",
+        endTimecode: "00:00:02,000",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        text: text
+    )
+}
+
 private func temporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerDatabaseTests-\(UUID().uuidString)")
@@ -6726,6 +6814,55 @@ private func sqliteMediaIdentity(
         return nil
     }
     return (sqlite3_column_int64(statement, 0), String(cString: relativePath))
+}
+
+private func sqliteRowID(
+    table: String,
+    pathColumn: String,
+    path: String,
+    databaseURL: URL
+) throws -> Int64? {
+    try sqliteReferencedID(
+        table: table,
+        idColumn: "id",
+        pathColumn: pathColumn,
+        path: path,
+        databaseURL: databaseURL
+    )
+}
+
+private func sqliteReferencedID(
+    table: String,
+    idColumn: String,
+    pathColumn: String,
+    path: String,
+    databaseURL: URL
+) throws -> Int64? {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer { sqlite3_close(database) }
+
+    var statement: OpaquePointer?
+    let sql = "SELECT \(idColumn) FROM \(table) WHERE \(pathColumn) = ? LIMIT 1;"
+    guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
+          let statement
+    else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    sqlite3_bind_text(statement, 1, path, -1, transient)
+    guard sqlite3_step(statement) == SQLITE_ROW,
+          sqlite3_column_type(statement, 0) != SQLITE_NULL
+    else {
+        return nil
+    }
+    return sqlite3_column_int64(statement, 0)
 }
 
 private func sqliteCueLinesReferenceSubtitleFile(databaseURL: URL) throws -> Bool {

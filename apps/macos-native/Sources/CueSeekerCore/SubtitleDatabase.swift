@@ -366,6 +366,8 @@ public struct SubtitleFTSVocabularyDiagnostics: Equatable, Sendable {
 }
 
 public struct LibraryVideo: Equatable, Sendable, Identifiable {
+    public let videoFileID: Int64?
+    public let subtitleFileID: Int64?
     public let videoPath: String
     public let videoName: String
     public let duration: Double?
@@ -374,6 +376,24 @@ public struct LibraryVideo: Equatable, Sendable, Identifiable {
 
     public var id: String {
         videoPath
+    }
+
+    public init(
+        videoFileID: Int64? = nil,
+        subtitleFileID: Int64? = nil,
+        videoPath: String,
+        videoName: String,
+        duration: Double?,
+        subtitlePath: String,
+        subtitleFormat: SubtitleFormat
+    ) {
+        self.videoFileID = videoFileID
+        self.subtitleFileID = subtitleFileID
+        self.videoPath = videoPath
+        self.videoName = videoName
+        self.duration = duration
+        self.subtitlePath = subtitlePath
+        self.subtitleFormat = subtitleFormat
     }
 }
 
@@ -402,6 +422,7 @@ public struct LibraryCoverEligibleVideo: Equatable, Sendable, Identifiable {
 
     var libraryVideo: LibraryVideo {
         LibraryVideo(
+            videoFileID: videoFileID,
             videoPath: videoPath,
             videoName: videoName,
             duration: duration,
@@ -3006,7 +3027,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         do {
             let preservedCueLineSpeakers = try cueLineSpeakersByStableKey(forSubtitlePath: subtitleFile.path)
-            try deleteIndexedSubtitlePath(subtitleFile.path)
+            try deleteIndexedSubtitlePath(
+                subtitleFile.path,
+                preserveFileIdentity: true
+            )
 
             let subtitleFileID = try upsertSubtitleFile(
                 subtitleFile: subtitleFile,
@@ -5251,7 +5275,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let watchStateValues = watchStateFilter.states.map(\.rawValue)
             let watchStateJoin = watchStateValues.isEmpty
                 ? ""
-                : "JOIN library_watch_states ws ON ws.video_path = vf.path"
+                : "JOIN library_watch_states ws ON ws.video_file_id = vf.id"
             let watchStateCondition: String
             if watchStateValues.isEmpty {
                 watchStateCondition = ""
@@ -6241,9 +6265,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    END,
                    h.updated_at, vc.display_cover_path, vc.generated_at
             FROM library_playback_history h
-            JOIN library_video_rows lvr ON lvr.video_path = h.video_path
-            LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
-            LEFT JOIN video_files vf ON vf.path = lvr.video_path
+            JOIN library_video_rows lvr ON lvr.video_file_id = h.video_file_id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
+            LEFT JOIN video_files vf ON vf.id = lvr.video_file_id
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
                 AND vc.status = ? AND vc.display_profile_version = ?
             WHERE \(scopeCondition)
@@ -6333,9 +6357,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    vf.video_width, vf.video_height, vf.frame_rate,
                    vc.generated_at, fvc.generated_at
             FROM library_video_rows lvr
-            LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
-            LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
-            LEFT JOIN video_files vf ON vf.path = lvr.video_path
+            LEFT JOIN library_playback_history h ON h.video_file_id = lvr.video_file_id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
+            LEFT JOIN video_files vf ON vf.id = lvr.video_file_id
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
                 AND vc.status = ? AND vc.display_profile_version = ?
             LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
@@ -6481,7 +6505,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    (
                        SELECT vc.display_cover_path
                        FROM library_video_rows first_lvr
-                       LEFT JOIN video_files first_vf ON first_vf.path = first_lvr.video_path
+                       LEFT JOIN video_files first_vf ON first_vf.id = first_lvr.video_file_id
                        LEFT JOIN video_covers vc ON vc.video_file_id = first_vf.id
                            AND vc.status = ? AND vc.display_profile_version = ?
                        WHERE first_lvr.folder_path = lvr.folder_path
@@ -6492,7 +6516,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    (
                        SELECT vc.generated_at
                        FROM library_video_rows first_lvr
-                       LEFT JOIN video_files first_vf ON first_vf.path = first_lvr.video_path
+                       LEFT JOIN video_files first_vf ON first_vf.id = first_lvr.video_file_id
                        LEFT JOIN video_covers vc ON vc.video_file_id = first_vf.id
                            AND vc.status = 'generated'
                            AND vc.display_profile_version = \(LibraryCoverDisplayProfileVersion.current)
@@ -6582,9 +6606,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    vf.file_size, vf.video_codec, vf.video_width, vf.video_height,
                    vf.frame_rate, vc.generated_at
             FROM library_video_rows lvr
-            LEFT JOIN library_playback_history h ON h.video_path = lvr.video_path
-            LEFT JOIN library_watch_states ws ON ws.video_path = lvr.video_path
-            LEFT JOIN video_files vf ON vf.path = lvr.video_path
+            LEFT JOIN library_playback_history h ON h.video_file_id = lvr.video_file_id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
+            LEFT JOIN video_files vf ON vf.id = lvr.video_file_id
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
                 AND vc.status = ? AND vc.display_profile_version = ?
             WHERE lvr.folder_path = ?
@@ -6670,6 +6694,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
                 INSERT INTO library_video_rows(
                     video_path,
+                    video_file_id,
+                    subtitle_file_id,
                     video_name,
                     duration,
                     subtitle_path,
@@ -6682,7 +6708,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     video_order,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """
             )
 
@@ -6695,21 +6721,31 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     let sequence = String(format: "%0*d", rankWidth, videoOrder + 1)
                     let fileExtension = URL(fileURLWithPath: video.videoPath).pathExtension.lowercased()
                     try insert.bind(video.videoPath, at: 1)
-                    try insert.bind(video.videoName, at: 2)
-                    if let duration = video.duration {
-                        try insert.bind(duration, at: 3)
+                    if let videoFileID = video.videoFileID {
+                        try insert.bind(videoFileID, at: 2)
+                    } else {
+                        try insert.bindNull(at: 2)
+                    }
+                    if let subtitleFileID = video.subtitleFileID {
+                        try insert.bind(subtitleFileID, at: 3)
                     } else {
                         try insert.bindNull(at: 3)
                     }
-                    try insert.bind(video.subtitlePath, at: 4)
-                    try insert.bind(video.subtitleFormat.rawValue, at: 5)
-                    try insert.bind(folderPath, at: 6)
-                    try insert.bind(folderTitle, at: 7)
-                    try insert.bind("\(folderTitle) - \(sequence)", at: 8)
-                    try insert.bind(fileExtension, at: 9)
-                    try insert.bind(folderOrder, at: 10)
-                    try insert.bind(videoOrder, at: 11)
-                    try insert.bind(updatedAt, at: 12)
+                    try insert.bind(video.videoName, at: 4)
+                    if let duration = video.duration {
+                        try insert.bind(duration, at: 5)
+                    } else {
+                        try insert.bindNull(at: 5)
+                    }
+                    try insert.bind(video.subtitlePath, at: 6)
+                    try insert.bind(video.subtitleFormat.rawValue, at: 7)
+                    try insert.bind(folderPath, at: 8)
+                    try insert.bind(folderTitle, at: 9)
+                    try insert.bind("\(folderTitle) - \(sequence)", at: 10)
+                    try insert.bind(fileExtension, at: 11)
+                    try insert.bind(folderOrder, at: 12)
+                    try insert.bind(videoOrder, at: 13)
+                    try insert.bind(updatedAt, at: 14)
                     try insert.run()
                     try insert.reset()
                     try insert.clearBindings()
@@ -6781,7 +6817,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let prefix = Self.subtitlePathPrefix(forFolderPath: folderPath)
             statement = try database.prepare(
                 """
-                SELECT subtitle_path
+                SELECT id, subtitle_path
                 FROM subtitle_files
                 WHERE subtitle_path >= ? AND subtitle_path < ?
                 ORDER BY subtitle_path ASC;
@@ -6792,7 +6828,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         } else {
             statement = try database.prepare(
                 """
-                SELECT subtitle_path
+                SELECT id, subtitle_path
                 FROM subtitle_files
                 ORDER BY subtitle_path ASC;
                 """
@@ -6801,10 +6837,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var files: [SearchOrderFile] = []
         while try statement.step() {
-            let subtitlePath = statement.stringColumn(0)
+            let subtitleFileID = statement.int64Column(0)
+            let subtitlePath = statement.stringColumn(1)
             let folderPath = Self.folderPath(forSubtitlePath: subtitlePath)
             files.append(
                 SearchOrderFile(
+                    subtitleFileID: subtitleFileID,
                     subtitlePath: subtitlePath,
                     folderPath: folderPath,
                     folderTitle: URL(fileURLWithPath: folderPath).lastPathComponent,
@@ -6836,6 +6874,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             INSERT INTO subtitle_search_order_rows(
                 subtitle_path,
+                subtitle_file_id,
                 folder_path,
                 folder_title,
                 subtitle_file_name,
@@ -6844,7 +6883,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 file_order,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
@@ -6860,13 +6899,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             for (fileOrder, file) in files.enumerated() {
                 try insert.bind(file.subtitlePath, at: 1)
-                try insert.bind(file.folderPath, at: 2)
-                try insert.bind(file.folderTitle, at: 3)
-                try insert.bind(file.subtitleFileName, at: 4)
-                try insert.bind(SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: file.subtitlePath), at: 5)
-                try insert.bind(folderOrder, at: 6)
-                try insert.bind(fileOrder, at: 7)
-                try insert.bind(updatedAt, at: 8)
+                try insert.bind(file.subtitleFileID, at: 2)
+                try insert.bind(file.folderPath, at: 3)
+                try insert.bind(file.folderTitle, at: 4)
+                try insert.bind(file.subtitleFileName, at: 5)
+                try insert.bind(SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: file.subtitlePath), at: 6)
+                try insert.bind(folderOrder, at: 7)
+                try insert.bind(fileOrder, at: 8)
+                try insert.bind(updatedAt, at: 9)
                 try insert.run()
                 try insert.reset()
                 try insert.clearBindings()
@@ -6880,7 +6920,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let whereClause = pathPrefixes?.isEmpty == false ? "WHERE \(scopeCondition)" : ""
         let statement = try database.prepare(
             """
-            SELECT vf.path, vf.video_name, vf.duration, sf.subtitle_path, sf.format
+            SELECT vf.id, sf.id, vf.path, vf.video_name, vf.duration,
+                   sf.subtitle_path, sf.format
             FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
@@ -6901,12 +6942,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         var videosByPath: [String: LibraryVideo] = [:]
         while try statement.step() {
-            let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(4)) ?? .srt
+            let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt
             let video = LibraryVideo(
-                videoPath: statement.stringColumn(0),
-                videoName: statement.stringColumn(1),
-                duration: statement.nullableDoubleColumn(2),
-                subtitlePath: statement.stringColumn(3),
+                videoFileID: statement.int64Column(0),
+                subtitleFileID: statement.int64Column(1),
+                videoPath: statement.stringColumn(2),
+                videoName: statement.stringColumn(3),
+                duration: statement.nullableDoubleColumn(4),
+                subtitlePath: statement.stringColumn(5),
                 subtitleFormat: subtitleFormat
             )
 
@@ -6946,7 +6989,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             UPDATE library_video_rows
             SET duration = ?
-            WHERE video_path = ?;
+            WHERE video_file_id = (
+                SELECT id FROM video_files WHERE path = ?
+            );
             """
         )
         if let duration, duration.isFinite, duration >= 0 {
@@ -7016,7 +7061,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             UPDATE library_video_rows
             SET duration = ?
-            WHERE video_path = ?;
+            WHERE video_file_id = (
+                SELECT id FROM video_files WHERE path = ?
+            );
             """
         )
         if let duration, duration.isFinite, duration >= 0 {
@@ -7033,9 +7080,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     public func libraryPlaybackHistory(forVideoFile videoFile: URL) throws -> LibraryPlaybackHistory? {
+        let videoFileID = try videoFileID(for: videoFile)
         let statement = try database.prepare(
             """
-            SELECT h.video_path, h.position_ms, h.duration,
+            SELECT COALESCE(vf.path, h.video_path), h.position_ms, h.duration,
                    CASE
                        WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
                        WHEN ws.state = 'watching' THEN COALESCE(h.started_at, ws.updated_at)
@@ -7050,12 +7098,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    END,
                    h.updated_at
             FROM library_playback_history h
-            LEFT JOIN library_watch_states ws ON ws.video_path = h.video_path
-            WHERE h.video_path = ?;
+            LEFT JOIN video_files vf ON vf.id = h.video_file_id
+            LEFT JOIN library_watch_states ws
+              ON ws.video_file_id = h.video_file_id
+              OR (
+                  h.video_file_id IS NULL
+                  AND ws.video_file_id IS NULL
+                  AND ws.video_path = h.video_path
+              )
+            WHERE h.video_file_id = ? OR h.video_path = ?;
             """
         )
 
-        try statement.bind(videoFile.path, at: 1)
+        if let videoFileID {
+            try statement.bind(videoFileID, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+        try statement.bind(videoFile.path, at: 2)
 
         guard try statement.step() else {
             return nil
@@ -7079,6 +7139,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         markStarted: Bool = true,
         markCompleted: Bool = false
     ) throws {
+        let videoFileID = try upsertVideoFile(videoFile)
         let updatedAtString = Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt)
         let clampedPositionMilliseconds = max(0, positionMilliseconds)
         let normalizedDuration = duration.flatMap { value in
@@ -7091,14 +7152,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             INSERT INTO library_playback_history(
                 video_path,
+                video_file_id,
                 position_ms,
                 duration,
                 started_at,
                 completed_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(video_path) DO UPDATE SET
+                video_file_id = excluded.video_file_id,
                 position_ms = excluded.position_ms,
                 duration = excluded.duration,
                 started_at = COALESCE(library_playback_history.started_at, excluded.started_at),
@@ -7108,23 +7171,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
 
         try statement.bind(videoFile.path, at: 1)
-        try statement.bind(clampedPositionMilliseconds, at: 2)
+        try statement.bind(videoFileID, at: 2)
+        try statement.bind(clampedPositionMilliseconds, at: 3)
         if let normalizedDuration {
-            try statement.bind(normalizedDuration, at: 3)
-        } else {
-            try statement.bindNull(at: 3)
-        }
-        if let startedAt {
-            try statement.bind(startedAt, at: 4)
+            try statement.bind(normalizedDuration, at: 4)
         } else {
             try statement.bindNull(at: 4)
         }
-        if let completedAt {
-            try statement.bind(completedAt, at: 5)
+        if let startedAt {
+            try statement.bind(startedAt, at: 5)
         } else {
             try statement.bindNull(at: 5)
         }
-        try statement.bind(updatedAtString, at: 6)
+        if let completedAt {
+            try statement.bind(completedAt, at: 6)
+        } else {
+            try statement.bindNull(at: 6)
+        }
+        try statement.bind(updatedAtString, at: 7)
         try statement.run()
 
         if markCompleted {
@@ -7158,19 +7222,22 @@ public final class SubtitleDatabase: @unchecked Sendable {
         state: LibraryWatchState,
         updatedAt: Date = Date()
     ) throws {
+        let videoFileID = try upsertVideoFile(videoFile)
         let updatedAtString = Self.libraryPlaybackHistoryUpdatedAtString(from: updatedAt)
         let statement = try database.prepare(
             """
-            INSERT INTO library_watch_states(video_path, state, updated_at)
-            VALUES (?, ?, ?)
+            INSERT INTO library_watch_states(video_path, video_file_id, state, updated_at)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(video_path) DO UPDATE SET
+                video_file_id = excluded.video_file_id,
                 state = excluded.state,
                 updated_at = excluded.updated_at;
             """
         )
         try statement.bind(videoFile.path, at: 1)
-        try statement.bind(state.rawValue, at: 2)
-        try statement.bind(updatedAtString, at: 3)
+        try statement.bind(videoFileID, at: 2)
+        try statement.bind(state.rawValue, at: 3)
+        try statement.bind(updatedAtString, at: 4)
         try statement.run()
     }
 
@@ -8455,6 +8522,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private struct SearchOrderFile {
+        let subtitleFileID: Int64
         let subtitlePath: String
         let folderPath: String
         let folderTitle: String
@@ -9695,6 +9763,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private func requireVideoFileID(for videoFile: URL) throws -> Int64 {
+        guard let videoFileID = try videoFileID(for: videoFile) else {
+            throw SQLiteDatabaseError.stepFailed("Video file is not indexed: \(videoFile.path)")
+        }
+        return videoFileID
+    }
+
+    private func videoFileID(for videoFile: URL) throws -> Int64? {
         let statement = try database.prepare(
             """
             SELECT id
@@ -9704,11 +9779,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
         try statement.bind(videoFile.path, at: 1)
 
-        guard try statement.step() else {
-            throw SQLiteDatabaseError.stepFailed("Video file is not indexed: \(videoFile.path)")
-        }
-
-        return statement.int64Column(0)
+        return try statement.step() ? statement.int64Column(0) : nil
     }
 
     private func cueLineSpeakersByStableKey(forSubtitlePath subtitlePath: String) throws -> [CueLineStableKey: Set<String>] {
@@ -10741,7 +10812,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    private func deleteIndexedSubtitlePath(_ subtitlePath: String) throws {
+    private func deleteIndexedSubtitlePath(
+        _ subtitlePath: String,
+        preserveFileIdentity: Bool = false
+    ) throws {
         let deleteLanguageDetectionDistribution = try database.prepare(
             """
             DELETE FROM subtitle_language_detection_distribution
@@ -10849,6 +10923,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteASSRenderSegments.bind(subtitlePath, at: 1)
         try deleteASSRenderSegments.run()
 
+        let deleteASSFontResources = try database.prepare(
+            """
+            DELETE FROM ass_font_resources
+            WHERE subtitle_file_id IN (
+                SELECT id
+                FROM subtitle_files
+                WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteASSFontResources.bind(subtitlePath, at: 1)
+        try deleteASSFontResources.run()
+
         let deletePlaybackFinishMetadata = try database.prepare(
             """
             DELETE FROM subtitle_playback_finish_metadata
@@ -10888,6 +10975,35 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try deleteSearchOrderRows.bind(subtitlePath, at: 1)
         try deleteSearchOrderRows.run()
 
+        guard !preserveFileIdentity else {
+            let deleteMatches = try database.prepare(
+                """
+                DELETE FROM subtitle_video_matches
+                WHERE subtitle_file_id IN (
+                    SELECT id
+                    FROM subtitle_files
+                    WHERE subtitle_path = ?
+                );
+                """
+            )
+            try deleteMatches.bind(subtitlePath, at: 1)
+            try deleteMatches.run()
+
+            let deleteCueGroups = try database.prepare(
+                """
+                DELETE FROM subtitle_cue_groups
+                WHERE subtitle_file_id IN (
+                    SELECT id
+                    FROM subtitle_files
+                    WHERE subtitle_path = ?
+                );
+                """
+            )
+            try deleteCueGroups.bind(subtitlePath, at: 1)
+            try deleteCueGroups.run()
+            return
+        }
+
         let deleteFile = try database.prepare(
             "DELETE FROM subtitle_files WHERE subtitle_path = ?;"
         )
@@ -10901,7 +11017,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
             DELETE FROM video_files
             WHERE id NOT IN (
                 SELECT DISTINCT video_file_id FROM subtitle_video_matches
-            );
+            )
+              AND id NOT IN (
+                  SELECT video_file_id
+                  FROM library_playback_history
+                  WHERE video_file_id IS NOT NULL
+              )
+              AND id NOT IN (
+                  SELECT video_file_id
+                  FROM library_watch_states
+                  WHERE video_file_id IS NOT NULL
+              );
             """
         )
     }
