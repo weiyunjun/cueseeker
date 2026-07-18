@@ -335,17 +335,16 @@ func playbackNavigationBackRestoresShioriEntry() async throws {
             under: [URL(fileURLWithPath: "/Media")]
         )
 
+        let selection = try #require(try database.cueTextSelection(
+            forSubtitleFile: URL(fileURLWithPath: "/Media/Next.srt"),
+            atMilliseconds: 1_500
+        ))
         let shioriRow = try database.upsertShiori(
             subtitleFile: URL(fileURLWithPath: "/Media/Next.srt"),
             subtitleFormat: .srt,
             videoFile: URL(fileURLWithPath: "/Media/Next.mkv"),
             videoName: "Next",
-            selection: SubtitleCueTextSelection(
-                cueGroupID: 0,
-                startMilliseconds: 1_000,
-                endMilliseconds: 2_000,
-                lines: ["hello"]
-            )
+            selection: selection
         )
         #expect(app.shiori.shioris.isEmpty)
 
@@ -658,17 +657,36 @@ private func insertNavigationShiori(
     startMilliseconds: Int,
     createdAt: Date
 ) throws -> Shiori {
-    try database.upsertShiori(
-        subtitleFile: URL(fileURLWithPath: "/Media/ShioriNavigation.srt"),
+    let subtitleFile = URL(
+        fileURLWithPath: "/Media/ShioriNavigation-\(startMilliseconds).srt"
+    )
+    let videoFile = URL(
+        fileURLWithPath: "/Media/ShioriNavigation-\(startMilliseconds).mkv"
+    )
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:00,000",
+                endTimecode: "00:00:01,000",
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: startMilliseconds + 1_000,
+                text: content
+            )
+        ]
+    )
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: startMilliseconds
+    ))
+    return try database.upsertShiori(
+        subtitleFile: subtitleFile,
         subtitleFormat: .srt,
-        videoFile: URL(fileURLWithPath: "/Media/ShioriNavigation.mkv"),
+        videoFile: videoFile,
         videoName: "ShioriNavigation.mkv",
-        selection: SubtitleCueTextSelection(
-            cueGroupID: Int64(startMilliseconds),
-            startMilliseconds: startMilliseconds,
-            endMilliseconds: startMilliseconds + 1_000,
-            lines: [content]
-        ),
+        selection: selection,
         createdAt: createdAt
     )
 }

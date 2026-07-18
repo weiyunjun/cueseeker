@@ -1362,7 +1362,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 29
+    public static let currentSchemaVersion: Int = 30
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -2049,6 +2049,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
         if previousVersion < 29 {
             try migratePermanentIdentityColumns()
         }
+        if previousVersion < 30 {
+            try database.execute(
+                """
+                DROP INDEX IF EXISTS idx_shioris_cue;
+                CREATE UNIQUE INDEX idx_shioris_cue ON shioris(cue_id);
+                """
+            )
+        }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
     }
@@ -2130,20 +2138,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             WHERE subtitle_file_id IS NULL;
 
-            UPDATE shioris
-            SET cue_id = (
-                SELECT MIN(l.id)
-                FROM subtitle_cue_lines l
-                JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                WHERE sf.subtitle_path = shioris.subtitle_path
-                  AND l.start_ms = shioris.start_ms
-                  AND l.end_ms = shioris.end_ms
-                  AND l.content = shioris.content
-                HAVING COUNT(*) = 1
-            )
-            WHERE cue_id IS NULL;
-
             CREATE INDEX IF NOT EXISTS idx_subtitle_files_library_relative_path
                 ON subtitle_files(library_id, relative_path);
             CREATE INDEX IF NOT EXISTS idx_video_files_library_relative_path
@@ -2162,8 +2156,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 ON library_video_rows(subtitle_file_id);
             CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_file
                 ON subtitle_search_order_rows(subtitle_file_id);
-            CREATE INDEX IF NOT EXISTS idx_shioris_cue
-                ON shioris(cue_id);
             """
         )
     }
@@ -3475,35 +3467,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(subtitleFile.path, at: 1)
-
-        guard try statement.step() else {
-            return nil
-        }
-        return statement.int64Column(0)
-    }
-
-    public func cueID(
-        forSubtitlePath subtitlePath: String,
-        cueIdentity: SubtitleCueIdentity
-    ) throws -> Int64? {
-        let statement = try database.prepare(
-            """
-            SELECT l.id
-            FROM subtitle_cue_lines l
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-              AND l.event_index = ?
-              AND l.start_ms = ?
-              AND l.end_ms = ?
-            ORDER BY l.display_order ASC, l.id ASC
-            LIMIT 1;
-            """
-        )
-        try statement.bind(subtitlePath, at: 1)
-        try statement.bind(cueIdentity.eventIndex, at: 2)
-        try statement.bind(cueIdentity.startMilliseconds, at: 3)
-        try statement.bind(cueIdentity.endMilliseconds, at: 4)
 
         guard try statement.step() else {
             return nil
@@ -7246,45 +7209,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
         selection: SubtitleCueTextSelection,
         createdAt: Date = Date()
     ) throws -> Shiori {
-        let resolvedSelection: SubtitleCueTextSelection
-        if selection.cueIdentity != nil {
-            resolvedSelection = selection
-        } else if let indexedSelection = try bottommostCueTextSelection(
-            forCueGroupID: selection.cueGroupID
-        ) {
-            resolvedSelection = indexedSelection
-        } else {
-            resolvedSelection = selection
-        }
-        let resolvedCueID = try resolvedSelection.cueLineID.flatMap { cueLineID in
-            try persistedCueID(cueLineID, forSubtitleFile: subtitleFile)
-        }
-
-        if resolvedSelection.cueIdentity == nil,
-           let existing = try unresolvedShiori(
-               subtitleFile: subtitleFile,
-               startMilliseconds: resolvedSelection.startMilliseconds,
-               endMilliseconds: resolvedSelection.endMilliseconds,
-               content: resolvedSelection.content
-           ) {
-            let updateStatement = try database.prepare(
-                """
-                UPDATE shioris
-                SET cue_id = ?, subtitle_format = ?, video_path = ?, video_name = ?, is_valid = 1
-                WHERE id = ?;
-                """
+        guard let cueID = selection.cueLineID else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Shiori requires a CueID"
             )
-            if let resolvedCueID {
-                try updateStatement.bind(resolvedCueID, at: 1)
-            } else {
-                try updateStatement.bindNull(at: 1)
-            }
-            try updateStatement.bind(subtitleFormat.rawValue, at: 2)
-            try updateStatement.bind(videoFile.path, at: 3)
-            try updateStatement.bind(videoName, at: 4)
-            try updateStatement.bind(existing.id, at: 5)
-            try updateStatement.run()
-            return try shiori(id: existing.id) ?? existing
         }
 
         let statement = try database.prepare(
@@ -7304,9 +7232,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 created_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-            ON CONFLICT(subtitle_path, cue_event_index, start_ms, end_ms) DO UPDATE SET
-                cue_id = excluded.cue_id,
+            ON CONFLICT(cue_id) DO UPDATE SET
+                subtitle_path = excluded.subtitle_path,
                 subtitle_format = excluded.subtitle_format,
+                start_ms = excluded.start_ms,
+                end_ms = excluded.end_ms,
+                cue_event_index = excluded.cue_event_index,
                 cue_display_order = excluded.cue_display_order,
                 video_path = excluded.video_path,
                 video_name = excluded.video_name,
@@ -7315,113 +7246,42 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        if let resolvedCueID {
-            try statement.bind(resolvedCueID, at: 1)
-        } else {
-            try statement.bindNull(at: 1)
-        }
+        try statement.bind(cueID, at: 1)
         try statement.bind(subtitleFile.path, at: 2)
         try statement.bind(subtitleFormat.rawValue, at: 3)
-        try statement.bind(resolvedSelection.startMilliseconds, at: 4)
-        try statement.bind(resolvedSelection.endMilliseconds, at: 5)
-        if let eventIndex = resolvedSelection.cueEventIndex {
+        try statement.bind(selection.startMilliseconds, at: 4)
+        try statement.bind(selection.endMilliseconds, at: 5)
+        if let eventIndex = selection.cueEventIndex {
             try statement.bind(eventIndex, at: 6)
         } else {
             try statement.bindNull(at: 6)
         }
-        if let displayOrder = resolvedSelection.cueDisplayOrder {
+        if let displayOrder = selection.cueDisplayOrder {
             try statement.bind(displayOrder, at: 7)
         } else {
             try statement.bindNull(at: 7)
         }
         try statement.bind(videoFile.path, at: 8)
         try statement.bind(videoName, at: 9)
-        try statement.bind(resolvedSelection.text, at: 10)
+        try statement.bind(selection.text, at: 10)
         try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 11)
         try statement.run()
 
-        let savedShiori: Shiori?
-        if let resolvedCueID {
-            savedShiori = try shiori(cueID: resolvedCueID)
-        } else if let identity = resolvedSelection.cueIdentity {
-            savedShiori = try shiori(subtitleFile: subtitleFile, cueIdentity: identity)
-        } else {
-            savedShiori = try unresolvedShiori(
-                subtitleFile: subtitleFile,
-                startMilliseconds: resolvedSelection.startMilliseconds,
-                endMilliseconds: resolvedSelection.endMilliseconds,
-                content: resolvedSelection.content
-            )
-        }
-        guard let savedShiori else {
+        guard let savedShiori = try shiori(cueID: cueID) else {
             throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
         }
 
         return savedShiori
     }
 
-    private func persistedCueID(
-        _ cueID: Int64,
-        forSubtitleFile subtitleFile: URL
-    ) throws -> Int64? {
-        let statement = try database.prepare(
-            """
-            SELECT l.id
-            FROM subtitle_cue_lines l
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE l.id = ?
-              AND sf.subtitle_path = ?
-            LIMIT 1;
-            """
-        )
-        try statement.bind(cueID, at: 1)
-        try statement.bind(subtitleFile.path, at: 2)
-        guard try statement.step() else {
-            return nil
-        }
-        return statement.int64Column(0)
-    }
-
-    public func shiori(
-        subtitleFile: URL,
-        cueIdentity: SubtitleCueIdentity
-    ) throws -> Shiori? {
+    public func shiori(cueID: Int64) throws -> Shiori? {
         let statement = try database.prepare(
             """
             SELECT id, subtitle_path, subtitle_format, video_path, video_name,
                    start_ms, end_ms, cue_event_index, cue_display_order,
                    content, is_valid, created_at
             FROM shioris
-            WHERE subtitle_path = ?
-              AND cue_event_index = ?
-              AND start_ms = ?
-              AND end_ms = ?;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(cueIdentity.eventIndex, at: 2)
-        try statement.bind(cueIdentity.startMilliseconds, at: 3)
-        try statement.bind(cueIdentity.endMilliseconds, at: 4)
-
-        guard try statement.step() else {
-            return nil
-        }
-
-        return shiori(from: statement)
-    }
-
-    private func shiori(cueID: Int64) throws -> Shiori? {
-        let statement = try database.prepare(
-            """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, cue_event_index, cue_display_order,
-                   content, is_valid, created_at
-            FROM shioris
-            WHERE cue_id = ?
-            ORDER BY id ASC
-            LIMIT 1;
+            WHERE cue_id = ?;
             """
         )
         try statement.bind(cueID, at: 1)
@@ -7429,6 +7289,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return nil
         }
         return shiori(from: statement)
+    }
+
+    public func cueID(forShioriID shioriID: Int64) throws -> Int64? {
+        let statement = try database.prepare(
+            "SELECT cue_id FROM shioris WHERE id = ?;"
+        )
+        try statement.bind(shioriID, at: 1)
+        guard try statement.step() else {
+            return nil
+        }
+        return statement.nullableInt64Column(0)
     }
 
     public func shiori(
@@ -7475,38 +7346,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return nil
         }
 
-        return shiori(from: statement)
-    }
-
-    private func unresolvedShiori(
-        subtitleFile: URL,
-        startMilliseconds: Int,
-        endMilliseconds: Int,
-        content: String
-    ) throws -> Shiori? {
-        let statement = try database.prepare(
-            """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, cue_event_index, cue_display_order,
-                   content, is_valid, created_at
-            FROM shioris
-            WHERE subtitle_path = ?
-              AND cue_event_index IS NULL
-              AND cue_display_order IS NULL
-              AND start_ms = ?
-              AND end_ms = ?
-              AND content = ?
-            ORDER BY id ASC
-            LIMIT 1;
-            """
-        )
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(max(0, startMilliseconds), at: 2)
-        try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
-        try statement.bind(content, at: 4)
-        guard try statement.step() else {
-            return nil
-        }
         return shiori(from: statement)
     }
 
@@ -7694,25 +7533,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    WHERE cgl.cue_group_id = l.cue_group_id
                ) AS language_values
         FROM shioris s
-        LEFT JOIN subtitle_cue_lines l ON l.id = COALESCE(
-            s.cue_id,
-            (
-                SELECT candidate.id
-                FROM subtitle_cue_lines candidate
-                JOIN subtitle_cue_groups candidate_group
-                  ON candidate_group.id = candidate.cue_group_id
-                JOIN subtitle_files candidate_file
-                  ON candidate_file.id = candidate_group.subtitle_file_id
-                WHERE s.cue_id IS NULL
-                  AND candidate_file.subtitle_path = s.subtitle_path
-                  AND s.cue_event_index IS NOT NULL
-                  AND candidate.event_index = s.cue_event_index
-                  AND candidate.start_ms = s.start_ms
-                  AND candidate.end_ms = s.end_ms
-                ORDER BY candidate.display_order ASC, candidate.id ASC
-                LIMIT 1
-            )
-        )
+        LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
         LEFT JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
         LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
         LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
@@ -7821,25 +7642,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                            )
                        ) AS speaker_hex_values
                 FROM shioris s
-                LEFT JOIN subtitle_cue_lines l ON l.id = COALESCE(
-                    s.cue_id,
-                    (
-                        SELECT candidate.id
-                        FROM subtitle_cue_lines candidate
-                        JOIN subtitle_cue_groups candidate_group
-                          ON candidate_group.id = candidate.cue_group_id
-                        JOIN subtitle_files candidate_file
-                          ON candidate_file.id = candidate_group.subtitle_file_id
-                        WHERE s.cue_id IS NULL
-                          AND candidate_file.subtitle_path = s.subtitle_path
-                          AND s.cue_event_index IS NOT NULL
-                          AND candidate.event_index = s.cue_event_index
-                          AND candidate.start_ms = s.start_ms
-                          AND candidate.end_ms = s.end_ms
-                        ORDER BY candidate.display_order ASC, candidate.id ASC
-                        LIMIT 1
-                    )
-                )
+                LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
                 LEFT JOIN subtitle_search_order_rows sor
                   ON sor.subtitle_file_id = l.subtitle_file_id
                 ORDER BY s.created_at DESC, s.id DESC;
@@ -7918,25 +7721,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    \(languageSelect)
                    \(speakerSelect)
             FROM shioris s
-            LEFT JOIN subtitle_cue_lines l ON l.id = COALESCE(
-                s.cue_id,
-                (
-                    SELECT candidate.id
-                    FROM subtitle_cue_lines candidate
-                    JOIN subtitle_cue_groups candidate_group
-                      ON candidate_group.id = candidate.cue_group_id
-                    JOIN subtitle_files candidate_file
-                      ON candidate_file.id = candidate_group.subtitle_file_id
-                    WHERE s.cue_id IS NULL
-                      AND candidate_file.subtitle_path = s.subtitle_path
-                      AND s.cue_event_index IS NOT NULL
-                      AND candidate.event_index = s.cue_event_index
-                      AND candidate.start_ms = s.start_ms
-                      AND candidate.end_ms = s.end_ms
-                    ORDER BY candidate.display_order ASC, candidate.id ASC
-                    LIMIT 1
-                )
-            )
+            LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
             LEFT JOIN subtitle_cue_groups resolved_group
               ON resolved_group.id = l.cue_group_id
             LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id

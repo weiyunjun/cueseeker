@@ -187,14 +187,14 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
         ))
         var cues = (6..<16).map { keyboardActionCue(ordinal: $0) }
         let firstCue = keyboardActionSiblingCue(
-            id: 501,
+            id: 13,
             ordinal: 12,
             eventIndex: 120,
             displayOrder: 0,
             content: "same-time first"
         )
         let secondCue = keyboardActionSiblingCue(
-            id: 502,
+            id: 14,
             ordinal: 13,
             eventIndex: 121,
             displayOrder: 1,
@@ -223,15 +223,8 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
                 && app.shiori.tableDataRevision == tableRevisionBefore + 2
         }
 
-        let subtitleFile = URL(fileURLWithPath: keyboardActionSource().subtitlePath)
-        let savedFirst = try #require(try database.shiori(
-            subtitleFile: subtitleFile,
-            cueIdentity: firstCue.cueIdentity
-        ))
-        let savedSecond = try #require(try database.shiori(
-            subtitleFile: subtitleFile,
-            cueIdentity: secondCue.cueIdentity
-        ))
+        let savedFirst = try #require(try database.shiori(cueID: firstCue.id))
+        let savedSecond = try #require(try database.shiori(cueID: secondCue.id))
         #expect(savedFirst.id != savedSecond.id)
         #expect(savedFirst.content == "same-time first")
         #expect(savedSecond.content == "same-time second")
@@ -301,7 +294,7 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
 func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
     try await withKeyboardActionApp { app, database in
         let result = keyboardActionPlaylistSearchResult(
-            id: 701,
+            id: 22,
             videoPath: keyboardActionSource().videoPath,
             subtitlePath: keyboardActionSource().subtitlePath,
             startMilliseconds: 21_000,
@@ -527,6 +520,21 @@ private func withKeyboardActionApp(
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let database = try #require(app.subtitleDatabase)
     let source = keyboardActionSource()
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: source.subtitlePath),
+        videoFile: URL(fileURLWithPath: source.videoPath),
+        entries: (0..<30).map { ordinal in
+            let startMilliseconds = ordinal == 13 ? 12_000 : ordinal * 1_000
+            return SubtitleEntry(
+                sequenceNumber: ordinal + 1,
+                startTimecode: "\(startMilliseconds)",
+                endTimecode: "\(startMilliseconds + 900)",
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: startMilliseconds + 900,
+                text: "keyboard action cue \(ordinal)"
+            )
+        }
+    )
     app.search.selectedSearchResult = SubtitleSearchResult(
         entryID: 1,
         subtitlePath: source.subtitlePath,

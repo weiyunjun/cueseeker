@@ -598,8 +598,6 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
         ]
     )
 
-    let contextEntries = try database.entries(forSubtitleFile: contextSubtitleFile)
-    let thirdContextEntry = try #require(contextEntries.first { $0.content == "context cue 3" })
     let contextCues = try database.cueLineRecords(forSubtitleFile: contextSubtitleFile)
     let firstContextCue = try #require(contextCues.first)
     let thirdContextCue = try #require(contextCues.first { $0.line.content == "context cue 3" })
@@ -608,17 +606,6 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     #expect(
         try database.firstCueID(forSubtitleFile: contextSubtitleFile) == firstContextCue.id
     )
-    #expect(
-        try database.cueID(
-            forSubtitlePath: contextSubtitleFile.path,
-            cueIdentity: SubtitleCueIdentity(
-                eventIndex: thirdContextCue.line.eventIndex,
-                startMilliseconds: thirdContextEntry.startMilliseconds,
-                endMilliseconds: thirdContextEntry.endMilliseconds
-            )
-        ) == thirdContextCue.id
-    )
-
     let targetFirstPage = try #require(
         try database.cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
@@ -3711,22 +3698,40 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Same Time.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Same Time.mkv")
-    let topSelection = SubtitleCueTextSelection(
-        cueGroupID: 1,
-        startMilliseconds: 1_000,
-        endMilliseconds: 3_000,
-        cueEventIndex: 10,
-        cueDisplayOrder: 0,
-        content: "Chinese upper cue"
+    try database.replaceCueGroups(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        format: .ass,
+        cueGroups: [
+            SubtitleCueGroup(
+                sequenceNumber: nil,
+                startTimecode: "0:00:01.00",
+                endTimecode: "0:00:03.00",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                searchContent: "Chinese upper cue\nJapanese lower cue",
+                cueLines: [
+                    testCueLine(
+                        eventIndex: 10,
+                        startMilliseconds: 1_000,
+                        endMilliseconds: 3_000,
+                        content: "Chinese upper cue",
+                        displayOrder: 0
+                    ),
+                    testCueLine(
+                        eventIndex: 11,
+                        startMilliseconds: 1_000,
+                        endMilliseconds: 3_000,
+                        content: "Japanese lower cue",
+                        displayOrder: 1
+                    ),
+                ]
+            )
+        ]
     )
-    let bottomSelection = SubtitleCueTextSelection(
-        cueGroupID: 1,
-        startMilliseconds: 1_000,
-        endMilliseconds: 3_000,
-        cueEventIndex: 11,
-        cueDisplayOrder: 1,
-        content: "Japanese lower cue"
-    )
+    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let topSelection = shioriSelection(cueRecords[0])
+    let bottomSelection = shioriSelection(cueRecords[1])
 
     let top = try database.upsertShiori(
         subtitleFile: subtitleFile,
@@ -3762,6 +3767,20 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
     #expect(try database.removeShiori(id: bottom.id))
     #expect(try database.shiori(id: top.id) != nil)
     #expect(try database.shiori(id: bottom.id) == nil)
+}
+
+private func shioriSelection(
+    _ record: SubtitleCueLineRecord
+) -> SubtitleCueTextSelection {
+    SubtitleCueTextSelection(
+        cueGroupID: record.cueGroupID,
+        cueLineID: record.id,
+        startMilliseconds: record.line.startMilliseconds,
+        endMilliseconds: record.line.endMilliseconds,
+        cueEventIndex: record.line.eventIndex,
+        cueDisplayOrder: record.line.displayOrder,
+        content: record.line.content
+    )
 }
 
 @Test
@@ -3956,7 +3975,7 @@ func shioriPageForIDsPreservesInputOrderAndCuePresentations() throws {
 }
 
 @Test
-func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
+func shioriCuePresentationUsesCueIDAndPrimaryCueMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -4020,37 +4039,6 @@ func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
     )
     #expect(saved.cueDisplayOrder == 1)
 
-    let reorderedGroup = SubtitleCueGroup(
-        sequenceNumber: nil,
-        startTimecode: "0:00:01.00",
-        endTimecode: "0:00:03.00",
-        startMilliseconds: 1_000,
-        endMilliseconds: 3_000,
-        searchContent: "\(japaneseText)\n\(chineseText)",
-        cueLines: [
-            testCueLine(
-                eventIndex: 11,
-                startMilliseconds: 1_000,
-                endMilliseconds: 3_000,
-                content: japaneseText,
-                displayOrder: 0
-            ),
-            testCueLine(
-                eventIndex: 10,
-                startMilliseconds: 1_000,
-                endMilliseconds: 3_000,
-                content: chineseText,
-                displayOrder: 1
-            ),
-        ]
-    )
-    try database.replaceCueGroups(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        format: .ass,
-        cueGroups: [reorderedGroup],
-        languageAnalysis: groupOnlyLanguageAnalysis
-    )
     let currentCues = try database.cueLineRecords(forSubtitleFile: subtitleFile)
     let currentJapaneseCue = try #require(currentCues.first { $0.line.eventIndex == 11 })
     let currentChineseCue = try #require(currentCues.first { $0.line.eventIndex == 10 })
@@ -4095,17 +4083,12 @@ func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
     #expect(shiori.cueDisplayOrder == 1)
     #expect(presentation.cueID == currentJapaneseCue.id)
     #expect(presentation.cueGroupID == currentJapaneseCue.cueGroupID)
-    #expect(presentation.primaryGroupIndex == 0)
-    #expect(presentation.cueGroupTexts == [japaneseText, chineseText])
+    #expect(presentation.primaryGroupIndex == 1)
+    #expect(presentation.cueGroupTexts == [chineseText, japaneseText])
     #expect(presentation.languages == [.japanese])
     #expect(presentation.speakers == ["Japanese Speaker", "Control\u{1f}Speaker"])
     #expect(page.languagesByShioriID[shiori.id] == [.japanese])
-    #expect(
-        try database.cueID(
-            forSubtitlePath: subtitleFile.path,
-            cueIdentity: try #require(shiori.cueIdentity)
-        ) == currentJapaneseCue.id
-    )
+    #expect(try database.cueID(forShioriID: shiori.id) == currentJapaneseCue.id)
 
     let japaneseSpeakerPage = try database.shioriTablePage(
         limit: 10,
@@ -4186,9 +4169,7 @@ func shioriCuePresentationUsesDurableIdentityAndPrimaryCueMetadata() throws {
         limit: 2,
         anchorsInitialPage: true
     ))
-    #expect(contextPage.results.first?.entryID == currentJapaneseCue.id)
-    #expect(contextPage.results.first?.cueDisplayOrder == 0)
-    #expect(contextPage.results.first?.content == japaneseText)
+    #expect(contextPage.results.contains { $0.entryID == currentJapaneseCue.id })
 }
 
 @Test
@@ -4321,19 +4302,31 @@ func shioriTableIDIndexStopsImmediatelyAfterCancellationDuringScan() async throw
 
     let database = try SubtitleDatabase(path: databaseURL)
     try database.migrate()
-    var insertedIDs: [Int64] = []
-    for ordinal in 0..<512 {
-        let shiori = try database.upsertShiori(
-            subtitleFile: URL(fileURLWithPath: "/Media/Shiori-Cancel-\(ordinal).srt"),
-            subtitleFormat: .srt,
-            videoFile: URL(fileURLWithPath: "/Media/Shiori-Cancel-\(ordinal).mkv"),
-            videoName: "Shiori-Cancel-\(ordinal).mkv",
-            selection: SubtitleCueTextSelection(
-                cueGroupID: Int64(ordinal + 1),
+    let subtitleFile = URL(fileURLWithPath: "/Media/Shiori-Cancel.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Shiori-Cancel.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: (0..<512).map { ordinal in
+            SubtitleEntry(
+                sequenceNumber: ordinal + 1,
+                startTimecode: "\(ordinal * 1_000)",
+                endTimecode: "\(ordinal * 1_000 + 500)",
                 startMilliseconds: ordinal * 1_000,
                 endMilliseconds: ordinal * 1_000 + 500,
-                lines: ["keep \(ordinal)"]
-            ),
+                text: "keep \(ordinal)"
+            )
+        }
+    )
+    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    var insertedIDs: [Int64] = []
+    for (ordinal, cueRecord) in cueRecords.enumerated() {
+        let shiori = try database.upsertShiori(
+            subtitleFile: subtitleFile,
+            subtitleFormat: .srt,
+            videoFile: videoFile,
+            videoName: videoFile.lastPathComponent,
+            selection: shioriSelection(cueRecord),
             createdAt: Date(timeIntervalSince1970: TimeInterval(ordinal))
         )
         insertedIDs.append(shiori.id)

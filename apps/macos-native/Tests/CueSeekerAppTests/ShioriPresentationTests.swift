@@ -54,16 +54,31 @@ private func makeShiori(
     id: Int,
     content: String
 ) throws -> Shiori {
-    try database.upsertShiori(
-        subtitleFile: URL(fileURLWithPath: "/Media/Shiori-\(id).srt"),
+    let subtitleFile = URL(fileURLWithPath: "/Media/Shiori-\(id).srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Shiori-\(id).mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: content
+            )
+        ]
+    )
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    return try database.upsertShiori(
+        subtitleFile: subtitleFile,
         subtitleFormat: .srt,
-        videoFile: URL(fileURLWithPath: "/Media/Shiori-\(id).mkv"),
+        videoFile: videoFile,
         videoName: "Shiori-\(id).mkv",
-        selection: SubtitleCueTextSelection(
-            cueGroupID: Int64(id),
-            startMilliseconds: id * 1_000,
-            endMilliseconds: id * 1_000 + 500,
-            lines: [content]
-        )
+        selection: selection
     )
 }

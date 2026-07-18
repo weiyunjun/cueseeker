@@ -48,11 +48,7 @@ actor PlaybackSubtitleFocusDatabaseReader {
     ) throws -> PlaybackSubtitleFocusShioriWriteResult {
         try Task.checkCancellation()
         let database = try resolvedDatabase()
-        let subtitleFile = URL(fileURLWithPath: context.source.subtitlePath)
-        if try database.shiori(
-            subtitleFile: subtitleFile,
-            cueIdentity: context.cue.cueIdentity
-        ) != nil {
+        if try database.shiori(cueID: context.cue.id) != nil {
             try Task.checkCancellation()
             return .alreadySaved
         }
@@ -60,17 +56,14 @@ actor PlaybackSubtitleFocusDatabaseReader {
         try Task.checkCancellation()
         do {
             _ = try database.upsertShiori(
-                subtitleFile: subtitleFile,
+                subtitleFile: URL(fileURLWithPath: context.source.subtitlePath),
                 subtitleFormat: context.source.subtitleFormat,
                 videoFile: URL(fileURLWithPath: context.source.videoPath),
                 videoName: videoName,
                 selection: context.cueTextSelection
             )
         } catch {
-            guard try database.shiori(
-                subtitleFile: subtitleFile,
-                cueIdentity: context.cue.cueIdentity
-            ) != nil else {
+            guard try database.shiori(cueID: context.cue.id) != nil else {
                 throw error
             }
         }
