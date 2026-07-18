@@ -25,6 +25,11 @@
    latest valid Auto Pause state. Seek, manual transport, Overlay entry, source
    replacement, or Item initialization invalidates the task; unrelated display
    controls and live settings edits do not.
+5. Captured the Playlist position with each Item initialization. Old boundary
+   callbacks are rejected after the position changes, and the new Item receives
+   a fresh runtime state and the latest persisted settings. Closing Playback or
+   replacing Playlist playback clears the old boundary, snapshot, position, and
+   pending switch task.
 
 ## Verification
 
@@ -45,6 +50,9 @@
 - `swift test --package-path apps/macos-native --filter PlaybackSegmentCompletionTests`:
   passed all 19 tests after adding seek and Overlay cancellation coverage while
   preserving the current Item's Auto Pause boundary and settings snapshot.
+- `swift test --package-path apps/macos-native --filter PlaybackSegmentCompletionTests`:
+  passed all 21 tests after adding same-video next-index reinitialization, stale
+  position rejection, and Playback-close cleanup coverage.
 
 ## Outcome
 

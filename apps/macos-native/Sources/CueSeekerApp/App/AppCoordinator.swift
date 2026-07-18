@@ -453,6 +453,7 @@ final class AppCoordinator: ObservableObject {
     var activeCueAutoPauseBoundary: PlaybackAutoStopBoundary?
     var cueAutoPauseArmed = false
     var activePlaylistCueSettings: PlaylistCueEffectiveSettings?
+    var activePlaylistCuePosition: PlaybackPlaylistPosition?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []

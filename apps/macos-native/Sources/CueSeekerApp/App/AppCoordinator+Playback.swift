@@ -508,6 +508,7 @@ extension AppCoordinator {
     func handleCueAutoStopBoundaryReached(endMilliseconds: Int) {
         guard cueAutoPauseArmed,
               isCurrentCueAutoStopEnd(endMilliseconds),
+              playback.playlistPosition == activePlaylistCuePosition,
               activePlaylistCueSettings?.autoPauseEnabled == true
         else {
             return
@@ -539,6 +540,7 @@ extension AppCoordinator {
             autoSwitchEnabled: settings.autoSwitchToNextCuesInPlaylistEnabled,
             autoSwitchGapMilliseconds: settings.autoSwitchCueSequenceGapMilliseconds
         )
+        activePlaylistCuePosition = playback.playlistPosition
     }
 
     func clearCueAutoStopPlayback() {
@@ -549,6 +551,7 @@ extension AppCoordinator {
         cancelAutoSwitchCueSequenceTask()
         player?.setAutoPauseBoundary(nil)
         activePlaylistCueSettings = nil
+        activePlaylistCuePosition = nil
     }
 
     func cancelAutoSwitchCueSequenceTask() {
@@ -636,7 +639,7 @@ extension AppCoordinator {
     private func scheduleAutoSwitchCueSequence() {
         let generation = cuePlaybackGeneration
         let source = activePlaybackSource
-        let playlistPosition = playback.playlistPosition
+        let playlistPosition = activePlaylistCuePosition
         guard let effectiveSettings = activePlaylistCueSettings else {
             return
         }
@@ -645,6 +648,7 @@ extension AppCoordinator {
               playback.playbackStatus == .paused,
               effectiveSettings.autoPauseEnabled,
               effectiveSettings.autoSwitchEnabled,
+              playback.playlistPosition == playlistPosition,
               playback.subtitleFocusSession == nil,
               source == .search || source == .shiori
         else {
@@ -996,6 +1000,7 @@ extension AppCoordinator {
     func stopPlayback() {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.clearPlaylistSource()
+        clearCueAutoStopPlayback()
         do {
             saveCurrentLibraryPlaybackHistoryForPlaybackClose()
             stopLibraryPlaybackHistoryTracking()
