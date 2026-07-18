@@ -412,6 +412,7 @@ final class AppCoordinator: ObservableObject {
     var testRecentWatchingTask: Task<Void, Never>?
     var completeLibraryTask: Task<Void, Never>?
     var completeLibraryFolderDetailTasks: [String: Task<Void, Never>] = [:]
+    var completeLibraryFolderDetailRequestIDs: [String: UUID] = [:]
     var completeLibraryFolderDetailGeneration: UInt64 = 0
     let libraryDisplayRenditionCommitGate = LibraryCoverDisplayRenditionCommitGate()
     var libraryDisplayRenditionTask: Task<Void, Never>?
@@ -446,6 +447,7 @@ final class AppCoordinator: ObservableObject {
     var activeCueSegmentEndMilliseconds: Int?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
+    var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []
     var autoPlayCueSequenceTask: Task<Void, Never>?
     var searchResultListGeneration: UInt64 = 0
     var loadedGlobalSearchResultCount = 0

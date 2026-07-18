@@ -111,6 +111,12 @@ func playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary(
         app.applyCompleteLibrary(
             try database.completeLibraryFolderSummaries(under: [fixture.root])
         )
+        let folderPath = try #require(
+            app.library.completeLibraryFolderSummaries.first?.folderPath
+        )
+        _ = try #require(
+            await app.completeLibraryFolderDetailFromStore(folderPath: folderPath)
+        )
         app.library.testRecentWatchingStatus = .completed
 
         let initialHistoryRevision = app.library.libraryPlaybackHistoryRevision
@@ -135,6 +141,12 @@ func playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary(
         try await waitForLibraryRouteCondition {
             app.library.libraryPlaybackHistoryRevision == manualHistoryRevision + 1
         }
+        #expect(app.library.completeLibraryFolderDetailsByPath[folderPath] != nil)
+        #expect(
+            app.library.completeLibraryFolderDetailStatusesByPath[folderPath]
+                == .completed
+        )
+        await app.completeLibraryFolderDetailTasks[folderPath]?.value
         await app.recentWatchingTask?.value
         await app.testRecentWatchingTask?.value
 
@@ -143,6 +155,64 @@ func playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary(
         #expect(
             try database.libraryPlaybackHistory(forVideoFile: fixture.videoURL)?.completedAt != nil
         )
+        #expect(
+            app.library.completeLibraryFolderDetailsByPath[folderPath]?
+                .videos.first?.watchState == .finished
+        )
+    }
+}
+
+@MainActor
+@Test
+func deferredPlaybackHistoryFlushUpdatesSharedRecentAndLibraryDetail() async throws {
+    try await withTemporaryLibraryRouteApp { app, database in
+        let fixture = try prepareLibraryRouteFixture(in: database)
+        try database.setLibraryWatchState(
+            videoFile: fixture.videoURL,
+            duration: fixture.video.duration,
+            state: .unwatched
+        )
+        app.indexing.selectedFolders = [fixture.root]
+        app.applyCompleteLibrary(
+            try database.completeLibraryFolderSummaries(under: [fixture.root])
+        )
+        let folderPath = try #require(
+            app.library.completeLibraryFolderSummaries.first?.folderPath
+        )
+        let initialDetail = try #require(
+            await app.completeLibraryFolderDetailFromStore(folderPath: folderPath)
+        )
+        #expect(initialDetail.videos.first?.watchState == .unwatched)
+        app.library.testRecentWatchingItems = []
+        app.library.testRecentWatchingStatus = .completed
+
+        app.recordRecentLibraryWatching(
+            for: fixture.video,
+            refreshPresentation: false
+        )
+
+        #expect(
+            app.pendingLibraryPlaybackHistoryPresentationVideoPaths
+                == Set([fixture.videoURL.path])
+        )
+        #expect(
+            app.library.completeLibraryFolderDetailsByPath[folderPath]?
+                .videos.first?.watchState == .unwatched
+        )
+
+        app.flushPendingLibraryPlaybackHistoryPresentations()
+
+        #expect(app.pendingLibraryPlaybackHistoryPresentationVideoPaths.isEmpty)
+        #expect(app.library.completeLibraryFolderDetailsByPath[folderPath] != nil)
+        await app.completeLibraryFolderDetailTasks[folderPath]?.value
+        await app.testRecentWatchingTask?.value
+
+        #expect(
+            app.library.completeLibraryFolderDetailsByPath[folderPath]?
+                .videos.first?.watchState == .watching
+        )
+        #expect(app.library.testRecentWatchingItems.first?.videoPath == fixture.videoURL.path)
+        #expect(app.library.testRecentWatchingItems.first?.watchState == .watching)
     }
 }
 

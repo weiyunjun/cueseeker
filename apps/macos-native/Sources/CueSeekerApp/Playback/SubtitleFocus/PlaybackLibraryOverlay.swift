@@ -50,9 +50,6 @@ struct PlaybackLibraryOverlay: View {
         .onChange(of: library.completeLibraryRevision) { _ in
             store.refreshForSourceRevision()
         }
-        .onChange(of: library.libraryPlaybackHistoryRevision) { _ in
-            store.refreshForSourceRevision()
-        }
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
         .environment(\.colorScheme, .dark)
     }

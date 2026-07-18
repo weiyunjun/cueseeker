@@ -54,6 +54,10 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
         }
     }
 
+    func flush() {
+        queue.sync {}
+    }
+
     func write(_ snapshot: LibraryPlaybackHistorySnapshot) {
         guard let database else {
             return
@@ -494,15 +498,60 @@ extension AppCoordinator {
             return
         }
 
+        startCompleteLibraryFolderDetailLoad(
+            folderPath: folderPath,
+            preservesExistingSnapshot: false
+        )
+    }
+
+    private func refreshCompleteLibraryFolderDetailsPreservingSnapshots(
+        affectedVideoPaths: Set<String>
+    ) {
+        guard !affectedVideoPaths.isEmpty else {
+            return
+        }
+
+        let affectedFolderPaths = library.completeLibraryFolderDetailsByPath
+            .compactMap { folderPath, detail in
+                detail.videos.contains(where: {
+                    affectedVideoPaths.contains($0.videoPath)
+                }) ? folderPath : nil
+            }
+
+        for folderPath in affectedFolderPaths {
+            startCompleteLibraryFolderDetailLoad(
+                folderPath: folderPath,
+                preservesExistingSnapshot: true
+            )
+        }
+    }
+
+    private func startCompleteLibraryFolderDetailLoad(
+        folderPath: String,
+        preservesExistingSnapshot: Bool
+    ) {
+        if preservesExistingSnapshot {
+            completeLibraryFolderDetailTasks[folderPath]?.cancel()
+        } else if completeLibraryFolderDetailTasks[folderPath] != nil {
+            return
+        }
+
         let generation = completeLibraryFolderDetailGeneration
-        library.completeLibraryFolderDetailStatusesByPath[folderPath] = .loading
+        let requestID = UUID()
+        completeLibraryFolderDetailRequestIDs[folderPath] = requestID
+        if !preservesExistingSnapshot {
+            library.completeLibraryFolderDetailStatusesByPath[folderPath] = .loading
+        }
         completeLibraryFolderDetailTasks[folderPath] = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
             defer {
-                if completeLibraryFolderDetailGeneration == generation {
+                if completeLibraryFolderDetailGeneration == generation,
+                   completeLibraryFolderDetailRequestIDs[folderPath] == requestID
+                {
                     completeLibraryFolderDetailTasks[folderPath] = nil
+                    completeLibraryFolderDetailRequestIDs[folderPath] = nil
                 }
             }
 
@@ -511,11 +560,17 @@ extension AppCoordinator {
                     folderPath: folderPath
                 )
                 guard !Task.isCancelled,
-                      completeLibraryFolderDetailGeneration == generation
+                      completeLibraryFolderDetailGeneration == generation,
+                      completeLibraryFolderDetailRequestIDs[folderPath] == requestID
                 else {
                     return
                 }
                 guard let detail else {
+                    if preservesExistingSnapshot,
+                       library.completeLibraryFolderDetailsByPath[folderPath] != nil
+                    {
+                        return
+                    }
                     library.completeLibraryFolderDetailStatusesByPath[folderPath]
                         = .failed("Folder detail is unavailable")
                     return
@@ -527,8 +582,15 @@ extension AppCoordinator {
                 return
             } catch {
                 guard !Task.isCancelled,
-                      completeLibraryFolderDetailGeneration == generation
+                      completeLibraryFolderDetailGeneration == generation,
+                      completeLibraryFolderDetailRequestIDs[folderPath] == requestID
                 else {
+                    return
+                }
+                if preservesExistingSnapshot,
+                   library.completeLibraryFolderDetailsByPath[folderPath] != nil
+                {
+                    print("Failed to refresh Complete Library folder detail asynchronously: \(error)")
                     return
                 }
                 library.completeLibraryFolderDetailStatusesByPath[folderPath]
@@ -543,6 +605,7 @@ extension AppCoordinator {
             task.cancel()
         }
         completeLibraryFolderDetailTasks.removeAll(keepingCapacity: false)
+        completeLibraryFolderDetailRequestIDs.removeAll(keepingCapacity: false)
         library.completeLibraryFolderDetailsByPath = [:]
         library.completeLibraryFolderDetailStatusesByPath = [:]
     }
@@ -610,27 +673,42 @@ extension AppCoordinator {
         }
 
         let writer = libraryPlaybackHistoryWriter
+        let affectedVideoPaths = Set(snapshots.map(\.videoPath))
         Task { [weak self] in
             await Task.detached(priority: .userInitiated) {
                 writer.setWatchStatesAndWait(snapshots)
             }.value
 
             await MainActor.run {
-                self?.refreshLibraryPlaybackHistoryPresentations()
+                guard let self else {
+                    return
+                }
+                self.refreshLibraryPlaybackHistoryPresentations(
+                    affectedVideoPaths: affectedVideoPaths
+                )
             }
         }
     }
 
-    private func refreshLibraryPlaybackHistoryPresentations() {
+    private func refreshLibraryPlaybackHistoryPresentations(
+        affectedVideoPaths: Set<String>
+    ) {
+        guard !affectedVideoPaths.isEmpty else {
+            return
+        }
+
         library.libraryPlaybackHistoryRevision += 1
-        invalidateCompleteLibraryFolderDetails()
+        refreshCompleteLibraryFolderDetailsPreservingSnapshots(
+            affectedVideoPaths: affectedVideoPaths
+        )
         UIInvalidationProbe.count(
             "library.snapshot_rebuild",
             scope: uiProbeScope,
-            details: "surface=playback_history"
+            details: "surface=playback_history videos=\(affectedVideoPaths.count)"
         )
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
+        refreshSearchForLibraryWatchStateChange()
     }
 
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
@@ -791,15 +869,15 @@ extension AppCoordinator {
             duration: existingHistory?.duration ?? video.duration
         )
         libraryPlaybackHistoryWriter.saveAndWait(snapshot)
+        pendingLibraryPlaybackHistoryPresentationVideoPaths.insert(video.videoPath)
         guard refreshPresentation else {
-            library.hasDeferredPlaybackHistoryPresentationRefresh = true
             UIInvalidationProbe.mark(
                 "ACTION UI.LibraryPlaybackHistory.recorded",
                 details: "presentationRefresh=false"
             )
             return
         }
-        refreshLibraryPlaybackHistoryPresentations()
+        flushPendingLibraryPlaybackHistoryPresentations()
     }
 
     @discardableResult
@@ -898,20 +976,27 @@ extension AppCoordinator {
             return
         }
 
+        pendingLibraryPlaybackHistoryPresentationVideoPaths.insert(videoPath)
         libraryPlaybackHistoryWriter.save(snapshot)
     }
 
     func saveCurrentLibraryPlaybackHistoryForPlaybackClose() {
-        guard case .library = activePlaybackSource else {
-            saveCurrentLibraryPlaybackHistory()
+        if case .library = activePlaybackSource {
+            _ = saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
+        }
+        flushPendingLibraryPlaybackHistoryPresentations()
+    }
+
+    func flushPendingLibraryPlaybackHistoryPresentations() {
+        libraryPlaybackHistoryWriter.flush()
+        let affectedVideoPaths = pendingLibraryPlaybackHistoryPresentationVideoPaths
+        guard !affectedVideoPaths.isEmpty else {
             return
         }
-
-        let savedHistory = saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
-        if savedHistory || library.hasDeferredPlaybackHistoryPresentationRefresh {
-            library.hasDeferredPlaybackHistoryPresentationRefresh = false
-            refreshLibraryPlaybackHistoryPresentations()
-        }
+        pendingLibraryPlaybackHistoryPresentationVideoPaths = []
+        refreshLibraryPlaybackHistoryPresentations(
+            affectedVideoPaths: affectedVideoPaths
+        )
     }
 
     @discardableResult
@@ -934,6 +1019,7 @@ extension AppCoordinator {
             positionMilliseconds: positionMilliseconds,
             duration: duration
         )
+        pendingLibraryPlaybackHistoryPresentationVideoPaths.insert(videoPath)
 
         if waitUntilFinished {
             libraryPlaybackHistoryWriter.saveAndWait(snapshot)

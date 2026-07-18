@@ -1261,6 +1261,29 @@ extension AppCoordinator {
         updateSearchQuery(search.searchQuery)
     }
 
+    func refreshSearchForLibraryWatchStateChange() {
+        guard settings.searchScope != .all else {
+            return
+        }
+
+        let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return
+        }
+
+        if search.isPlaybackTemporaryFilterActive {
+            startSearch(
+                query: query,
+                cursor: .start,
+                appending: false,
+                debounce: false,
+                filterSetOverride: SubtitleSearchFilterSet()
+            )
+        } else {
+            refreshCurrentSearch()
+        }
+    }
+
     func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {
         searchNavigationTask?.cancel()
 

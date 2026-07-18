@@ -68,6 +68,7 @@ extension AppCoordinator {
             return false
         }
 
+        flushPendingLibraryPlaybackHistoryPresentations()
         startPlaybackSubtitleFocusInitialLoad(for: session)
         return true
     }

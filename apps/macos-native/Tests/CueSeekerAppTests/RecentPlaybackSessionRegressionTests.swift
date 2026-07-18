@@ -64,6 +64,42 @@ func closingRecentLibraryPlaybackRefreshesRecentWatchingProgress() async throws 
     }
 }
 
+@MainActor
+@Test
+func closingNonLibraryPlaybackFlushesPendingLibraryProgress() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = URL(fileURLWithPath: "/Media")
+        let episode = root.appendingPathComponent("Show/Episode 1.mkv")
+        try indexRecentPlaybackVideos([episode], in: database)
+        try database.rebuildLibraryPresentationSnapshot()
+        try database.upsertLibraryPlaybackHistory(
+            videoFile: episode,
+            positionMilliseconds: 10_000,
+            duration: 100
+        )
+        app.indexing.selectedFolders = [root]
+        app.refreshTestRecentWatching()
+        await app.testRecentWatchingTask?.value
+        #expect(app.library.testRecentWatchingItems.first?.positionMilliseconds == 10_000)
+
+        app.ensurePlayerInitialized()
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        app.activePlaybackSource = .library(videoPath: episode.path)
+        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
+        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100))
+        await Task.yield()
+
+        app.saveCurrentLibraryPlaybackHistory()
+        app.activePlaybackSource = .search
+        app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
+        await app.testRecentWatchingTask?.value
+
+        #expect(app.pendingLibraryPlaybackHistoryPresentationVideoPaths.isEmpty)
+        #expect(app.library.testRecentWatchingItems.first?.positionMilliseconds == 42_500)
+    }
+}
+
 private func indexRecentPlaybackVideos(
     _ videoFiles: [URL],
     in database: SubtitleDatabase

@@ -108,6 +108,68 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
 
 @MainActor
 @Test
+func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throws {
+    let suiteName = "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    defer {
+        app.searchTask?.cancel()
+        app.searchExactCompletionTask?.cancel()
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+
+    let database = try #require(app.subtitleDatabase)
+    let videoURL = fixtureRoot.appendingPathComponent("Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: fixtureRoot.appendingPathComponent("Episode.srt"),
+        videoFile: videoURL,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "shared watch state query"
+            )
+        ]
+    )
+    try database.rebuildLibraryPresentationSnapshot()
+    let presentation = try #require(
+        try database.libraryPresentation(under: [fixtureRoot])
+            .first?.videos.first
+    )
+    let video = presentation.libraryVideo
+    app.indexing.selectedFolders = [fixtureRoot]
+    app.settings.searchScope = .watchingAndFinished
+
+    app.updateSearchQuery("shared watch state")
+    await app.searchTask?.value
+    #expect(app.search.searchResults.isEmpty)
+
+    app.recordRecentLibraryWatching(for: video, refreshPresentation: false)
+    app.flushPendingLibraryPlaybackHistoryPresentations()
+    await app.searchTask?.value
+
+    #expect(app.search.searchResults.count == 1)
+    #expect(app.search.searchResults.first?.videoPath == videoURL.path)
+}
+
+@MainActor
+@Test
 func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
     let suiteName = "CueSeekerRepeatedLiveSearchGenerationTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))

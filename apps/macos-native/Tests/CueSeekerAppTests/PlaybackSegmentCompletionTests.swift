@@ -276,10 +276,15 @@ func libraryPlaybackCompletionMilestoneSurvivesSeekingBackBeforeClose() async th
         await Task.yield()
         playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(85.0))
         await Task.yield()
+        #expect(
+            app.pendingLibraryPlaybackHistoryPresentationVideoPaths
+                == Set([videoURL.path])
+        )
         playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
         await Task.yield()
 
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
+        #expect(app.pendingLibraryPlaybackHistoryPresentationVideoPaths.isEmpty)
 
         let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(history.positionMilliseconds == 42_500)
