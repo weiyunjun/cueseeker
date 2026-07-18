@@ -22,7 +22,10 @@
 1. Added schema version 29 columns and indexes for library ownership, relative
    media paths, and the missing ID references. Added migration backfills where
    the existing database already has an unambiguous relationship.
-2. Pending: switch media path persistence and resolution.
+2. Added library-root ownership and normalized relative-path persistence for
+   indexed subtitle and video files. Existing media rows are backfilled when
+   their library root is registered, and cue rows now directly record their
+   SubtitleID.
 3. Pending: switch video, subtitle, and playback state persistence to IDs.
 4. Pending: switch normal Shiori persistence and lookup to CueID.
 5. Pending: remove remaining path-identity reads and run regression coverage.
@@ -32,7 +35,11 @@
 - Step 1: `swift test --filter permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences`
   passed 1 test.
 - Step 1: `swift test --filter migration` passed 11 migration tests.
+- Step 2: `swift test --filter indexedMediaStoresLibraryIDAndRelativePaths`
+  passed 1 test.
+- Step 2: `swift test --filter SubtitleIndexer` passed 16 tests.
 
 ## Outcome
 
-- Schema migration completed; runtime cutover remains in progress.
+- Schema migration and media-relative path persistence completed; runtime
+  state cutover remains in progress.

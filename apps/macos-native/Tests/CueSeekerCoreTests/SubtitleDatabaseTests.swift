@@ -83,6 +83,60 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
 }
 
 @Test
+func indexedMediaStoresLibraryIDAndRelativePaths() throws {
+    let databaseURL = temporaryDatabaseURL()
+    let libraryFolder = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerIdentityLibrary-\(UUID().uuidString)")
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    let libraryID = try database.addSearchPath(libraryFolder)
+    let subtitleFile = libraryFolder
+        .appendingPathComponent("Season 1")
+        .appendingPathComponent("Episode 1.srt")
+    let videoFile = libraryFolder
+        .appendingPathComponent("Season 1")
+        .appendingPathComponent("Episode 1.mkv")
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "relative identity"
+            )
+        ]
+    )
+
+    let subtitleIdentity = try sqliteMediaIdentity(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: subtitleFile.path,
+        databaseURL: databaseURL
+    )
+    #expect(subtitleIdentity?.libraryID == libraryID)
+    #expect(subtitleIdentity?.relativePath == "Season 1/Episode 1.srt")
+
+    let videoIdentity = try sqliteMediaIdentity(
+        table: "video_files",
+        pathColumn: "path",
+        path: videoFile.path,
+        databaseURL: databaseURL
+    )
+    #expect(videoIdentity?.libraryID == libraryID)
+    #expect(videoIdentity?.relativePath == "Season 1/Episode 1.mkv")
+    #expect(try sqliteCueLinesReferenceSubtitleFile(databaseURL: databaseURL))
+}
+
+@Test
 func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -6638,6 +6692,71 @@ private func sqliteColumnNames(in table: String, databaseURL: URL) throws -> Set
         names.insert(String(cString: value))
     }
     return names
+}
+
+private func sqliteMediaIdentity(
+    table: String,
+    pathColumn: String,
+    path: String,
+    databaseURL: URL
+) throws -> (libraryID: Int64, relativePath: String)? {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer { sqlite3_close(database) }
+
+    var statement: OpaquePointer?
+    let sql = "SELECT library_id, relative_path FROM \(table) WHERE \(pathColumn) = ? LIMIT 1;"
+    guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
+          let statement
+    else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    sqlite3_bind_text(statement, 1, path, -1, transient)
+    guard sqlite3_step(statement) == SQLITE_ROW,
+          sqlite3_column_type(statement, 0) != SQLITE_NULL,
+          let relativePath = sqlite3_column_text(statement, 1)
+    else {
+        return nil
+    }
+    return (sqlite3_column_int64(statement, 0), String(cString: relativePath))
+}
+
+private func sqliteCueLinesReferenceSubtitleFile(databaseURL: URL) throws -> Bool {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer { sqlite3_close(database) }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        """
+        SELECT COUNT(*)
+        FROM subtitle_cue_lines l
+        JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+        WHERE l.subtitle_file_id = g.subtitle_file_id;
+        """,
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+        let statement
+    else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    return sqlite3_step(statement) == SQLITE_ROW && sqlite3_column_int64(statement, 0) > 0
 }
 
 private func sqliteIndexExists(_ name: String, databaseURL: URL) throws -> Bool {

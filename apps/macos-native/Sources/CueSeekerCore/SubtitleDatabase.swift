@@ -1351,6 +1351,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private let path: URL
     private let database: SQLiteDatabase
 
+    private struct LibraryPathRecord {
+        let id: Int64
+        let rootURL: URL
+    }
+
+    private struct MediaPathIdentity {
+        let libraryID: Int64
+        let relativePath: String
+    }
+
     public init(path: URL) throws {
         self.path = path
         database = try SQLiteDatabase(path: path)
@@ -2545,6 +2555,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
     @discardableResult
     public func addSearchPath(_ folder: URL, type: String = "local") throws -> Int64 {
+        let standardizedFolder = folder.standardizedFileURL
         let now = ISO8601DateFormatter().string(from: Date())
         let statement = try database.prepare(
             """
@@ -2558,15 +2569,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
 
         try statement.bind(type, at: 1)
-        try statement.bind(folder.path, at: 2)
+        try statement.bind(standardizedFolder.path, at: 2)
         try statement.bind(now, at: 3)
         try statement.bind(now, at: 4)
 
-        guard try statement.step() else {
-            return database.lastInsertRowID()
+        let libraryID: Int64
+        if try statement.step() {
+            libraryID = statement.int64Column(0)
+            _ = try statement.step()
+        } else {
+            libraryID = database.lastInsertRowID()
         }
-
-        return statement.int64Column(0)
+        try backfillMediaPathIdentities(libraryID: libraryID, rootURL: standardizedFolder)
+        return libraryID
     }
 
     public func aiChunkCacheEntry(for key: AIChunkCacheKey) throws -> AIChunkCacheEntry? {
@@ -3055,7 +3070,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     group: group
                 )
                 for line in group.cueLines {
-                    let cueLineID = try insertCueLine(cueGroupID: cueGroupID, line: line)
+                    let cueLineID = try insertCueLine(
+                        subtitleFileID: subtitleFileID,
+                        cueGroupID: cueGroupID,
+                        line: line
+                    )
                     let speakerKey = CueLineStableKey(line: line)
                     if let speakers = preservedCueLineSpeakers[speakerKey] {
                         try insertCueLineSpeakers(
@@ -9517,11 +9536,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
         subtitleFile: URL,
         format: SubtitleFormat,
         fileSize: Int64?,
-        modifiedAt: Date?
+        modifiedAt: Date?,
+        libraryID: Int64? = nil
     ) throws -> Int64 {
+        let pathIdentity = try mediaPathIdentity(for: subtitleFile, preferredLibraryID: libraryID)
         let statement = try database.prepare(
             """
             INSERT INTO subtitle_files(
+                library_id,
+                relative_path,
                 subtitle_path,
                 format,
                 file_size,
@@ -9529,8 +9552,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 indexed_at,
                 index_algorithm_version
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(subtitle_path) DO UPDATE SET
+                library_id = excluded.library_id,
+                relative_path = excluded.relative_path,
                 format = excluded.format,
                 file_size = excluded.file_size,
                 modified_at = excluded.modified_at,
@@ -9540,22 +9565,29 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(format.rawValue, at: 2)
-        if let fileSize {
-            try statement.bind(fileSize, at: 3)
+        if let pathIdentity {
+            try statement.bind(pathIdentity.libraryID, at: 1)
+            try statement.bind(pathIdentity.relativePath, at: 2)
         } else {
-            try statement.bindNull(at: 3)
+            try statement.bindNull(at: 1)
+            try statement.bindNull(at: 2)
+        }
+        try statement.bind(subtitleFile.path, at: 3)
+        try statement.bind(format.rawValue, at: 4)
+        if let fileSize {
+            try statement.bind(fileSize, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
         }
 
         if let modifiedAt {
-            try statement.bind(modifiedAt.timeIntervalSince1970, at: 4)
+            try statement.bind(modifiedAt.timeIntervalSince1970, at: 6)
         } else {
-            try statement.bindNull(at: 4)
+            try statement.bindNull(at: 6)
         }
 
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 5)
-        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 6)
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 7)
+        try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 8)
 
         guard try statement.step() else {
             return database.lastInsertRowID()
@@ -9564,15 +9596,20 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return statement.int64Column(0)
     }
 
-    private func upsertVideoFile(_ videoFile: URL) throws -> Int64 {
+    private func upsertVideoFile(_ videoFile: URL, libraryID: Int64? = nil) throws -> Int64 {
         let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
         let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
         let modifiedAt = attributes?[.modificationDate] as? Date
+        let pathIdentity = try mediaPathIdentity(for: videoFile, preferredLibraryID: libraryID)
         let statement = try database.prepare(
             """
-            INSERT INTO video_files(path, video_name, file_size, modified_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO video_files(
+                library_id, relative_path, path, video_name, file_size, modified_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
+                library_id = excluded.library_id,
+                relative_path = excluded.relative_path,
                 video_name = excluded.video_name,
                 file_size = excluded.file_size,
                 modified_at = excluded.modified_at
@@ -9580,18 +9617,25 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(videoFile.path, at: 1)
-        try statement.bind(videoFile.lastPathComponent, at: 2)
-        if let fileSize {
-            try statement.bind(fileSize, at: 3)
+        if let pathIdentity {
+            try statement.bind(pathIdentity.libraryID, at: 1)
+            try statement.bind(pathIdentity.relativePath, at: 2)
         } else {
-            try statement.bindNull(at: 3)
+            try statement.bindNull(at: 1)
+            try statement.bindNull(at: 2)
+        }
+        try statement.bind(videoFile.path, at: 3)
+        try statement.bind(videoFile.lastPathComponent, at: 4)
+        if let fileSize {
+            try statement.bind(fileSize, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
         }
 
         if let modifiedAt {
-            try statement.bind(modifiedAt.timeIntervalSince1970, at: 4)
+            try statement.bind(modifiedAt.timeIntervalSince1970, at: 6)
         } else {
-            try statement.bindNull(at: 4)
+            try statement.bindNull(at: 6)
         }
 
         guard try statement.step() else {
@@ -9777,10 +9821,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func insertCueLine(cueGroupID: Int64, line: SubtitleCueLine) throws -> Int64 {
+    private func insertCueLine(
+        subtitleFileID: Int64,
+        cueGroupID: Int64,
+        line: SubtitleCueLine
+    ) throws -> Int64 {
         let statement = try database.prepare(
             """
             INSERT INTO subtitle_cue_lines(
+                subtitle_file_id,
                 cue_group_id,
                 event_index,
                 source_format,
@@ -9795,39 +9844,40 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 display_y,
                 display_order
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
-        try statement.bind(cueGroupID, at: 1)
-        try statement.bind(line.eventIndex, at: 2)
-        try statement.bind(line.sourceFormat.rawValue, at: 3)
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(cueGroupID, at: 2)
+        try statement.bind(line.eventIndex, at: 3)
+        try statement.bind(line.sourceFormat.rawValue, at: 4)
         if let sourceStyle = line.sourceStyle {
-            try statement.bind(sourceStyle, at: 4)
-        } else {
-            try statement.bindNull(at: 4)
-        }
-        if let sourceLayer = line.sourceLayer {
-            try statement.bind(sourceLayer, at: 5)
+            try statement.bind(sourceStyle, at: 5)
         } else {
             try statement.bindNull(at: 5)
         }
-        try statement.bind(line.startTimecode, at: 6)
-        try statement.bind(line.endTimecode, at: 7)
-        try statement.bind(line.startMilliseconds, at: 8)
-        try statement.bind(line.endMilliseconds, at: 9)
-        try statement.bind(line.content, at: 10)
-        if let displayX = line.displayX {
-            try statement.bind(displayX, at: 11)
+        if let sourceLayer = line.sourceLayer {
+            try statement.bind(sourceLayer, at: 6)
         } else {
-            try statement.bindNull(at: 11)
+            try statement.bindNull(at: 6)
         }
-        if let displayY = line.displayY {
-            try statement.bind(displayY, at: 12)
+        try statement.bind(line.startTimecode, at: 7)
+        try statement.bind(line.endTimecode, at: 8)
+        try statement.bind(line.startMilliseconds, at: 9)
+        try statement.bind(line.endMilliseconds, at: 10)
+        try statement.bind(line.content, at: 11)
+        if let displayX = line.displayX {
+            try statement.bind(displayX, at: 12)
         } else {
             try statement.bindNull(at: 12)
         }
-        try statement.bind(line.displayOrder, at: 13)
+        if let displayY = line.displayY {
+            try statement.bind(displayY, at: 13)
+        } else {
+            try statement.bindNull(at: 13)
+        }
+        try statement.bind(line.displayOrder, at: 14)
         try statement.run()
         return database.lastInsertRowID()
     }
@@ -11156,6 +11206,113 @@ public final class SubtitleDatabase: @unchecked Sendable {
             paths.append(statement.stringColumn(0))
         }
         return paths
+    }
+
+    private func libraryPathRecords() throws -> [LibraryPathRecord] {
+        let statement = try database.prepare(
+            """
+            SELECT id, path
+            FROM search_paths
+            ORDER BY LENGTH(path) DESC, id ASC;
+            """
+        )
+
+        var records: [LibraryPathRecord] = []
+        while try statement.step() {
+            records.append(
+                LibraryPathRecord(
+                    id: statement.int64Column(0),
+                    rootURL: URL(fileURLWithPath: statement.stringColumn(1)).standardizedFileURL
+                )
+            )
+        }
+        return records
+    }
+
+    private func mediaPathIdentity(
+        for file: URL,
+        preferredLibraryID: Int64? = nil
+    ) throws -> MediaPathIdentity? {
+        let libraries = try libraryPathRecords()
+        if let preferredLibraryID,
+           let library = libraries.first(where: { $0.id == preferredLibraryID }),
+           let relativePath = Self.relativeMediaPath(for: file, under: library.rootURL) {
+            return MediaPathIdentity(libraryID: library.id, relativePath: relativePath)
+        }
+
+        for library in libraries {
+            if let relativePath = Self.relativeMediaPath(for: file, under: library.rootURL) {
+                return MediaPathIdentity(libraryID: library.id, relativePath: relativePath)
+            }
+        }
+        return nil
+    }
+
+    private func backfillMediaPathIdentities(libraryID: Int64, rootURL: URL) throws {
+        let subtitleStatement = try database.prepare(
+            """
+            SELECT id, subtitle_path
+            FROM subtitle_files
+            WHERE library_id IS NULL;
+            """
+        )
+        var subtitleUpdates: [(id: Int64, relativePath: String)] = []
+        while try subtitleStatement.step() {
+            let file = URL(fileURLWithPath: subtitleStatement.stringColumn(1))
+            if let relativePath = Self.relativeMediaPath(for: file, under: rootURL) {
+                subtitleUpdates.append((subtitleStatement.int64Column(0), relativePath))
+            }
+        }
+
+        let videoStatement = try database.prepare(
+            """
+            SELECT id, path
+            FROM video_files
+            WHERE library_id IS NULL;
+            """
+        )
+        var videoUpdates: [(id: Int64, relativePath: String)] = []
+        while try videoStatement.step() {
+            let file = URL(fileURLWithPath: videoStatement.stringColumn(1))
+            if let relativePath = Self.relativeMediaPath(for: file, under: rootURL) {
+                videoUpdates.append((videoStatement.int64Column(0), relativePath))
+            }
+        }
+
+        let updateSubtitle = try database.prepare(
+            "UPDATE subtitle_files SET library_id = ?, relative_path = ? WHERE id = ?;"
+        )
+        for update in subtitleUpdates {
+            try updateSubtitle.bind(libraryID, at: 1)
+            try updateSubtitle.bind(update.relativePath, at: 2)
+            try updateSubtitle.bind(update.id, at: 3)
+            try updateSubtitle.run()
+            try updateSubtitle.reset()
+        }
+
+        let updateVideo = try database.prepare(
+            "UPDATE video_files SET library_id = ?, relative_path = ? WHERE id = ?;"
+        )
+        for update in videoUpdates {
+            try updateVideo.bind(libraryID, at: 1)
+            try updateVideo.bind(update.relativePath, at: 2)
+            try updateVideo.bind(update.id, at: 3)
+            try updateVideo.run()
+            try updateVideo.reset()
+        }
+    }
+
+    private static func relativeMediaPath(for file: URL, under root: URL) -> String? {
+        let rootPath = normalizedFolderPath(root.standardizedFileURL.path)
+        let filePath = file.standardizedFileURL.path
+        let prefix = rootPath == "/" ? rootPath : rootPath + "/"
+        guard filePath.hasPrefix(prefix) else {
+            return nil
+        }
+
+        let relativePath = String(filePath.dropFirst(prefix.count))
+            .precomposedStringWithCanonicalMapping
+        return relativePath.isEmpty ? nil : relativePath
     }
 
     private func searchPaths() throws -> [String] {
