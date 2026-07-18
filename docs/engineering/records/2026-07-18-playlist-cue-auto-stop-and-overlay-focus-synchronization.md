@@ -22,6 +22,9 @@ Implementation in progress.
 1. Renamed the setting to `Auto Stop After a Cue Finishes`, migrated the former
    persisted preference without overwriting an already stored new preference,
    and retained the accepted on/on, on/off, and off/off state normalization.
+   The two explicitly resolved preferences are not registered as fallback
+   defaults, so registration state from another SettingsStore cannot be
+   mistaken for a persisted new preference during migration.
 2. Replaced Playlist Cue segment termination with a resumable native auto-stop
    boundary. The boundary excludes video frames at or beyond Cue End, trims
    audio to Cue End, retains the final presented picture and active decode

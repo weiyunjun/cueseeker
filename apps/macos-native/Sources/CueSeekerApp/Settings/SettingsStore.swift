@@ -262,8 +262,6 @@ final class SettingsStore: ObservableObject {
             Self.searchScopeKey: SearchScope.defaultValue.rawValue,
             Self.showCueGroupKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
-            Self.autoStopAfterCueFinishesEnabledKey: true,
-            Self.autoSwitchToNextCuesInPlaylistEnabledKey: false,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoSwitchCueSequenceGapDefaultMilliseconds,
             Self.playbackSpeakerDisplayEnabledKey: false,
             Self.searchE2ELoggingEnabledKey: true,
