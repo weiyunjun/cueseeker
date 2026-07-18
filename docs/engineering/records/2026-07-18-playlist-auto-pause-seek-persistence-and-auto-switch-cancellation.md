@@ -53,8 +53,15 @@
 - `swift test --package-path apps/macos-native --filter PlaybackSegmentCompletionTests`:
   passed all 21 tests after adding same-video next-index reinitialization, stale
   position rejection, and Playback-close cleanup coverage.
+- `swift test --package-path apps/macos-native`: all feature-related tests
+  passed. The concurrent 777-test run exposed two unrelated timing flakes in
+  native delayed-video presentation and Recent pointer dispatch; both passed
+  immediately when rerun alone.
+- `swift test --package-path apps/macos-native --no-parallel`: all playback and
+  feature tests passed. One unrelated shared-UserDefaults isolation test saw a
+  value left by the broader process; its isolated rerun passed.
 
 ## Outcome
 
-- Auto Pause terminology and persisted preference migration completed. Runtime
-  seek persistence and Auto Switch lifecycle work remain in progress.
+- Implementation and automated feature verification completed. Packaged owner
+  end-to-end verification remains required for final product acceptance.
