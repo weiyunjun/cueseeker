@@ -450,7 +450,8 @@ final class AppCoordinator: ObservableObject {
     var playbackReturnContext: PlaybackReturnContext?
     var currentCueAutoStopReached = false
     var cuePlaybackGeneration = 0
-    var activeCueAutoStopEndMilliseconds: Int?
+    var activeCueAutoPauseBoundary: PlaybackAutoStopBoundary?
+    var cueAutoPauseArmed = false
     var activePlaylistCueSettings: PlaylistCueEffectiveSettings?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?

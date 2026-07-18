@@ -1,4 +1,5 @@
 import CNativePlayback
+import CueSeekerPlayback
 import Foundation
 import Testing
 
@@ -152,6 +153,88 @@ func nativeAutoStopKeepsSessionAliveAndResumesFromBoundary() async throws {
     #expect(player.nativeInSessionSeekCount == seekCountAtBoundary + 1)
 }
 
+@Test
+@MainActor
+func playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping Auto Pause seek regression test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let mediaURL = directory.appendingPathComponent("auto-pause-seek.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=4:size=160x90:rate=24",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "12",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            "-y",
+            mediaURL.path
+        ]
+    )
+
+    let boundaryMilliseconds = 1_500
+    let player = PlaybackPlayer()
+    let delegate = PlaybackPlayerAutoPauseDelegate()
+    player.delegate = delegate
+    defer {
+        try? player.stop()
+    }
+
+    _ = try player.open(PlaybackRequest(
+        videoURL: mediaURL,
+        startMilliseconds: 0,
+        autoStopAtMilliseconds: boundaryMilliseconds
+    ))
+    _ = try player.seek(toMilliseconds: 500)
+    try player.setPaused(false)
+
+    let reachedFirstPass = await waitUntil(timeoutSeconds: 5) {
+        delegate.boundaryEventCount == 1
+    }
+    #expect(reachedFirstPass)
+
+    _ = try player.seek(toMilliseconds: 2_500, pauseAfterFirstFrame: true)
+    try player.setPaused(false)
+    try? await Task.sleep(nanoseconds: 250_000_000)
+    #expect(delegate.boundaryEventCount == 1)
+
+    _ = try player.seek(toMilliseconds: 500, pauseAfterFirstFrame: true)
+    try? await Task.sleep(nanoseconds: 250_000_000)
+    #expect(delegate.boundaryEventCount == 1)
+    try player.setPaused(false)
+
+    let reachedSecondPass = await waitUntil(timeoutSeconds: 5) {
+        delegate.boundaryEventCount == 2
+    }
+    #expect(reachedSecondPass)
+}
+
 private final class NativeAutoStopDelegate: NSObject, SFXNativePlaybackPlayerDelegate {
     private let lock = NSLock()
     private var boundaryMilliseconds: Int?
@@ -181,6 +264,34 @@ private final class NativeAutoStopDelegate: NSObject, SFXNativePlaybackPlayerDel
         lock.lock()
         defer { lock.unlock() }
         return boundaryMilliseconds
+    }
+}
+
+private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
+    private let lock = NSLock()
+    private var boundaryEvents = 0
+
+    func player(
+        _ player: PlaybackPlayer,
+        didChangeProperty name: String,
+        value: PlaybackPropertyValue?
+    ) {}
+
+    func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {}
+
+    func player(
+        _ player: PlaybackPlayer,
+        didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int
+    ) {
+        lock.lock()
+        boundaryEvents += 1
+        lock.unlock()
+    }
+
+    var boundaryEventCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return boundaryEvents
     }
 }
 

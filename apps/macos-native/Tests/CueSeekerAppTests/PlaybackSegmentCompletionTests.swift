@@ -54,7 +54,7 @@ func playbackViewModelHoldsSubtitlePresentationAtCueInteriorTimestamp() {
 
 @MainActor
 @Test
-func appCoordinatorMarksSearchCueAutoStopAsPaused() async throws {
+func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
@@ -85,7 +85,7 @@ func appCoordinatorMarksSearchCueAutoStopAsPaused() async throws {
 
 @MainActor
 @Test
-func appCoordinatorConsumesCueAutoStopBoundaryOnlyOnce() async throws {
+func appCoordinatorConsumesCueAutoPauseBoundaryOnlyOncePerArming() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.playback.playbackStatus = .playing
         app.beginCueAutoStopPlayback()
@@ -95,7 +95,8 @@ func appCoordinatorConsumesCueAutoStopBoundaryOnlyOnce() async throws {
         ))
 
         app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
-        #expect(app.activeCueAutoStopEndMilliseconds == nil)
+        #expect(app.activeCueAutoPauseBoundary?.endMilliseconds == 2_500)
+        #expect(!app.cueAutoPauseArmed)
 
         app.playback.playbackStatus = .playing
         app.currentCueAutoStopReached = false
@@ -108,7 +109,39 @@ func appCoordinatorConsumesCueAutoStopBoundaryOnlyOnce() async throws {
 
 @MainActor
 @Test
-func clearedCueAutoStopRejectsLateCompletionDuringContinuousPlayback() async throws {
+func cueAutoPauseSeekRearmsOnlyBeforeCurrentItemBoundary() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.playback.playbackStatus = .playing
+        app.beginCueAutoStopPlayback()
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
+
+        app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+        #expect(!app.cueAutoPauseArmed)
+
+        app.handleCueAutoPauseSeekCommitted(toMilliseconds: 3_000)
+        #expect(app.activeCueAutoPauseBoundary?.endMilliseconds == 2_500)
+        #expect(!app.cueAutoPauseArmed)
+
+        app.playback.playbackStatus = .playing
+        app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+        #expect(app.playback.playbackStatus == .playing)
+
+        app.handleCueAutoPauseSeekCommitted(toMilliseconds: 1_500)
+        #expect(app.cueAutoPauseArmed)
+
+        app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+        #expect(app.playback.playbackStatus == .paused)
+        #expect(app.currentCueAutoStopReached)
+        #expect(!app.cueAutoPauseArmed)
+    }
+}
+
+@MainActor
+@Test
+func clearedCueAutoPauseRejectsLateCompletionDuringContinuousPlayback() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
@@ -122,7 +155,8 @@ func clearedCueAutoStopRejectsLateCompletionDuringContinuousPlayback() async thr
         app.clearCueAutoStopPlayback()
         app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
 
-        #expect(app.activeCueAutoStopEndMilliseconds == nil)
+        #expect(app.activeCueAutoPauseBoundary == nil)
+        #expect(!app.cueAutoPauseArmed)
         #expect(app.playback.playbackStatus == .playing)
         #expect(!app.currentCueAutoStopReached)
         #expect(app.autoSwitchCueSequenceTask == nil)
@@ -425,7 +459,7 @@ func continuousFromStartBypassesBothPlaylistCueBehaviors() async throws {
         )
 
         #expect(boundary == nil)
-        #expect(app.activeCueAutoStopEndMilliseconds == nil)
+        #expect(app.activeCueAutoPauseBoundary == nil)
         #expect(app.autoSwitchCueSequenceTask == nil)
     }
 }

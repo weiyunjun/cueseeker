@@ -95,6 +95,8 @@ public final class PlaybackViewModel: ObservableObject {
     private let onSubtitlesVisibleChanged: (Bool) -> Void
     private let onPlaybackTimeUpdated: (Double, Double) -> Void
     private let onAutoStopBoundaryReached: (Int) -> Void
+    private let onSeekInteractionBegan: () -> Void
+    private let onSeekCommitted: (Int) -> Void
     private let onPresentationCommitted: (Bool) -> Void
     private let uiProbeScope: String?
     private var pendingPresentation: PendingPresentation?
@@ -112,6 +114,8 @@ public final class PlaybackViewModel: ObservableObject {
         onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in },
         onPlaybackTimeUpdated: @escaping (Double, Double) -> Void = { _, _ in },
         onAutoStopBoundaryReached: @escaping (Int) -> Void = { _ in },
+        onSeekInteractionBegan: @escaping () -> Void = {},
+        onSeekCommitted: @escaping (Int) -> Void = { _ in },
         onPresentationCommitted: @escaping (Bool) -> Void = { _ in }
     ) {
         self.player = player
@@ -121,6 +125,8 @@ public final class PlaybackViewModel: ObservableObject {
         self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
         self.onPlaybackTimeUpdated = onPlaybackTimeUpdated
         self.onAutoStopBoundaryReached = onAutoStopBoundaryReached
+        self.onSeekInteractionBegan = onSeekInteractionBegan
+        self.onSeekCommitted = onSeekCommitted
         self.onPresentationCommitted = onPresentationCommitted
         self.uiProbeScope = uiProbeScope
 
@@ -183,6 +189,7 @@ public final class PlaybackViewModel: ObservableObject {
     @discardableResult
     public func playContinuously(from seconds: Double) -> Bool {
         let targetTime = clampedPlaybackTime(seconds)
+        onSeekInteractionBegan()
         preparePresentationTransition(
             to: targetTime
         )
@@ -195,6 +202,7 @@ public final class PlaybackViewModel: ObservableObject {
                 toMilliseconds: Int(targetTime * 1_000),
                 pauseAfterFirstFrame: false
             )
+            onSeekCommitted(Int(targetTime * 1_000))
             bindPendingPresentation(to: generation)
             return true
         } catch {
@@ -210,6 +218,7 @@ public final class PlaybackViewModel: ObservableObject {
         }
 
         clearSubtitlePresentationHold()
+        onSeekInteractionBegan()
         timelineScrubbingWasPlaying = isPlaying
         clearProtectedSeekTarget()
 
@@ -251,6 +260,7 @@ public final class PlaybackViewModel: ObservableObject {
                 toMilliseconds: Int(targetTime * 1000),
                 pauseAfterFirstFrame: !shouldResumePlayback
             )
+            onSeekCommitted(Int(targetTime * 1_000))
             bindPendingPresentation(to: generation)
             if shouldResumePlayback {
                 try player.setPaused(false)
@@ -281,6 +291,7 @@ public final class PlaybackViewModel: ObservableObject {
 
     private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
         let targetTime = clampedPlaybackTime(seconds)
+        onSeekInteractionBegan()
         let shouldResumePlayback = isPlaying
         preparePresentationTransition(
             to: targetTime
@@ -296,6 +307,7 @@ public final class PlaybackViewModel: ObservableObject {
                 toMilliseconds: Int(targetTime * 1000),
                 pauseAfterFirstFrame: !shouldResumePlayback
             )
+            onSeekCommitted(Int(targetTime * 1_000))
             bindPendingPresentation(to: generation)
             if shouldResumePlayback {
                 try player.setPaused(false)

@@ -55,6 +55,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var pendingPresentation: PendingPresentation?
     private var committedPresentationGeneration: UInt?
     private var reachedAutoStopBoundaryMilliseconds: Int?
+    private var persistentAutoPauseBoundary: PlaybackAutoStopBoundary?
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -77,6 +78,12 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     @discardableResult
     public func open(_ request: PlaybackRequest) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
+        persistentAutoPauseBoundary = request.autoStopAtMilliseconds.map {
+            PlaybackAutoStopBoundary(
+                startMilliseconds: request.startMilliseconds,
+                endMilliseconds: $0
+            )
+        }
         beginPresentationTransition(
             targetMilliseconds: request.startMilliseconds,
             subtitleAction: .replace(request.subtitleSource)
@@ -207,10 +214,19 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             subtitleAction: subtitleAction
         )
         do {
-            try nativePlayer.seek(
-                toMilliseconds: safeMilliseconds,
-                pauseAfterFirstFrame: pauseAfterFirstFrame
-            )
+            if let boundary = persistentAutoPauseBoundary,
+               safeMilliseconds < boundary.endMilliseconds {
+                try nativePlayer.seek(
+                    toMilliseconds: safeMilliseconds,
+                    autoStopAtMilliseconds: boundary.endMilliseconds,
+                    pauseAfterFirstFrame: pauseAfterFirstFrame
+                )
+            } else {
+                try nativePlayer.seek(
+                    toMilliseconds: safeMilliseconds,
+                    pauseAfterFirstFrame: pauseAfterFirstFrame
+                )
+            }
         } catch {
             cancelPendingPresentation()
             throw error
@@ -224,6 +240,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         subtitleAction: PendingSubtitleAction
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
+        persistentAutoPauseBoundary = boundary
         beginPresentationTransition(
             targetMilliseconds: boundary.startMilliseconds,
             subtitleAction: subtitleAction
@@ -247,6 +264,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         subtitleAction: PendingSubtitleAction
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
+        persistentAutoPauseBoundary = nil
         beginPresentationTransition(
             targetMilliseconds: segment.startMilliseconds,
             subtitleAction: subtitleAction
@@ -314,6 +332,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         try nativePlayer.setPaused(isPaused)
     }
 
+    public func setAutoPauseBoundary(_ boundary: PlaybackAutoStopBoundary?) {
+        persistentAutoPauseBoundary = boundary
+        if reachedAutoStopBoundaryMilliseconds != boundary?.endMilliseconds {
+            reachedAutoStopBoundaryMilliseconds = nil
+        }
+    }
+
     public func stop() throws {
         nativePlayer.stop()
         currentRequest = nil
@@ -321,6 +346,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         pendingPresentation = nil
         committedPresentationGeneration = nil
         reachedAutoStopBoundaryMilliseconds = nil
+        persistentAutoPauseBoundary = nil
         clearHeldSubtitlePresentationWithoutRendering()
         if Thread.isMainThread {
             MainActor.assumeIsolated {

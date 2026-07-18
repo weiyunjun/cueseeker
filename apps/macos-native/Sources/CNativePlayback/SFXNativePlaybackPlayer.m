@@ -4418,9 +4418,19 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     autoStopAtMilliseconds:(NSInteger)endMilliseconds
                      error:(NSError **)error {
     return [self seekToMilliseconds:milliseconds
+             autoStopAtMilliseconds:endMilliseconds
+                pauseAfterFirstFrame:NO
+                               error:error];
+}
+
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+    autoStopAtMilliseconds:(NSInteger)endMilliseconds
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error {
+    return [self seekToMilliseconds:milliseconds
                      endMilliseconds:endMilliseconds
                  pausesAtSegmentEnd:YES
-                pauseAfterFirstFrame:NO
+                pauseAfterFirstFrame:pauseAfterFirstFrame
                                error:error];
 }
 

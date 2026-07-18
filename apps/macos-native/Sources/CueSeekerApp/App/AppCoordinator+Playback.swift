@@ -151,6 +151,12 @@ extension AppCoordinator {
             onAutoStopBoundaryReached: { [weak self] endMilliseconds in
                 self?.handleCueAutoStopBoundaryReached(endMilliseconds: endMilliseconds)
             },
+            onSeekInteractionBegan: { [weak self] in
+                self?.handleCueAutoPauseSeekInteractionBegan()
+            },
+            onSeekCommitted: { [weak self] milliseconds in
+                self?.handleCueAutoPauseSeekCommitted(toMilliseconds: milliseconds)
+            },
             onPresentationCommitted: { [weak self] isPlaying in
                 guard let self, self.hasPlaybackSelection else {
                     return
@@ -344,7 +350,6 @@ extension AppCoordinator {
             return
         }
 
-        clearCueAutoStopPlayback()
         playbackViewModel.seek(to: Double(max(0, milliseconds)) / 1_000)
     }
 
@@ -501,11 +506,14 @@ extension AppCoordinator {
     }
 
     func handleCueAutoStopBoundaryReached(endMilliseconds: Int) {
-        guard isCurrentCueAutoStopEnd(endMilliseconds) else {
+        guard cueAutoPauseArmed,
+              isCurrentCueAutoStopEnd(endMilliseconds),
+              activePlaylistCueSettings?.autoPauseEnabled == true
+        else {
             return
         }
 
-        activeCueAutoStopEndMilliseconds = nil
+        cueAutoPauseArmed = false
         currentCueAutoStopReached = true
         playback.playbackStatus = .paused
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
@@ -521,9 +529,11 @@ extension AppCoordinator {
 
     func beginCueAutoStopPlayback() {
         cuePlaybackGeneration += 1
-        activeCueAutoStopEndMilliseconds = nil
+        activeCueAutoPauseBoundary = nil
+        cueAutoPauseArmed = false
         currentCueAutoStopReached = false
         cancelAutoSwitchCueSequenceTask()
+        player?.setAutoPauseBoundary(nil)
         activePlaylistCueSettings = PlaylistCueEffectiveSettings(
             autoPauseEnabled: settings.autoPauseAfterCueFinishesEnabled,
             autoSwitchEnabled: settings.autoSwitchToNextCuesInPlaylistEnabled,
@@ -533,9 +543,11 @@ extension AppCoordinator {
 
     func clearCueAutoStopPlayback() {
         cuePlaybackGeneration += 1
-        activeCueAutoStopEndMilliseconds = nil
+        activeCueAutoPauseBoundary = nil
+        cueAutoPauseArmed = false
         currentCueAutoStopReached = false
         cancelAutoSwitchCueSequenceTask()
+        player?.setAutoPauseBoundary(nil)
         activePlaylistCueSettings = nil
     }
 
@@ -545,11 +557,27 @@ extension AppCoordinator {
     }
 
     func activateCueAutoStopBoundary(_ boundary: PlaybackAutoStopBoundary?) {
-        activeCueAutoStopEndMilliseconds = boundary?.endMilliseconds
+        activeCueAutoPauseBoundary = boundary
+        cueAutoPauseArmed = boundary != nil
+        player?.setAutoPauseBoundary(boundary)
     }
 
     private func isCurrentCueAutoStopEnd(_ endMilliseconds: Int) -> Bool {
-        activeCueAutoStopEndMilliseconds == endMilliseconds
+        activeCueAutoPauseBoundary?.endMilliseconds == endMilliseconds
+    }
+
+    func handleCueAutoPauseSeekInteractionBegan() {
+        cancelAutoSwitchCueSequenceTask()
+        currentCueAutoStopReached = false
+        clearCueSubtitlePresentationHold()
+    }
+
+    func handleCueAutoPauseSeekCommitted(toMilliseconds milliseconds: Int) {
+        handleCueAutoPauseSeekInteractionBegan()
+        cueAutoPauseArmed = activePlaylistCueSettings?.autoPauseEnabled == true
+            && activeCueAutoPauseBoundary.map {
+                max(0, milliseconds) < $0.endMilliseconds
+            } == true
     }
 
     func cueSubtitlePresentationHoldMilliseconds(

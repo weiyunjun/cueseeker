@@ -88,6 +88,10 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
     autoStopAtMilliseconds:(NSInteger)endMilliseconds
                      error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+    autoStopAtMilliseconds:(NSInteger)endMilliseconds
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
       pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
                      error:(NSError **)error;
