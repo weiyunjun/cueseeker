@@ -148,8 +148,8 @@ extension AppCoordinator {
                     duration: duration
                 )
             },
-            onSegmentFinished: { [weak self] endMilliseconds in
-                self?.handlePlaybackSegmentFinished(endMilliseconds: endMilliseconds)
+            onAutoStopBoundaryReached: { [weak self] endMilliseconds in
+                self?.handleCueAutoStopBoundaryReached(endMilliseconds: endMilliseconds)
             },
             onPresentationCommitted: { [weak self] isPlaying in
                 guard let self, self.hasPlaybackSelection else {
@@ -282,7 +282,7 @@ extension AppCoordinator {
                 scopePaths: playbackSearchPromotion?.scopePaths
             ))
         }
-        clearCueSegmentPlayback()
+        clearCueAutoStopPlayback()
         activePlaybackSource = .search
         search.selectedSearchResult = result
         if playbackSearchPromotion == nil {
@@ -338,7 +338,7 @@ extension AppCoordinator {
             return
         }
 
-        clearCueSegmentPlayback()
+        clearCueAutoStopPlayback()
         playbackViewModel.seek(to: Double(max(0, milliseconds)) / 1_000)
     }
 
@@ -364,7 +364,7 @@ extension AppCoordinator {
         playsContinuouslyFromStart: Bool = false
     ) -> Bool {
         ensurePlayerInitialized()
-        beginCueSegmentPlayback()
+        beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -377,7 +377,7 @@ extension AppCoordinator {
         )
 
         do {
-            let segment = configureCuePlaybackBoundary(
+            let autoStopBoundary = configureCueAutoStopBoundary(
                 startMilliseconds: result.startMilliseconds,
                 endMilliseconds: result.endMilliseconds,
                 playsContinuouslyFromStart: playsContinuouslyFromStart
@@ -385,7 +385,7 @@ extension AppCoordinator {
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
                 startMilliseconds: result.startMilliseconds,
-                segmentEndMilliseconds: segment?.endMilliseconds,
+                autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                 subtitleSource: playbackSubtitleSource(for: result)
             )
 
@@ -395,9 +395,9 @@ extension AppCoordinator {
 
             let generation: UInt
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
-                if let segment {
+                if let autoStopBoundary {
                     generation = try player.seek(
-                        to: segment,
+                        to: autoStopBoundary,
                         subtitleSource: request.subtitleSource
                     )
                 } else {
@@ -419,7 +419,7 @@ extension AppCoordinator {
             return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()
-            clearCueSegmentPlayback()
+            clearCueAutoStopPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
@@ -427,35 +427,35 @@ extension AppCoordinator {
         }
     }
 
-    func cuePlaybackSegment(
+    func cueAutoStopBoundary(
         startMilliseconds: Int,
         endMilliseconds: Int,
         playsContinuouslyFromStart: Bool = false
-    ) -> PlaybackSegment? {
+    ) -> PlaybackAutoStopBoundary? {
         guard !playsContinuouslyFromStart,
               settings.autoStopAfterCueFinishesEnabled
         else {
             return nil
         }
 
-        return PlaybackSegment(
+        return PlaybackAutoStopBoundary(
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds
         )
     }
 
-    func configureCuePlaybackBoundary(
+    func configureCueAutoStopBoundary(
         startMilliseconds: Int,
         endMilliseconds: Int,
         playsContinuouslyFromStart: Bool = false
-    ) -> PlaybackSegment? {
-        let segment = cuePlaybackSegment(
+    ) -> PlaybackAutoStopBoundary? {
+        let boundary = cueAutoStopBoundary(
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds,
             playsContinuouslyFromStart: playsContinuouslyFromStart
         )
-        activateCueSegmentPlayback(segment)
-        return segment
+        activateCueAutoStopBoundary(boundary)
+        return boundary
     }
 
     @discardableResult
@@ -481,11 +481,11 @@ extension AppCoordinator {
     }
 
     func resumePlayback() {
-        if replayFinishedCueSegmentIfNeeded() {
-            return
-        }
-
         do {
+            cancelAutoSwitchCueSequenceTask()
+            clearCueSubtitlePresentationHold()
+            currentCueAutoStopReached = false
+            currentCueAutoSwitchBoundaryReached = false
             try player?.setPaused(false)
             if hasPlaybackSelection {
                 playback.playbackStatus = .playing
@@ -495,13 +495,13 @@ extension AppCoordinator {
         }
     }
 
-    func handlePlaybackSegmentFinished(endMilliseconds: Int) {
-        guard isCurrentCueSegmentEnd(endMilliseconds) else {
+    func handleCueAutoStopBoundaryReached(endMilliseconds: Int) {
+        guard isCurrentCueAutoStopEnd(endMilliseconds) else {
             return
         }
 
-        activeCueSegmentEndMilliseconds = nil
-        currentCueSegmentFinished = true
+        activeCueAutoStopEndMilliseconds = nil
+        currentCueAutoStopReached = true
         currentCueAutoSwitchBoundaryReached = true
         playback.playbackStatus = .paused
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
@@ -513,18 +513,18 @@ extension AppCoordinator {
         scheduleAutoSwitchCueSequence()
     }
 
-    func beginCueSegmentPlayback() {
+    func beginCueAutoStopPlayback() {
         cuePlaybackGeneration += 1
-        activeCueSegmentEndMilliseconds = nil
-        currentCueSegmentFinished = false
+        activeCueAutoStopEndMilliseconds = nil
+        currentCueAutoStopReached = false
         currentCueAutoSwitchBoundaryReached = false
         cancelAutoSwitchCueSequenceTask()
     }
 
-    func clearCueSegmentPlayback() {
+    func clearCueAutoStopPlayback() {
         cuePlaybackGeneration += 1
-        activeCueSegmentEndMilliseconds = nil
-        currentCueSegmentFinished = false
+        activeCueAutoStopEndMilliseconds = nil
+        currentCueAutoStopReached = false
         currentCueAutoSwitchBoundaryReached = false
         cancelAutoSwitchCueSequenceTask()
     }
@@ -534,27 +534,27 @@ extension AppCoordinator {
         autoSwitchCueSequenceTask = nil
     }
 
-    func activateCueSegmentPlayback(_ segment: PlaybackSegment?) {
-        activeCueSegmentEndMilliseconds = segment?.endMilliseconds
+    func activateCueAutoStopBoundary(_ boundary: PlaybackAutoStopBoundary?) {
+        activeCueAutoStopEndMilliseconds = boundary?.endMilliseconds
     }
 
-    private func isCurrentCueSegmentEnd(_ endMilliseconds: Int) -> Bool {
-        activeCueSegmentEndMilliseconds == endMilliseconds
+    private func isCurrentCueAutoStopEnd(_ endMilliseconds: Int) -> Bool {
+        activeCueAutoStopEndMilliseconds == endMilliseconds
     }
 
     func cueSubtitlePresentationHoldMilliseconds(
         startMilliseconds: Int,
         endMilliseconds: Int
     ) -> Int {
-        let segment = PlaybackSegment(
+        let boundary = PlaybackAutoStopBoundary(
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds
         )
-        guard segment.endMilliseconds > segment.startMilliseconds else {
-            return segment.startMilliseconds
+        guard boundary.endMilliseconds > boundary.startMilliseconds else {
+            return boundary.startMilliseconds
         }
 
-        return max(segment.startMilliseconds, segment.endMilliseconds - 1)
+        return max(boundary.startMilliseconds, boundary.endMilliseconds - 1)
     }
 
     func clearCueSubtitlePresentationHold() {
@@ -592,31 +592,6 @@ extension AppCoordinator {
         }
 
         playback.playbackViewModel?.holdSubtitlePresentation(atMilliseconds: holdMilliseconds)
-    }
-
-    @discardableResult
-    private func replayFinishedCueSegmentIfNeeded() -> Bool {
-        guard currentCueSegmentFinished else {
-            return false
-        }
-
-        cancelAutoSwitchCueSequenceTask()
-        switch activePlaybackSource {
-        case .search:
-            guard let selectedSearchResult = search.selectedSearchResult else {
-                return false
-            }
-            play(selectedSearchResult)
-            return true
-        case .shiori:
-            guard let selectedShiori = shiori.selectedShiori else {
-                return false
-            }
-            play(selectedShiori)
-            return true
-        case .library, .none:
-            return false
-        }
     }
 
     private func scheduleAutoSwitchCueSequence() {

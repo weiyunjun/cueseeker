@@ -22,13 +22,24 @@ Implementation in progress.
 1. Renamed the setting to `Auto Stop After a Cue Finishes`, migrated the former
    persisted preference without overwriting an already stored new preference,
    and retained the accepted on/on, on/off, and off/off state normalization.
+2. Replaced Playlist Cue segment termination with a resumable native auto-stop
+   boundary. The boundary excludes video frames at or beyond Cue End, trims
+   audio to Cue End, retains the final presented picture and active decode
+   session, and resumes through an in-session seek from Cue End when playback
+   is continued manually.
 
 ## Verification
 
 - The focused SettingsStore selection passed six tests covering defaults,
   three-state normalization, old-key migration, new-key precedence, legacy
   coupled-setting migration, Gap clamping, and persistence.
-- Pending focused playback and Overlay verification.
+- The focused playback selection passed fourteen coordinator/player tests for
+  boundary creation, callback handling, subtitle retention, resume behavior,
+  navigation, and disabled-setting behavior.
+- A real generated audio/video fixture verified that auto-stop presents no
+  frame at or beyond Cue End, keeps the native session alive, and resumes with
+  an in-session seek rather than reopening the media.
+- Pending focused Auto Switch and Overlay verification.
 - Pending full regression verification.
 - Pending packaged application verification.
 

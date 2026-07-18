@@ -883,7 +883,7 @@ extension AppCoordinator {
     @discardableResult
     func play(_ video: LibraryVideo) -> Bool {
         ensurePlayerInitialized()
-        clearCueSegmentPlayback()
+        clearCueAutoStopPlayback()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
         playback.playbackStatus = .opening

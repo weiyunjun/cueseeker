@@ -8,6 +8,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
+    func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int)
     @MainActor func player(
         _ player: PlaybackPlayer,
         didCommitPresentationAtMilliseconds milliseconds: Int,
@@ -18,6 +19,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
 
 public extension PlaybackPlayerDelegate {
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
+    func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int) {}
     @MainActor func player(
         _ player: PlaybackPlayer,
         didCommitPresentationAtMilliseconds milliseconds: Int,
@@ -52,6 +54,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var lastRenderedASSSubtitleMilliseconds = 0
     private var pendingPresentation: PendingPresentation?
     private var committedPresentationGeneration: UInt?
+    private var reachedAutoStopBoundaryMilliseconds: Int?
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -73,6 +76,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func open(_ request: PlaybackRequest) throws -> UInt {
+        reachedAutoStopBoundaryMilliseconds = nil
         beginPresentationTransition(
             targetMilliseconds: request.startMilliseconds,
             subtitleAction: .replace(request.subtitleSource)
@@ -80,7 +84,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
         do {
-            if let segmentEndMilliseconds = request.segmentEndMilliseconds {
+            if let autoStopAtMilliseconds = request.autoStopAtMilliseconds {
+                try nativePlayer.openPath(
+                    request.videoURL.path,
+                    startMilliseconds: request.startMilliseconds,
+                    autoStopAtMilliseconds: autoStopAtMilliseconds
+                )
+            } else if let segmentEndMilliseconds = request.segmentEndMilliseconds {
                 try nativePlayer.openPath(
                     request.videoURL.path,
                     startMilliseconds: request.startMilliseconds,
@@ -132,6 +142,25 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     @discardableResult
+    public func seek(to boundary: PlaybackAutoStopBoundary) throws -> UInt {
+        try seek(
+            to: boundary,
+            subtitleAction: .preserve
+        )
+    }
+
+    @discardableResult
+    public func seek(
+        to boundary: PlaybackAutoStopBoundary,
+        subtitleSource: PlaybackSubtitleSource?
+    ) throws -> UInt {
+        try seek(
+            to: boundary,
+            subtitleAction: .replace(subtitleSource)
+        )
+    }
+
+    @discardableResult
     public func seek(
         to segment: PlaybackSegment,
         subtitleSource: PlaybackSubtitleSource?
@@ -171,6 +200,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         pauseAfterFirstFrame: Bool,
         subtitleAction: PendingSubtitleAction
     ) throws -> UInt {
+        reachedAutoStopBoundaryMilliseconds = nil
         let safeMilliseconds = max(0, milliseconds)
         beginPresentationTransition(
             targetMilliseconds: safeMilliseconds,
@@ -190,10 +220,33 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     @discardableResult
     private func seek(
+        to boundary: PlaybackAutoStopBoundary,
+        subtitleAction: PendingSubtitleAction
+    ) throws -> UInt {
+        reachedAutoStopBoundaryMilliseconds = nil
+        beginPresentationTransition(
+            targetMilliseconds: boundary.startMilliseconds,
+            subtitleAction: subtitleAction
+        )
+        do {
+            try nativePlayer.seek(
+                toMilliseconds: boundary.startMilliseconds,
+                autoStopAtMilliseconds: boundary.endMilliseconds
+            )
+        } catch {
+            cancelPendingPresentation()
+            throw error
+        }
+        return bindPendingPresentationToNativeGeneration()
+    }
+
+    @discardableResult
+    private func seek(
         to segment: PlaybackSegment,
         pauseAfterFirstFrame: Bool,
         subtitleAction: PendingSubtitleAction
     ) throws -> UInt {
+        reachedAutoStopBoundaryMilliseconds = nil
         beginPresentationTransition(
             targetMilliseconds: segment.startMilliseconds,
             subtitleAction: subtitleAction
@@ -249,6 +302,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     public func setPaused(_ isPaused: Bool) throws {
+        if !isPaused, let resumeMilliseconds = reachedAutoStopBoundaryMilliseconds {
+            reachedAutoStopBoundaryMilliseconds = nil
+            _ = try seek(
+                toMilliseconds: resumeMilliseconds,
+                pauseAfterFirstFrame: false,
+                subtitleAction: .preserve
+            )
+            return
+        }
         try nativePlayer.setPaused(isPaused)
     }
 
@@ -258,6 +320,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         currentVideoURL = nil
         pendingPresentation = nil
         committedPresentationGeneration = nil
+        reachedAutoStopBoundaryMilliseconds = nil
         clearHeldSubtitlePresentationWithoutRendering()
         if Thread.isMainThread {
             MainActor.assumeIsolated {
@@ -701,6 +764,17 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         didFinishSegmentAtMilliseconds endMilliseconds: Int
     ) {
         delegate?.player(self, didFinishSegmentAtMilliseconds: endMilliseconds)
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int
+    ) {
+        reachedAutoStopBoundaryMilliseconds = endMilliseconds
+        delegate?.player(
+            self,
+            didReachAutoStopBoundaryAtMilliseconds: endMilliseconds
+        )
     }
 }
 

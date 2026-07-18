@@ -31,6 +31,8 @@ didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 	      presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didFinishSegmentAtMilliseconds:(NSInteger)endMilliseconds;
+- (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @end
 
 @interface SFXNativePlaybackPlayer : NSObject
@@ -71,12 +73,19 @@ startMilliseconds:(NSInteger)startMilliseconds
 startMilliseconds:(NSInteger)startMilliseconds
  endMilliseconds:(NSInteger)endMilliseconds
 	           error:(NSError **)error;
+- (BOOL)openPath:(NSString *)path
+startMilliseconds:(NSInteger)startMilliseconds
+autoStopAtMilliseconds:(NSInteger)endMilliseconds
+                  error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
 	      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 	                     error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
+                     error:(NSError **)error;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+    autoStopAtMilliseconds:(NSInteger)endMilliseconds
                      error:(NSError **)error;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds

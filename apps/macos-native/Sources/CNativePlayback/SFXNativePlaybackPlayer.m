@@ -746,6 +746,20 @@ static int SFXOutputChannelCount(int inputChannels) {
 @class SFXNativePlaybackSession;
 
 @interface SFXNativePlaybackPlayer ()
+- (BOOL)openPath:(NSString *)path
+startMilliseconds:(NSInteger)startMilliseconds
+ endMilliseconds:(NSInteger)endMilliseconds
+pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
+presentationGeneration:(NSUInteger)presentationGeneration
+flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
+ pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
+           error:(NSError **)error;
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+           endMilliseconds:(NSInteger)endMilliseconds
+       pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error;
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session
                                    atMilliseconds:(NSInteger)milliseconds
                            presentationGeneration:(NSUInteger)presentationGeneration;
@@ -768,6 +782,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 - (instancetype)initWithPath:(NSString *)path
 	           startMilliseconds:(NSInteger)startMilliseconds
 	             endMilliseconds:(NSInteger)endMilliseconds
+	       pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
 	                       layer:(AVSampleBufferDisplayLayer *)displayLayer
 	                    delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
 	                      owner:(SFXNativePlaybackPlayer *)owner
@@ -782,6 +797,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)stopAndWait;
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
+	       pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
 	 presentationGeneration:(NSUInteger)presentationGeneration
 		      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 	                     error:(NSError **)error;
@@ -793,6 +809,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
 @property (nonatomic, readonly) NSInteger segmentEndMilliseconds;
+@property (nonatomic, readonly) BOOL pausesAtSegmentEnd;
 @property (nonatomic, readonly) NSInteger videoWidth;
 @property (nonatomic, readonly) NSInteger videoHeight;
 @property (nonatomic, readonly, getter=isPlaying) BOOL playing;
@@ -930,12 +947,14 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    NSUInteger _pendingSeekPresentationGeneration;
 	    double _pendingSeekSeconds;
 	    double _pendingSeekSegmentEndSeconds;
+	    BOOL _pendingSeekPausesAtSegmentEnd;
 	    NSUInteger _seekRequestGeneration;
 	    NSUInteger _completedSeekRequestGeneration;
 	    BOOL _seekRequestSucceeded;
 	    NSError *_seekRequestError;
 	    BOOL _segmentEndReached;
 	    BOOL _segmentFinishNotified;
+	    BOOL _pausesAtSegmentEnd;
     atomic_bool _segmentAudioBoundaryReached;
     atomic_bool _segmentVideoBoundaryReached;
     BOOL _segmentWaitingForAudioCompletion;
@@ -952,6 +971,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 - (instancetype)initWithPath:(NSString *)path
 	           startMilliseconds:(NSInteger)startMilliseconds
 	             endMilliseconds:(NSInteger)endMilliseconds
+	       pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
 	                       layer:(AVSampleBufferDisplayLayer *)displayLayer
 	                    delegate:(id<SFXNativePlaybackPlayerDelegate>)delegate
 	                      owner:(SFXNativePlaybackPlayer *)owner
@@ -981,6 +1001,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    _seekSeconds = MAX(0, (double)startMilliseconds / 1000.0);
 	    NSInteger safeEndMilliseconds = SFXSanitizedSegmentEndMilliseconds(startMilliseconds, endMilliseconds);
 	    _segmentEndSeconds = safeEndMilliseconds >= 0 ? (double)safeEndMilliseconds / 1000.0 : -1;
+	    _pausesAtSegmentEnd = pausesAtSegmentEnd && safeEndMilliseconds >= 0;
 	    _currentTime = _seekSeconds;
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
@@ -1157,6 +1178,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     return (NSInteger)llround(_segmentEndSeconds * 1000.0);
 }
 
+- (BOOL)pausesAtSegmentEnd {
+    @synchronized (self) {
+        return _pausesAtSegmentEnd;
+    }
+}
+
 - (BOOL)segmentAudioBoundarySatisfiedLocked {
     return atomic_load(&_segmentAudioBoundaryReached)
         || _audioCodecContext == NULL
@@ -1259,6 +1286,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
 
     BOOL shouldNotify = NO;
+    BOOL pausesAtSegmentEnd = NO;
     @synchronized (self) {
         if (_segmentEndReached || _segmentFinishNotified) {
             return;
@@ -1271,12 +1299,25 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
         _segmentEndReached = YES;
         _currentTime = _segmentEndSeconds;
+        pausesAtSegmentEnd = _pausesAtSegmentEnd;
         shouldNotify = YES;
     }
 
-    atomic_store(&_segmentEnding, true);
+    if (pausesAtSegmentEnd) {
+        double now = CACurrentMediaTime();
+        @synchronized (self) {
+            _isPausedInsideLoop = YES;
+            _pauseStartedHostSeconds = now;
+        }
+        atomic_store(&_paused, true);
+    } else {
+        atomic_store(&_segmentEnding, true);
+    }
     atomic_store(&_playing, false);
     [_packetQueueCondition lock];
+    if (pausesAtSegmentEnd) {
+        _readAheadSuspended = YES;
+    }
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
 
@@ -1406,6 +1447,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
 
     NSInteger endMilliseconds = SFXNoSegmentEndMilliseconds;
+    BOOL pausesAtSegmentEnd = NO;
     @synchronized (self) {
         if (!_segmentEndReached || _segmentFinishNotified) {
             return;
@@ -1413,6 +1455,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         _segmentFinishNotified = YES;
         _currentTime = _segmentEndSeconds;
         endMilliseconds = [self segmentEndMilliseconds];
+        pausesAtSegmentEnd = _pausesAtSegmentEnd;
         _segmentFinishNotificationCount += 1;
         _lastFinishedSegmentEndMilliseconds = endMilliseconds;
     }
@@ -1431,7 +1474,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        if ([delegate respondsToSelector:@selector(nativePlaybackPlayer:didFinishSegmentAtMilliseconds:)]) {
+        if (pausesAtSegmentEnd
+            && [delegate respondsToSelector:@selector(nativePlaybackPlayer:didReachAutoStopBoundaryAtMilliseconds:)]) {
+            [delegate nativePlaybackPlayer:owner didReachAutoStopBoundaryAtMilliseconds:endMilliseconds];
+        } else if (!pausesAtSegmentEnd
+                   && [delegate respondsToSelector:@selector(nativePlaybackPlayer:didFinishSegmentAtMilliseconds:)]) {
             [delegate nativePlaybackPlayer:owner didFinishSegmentAtMilliseconds:endMilliseconds];
         }
     });
@@ -1789,6 +1836,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
+	       pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
 	 presentationGeneration:(NSUInteger)presentationGeneration
 		      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 		                     error:(NSError **)error {
@@ -1815,6 +1863,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    _seekRequestGeneration = generation;
 	    _pendingSeekSeconds = seekSeconds;
 	    _pendingSeekSegmentEndSeconds = segmentEndSeconds;
+	    _pendingSeekPausesAtSegmentEnd = pausesAtSegmentEnd && safeEndMilliseconds >= 0;
 	    _pendingSeekPresentationGeneration = presentationGeneration;
 	    _pendingSeekPauseAfterFirstFrame = pauseAfterFirstFrame;
     _seekRequestPending = YES;
@@ -2448,6 +2497,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    NSUInteger generation = _seekRequestGeneration;
 	    double seekSeconds = _pendingSeekSeconds;
 	    double segmentEndSeconds = _pendingSeekSegmentEndSeconds;
+	    BOOL pausesAtSegmentEnd = _pendingSeekPausesAtSegmentEnd;
 	    NSUInteger presentationGeneration = _pendingSeekPresentationGeneration;
 	    BOOL pauseAfterFirstFrame = _pendingSeekPauseAfterFirstFrame;
     _seekRequestPending = NO;
@@ -2457,6 +2507,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     NSError *seekError = nil;
 	    BOOL succeeded = [self applyInSessionSeekToSeconds:seekSeconds
 	                                  segmentEndSeconds:segmentEndSeconds
+	                              pausesAtSegmentEnd:pausesAtSegmentEnd
 	                             presentationGeneration:presentationGeneration
 	                                  pauseAfterFirstFrame:pauseAfterFirstFrame
 	                                                 error:&seekError];
@@ -2472,8 +2523,31 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     return YES;
 }
 
+- (BOOL)waitForAutoStopSeekIfNeeded {
+    BOOL shouldKeepSessionAlive = NO;
+    @synchronized (self) {
+        shouldKeepSessionAlive = _pausesAtSegmentEnd
+            && atomic_load(&_segmentVideoBoundaryReached);
+    }
+    if (!shouldKeepSessionAlive) {
+        return NO;
+    }
+
+    [_packetQueueCondition lock];
+    while (!atomic_load(&_cancelled)
+           && !atomic_load(&_segmentEnding)
+           && !atomic_load(&_finishingForAutomaticRecycle)
+           && ![self hasPendingSeekRequestLocked]) {
+        [_packetQueueCondition wait];
+    }
+    BOOL hasPendingSeek = [self hasPendingSeekRequestLocked];
+    [_packetQueueCondition unlock];
+    return hasPendingSeek;
+}
+
 - (BOOL)applyInSessionSeekToSeconds:(double)seekSeconds
                   segmentEndSeconds:(double)segmentEndSeconds
+	              pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
 	         presentationGeneration:(NSUInteger)presentationGeneration
 	              pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 	                             error:(NSError **)error {
@@ -2569,6 +2643,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    @synchronized (self) {
 	        _seekSeconds = seekSeconds;
 	        _segmentEndSeconds = segmentEndSeconds;
+	        _pausesAtSegmentEnd = pausesAtSegmentEnd && segmentEndSeconds >= 0;
 	        _segmentEndReached = NO;
 	        _segmentFinishNotified = NO;
 	        _currentTime = seekSeconds;
@@ -2629,6 +2704,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         SFXQueuedPacket *queuedPacket = [self dequeueVideoPacket];
         if (queuedPacket == NULL) {
             if ([self performPendingSeekIfNeeded]) {
+                continue;
+            }
+            if ([self waitForAutoStopSeekIfNeeded]) {
                 continue;
             }
             break;
@@ -4243,6 +4321,23 @@ startMilliseconds:(NSInteger)startMilliseconds
     return [self openPath:path
         startMilliseconds:startMilliseconds
           endMilliseconds:endMilliseconds
+       pausesAtSegmentEnd:NO
+       presentationGeneration:presentationGeneration
+       flushDisplayBeforeStart:NO
+      pauseAfterFirstFrame:NO
+ allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+                    error:error];
+}
+
+- (BOOL)openPath:(NSString *)path
+startMilliseconds:(NSInteger)startMilliseconds
+autoStopAtMilliseconds:(NSInteger)endMilliseconds
+                  error:(NSError **)error {
+    NSUInteger presentationGeneration = [self beginPresentationTransition];
+    return [self openPath:path
+        startMilliseconds:startMilliseconds
+          endMilliseconds:endMilliseconds
+       pausesAtSegmentEnd:YES
        presentationGeneration:presentationGeneration
        flushDisplayBeforeStart:NO
       pauseAfterFirstFrame:NO
@@ -4253,6 +4348,7 @@ startMilliseconds:(NSInteger)startMilliseconds
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
  endMilliseconds:(NSInteger)endMilliseconds
+pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
 presentationGeneration:(NSUInteger)presentationGeneration
 flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
  pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
@@ -4265,6 +4361,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         initWithPath:path
         startMilliseconds:startMilliseconds
         endMilliseconds:endMilliseconds
+        pausesAtSegmentEnd:pausesAtSegmentEnd
         layer:_nativeView.displayLayer
         delegate:self.delegate
         owner:self
@@ -4292,6 +4389,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds error:(NSError **)error {
     return [self seekToMilliseconds:milliseconds
                    endMilliseconds:SFXNoSegmentEndMilliseconds
+               pausesAtSegmentEnd:NO
                 pauseAfterFirstFrame:NO
                                error:error];
 }
@@ -4301,6 +4399,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                      error:(NSError **)error {
     return [self seekToMilliseconds:milliseconds
                      endMilliseconds:SFXNoSegmentEndMilliseconds
+                 pausesAtSegmentEnd:NO
                 pauseAfterFirstFrame:pauseAfterFirstFrame
                                error:error];
 }
@@ -4310,12 +4409,35 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
                      error:(NSError **)error {
     return [self seekToMilliseconds:milliseconds
                      endMilliseconds:endMilliseconds
+                 pausesAtSegmentEnd:NO
+                pauseAfterFirstFrame:NO
+                               error:error];
+}
+
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+    autoStopAtMilliseconds:(NSInteger)endMilliseconds
+                     error:(NSError **)error {
+    return [self seekToMilliseconds:milliseconds
+                     endMilliseconds:endMilliseconds
+                 pausesAtSegmentEnd:YES
                 pauseAfterFirstFrame:NO
                                error:error];
 }
 
 - (BOOL)seekToMilliseconds:(NSInteger)milliseconds
            endMilliseconds:(NSInteger)endMilliseconds
+      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+                     error:(NSError **)error {
+    return [self seekToMilliseconds:milliseconds
+                     endMilliseconds:endMilliseconds
+                 pausesAtSegmentEnd:NO
+                pauseAfterFirstFrame:pauseAfterFirstFrame
+                               error:error];
+}
+
+- (BOOL)seekToMilliseconds:(NSInteger)milliseconds
+           endMilliseconds:(NSInteger)endMilliseconds
+       pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
       pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
                      error:(NSError **)error {
     if (_currentPath == nil) {
@@ -4340,6 +4462,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         return [self openPath:_currentPath
             startMilliseconds:milliseconds
               endMilliseconds:endMilliseconds
+           pausesAtSegmentEnd:pausesAtSegmentEnd
            presentationGeneration:presentationGeneration
            flushDisplayBeforeStart:NO
           pauseAfterFirstFrame:pauseAfterFirstFrame
@@ -4349,6 +4472,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     if (![session seekToMilliseconds:milliseconds
                       endMilliseconds:endMilliseconds
+                  pausesAtSegmentEnd:pausesAtSegmentEnd
              presentationGeneration:presentationGeneration
                  pauseAfterFirstFrame:pauseAfterFirstFrame
                                 error:error]) {
@@ -4485,6 +4609,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 	        BOOL opened = [self openPath:path
 	            startMilliseconds:MAX(0, milliseconds)
 	              endMilliseconds:session.segmentEndMilliseconds
+	           pausesAtSegmentEnd:session.pausesAtSegmentEnd
 	           presentationGeneration:presentationGeneration
 	           flushDisplayBeforeStart:NO
 	          pauseAfterFirstFrame:NO

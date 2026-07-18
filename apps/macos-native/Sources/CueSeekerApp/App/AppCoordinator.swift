@@ -448,10 +448,10 @@ final class AppCoordinator: ObservableObject {
     var shioriPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
     var playbackReturnContext: PlaybackReturnContext?
-    var currentCueSegmentFinished = false
+    var currentCueAutoStopReached = false
     var currentCueAutoSwitchBoundaryReached = false
     var cuePlaybackGeneration = 0
-    var activeCueSegmentEndMilliseconds: Int?
+    var activeCueAutoStopEndMilliseconds: Int?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []

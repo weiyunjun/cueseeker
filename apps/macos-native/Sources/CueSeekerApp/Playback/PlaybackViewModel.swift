@@ -94,7 +94,7 @@ public final class PlaybackViewModel: ObservableObject {
     private let onPlaybackSpeedChanged: (Double) -> Void
     private let onSubtitlesVisibleChanged: (Bool) -> Void
     private let onPlaybackTimeUpdated: (Double, Double) -> Void
-    private let onSegmentFinished: (Int) -> Void
+    private let onAutoStopBoundaryReached: (Int) -> Void
     private let onPresentationCommitted: (Bool) -> Void
     private let uiProbeScope: String?
     private var pendingPresentation: PendingPresentation?
@@ -111,7 +111,7 @@ public final class PlaybackViewModel: ObservableObject {
         onPlaybackSpeedChanged: @escaping (Double) -> Void = { _ in },
         onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in },
         onPlaybackTimeUpdated: @escaping (Double, Double) -> Void = { _, _ in },
-        onSegmentFinished: @escaping (Int) -> Void = { _ in },
+        onAutoStopBoundaryReached: @escaping (Int) -> Void = { _ in },
         onPresentationCommitted: @escaping (Bool) -> Void = { _ in }
     ) {
         self.player = player
@@ -120,7 +120,7 @@ public final class PlaybackViewModel: ObservableObject {
         self.onPlaybackSpeedChanged = onPlaybackSpeedChanged
         self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
         self.onPlaybackTimeUpdated = onPlaybackTimeUpdated
-        self.onSegmentFinished = onSegmentFinished
+        self.onAutoStopBoundaryReached = onAutoStopBoundaryReached
         self.onPresentationCommitted = onPresentationCommitted
         self.uiProbeScope = uiProbeScope
 
@@ -865,11 +865,14 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         print("Native playback failed: \(message)")
     }
 
-    nonisolated public func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {
+    nonisolated public func player(
+        _ player: PlaybackPlayer,
+        didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int
+    ) {
         Task { @MainActor in
             self.isPlaying = false
             self.publishDisplayedCurrentTimeIfNeeded(force: true)
-            self.onSegmentFinished(endMilliseconds)
+            self.onAutoStopBoundaryReached(endMilliseconds)
         }
     }
 

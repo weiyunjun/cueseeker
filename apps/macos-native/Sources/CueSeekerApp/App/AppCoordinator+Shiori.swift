@@ -436,7 +436,7 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
         }
-        clearCueSegmentPlayback()
+        clearCueAutoStopPlayback()
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil
@@ -469,7 +469,7 @@ extension AppCoordinator {
         playsContinuouslyFromStart: Bool = false
     ) -> Bool {
         ensurePlayerInitialized()
-        beginCueSegmentPlayback()
+        beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
@@ -482,7 +482,7 @@ extension AppCoordinator {
         )
 
         do {
-            let segment = configureCuePlaybackBoundary(
+            let autoStopBoundary = configureCueAutoStopBoundary(
                 startMilliseconds: shiori.startMilliseconds,
                 endMilliseconds: shiori.endMilliseconds,
                 playsContinuouslyFromStart: playsContinuouslyFromStart
@@ -490,7 +490,7 @@ extension AppCoordinator {
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: shiori.videoPath),
                 startMilliseconds: shiori.startMilliseconds,
-                segmentEndMilliseconds: segment?.endMilliseconds,
+                autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                 subtitleSource: playbackSubtitleSource(for: shiori)
             )
 
@@ -500,9 +500,9 @@ extension AppCoordinator {
 
             let generation: UInt
             if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
-                if let segment {
+                if let autoStopBoundary {
                     generation = try player.seek(
-                        to: segment,
+                        to: autoStopBoundary,
                         subtitleSource: request.subtitleSource
                     )
                 } else {
@@ -524,7 +524,7 @@ extension AppCoordinator {
             return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()
-            clearCueSegmentPlayback()
+            clearCueAutoStopPlayback()
             playbackSubtitleCuesTask?.cancel()
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))

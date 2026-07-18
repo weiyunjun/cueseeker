@@ -71,6 +71,119 @@ func nativePlaybackUsesCommonTimelineWhenVideoTrackStartsAfterAudio() async thro
     #expect(player.nativeLastSubmittedVideoFrameMilliseconds < 4_500)
 }
 
+@Test
+@MainActor
+func nativeAutoStopKeepsSessionAliveAndResumesFromBoundary() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping native auto-stop regression test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let mediaURL = directory.appendingPathComponent("auto-stop-resume.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=4:size=160x90:rate=24",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "12",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            "-y",
+            mediaURL.path
+        ]
+    )
+
+    let boundaryMilliseconds = 1_500
+    let player = SFXNativePlaybackPlayer()
+    let delegate = NativeAutoStopDelegate()
+    player.delegate = delegate
+    player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
+    defer {
+        player.stop()
+    }
+
+    try player.openPath(
+        mediaURL.path,
+        startMilliseconds: 0,
+        autoStopAtMilliseconds: boundaryMilliseconds
+    )
+    try player.setPaused(false)
+
+    let reachedBoundary = await waitUntil(timeoutSeconds: 5) {
+        delegate.reachedBoundaryMilliseconds == boundaryMilliseconds
+    }
+    #expect(reachedBoundary)
+    #expect(!player.isPlaying)
+    #expect(player.nativeLastSubmittedVideoFrameMilliseconds < boundaryMilliseconds)
+    let openCountAtBoundary = player.nativeSessionOpenCount
+    let seekCountAtBoundary = player.nativeInSessionSeekCount
+
+    try player.seek(toMilliseconds: boundaryMilliseconds)
+    try player.setPaused(false)
+
+    let resumedPastBoundary = await waitUntil(timeoutSeconds: 5) {
+        player.nativeLastSubmittedVideoFrameMilliseconds >= boundaryMilliseconds
+    }
+    #expect(resumedPastBoundary)
+    #expect(player.nativeSessionOpenCount == openCountAtBoundary)
+    #expect(player.nativeInSessionSeekCount == seekCountAtBoundary + 1)
+}
+
+private final class NativeAutoStopDelegate: NSObject, SFXNativePlaybackPlayerDelegate {
+    private let lock = NSLock()
+    private var boundaryMilliseconds: Int?
+
+    func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didUpdateTime time: Double,
+        duration: Double,
+        playing: Bool
+    ) {}
+
+    func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didFailWithMessage message: String
+    ) {}
+
+    func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int
+    ) {
+        lock.lock()
+        boundaryMilliseconds = endMilliseconds
+        lock.unlock()
+    }
+
+    var reachedBoundaryMilliseconds: Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        return boundaryMilliseconds
+    }
+}
+
 private func executableURL(named name: String) -> URL? {
     let searchPaths = [
         "/opt/homebrew/bin/\(name)",

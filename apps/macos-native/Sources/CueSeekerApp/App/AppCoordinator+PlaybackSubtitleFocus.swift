@@ -408,7 +408,7 @@ extension AppCoordinator {
                 guard continuousPlay(context) else {
                     return true
                 }
-                clearCueSegmentPlayback()
+                clearCueAutoStopPlayback()
                 playback.playbackStatus = .playing
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             case .playlist(let item):

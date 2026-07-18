@@ -17,6 +17,17 @@ public struct PlaybackSegment: Equatable, Sendable {
     }
 }
 
+public struct PlaybackAutoStopBoundary: Equatable, Sendable {
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+
+    public init(startMilliseconds: Int, endMilliseconds: Int) {
+        let startMilliseconds = max(0, startMilliseconds)
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = max(startMilliseconds, endMilliseconds)
+    }
+}
+
 public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Equatable {
     case hardware
     case software
@@ -180,12 +191,14 @@ public struct PlaybackRequest: Equatable, Sendable {
     public let videoURL: URL
     public let startMilliseconds: Int
     public let segmentEndMilliseconds: Int?
+    public let autoStopAtMilliseconds: Int?
     public let subtitleSource: PlaybackSubtitleSource?
 
     public init(
         videoURL: URL,
         startMilliseconds: Int,
         segmentEndMilliseconds: Int? = nil,
+        autoStopAtMilliseconds: Int? = nil,
         subtitleSource: PlaybackSubtitleSource? = nil
     ) throws {
         guard videoURL.isFileURL else {
@@ -200,6 +213,9 @@ public struct PlaybackRequest: Equatable, Sendable {
         self.videoURL = videoURL
         self.startMilliseconds = safeStartMilliseconds
         self.segmentEndMilliseconds = segmentEndMilliseconds.map {
+            max(safeStartMilliseconds, $0)
+        }
+        self.autoStopAtMilliseconds = autoStopAtMilliseconds.map {
             max(safeStartMilliseconds, $0)
         }
         self.subtitleSource = subtitleSource?.fillingPlaybackRequestDefaults(
