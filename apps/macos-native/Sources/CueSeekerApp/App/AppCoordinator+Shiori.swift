@@ -482,12 +482,11 @@ extension AppCoordinator {
         )
 
         do {
-            let segment = autoSwitchCuePlaybackSegment(
+            let segment = configureCuePlaybackBoundary(
                 startMilliseconds: shiori.startMilliseconds,
                 endMilliseconds: shiori.endMilliseconds,
                 playsContinuouslyFromStart: playsContinuouslyFromStart
             )
-            activateCueSegmentPlayback(segment)
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: shiori.videoPath),
                 startMilliseconds: shiori.startMilliseconds,

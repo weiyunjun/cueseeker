@@ -81,7 +81,9 @@ final class SettingsStore: ObservableObject {
     private static let searchScopeKey = "searchScope"
     private static let showCueGroupKey = "showCueGroup"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
-    private static let autoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
+    private static let legacyAutoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
+    private static let onlyPlayCuesInPlaylistEnabledKey = "onlyPlayCuesInPlaylistEnabled"
+    private static let autoSwitchToNextCuesInPlaylistEnabledKey = "autoSwitchToNextCuesInPlaylistEnabled"
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
     private static let playbackSpeakerDisplayEnabledKey = "playbackSpeakerDisplayEnabled"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
@@ -93,9 +95,9 @@ final class SettingsStore: ObservableObject {
     private static let aiChunkingPromptTemplateKey = "aiChunkingPromptTemplate"
     private static let aiChunkingPromptDefaultVersionKey = "aiChunkingPromptDefaultVersion"
     private static let aiChunkingPromptDefaultVersion = "20260528-multi-plan-merge"
-    static let autoPlayCueSequenceGapDefaultMilliseconds = 500
-    static let autoPlayCueSequenceGapMinimumMilliseconds = 0
-    static let autoPlayCueSequenceGapMaximumMilliseconds = 10_000
+    static let autoSwitchCueSequenceGapDefaultMilliseconds = 500
+    static let autoSwitchCueSequenceGapMinimumMilliseconds = 0
+    static let autoSwitchCueSequenceGapMaximumMilliseconds = 10_000
 
     @Published var appAppearanceMode: AppAppearanceMode {
         didSet {
@@ -129,13 +131,25 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var autoPlayCueSequenceEnabled: Bool {
+    @Published var onlyPlayCuesInPlaylistEnabled: Bool {
         didSet {
-            userDefaults.set(autoPlayCueSequenceEnabled, forKey: Self.autoPlayCueSequenceEnabledKey)
+            userDefaults.set(
+                onlyPlayCuesInPlaylistEnabled,
+                forKey: Self.onlyPlayCuesInPlaylistEnabledKey
+            )
         }
     }
 
-    @Published private(set) var autoPlayCueSequenceGapMilliseconds: Int
+    @Published var autoSwitchToNextCuesInPlaylistEnabled: Bool {
+        didSet {
+            userDefaults.set(
+                autoSwitchToNextCuesInPlaylistEnabled,
+                forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey
+            )
+        }
+    }
+
+    @Published private(set) var autoSwitchCueSequenceGapMilliseconds: Int
 
     @Published var playbackSpeakerDisplayEnabled: Bool {
         didSet {
@@ -202,14 +216,29 @@ final class SettingsStore: ObservableObject {
     ) {
         self.userDefaults = userDefaults
         self.credentialStore = credentialStore
+        let hasStoredOnlyPlayCuesPreference = userDefaults.object(
+            forKey: Self.onlyPlayCuesInPlaylistEnabledKey
+        ) != nil
+        let hasStoredAutoSwitchPreference = userDefaults.object(
+            forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey
+        ) != nil
+        let hasLegacyAutoSwitchPreference = userDefaults.object(
+            forKey: Self.legacyAutoPlayCueSequenceEnabledKey
+        ) != nil
+        let legacyAutoSwitchWasEnabled = hasLegacyAutoSwitchPreference
+            && userDefaults.bool(forKey: Self.legacyAutoPlayCueSequenceEnabledKey)
+        let resolvedAutoSwitchPreference = legacyAutoSwitchWasEnabled
+            || (hasStoredAutoSwitchPreference
+                && userDefaults.bool(forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey))
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.primarySearchLanguageKey: PrimarySearchLanguage.defaultValue.rawValue,
             Self.searchScopeKey: SearchScope.defaultValue.rawValue,
             Self.showCueGroupKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
-            Self.autoPlayCueSequenceEnabledKey: false,
-            Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoPlayCueSequenceGapDefaultMilliseconds,
+            Self.onlyPlayCuesInPlaylistEnabledKey: true,
+            Self.autoSwitchToNextCuesInPlaylistEnabledKey: false,
+            Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoSwitchCueSequenceGapDefaultMilliseconds,
             Self.playbackSpeakerDisplayEnabledKey: false,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
@@ -231,8 +260,13 @@ final class SettingsStore: ObservableObject {
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.searchScope = Self.loadSearchScope(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
-        self.autoPlayCueSequenceEnabled = userDefaults.bool(forKey: Self.autoPlayCueSequenceEnabledKey)
-        self.autoPlayCueSequenceGapMilliseconds = Self.loadAutoPlayCueSequenceGapMilliseconds(from: userDefaults)
+        self.onlyPlayCuesInPlaylistEnabled = hasStoredOnlyPlayCuesPreference
+            ? userDefaults.bool(forKey: Self.onlyPlayCuesInPlaylistEnabledKey)
+            : true
+        self.autoSwitchToNextCuesInPlaylistEnabled = resolvedAutoSwitchPreference
+        self.autoSwitchCueSequenceGapMilliseconds = Self.loadAutoSwitchCueSequenceGapMilliseconds(
+            from: userDefaults
+        )
         self.playbackSpeakerDisplayEnabled = userDefaults.bool(forKey: Self.playbackSpeakerDisplayEnabledKey)
         self.searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
@@ -249,6 +283,19 @@ final class SettingsStore: ObservableObject {
             for: .deepSeek,
             credentialStore: credentialStore
         )
+
+        if !hasStoredOnlyPlayCuesPreference {
+            userDefaults.set(true, forKey: Self.onlyPlayCuesInPlaylistEnabledKey)
+        }
+        if !hasStoredAutoSwitchPreference || hasLegacyAutoSwitchPreference {
+            userDefaults.set(
+                resolvedAutoSwitchPreference,
+                forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey
+            )
+        }
+        if hasLegacyAutoSwitchPreference {
+            userDefaults.removeObject(forKey: Self.legacyAutoPlayCueSequenceEnabledKey)
+        }
 
         Self.applyAppAppearanceMode(loadedAppearance)
     }
@@ -296,10 +343,10 @@ final class SettingsStore: ObservableObject {
         userDefaults.set(Self.aiChunkingPromptDefaultVersion, forKey: Self.aiChunkingPromptDefaultVersionKey)
     }
 
-    func setAutoPlayCueSequenceGapMilliseconds(_ milliseconds: Int) {
-        autoPlayCueSequenceGapMilliseconds = Self.clampedAutoPlayCueSequenceGapMilliseconds(milliseconds)
+    func setAutoSwitchCueSequenceGapMilliseconds(_ milliseconds: Int) {
+        autoSwitchCueSequenceGapMilliseconds = Self.clampedAutoSwitchCueSequenceGapMilliseconds(milliseconds)
         userDefaults.set(
-            autoPlayCueSequenceGapMilliseconds,
+            autoSwitchCueSequenceGapMilliseconds,
             forKey: Self.autoPlayCueSequenceGapMillisecondsKey
         )
     }
@@ -347,16 +394,16 @@ final class SettingsStore: ObservableObject {
         return mode
     }
 
-    private static func loadAutoPlayCueSequenceGapMilliseconds(from userDefaults: UserDefaults) -> Int {
-        clampedAutoPlayCueSequenceGapMilliseconds(
+    private static func loadAutoSwitchCueSequenceGapMilliseconds(from userDefaults: UserDefaults) -> Int {
+        clampedAutoSwitchCueSequenceGapMilliseconds(
             userDefaults.integer(forKey: autoPlayCueSequenceGapMillisecondsKey)
         )
     }
 
-    static func clampedAutoPlayCueSequenceGapMilliseconds(_ milliseconds: Int) -> Int {
+    static func clampedAutoSwitchCueSequenceGapMilliseconds(_ milliseconds: Int) -> Int {
         min(
-            max(milliseconds, autoPlayCueSequenceGapMinimumMilliseconds),
-            autoPlayCueSequenceGapMaximumMilliseconds
+            max(milliseconds, autoSwitchCueSequenceGapMinimumMilliseconds),
+            autoSwitchCueSequenceGapMaximumMilliseconds
         )
     }
 

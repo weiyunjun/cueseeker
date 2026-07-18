@@ -5,30 +5,32 @@ import Testing
 
 @MainActor
 @Test
-func settingsStoreDefaultsCueSequenceAutoPlaySettings() {
+func settingsStoreDefaultsPlaylistCueSettingsIndependently() {
     withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
         let store = SettingsStore(
             userDefaults: userDefaults,
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(!store.autoPlayCueSequenceEnabled)
-        #expect(store.autoPlayCueSequenceGapMilliseconds == 500)
+        #expect(store.onlyPlayCuesInPlaylistEnabled)
+        #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 500)
         #expect(!store.playbackSpeakerDisplayEnabled)
     }
 }
 
 @MainActor
 @Test
-func settingsStorePersistsCueSequenceAutoPlaySettings() {
+func settingsStorePersistsPlaylistCueSettingsIndependently() {
     withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
         let store = SettingsStore(
             userDefaults: userDefaults,
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        store.autoPlayCueSequenceEnabled = true
-        store.setAutoPlayCueSequenceGapMilliseconds(750)
+        store.onlyPlayCuesInPlaylistEnabled = false
+        store.autoSwitchToNextCuesInPlaylistEnabled = true
+        store.setAutoSwitchCueSequenceGapMilliseconds(750)
         store.playbackSpeakerDisplayEnabled = true
 
         let reloadedStore = SettingsStore(
@@ -36,33 +38,59 @@ func settingsStorePersistsCueSequenceAutoPlaySettings() {
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(reloadedStore.autoPlayCueSequenceEnabled)
-        #expect(reloadedStore.autoPlayCueSequenceGapMilliseconds == 750)
+        #expect(!reloadedStore.onlyPlayCuesInPlaylistEnabled)
+        #expect(reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
+        #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 750)
         #expect(reloadedStore.playbackSpeakerDisplayEnabled)
     }
 }
 
 @MainActor
 @Test
-func settingsStoreClampsCueSequenceAutoPlayGap() {
+func settingsStoreMigratesEnabledLegacyAutoPlayToBothPlaylistBehaviors() {
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
+        userDefaults.set(true, forKey: "autoPlayCueSequenceEnabled")
+
+        let store = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(store.onlyPlayCuesInPlaylistEnabled)
+        #expect(store.autoSwitchToNextCuesInPlaylistEnabled)
+
+        userDefaults.set(false, forKey: "autoPlayCueSequenceEnabled")
+        let reloadedStore = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(reloadedStore.onlyPlayCuesInPlaylistEnabled)
+        #expect(reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreClampsCueSequenceAutoSwitchGap() {
     withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
         let store = SettingsStore(
             userDefaults: userDefaults,
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        store.setAutoPlayCueSequenceGapMilliseconds(-1)
-        #expect(store.autoPlayCueSequenceGapMilliseconds == 0)
+        store.setAutoSwitchCueSequenceGapMilliseconds(-1)
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 0)
 
-        store.setAutoPlayCueSequenceGapMilliseconds(10_001)
-        #expect(store.autoPlayCueSequenceGapMilliseconds == 10_000)
+        store.setAutoSwitchCueSequenceGapMilliseconds(10_001)
+        #expect(store.autoSwitchCueSequenceGapMilliseconds == 10_000)
 
         let reloadedStore = SettingsStore(
             userDefaults: userDefaults,
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        #expect(reloadedStore.autoPlayCueSequenceGapMilliseconds == 10_000)
+        #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 10_000)
     }
 }
 

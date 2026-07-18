@@ -8,6 +8,21 @@ struct PlaybackKeyboardTextInputState: Equatable, Sendable {
     let hasMarkedText: Bool
 }
 
+struct ContinuousCueAutoSwitchBoundary: Equatable, Sendable {
+    let startMilliseconds: Int
+    let endMilliseconds: Int
+    var hasObservedCuePlayback = false
+
+    init(startMilliseconds: Int, endMilliseconds: Int) {
+        let segment = PlaybackSegment(
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
+        self.startMilliseconds = segment.startMilliseconds
+        self.endMilliseconds = segment.endMilliseconds
+    }
+}
+
 @MainActor
 extension AppCoordinator {
     func togglePlaybackFullscreenFromUser() {
@@ -143,7 +158,7 @@ extension AppCoordinator {
                 self?.userDefaults.set(isVisible, forKey: Self.playbackSubtitlesVisibleKey)
             },
             onPlaybackTimeUpdated: { [weak self] currentTime, duration in
-                self?.markCurrentLibraryPlaybackCompletedIfNeeded(
+                self?.handlePlaybackTimeUpdated(
                     currentTime: currentTime,
                     duration: duration
                 )
@@ -157,6 +172,19 @@ extension AppCoordinator {
                 }
                 self.playback.playbackStatus = isPlaying ? .playing : .paused
             }
+        )
+    }
+
+    func handlePlaybackTimeUpdated(currentTime: Double, duration: Double) {
+        markCurrentLibraryPlaybackCompletedIfNeeded(
+            currentTime: currentTime,
+            duration: duration
+        )
+        guard currentTime.isFinite else {
+            return
+        }
+        handleContinuousCueAutoSwitchPlaybackTime(
+            currentTimeMilliseconds: Int((max(0, currentTime) * 1_000).rounded(.down))
         )
     }
 
@@ -365,12 +393,11 @@ extension AppCoordinator {
         )
 
         do {
-            let segment = autoSwitchCuePlaybackSegment(
+            let segment = configureCuePlaybackBoundary(
                 startMilliseconds: result.startMilliseconds,
                 endMilliseconds: result.endMilliseconds,
                 playsContinuouslyFromStart: playsContinuouslyFromStart
             )
-            activateCueSegmentPlayback(segment)
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
                 startMilliseconds: result.startMilliseconds,
@@ -416,13 +443,13 @@ extension AppCoordinator {
         }
     }
 
-    func autoSwitchCuePlaybackSegment(
+    func cuePlaybackSegment(
         startMilliseconds: Int,
         endMilliseconds: Int,
         playsContinuouslyFromStart: Bool = false
     ) -> PlaybackSegment? {
         guard !playsContinuouslyFromStart,
-              settings.autoPlayCueSequenceEnabled
+              settings.onlyPlayCuesInPlaylistEnabled
         else {
             return nil
         }
@@ -433,6 +460,33 @@ extension AppCoordinator {
         )
     }
 
+    func configureCuePlaybackBoundary(
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        playsContinuouslyFromStart: Bool = false
+    ) -> PlaybackSegment? {
+        let segment = cuePlaybackSegment(
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            playsContinuouslyFromStart: playsContinuouslyFromStart
+        )
+        activateCueSegmentPlayback(segment)
+
+        guard segment == nil,
+              !playsContinuouslyFromStart,
+              settings.autoSwitchToNextCuesInPlaylistEnabled
+        else {
+            activeContinuousCueAutoSwitchBoundary = nil
+            return segment
+        }
+
+        activeContinuousCueAutoSwitchBoundary = ContinuousCueAutoSwitchBoundary(
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds
+        )
+        return segment
+    }
+
     @discardableResult
     func pausePlayback() -> Bool {
         guard let player else {
@@ -441,7 +495,7 @@ extension AppCoordinator {
         }
 
         do {
-            cancelAutoPlayCueSequenceTask()
+            cancelAutoSwitchCueSequenceTask()
             clearCueSubtitlePresentationHold()
             try player.setPaused(true)
             if hasPlaybackSelection {
@@ -477,33 +531,64 @@ extension AppCoordinator {
 
         activeCueSegmentEndMilliseconds = nil
         currentCueSegmentFinished = true
+        currentCueAutoSwitchBoundaryReached = true
         playback.playbackStatus = .paused
 
-        guard settings.autoPlayCueSequenceEnabled else {
+        guard settings.autoSwitchToNextCuesInPlaylistEnabled else {
             return
         }
 
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
-        scheduleAutoPlayCueSequence()
+        scheduleAutoSwitchCueSequence()
+    }
+
+    func handleContinuousCueAutoSwitchPlaybackTime(currentTimeMilliseconds: Int) {
+        guard var boundary = activeContinuousCueAutoSwitchBoundary else {
+            return
+        }
+
+        if currentTimeMilliseconds >= boundary.startMilliseconds,
+           currentTimeMilliseconds < boundary.endMilliseconds {
+            boundary.hasObservedCuePlayback = true
+            activeContinuousCueAutoSwitchBoundary = boundary
+            return
+        }
+
+        guard boundary.hasObservedCuePlayback,
+              currentTimeMilliseconds >= boundary.endMilliseconds
+        else {
+            return
+        }
+
+        activeContinuousCueAutoSwitchBoundary = nil
+        currentCueAutoSwitchBoundaryReached = true
+        guard settings.autoSwitchToNextCuesInPlaylistEnabled else {
+            return
+        }
+        scheduleAutoSwitchCueSequence()
     }
 
     func beginCueSegmentPlayback() {
-        cueSegmentPlaybackGeneration += 1
+        cuePlaybackGeneration += 1
         activeCueSegmentEndMilliseconds = nil
+        activeContinuousCueAutoSwitchBoundary = nil
         currentCueSegmentFinished = false
-        cancelAutoPlayCueSequenceTask()
+        currentCueAutoSwitchBoundaryReached = false
+        cancelAutoSwitchCueSequenceTask()
     }
 
     func clearCueSegmentPlayback() {
-        cueSegmentPlaybackGeneration += 1
+        cuePlaybackGeneration += 1
         activeCueSegmentEndMilliseconds = nil
+        activeContinuousCueAutoSwitchBoundary = nil
         currentCueSegmentFinished = false
-        cancelAutoPlayCueSequenceTask()
+        currentCueAutoSwitchBoundaryReached = false
+        cancelAutoSwitchCueSequenceTask()
     }
 
-    func cancelAutoPlayCueSequenceTask() {
-        autoPlayCueSequenceTask?.cancel()
-        autoPlayCueSequenceTask = nil
+    func cancelAutoSwitchCueSequenceTask() {
+        autoSwitchCueSequenceTask?.cancel()
+        autoSwitchCueSequenceTask = nil
     }
 
     func activateCueSegmentPlayback(_ segment: PlaybackSegment?) {
@@ -572,7 +657,7 @@ extension AppCoordinator {
             return false
         }
 
-        cancelAutoPlayCueSequenceTask()
+        cancelAutoSwitchCueSequenceTask()
         switch activePlaybackSource {
         case .search:
             guard let selectedSearchResult = search.selectedSearchResult else {
@@ -591,13 +676,13 @@ extension AppCoordinator {
         }
     }
 
-    private func scheduleAutoPlayCueSequence() {
-        let generation = cueSegmentPlaybackGeneration
+    private func scheduleAutoSwitchCueSequence() {
+        let generation = cuePlaybackGeneration
         let source = activePlaybackSource
-        let gapMilliseconds = settings.autoPlayCueSequenceGapMilliseconds
+        let gapMilliseconds = settings.autoSwitchCueSequenceGapMilliseconds
 
-        cancelAutoPlayCueSequenceTask()
-        autoPlayCueSequenceTask = Task { [weak self] in
+        cancelAutoSwitchCueSequenceTask()
+        autoSwitchCueSequenceTask = Task { [weak self] in
             if gapMilliseconds > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(gapMilliseconds) * 1_000_000)
             }
@@ -608,15 +693,16 @@ extension AppCoordinator {
 
             await MainActor.run {
                 guard let self,
-                      self.cueSegmentPlaybackGeneration == generation,
-                      self.currentCueSegmentFinished,
+                      self.cuePlaybackGeneration == generation,
+                      self.currentCueAutoSwitchBoundaryReached,
                       self.activePlaybackSource == source,
-                      self.settings.autoPlayCueSequenceEnabled
+                      self.settings.autoSwitchToNextCuesInPlaylistEnabled
                 else {
                     return
                 }
 
-                self.autoPlayCueSequenceTask = nil
+                self.autoSwitchCueSequenceTask = nil
+                self.currentCueAutoSwitchBoundaryReached = false
                 switch source {
                 case .search:
                     self.openAdjacentSearchResult(.next)

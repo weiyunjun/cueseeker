@@ -14,12 +14,23 @@ struct SettingsPlayCategory: View {
             }
 
             HStack(spacing: 16) {
-                Text("Auto Switch to Next Search Result or Shiori Cues")
+                Text("Only Play Cues in Playlist")
                     .font(.headline)
 
                 Spacer()
 
-                Toggle("", isOn: $settingsStore.autoPlayCueSequenceEnabled)
+                Toggle("", isOn: $settingsStore.onlyPlayCuesInPlaylistEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+
+            HStack(spacing: 16) {
+                Text("Auto Switch to Next Cues in Playlist")
+                    .font(.headline)
+
+                Spacer()
+
+                Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
             }
@@ -32,7 +43,7 @@ struct SettingsPlayCategory: View {
 
                 HStack(spacing: 6) {
                     TextField(
-                        "\(SettingsStore.autoPlayCueSequenceGapDefaultMilliseconds)",
+                        "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
                         text: $gapDraft
                     )
                     .textFieldStyle(.roundedBorder)
@@ -74,7 +85,7 @@ struct SettingsPlayCategory: View {
                 commitGapDraft()
             }
         }
-        .onChange(of: settingsStore.autoPlayCueSequenceGapMilliseconds) { _ in
+        .onChange(of: settingsStore.autoSwitchCueSequenceGapMilliseconds) { _ in
             if !isGapFieldFocused {
                 syncGapDraftFromStore()
             }
@@ -92,8 +103,8 @@ struct SettingsPlayCategory: View {
             return
         }
 
-        let clampedMilliseconds = SettingsStore.clampedAutoPlayCueSequenceGapMilliseconds(milliseconds)
-        settingsStore.setAutoPlayCueSequenceGapMilliseconds(clampedMilliseconds)
+        let clampedMilliseconds = SettingsStore.clampedAutoSwitchCueSequenceGapMilliseconds(milliseconds)
+        settingsStore.setAutoSwitchCueSequenceGapMilliseconds(clampedMilliseconds)
         if milliseconds != clampedMilliseconds {
             gapDraft = String(clampedMilliseconds)
         }
@@ -105,12 +116,12 @@ struct SettingsPlayCategory: View {
             return
         }
 
-        let clampedMilliseconds = SettingsStore.clampedAutoPlayCueSequenceGapMilliseconds(milliseconds)
-        settingsStore.setAutoPlayCueSequenceGapMilliseconds(clampedMilliseconds)
+        let clampedMilliseconds = SettingsStore.clampedAutoSwitchCueSequenceGapMilliseconds(milliseconds)
+        settingsStore.setAutoSwitchCueSequenceGapMilliseconds(clampedMilliseconds)
         gapDraft = String(clampedMilliseconds)
     }
 
     private func syncGapDraftFromStore() {
-        gapDraft = String(settingsStore.autoPlayCueSequenceGapMilliseconds)
+        gapDraft = String(settingsStore.autoSwitchCueSequenceGapMilliseconds)
     }
 }

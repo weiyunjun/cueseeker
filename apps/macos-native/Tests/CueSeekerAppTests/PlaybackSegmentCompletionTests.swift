@@ -78,6 +78,8 @@ func appCoordinatorMarksSearchCueSegmentFinishedAsPaused() async throws {
 
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueSegmentFinished)
+        #expect(app.currentCueAutoSwitchBoundaryReached)
+        #expect(app.autoSwitchCueSequenceTask == nil)
     }
 }
 
@@ -96,10 +98,12 @@ func appCoordinatorConsumesCueSegmentCompletionOnlyOnce() async throws {
 
         app.playback.playbackStatus = .playing
         app.currentCueSegmentFinished = false
+        app.currentCueAutoSwitchBoundaryReached = false
         app.handlePlaybackSegmentFinished(endMilliseconds: 2_500)
 
         #expect(app.playback.playbackStatus == .playing)
         #expect(!app.currentCueSegmentFinished)
+        #expect(!app.currentCueAutoSwitchBoundaryReached)
     }
 }
 
@@ -109,7 +113,7 @@ func clearedCueSegmentRejectsLateCompletionDuringContinuousPlayback() async thro
     try await withTemporarySegmentCompletionApp { app, _ in
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.settings.autoPlayCueSequenceEnabled = true
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
         app.activateCueSegmentPlayback(PlaybackSegment(
             startMilliseconds: 1_000,
             endMilliseconds: 2_500
@@ -121,7 +125,8 @@ func clearedCueSegmentRejectsLateCompletionDuringContinuousPlayback() async thro
         #expect(app.activeCueSegmentEndMilliseconds == nil)
         #expect(app.playback.playbackStatus == .playing)
         #expect(!app.currentCueSegmentFinished)
-        #expect(app.autoPlayCueSequenceTask == nil)
+        #expect(!app.currentCueAutoSwitchBoundaryReached)
+        #expect(app.autoSwitchCueSequenceTask == nil)
     }
 }
 
@@ -130,7 +135,7 @@ func clearedCueSegmentRejectsLateCompletionDuringContinuousPlayback() async thro
 func appCoordinatorHoldsSearchCueSubtitleDuringAutoSwitchGap() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()
-        app.settings.autoPlayCueSequenceEnabled = true
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
         let result = SubtitleSearchResult(
             entryID: 1,
             subtitlePath: "/Media/Segment.srt",
@@ -168,7 +173,7 @@ func appCoordinatorHoldsSearchCueSubtitleDuringAutoSwitchGap() async throws {
         #expect(app.currentCueSegmentFinished)
         #expect(app.playback.playbackViewModel?.activeSubtitleText == "hello")
 
-        app.settings.autoPlayCueSequenceEnabled = false
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
         await Task.yield()
 
         #expect(app.playback.playbackViewModel?.activeSubtitleText == nil)
@@ -177,26 +182,79 @@ func appCoordinatorHoldsSearchCueSubtitleDuringAutoSwitchGap() async throws {
 
 @MainActor
 @Test
-func appCoordinatorOnlyBoundsCuePlaybackWhenAutoSwitchIsEnabled() async throws {
+func playlistCueSettingsSupportAllFourIndependentCombinations() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
-        #expect(app.autoSwitchCuePlaybackSegment(
-            startMilliseconds: 1_000,
-            endMilliseconds: 2_500
-        ) == nil)
+        app.activePlaybackSource = .search
+        app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
 
-        app.settings.autoPlayCueSequenceEnabled = true
-        let segment = try #require(app.autoSwitchCuePlaybackSegment(
-            startMilliseconds: 1_000,
-            endMilliseconds: 2_500
-        ))
+        for combination in [
+            (onlyPlay: true, autoSwitch: false),
+            (onlyPlay: true, autoSwitch: true),
+            (onlyPlay: false, autoSwitch: false),
+            (onlyPlay: false, autoSwitch: true)
+        ] {
+            app.beginCueSegmentPlayback()
+            app.settings.onlyPlayCuesInPlaylistEnabled = combination.onlyPlay
+            app.settings.autoSwitchToNextCuesInPlaylistEnabled = combination.autoSwitch
+            app.playback.playbackStatus = .playing
 
-        #expect(segment.startMilliseconds == 1_000)
-        #expect(segment.endMilliseconds == 2_500)
-        #expect(app.autoSwitchCuePlaybackSegment(
+            let segment = app.configureCuePlaybackBoundary(
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_500
+            )
+
+            #expect((segment != nil) == combination.onlyPlay)
+            #expect(
+                (app.activeContinuousCueAutoSwitchBoundary != nil)
+                    == (!combination.onlyPlay && combination.autoSwitch)
+            )
+
+            if combination.onlyPlay {
+                app.handlePlaybackSegmentFinished(endMilliseconds: 2_500)
+
+                #expect(app.playback.playbackStatus == .paused)
+                #expect(app.currentCueSegmentFinished)
+                #expect(
+                    (app.autoSwitchCueSequenceTask != nil)
+                        == combination.autoSwitch
+                )
+            } else if combination.autoSwitch {
+                app.handleContinuousCueAutoSwitchPlaybackTime(currentTimeMilliseconds: 1_000)
+                app.handleContinuousCueAutoSwitchPlaybackTime(currentTimeMilliseconds: 2_500)
+
+                #expect(app.playback.playbackStatus == .playing)
+                #expect(!app.currentCueSegmentFinished)
+                #expect(app.currentCueAutoSwitchBoundaryReached)
+                #expect(app.autoSwitchCueSequenceTask != nil)
+            } else {
+                #expect(app.playback.playbackStatus == .playing)
+                #expect(!app.currentCueSegmentFinished)
+                #expect(!app.currentCueAutoSwitchBoundaryReached)
+                #expect(app.autoSwitchCueSequenceTask == nil)
+            }
+
+            app.cancelAutoSwitchCueSequenceTask()
+        }
+    }
+}
+
+@MainActor
+@Test
+func continuousFromStartBypassesBothPlaylistCueBehaviors() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.settings.onlyPlayCuesInPlaylistEnabled = true
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+
+        let segment = app.configureCuePlaybackBoundary(
             startMilliseconds: 1_000,
             endMilliseconds: 2_500,
             playsContinuouslyFromStart: true
-        ) == nil)
+        )
+
+        #expect(segment == nil)
+        #expect(app.activeCueSegmentEndMilliseconds == nil)
+        #expect(app.activeContinuousCueAutoSwitchBoundary == nil)
+        #expect(app.autoSwitchCueSequenceTask == nil)
     }
 }
 
