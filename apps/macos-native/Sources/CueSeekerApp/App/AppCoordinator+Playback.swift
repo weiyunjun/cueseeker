@@ -485,7 +485,6 @@ extension AppCoordinator {
             cancelAutoSwitchCueSequenceTask()
             clearCueSubtitlePresentationHold()
             currentCueAutoStopReached = false
-            currentCueAutoSwitchBoundaryReached = false
             try player?.setPaused(false)
             if hasPlaybackSelection {
                 playback.playbackStatus = .playing
@@ -502,11 +501,12 @@ extension AppCoordinator {
 
         activeCueAutoStopEndMilliseconds = nil
         currentCueAutoStopReached = true
-        currentCueAutoSwitchBoundaryReached = true
         playback.playbackStatus = .paused
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
 
-        guard settings.autoSwitchToNextCuesInPlaylistEnabled else {
+        guard settings.autoStopAfterCueFinishesEnabled,
+              settings.autoSwitchToNextCuesInPlaylistEnabled
+        else {
             return
         }
 
@@ -517,7 +517,6 @@ extension AppCoordinator {
         cuePlaybackGeneration += 1
         activeCueAutoStopEndMilliseconds = nil
         currentCueAutoStopReached = false
-        currentCueAutoSwitchBoundaryReached = false
         cancelAutoSwitchCueSequenceTask()
     }
 
@@ -525,7 +524,6 @@ extension AppCoordinator {
         cuePlaybackGeneration += 1
         activeCueAutoStopEndMilliseconds = nil
         currentCueAutoStopReached = false
-        currentCueAutoSwitchBoundaryReached = false
         cancelAutoSwitchCueSequenceTask()
     }
 
@@ -598,6 +596,14 @@ extension AppCoordinator {
         let generation = cuePlaybackGeneration
         let source = activePlaybackSource
         let gapMilliseconds = settings.autoSwitchCueSequenceGapMilliseconds
+        guard currentCueAutoStopReached,
+              playback.playbackStatus == .paused,
+              settings.autoStopAfterCueFinishesEnabled,
+              settings.autoSwitchToNextCuesInPlaylistEnabled,
+              source == .search || source == .shiori
+        else {
+            return
+        }
 
         cancelAutoSwitchCueSequenceTask()
         autoSwitchCueSequenceTask = Task { [weak self] in
@@ -612,15 +618,17 @@ extension AppCoordinator {
             await MainActor.run {
                 guard let self,
                       self.cuePlaybackGeneration == generation,
-                      self.currentCueAutoSwitchBoundaryReached,
+                      self.currentCueAutoStopReached,
+                      self.playback.playbackStatus == .paused,
                       self.activePlaybackSource == source,
+                      self.settings.autoStopAfterCueFinishesEnabled,
                       self.settings.autoSwitchToNextCuesInPlaylistEnabled
                 else {
                     return
                 }
 
                 self.autoSwitchCueSequenceTask = nil
-                self.currentCueAutoSwitchBoundaryReached = false
+                self.currentCueAutoStopReached = false
                 switch source {
                 case .search:
                     self.openAdjacentSearchResult(.next)

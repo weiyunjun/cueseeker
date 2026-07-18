@@ -78,7 +78,6 @@ func appCoordinatorMarksSearchCueAutoStopAsPaused() async throws {
 
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueAutoStopReached)
-        #expect(app.currentCueAutoSwitchBoundaryReached)
         #expect(app.autoSwitchCueSequenceTask == nil)
     }
 }
@@ -98,12 +97,10 @@ func appCoordinatorConsumesCueAutoStopBoundaryOnlyOnce() async throws {
 
         app.playback.playbackStatus = .playing
         app.currentCueAutoStopReached = false
-        app.currentCueAutoSwitchBoundaryReached = false
         app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
 
         #expect(app.playback.playbackStatus == .playing)
         #expect(!app.currentCueAutoStopReached)
-        #expect(!app.currentCueAutoSwitchBoundaryReached)
     }
 }
 
@@ -125,7 +122,6 @@ func clearedCueAutoStopRejectsLateCompletionDuringContinuousPlayback() async thr
         #expect(app.activeCueAutoStopEndMilliseconds == nil)
         #expect(app.playback.playbackStatus == .playing)
         #expect(!app.currentCueAutoStopReached)
-        #expect(!app.currentCueAutoSwitchBoundaryReached)
         #expect(app.autoSwitchCueSequenceTask == nil)
     }
 }
@@ -308,12 +304,88 @@ func playlistCueSettingsSupportOnlyThreeValidCombinations() async throws {
             } else {
                 #expect(app.playback.playbackStatus == .playing)
                 #expect(!app.currentCueAutoStopReached)
-                #expect(!app.currentCueAutoSwitchBoundaryReached)
                 #expect(app.autoSwitchCueSequenceTask == nil)
             }
 
             app.cancelAutoSwitchCueSequenceTask()
         }
+    }
+}
+
+@MainActor
+@Test
+func zeroGapAutoSwitchConsumesOnlyTheCompletedAutoStopEvent() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.settings.setAutoSwitchCueSequenceGapMilliseconds(0)
+        app.activePlaybackSource = .search
+        app.playback.playbackStatus = .playing
+        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 1)
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
+
+        app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+        for _ in 0..<10 where app.autoSwitchCueSequenceTask != nil {
+            await Task.yield()
+        }
+
+        #expect(app.autoSwitchCueSequenceTask == nil)
+        #expect(!app.currentCueAutoStopReached)
+    }
+}
+
+@MainActor
+@Test
+func manualResumeCancelsPendingCueAutoSwitch() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
+        app.activePlaybackSource = .search
+        app.playback.playbackStatus = .playing
+        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 1)
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
+        app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+        #expect(app.autoSwitchCueSequenceTask != nil)
+
+        app.resumePlayback()
+
+        #expect(app.autoSwitchCueSequenceTask == nil)
+        #expect(!app.currentCueAutoStopReached)
+        #expect(app.playback.playbackStatus == .playing)
+    }
+}
+
+@MainActor
+@Test
+func replacingCuePlaybackInvalidatesPendingCueAutoSwitch() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.settings.setAutoSwitchCueSequenceGapMilliseconds(20)
+        app.activePlaybackSource = .search
+        app.playback.playbackStatus = .playing
+        let original = segmentCompletionSearchResult(entryID: 1)
+        app.search.selectedSearchResult = original
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_500
+        ))
+        app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+        #expect(app.autoSwitchCueSequenceTask != nil)
+
+        app.beginCueAutoStopPlayback()
+        try? await Task.sleep(nanoseconds: 40_000_000)
+
+        #expect(app.autoSwitchCueSequenceTask == nil)
+        #expect(!app.currentCueAutoStopReached)
+        #expect(app.search.selectedSearchResult?.entryID == original.entryID)
     }
 }
 
@@ -526,6 +598,20 @@ func libraryPlaybackCompletionUsesVideoEndWhenLastSubtitleIsBeforeThreshold() as
         let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(finishedHistory.completedAt != nil)
     }
+}
+
+private func segmentCompletionSearchResult(entryID: Int64) -> SubtitleSearchResult {
+    SubtitleSearchResult(
+        entryID: entryID,
+        subtitlePath: "/Media/Segment.srt",
+        subtitleFormat: .srt,
+        videoPath: "/Media/Segment.mkv",
+        videoName: "Segment",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_500,
+        content: "hello",
+        cueLines: ["hello"]
+    )
 }
 
 @MainActor

@@ -449,7 +449,6 @@ final class AppCoordinator: ObservableObject {
     var activePlaybackSource: ActivePlaybackSource = .none
     var playbackReturnContext: PlaybackReturnContext?
     var currentCueAutoStopReached = false
-    var currentCueAutoSwitchBoundaryReached = false
     var cuePlaybackGeneration = 0
     var activeCueAutoStopEndMilliseconds: Int?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
@@ -593,7 +592,6 @@ final class AppCoordinator: ObservableObject {
                 }
 
                 self.cancelAutoSwitchCueSequenceTask()
-                self.currentCueAutoSwitchBoundaryReached = false
             }
             .store(in: &settingsCancellables)
     }

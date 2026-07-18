@@ -27,19 +27,24 @@ Implementation in progress.
    audio to Cue End, retains the final presented picture and active decode
    session, and resumes through an in-session seek from Cue End when playback
    is continued manually.
+3. Restricted Auto Switch scheduling to a consumed Auto Stop event from Search
+   or Shiori playback. The delayed task now validates the playback generation,
+   source, paused state, and both settings before advancing; manual resume,
+   source replacement, or disabling Auto Switch cancels the pending task.
 
 ## Verification
 
 - The focused SettingsStore selection passed six tests covering defaults,
   three-state normalization, old-key migration, new-key precedence, legacy
   coupled-setting migration, Gap clamping, and persistence.
-- The focused playback selection passed fourteen coordinator/player tests for
+- The focused playback selection passed seventeen coordinator/player tests for
   boundary creation, callback handling, subtitle retention, resume behavior,
-  navigation, and disabled-setting behavior.
+  zero and positive Gap behavior, task invalidation, navigation, and
+  disabled-setting behavior.
 - A real generated audio/video fixture verified that auto-stop presents no
   frame at or beyond Cue End, keeps the native session alive, and resumes with
   an in-session seek rather than reopening the media.
-- Pending focused Auto Switch and Overlay verification.
+- Pending focused Overlay verification.
 - Pending full regression verification.
 - Pending packaged application verification.
 
