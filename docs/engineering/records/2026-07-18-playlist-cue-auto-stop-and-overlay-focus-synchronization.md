@@ -6,7 +6,7 @@
 
 ## Status
 
-Implementation in progress.
+Implementation complete; pending owner end-to-end acceptance.
 
 ## Scope
 
@@ -58,9 +58,19 @@ Implementation in progress.
   item dataset opening at ordinal 37,499 with exactly one provider read. The
   existing 64-item measurement-cache bound and bounded visible placement
   behavior remained unchanged.
-- Pending full regression verification.
-- Pending packaged application verification.
+- The repository-wide Swift Testing run executed 771 tests. Its forced
+  high-concurrency mode produced varying five-second media/UI timeouts and
+  temporary SQLite I/O contention across repeated runs; every observed failure
+  passed when rerun in its focused selection. The Settings migration ordering
+  issue exposed during this verification was fixed and its combined eight-test
+  Settings/Shiori selection passed.
+- Release packaging from code commit `6a676cf` passed the repository media
+  runtime and app-bundle verification scripts. The self-contained ARM64,
+  ad-hoc-signed bundle is available at `/private/tmp/CueSeeker-6a676cf.app` and
+  installed at `/Applications/CueSeeker.app`; LaunchServices was refreshed for
+  the `cueseeker://` scheme.
 
 ## Outcome
 
-Pending implementation and owner end-to-end acceptance.
+Ready for owner end-to-end acceptance. The previous installed application is
+recoverable from `/private/tmp/CueSeeker-before-05c142d.app`.
