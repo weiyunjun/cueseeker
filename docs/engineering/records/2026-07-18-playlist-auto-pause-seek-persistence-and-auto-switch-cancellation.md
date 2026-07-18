@@ -60,8 +60,14 @@
 - `swift test --package-path apps/macos-native --no-parallel`: all playback and
   feature tests passed. One unrelated shared-UserDefaults isolation test saw a
   value left by the broader process; its isolated rerun passed.
+- `scripts/package_macos_app.sh --output /private/tmp/CueSeeker-Auto-Pause-E2E.app`:
+  passed the release build, recursive signing, dependency, self-contained
+  ARM64, and bundle verification checks. The bundle is 36 MB; its CueSeeker
+  executable SHA-256 is
+  `fa9e5bb3708b26197690b5baed9843c568807c10c90ab1646dc59b9e28ba2fe0`.
 
 ## Outcome
 
-- Implementation and automated feature verification completed. Packaged owner
-  end-to-end verification remains required for final product acceptance.
+- Implementation, automated feature verification, and packaging completed.
+  Packaged owner end-to-end verification remains required for final product
+  acceptance.
