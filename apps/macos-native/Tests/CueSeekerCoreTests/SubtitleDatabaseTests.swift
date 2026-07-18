@@ -3634,6 +3634,72 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
 }
 
 @Test
+func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "CueID is the Shiori relationship."
+            )
+        ]
+    )
+
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let cueID = try #require(selection.cueLineID)
+    let shiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection
+    )
+
+    #expect(
+        try sqliteReferencedID(
+            table: "shioris",
+            idColumn: "cue_id",
+            pathColumn: "subtitle_path",
+            path: subtitleFile.path,
+            databaseURL: databaseURL
+        ) == cueID
+    )
+
+    try executeSQLite(
+        at: databaseURL,
+        """
+        UPDATE shioris
+        SET cue_event_index = NULL, start_ms = 9000, end_ms = 9001
+        WHERE id = \(shiori.id);
+        """
+    )
+
+    let page = try database.shioriPage(shioriIDs: [shiori.id])
+    #expect(page.cuePresentationsByShioriID[shiori.id]?.cueID == cueID)
+
+    let tag = try database.assignShioriTag(named: "CueID", toShioriID: shiori.id)
+    #expect(try database.shioriTags(forShioriID: shiori.id) == [tag])
+}
+
+@Test
 func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

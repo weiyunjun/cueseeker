@@ -29,7 +29,11 @@
 3. Switched Library snapshot rows, playback history, watch state, and search
    watch-state joins to VideoID/SubtitleID. Reindexing now preserves the
    existing SubtitleID while rebuilding its derived cue data.
-4. Pending: switch normal Shiori persistence and lookup to CueID.
+4. Switched normal Shiori persistence and cue presentation lookup to CueID.
+   Incoming CueIDs are verified against the selected subtitle before the
+   foreign key is stored. Legacy and unindexed Shiori snapshots retain their
+   existing compatibility lookup, and tag assignments continue to reference
+   ShioriID.
 5. Pending: remove remaining path-identity reads and run regression coverage.
 
 ## Verification
@@ -45,8 +49,14 @@
 - Step 3: `swift test --filter libraryPlaybackHistory` passed 4 tests.
 - Step 3: `swift test --filter Library` passed 48 tests after two legacy
   compatibility failures were corrected and rerun.
+- Step 4:
+  `swift test --filter shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID`
+  passed 1 test.
+- Step 4: `swift test --filter PlaybackSubtitleFocusKeyboardActionTests`
+  passed 13 tests.
+- Step 4: `swift test --filter Shiori` passed 33 tests.
 
 ## Outcome
 
-- Schema migration, media-relative paths, and Library state ID cutover
-  completed; Shiori cutover remains in progress.
+- Schema migration, media-relative paths, Library state ID cutover, and Shiori
+  CueID cutover completed; final path-identity cleanup remains in progress.
