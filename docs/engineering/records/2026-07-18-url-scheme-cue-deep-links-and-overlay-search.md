@@ -6,7 +6,7 @@
 
 ## Status
 
-In progress after owner requirement correction.
+Ready for renewed owner end-to-end acceptance.
 
 ## Scope
 
@@ -51,6 +51,10 @@ In progress after owner requirement correction.
    disabled Auto Switch when Only Play is off without disabling Gap editing,
    removed the invalid continuous OFF/ON playback path, and retained stopped
    Search, CueID, and Shiori subtitles independently of Auto Switch: completed.
+8. Rebuilt the self-contained ARM64 application from code commit `179d80e`,
+   installed it at `/Applications/CueSeeker.app`, verified the installed bundle,
+   and refreshed Launch Services while leaving the application closed for the
+   owner's cold-start acceptance: completed.
 
 ## Verification
 
@@ -70,6 +74,17 @@ In progress after owner requirement correction.
 - Final full regression executed 764 tests. All correction-related tests passed;
   five existing concurrent timing or database-isolation tests failed under the
   full-suite load and all five passed together immediately in isolation.
+- `scripts/package_macos_app.sh --output /private/tmp/CueSeeker.app`: passed for
+  code commit `179d80e`, including controlled-runtime, ARM64,
+  dependency-closure, ad-hoc signature, and bundle verification.
+- Installed `/Applications/CueSeeker.app` passed the same bundle and strict
+  signature checks. Its executable SHA-256 matches the packaged executable at
+  `1c6c1c71b418a20610b5709bfaa06fe1e87af9ef1f4b0d4e6a985c92870f7ef0`;
+  its bundle ID is `com.cueseeker.app` and its declared URL Scheme is
+  `cueseeker`.
+- Refreshed Launch Services for the installed bundle. The prior installed
+  application remains available for immediate rollback at
+  `/private/tmp/CueSeeker-before-179d80e.app`.
 - `swift test --package-path apps/macos-native`: application and test targets
   built successfully and all tests related to this step passed. Repeated full
   runs each encountered one unrelated isolation/timeout failure
@@ -114,6 +129,6 @@ In progress after owner requirement correction.
 
 ## Outcome
 
-The accepted three-state and subtitle-retention correction is implemented and
-verified. Repackaging and installed-bundle verification remain before renewed
-owner end-to-end acceptance.
+The accepted three-state and subtitle-retention correction is implemented,
+verified, packaged, and installed. The application is ready for renewed owner
+end-to-end acceptance.
