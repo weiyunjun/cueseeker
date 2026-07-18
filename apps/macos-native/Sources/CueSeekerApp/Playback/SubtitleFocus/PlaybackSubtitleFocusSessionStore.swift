@@ -325,6 +325,24 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     }
 
     @discardableResult
+    func presentModule(_ module: PlaybackOverlayModule) -> Bool {
+        guard isSessionActive,
+              availableModules.contains(module)
+        else {
+            return false
+        }
+        guard selectedModule != module else {
+            return true
+        }
+
+        if case .opening = state {
+            selectedModule = module
+            return true
+        }
+        return selectModule(module)
+    }
+
+    @discardableResult
     func requestMediaSelectionNavigation(
         _ direction: PlaybackMediaSelectionDirection
     ) -> Bool {

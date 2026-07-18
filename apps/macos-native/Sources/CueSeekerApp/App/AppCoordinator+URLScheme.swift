@@ -34,12 +34,11 @@ extension AppCoordinator {
             search.cueContextSearchRequest = nil
             search.searchNavigationSnapshot = nil
             guard settings.urlSchemePlayFirstSearchResultEnabled else {
-                if hasPlaybackSelection {
-                    stopPlayback()
-                }
-                search.selectedSearchResult = nil
-                submitSearch(keyword)
-                onPresentationReady()
+                presentURLSchemeSearch(
+                    keyword: keyword,
+                    startsSearch: true,
+                    onPresentationReady: onPresentationReady
+                )
                 return
             }
 
@@ -79,13 +78,51 @@ extension AppCoordinator {
 
         pendingURLSchemeDirectPlayIntent = nil
         guard let firstPageResult else {
-            stopPlayback()
-            workbenchLayout.selectPanelMode(.search)
-            intent.onPresentationReady()
+            presentURLSchemeSearch(
+                keyword: intent.keyword,
+                startsSearch: false,
+                onPresentationReady: intent.onPresentationReady
+            )
             return true
         }
         openSearchResult(firstPageResult, returnPanelMode: .search)
         intent.onPresentationReady()
         return true
+    }
+
+    private func presentURLSchemeSearch(
+        keyword: String,
+        startsSearch: Bool,
+        onPresentationReady: @escaping @MainActor () -> Void
+    ) {
+        search.searchQuery = keyword
+        search.searchNavigationSnapshot = nil
+        let hadActivePlayback = isPlaybackPageVisible
+
+        if hadActivePlayback,
+           openPlaybackSubtitleFocusFromUser(presenting: .search) {
+            search.isPlaybackTemporaryFilterActive = true
+            if startsSearch {
+                startSearch(
+                    query: keyword,
+                    cursor: .start,
+                    appending: false,
+                    debounce: false,
+                    filterSetOverride: SubtitleSearchFilterSet()
+                )
+            }
+            onPresentationReady()
+            return
+        }
+
+        search.isPlaybackTemporaryFilterActive = false
+        if !hadActivePlayback {
+            search.selectedSearchResult = nil
+        }
+        workbenchLayout.selectPanelMode(.search)
+        if startsSearch {
+            submitSearch(keyword)
+        }
+        onPresentationReady()
     }
 }

@@ -71,12 +71,15 @@ func playbackOverlaySessionRejectsModuleSelectionWhileOpening() {
     #expect(!session.selectModule(.search))
     #expect(!session.selectNextModule())
     #expect(session.selectedModule == .current)
+    #expect(session.presentModule(.search))
+    #expect(session.selectedModule == .search)
+    #expect(session.presentModule(.search))
 
     #expect(session.publishInitialSnapshot(
         focusPresentationSnapshot(),
         token: session.token
     ))
-    #expect(session.selectModule(.search))
+    #expect(session.selectModule(.current))
 }
 
 @MainActor

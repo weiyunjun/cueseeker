@@ -15,9 +15,14 @@ typealias PlaybackSubtitleFocusCompleteCueBatchLoader = @MainActor @Sendable (
 @MainActor
 extension AppCoordinator {
     @discardableResult
-    func openPlaybackSubtitleFocusFromUser() -> Bool {
-        if playback.subtitleFocusSession != nil {
-            return true
+    func openPlaybackSubtitleFocusFromUser(
+        presenting requestedModule: PlaybackOverlayModule? = nil
+    ) -> Bool {
+        if let session = playback.subtitleFocusSession {
+            guard let requestedModule else {
+                return true
+            }
+            return session.presentModule(requestedModule)
         }
         if playbackRecentOpenTask != nil {
             return true
@@ -62,10 +67,18 @@ extension AppCoordinator {
             return false
         }
 
-        guard pausePlayback() else {
-            _ = session.failOpening(token: session.token)
+        if let requestedModule,
+           !session.presentModule(requestedModule) {
             playback.releaseSubtitleFocusSession(session)
             return false
+        }
+
+        if playbackViewModel.isPlaying {
+            guard pausePlayback() else {
+                _ = session.failOpening(token: session.token)
+                playback.releaseSubtitleFocusSession(session)
+                return false
+            }
         }
 
         flushPendingLibraryPlaybackHistoryPresentations()

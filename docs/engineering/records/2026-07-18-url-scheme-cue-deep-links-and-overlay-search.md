@@ -29,7 +29,11 @@ In progress.
    off and Auto Switch is on, playback-time boundary tracking starts the Gap
    without pausing the current video. Added legacy preference migration and
    four-combination coverage: completed.
-3. Search URL routing: pending.
+3. Routed URL Scheme Search through the shared non-debounced Search pipeline
+   without closing active Playback. Active Playback now opens or reuses its
+   Overlay Session on Search, including empty direct-play results; inactive
+   Playback routes to Workbench Search. Existing Overlay Sessions can accept an
+   external module presentation request while still opening: completed.
 4. CueID direct playback: pending.
 5. Markdown Cue-link copy: pending.
 6. Full regression, packaging, and Launch Services verification: pending.
@@ -50,6 +54,11 @@ In progress.
   `sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`,
   or `playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue`); every reported
   failure passed immediately when rerun in isolation.
+- URL Scheme and Overlay-routing focused test selection: 14 tests passed,
+  covering Workbench versus new/reused Overlay Search, active Playback
+  preservation, empty-result routing with and without Playback, non-debounced
+  state synchronization, command cancellation, direct first-result playback,
+  parser validation, and covered-Workbench invalidation behavior.
 
 ## Outcome
 

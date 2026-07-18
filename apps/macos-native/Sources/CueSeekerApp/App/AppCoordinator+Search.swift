@@ -587,7 +587,9 @@ extension AppCoordinator {
 
         guard !folders.isEmpty else {
             search.searchStatus = .completed
-            search.selectedSearchResult = nil
+            if activePlaybackSource != .search || !isPlaybackPageVisible {
+                search.selectedSearchResult = nil
+            }
             SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_no_folders", status: "completed")
             SearchPerformanceLogger.writeE2ESearchPage(
                 searchPerformanceRun,

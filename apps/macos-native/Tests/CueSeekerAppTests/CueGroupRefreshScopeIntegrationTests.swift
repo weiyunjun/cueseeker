@@ -370,7 +370,7 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
-    func urlSchemeEmptyFallbackClearsRowsChangedWhilePlaybackCoveredTable() async throws {
+    func urlSchemeEmptyFallbackUsesOverlayWithoutRevealingWorkbenchTable() async throws {
         let uiProbeScope = UUID().uuidString
         let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
             scope: uiProbeScope
@@ -383,8 +383,22 @@ struct CueGroupRefreshScopeIntegrationTests {
         ) { app, window, coordinator in
             #expect(coordinator.numberOfRowsForTesting() == 200)
             app.settings.urlSchemePlayFirstSearchResultEnabled = true
-            app.search.selectedSearchResult = app.search.searchResults[0]
+            let playingResult = app.search.searchResults[0]
+            app.search.selectedSearchResult = playingResult
+            app.activePlaybackSource = .search
             app.playback.isPlaybackSurfaceExpanded = true
+            let overlaySession = try #require(app.playback.beginSubtitleFocusSession(
+                openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+                    source: SubtitleFocusSourceIdentity(
+                        videoPath: playingResult.videoPath,
+                        subtitlePath: playingResult.subtitlePath,
+                        subtitleFormat: playingResult.subtitleFormat
+                    ),
+                    timestampMilliseconds: playingResult.startMilliseconds,
+                    wasPlaying: false
+                ),
+                searchStore: app.search
+            ))
 
             let didMountPlayback = await waitUntil(timeout: 1) {
                 window.contentView?.layoutSubtreeIfNeeded()
@@ -396,24 +410,16 @@ struct CueGroupRefreshScopeIntegrationTests {
 
             app.handleURLSchemeCommand(.search(keyword: "missing URL result"))
             await app.searchTask?.value
+            window.contentView?.layoutSubtreeIfNeeded()
 
-            var resumedCoordinator: SubtitleTableView.Coordinator?
-            let didClearRows = await waitUntil(timeout: 1) {
-                window.contentView?.layoutSubtreeIfNeeded()
-                resumedCoordinator = findSubtitleTableCoordinator(
-                    in: window.contentView,
-                    surface: .search
-                )
-                return resumedCoordinator?.numberOfRowsForTesting() == 0
-            }
-            try #require(didClearRows)
-            _ = try #require(resumedCoordinator)
             #expect(app.search.searchQuery == "missing URL result")
             #expect(app.search.searchResults.isEmpty)
-            #expect(!app.isPlaybackPageVisible)
+            #expect(app.search.selectedSearchResult == playingResult)
+            #expect(app.isPlaybackPageVisible)
+            #expect(overlaySession.selectedModule == .search)
             #expect(session.recording()
                 .delta(since: recordingBefore)
-                .count("table.search.snapshot_rebuild") == 1)
+                .count("table.search.snapshot_rebuild") == 0)
         }
     }
 

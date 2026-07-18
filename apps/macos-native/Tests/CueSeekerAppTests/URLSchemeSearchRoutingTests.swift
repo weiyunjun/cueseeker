@@ -48,7 +48,32 @@ func urlSchemeSearchClearsFiltersAndForcesSearchRoute() throws {
 
 @MainActor
 @Test
-func urlSchemeDirectPlayFallsBackToSearchWhenFirstPageCannotProduceResults() throws {
+func urlSchemeSearchOpensOverlaySearchForActivePlaybackWithoutExistingSession() throws {
+    let fixture = try makeURLSchemeRoutingFixture("OpenOverlaySearch")
+    defer { fixture.cleanup() }
+    let playingResult = makeURLSchemeSearchResult(
+        id: 1,
+        content: "existing playback"
+    )
+    fixture.app.ensurePlayerInitialized()
+    fixture.app.search.selectedSearchResult = playingResult
+    fixture.app.activePlaybackSource = .search
+    fixture.app.playback.isPlaybackSurfaceExpanded = true
+    fixture.app.playback.playbackStatus = .paused
+
+    fixture.app.handleURLSchemeCommand(.search(keyword: "replacement"))
+
+    let session = try #require(fixture.app.playback.subtitleFocusSession)
+    #expect(session.selectedModule == .search)
+    #expect(fixture.app.isPlaybackPageVisible)
+    #expect(fixture.app.search.selectedSearchResult == playingResult)
+    #expect(fixture.app.search.searchQuery == "replacement")
+    #expect(fixture.app.search.isPlaybackTemporaryFilterActive)
+}
+
+@MainActor
+@Test
+func urlSchemeDirectPlayFallsBackToOverlaySearchWhenPlaybackIsActive() throws {
     let fixture = try makeURLSchemeRoutingFixture("DirectPlayFallback")
     defer { fixture.cleanup() }
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
@@ -59,22 +84,48 @@ func urlSchemeDirectPlayFallsBackToSearchWhenFirstPageCannotProduceResults() thr
     )
     fixture.app.playback.isPlaybackSurfaceExpanded = true
     fixture.app.playbackReturnContext = .shiori
+    let originalResult = try #require(fixture.app.search.selectedSearchResult)
+    let session = try installURLSchemePlaybackOverlaySession(
+        app: fixture.app,
+        result: originalResult
+    )
 
     var presentationReadyCount = 0
     var presentedFallbackSearch = false
     fixture.app.handleURLSchemeCommand(.search(keyword: "missing")) {
         presentationReadyCount += 1
-        presentedFallbackSearch = fixture.app.workbenchLayout.panelMode == .search
-            && !fixture.app.isPlaybackPageVisible
+        presentedFallbackSearch = session.selectedModule == .search
+            && fixture.app.isPlaybackPageVisible
     }
 
     #expect(presentationReadyCount == 1)
     #expect(presentedFallbackSearch)
-    #expect(fixture.app.workbenchLayout.panelMode == .search)
+    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
     #expect(fixture.app.search.searchQuery == "missing")
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
-    #expect(!fixture.app.playback.isPlaybackSurfaceExpanded)
-    #expect(fixture.app.search.selectedSearchResult == nil)
+    #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
+    #expect(fixture.app.search.selectedSearchResult == originalResult)
+    #expect(fixture.app.search.isPlaybackTemporaryFilterActive)
+}
+
+@MainActor
+@Test
+func urlSchemeDirectPlayFallsBackToWorkbenchSearchWithoutPlayback() throws {
+    let fixture = try makeURLSchemeRoutingFixture("DirectPlayWorkbenchFallback")
+    defer { fixture.cleanup() }
+    fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
+    fixture.app.workbenchLayout.selectPanelMode(.shiori)
+
+    var presentationReadyCount = 0
+    fixture.app.handleURLSchemeCommand(.search(keyword: "missing")) {
+        presentationReadyCount += 1
+    }
+
+    #expect(presentationReadyCount == 1)
+    #expect(fixture.app.workbenchLayout.panelMode == .search)
+    #expect(fixture.app.search.searchQuery == "missing")
+    #expect(fixture.app.playback.subtitleFocusSession == nil)
+    #expect(!fixture.app.isPlaybackPageVisible)
 }
 
 @MainActor
@@ -222,7 +273,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
 
 @MainActor
 @Test
-func newURLSchemeCommandCancelsOldIntentAndTasksAndDisabledSearchStopsPlayback() throws {
+func newURLSchemeCommandCancelsOldIntentAndPreservesPlaybackInOverlaySearch() throws {
     let fixture = try makeURLSchemeRoutingFixture("CommandCancellation")
     defer { fixture.cleanup() }
     let playbackIntentID = UUID()
@@ -237,6 +288,11 @@ func newURLSchemeCommandCancelsOldIntentAndTasksAndDisabledSearchStopsPlayback()
         firstPageResult: playbackResult
     ))
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
+    let session = try installURLSchemePlaybackOverlaySession(
+        app: fixture.app,
+        result: playbackResult
+    )
+    fixture.app.workbenchLayout.selectPanelMode(.shiori)
 
     let staleIntent = URLSchemeDirectPlayIntent(id: UUID(), keyword: "stale")
     fixture.app.pendingURLSchemeDirectPlayIntent = staleIntent
@@ -255,10 +311,12 @@ func newURLSchemeCommandCancelsOldIntentAndTasksAndDisabledSearchStopsPlayback()
     #expect(oldSearchTask.isCancelled)
     #expect(oldExactTask.isCancelled)
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
-    #expect(!fixture.app.playback.isPlaybackSurfaceExpanded)
-    #expect(fixture.app.search.selectedSearchResult == nil)
+    #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
+    #expect(fixture.app.search.selectedSearchResult == playbackResult)
     #expect(fixture.app.search.searchQuery == "replacement")
-    #expect(fixture.app.workbenchLayout.panelMode == .search)
+    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
+    #expect(session.selectedModule == .search)
+    #expect(fixture.app.search.isPlaybackTemporaryFilterActive)
 }
 
 @MainActor
@@ -294,4 +352,25 @@ private func makeURLSchemeSearchResult(id: Int64, content: String) -> SubtitleSe
         content: content,
         cueLines: [content]
     )
+}
+
+@MainActor
+private func installURLSchemePlaybackOverlaySession(
+    app: AppCoordinator,
+    result: SubtitleSearchResult
+) throws -> PlaybackSubtitleFocusSessionStore {
+    app.activePlaybackSource = .search
+    let source = SubtitleFocusSourceIdentity(
+        videoPath: result.videoPath,
+        subtitlePath: result.subtitlePath,
+        subtitleFormat: result.subtitleFormat
+    )
+    return try #require(app.playback.beginSubtitleFocusSession(
+        openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+            source: source,
+            timestampMilliseconds: result.startMilliseconds,
+            wasPlaying: false
+        ),
+        searchStore: app.search
+    ))
 }
