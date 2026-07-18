@@ -4735,6 +4735,7 @@ func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
     try database.migrate()
 
     let folder = URL(fileURLWithPath: "/Media/Show")
+    _ = try database.addSearchPath(folder)
     let videoFile = folder.appendingPathComponent("Episode 1.mkv")
     try database.replaceEntries(
         subtitleFile: folder.appendingPathComponent("Episode 1.srt"),

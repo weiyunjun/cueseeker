@@ -3556,11 +3556,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             SELECT s.id, cgl.language_code
             FROM shioris s
-            JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
-            JOIN subtitle_cue_groups g
-              ON g.subtitle_file_id = sf.id
-             AND g.start_ms = s.start_ms
-             AND g.end_ms = s.end_ms
+            JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = g.id
             WHERE s.id IN (\(placeholders))
             ORDER BY s.id ASC, cgl.language_code ASC;
@@ -4352,7 +4349,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
-            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
             JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
             WHERE 1 = 1
             \(scopeCondition)
@@ -4527,7 +4524,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-                JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+                JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
                 WHERE sf.subtitle_path = ?
                 \(scopeCondition)
             ) ordered
@@ -4997,7 +4994,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
-            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
             WHERE subtitle_cue_groups_fts MATCH ?
             \(scopeCondition)
               AND sf.subtitle_path = ?
@@ -5318,7 +5315,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN video_files vf ON vf.id = m.video_file_id
                 \(watchStateJoin)
-                JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+                JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
                 WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
@@ -6783,8 +6780,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             SELECT sf.subtitle_path
             FROM subtitle_files sf
-            LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
-            WHERE sor.subtitle_path IS NULL
+            LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
+            WHERE sor.subtitle_file_id IS NULL
             \(scopeCondition)
             \(subtitlePathCondition)
             LIMIT 1;
@@ -7697,7 +7694,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    WHERE cgl.cue_group_id = l.cue_group_id
                ) AS language_values
         FROM shioris s
-        LEFT JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
         LEFT JOIN subtitle_cue_lines l ON l.id = COALESCE(
             s.cue_id,
             (
@@ -7718,7 +7714,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         )
         LEFT JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
-        LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_path = s.subtitle_path
+        LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+        LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
         """
 
     private func scanShioriTableMatches(
@@ -7767,8 +7764,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
                 SELECT s.id, s.content, sor.display_title, s.subtitle_path
                 FROM shioris s
+                LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
                 LEFT JOIN subtitle_search_order_rows sor
-                  ON sor.subtitle_path = s.subtitle_path
+                  ON sor.subtitle_file_id = l.subtitle_file_id
                 ORDER BY s.created_at DESC, s.id DESC;
                 """
             )
@@ -7843,7 +7841,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     )
                 )
                 LEFT JOIN subtitle_search_order_rows sor
-                  ON sor.subtitle_path = s.subtitle_path
+                  ON sor.subtitle_file_id = l.subtitle_file_id
                 ORDER BY s.created_at DESC, s.id DESC;
                 """
             )
@@ -7920,7 +7918,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    \(languageSelect)
                    \(speakerSelect)
             FROM shioris s
-            LEFT JOIN subtitle_files sf ON sf.subtitle_path = s.subtitle_path
             LEFT JOIN subtitle_cue_lines l ON l.id = COALESCE(
                 s.cue_id,
                 (
@@ -7942,8 +7939,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             LEFT JOIN subtitle_cue_groups resolved_group
               ON resolved_group.id = l.cue_group_id
+            LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
             LEFT JOIN subtitle_search_order_rows sor
-              ON sor.subtitle_path = s.subtitle_path
+              ON sor.subtitle_file_id = sf.id
             ORDER BY s.created_at DESC, s.id DESC;
             """
         )
@@ -9496,21 +9494,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let prefixCondition = folderPathPrefixes
             .map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
             .joined(separator: " OR ")
-        let libraryRowPrefixCondition = folderPathPrefixes
-            .map { _ in "substr(subtitle_path, 1, ?) = ?" }
-            .joined(separator: " OR ")
         let keepCondition: String
-        let libraryRowKeepCondition: String
         let keepPlaceholders: String
 
         if subtitleFiles.isEmpty {
             keepCondition = ""
-            libraryRowKeepCondition = ""
             keepPlaceholders = ""
         } else {
             keepPlaceholders = subtitleFiles.map { _ in "?" }.joined(separator: ", ")
             keepCondition = "AND sf.subtitle_path NOT IN (\(keepPlaceholders))"
-            libraryRowKeepCondition = "AND subtitle_path NOT IN (\(keepPlaceholders))"
         }
 
         try database.execute("BEGIN IMMEDIATE TRANSACTION")
@@ -9604,7 +9596,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let deleteLibraryRows = try database.prepare(
                 """
                 DELETE FROM library_video_rows
-                WHERE (\(libraryRowPrefixCondition)) \(libraryRowKeepCondition);
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
                 """
             )
             try bindStaleEntryParameters(
@@ -9617,7 +9613,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
             let deleteSearchOrderRows = try database.prepare(
                 """
                 DELETE FROM subtitle_search_order_rows
-                WHERE (\(libraryRowPrefixCondition)) \(libraryRowKeepCondition);
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
                 """
             )
             try bindStaleEntryParameters(
@@ -9626,6 +9626,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 subtitleFiles: subtitleFiles
             )
             try deleteSearchOrderRows.run()
+
+            let deleteCueLines = try database.prepare(
+                """
+                DELETE FROM subtitle_cue_lines
+                WHERE subtitle_file_id IN (
+                    SELECT sf.id
+                    FROM subtitle_files sf
+                    WHERE (\(prefixCondition)) \(keepCondition)
+                );
+                """
+            )
+            try bindStaleEntryParameters(
+                statement: deleteCueLines,
+                folderPathPrefixes: folderPathPrefixes,
+                subtitleFiles: subtitleFiles
+            )
+            try deleteCueLines.run()
 
             let deleteFiles = try database.prepare(
                 """
@@ -9644,23 +9661,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
             try deleteFiles.run()
 
-            if removeSearchPath {
-                let searchPathVariants = Self.folderPathVariants(for: folder)
-                let searchPathPlaceholders = searchPathVariants.map { _ in "?" }.joined(separator: ", ")
-                let deleteSearchPath = try database.prepare(
-                    """
-                    DELETE FROM search_paths
-                    WHERE path IN (\(searchPathPlaceholders));
-                    """
-                )
+            try deleteOrphanedVideoFiles()
 
-                for (offset, path) in searchPathVariants.enumerated() {
-                    try deleteSearchPath.bind(path, at: Int32(offset + 1))
+            if removeSearchPath {
+                for searchPath in Self.folderPathVariants(for: folder) {
+                    try deleteSearchPath(searchPath)
                 }
-                try deleteSearchPath.run()
             }
 
-            try deleteOrphanedVideoFiles()
             try rebuildSearchDerivedIndexInCurrentTransaction()
             try bumpPlaybackNavigationIndexRevisionInCurrentTransaction()
             try database.execute("COMMIT")
@@ -10592,7 +10600,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             SELECT g.id, g.search_content
             FROM subtitle_cue_groups g
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
             ORDER BY sor.display_title COLLATE NOCASE ASC,
                      sf.subtitle_path COLLATE NOCASE ASC,
                      g.start_ms ASC,
@@ -10758,7 +10766,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
-            JOIN subtitle_search_order_rows sor ON sor.subtitle_path = sf.subtitle_path
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
             WHERE g.id IN (\(placeholders));
             """
         )
@@ -11529,6 +11537,30 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private func deleteSearchPath(_ searchPath: String) throws {
+        let detachSubtitleFiles = try database.prepare(
+            """
+            UPDATE subtitle_files
+            SET library_id = NULL, relative_path = NULL
+            WHERE library_id IN (
+                SELECT id FROM search_paths WHERE path = ?
+            );
+            """
+        )
+        try detachSubtitleFiles.bind(searchPath, at: 1)
+        try detachSubtitleFiles.run()
+
+        let detachVideoFiles = try database.prepare(
+            """
+            UPDATE video_files
+            SET library_id = NULL, relative_path = NULL
+            WHERE library_id IN (
+                SELECT id FROM search_paths WHERE path = ?
+            );
+            """
+        )
+        try detachVideoFiles.bind(searchPath, at: 1)
+        try detachVideoFiles.run()
+
         let statement = try database.prepare(
             "DELETE FROM search_paths WHERE path = ?;"
         )

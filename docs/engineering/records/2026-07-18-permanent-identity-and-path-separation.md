@@ -34,7 +34,10 @@
    foreign key is stored. Legacy and unindexed Shiori snapshots retain their
    existing compatibility lookup, and tag assignments continue to reference
    ShioriID.
-5. Pending: remove remaining path-identity reads and run regression coverage.
+5. Switched Search ordering, Shiori metadata, and derived-index joins from
+   duplicated paths to SubtitleID/CueID. Folder removal and reconciliation now
+   delete dependent rows by SubtitleID before deleting media identities, and
+   detach retained playback-history VideoIDs before deleting their LibraryID.
 
 ## Verification
 
@@ -55,8 +58,17 @@
 - Step 4: `swift test --filter PlaybackSubtitleFocusKeyboardActionTests`
   passed 13 tests.
 - Step 4: `swift test --filter Shiori` passed 33 tests.
+- Step 5: `swift test --filter removingIndexedFolder` passed 3 tests.
+- Step 5: `swift test --filter reconcileIndexedContent` passed 2 tests.
+- Step 5: `swift test --filter Search` passed 82 tests.
+- Step 5: `swift test --filter Library` passed 48 tests.
+- Step 5: full `swift test` runs exercised 750 Swift Testing tests plus 7
+  CASS rendering tests. The database-related foreign-key failure found by the
+  first run was fixed. Subsequent full runs only reported intermittent,
+  unrelated shared-state, timeout, or native-frame failures; the named
+  failures passed when rerun in isolation.
 
 ## Outcome
 
-- Schema migration, media-relative paths, Library state ID cutover, and Shiori
-  CueID cutover completed; final path-identity cleanup remains in progress.
+- Schema migration, media-relative paths, Library state ID cutover, Shiori
+  CueID cutover, and ID-based derived-table joins completed.
