@@ -111,7 +111,11 @@ func appCoordinatorConsumesCueAutoPauseBoundaryOnlyOncePerArming() async throws 
 @Test
 func cueAutoPauseSeekRearmsOnlyBeforeCurrentItemBoundary() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
+        app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
+        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 1)
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
             startMilliseconds: 1_000,
@@ -120,10 +124,12 @@ func cueAutoPauseSeekRearmsOnlyBeforeCurrentItemBoundary() async throws {
 
         app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
         #expect(!app.cueAutoPauseArmed)
+        #expect(app.autoSwitchCueSequenceTask != nil)
 
         app.handleCueAutoPauseSeekCommitted(toMilliseconds: 3_000)
         #expect(app.activeCueAutoPauseBoundary?.endMilliseconds == 2_500)
         #expect(!app.cueAutoPauseArmed)
+        #expect(app.autoSwitchCueSequenceTask == nil)
 
         app.playback.playbackStatus = .playing
         app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
@@ -136,6 +142,38 @@ func cueAutoPauseSeekRearmsOnlyBeforeCurrentItemBoundary() async throws {
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueAutoStopReached)
         #expect(!app.cueAutoPauseArmed)
+        #expect(app.autoSwitchCueSequenceTask != nil)
+        app.cancelAutoSwitchCueSequenceTask()
+    }
+}
+
+@MainActor
+@Test
+func enteringOverlayCancelsPendingAutoSwitchWithoutClearingAutoPause() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.ensurePlayerInitialized()
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
+        let result = segmentCompletionSearchResult(entryID: 1)
+        app.activePlaybackSource = .search
+        app.search.selectedSearchResult = result
+        app.playback.playbackStatus = .playing
+        app.beginCueAutoStopPlayback()
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: result.startMilliseconds,
+            endMilliseconds: result.endMilliseconds
+        ))
+        app.handleCueAutoStopBoundaryReached(endMilliseconds: result.endMilliseconds)
+        #expect(app.autoSwitchCueSequenceTask != nil)
+
+        let opened = app.openPlaybackSubtitleFocusFromUser()
+
+        #expect(opened)
+        #expect(app.playback.subtitleFocusSession != nil)
+        #expect(app.autoSwitchCueSequenceTask == nil)
+        #expect(app.activeCueAutoPauseBoundary?.endMilliseconds == result.endMilliseconds)
+        #expect(app.activePlaylistCueSettings?.autoSwitchEnabled == true)
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
     }
 }
 

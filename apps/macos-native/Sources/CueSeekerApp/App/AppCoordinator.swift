@@ -457,6 +457,7 @@ final class AppCoordinator: ObservableObject {
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []
     var autoSwitchCueSequenceTask: Task<Void, Never>?
+    var autoSwitchCueSequenceGeneration = 0
     var searchResultListGeneration: UInt64 = 0
     var loadedGlobalSearchResultCount = 0
     var lastSearchCountProgressUpdate: UInt64 = 0

@@ -73,6 +73,8 @@ extension AppCoordinator {
             return false
         }
 
+        cancelAutoSwitchCueSequenceTask()
+
         if playbackViewModel.isPlaying {
             guard pausePlayback() else {
                 _ = session.failOpening(token: session.token)

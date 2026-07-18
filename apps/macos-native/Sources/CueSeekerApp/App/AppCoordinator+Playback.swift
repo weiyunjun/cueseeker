@@ -552,6 +552,7 @@ extension AppCoordinator {
     }
 
     func cancelAutoSwitchCueSequenceTask() {
+        autoSwitchCueSequenceGeneration += 1
         autoSwitchCueSequenceTask?.cancel()
         autoSwitchCueSequenceTask = nil
     }
@@ -635,6 +636,7 @@ extension AppCoordinator {
     private func scheduleAutoSwitchCueSequence() {
         let generation = cuePlaybackGeneration
         let source = activePlaybackSource
+        let playlistPosition = playback.playlistPosition
         guard let effectiveSettings = activePlaylistCueSettings else {
             return
         }
@@ -643,12 +645,14 @@ extension AppCoordinator {
               playback.playbackStatus == .paused,
               effectiveSettings.autoPauseEnabled,
               effectiveSettings.autoSwitchEnabled,
+              playback.subtitleFocusSession == nil,
               source == .search || source == .shiori
         else {
             return
         }
 
         cancelAutoSwitchCueSequenceTask()
+        let autoSwitchGeneration = autoSwitchCueSequenceGeneration
         autoSwitchCueSequenceTask = Task { [weak self] in
             if gapMilliseconds > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(gapMilliseconds) * 1_000_000)
@@ -661,8 +665,11 @@ extension AppCoordinator {
             await MainActor.run {
                 guard let self,
                       self.cuePlaybackGeneration == generation,
+                      self.autoSwitchCueSequenceGeneration == autoSwitchGeneration,
                       self.currentCueAutoStopReached,
                       self.playback.playbackStatus == .paused,
+                      self.playback.playlistPosition == playlistPosition,
+                      self.playback.subtitleFocusSession == nil,
                       self.activePlaybackSource == source,
                       self.activePlaylistCueSettings == effectiveSettings,
                       effectiveSettings.autoPauseEnabled,

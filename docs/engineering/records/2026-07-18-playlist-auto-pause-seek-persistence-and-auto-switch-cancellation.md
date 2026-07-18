@@ -20,6 +20,11 @@
    passes the already-consumed boundary without immediately pausing again.
    Paused seeks use the same native boundary while still presenting the sought
    frame before remaining paused.
+4. Bound each pending Auto Switch task to a cancellation generation, the
+   current Playlist position, the current Item settings snapshot, and the
+   latest valid Auto Pause state. Seek, manual transport, Overlay entry, source
+   replacement, or Item initialization invalidates the task; unrelated display
+   controls and live settings edits do not.
 
 ## Verification
 
@@ -37,6 +42,9 @@
   passed with generated real media. Seeking beyond the active boundary emitted
   no event, and a paused seek back before it emitted a second event only after
   playback resumed and naturally reached the boundary.
+- `swift test --package-path apps/macos-native --filter PlaybackSegmentCompletionTests`:
+  passed all 19 tests after adding seek and Overlay cancellation coverage while
+  preserving the current Item's Auto Pause boundary and settings snapshot.
 
 ## Outcome
 
