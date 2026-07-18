@@ -9,3 +9,4 @@ main
 
 # 注意事项
 1. Auto Stop After a Cue Finishes开启，触发自动暂停后，按下空格键会继续播放而不是重播当前Cue。
+2. 本次改动需要打包出来测试，因为涉及到URL Scheme刚刚添加的功能测试。
