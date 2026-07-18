@@ -549,6 +549,10 @@ Playback Multi-Module Overlay cue action requirements:
 - `C` copies the exact Primary Cue's complete text, preserving its source line
   order and line breaks without copying the surrounding Cue Group, and shows
   `Subtitle Copied`.
+- `X` in Current, Playlist, and Shiori copies the exact Primary Cue as the
+  plain Markdown string `[Cue text](cueseeker://cue?id={CueID})` and shows
+  `Subtitle(markdown format) Copied`. It publishes no adaptive HTML or RTF
+  clipboard representation. Playback Search reserves `X` for query input.
 - `S` and `C` keep the Overlay visible, keep playback paused, and preserve Cue
   selection and reel position.
 - Enter synchronously destroys the Overlay Session, seeks to the selected
@@ -578,6 +582,15 @@ Playback Multi-Module Overlay cue action requirements:
   Down, wheel, and scrollbar navigation remain available.
 - If an action key is accepted while cue motion is settling, execute it once
   against the final settled cue.
+- Playlist Cue playback exposes independent `Only Play Cues in Playlist` and
+  `Auto Switch to Next Cues in Playlist` preferences. The first determines
+  whether playback stops at the current Cue end; the second independently
+  schedules the next Playlist item after the always-editable `Auto Switch Gap`.
+  All four toggle combinations are supported. With Only Play off and Auto
+  Switch on, the current video continues during the Gap before the next item
+  replaces it. Search, Shiori, and CueID direct playback use this Playlist
+  behavior; CueID direct playback has one item and restores Workbench Search
+  when Playback closes.
 - Current reel items represent one Cue. Their nominal content height is `52L`,
   where `L` is the complete visual-line count after source breaks and wrapping.
   Natural height is

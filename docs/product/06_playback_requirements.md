@@ -460,6 +460,17 @@ Required behavior:
 - Continuous playback preferences must persist across app restarts. This
   includes volume, the last nonzero volume used when restoring from mute,
   subtitle visibility, and playback speed.
+- Playlist Cue behavior uses two independent persisted preferences. `Only Play
+  Cues in Playlist` defaults to on and determines whether playback stops at the
+  selected Cue's end. `Auto Switch to Next Cues in Playlist` defaults to off
+  and independently determines whether the next Playlist item starts after
+  `Auto Switch Gap`. All four on/off combinations are valid. With Only Play off
+  and Auto Switch on, the current video continues during the Gap and is then
+  replaced by the next Playlist item. The Gap remains editable regardless of
+  either toggle.
+- Search, Shiori, and CueID direct playback are Playlist-backed while playing.
+  CueID direct playback supplies a one-item Playlist and closing that Playback
+  returns to Workbench Search.
 - One-shot playback commands are not persisted as commands. Copying a focused
   cue to the clipboard is transient. Saving Shiori creates durable
   user-authored data and therefore remains persisted.
@@ -505,6 +516,11 @@ Current implementation notes and accepted fullscreen correction:
   Overlay or resuming playback. Enter synchronously destroys the Session,
   seeks to the selected Primary Cue start, begins continuous playback, and
   shows `Play`.
+- In Current, Playlist, and Shiori, `X` copies only the plain Markdown string
+  `[Cue text](cueseeker://cue?id={CueID})` and shows
+  `Subtitle(markdown format) Copied`. It does not publish adaptive HTML or RTF
+  clipboard representations. Playback Search keeps `X` as query input and
+  exposes no Markdown-copy action.
 - Playback Search reserves letter keys for query input and accepts only Enter
   as its selected-Cue action. It reads and writes the Workbench Search Feature
   query/results through a temporary empty Filter context. Its latest query edit
