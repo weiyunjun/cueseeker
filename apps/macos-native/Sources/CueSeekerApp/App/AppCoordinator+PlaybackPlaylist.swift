@@ -3,6 +3,15 @@ import Foundation
 
 @MainActor
 extension AppCoordinator {
+    var isCueDeepLinkPlaybackSource: Bool {
+        guard let source = playback.playlistSource,
+              case .cue = source.origin
+        else {
+            return false
+        }
+        return true
+    }
+
     var activePlaybackSearchPlaylistContext: PlaybackSearchPromotion? {
         guard activePlaybackSource == .search,
               playback.playlistSource?.kind == .search,
@@ -144,6 +153,20 @@ extension AppCoordinator {
             source,
             playbackSearchSelectedOrdinal: selectedOrdinal
         )
+    }
+
+    func makeCueDeepLinkPlaybackPlaylistSource(
+        result: SubtitleSearchResult
+    ) -> PlaybackPlaylistSource {
+        PlaybackPlaylistSource(
+            origin: .cue(cueID: result.entryID),
+            totalCount: 1
+        ) { ordinal in
+            guard ordinal == 0 else {
+                return nil
+            }
+            return PlaybackPlaylistItem(searchResult: result, ordinal: 0)
+        }
     }
 
     func refreshSearchPlaybackPlaylistSource(

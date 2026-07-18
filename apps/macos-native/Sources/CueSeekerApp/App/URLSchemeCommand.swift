@@ -2,12 +2,13 @@ import Foundation
 
 enum URLSchemeCommand: Equatable, Sendable {
     case search(keyword: String)
+    case cue(id: Int64)
 
     init?(urlString: String) {
         guard Self.hasValidPercentEncoding(urlString),
               let components = URLComponents(string: urlString),
               components.scheme?.lowercased() == "cueseeker",
-              components.host?.lowercased() == "search",
+              let host = components.host?.lowercased(),
               components.user == nil,
               components.password == nil,
               components.port == nil,
@@ -15,17 +16,33 @@ enum URLSchemeCommand: Equatable, Sendable {
               components.percentEncodedPath.isEmpty || components.percentEncodedPath == "/",
               let queryItems = components.queryItems,
               queryItems.count == 1,
-              queryItems[0].name == "q",
               let value = queryItems[0].value
         else {
             return nil
         }
 
-        let keyword = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty else {
+        switch host {
+        case "search":
+            let keyword = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard queryItems[0].name == "q",
+                  !keyword.isEmpty
+            else {
+                return nil
+            }
+            self = .search(keyword: keyword)
+        case "cue":
+            guard queryItems[0].name == "id",
+                  !value.isEmpty,
+                  value.unicodeScalars.allSatisfy({ (48...57).contains($0.value) }),
+                  let cueID = Int64(value),
+                  cueID > 0
+            else {
+                return nil
+            }
+            self = .cue(id: cueID)
+        default:
             return nil
         }
-        self = .search(keyword: keyword)
     }
 
     private static func hasValidPercentEncoding(_ value: String) -> Bool {

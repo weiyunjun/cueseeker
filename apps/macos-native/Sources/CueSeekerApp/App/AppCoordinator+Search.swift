@@ -1218,6 +1218,13 @@ extension AppCoordinator {
     }
 
     func openAdjacentSearchResult(_ direction: SearchResultNavigationDirection) {
+        guard !isCueDeepLinkPlaybackSource else {
+            playback.playbackViewModel?.showSearchNavigationFeedback(
+                direction: direction,
+                hasResult: false
+            )
+            return
+        }
         if let context = activePlaybackSearchPlaylistContext {
             openAdjacentPlaybackSearchPlaylistResult(
                 direction,

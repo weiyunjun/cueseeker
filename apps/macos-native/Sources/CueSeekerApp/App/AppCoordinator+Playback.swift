@@ -269,12 +269,17 @@ extension AppCoordinator {
         displayTitle: String? = nil,
         returnPanelMode: WorkbenchPanelMode? = nil,
         playsContinuouslyFromStart: Bool = false,
-        playbackSearchPromotion: PlaybackSearchPromotion? = nil
+        playbackSearchPromotion: PlaybackSearchPromotion? = nil,
+        playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement(
             finishesPlaybackSearchHost: playbackSearchPromotion == nil
         )
-        installSearchPlaybackPlaylistSource(seed: result)
+        if let playlistSourceOverride {
+            playback.setPlaylistSource(playlistSourceOverride)
+        } else {
+            installSearchPlaybackPlaylistSource(seed: result)
+        }
         if let playbackSearchPromotion,
            let source = playback.playlistSource {
             playback.setPlaylistSource(

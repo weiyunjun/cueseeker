@@ -285,7 +285,10 @@ final class AppCoordinator: ObservableObject {
     }
 
     var canOpenPreviousSearchResult: Bool {
-        guard isSearchPlaybackActive, let selectedSearchResult = search.selectedSearchResult else {
+        guard isSearchPlaybackActive,
+              !isCueDeepLinkPlaybackSource,
+              let selectedSearchResult = search.selectedSearchResult
+        else {
             return false
         }
 
@@ -303,7 +306,10 @@ final class AppCoordinator: ObservableObject {
     }
 
     var canOpenNextSearchResult: Bool {
-        guard isSearchPlaybackActive, let selectedSearchResult = search.selectedSearchResult else {
+        guard isSearchPlaybackActive,
+              !isCueDeepLinkPlaybackSource,
+              let selectedSearchResult = search.selectedSearchResult
+        else {
             return false
         }
 
@@ -456,6 +462,8 @@ final class AppCoordinator: ObservableObject {
     var lastSearchCountProgressUpdate: UInt64 = 0
     var nextGlobalSearchCursor: SubtitleSearchCursor?
     var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
+    var pendingURLSchemeCuePlaybackIntent: URLSchemeCuePlaybackIntent?
+    var urlSchemeCueLookupTask: Task<Void, Never>?
 
     init(
         userDefaults: UserDefaults? = nil,

@@ -4798,6 +4798,24 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
+    public func cuePlaybackResult(cueID: Int64) throws -> SubtitleSearchResult? {
+        guard cueID > 0 else {
+            return nil
+        }
+        let page = try searchIndexedVisiblePage(
+            from: SubtitleSearchResultIDIndexWindow(
+                cueIDs: [cueID],
+                offset: 0,
+                totalCount: 1,
+                fileSummaries: [],
+                countSnapshot: .exact(totalCount: 1, fileSummaryCount: 0),
+                appliedCursor: .start,
+                nextCursor: nil
+            )
+        )
+        return page?.results.first
+    }
+
     public func searchNavigationSnapshotFromResultIDIndex(
         _ query: String,
         under folders: [URL]? = nil,

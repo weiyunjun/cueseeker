@@ -529,6 +529,7 @@ extension AppCoordinator {
         switch item.target {
         case .search(let result):
             let playbackSearchPromotion: PlaybackSearchPromotion?
+            let playlistSourceOverride: PlaybackPlaylistSource?
             if let source = playback.playlistSource,
                source.kind == .search,
                activePlaybackSearchPlaylistContext != nil {
@@ -539,13 +540,20 @@ extension AppCoordinator {
                     },
                     selectedOrdinal: item.ordinal
                 )
+                playlistSourceOverride = nil
+            } else if let source = playback.playlistSource,
+                      case .cue = source.origin {
+                playbackSearchPromotion = nil
+                playlistSourceOverride = source
             } else {
                 playbackSearchPromotion = nil
+                playlistSourceOverride = nil
             }
             openSearchResult(
                 result,
                 playsContinuouslyFromStart: true,
-                playbackSearchPromotion: playbackSearchPromotion
+                playbackSearchPromotion: playbackSearchPromotion,
+                playlistSourceOverride: playlistSourceOverride
             )
         case .shiori(let shiori):
             let playlistScope: PlaybackPlaylistShioriScope?

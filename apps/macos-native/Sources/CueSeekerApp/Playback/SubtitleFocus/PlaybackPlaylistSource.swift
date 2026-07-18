@@ -48,12 +48,13 @@ struct PlaybackSearchPromotion: Equatable, Sendable {
 
 enum PlaybackPlaylistSourceOrigin: Hashable, Sendable {
     case search(resultListGeneration: UInt64)
+    case cue(cueID: Int64)
     case shiori(scope: PlaybackPlaylistShioriScope)
     case unspecified(PlaybackPlaylistSourceKind)
 
     var kind: PlaybackPlaylistSourceKind {
         switch self {
-        case .search:
+        case .search, .cue:
             .search
         case .shiori:
             .shiori

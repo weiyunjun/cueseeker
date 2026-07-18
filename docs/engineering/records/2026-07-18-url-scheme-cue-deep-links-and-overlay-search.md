@@ -34,7 +34,12 @@ In progress.
    Overlay Session on Search, including empty direct-play results; inactive
    Playback routes to Workbench Search. Existing Overlay Sessions can accept an
    external module presentation request while still opening: completed.
-4. CueID direct playback: pending.
+4. Added strict positive-`Int64` CueID parsing, cancellable indexed Cue lookup,
+   direct playback, and an explicit one-item `.cue` Playlist source. Cue
+   playback has no adjacent item, remains one item when operated from Overlay
+   Playlist, ignores unavailable CueIDs without replacing the current
+   presentation, and fixes Playback Return Context to Workbench Search:
+   completed.
 5. Markdown Cue-link copy: pending.
 6. Full regression, packaging, and Launch Services verification: pending.
 
@@ -59,6 +64,11 @@ In progress.
   preservation, empty-result routing with and without Playback, non-debounced
   state synchronization, command cancellation, direct first-result playback,
   parser validation, and covered-Workbench invalidation behavior.
+- Cue URL Scheme and Playlist focused test selection: 15 tests passed, covering
+  valid and invalid CueID parsing, indexed Cue hydration with active video
+  matching, one-item Playlist identity and Overlay availability, unavailable
+  Cue behavior, command supersession, adjacent-navigation suppression, and
+  Search Return Context on Playback close.
 
 ## Outcome
 

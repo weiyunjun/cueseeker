@@ -17,6 +17,22 @@ struct URLSchemeDirectPlayIntent {
     }
 }
 
+struct URLSchemeCuePlaybackIntent {
+    let id: UUID
+    let cueID: Int64
+    let onPresentationReady: @MainActor () -> Void
+
+    init(
+        id: UUID,
+        cueID: Int64,
+        onPresentationReady: @escaping @MainActor () -> Void = {}
+    ) {
+        self.id = id
+        self.cueID = cueID
+        self.onPresentationReady = onPresentationReady
+    }
+}
+
 @MainActor
 extension AppCoordinator {
     func handleURLSchemeCommand(
@@ -24,6 +40,9 @@ extension AppCoordinator {
         onPresentationReady: @escaping @MainActor () -> Void = {}
     ) {
         pendingURLSchemeDirectPlayIntent = nil
+        pendingURLSchemeCuePlaybackIntent = nil
+        urlSchemeCueLookupTask?.cancel()
+        urlSchemeCueLookupTask = nil
         searchTask?.cancel()
         searchExactCompletionTask?.cancel()
         searchExactCompletionTask = nil
@@ -60,6 +79,39 @@ extension AppCoordinator {
                 debounce: false,
                 urlSchemeIntentID: intent.id
             )
+        case let .cue(cueID):
+            let intent = URLSchemeCuePlaybackIntent(
+                id: UUID(),
+                cueID: cueID,
+                onPresentationReady: onPresentationReady
+            )
+            pendingURLSchemeCuePlaybackIntent = intent
+            let lookupDatabaseURL = databaseURL
+            urlSchemeCueLookupTask = Task { @MainActor [weak self] in
+                let result: SubtitleSearchResult?
+                do {
+                    result = try await Self.runCancellableDetached(
+                        priority: .userInitiated
+                    ) {
+                        let database = try SubtitleDatabase(path: lookupDatabaseURL)
+                        return try database.cuePlaybackResult(cueID: cueID)
+                    }
+                } catch {
+                    guard !Task.isCancelled else {
+                        return
+                    }
+                    print("Failed to resolve URL Scheme CueID: \(error)")
+                    result = nil
+                }
+
+                guard !Task.isCancelled else {
+                    return
+                }
+                _ = self?.resolveURLSchemeCuePlaybackIntent(
+                    id: intent.id,
+                    result: result
+                )
+            }
         }
     }
 
@@ -86,6 +138,39 @@ extension AppCoordinator {
             return true
         }
         openSearchResult(firstPageResult, returnPanelMode: .search)
+        intent.onPresentationReady()
+        return true
+    }
+
+    @discardableResult
+    func resolveURLSchemeCuePlaybackIntent(
+        id: UUID,
+        result: SubtitleSearchResult?
+    ) -> Bool {
+        guard let intent = pendingURLSchemeCuePlaybackIntent,
+              intent.id == id,
+              result?.entryID == intent.cueID || result == nil
+        else {
+            return false
+        }
+
+        pendingURLSchemeCuePlaybackIntent = nil
+        urlSchemeCueLookupTask = nil
+        guard let result else {
+            intent.onPresentationReady()
+            return true
+        }
+
+        let playlistSource = makeCueDeepLinkPlaybackPlaylistSource(
+            result: result
+        )
+        openSearchResult(
+            result,
+            recordsNavigationHistory: false,
+            returnPanelMode: .search,
+            playlistSourceOverride: playlistSource
+        )
+        playbackReturnContext = .search
         intent.onPresentationReady()
         return true
     }
