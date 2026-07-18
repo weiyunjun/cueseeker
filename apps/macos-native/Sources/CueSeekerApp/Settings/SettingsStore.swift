@@ -83,7 +83,8 @@ final class SettingsStore: ObservableObject {
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let legacyAutoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
     private static let legacyOnlyPlayCuesInPlaylistEnabledKey = "onlyPlayCuesInPlaylistEnabled"
-    private static let autoStopAfterCueFinishesEnabledKey = "autoStopAfterCueFinishesEnabled"
+    private static let legacyAutoStopAfterCueFinishesEnabledKey = "autoStopAfterCueFinishesEnabled"
+    private static let autoPauseAfterCueFinishesEnabledKey = "autoPauseAfterCueFinishesEnabled"
     private static let autoSwitchToNextCuesInPlaylistEnabledKey = "autoSwitchToNextCuesInPlaylistEnabled"
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
     private static let playbackSpeakerDisplayEnabledKey = "playbackSpeakerDisplayEnabled"
@@ -132,15 +133,15 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var autoStopAfterCueFinishesEnabled: Bool {
+    @Published var autoPauseAfterCueFinishesEnabled: Bool {
         didSet {
-            if !autoStopAfterCueFinishesEnabled,
+            if !autoPauseAfterCueFinishesEnabled,
                autoSwitchToNextCuesInPlaylistEnabled {
                 autoSwitchToNextCuesInPlaylistEnabled = false
             }
             userDefaults.set(
-                autoStopAfterCueFinishesEnabled,
-                forKey: Self.autoStopAfterCueFinishesEnabledKey
+                autoPauseAfterCueFinishesEnabled,
+                forKey: Self.autoPauseAfterCueFinishesEnabledKey
             )
         }
     }
@@ -148,7 +149,7 @@ final class SettingsStore: ObservableObject {
     @Published var autoSwitchToNextCuesInPlaylistEnabled: Bool {
         didSet {
             if autoSwitchToNextCuesInPlaylistEnabled,
-               !autoStopAfterCueFinishesEnabled {
+               !autoPauseAfterCueFinishesEnabled {
                 autoSwitchToNextCuesInPlaylistEnabled = false
             }
             userDefaults.set(
@@ -225,8 +226,11 @@ final class SettingsStore: ObservableObject {
     ) {
         self.userDefaults = userDefaults
         self.credentialStore = credentialStore
-        let hasStoredAutoStopPreference = userDefaults.object(
-            forKey: Self.autoStopAfterCueFinishesEnabledKey
+        let hasStoredAutoPausePreference = userDefaults.object(
+            forKey: Self.autoPauseAfterCueFinishesEnabledKey
+        ) != nil
+        let hasLegacyAutoStopPreference = userDefaults.object(
+            forKey: Self.legacyAutoStopAfterCueFinishesEnabledKey
         ) != nil
         let hasLegacyOnlyPlayCuesPreference = userDefaults.object(
             forKey: Self.legacyOnlyPlayCuesInPlaylistEnabledKey
@@ -239,22 +243,26 @@ final class SettingsStore: ObservableObject {
         ) != nil
         let legacyAutoSwitchWasEnabled = hasLegacyAutoSwitchPreference
             && userDefaults.bool(forKey: Self.legacyAutoPlayCueSequenceEnabledKey)
-        let resolvedAutoStopPreference: Bool
-        if hasStoredAutoStopPreference {
-            resolvedAutoStopPreference = userDefaults.bool(
-                forKey: Self.autoStopAfterCueFinishesEnabledKey
+        let resolvedAutoPausePreference: Bool
+        if hasStoredAutoPausePreference {
+            resolvedAutoPausePreference = userDefaults.bool(
+                forKey: Self.autoPauseAfterCueFinishesEnabledKey
+            )
+        } else if hasLegacyAutoStopPreference {
+            resolvedAutoPausePreference = userDefaults.bool(
+                forKey: Self.legacyAutoStopAfterCueFinishesEnabledKey
             )
         } else if hasLegacyOnlyPlayCuesPreference {
-            resolvedAutoStopPreference = userDefaults.bool(
+            resolvedAutoPausePreference = userDefaults.bool(
                 forKey: Self.legacyOnlyPlayCuesInPlaylistEnabledKey
             )
         } else {
-            resolvedAutoStopPreference = true
+            resolvedAutoPausePreference = true
         }
         let requestedAutoSwitchPreference = legacyAutoSwitchWasEnabled
             || (hasStoredAutoSwitchPreference
                 && userDefaults.bool(forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey))
-        let resolvedAutoSwitchPreference = resolvedAutoStopPreference
+        let resolvedAutoSwitchPreference = resolvedAutoPausePreference
             && requestedAutoSwitchPreference
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
@@ -284,7 +292,7 @@ final class SettingsStore: ObservableObject {
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.searchScope = Self.loadSearchScope(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
-        self.autoStopAfterCueFinishesEnabled = resolvedAutoStopPreference
+        self.autoPauseAfterCueFinishesEnabled = resolvedAutoPausePreference
         self.autoSwitchToNextCuesInPlaylistEnabled = resolvedAutoSwitchPreference
         self.autoSwitchCueSequenceGapMilliseconds = Self.loadAutoSwitchCueSequenceGapMilliseconds(
             from: userDefaults
@@ -307,8 +315,8 @@ final class SettingsStore: ObservableObject {
         )
 
         userDefaults.set(
-            resolvedAutoStopPreference,
-            forKey: Self.autoStopAfterCueFinishesEnabledKey
+            resolvedAutoPausePreference,
+            forKey: Self.autoPauseAfterCueFinishesEnabledKey
         )
         userDefaults.set(
             resolvedAutoSwitchPreference,
@@ -319,6 +327,9 @@ final class SettingsStore: ObservableObject {
         }
         if hasLegacyOnlyPlayCuesPreference {
             userDefaults.removeObject(forKey: Self.legacyOnlyPlayCuesInPlaylistEnabledKey)
+        }
+        if hasLegacyAutoStopPreference {
+            userDefaults.removeObject(forKey: Self.legacyAutoStopAfterCueFinishesEnabledKey)
         }
 
         Self.applyAppAppearanceMode(loadedAppearance)

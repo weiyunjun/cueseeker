@@ -182,7 +182,7 @@ func appCoordinatorHoldsSearchCueSubtitleDuringAutoSwitchGap() async throws {
 func appCoordinatorKeepsStoppedCueSubtitleWithoutAutoSwitch() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()
-        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
         let result = SubtitleSearchResult(
             entryID: 1,
@@ -226,7 +226,7 @@ func appCoordinatorKeepsStoppedCueSubtitleWithoutAutoSwitch() async throws {
 func appCoordinatorKeepsStoppedShioriSubtitleWithoutAutoSwitch() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()
-        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
         let selectedShiori = Shiori(
             id: 1,
@@ -281,7 +281,7 @@ func playlistCueSettingsSupportOnlyThreeValidCombinations() async throws {
             (onlyPlay: false, autoSwitch: false)
         ] {
             app.beginCueAutoStopPlayback()
-            app.settings.autoStopAfterCueFinishesEnabled = combination.onlyPlay
+            app.settings.autoPauseAfterCueFinishesEnabled = combination.onlyPlay
             app.settings.autoSwitchToNextCuesInPlaylistEnabled = combination.autoSwitch
             app.playback.playbackStatus = .playing
 
@@ -316,7 +316,7 @@ func playlistCueSettingsSupportOnlyThreeValidCombinations() async throws {
 @Test
 func zeroGapAutoSwitchConsumesOnlyTheCompletedAutoStopEvent() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
-        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(0)
         app.activePlaybackSource = .search
@@ -341,7 +341,7 @@ func zeroGapAutoSwitchConsumesOnlyTheCompletedAutoStopEvent() async throws {
 @Test
 func manualResumeCancelsPendingCueAutoSwitch() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
-        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
         app.activePlaybackSource = .search
@@ -366,7 +366,7 @@ func manualResumeCancelsPendingCueAutoSwitch() async throws {
 @Test
 func replacingCuePlaybackInvalidatesPendingCueAutoSwitch() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
-        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(20)
         app.activePlaybackSource = .search
@@ -393,7 +393,7 @@ func replacingCuePlaybackInvalidatesPendingCueAutoSwitch() async throws {
 @Test
 func continuousFromStartBypassesBothPlaylistCueBehaviors() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
-        app.settings.autoStopAfterCueFinishesEnabled = true
+        app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
 
         let boundary = app.configureCueAutoStopBoundary(

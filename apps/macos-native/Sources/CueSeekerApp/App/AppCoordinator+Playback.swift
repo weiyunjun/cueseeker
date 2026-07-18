@@ -439,7 +439,7 @@ extension AppCoordinator {
         playsContinuouslyFromStart: Bool = false
     ) -> PlaybackAutoStopBoundary? {
         guard !playsContinuouslyFromStart,
-              settings.autoStopAfterCueFinishesEnabled
+              settings.autoPauseAfterCueFinishesEnabled
         else {
             return nil
         }
@@ -510,7 +510,7 @@ extension AppCoordinator {
         playback.playbackStatus = .paused
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
 
-        guard settings.autoStopAfterCueFinishesEnabled,
+        guard settings.autoPauseAfterCueFinishesEnabled,
               settings.autoSwitchToNextCuesInPlaylistEnabled
         else {
             return
@@ -604,7 +604,7 @@ extension AppCoordinator {
         let gapMilliseconds = settings.autoSwitchCueSequenceGapMilliseconds
         guard currentCueAutoStopReached,
               playback.playbackStatus == .paused,
-              settings.autoStopAfterCueFinishesEnabled,
+              settings.autoPauseAfterCueFinishesEnabled,
               settings.autoSwitchToNextCuesInPlaylistEnabled,
               source == .search || source == .shiori
         else {
@@ -627,7 +627,7 @@ extension AppCoordinator {
                       self.currentCueAutoStopReached,
                       self.playback.playbackStatus == .paused,
                       self.activePlaybackSource == source,
-                      self.settings.autoStopAfterCueFinishesEnabled,
+                      self.settings.autoPauseAfterCueFinishesEnabled,
                       self.settings.autoSwitchToNextCuesInPlaylistEnabled
                 else {
                     return

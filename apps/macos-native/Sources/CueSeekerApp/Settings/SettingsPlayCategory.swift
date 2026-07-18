@@ -14,12 +14,12 @@ struct SettingsPlayCategory: View {
             }
 
             HStack(spacing: 16) {
-                Text("Auto Stop After a Cue Finishes")
+                Text("Auto Pause After a Cue Finishes")
                     .font(.headline)
 
                 Spacer()
 
-                Toggle("", isOn: $settingsStore.autoStopAfterCueFinishesEnabled)
+                Toggle("", isOn: $settingsStore.autoPauseAfterCueFinishesEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
             }
@@ -33,7 +33,7 @@ struct SettingsPlayCategory: View {
                 Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .disabled(!settingsStore.autoStopAfterCueFinishesEnabled)
+                    .disabled(!settingsStore.autoPauseAfterCueFinishesEnabled)
             }
 
             HStack(spacing: 16) {
