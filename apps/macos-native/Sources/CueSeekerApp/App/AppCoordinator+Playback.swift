@@ -8,21 +8,6 @@ struct PlaybackKeyboardTextInputState: Equatable, Sendable {
     let hasMarkedText: Bool
 }
 
-struct ContinuousCueAutoSwitchBoundary: Equatable, Sendable {
-    let startMilliseconds: Int
-    let endMilliseconds: Int
-    var hasObservedCuePlayback = false
-
-    init(startMilliseconds: Int, endMilliseconds: Int) {
-        let segment = PlaybackSegment(
-            startMilliseconds: startMilliseconds,
-            endMilliseconds: endMilliseconds
-        )
-        self.startMilliseconds = segment.startMilliseconds
-        self.endMilliseconds = segment.endMilliseconds
-    }
-}
-
 @MainActor
 extension AppCoordinator {
     func togglePlaybackFullscreenFromUser() {
@@ -179,12 +164,6 @@ extension AppCoordinator {
         markCurrentLibraryPlaybackCompletedIfNeeded(
             currentTime: currentTime,
             duration: duration
-        )
-        guard currentTime.isFinite else {
-            return
-        }
-        handleContinuousCueAutoSwitchPlaybackTime(
-            currentTimeMilliseconds: Int((max(0, currentTime) * 1_000).rounded(.down))
         )
     }
 
@@ -476,19 +455,6 @@ extension AppCoordinator {
             playsContinuouslyFromStart: playsContinuouslyFromStart
         )
         activateCueSegmentPlayback(segment)
-
-        guard segment == nil,
-              !playsContinuouslyFromStart,
-              settings.autoSwitchToNextCuesInPlaylistEnabled
-        else {
-            activeContinuousCueAutoSwitchBoundary = nil
-            return segment
-        }
-
-        activeContinuousCueAutoSwitchBoundary = ContinuousCueAutoSwitchBoundary(
-            startMilliseconds: startMilliseconds,
-            endMilliseconds: endMilliseconds
-        )
         return segment
     }
 
@@ -538,45 +504,18 @@ extension AppCoordinator {
         currentCueSegmentFinished = true
         currentCueAutoSwitchBoundaryReached = true
         playback.playbackStatus = .paused
-
-        guard settings.autoSwitchToNextCuesInPlaylistEnabled else {
-            return
-        }
-
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
-        scheduleAutoSwitchCueSequence()
-    }
 
-    func handleContinuousCueAutoSwitchPlaybackTime(currentTimeMilliseconds: Int) {
-        guard var boundary = activeContinuousCueAutoSwitchBoundary else {
-            return
-        }
-
-        if currentTimeMilliseconds >= boundary.startMilliseconds,
-           currentTimeMilliseconds < boundary.endMilliseconds {
-            boundary.hasObservedCuePlayback = true
-            activeContinuousCueAutoSwitchBoundary = boundary
-            return
-        }
-
-        guard boundary.hasObservedCuePlayback,
-              currentTimeMilliseconds >= boundary.endMilliseconds
-        else {
-            return
-        }
-
-        activeContinuousCueAutoSwitchBoundary = nil
-        currentCueAutoSwitchBoundaryReached = true
         guard settings.autoSwitchToNextCuesInPlaylistEnabled else {
             return
         }
+
         scheduleAutoSwitchCueSequence()
     }
 
     func beginCueSegmentPlayback() {
         cuePlaybackGeneration += 1
         activeCueSegmentEndMilliseconds = nil
-        activeContinuousCueAutoSwitchBoundary = nil
         currentCueSegmentFinished = false
         currentCueAutoSwitchBoundaryReached = false
         cancelAutoSwitchCueSequenceTask()
@@ -585,7 +524,6 @@ extension AppCoordinator {
     func clearCueSegmentPlayback() {
         cuePlaybackGeneration += 1
         activeCueSegmentEndMilliseconds = nil
-        activeContinuousCueAutoSwitchBoundary = nil
         currentCueSegmentFinished = false
         currentCueAutoSwitchBoundaryReached = false
         cancelAutoSwitchCueSequenceTask()

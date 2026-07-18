@@ -47,10 +47,10 @@ In progress after owner requirement correction.
    ARM64 application, archived the previous installed bundle, installed the new
    bundle, refreshed Launch Services, and verified both cold and running-state
    URL dispatch: completed.
-7. Normalize the persisted settings to the three valid states, disable Auto
-   Switch when Only Play is off, remove the invalid continuous OFF/ON playback
-   path, and retain the stopped Cue subtitle independently of Auto Switch:
-   pending.
+7. Normalized persisted and runtime settings to the three valid states,
+   disabled Auto Switch when Only Play is off without disabling Gap editing,
+   removed the invalid continuous OFF/ON playback path, and retained stopped
+   Search, CueID, and Shiori subtitles independently of Auto Switch: completed.
 
 ## Verification
 
@@ -60,7 +60,16 @@ In progress after owner requirement correction.
 - The original Playlist settings/playback focused selection passed against the
   superseded four-state interpretation. The owner corrected that contract in
   committed requirement version `b81e54b`; replacement three-state and subtitle
-  retention verification is pending.
+  retention verification supersedes those results.
+- Corrected Playlist setting and Cue-boundary focused selection: 14 tests
+  passed, covering defaults, valid-state persistence, stored OFF/ON
+  normalization, legacy migration, Gap persistence, all three valid states,
+  Search and Shiori stopped-subtitle retention, retention while cancelling an
+  automatic-switch Gap, stale completion rejection, and continuous-from-start
+  override behavior.
+- Final full regression executed 764 tests. All correction-related tests passed;
+  five existing concurrent timing or database-isolation tests failed under the
+  full-suite load and all five passed together immediately in isolation.
 - `swift test --package-path apps/macos-native`: application and test targets
   built successfully and all tests related to this step passed. Repeated full
   runs each encountered one unrelated isolation/timeout failure
@@ -105,5 +114,6 @@ In progress after owner requirement correction.
 
 ## Outcome
 
-The original implementation and package require the accepted three-state and
-subtitle-retention correction before renewed owner end-to-end acceptance.
+The accepted three-state and subtitle-retention correction is implemented and
+verified. Repackaging and installed-bundle verification remain before renewed
+owner end-to-end acceptance.

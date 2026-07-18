@@ -5,7 +5,7 @@ import Testing
 
 @MainActor
 @Test
-func settingsStoreDefaultsPlaylistCueSettingsIndependently() {
+func settingsStoreDefaultsToValidOnOffPlaylistCueState() {
     withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
         let store = SettingsStore(
             userDefaults: userDefaults,
@@ -21,17 +21,28 @@ func settingsStoreDefaultsPlaylistCueSettingsIndependently() {
 
 @MainActor
 @Test
-func settingsStorePersistsPlaylistCueSettingsIndependently() {
+func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
     withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
         let store = SettingsStore(
             userDefaults: userDefaults,
             credentialStore: KeychainCredentialStore(service: service)
         )
 
-        store.onlyPlayCuesInPlaylistEnabled = false
         store.autoSwitchToNextCuesInPlaylistEnabled = true
         store.setAutoSwitchCueSequenceGapMilliseconds(750)
         store.playbackSpeakerDisplayEnabled = true
+
+        #expect(store.onlyPlayCuesInPlaylistEnabled)
+        #expect(store.autoSwitchToNextCuesInPlaylistEnabled)
+
+        store.onlyPlayCuesInPlaylistEnabled = false
+
+        #expect(!store.onlyPlayCuesInPlaylistEnabled)
+        #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
+
+        store.autoSwitchToNextCuesInPlaylistEnabled = true
+
+        #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
 
         let reloadedStore = SettingsStore(
             userDefaults: userDefaults,
@@ -39,9 +50,29 @@ func settingsStorePersistsPlaylistCueSettingsIndependently() {
         )
 
         #expect(!reloadedStore.onlyPlayCuesInPlaylistEnabled)
-        #expect(reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
+        #expect(!reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
         #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 750)
         #expect(reloadedStore.playbackSpeakerDisplayEnabled)
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreNormalizesPersistedOffOnPlaylistCueState() {
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
+        userDefaults.set(false, forKey: "onlyPlayCuesInPlaylistEnabled")
+        userDefaults.set(true, forKey: "autoSwitchToNextCuesInPlaylistEnabled")
+
+        let store = SettingsStore(
+            userDefaults: userDefaults,
+            credentialStore: KeychainCredentialStore(service: service)
+        )
+
+        #expect(!store.onlyPlayCuesInPlaylistEnabled)
+        #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
+        #expect(!userDefaults.bool(
+            forKey: "autoSwitchToNextCuesInPlaylistEnabled"
+        ))
     }
 }
 

@@ -452,7 +452,6 @@ final class AppCoordinator: ObservableObject {
     var currentCueAutoSwitchBoundaryReached = false
     var cuePlaybackGeneration = 0
     var activeCueSegmentEndMilliseconds: Int?
-    var activeContinuousCueAutoSwitchBoundary: ContinuousCueAutoSwitchBoundary?
     var libraryPlaybackCompletedMilestoneVideoPath: String?
     var libraryPlaybackFinishMetadata: SubtitlePlaybackFinishMetadata?
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []
@@ -595,8 +594,6 @@ final class AppCoordinator: ObservableObject {
 
                 self.cancelAutoSwitchCueSequenceTask()
                 self.currentCueAutoSwitchBoundaryReached = false
-                self.activeContinuousCueAutoSwitchBoundary = nil
-                self.clearCueSubtitlePresentationHold()
             }
             .store(in: &settingsCancellables)
     }

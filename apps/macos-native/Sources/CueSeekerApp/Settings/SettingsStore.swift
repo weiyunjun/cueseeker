@@ -133,6 +133,10 @@ final class SettingsStore: ObservableObject {
 
     @Published var onlyPlayCuesInPlaylistEnabled: Bool {
         didSet {
+            if !onlyPlayCuesInPlaylistEnabled,
+               autoSwitchToNextCuesInPlaylistEnabled {
+                autoSwitchToNextCuesInPlaylistEnabled = false
+            }
             userDefaults.set(
                 onlyPlayCuesInPlaylistEnabled,
                 forKey: Self.onlyPlayCuesInPlaylistEnabledKey
@@ -142,6 +146,10 @@ final class SettingsStore: ObservableObject {
 
     @Published var autoSwitchToNextCuesInPlaylistEnabled: Bool {
         didSet {
+            if autoSwitchToNextCuesInPlaylistEnabled,
+               !onlyPlayCuesInPlaylistEnabled {
+                autoSwitchToNextCuesInPlaylistEnabled = false
+            }
             userDefaults.set(
                 autoSwitchToNextCuesInPlaylistEnabled,
                 forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey
@@ -227,9 +235,14 @@ final class SettingsStore: ObservableObject {
         ) != nil
         let legacyAutoSwitchWasEnabled = hasLegacyAutoSwitchPreference
             && userDefaults.bool(forKey: Self.legacyAutoPlayCueSequenceEnabledKey)
-        let resolvedAutoSwitchPreference = legacyAutoSwitchWasEnabled
+        let resolvedOnlyPlayCuesPreference = hasStoredOnlyPlayCuesPreference
+            ? userDefaults.bool(forKey: Self.onlyPlayCuesInPlaylistEnabledKey)
+            : true
+        let requestedAutoSwitchPreference = legacyAutoSwitchWasEnabled
             || (hasStoredAutoSwitchPreference
                 && userDefaults.bool(forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey))
+        let resolvedAutoSwitchPreference = resolvedOnlyPlayCuesPreference
+            && requestedAutoSwitchPreference
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.primarySearchLanguageKey: PrimarySearchLanguage.defaultValue.rawValue,
@@ -260,9 +273,7 @@ final class SettingsStore: ObservableObject {
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.searchScope = Self.loadSearchScope(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
-        self.onlyPlayCuesInPlaylistEnabled = hasStoredOnlyPlayCuesPreference
-            ? userDefaults.bool(forKey: Self.onlyPlayCuesInPlaylistEnabledKey)
-            : true
+        self.onlyPlayCuesInPlaylistEnabled = resolvedOnlyPlayCuesPreference
         self.autoSwitchToNextCuesInPlaylistEnabled = resolvedAutoSwitchPreference
         self.autoSwitchCueSequenceGapMilliseconds = Self.loadAutoSwitchCueSequenceGapMilliseconds(
             from: userDefaults
@@ -284,15 +295,14 @@ final class SettingsStore: ObservableObject {
             credentialStore: credentialStore
         )
 
-        if !hasStoredOnlyPlayCuesPreference {
-            userDefaults.set(true, forKey: Self.onlyPlayCuesInPlaylistEnabledKey)
-        }
-        if !hasStoredAutoSwitchPreference || hasLegacyAutoSwitchPreference {
-            userDefaults.set(
-                resolvedAutoSwitchPreference,
-                forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey
-            )
-        }
+        userDefaults.set(
+            resolvedOnlyPlayCuesPreference,
+            forKey: Self.onlyPlayCuesInPlaylistEnabledKey
+        )
+        userDefaults.set(
+            resolvedAutoSwitchPreference,
+            forKey: Self.autoSwitchToNextCuesInPlaylistEnabledKey
+        )
         if hasLegacyAutoSwitchPreference {
             userDefaults.removeObject(forKey: Self.legacyAutoPlayCueSequenceEnabledKey)
         }

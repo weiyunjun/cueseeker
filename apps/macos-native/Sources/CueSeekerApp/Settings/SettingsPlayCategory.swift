@@ -33,6 +33,7 @@ struct SettingsPlayCategory: View {
                 Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
+                    .disabled(!settingsStore.onlyPlayCuesInPlaylistEnabled)
             }
 
             HStack(spacing: 16) {
