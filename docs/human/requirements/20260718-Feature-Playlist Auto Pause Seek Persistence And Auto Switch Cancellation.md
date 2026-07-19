@@ -23,7 +23,7 @@ main
 | 手动播放或暂停 | 保留 | 取消 |
 | 进入 Overlay | 保留 Playlist 状态 | 取消 |
 | Playlist 下一项/上一项 | 替换为新索引的时间戳 | 取消旧任务 |
-| Overlay Current/Playlist/Search/Shiori回车播放结果 | 替换为新索引的时间戳 | 取消旧任务 |
+| Overlay Playlist/Search/Shiori回车播放结果 | 替换为新索引的时间戳 | 取消旧任务 |
 | 播放其他搜索结果、Shiori 或 Library 内容 | 清除旧 Playlist 规则 | 取消 |
 | 音量、字幕显示、窗口操作 | 不影响 | 不影响 |
 
