@@ -21,6 +21,32 @@ struct ASSSparseFrame: @unchecked Sendable {
 }
 
 enum SourceFaithfulASSSubtitleLayout {
+    static func videoRect(videoSize: CGSize?, in bounds: CGRect) -> CGRect {
+        guard let videoSize,
+              videoSize.width > 0,
+              videoSize.height > 0,
+              bounds.width > 0,
+              bounds.height > 0
+        else {
+            return bounds
+        }
+
+        let scale = min(
+            bounds.width / videoSize.width,
+            bounds.height / videoSize.height
+        )
+        let size = CGSize(
+            width: videoSize.width * scale,
+            height: videoSize.height * scale
+        )
+        return CGRect(
+            x: bounds.midX - (size.width / 2),
+            y: bounds.midY - (size.height / 2),
+            width: size.width,
+            height: size.height
+        )
+    }
+
     static func surfaceFrame(
         destinationX: Int,
         destinationY: Int,
@@ -672,7 +698,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             return
         }
 
-        let videoRect = displayedVideoRect(in: bounds)
+        let videoRect = SourceFaithfulASSSubtitleLayout.videoRect(
+            videoSize: videoSize,
+            in: bounds
+        )
         guard videoRect.width > 1, videoRect.height > 1 else {
             return
         }
@@ -726,27 +755,6 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         return (width, height)
-    }
-
-    private func displayedVideoRect(in bounds: CGRect) -> CGRect {
-        guard let videoSize,
-              videoSize.width > 0,
-              videoSize.height > 0,
-              bounds.width > 0,
-              bounds.height > 0
-        else {
-            return bounds
-        }
-
-        let scale = min(bounds.width / videoSize.width, bounds.height / videoSize.height)
-        let width = videoSize.width * scale
-        let height = videoSize.height * scale
-        return CGRect(
-            x: bounds.midX - (width / 2),
-            y: bounds.midY - (height / 2),
-            width: width,
-            height: height
-        )
     }
 
     private func drawFailure(message: String) {

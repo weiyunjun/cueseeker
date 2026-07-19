@@ -7,11 +7,6 @@ import Foundation
 struct PlaybackScreenshotGeometry: Equatable, Sendable {
     let viewportSize: CGSize
     let videoRect: CGRect
-
-    init(viewportSize: CGSize, videoRect: CGRect) {
-        self.viewportSize = viewportSize
-        self.videoRect = videoRect
-    }
 }
 
 public struct PlaybackScreenshotPresentation: @unchecked Sendable {
@@ -21,16 +16,6 @@ public struct PlaybackScreenshotPresentation: @unchecked Sendable {
 
     public var viewportSize: CGSize {
         geometry.viewportSize
-    }
-
-    init(
-        nativeSnapshot: SFXNativePlaybackFrameSnapshot,
-        geometry: PlaybackScreenshotGeometry,
-        assSubtitleFrame: ASSSparseFrame?
-    ) {
-        self.nativeSnapshot = nativeSnapshot
-        self.geometry = geometry
-        self.assSubtitleFrame = assSubtitleFrame
     }
 }
 

@@ -17,7 +17,8 @@ func playbackScreenshotPasteboardWriterPublishesReadablePNG() throws {
         pasteboard.clearContents()
     }
 
-    try PlaybackScreenshotPasteboardWriter.write(image, to: pasteboard)
+    let encodedPNG = try PlaybackScreenshotPasteboardWriter.pngData(for: image)
+    try PlaybackScreenshotPasteboardWriter.write(encodedPNG, to: pasteboard)
 
     let pngData = try #require(pasteboard.data(forType: .png))
     let source = try #require(CGImageSourceCreateWithData(pngData as CFData, nil))

@@ -3,16 +3,6 @@ import CueSeekerPlayback
 import SwiftUI
 
 enum PlaybackCurrentFrameScreenshotComposer {
-    static func render(
-        _ presentation: PlaybackScreenshotPresentation,
-        simpleSubtitleViewportOverlay: CGImage?
-    ) throws -> CGImage {
-        try PlaybackCurrentFrameScreenshotRenderer.render(
-            presentation,
-            simpleSubtitleViewportOverlay: simpleSubtitleViewportOverlay
-        )
-    }
-
     @MainActor
     static func renderSimpleSubtitleViewportOverlay(
         text: String,

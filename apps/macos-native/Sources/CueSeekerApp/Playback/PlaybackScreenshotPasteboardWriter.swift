@@ -39,12 +39,4 @@ enum PlaybackScreenshotPasteboardWriter {
             throw PlaybackScreenshotPasteboardError.pasteboardWriteFailed
         }
     }
-
-    @MainActor
-    static func write(
-        _ image: CGImage,
-        to pasteboard: NSPasteboard = .general
-    ) throws {
-        try write(try pngData(for: image), to: pasteboard)
-    }
 }

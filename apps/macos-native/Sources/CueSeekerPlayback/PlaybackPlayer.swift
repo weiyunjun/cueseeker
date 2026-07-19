@@ -1028,33 +1028,11 @@ public final class PlaybackRenderContainerView: NSView {
         let viewportSize = bounds.size.width > 0 && bounds.size.height > 0
             ? bounds.size
             : fallbackSize
-        guard let currentVideoSize,
-              currentVideoSize.width > 0,
-              currentVideoSize.height > 0,
-              viewportSize.width > 0,
-              viewportSize.height > 0
-        else {
-            return PlaybackScreenshotGeometry(
-                viewportSize: viewportSize,
-                videoRect: CGRect(origin: .zero, size: viewportSize)
-            )
-        }
-
-        let scale = min(
-            viewportSize.width / currentVideoSize.width,
-            viewportSize.height / currentVideoSize.height
-        )
-        let displayedSize = CGSize(
-            width: currentVideoSize.width * scale,
-            height: currentVideoSize.height * scale
-        )
         return PlaybackScreenshotGeometry(
             viewportSize: viewportSize,
-            videoRect: CGRect(
-                x: (viewportSize.width - displayedSize.width) / 2,
-                y: (viewportSize.height - displayedSize.height) / 2,
-                width: displayedSize.width,
-                height: displayedSize.height
+            videoRect: SourceFaithfulASSSubtitleLayout.videoRect(
+                videoSize: currentVideoSize,
+                in: CGRect(origin: .zero, size: viewportSize)
             )
         )
     }

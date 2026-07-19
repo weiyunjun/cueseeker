@@ -78,6 +78,19 @@ or pausing the active video and without invoking FFmpeg.
   screenshot geometry, ASS data, and conversion errors to playback-module
   implementation details.
 
+### 3. API and Layout Cleanup
+
+- Removed the unused composition forwarding method, image-to-pasteboard
+  convenience overload, and redundant internal memberwise initializers.
+- Shared one aspect-fit video rectangle calculation between the live ASS layer
+  and screenshot geometry so both paths cannot drift independently.
+- Renamed the background work item field to describe its viewport-sized
+  subtitle overlay and kept request generation ordering, background PNG work,
+  pasteboard publication, input gates, and feedback unchanged.
+- Reduced screenshot production code by a net 210 lines, from 739 lines added
+  by the initial implementation to 529, while retaining behavior-focused test
+  coverage.
+
 ### 4. Playback Command and Feedback
 
 - Added a fixed `photo` transport-style button before the subtitle control. It
@@ -125,6 +138,12 @@ or pausing the active video and without invoking FFmpeg.
 - Passed all 16 tests selected by the `Screenshot` filter after unifying the
   composition path; the native-size SRT test still confirms correct video
   orientation, letterbox removal, and bottom anchoring.
+- Passed 17 focused tests covering screenshots plus the shared aspect-fit ASS
+  layout calculation after the final API cleanup.
+- Ran the complete 787-test Swift Testing suite. Two unrelated shared-state and
+  database tests failed under full-suite load; both passed immediately when
+  rerun alone (`sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  and `subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession`).
 - Ran the complete `swift test --package-path apps/macos-native` suite. The run
   exercised 787 Swift Testing tests but reported four timing/I/O-sensitive
   failures under full-suite load alongside transient SQLite `disk I/O error`
@@ -135,4 +154,5 @@ or pausing the active video and without invoking FFmpeg.
 
 - Current-frame screenshot copy is implemented for the playback page with the
   required frame fidelity, subtitle visibility, input gates, pasteboard-only
-  output, and success feedback.
+  output, and success feedback. The simplification pass preserves that behavior
+  with fewer screenshot-specific models, allocations, and public interfaces.
