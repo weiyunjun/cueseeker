@@ -87,8 +87,8 @@ or pausing the active video and without invoking FFmpeg.
 - Renamed the background work item field to describe its viewport-sized
   subtitle overlay and kept request generation ordering, background PNG work,
   pasteboard publication, input gates, and feedback unchanged.
-- Reduced screenshot production code by a net 210 lines, from 739 lines added
-  by the initial implementation to 529, while retaining behavior-focused test
+- Reduced screenshot production code by a net 209 lines, from 739 lines added
+  by the initial implementation to 530, while retaining behavior-focused test
   coverage.
 
 ### 4. Playback Command and Feedback
