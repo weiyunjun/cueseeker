@@ -51,6 +51,23 @@ or pausing the active video and without invoking FFmpeg.
   the simple SwiftUI subtitle overlay that is visually above the native render
   container.
 
+### 4. Playback Command and Feedback
+
+- Added a fixed `photo` transport-style button before the subtitle control. It
+  has no selected state or icon transition and follows the existing timeline
+  interaction suppression used by the other playback controls.
+- Added bare `P` handling for the normal playback surface, including repeated
+  key-down events. Modified `P` is not claimed, timeline dragging consumes the
+  shortcut without taking a screenshot, and the subtitle-focus overlay keeps
+  consuming it without dispatching the screenshot command.
+- Captured the submitted frame, current layout geometry, ASS surface, and
+  simple-subtitle overlay on the main actor, then moved pixel composition and
+  in-memory PNG encoding to a user-initiated background task.
+- Ordered concurrent requests by generation so an older completion cannot
+  overwrite a newer successful copy. The main actor writes `public.png` to the
+  pasteboard and shows the centered `photo` / `Screenshot Copied` HUD only
+  after that write succeeds.
+
 ## Verification
 
 - Passed: `swift test --package-path apps/macos-native --filter nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits`.
@@ -72,7 +89,17 @@ or pausing the active video and without invoking FFmpeg.
   frame and the reused simple-subtitle view produces a transparent native-size
   overlay whose visible pixels remain bottom-anchored after letterbox cropping
   and scaling.
+- Passed the four command-state tests covering bare and repeated `P`, modified
+  `P`, timeline dragging, subtitle-focus overlay suppression, and the required
+  success HUD contents.
+- Ran the complete `swift test --package-path apps/macos-native` suite. The run
+  exercised 787 Swift Testing tests but reported four timing/I/O-sensitive
+  failures under full-suite load alongside transient SQLite `disk I/O error`
+  messages. Each failed test passed immediately when rerun alone: the two
+  native media-timeline tests and the two subtitle-focus database action tests.
 
 ## Outcome
 
-- Pending implementation completion.
+- Current-frame screenshot copy is implemented for the playback page with the
+  required frame fidelity, subtitle visibility, input gates, pasteboard-only
+  output, and success feedback.

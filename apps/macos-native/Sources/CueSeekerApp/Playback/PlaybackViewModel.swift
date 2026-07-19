@@ -47,6 +47,11 @@ struct PlaybackFeedback: Identifiable, Equatable {
     }
 }
 
+private struct PlaybackScreenshotRenderWorkItem: @unchecked Sendable {
+    let presentation: PlaybackScreenshotPresentation
+    let simpleSubtitleOverlay: CGImage?
+}
+
 @MainActor
 public final class PlaybackViewModel: ObservableObject {
     private struct PendingPresentation {
@@ -100,6 +105,8 @@ public final class PlaybackViewModel: ObservableObject {
     private let onPresentationCommitted: (Bool) -> Void
     private let uiProbeScope: String?
     private var pendingPresentation: PendingPresentation?
+    private var screenshotRequestGeneration: UInt = 0
+    private var lastCommittedScreenshotGeneration: UInt = 0
 
     public init(
         player: PlaybackPlayer,
@@ -522,6 +529,58 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    func copyCurrentFrameScreenshot() {
+        guard timelineScrubbingWasPlaying == nil,
+              let presentation = player.captureScreenshotPresentation()
+        else {
+            return
+        }
+
+        let simpleSubtitleOverlay = activeSubtitleText.flatMap {
+            PlaybackCurrentFrameScreenshotComposer.renderSimpleSubtitleOverlay(
+                text: $0,
+                geometry: presentation.geometry,
+                outputWidth: presentation.frame.width,
+                outputHeight: presentation.frame.height
+            )
+        }
+        let workItem = PlaybackScreenshotRenderWorkItem(
+            presentation: presentation,
+            simpleSubtitleOverlay: simpleSubtitleOverlay
+        )
+        screenshotRequestGeneration &+= 1
+        let requestGeneration = screenshotRequestGeneration
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            do {
+                let screenshot = try PlaybackCurrentFrameScreenshotComposer.render(
+                    workItem.presentation,
+                    simpleSubtitleOverlay: workItem.simpleSubtitleOverlay
+                )
+                let pngData = try PlaybackScreenshotPasteboardWriter.pngData(
+                    for: screenshot
+                )
+                await self?.commitCurrentFrameScreenshot(
+                    pngData,
+                    requestGeneration: requestGeneration
+                )
+            } catch {
+                print("Failed to copy current frame screenshot: \(error)")
+            }
+        }
+    }
+
+    func showScreenshotCopiedFeedback() {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "photo",
+                text: "Screenshot Copied"
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showSubtitleMarkdownLinkCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(
@@ -813,6 +872,23 @@ public final class PlaybackViewModel: ObservableObject {
                     self?.accumulatedRewindSeconds = 0
                 }
             }
+        }
+    }
+
+    private func commitCurrentFrameScreenshot(
+        _ pngData: Data,
+        requestGeneration: UInt
+    ) {
+        guard requestGeneration > lastCommittedScreenshotGeneration else {
+            return
+        }
+
+        do {
+            try PlaybackScreenshotPasteboardWriter.write(pngData)
+            lastCommittedScreenshotGeneration = requestGeneration
+            showScreenshotCopiedFeedback()
+        } catch {
+            print("Failed to write current frame screenshot to pasteboard: \(error)")
         }
     }
 

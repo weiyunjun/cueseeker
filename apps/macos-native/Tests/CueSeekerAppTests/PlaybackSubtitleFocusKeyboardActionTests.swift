@@ -99,6 +99,24 @@ func playbackOverlayEnterQueuesPlayWhileSpaceRemainsInactive() async throws {
 
 @MainActor
 @Test
+func playbackOverlayConsumesPWithoutTakingScreenshot() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        #expect(app.playback.subtitleFocusSession === session)
+        #expect(app.playback.playbackViewModel?.feedback == nil)
+    }
+}
+
+@MainActor
+@Test
 func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(

@@ -920,6 +920,9 @@ extension AppCoordinator {
         case 12:
             viewModel.toggleSubtitles()
             return true
+        case 35 where !hasShift:
+            viewModel.copyCurrentFrameScreenshot()
+            return true
         case 3:
             togglePlaybackFullscreenFromUser()
             return true
@@ -958,6 +961,8 @@ extension AppCoordinator {
         switch keyCode {
         case 0, 2, 3, 12, 36, 49, 76, 123, 124, 125, 126:
             return true
+        case 35:
+            return !hasShift
         case 43, 47:
             return hasShift
         default:

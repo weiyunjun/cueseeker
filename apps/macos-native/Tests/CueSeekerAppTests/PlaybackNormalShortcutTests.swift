@@ -38,6 +38,61 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
 
 @MainActor
 @Test
+func normalPlaybackBarePCopiesScreenshotWhileShiftPDoesNothing() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        let initialPointerHideGeneration = app.playback.pointerHideRequestGeneration
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        #expect(
+            app.playback.pointerHideRequestGeneration
+                == initialPointerHideGeneration + 1
+        )
+        #expect(viewModel.feedback == nil)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 35,
+            modifierFlagsRawValue: 0,
+            isRepeat: true
+        ))
+
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 35,
+            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
+        ))
+        #expect(
+            app.playback.pointerHideRequestGeneration
+                == initialPointerHideGeneration + 3
+        )
+    }
+}
+
+@MainActor
+@Test
+func timelineScrubbingConsumesBarePWithoutTakingScreenshot() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        app.playback.isTimelineScrubbing = true
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        #expect(viewModel.feedback == nil)
+    }
+}
+
+@MainActor
+@Test
+func screenshotCopiedFeedbackUsesRequiredIconAndText() {
+    let viewModel = PlaybackViewModel(player: PlaybackPlayer())
+
+    viewModel.showScreenshotCopiedFeedback()
+
+    #expect(viewModel.feedback?.position == .center)
+    #expect(viewModel.feedback?.icon == .system("photo"))
+    #expect(viewModel.feedback?.text == "Screenshot Copied")
+}
+
+@MainActor
+@Test
 func playbackPointerStartsHiddenAndOnlyMovementRestoresIt() {
     let model = PlaybackChromeVisibilityModel()
     let view = NSView()

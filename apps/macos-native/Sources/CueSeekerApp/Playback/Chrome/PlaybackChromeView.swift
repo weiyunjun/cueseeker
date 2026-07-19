@@ -196,6 +196,14 @@ struct PlaybackChromeView: View {
 
     private var rightGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.rightControlsGap) {
+            PlaybackTimelineChromeIconButton(
+                timeline: timeline,
+                systemName: "photo",
+                kind: .transport,
+                accessibilityLabel: "Copy screenshot",
+                action: viewModel.copyCurrentFrameScreenshot
+            )
+
             PlaybackSubtitleChromeButton(
                 viewModel: viewModel,
                 timeline: timeline

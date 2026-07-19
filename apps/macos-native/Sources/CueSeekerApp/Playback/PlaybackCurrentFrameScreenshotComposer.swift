@@ -2,8 +2,8 @@ import CoreGraphics
 import CueSeekerPlayback
 import SwiftUI
 
-@MainActor
 enum PlaybackCurrentFrameScreenshotComposer {
+    @MainActor
     static func render(
         presentation: PlaybackScreenshotPresentation,
         simpleSubtitleText: String?
@@ -16,12 +16,23 @@ enum PlaybackCurrentFrameScreenshotComposer {
                 outputHeight: presentation.frame.height
             )
         }
-        return try PlaybackCurrentFrameScreenshotRenderer.render(
+        return try render(
             presentation,
             simpleSubtitleOverlay: overlay
         )
     }
 
+    static func render(
+        _ presentation: PlaybackScreenshotPresentation,
+        simpleSubtitleOverlay: CGImage?
+    ) throws -> PlaybackScreenshotImage {
+        try PlaybackCurrentFrameScreenshotRenderer.render(
+            presentation,
+            simpleSubtitleOverlay: simpleSubtitleOverlay
+        )
+    }
+
+    @MainActor
     static func renderSimpleSubtitleOverlay(
         text: String,
         geometry: PlaybackScreenshotGeometry,
