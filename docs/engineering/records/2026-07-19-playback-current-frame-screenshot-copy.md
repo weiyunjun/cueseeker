@@ -25,6 +25,18 @@ or pausing the active video and without invoking FFmpeg.
 - Cleared the player-owned snapshot when playback removes the displayed image;
   snapshots already handed to callers retain their pixel buffer independently.
 
+### 2. Native-Size Image and Pasteboard Boundary
+
+- Wrapped the native snapshot in an immutable playback-domain value without
+  exposing mutable player state to the App target.
+- Added a Core Image conversion path that accepts hardware or software pixel
+  buffers, applies any image orientation property carried by the submitted
+  frame, preserves the resulting native pixel dimensions, and produces an sRGB
+  `CGImage` without reopening the media source.
+- Kept macOS clipboard integration in the App target. It encodes the rendered
+  image directly to an in-memory PNG and publishes `public.png` without a save
+  panel or temporary file.
+
 ## Verification
 
 - Passed: `swift test --package-path apps/macos-native --filter nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits`.
@@ -32,6 +44,13 @@ or pausing the active video and without invoking FFmpeg.
   advances to the seek and source-open presentation generations, clears when
   playback removes the display image, and remains readable when a caller still
   owns an earlier snapshot.
+- Passed: `swift test --package-path apps/macos-native --filter Screenshot` with
+  the new native-size renderer and pasteboard writer tests plus the existing
+  subtitle screenshot coverage.
+- Passed: `swift test --package-path apps/macos-native --filter currentFrameScreenshotRenderer`.
+- Confirmed both software-style BGRA and hardware-style bi-planar YUV pixel
+  buffers produce the expected native pixel dimensions, and the pasteboard PNG
+  decodes back to those dimensions.
 
 ## Outcome
 

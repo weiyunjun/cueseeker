@@ -517,6 +517,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
     }
 
+    public func captureLatestSubmittedVideoFrame() -> PlaybackSubmittedVideoFrame? {
+        guard let snapshot = nativePlayer.latestSubmittedVideoFrameSnapshot else {
+            return nil
+        }
+        return PlaybackSubmittedVideoFrame(nativeSnapshot: snapshot)
+    }
+
     public func holdSubtitlePresentation(atMilliseconds milliseconds: Int) {
         let safeMilliseconds = max(0, milliseconds)
         heldSubtitlePresentationMilliseconds = safeMilliseconds
