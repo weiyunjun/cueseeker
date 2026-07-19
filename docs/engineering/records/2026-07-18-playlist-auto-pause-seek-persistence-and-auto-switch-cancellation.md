@@ -30,6 +30,19 @@
    a fresh runtime state and the latest persisted settings. Closing Playback or
    replacing Playlist playback clears the old boundary, snapshot, position, and
    pending switch task.
+6. Removed the Overlay-only continuous-play bypass from Current, Playlist,
+   Search, and Shiori Enter actions. Every successful Enter selection now
+   initializes a new logical Item and settings snapshot. Current initializes its
+   replacement boundary before seeking; the other modules use their normal
+   Search or Shiori Item-opening paths.
+7. Moved the effective Auto Pause timestamp to `max(Cue Start, Cue End - 1ms)`
+   for the native boundary, completion validation, and subtitle presentation.
+   Subtitle hold no longer depends on the previously selected Search result or
+   Shiori record, so Current can pause on its exact Cue even when that Cue differs
+   from the original Playlist primary Cue.
+8. Made Current-Cue playback submit its replacement Auto Pause boundary with the
+   same-media seek. This prevents a native boundary left by the previous logical
+   Item from pausing the newly selected Cue at the old timestamp.
 
 ## Verification
 
@@ -60,6 +73,30 @@
 - `swift test --package-path apps/macos-native --no-parallel`: all playback and
   feature tests passed. One unrelated shared-UserDefaults isolation test saw a
   value left by the broader process; its isolated rerun passed.
+- `swift test --package-path apps/macos-native --filter PlaybackSubtitleFocusKeyboardActionTests`:
+  passed all 15 Overlay keyboard-action tests, including retention of the new
+  Current Item snapshot and boundary after Enter destroys the Overlay session.
+- `swift test --package-path apps/macos-native --filter PlaybackSegmentCompletionTests`:
+  passed all 21 tests after removing the continuous-play bypass and moving the
+  effective boundary to Cue End minus one millisecond. The adjacent-Cue
+  regression confirms the current Cue remains visible even when the selected
+  Search result represents a different Cue.
+- `swift test --package-path apps/macos-native --filter PlaybackShioriOverlayTests`:
+  passed all six Shiori Overlay tests after removing the legacy continuous-play
+  dispatch flag.
+- `swift test --package-path apps/macos-native --filter playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks`:
+  passed with generated real media. A same-media seek replaced a stale 1000ms
+  boundary with a 1500ms boundary and emitted only the replacement timestamp;
+  seek persistence and rearming also remained valid.
+- `swift test --package-path apps/macos-native --filter URLSchemeCuePlaybackTests`:
+  passed all three CueID routing and cancellation tests.
+- `swift test --package-path apps/macos-native --filter URLSchemeSearchRoutingTests`:
+  passed all seven URL Scheme Search and direct-play routing tests.
+- `swift test --package-path apps/macos-native --filter SettingsStorePlaybackTests`:
+  passed all seven settings state, migration, and Gap persistence tests.
+- `swift test --package-path apps/macos-native --no-parallel`: 776 of 777 tests
+  passed. The unrelated shared-persistence isolation test observed an existing
+  shared `workbenchPanelMode` value; its immediate isolated rerun passed.
 - `scripts/package_macos_app.sh --output /private/tmp/CueSeeker-Auto-Pause-E2E.app`:
   passed the release build, recursive signing, dependency, self-contained
   ARM64, and bundle verification checks. The bundle is 36 MB; its CueSeeker
@@ -68,6 +105,5 @@
 
 ## Outcome
 
-- Implementation, automated feature verification, and packaging completed.
-  Packaged owner end-to-end verification remains required for final product
-  acceptance.
+- Implementation and automated feature verification completed. A new packaged
+  owner end-to-end build remains required for final product acceptance.
