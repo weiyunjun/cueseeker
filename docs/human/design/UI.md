@@ -1584,6 +1584,7 @@
 - Right Control Group：
   - Trailing 对齐
   - 间距使用 `--gap-player-bottom-right-controls`
+  - Screenshot
   - Show / Hide Subtitles
   - Playback Speed
   - Fullscreen
