@@ -30,19 +30,26 @@
    a fresh runtime state and the latest persisted settings. Closing Playback or
    replacing Playlist playback clears the old boundary, snapshot, position, and
    pending switch task.
-6. Removed the Overlay-only continuous-play bypass from Current, Playlist,
-   Search, and Shiori Enter actions. Every successful Enter selection now
-   initializes a new logical Item and settings snapshot. Current initializes its
-   replacement boundary before seeking; the other modules use their normal
-   Search or Shiori Item-opening paths.
+6. Kept Overlay Current Enter as a subtitle-based seek within the existing
+   Playlist Item. It preserves the Item identity, effective-settings snapshot,
+   and Auto Pause timestamp while cancelling any pending Auto Switch through
+   the normal seek callbacks. Playlist, Search, and Shiori Enter actions still
+   use their normal Item-opening paths and initialize a replacement Item.
 7. Moved the effective Auto Pause timestamp to `max(Cue Start, Cue End - 1ms)`
    for the native boundary, completion validation, and subtitle presentation.
    Subtitle hold no longer depends on the previously selected Search result or
    Shiori record, so Current can pause on its exact Cue even when that Cue differs
    from the original Playlist primary Cue.
-8. Made Current-Cue playback submit its replacement Auto Pause boundary with the
-   same-media seek. This prevents a native boundary left by the previous logical
-   Item from pausing the newly selected Cue at the old timestamp.
+8. Added a pre-pause authorization gate between the native media boundary and
+   the playback wrapper. An Auto Pause is accepted only for the currently
+   authorized boundary and native presentation generation. Clearing or
+   replacing the Item invalidates that authorization before the native player
+   changes to paused state; rejection removes the native boundary and continues
+   normal audio/video playback without emitting an Auto Pause event.
+9. Invalidated the old Item runtime before Search or Shiori changes Playlist
+   source/position state. Playlist boundary refreshes now also clear the Item
+   runtime when its captured position no longer resolves to the same identity,
+   closing late-boundary windows that could otherwise use stale state.
 
 ## Verification
 
@@ -74,8 +81,9 @@
   feature tests passed. One unrelated shared-UserDefaults isolation test saw a
   value left by the broader process; its isolated rerun passed.
 - `swift test --package-path apps/macos-native --filter PlaybackSubtitleFocusKeyboardActionTests`:
-  passed all 15 Overlay keyboard-action tests, including retention of the new
-  Current Item snapshot and boundary after Enter destroys the Overlay session.
+  passed all 15 Overlay keyboard-action tests, including retention of the
+  existing Playlist Item snapshot and boundary when Current Enter destroys the
+  Overlay session and performs a seek.
 - `swift test --package-path apps/macos-native --filter PlaybackSegmentCompletionTests`:
   passed all 21 tests after removing the continuous-play bypass and moving the
   effective boundary to Cue End minus one millisecond. The adjacent-Cue
@@ -111,9 +119,25 @@
   `/Applications/CueSeeker.app`, claims `cueseeker:`, and is the resolved
   application for `cueseeker://cue?id=8869902`. No URL was opened during this
   check, leaving application-level behavior for owner end-to-end validation.
+- `swift test --package-path apps/macos-native --filter PlaybackSegmentCompletionTests`:
+  passed all 22 tests after adding Playlist identity-invalidation coverage; a
+  late completion cannot pause or schedule a switch after the captured Item is
+  no longer valid.
+- `swift test --package-path apps/macos-native --filter PlaybackSubtitleFocusKeyboardActionTests`:
+  passed all 15 tests with Current Enter retaining the existing Item and using
+  the generic seek path.
+- `swift test --package-path apps/macos-native --filter NativePlaybackMediaTimelineTests`:
+  passed all three generated-media tests. A boundary invalidated before arrival
+  produced no Auto Pause event, remained playing, and advanced beyond the old
+  timestamp; accepted Auto Pause and resume behavior remained intact.
+- `swift test --package-path apps/macos-native --no-parallel`: all feature and
+  playback tests passed in the 778-test run. The one unrelated shared
+  `UserDefaults` isolation test observed an existing `workbenchPanelMode`; its
+  immediate isolated rerun passed.
 
 ## Outcome
 
-- Implementation, automated verification, installation, and URL handler
-  registration completed. Owner end-to-end validation of the installed build
-  remains required for final product acceptance.
+- The corrected Current-seek lifecycle, pre-pause authorization, stale Item
+  invalidation, and automated verification are complete. The latest correction
+  has not been packaged in this change; owner end-to-end validation remains
+  required after the next requested application build.

@@ -239,6 +239,22 @@ func playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks() async throws {
         delegate.boundaryEventCount == 2
     }
     #expect(reachedSecondPass)
+
+    let rejectedBoundary = PlaybackAutoStopBoundary(
+        startMilliseconds: 500,
+        endMilliseconds: 2_500
+    )
+    player.setAutoPauseBoundary(rejectedBoundary)
+    _ = try player.seek(to: rejectedBoundary)
+    player.setAutoPauseBoundary(nil)
+    try player.setPaused(false)
+
+    let continuedPastRejectedBoundary = await waitUntil(timeoutSeconds: 5) {
+        delegate.lastPlaybackMilliseconds >= 3_000
+    }
+    #expect(continuedPastRejectedBoundary)
+    #expect(delegate.boundaryEventCount == 2)
+    #expect(!delegate.isPaused)
 }
 
 private final class NativeAutoStopDelegate: NSObject, SFXNativePlaybackPlayerDelegate {
@@ -277,12 +293,22 @@ private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
     private let lock = NSLock()
     private var boundaryEvents = 0
     private var lastBoundary: Int?
+    private var playbackMilliseconds = 0
+    private var paused = true
 
     func player(
         _ player: PlaybackPlayer,
         didChangeProperty name: String,
         value: PlaybackPropertyValue?
-    ) {}
+    ) {
+        lock.lock()
+        if name == "time-pos", case .double(let seconds) = value {
+            playbackMilliseconds = max(0, Int((seconds * 1_000).rounded(.down)))
+        } else if name == "pause", case .bool(let isPaused) = value {
+            paused = isPaused
+        }
+        lock.unlock()
+    }
 
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {}
 
@@ -306,6 +332,18 @@ private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
         lock.lock()
         defer { lock.unlock() }
         return lastBoundary
+    }
+
+    var lastPlaybackMilliseconds: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return playbackMilliseconds
+    }
+
+    var isPaused: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return paused
     }
 }
 

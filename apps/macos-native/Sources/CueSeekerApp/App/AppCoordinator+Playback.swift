@@ -256,6 +256,7 @@ extension AppCoordinator {
         playbackSearchPromotion: PlaybackSearchPromotion? = nil,
         playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
+        clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement(
             finishesPlaybackSearchHost: playbackSearchPromotion == nil
         )
@@ -293,7 +294,6 @@ extension AppCoordinator {
                 scopePaths: playbackSearchPromotion?.scopePaths
             ))
         }
-        clearCueAutoStopPlayback()
         activePlaybackSource = .search
         search.selectedSearchResult = result
         if playbackSearchPromotion == nil {

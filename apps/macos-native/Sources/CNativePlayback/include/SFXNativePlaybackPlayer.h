@@ -31,6 +31,9 @@ didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 	      presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didFinishSegmentAtMilliseconds:(NSInteger)endMilliseconds;
+- (BOOL)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
+shouldPauseAtAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds
+      presentationGeneration:(NSUInteger)presentationGeneration;
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
 didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @end

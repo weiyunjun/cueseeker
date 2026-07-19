@@ -955,6 +955,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    BOOL _segmentEndReached;
 	    BOOL _segmentFinishNotified;
 	    BOOL _pausesAtSegmentEnd;
+    BOOL _autoPauseAuthorizationResolved;
+    BOOL _autoPauseAuthorized;
     atomic_bool _segmentAudioBoundaryReached;
     atomic_bool _segmentVideoBoundaryReached;
     BOOL _segmentWaitingForAudioCompletion;
@@ -1002,6 +1004,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    NSInteger safeEndMilliseconds = SFXSanitizedSegmentEndMilliseconds(startMilliseconds, endMilliseconds);
 	    _segmentEndSeconds = safeEndMilliseconds >= 0 ? (double)safeEndMilliseconds / 1000.0 : -1;
 	    _pausesAtSegmentEnd = pausesAtSegmentEnd && safeEndMilliseconds >= 0;
+	    _autoPauseAuthorizationResolved = NO;
+	    _autoPauseAuthorized = NO;
 	    _currentTime = _seekSeconds;
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
@@ -1184,6 +1188,49 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
 }
 
+- (BOOL)resolveAutoPauseAuthorizationIfNeeded {
+    BOOL rejectedAutoPause = NO;
+    BOOL authorized = YES;
+    @synchronized (self) {
+        if (!_pausesAtSegmentEnd) {
+            return YES;
+        }
+        if (_autoPauseAuthorizationResolved) {
+            return _autoPauseAuthorized;
+        }
+
+        id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;
+        SFXNativePlaybackPlayer *owner = _owner;
+        NSInteger endMilliseconds = [self segmentEndMilliseconds];
+        if (delegate != nil
+            && owner != nil
+            && [delegate respondsToSelector:@selector(nativePlaybackPlayer:shouldPauseAtAutoStopBoundaryAtMilliseconds:presentationGeneration:)]) {
+            authorized = [delegate nativePlaybackPlayer:owner
+                shouldPauseAtAutoStopBoundaryAtMilliseconds:endMilliseconds
+                presentationGeneration:_presentationGeneration];
+        }
+        _autoPauseAuthorizationResolved = YES;
+        _autoPauseAuthorized = authorized;
+        if (!authorized) {
+            _segmentEndSeconds = -1;
+            _pausesAtSegmentEnd = NO;
+            _segmentWaitingForAudioCompletion = NO;
+            _segmentAudioPlaybackCompleted = NO;
+            atomic_store(&_segmentAudioBoundaryReached, false);
+            atomic_store(&_segmentVideoBoundaryReached, false);
+            rejectedAutoPause = YES;
+        }
+    }
+
+    if (rejectedAutoPause) {
+        [_packetQueueCondition lock];
+        [_packetQueueCondition broadcast];
+        [_packetQueueCondition unlock];
+        [self requestAudioDrain];
+    }
+    return authorized;
+}
+
 - (BOOL)segmentAudioBoundarySatisfiedLocked {
     return atomic_load(&_segmentAudioBoundaryReached)
         || _audioCodecContext == NULL
@@ -1208,7 +1255,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (void)markSegmentAudioBoundaryReached {
-    if (![self hasActiveSegmentEnd] || atomic_load(&_cancelled)) {
+    if (![self hasActiveSegmentEnd]
+        || atomic_load(&_cancelled)
+        || ![self resolveAutoPauseAuthorizationIfNeeded]) {
         return;
     }
 
@@ -1235,7 +1284,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (void)markSegmentVideoBoundaryReached {
-    if (![self hasActiveSegmentEnd] || atomic_load(&_cancelled)) {
+    if (![self hasActiveSegmentEnd]
+        || atomic_load(&_cancelled)
+        || ![self resolveAutoPauseAuthorizationIfNeeded]) {
         return;
     }
 
@@ -1297,9 +1348,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             return;
         }
 
+        pausesAtSegmentEnd = _pausesAtSegmentEnd;
         _segmentEndReached = YES;
         _currentTime = _segmentEndSeconds;
-        pausesAtSegmentEnd = _pausesAtSegmentEnd;
         shouldNotify = YES;
     }
 
@@ -2644,6 +2695,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	        _seekSeconds = seekSeconds;
 	        _segmentEndSeconds = segmentEndSeconds;
 	        _pausesAtSegmentEnd = pausesAtSegmentEnd && segmentEndSeconds >= 0;
+	        _autoPauseAuthorizationResolved = NO;
+	        _autoPauseAuthorized = NO;
 	        _segmentEndReached = NO;
 	        _segmentFinishNotified = NO;
 	        _currentTime = seekSeconds;
@@ -3091,11 +3144,13 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
         double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream, _timelineOriginSeconds);
         if ([self mediaSecondsReachedSegmentEnd:mediaSeconds]) {
-            [self resumeFromRebufferIfNeededAtHostSeconds:CACurrentMediaTime()];
-            [self markSegmentVideoBoundaryReached];
-            [self startAudioForDrainAfterVideoDecodeIfNeeded];
-            av_frame_unref(_videoFrame);
-            break;
+            if ([self resolveAutoPauseAuthorizationIfNeeded]) {
+                [self resumeFromRebufferIfNeededAtHostSeconds:CACurrentMediaTime()];
+                [self markSegmentVideoBoundaryReached];
+                [self startAudioForDrainAfterVideoDecodeIfNeeded];
+                av_frame_unref(_videoFrame);
+                break;
+            }
         }
 
         CMTime presentationTime = SFXFramePresentationTime(_videoFrame, videoStream, _timelineOriginSeconds);
@@ -3848,6 +3903,11 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         return SFXAudioScheduleResultNotScheduled;
     }
 
+    int sampleRate = [self audioFrameSampleRate:frame];
+    if (sampleRate <= 0) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
+
     int scheduledSampleCount = frame->nb_samples;
     BOOL isFinalSegmentBuffer = NO;
     if ([self hasActiveSegmentEnd] && [self segmentAudioBoundaryReached]) {
@@ -3856,31 +3916,25 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
     if ([self hasActiveSegmentEnd] && mediaSeconds >= 0) {
         double remainingSeconds = _segmentEndSeconds - mediaSeconds;
-        if (remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds) {
-            [self markSegmentAudioBoundaryReached];
-            return SFXAudioScheduleResultSegmentBoundaryReached;
-        }
-
-        int sampleRate = [self audioFrameSampleRate:frame];
         double frameDuration = sampleRate > 0 ? (double)frame->nb_samples / (double)sampleRate : 0;
-        if (sampleRate <= 0) {
-            return SFXAudioScheduleResultNotScheduled;
-        }
-
-        if (mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds) {
-            int segmentSampleCount = (int)floor(remainingSeconds * (double)sampleRate + SFXSegmentBoundaryEpsilonSeconds);
-            if (segmentSampleCount <= 0) {
+        BOOL reachesSegmentEnd = remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds
+            || mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds;
+        if (reachesSegmentEnd && [self resolveAutoPauseAuthorizationIfNeeded]) {
+            if (remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds) {
                 [self markSegmentAudioBoundaryReached];
                 return SFXAudioScheduleResultSegmentBoundaryReached;
             }
-            scheduledSampleCount = MIN(frame->nb_samples, segmentSampleCount);
-            isFinalSegmentBuffer = YES;
-        }
-    }
 
-    int sampleRate = [self audioFrameSampleRate:frame];
-    if (sampleRate <= 0) {
-        return SFXAudioScheduleResultNotScheduled;
+            if (mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds) {
+                int segmentSampleCount = (int)floor(remainingSeconds * (double)sampleRate + SFXSegmentBoundaryEpsilonSeconds);
+                if (segmentSampleCount <= 0) {
+                    [self markSegmentAudioBoundaryReached];
+                    return SFXAudioScheduleResultSegmentBoundaryReached;
+                }
+                scheduledSampleCount = MIN(frame->nb_samples, segmentSampleCount);
+                isFinalSegmentBuffer = YES;
+            }
+        }
     }
 
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc]

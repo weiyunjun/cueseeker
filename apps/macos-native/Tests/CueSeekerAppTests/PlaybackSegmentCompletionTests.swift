@@ -308,6 +308,51 @@ func clearedCueAutoPauseRejectsLateCompletionDuringContinuousPlayback() async th
 
 @MainActor
 @Test
+func invalidatedPlaylistPositionClearsCueRuntimeBeforeLateCompletion() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        let first = segmentCompletionSearchResult(entryID: 1)
+        let replacement = segmentCompletionSearchResult(entryID: 2)
+        let source = PlaybackPlaylistSource(
+            origin: .search(resultListGeneration: 1),
+            totalCount: 1
+        ) { ordinal in
+            ordinal == 0
+                ? PlaybackPlaylistItem(searchResult: first, ordinal: ordinal)
+                : nil
+        }
+
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.playback.setPlaylistSource(source, playbackSearchSelectedOrdinal: 0)
+        app.activePlaybackSource = .search
+        app.playback.playbackStatus = .playing
+        app.beginCueAutoStopPlayback()
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: first.startMilliseconds,
+            endMilliseconds: first.endMilliseconds
+        ))
+
+        #expect(source.replaceResidentItems(totalCount: 1) { ordinal in
+            ordinal == 0
+                ? PlaybackPlaylistItem(searchResult: replacement, ordinal: ordinal)
+                : nil
+        })
+        await Task.yield()
+
+        #expect(app.playback.playlistPosition == nil)
+        #expect(app.activeCueAutoPauseBoundary == nil)
+        #expect(app.activePlaylistCueSettings == nil)
+        #expect(app.activePlaylistCuePosition == nil)
+        #expect(app.autoSwitchCueSequenceTask == nil)
+
+        app.handleCueAutoStopBoundaryReached(
+            endMilliseconds: first.endMilliseconds
+        )
+        #expect(app.playback.playbackStatus == .playing)
+    }
+}
+
+@MainActor
+@Test
 func appCoordinatorKeepsCurrentItemSettingsDuringAutoSwitchGap() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()

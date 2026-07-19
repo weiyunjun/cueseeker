@@ -404,6 +404,7 @@ extension AppCoordinator {
         displayTitle: String? = nil,
         playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil
     ) {
+        clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
@@ -447,7 +448,6 @@ extension AppCoordinator {
         if recordsNavigationHistory {
             recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
         }
-        clearCueAutoStopPlayback()
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil

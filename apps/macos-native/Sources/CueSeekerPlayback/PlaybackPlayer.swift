@@ -40,6 +40,11 @@ private struct PendingPresentation {
     var subtitleAction: PendingSubtitleAction
 }
 
+private struct PlaybackAutoPauseAuthorization: Equatable {
+    let boundary: PlaybackAutoStopBoundary
+    let presentationGeneration: UInt
+}
+
 public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private let nativePlayer = SFXNativePlaybackPlayer()
     private var currentRequest: PlaybackRequest?
@@ -56,6 +61,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var committedPresentationGeneration: UInt?
     private var reachedAutoStopBoundaryMilliseconds: Int?
     private var persistentAutoPauseBoundary: PlaybackAutoStopBoundary?
+    private var autoPauseAuthorization: PlaybackAutoPauseAuthorization?
+    private let autoPauseAuthorizationLock = NSLock()
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -78,15 +85,21 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     @discardableResult
     public func open(_ request: PlaybackRequest) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
-        persistentAutoPauseBoundary = request.autoStopAtMilliseconds.map {
+        let autoPauseBoundary = request.autoStopAtMilliseconds.map {
             PlaybackAutoStopBoundary(
                 startMilliseconds: request.startMilliseconds,
                 endMilliseconds: $0
             )
         }
+        replacePersistentAutoPauseBoundary(autoPauseBoundary)
         beginPresentationTransition(
             targetMilliseconds: request.startMilliseconds,
             subtitleAction: .replace(request.subtitleSource)
+        )
+        let expectedGeneration = nativePlayer.nativePresentationGeneration &+ 1
+        authorizeAutoPauseBoundary(
+            autoPauseBoundary,
+            generation: expectedGeneration
         )
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
@@ -114,6 +127,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             throw error
         }
         let generation = bindPendingPresentationToNativeGeneration()
+        authorizeAutoPauseBoundary(autoPauseBoundary, generation: generation)
         currentVideoURL = request.videoURL.standardizedFileURL
         Task { @MainActor in
             self.attachActiveRenderView()
@@ -213,12 +227,21 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             targetMilliseconds: safeMilliseconds,
             subtitleAction: subtitleAction
         )
+        let persistentBoundary = currentPersistentAutoPauseBoundary()
+        let autoPauseBoundary = persistentBoundary.flatMap {
+            safeMilliseconds < $0.endMilliseconds ? $0 : nil
+        }
+        let previousAuthorization = currentAutoPauseAuthorization()
+        let expectedGeneration = nativePlayer.nativePresentationGeneration &+ 1
+        authorizeAutoPauseBoundary(
+            autoPauseBoundary,
+            generation: expectedGeneration
+        )
         do {
-            if let boundary = persistentAutoPauseBoundary,
-               safeMilliseconds < boundary.endMilliseconds {
+            if let autoPauseBoundary {
                 try nativePlayer.seek(
                     toMilliseconds: safeMilliseconds,
-                    autoStopAtMilliseconds: boundary.endMilliseconds,
+                    autoStopAtMilliseconds: autoPauseBoundary.endMilliseconds,
                     pauseAfterFirstFrame: pauseAfterFirstFrame
                 )
             } else {
@@ -228,10 +251,16 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 )
             }
         } catch {
+            restoreAutoPauseAuthorization(
+                previousAuthorization,
+                ifBoundaryIs: persistentBoundary
+            )
             cancelPendingPresentation()
             throw error
         }
-        return bindPendingPresentationToNativeGeneration()
+        let generation = bindPendingPresentationToNativeGeneration()
+        authorizeAutoPauseBoundary(autoPauseBoundary, generation: generation)
+        return generation
     }
 
     @discardableResult
@@ -240,11 +269,13 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         subtitleAction: PendingSubtitleAction
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
-        persistentAutoPauseBoundary = boundary
+        replacePersistentAutoPauseBoundary(boundary)
         beginPresentationTransition(
             targetMilliseconds: boundary.startMilliseconds,
             subtitleAction: subtitleAction
         )
+        let expectedGeneration = nativePlayer.nativePresentationGeneration &+ 1
+        authorizeAutoPauseBoundary(boundary, generation: expectedGeneration)
         do {
             try nativePlayer.seek(
                 toMilliseconds: boundary.startMilliseconds,
@@ -254,7 +285,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             cancelPendingPresentation()
             throw error
         }
-        return bindPendingPresentationToNativeGeneration()
+        let generation = bindPendingPresentationToNativeGeneration()
+        authorizeAutoPauseBoundary(boundary, generation: generation)
+        return generation
     }
 
     @discardableResult
@@ -264,7 +297,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         subtitleAction: PendingSubtitleAction
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
-        persistentAutoPauseBoundary = nil
+        replacePersistentAutoPauseBoundary(nil)
         beginPresentationTransition(
             targetMilliseconds: segment.startMilliseconds,
             subtitleAction: subtitleAction
@@ -333,7 +366,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     public func setAutoPauseBoundary(_ boundary: PlaybackAutoStopBoundary?) {
-        persistentAutoPauseBoundary = boundary
+        replacePersistentAutoPauseBoundary(boundary)
         if reachedAutoStopBoundaryMilliseconds != boundary?.endMilliseconds {
             reachedAutoStopBoundaryMilliseconds = nil
         }
@@ -346,7 +379,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         pendingPresentation = nil
         committedPresentationGeneration = nil
         reachedAutoStopBoundaryMilliseconds = nil
-        persistentAutoPauseBoundary = nil
+        replacePersistentAutoPauseBoundary(nil)
         clearHeldSubtitlePresentationWithoutRendering()
         if Thread.isMainThread {
             MainActor.assumeIsolated {
@@ -358,6 +391,56 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             }
         }
         emitPauseState(isPaused: true)
+    }
+
+    private func replacePersistentAutoPauseBoundary(
+        _ boundary: PlaybackAutoStopBoundary?
+    ) {
+        autoPauseAuthorizationLock.lock()
+        persistentAutoPauseBoundary = boundary
+        autoPauseAuthorization = nil
+        autoPauseAuthorizationLock.unlock()
+    }
+
+    private func currentPersistentAutoPauseBoundary() -> PlaybackAutoStopBoundary? {
+        autoPauseAuthorizationLock.lock()
+        defer { autoPauseAuthorizationLock.unlock() }
+        return persistentAutoPauseBoundary
+    }
+
+    private func currentAutoPauseAuthorization() -> PlaybackAutoPauseAuthorization? {
+        autoPauseAuthorizationLock.lock()
+        defer { autoPauseAuthorizationLock.unlock() }
+        return autoPauseAuthorization
+    }
+
+    private func restoreAutoPauseAuthorization(
+        _ authorization: PlaybackAutoPauseAuthorization?,
+        ifBoundaryIs boundary: PlaybackAutoStopBoundary?
+    ) {
+        autoPauseAuthorizationLock.lock()
+        defer { autoPauseAuthorizationLock.unlock() }
+        autoPauseAuthorization = persistentAutoPauseBoundary == boundary
+            ? authorization
+            : nil
+    }
+
+    private func authorizeAutoPauseBoundary(
+        _ boundary: PlaybackAutoStopBoundary?,
+        generation: UInt
+    ) {
+        autoPauseAuthorizationLock.lock()
+        defer { autoPauseAuthorizationLock.unlock() }
+        guard persistentAutoPauseBoundary == boundary,
+              let boundary
+        else {
+            autoPauseAuthorization = nil
+            return
+        }
+        autoPauseAuthorization = PlaybackAutoPauseAuthorization(
+            boundary: boundary,
+            presentationGeneration: generation
+        )
     }
 
     public func loadSubtitleSource(_ source: PlaybackSubtitleSource?) {
@@ -790,6 +873,23 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         didFinishSegmentAtMilliseconds endMilliseconds: Int
     ) {
         delegate?.player(self, didFinishSegmentAtMilliseconds: endMilliseconds)
+    }
+
+    public func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        shouldPauseAtAutoStopBoundaryAtMilliseconds endMilliseconds: Int,
+        presentationGeneration: UInt
+    ) -> Bool {
+        autoPauseAuthorizationLock.lock()
+        defer { autoPauseAuthorizationLock.unlock() }
+        guard let authorization = autoPauseAuthorization,
+              authorization.boundary.endMilliseconds == endMilliseconds,
+              authorization.presentationGeneration == presentationGeneration
+        else {
+            return false
+        }
+        autoPauseAuthorization = nil
+        return true
     }
 
     public func nativePlaybackPlayer(

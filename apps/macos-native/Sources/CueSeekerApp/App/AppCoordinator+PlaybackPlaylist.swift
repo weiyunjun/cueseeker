@@ -31,11 +31,15 @@ extension AppCoordinator {
     func playbackPlaylistBoundaryDidChange(
         _ boundary: PlaybackPlaylistSourceBoundary?
     ) {
-        if boundary != nil {
-            _ = playback.validatePlaylistPosition()
+        guard let boundary else {
+            clearCueAutoStopPlayback()
+            return
         }
-        guard let boundary,
-              let context = activePlaybackSearchPlaylistContext,
+        guard playback.validatePlaylistPosition() else {
+            clearCueAutoStopPlayback()
+            return
+        }
+        guard let context = activePlaybackSearchPlaylistContext,
               playback.playlistSource?.boundary.datasetID == boundary.datasetID,
               search.selectedSearchResult != nil
         else {
