@@ -56,7 +56,6 @@ func nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits() async 
     #expect(presentedInitialGeneration)
     #expect(player.nativePresentedVideoFrameCount > 0)
     let initialSnapshot = try #require(player.latestSubmittedVideoFrameSnapshot)
-    #expect(initialSnapshot.presentationGeneration == initialGeneration)
     #expect(initialSnapshot.width == 160)
     #expect(initialSnapshot.height == 90)
     #expect(CVPixelBufferGetWidth(initialSnapshot.pixelBuffer) == 160)
@@ -77,8 +76,7 @@ func nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits() async 
     let seekCommit = try #require(delegate.commit(for: seekGeneration))
     #expect(seekCommit.milliseconds >= 1_100)
     let seekSnapshot = try #require(player.latestSubmittedVideoFrameSnapshot)
-    #expect(seekSnapshot.presentationGeneration == seekGeneration)
-    #expect(seekSnapshot.milliseconds >= 1_100)
+    #expect(seekSnapshot !== initialSnapshot)
 
     try player.openPath(secondMediaURL.path, startMilliseconds: 1_100)
     try player.setPaused(false)
@@ -94,8 +92,7 @@ func nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits() async 
     let openCommit = try #require(delegate.commit(for: openGeneration))
     #expect(openCommit.milliseconds >= 1_100)
     let openSnapshot = try #require(player.latestSubmittedVideoFrameSnapshot)
-    #expect(openSnapshot.presentationGeneration == openGeneration)
-    #expect(openSnapshot.milliseconds >= 1_100)
+    #expect(openSnapshot !== seekSnapshot)
 
     player.stop()
     stopped = true

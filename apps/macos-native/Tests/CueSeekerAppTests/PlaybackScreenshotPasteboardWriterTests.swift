@@ -10,11 +10,6 @@ import Testing
 func playbackScreenshotPasteboardWriterPublishesReadablePNG() throws {
     let pixelBuffer = try makePasteboardScreenshotPixelBuffer(width: 5, height: 3)
     let image = try PlaybackCurrentFrameScreenshotRenderer.render(pixelBuffer: pixelBuffer)
-    let screenshot = PlaybackScreenshotImage(
-        image: image,
-        milliseconds: 1_250,
-        presentationGeneration: 7
-    )
     let pasteboard = NSPasteboard(
         name: NSPasteboard.Name("CueSeeker.PlaybackScreenshotTests.\(UUID().uuidString)")
     )
@@ -22,7 +17,7 @@ func playbackScreenshotPasteboardWriterPublishesReadablePNG() throws {
         pasteboard.clearContents()
     }
 
-    try PlaybackScreenshotPasteboardWriter.write(screenshot, to: pasteboard)
+    try PlaybackScreenshotPasteboardWriter.write(image, to: pasteboard)
 
     let pngData = try #require(pasteboard.data(forType: .png))
     let source = try #require(CGImageSourceCreateWithData(pngData as CFData, nil))

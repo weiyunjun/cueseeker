@@ -10,7 +10,7 @@ enum PlaybackScreenshotPasteboardError: Error {
 
 enum PlaybackScreenshotPasteboardWriter {
     static func pngData(
-        for screenshot: PlaybackScreenshotImage
+        for image: CGImage
     ) throws -> Data {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
@@ -22,7 +22,7 @@ enum PlaybackScreenshotPasteboardWriter {
             throw PlaybackScreenshotPasteboardError.pngEncodingFailed
         }
 
-        CGImageDestinationAddImage(destination, screenshot.image, nil)
+        CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else {
             throw PlaybackScreenshotPasteboardError.pngEncodingFailed
         }
@@ -42,9 +42,9 @@ enum PlaybackScreenshotPasteboardWriter {
 
     @MainActor
     static func write(
-        _ screenshot: PlaybackScreenshotImage,
+        _ image: CGImage,
         to pasteboard: NSPasteboard = .general
     ) throws {
-        try write(try pngData(for: screenshot), to: pasteboard)
+        try write(try pngData(for: image), to: pasteboard)
     }
 }

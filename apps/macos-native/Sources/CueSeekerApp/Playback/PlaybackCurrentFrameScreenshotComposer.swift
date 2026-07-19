@@ -7,7 +7,7 @@ enum PlaybackCurrentFrameScreenshotComposer {
     static func render(
         presentation: PlaybackScreenshotPresentation,
         simpleSubtitleText: String?
-    ) throws -> PlaybackScreenshotImage {
+    ) throws -> CGImage {
         let overlay = simpleSubtitleText.flatMap {
             renderSimpleSubtitleOverlay(
                 text: $0,
@@ -25,7 +25,7 @@ enum PlaybackCurrentFrameScreenshotComposer {
     static func render(
         _ presentation: PlaybackScreenshotPresentation,
         simpleSubtitleOverlay: CGImage?
-    ) throws -> PlaybackScreenshotImage {
+    ) throws -> CGImage {
         try PlaybackCurrentFrameScreenshotRenderer.render(
             presentation,
             simpleSubtitleOverlay: simpleSubtitleOverlay

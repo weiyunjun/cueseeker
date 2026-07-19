@@ -772,7 +772,6 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
                  forSession:(SFXNativePlaybackSession *)session
       presentationGeneration:(NSUInteger)presentationGeneration
-          frameMilliseconds:(NSInteger)frameMilliseconds
           flushBeforeEnqueue:(BOOL)flushBeforeEnqueue;
 - (void)session:(SFXNativePlaybackSession *)session
 didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
@@ -780,28 +779,20 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 @end
 
 @interface SFXNativePlaybackFrameSnapshot ()
-- (instancetype)initWithPixelBuffer:(CVPixelBufferRef)pixelBuffer
-                       milliseconds:(NSInteger)milliseconds
-             presentationGeneration:(NSUInteger)presentationGeneration;
+- (instancetype)initWithPixelBuffer:(CVPixelBufferRef)pixelBuffer;
 @end
 
 @implementation SFXNativePlaybackFrameSnapshot {
     CVPixelBufferRef _pixelBuffer;
-    NSInteger _milliseconds;
-    NSUInteger _presentationGeneration;
 }
 
-- (instancetype)initWithPixelBuffer:(CVPixelBufferRef)pixelBuffer
-                       milliseconds:(NSInteger)milliseconds
-             presentationGeneration:(NSUInteger)presentationGeneration {
+- (instancetype)initWithPixelBuffer:(CVPixelBufferRef)pixelBuffer {
     self = [super init];
     if (self == nil) {
         return nil;
     }
 
     _pixelBuffer = CVPixelBufferRetain(pixelBuffer);
-    _milliseconds = milliseconds;
-    _presentationGeneration = presentationGeneration;
     return self;
 }
 
@@ -814,14 +805,6 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
 - (CVPixelBufferRef)pixelBuffer {
     return _pixelBuffer;
-}
-
-- (NSInteger)milliseconds {
-    return _milliseconds;
-}
-
-- (NSUInteger)presentationGeneration {
-    return _presentationGeneration;
 }
 
 - (NSInteger)width {
@@ -3654,7 +3637,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             enqueued = [owner enqueueSampleBuffer:sampleBuffer
                                        forSession:self
                             presentationGeneration:presentationGeneration
-                                frameMilliseconds:frameMilliseconds
                                 flushBeforeEnqueue:firstFrameForPresentation];
         }
         CFRelease(sampleBuffer);
@@ -4377,7 +4359,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
                  forSession:(SFXNativePlaybackSession *)session
       presentationGeneration:(NSUInteger)presentationGeneration
-          frameMilliseconds:(NSInteger)frameMilliseconds
           flushBeforeEnqueue:(BOOL)flushBeforeEnqueue {
     if (sampleBuffer == NULL) {
         return NO;
@@ -4401,10 +4382,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
         if (imageBuffer != NULL) {
             _latestSubmittedVideoFrameSnapshot = [[SFXNativePlaybackFrameSnapshot alloc]
-                initWithPixelBuffer:(CVPixelBufferRef)imageBuffer
-                milliseconds:frameMilliseconds
-                presentationGeneration:presentationGeneration
-            ];
+                initWithPixelBuffer:(CVPixelBufferRef)imageBuffer];
         }
         return YES;
     }

@@ -15,7 +15,7 @@ or pausing the active video and without invoking FFmpeg.
 ### 1. Submitted Frame Snapshot
 
 - Added an immutable native playback frame snapshot that retains the pixel
-  buffer, media timestamp, presentation generation, and decoded pixel size.
+  buffer and decoded pixel size.
 - Replaced the snapshot after every video frame successfully enters the current
   `AVSampleBufferDisplayLayer` presentation, rather than relying on the
   first-frame-only presentation delegate callback.
@@ -51,6 +51,18 @@ or pausing the active video and without invoking FFmpeg.
   the simple SwiftUI subtitle overlay that is visually above the native render
   container.
 
+## Simplification Pass
+
+### 1. Snapshot and Result Model
+
+- Removed media timestamp and presentation generation from the screenshot
+  snapshot because current-generation validation already happens before a
+  frame is submitted and the copy pipeline never consumes those values.
+- Removed the screenshot result wrapper and now passes the rendered `CGImage`
+  directly through composition, PNG encoding, and pasteboard publication.
+- Kept the independently retained native pixel buffer, decoded dimensions, and
+  current-frame replacement semantics unchanged.
+
 ### 4. Playback Command and Feedback
 
 - Added a fixed `photo` transport-style button before the subtitle control. It
@@ -72,7 +84,7 @@ or pausing the active video and without invoking FFmpeg.
 
 - Passed: `swift test --package-path apps/macos-native --filter nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits`.
 - Confirmed the retained snapshot reports the decoded `160x90` fixture size,
-  advances to the seek and source-open presentation generations, clears when
+  is replaced after both seek and source-open presentation commits, clears when
   playback removes the display image, and remains readable when a caller still
   owns an earlier snapshot.
 - Passed: `swift test --package-path apps/macos-native --filter Screenshot` with
@@ -92,6 +104,9 @@ or pausing the active video and without invoking FFmpeg.
 - Passed the four command-state tests covering bare and repeated `P`, modified
   `P`, timeline dragging, subtitle-focus overlay suppression, and the required
   success HUD contents.
+- Passed the native presentation-transition snapshot test and all 16 tests
+  selected by the `Screenshot` filter after simplifying the snapshot and image
+  result model.
 - Ran the complete `swift test --package-path apps/macos-native` suite. The run
   exercised 787 Swift Testing tests but reported four timing/I/O-sensitive
   failures under full-suite load alongside transient SQLite `disk I/O error`

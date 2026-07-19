@@ -11,14 +11,6 @@ public final class PlaybackSubmittedVideoFrame: @unchecked Sendable {
         self.nativeSnapshot = nativeSnapshot
     }
 
-    public var milliseconds: Int {
-        nativeSnapshot.milliseconds
-    }
-
-    public var presentationGeneration: UInt {
-        nativeSnapshot.presentationGeneration
-    }
-
     public var width: Int {
         nativeSnapshot.width
     }
@@ -29,20 +21,6 @@ public final class PlaybackSubmittedVideoFrame: @unchecked Sendable {
 
     var pixelBuffer: CVPixelBuffer {
         nativeSnapshot.pixelBuffer
-    }
-}
-
-public struct PlaybackScreenshotImage: @unchecked Sendable {
-    public let image: CGImage
-    public let milliseconds: Int
-    public let presentationGeneration: UInt
-
-    public var width: Int {
-        image.width
-    }
-
-    public var height: Int {
-        image.height
     }
 }
 
@@ -148,29 +126,19 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
 
     public static func render(
         _ frame: PlaybackSubmittedVideoFrame
-    ) throws -> PlaybackScreenshotImage {
-        let image = try render(pixelBuffer: frame.pixelBuffer)
-        return PlaybackScreenshotImage(
-            image: image,
-            milliseconds: frame.milliseconds,
-            presentationGeneration: frame.presentationGeneration
-        )
+    ) throws -> CGImage {
+        try render(pixelBuffer: frame.pixelBuffer)
     }
 
     public static func render(
         _ presentation: PlaybackScreenshotPresentation,
         simpleSubtitleOverlay: CGImage? = nil
-    ) throws -> PlaybackScreenshotImage {
+    ) throws -> CGImage {
         let base = try render(presentation.frame)
-        let composedImage = try compose(
-            baseImage: base.image,
+        return try compose(
+            baseImage: base,
             assSubtitleSurface: presentation.assSubtitleSurface,
             simpleSubtitleOverlay: simpleSubtitleOverlay
-        )
-        return PlaybackScreenshotImage(
-            image: composedImage,
-            milliseconds: base.milliseconds,
-            presentationGeneration: base.presentationGeneration
         )
     }
 

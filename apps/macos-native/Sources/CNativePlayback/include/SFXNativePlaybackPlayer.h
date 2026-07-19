@@ -10,8 +10,6 @@ NS_ASSUME_NONNULL_BEGIN
 @interface SFXNativePlaybackFrameSnapshot : NSObject
 
 @property (nonatomic, readonly) CVPixelBufferRef pixelBuffer;
-@property (nonatomic, readonly) NSInteger milliseconds;
-@property (nonatomic, readonly) NSUInteger presentationGeneration;
 @property (nonatomic, readonly) NSInteger width;
 @property (nonatomic, readonly) NSInteger height;
 
