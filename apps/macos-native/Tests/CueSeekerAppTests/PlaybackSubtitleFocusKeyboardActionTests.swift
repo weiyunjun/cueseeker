@@ -507,6 +507,14 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
             return
         }
         var receivedContext: PlaybackSubtitleFocusActionContext?
+        app.settings.autoPauseAfterCueFinishesEnabled = true
+        app.beginCueAutoStopPlayback()
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: 10_000,
+            endMilliseconds: 20_000
+        ))
+        let itemGeneration = app.cuePlaybackGeneration
+        let itemSettings = app.activePlaylistCueSettings
 
         let didExecute = app.executePlaybackSubtitleFocusAction(
             execution,
@@ -515,12 +523,9 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
                 #expect(session.state == .closed)
                 #expect(!session.isActive)
                 receivedContext = context
-                app.settings.autoPauseAfterCueFinishesEnabled = true
-                app.beginCueAutoStopPlayback()
-                app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
-                    startMilliseconds: context.cue.startMilliseconds,
-                    endMilliseconds: context.cue.endMilliseconds
-                ))
+                app.handleCueAutoPauseSeekCommitted(
+                    toMilliseconds: context.cue.startMilliseconds
+                )
                 return true
             }
         )
@@ -528,8 +533,10 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
         #expect(didExecute)
         #expect(receivedContext == execution.context)
         #expect(receivedContext?.cue.startMilliseconds == 12_000)
-        #expect(app.activePlaylistCueSettings?.autoPauseEnabled == true)
-        #expect(app.activeCueAutoPauseBoundary?.endMilliseconds == 12_900)
+        #expect(app.cuePlaybackGeneration == itemGeneration)
+        #expect(app.activePlaylistCueSettings == itemSettings)
+        #expect(app.activeCueAutoPauseBoundary?.endMilliseconds == 20_000)
+        #expect(app.cueAutoPauseArmed)
         #expect(app.playback.subtitleFocusSession == nil)
         #expect(session.state == .closed)
         #expect(app.playback.playbackStatus == .playing)

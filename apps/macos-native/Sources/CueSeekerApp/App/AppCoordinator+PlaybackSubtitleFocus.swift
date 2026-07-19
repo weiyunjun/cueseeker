@@ -534,16 +534,10 @@ extension AppCoordinator {
             return false
         }
 
-        beginCueAutoStopPlayback()
-        let boundary = configureCueAutoStopBoundary(
-            startMilliseconds: context.cue.startMilliseconds,
-            endMilliseconds: context.cue.endMilliseconds
-        )
         guard playbackViewModel.playFromCue(
             at: Double(context.cue.startMilliseconds) / 1_000,
-            autoPauseBoundary: boundary
+            autoPauseBoundary: nil
         ) else {
-            clearCueAutoStopPlayback()
             return false
         }
         return true
