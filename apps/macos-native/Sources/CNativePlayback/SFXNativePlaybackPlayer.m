@@ -772,10 +772,66 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
                  forSession:(SFXNativePlaybackSession *)session
       presentationGeneration:(NSUInteger)presentationGeneration
+          frameMilliseconds:(NSInteger)frameMilliseconds
           flushBeforeEnqueue:(BOOL)flushBeforeEnqueue;
 - (void)session:(SFXNativePlaybackSession *)session
 didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 presentationGeneration:(NSUInteger)presentationGeneration;
+@end
+
+@interface SFXNativePlaybackFrameSnapshot ()
+- (instancetype)initWithPixelBuffer:(CVPixelBufferRef)pixelBuffer
+                       milliseconds:(NSInteger)milliseconds
+             presentationGeneration:(NSUInteger)presentationGeneration;
+@end
+
+@implementation SFXNativePlaybackFrameSnapshot {
+    CVPixelBufferRef _pixelBuffer;
+    NSInteger _milliseconds;
+    NSUInteger _presentationGeneration;
+}
+
+- (instancetype)initWithPixelBuffer:(CVPixelBufferRef)pixelBuffer
+                       milliseconds:(NSInteger)milliseconds
+             presentationGeneration:(NSUInteger)presentationGeneration {
+    self = [super init];
+    if (self == nil) {
+        return nil;
+    }
+
+    _pixelBuffer = CVPixelBufferRetain(pixelBuffer);
+    _milliseconds = milliseconds;
+    _presentationGeneration = presentationGeneration;
+    return self;
+}
+
+- (void)dealloc {
+    if (_pixelBuffer != NULL) {
+        CVPixelBufferRelease(_pixelBuffer);
+        _pixelBuffer = NULL;
+    }
+}
+
+- (CVPixelBufferRef)pixelBuffer {
+    return _pixelBuffer;
+}
+
+- (NSInteger)milliseconds {
+    return _milliseconds;
+}
+
+- (NSUInteger)presentationGeneration {
+    return _presentationGeneration;
+}
+
+- (NSInteger)width {
+    return _pixelBuffer == NULL ? 0 : (NSInteger)CVPixelBufferGetWidth(_pixelBuffer);
+}
+
+- (NSInteger)height {
+    return _pixelBuffer == NULL ? 0 : (NSInteger)CVPixelBufferGetHeight(_pixelBuffer);
+}
+
 @end
 
 @interface SFXNativePlaybackSession : NSObject
@@ -3598,6 +3654,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             enqueued = [owner enqueueSampleBuffer:sampleBuffer
                                        forSession:self
                             presentationGeneration:presentationGeneration
+                                frameMilliseconds:frameMilliseconds
                                 flushBeforeEnqueue:firstFrameForPresentation];
         }
         CFRelease(sampleBuffer);
@@ -4133,6 +4190,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     dispatch_queue_t _scrubPreviewQueue;
     NSUInteger _scrubPreviewGeneration;
     NSInteger _lastScrubPreviewFrameMilliseconds;
+    SFXNativePlaybackFrameSnapshot *_latestSubmittedVideoFrameSnapshot;
 }
 
 - (instancetype)init {
@@ -4204,6 +4262,12 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (NSInteger)nativeLastSubmittedVideoFrameMilliseconds {
     return _session.lastSubmittedVideoFrameMilliseconds;
+}
+
+- (SFXNativePlaybackFrameSnapshot *)latestSubmittedVideoFrameSnapshot {
+    @synchronized (self) {
+        return _latestSubmittedVideoFrameSnapshot;
+    }
 }
 
 - (NSInteger)nativeLastScheduledAudioStartMilliseconds {
@@ -4313,6 +4377,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (BOOL)enqueueSampleBuffer:(CMSampleBufferRef)sampleBuffer
                  forSession:(SFXNativePlaybackSession *)session
       presentationGeneration:(NSUInteger)presentationGeneration
+          frameMilliseconds:(NSInteger)frameMilliseconds
           flushBeforeEnqueue:(BOOL)flushBeforeEnqueue {
     if (sampleBuffer == NULL) {
         return NO;
@@ -4333,6 +4398,14 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             [displayLayer flush];
         }
         [displayLayer enqueueSampleBuffer:sampleBuffer];
+        CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+        if (imageBuffer != NULL) {
+            _latestSubmittedVideoFrameSnapshot = [[SFXNativePlaybackFrameSnapshot alloc]
+                initWithPixelBuffer:(CVPixelBufferRef)imageBuffer
+                milliseconds:frameMilliseconds
+                presentationGeneration:presentationGeneration
+            ];
+        }
         return YES;
     }
 }
@@ -4709,6 +4782,9 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     @synchronized (self) {
         _session = nil;
         _currentPath = nil;
+        if (flushDisplay) {
+            _latestSubmittedVideoFrameSnapshot = nil;
+        }
     }
     if (flushDisplay) {
         [_nativeView flush];

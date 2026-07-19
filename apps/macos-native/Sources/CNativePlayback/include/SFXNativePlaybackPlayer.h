@@ -1,10 +1,23 @@
 #import <AppKit/AppKit.h>
+#import <CoreVideo/CoreVideo.h>
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class SFXNativePlaybackPlayer;
 @class SFXMediaMetadata;
+
+@interface SFXNativePlaybackFrameSnapshot : NSObject
+
+@property (nonatomic, readonly) CVPixelBufferRef pixelBuffer;
+@property (nonatomic, readonly) NSInteger milliseconds;
+@property (nonatomic, readonly) NSUInteger presentationGeneration;
+@property (nonatomic, readonly) NSInteger width;
+@property (nonatomic, readonly) NSInteger height;
+
+- (instancetype)init NS_UNAVAILABLE;
+
+@end
 
 typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
     SFXNativePlaybackDecodeModeHardware = 0,
@@ -54,6 +67,7 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic, readonly) NSUInteger nativeDisplayImageRemovalCount;
 @property (nonatomic, readonly) NSUInteger nativePresentedVideoFrameCount;
 @property (nonatomic, readonly) NSInteger nativeLastSubmittedVideoFrameMilliseconds;
+@property (nonatomic, strong, readonly, nullable) SFXNativePlaybackFrameSnapshot *latestSubmittedVideoFrameSnapshot;
 @property (nonatomic, readonly) NSInteger nativeLastScheduledAudioStartMilliseconds;
 @property (nonatomic, readonly) NSInteger nativeLastScheduledAudioEndMilliseconds;
 @property (nonatomic, readonly) NSUInteger nativeSegmentFinishNotificationCount;
