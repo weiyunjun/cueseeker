@@ -4,7 +4,7 @@ import CueSeekerCore
 import CoreGraphics
 import Foundation
 
-private struct ASSCroppedSurface: @unchecked Sendable {
+struct ASSCroppedSurface: @unchecked Sendable {
     let rgbaData: Data
     let width: Int
     let height: Int
@@ -13,7 +13,7 @@ private struct ASSCroppedSurface: @unchecked Sendable {
     let destinationY: Int
 }
 
-private struct ASSSparseFrame: @unchecked Sendable {
+struct ASSSparseFrame: @unchecked Sendable {
     let surface: ASSCroppedSurface?
     let frameWidth: Int
     let frameHeight: Int
@@ -420,7 +420,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         ObjectIdentifier(rendererWorker)
     }
 
-    func currentPresentationSurface() -> PlaybackASSSubtitleSurface? {
+    func currentPresentationFrame() -> ASSSparseFrame? {
         guard areSubtitlesVisible,
               let renderedFrame
         else {
@@ -429,19 +429,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         switch renderedFrame {
         case .sparse(let frame):
-            guard let surface = frame.surface else {
-                return nil
-            }
-            return PlaybackASSSubtitleSurface(
-                rgbaData: surface.rgbaData,
-                width: surface.width,
-                height: surface.height,
-                stride: surface.stride,
-                destinationX: surface.destinationX,
-                destinationY: surface.destinationY,
-                frameWidth: frame.frameWidth,
-                frameHeight: frame.frameHeight
-            )
+            return frame
         case .unchanged:
             return nil
         }

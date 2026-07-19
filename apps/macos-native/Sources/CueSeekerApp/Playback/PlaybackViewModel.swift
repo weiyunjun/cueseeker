@@ -536,17 +536,15 @@ public final class PlaybackViewModel: ObservableObject {
             return
         }
 
-        let simpleSubtitleOverlay = activeSubtitleText.flatMap {
-            PlaybackCurrentFrameScreenshotComposer.renderSimpleSubtitleOverlay(
+        let simpleSubtitleViewportOverlay = activeSubtitleText.flatMap {
+            PlaybackCurrentFrameScreenshotComposer.renderSimpleSubtitleViewportOverlay(
                 text: $0,
-                geometry: presentation.geometry,
-                outputWidth: presentation.frame.width,
-                outputHeight: presentation.frame.height
+                viewportSize: presentation.viewportSize
             )
         }
         let workItem = PlaybackScreenshotRenderWorkItem(
             presentation: presentation,
-            simpleSubtitleOverlay: simpleSubtitleOverlay
+            simpleSubtitleOverlay: simpleSubtitleViewportOverlay
         )
         screenshotRequestGeneration &+= 1
         let requestGeneration = screenshotRequestGeneration
@@ -555,7 +553,7 @@ public final class PlaybackViewModel: ObservableObject {
             do {
                 let screenshot = try PlaybackCurrentFrameScreenshotComposer.render(
                     workItem.presentation,
-                    simpleSubtitleOverlay: workItem.simpleSubtitleOverlay
+                    simpleSubtitleViewportOverlay: workItem.simpleSubtitleOverlay
                 )
                 let pngData = try PlaybackScreenshotPasteboardWriter.pngData(
                     for: screenshot

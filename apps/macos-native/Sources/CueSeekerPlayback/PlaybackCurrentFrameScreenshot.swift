@@ -4,88 +4,41 @@ import CoreImage
 import CoreVideo
 import Foundation
 
-public final class PlaybackSubmittedVideoFrame: @unchecked Sendable {
-    let nativeSnapshot: SFXNativePlaybackFrameSnapshot
+struct PlaybackScreenshotGeometry: Equatable, Sendable {
+    let viewportSize: CGSize
+    let videoRect: CGRect
 
-    init(nativeSnapshot: SFXNativePlaybackFrameSnapshot) {
-        self.nativeSnapshot = nativeSnapshot
-    }
-
-    public var width: Int {
-        nativeSnapshot.width
-    }
-
-    public var height: Int {
-        nativeSnapshot.height
-    }
-
-    var pixelBuffer: CVPixelBuffer {
-        nativeSnapshot.pixelBuffer
-    }
-}
-
-public struct PlaybackScreenshotGeometry: Equatable, Sendable {
-    public let viewportSize: CGSize
-    public let videoRect: CGRect
-
-    public init(viewportSize: CGSize, videoRect: CGRect) {
+    init(viewportSize: CGSize, videoRect: CGRect) {
         self.viewportSize = viewportSize
         self.videoRect = videoRect
     }
 }
 
-public struct PlaybackASSSubtitleSurface: Equatable, Sendable {
-    public let rgbaData: Data
-    public let width: Int
-    public let height: Int
-    public let stride: Int
-    public let destinationX: Int
-    public let destinationY: Int
-    public let frameWidth: Int
-    public let frameHeight: Int
-
-    public init(
-        rgbaData: Data,
-        width: Int,
-        height: Int,
-        stride: Int,
-        destinationX: Int,
-        destinationY: Int,
-        frameWidth: Int,
-        frameHeight: Int
-    ) {
-        self.rgbaData = rgbaData
-        self.width = width
-        self.height = height
-        self.stride = stride
-        self.destinationX = destinationX
-        self.destinationY = destinationY
-        self.frameWidth = frameWidth
-        self.frameHeight = frameHeight
-    }
-}
-
 public struct PlaybackScreenshotPresentation: @unchecked Sendable {
-    public let frame: PlaybackSubmittedVideoFrame
-    public let geometry: PlaybackScreenshotGeometry
-    public let assSubtitleSurface: PlaybackASSSubtitleSurface?
+    let nativeSnapshot: SFXNativePlaybackFrameSnapshot
+    let geometry: PlaybackScreenshotGeometry
+    let assSubtitleFrame: ASSSparseFrame?
 
-    public init(
-        frame: PlaybackSubmittedVideoFrame,
+    public var viewportSize: CGSize {
+        geometry.viewportSize
+    }
+
+    init(
+        nativeSnapshot: SFXNativePlaybackFrameSnapshot,
         geometry: PlaybackScreenshotGeometry,
-        assSubtitleSurface: PlaybackASSSubtitleSurface?
+        assSubtitleFrame: ASSSparseFrame?
     ) {
-        self.frame = frame
+        self.nativeSnapshot = nativeSnapshot
         self.geometry = geometry
-        self.assSubtitleSurface = assSubtitleSurface
+        self.assSubtitleFrame = assSubtitleFrame
     }
 }
 
-public enum PlaybackCurrentFrameScreenshotError: Error, CustomStringConvertible {
+enum PlaybackCurrentFrameScreenshotError: Error, CustomStringConvertible {
     case invalidFrameSize
     case imageConversionFailed
 
-    public var description: String {
+    var description: String {
         switch self {
         case .invalidFrameSize:
             "The submitted playback frame has an invalid pixel size."
@@ -125,20 +78,15 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
         ?? CGColorSpaceCreateDeviceRGB()
 
     public static func render(
-        _ frame: PlaybackSubmittedVideoFrame
-    ) throws -> CGImage {
-        try render(pixelBuffer: frame.pixelBuffer)
-    }
-
-    public static func render(
         _ presentation: PlaybackScreenshotPresentation,
-        simpleSubtitleOverlay: CGImage? = nil
+        simpleSubtitleViewportOverlay: CGImage? = nil
     ) throws -> CGImage {
-        let base = try render(presentation.frame)
+        let base = try render(pixelBuffer: presentation.nativeSnapshot.pixelBuffer)
         return try compose(
             baseImage: base,
-            assSubtitleSurface: presentation.assSubtitleSurface,
-            simpleSubtitleOverlay: simpleSubtitleOverlay
+            assSubtitleFrame: presentation.assSubtitleFrame,
+            simpleSubtitleViewportOverlay: simpleSubtitleViewportOverlay,
+            geometry: presentation.geometry
         )
     }
 
@@ -169,10 +117,13 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
 
     static func compose(
         baseImage: CGImage,
-        assSubtitleSurface: PlaybackASSSubtitleSurface?,
-        simpleSubtitleOverlay: CGImage?
+        assSubtitleFrame: ASSSparseFrame?,
+        simpleSubtitleViewportOverlay: CGImage?,
+        geometry: PlaybackScreenshotGeometry
     ) throws -> CGImage {
-        guard assSubtitleSurface != nil || simpleSubtitleOverlay != nil else {
+        guard assSubtitleFrame?.surface != nil
+                || simpleSubtitleViewportOverlay != nil
+        else {
             return baseImage
         }
         guard let context = makeBitmapContext(
@@ -190,26 +141,32 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
         )
         context.draw(baseImage, in: fullRect)
 
-        if let assSubtitleSurface,
-           let surfaceImage = makeASSImage(assSubtitleSurface) {
-            let frameWidth = max(1, assSubtitleSurface.frameWidth)
-            let frameHeight = max(1, assSubtitleSurface.frameHeight)
+        if let assSubtitleFrame,
+           let surface = assSubtitleFrame.surface,
+           let surfaceImage = makeASSImage(surface) {
+            let frameWidth = max(1, assSubtitleFrame.frameWidth)
+            let frameHeight = max(1, assSubtitleFrame.frameHeight)
             let scaleX = CGFloat(baseImage.width) / CGFloat(frameWidth)
             let scaleY = CGFloat(baseImage.height) / CGFloat(frameHeight)
-            let destinationHeight = CGFloat(assSubtitleSurface.height) * scaleY
+            let destinationHeight = CGFloat(surface.height) * scaleY
             let destinationRect = CGRect(
-                x: CGFloat(assSubtitleSurface.destinationX) * scaleX,
+                x: CGFloat(surface.destinationX) * scaleX,
                 y: CGFloat(baseImage.height)
-                    - CGFloat(assSubtitleSurface.destinationY) * scaleY
+                    - CGFloat(surface.destinationY) * scaleY
                     - destinationHeight,
-                width: CGFloat(assSubtitleSurface.width) * scaleX,
+                width: CGFloat(surface.width) * scaleX,
                 height: destinationHeight
             )
             context.draw(surfaceImage, in: destinationRect)
         }
 
-        if let simpleSubtitleOverlay {
-            context.draw(simpleSubtitleOverlay, in: fullRect)
+        if let simpleSubtitleViewportOverlay,
+           let croppedOverlay = cropToVideoRect(
+               simpleSubtitleViewportOverlay,
+               geometry: geometry
+           ) {
+            context.interpolationQuality = .high
+            context.draw(croppedOverlay, in: fullRect)
         }
 
         guard let image = context.makeImage() else {
@@ -219,7 +176,7 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
     }
 
     private static func makeASSImage(
-        _ surface: PlaybackASSSubtitleSurface
+        _ surface: ASSCroppedSurface
     ) -> CGImage? {
         guard surface.width > 0,
               surface.height > 0,
@@ -246,6 +203,31 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
             shouldInterpolate: true,
             intent: .defaultIntent
         )
+    }
+
+    private static func cropToVideoRect(
+        _ overlay: CGImage,
+        geometry: PlaybackScreenshotGeometry
+    ) -> CGImage? {
+        let viewportSize = geometry.viewportSize
+        guard viewportSize.width > 0, viewportSize.height > 0 else {
+            return nil
+        }
+
+        let imageScaleX = CGFloat(overlay.width) / viewportSize.width
+        let imageScaleY = CGFloat(overlay.height) / viewportSize.height
+        let cropRect = CGRect(
+            x: geometry.videoRect.minX * imageScaleX,
+            y: (viewportSize.height - geometry.videoRect.maxY) * imageScaleY,
+            width: geometry.videoRect.width * imageScaleX,
+            height: geometry.videoRect.height * imageScaleY
+        ).integral.intersection(
+            CGRect(x: 0, y: 0, width: overlay.width, height: overlay.height)
+        )
+        guard !cropRect.isEmpty else {
+            return nil
+        }
+        return overlay.cropping(to: cropRect)
     }
 
     private static func makeBitmapContext(width: Int, height: Int) -> CGContext? {

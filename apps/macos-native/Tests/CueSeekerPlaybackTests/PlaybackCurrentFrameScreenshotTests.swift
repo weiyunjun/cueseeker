@@ -33,7 +33,7 @@ func currentFrameScreenshotRendererComposesCurrentASSSurface() throws {
     let baseImage = try PlaybackCurrentFrameScreenshotRenderer.render(
         pixelBuffer: pixelBuffer
     )
-    let surface = PlaybackASSSubtitleSurface(
+    let surface = ASSCroppedSurface(
         rgbaData: Data([
             0xFF, 0x00, 0x00, 0xFF,
             0xFF, 0x00, 0x00, 0xFF
@@ -42,15 +42,23 @@ func currentFrameScreenshotRendererComposesCurrentASSSurface() throws {
         height: 1,
         stride: 8,
         destinationX: 2,
-        destinationY: 2,
+        destinationY: 2
+    )
+    let frame = ASSSparseFrame(
+        surface: surface,
         frameWidth: 6,
-        frameHeight: 4
+        frameHeight: 4,
+        timestampMilliseconds: 1_000
     )
 
     let composedImage = try PlaybackCurrentFrameScreenshotRenderer.compose(
         baseImage: baseImage,
-        assSubtitleSurface: surface,
-        simpleSubtitleOverlay: nil
+        assSubtitleFrame: frame,
+        simpleSubtitleViewportOverlay: nil,
+        geometry: PlaybackScreenshotGeometry(
+            viewportSize: CGSize(width: 6, height: 4),
+            videoRect: CGRect(x: 0, y: 0, width: 6, height: 4)
+        )
     )
 
     #expect(composedImage.width == 6)

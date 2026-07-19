@@ -517,35 +517,31 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
     }
 
-    public func captureLatestSubmittedVideoFrame() -> PlaybackSubmittedVideoFrame? {
-        guard let snapshot = nativePlayer.latestSubmittedVideoFrameSnapshot else {
-            return nil
-        }
-        return PlaybackSubmittedVideoFrame(nativeSnapshot: snapshot)
-    }
-
     @MainActor
     public func captureScreenshotPresentation() -> PlaybackScreenshotPresentation? {
-        guard let frame = captureLatestSubmittedVideoFrame() else {
+        guard let nativeSnapshot = nativePlayer.latestSubmittedVideoFrameSnapshot else {
             return nil
         }
 
-        let fallbackSize = CGSize(width: frame.width, height: frame.height)
+        let fallbackSize = CGSize(
+            width: nativeSnapshot.width,
+            height: nativeSnapshot.height
+        )
         guard let container = renderView as? PlaybackRenderContainerView else {
             return PlaybackScreenshotPresentation(
-                frame: frame,
+                nativeSnapshot: nativeSnapshot,
                 geometry: PlaybackScreenshotGeometry(
                     viewportSize: fallbackSize,
                     videoRect: CGRect(origin: .zero, size: fallbackSize)
                 ),
-                assSubtitleSurface: nil
+                assSubtitleFrame: nil
             )
         }
 
         return PlaybackScreenshotPresentation(
-            frame: frame,
+            nativeSnapshot: nativeSnapshot,
             geometry: container.screenshotGeometry(fallbackSize: fallbackSize),
-            assSubtitleSurface: container.currentASSSubtitleSurface()
+            assSubtitleFrame: container.currentASSSubtitleFrame()
         )
     }
 
@@ -1021,11 +1017,11 @@ public final class PlaybackRenderContainerView: NSView {
         sourceFaithfulASSOverlayView?.videoSize = videoSize
     }
 
-    func currentASSSubtitleSurface() -> PlaybackASSSubtitleSurface? {
+    func currentASSSubtitleFrame() -> ASSSparseFrame? {
         guard currentSubtitlesVisible else {
             return nil
         }
-        return sourceFaithfulASSOverlayView?.currentPresentationSurface()
+        return sourceFaithfulASSOverlayView?.currentPresentationFrame()
     }
 
     func screenshotGeometry(fallbackSize: CGSize) -> PlaybackScreenshotGeometry {

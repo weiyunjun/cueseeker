@@ -63,6 +63,21 @@ or pausing the active video and without invoking FFmpeg.
 - Kept the independently retained native pixel buffer, decoded dimensions, and
   current-frame replacement semantics unchanged.
 
+### 2. Unified Composition
+
+- Removed the cross-module submitted-frame wrapper and made the presentation
+  snapshot retain the native frame directly while exposing only the viewport
+  size needed by the App subtitle renderer.
+- Reused the playback overlay's existing sparse ASS frame instead of copying it
+  into a second screenshot-only surface model.
+- Changed the App layer to render only the transparent SwiftUI subtitle at the
+  current viewport size. The playback renderer now crops away letterboxing,
+  scales that overlay to native video pixels, and draws it in the same final
+  bitmap context used for the video and ASS surface.
+- Removed the intermediate native-size transparent bitmap and narrowed
+  screenshot geometry, ASS data, and conversion errors to playback-module
+  implementation details.
+
 ### 4. Playback Command and Feedback
 
 - Added a fixed `photo` transport-style button before the subtitle control. It
@@ -107,6 +122,9 @@ or pausing the active video and without invoking FFmpeg.
 - Passed the native presentation-transition snapshot test and all 16 tests
   selected by the `Screenshot` filter after simplifying the snapshot and image
   result model.
+- Passed all 16 tests selected by the `Screenshot` filter after unifying the
+  composition path; the native-size SRT test still confirms correct video
+  orientation, letterbox removal, and bottom anchoring.
 - Ran the complete `swift test --package-path apps/macos-native` suite. The run
   exercised 787 Swift Testing tests but reported four timing/I/O-sensitive
   failures under full-suite load alongside transient SQLite `disk I/O error`
