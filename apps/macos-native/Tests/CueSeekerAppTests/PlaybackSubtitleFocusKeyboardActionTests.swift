@@ -515,6 +515,12 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
                 #expect(session.state == .closed)
                 #expect(!session.isActive)
                 receivedContext = context
+                app.settings.autoPauseAfterCueFinishesEnabled = true
+                app.beginCueAutoStopPlayback()
+                app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+                    startMilliseconds: context.cue.startMilliseconds,
+                    endMilliseconds: context.cue.endMilliseconds
+                ))
                 return true
             }
         )
@@ -522,6 +528,8 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
         #expect(didExecute)
         #expect(receivedContext == execution.context)
         #expect(receivedContext?.cue.startMilliseconds == 12_000)
+        #expect(app.activePlaylistCueSettings?.autoPauseEnabled == true)
+        #expect(app.activeCueAutoPauseBoundary?.endMilliseconds == 12_900)
         #expect(app.playback.subtitleFocusSession == nil)
         #expect(session.state == .closed)
         #expect(app.playback.playbackStatus == .playing)

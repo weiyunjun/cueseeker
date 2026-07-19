@@ -402,7 +402,6 @@ extension AppCoordinator {
         playlistScope: PlaybackPlaylistShioriScope? = nil,
         playlistSelectedOrdinal: Int? = nil,
         displayTitle: String? = nil,
-        playsContinuouslyFromStart: Bool = false,
         playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -462,10 +461,7 @@ extension AppCoordinator {
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
-            let didStartPlayback = play(
-                shiori,
-                playsContinuouslyFromStart: playsContinuouslyFromStart
-            )
+            let didStartPlayback = play(shiori)
             if let playbackReturnContextOnSuccessfulPlay {
                 commitPlaybackReturnContext(
                     playbackReturnContextOnSuccessfulPlay,
@@ -476,10 +472,7 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func play(
-        _ shiori: Shiori,
-        playsContinuouslyFromStart: Bool = false
-    ) -> Bool {
+    func play(_ shiori: Shiori) -> Bool {
         ensurePlayerInitialized()
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
@@ -496,8 +489,7 @@ extension AppCoordinator {
         do {
             let autoStopBoundary = configureCueAutoStopBoundary(
                 startMilliseconds: shiori.startMilliseconds,
-                endMilliseconds: shiori.endMilliseconds,
-                playsContinuouslyFromStart: playsContinuouslyFromStart
+                endMilliseconds: shiori.endMilliseconds
             )
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: shiori.videoPath),

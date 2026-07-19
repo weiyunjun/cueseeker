@@ -585,7 +585,7 @@ func replacingCuePlaybackInvalidatesPendingCueAutoSwitch() async throws {
 
 @MainActor
 @Test
-func continuousFromStartBypassesBothPlaylistCueBehaviors() async throws {
+func everyInitializedPlaylistItemUsesItsAutoPauseSnapshot() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
@@ -593,12 +593,11 @@ func continuousFromStartBypassesBothPlaylistCueBehaviors() async throws {
 
         let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: 1_000,
-            endMilliseconds: 2_500,
-            playsContinuouslyFromStart: true
+            endMilliseconds: 2_500
         )
 
-        #expect(boundary == nil)
-        #expect(app.activeCueAutoPauseBoundary == nil)
+        #expect(boundary?.endMilliseconds == 2_500)
+        #expect(app.activeCueAutoPauseBoundary == boundary)
         #expect(app.autoSwitchCueSequenceTask == nil)
     }
 }

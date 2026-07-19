@@ -410,7 +410,6 @@ extension AppCoordinator {
                 guard continuousPlay(context) else {
                     return true
                 }
-                clearCueAutoStopPlayback()
                 playback.playbackStatus = .playing
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             case .playlist(let item):
@@ -431,7 +430,6 @@ extension AppCoordinator {
                 )
                 openSearchResult(
                     result,
-                    playsContinuouslyFromStart: true,
                     playbackSearchPromotion: promotion
                 )
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
@@ -531,14 +529,22 @@ extension AppCoordinator {
               currentPlaybackSubtitlePath.map({
                   URL(fileURLWithPath: $0).standardizedFileURL.path
               }) == context.source.subtitlePath,
-              currentPlaybackSubtitleFormat == context.source.subtitleFormat,
-              playbackViewModel.playContinuously(
-                  from: Double(context.cue.startMilliseconds) / 1_000
-              )
+              currentPlaybackSubtitleFormat == context.source.subtitleFormat
         else {
             return false
         }
 
+        beginCueAutoStopPlayback()
+        _ = configureCueAutoStopBoundary(
+            startMilliseconds: context.cue.startMilliseconds,
+            endMilliseconds: context.cue.endMilliseconds
+        )
+        guard playbackViewModel.playContinuously(
+            from: Double(context.cue.startMilliseconds) / 1_000
+        ) else {
+            clearCueAutoStopPlayback()
+            return false
+        }
         return true
     }
 
@@ -568,7 +574,6 @@ extension AppCoordinator {
             }
             openSearchResult(
                 result,
-                playsContinuouslyFromStart: true,
                 playbackSearchPromotion: playbackSearchPromotion,
                 playlistSourceOverride: playlistSourceOverride
             )
@@ -584,14 +589,13 @@ extension AppCoordinator {
                 shiori,
                 navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
                 playlistScope: playlistScope,
-                playlistSelectedOrdinal: item.ordinal,
-                playsContinuouslyFromStart: true
+                playlistSelectedOrdinal: item.ordinal
             )
         }
     }
 
     private func openPlaybackShioriItem(_ item: PlaybackCueResultItem) {
-        _ = dispatchPlaybackShioriOverlayItem(item) { shiori, scope, continuous in
+        _ = dispatchPlaybackShioriOverlayItem(item) { shiori, scope in
             let playlistScope = scope.map {
                 PlaybackPlaylistShioriScope.table(
                     PlaybackPlaylistShioriTableContext(
@@ -607,7 +611,6 @@ extension AppCoordinator {
                 navigationScopeIDs: scope,
                 playlistScope: playlistScope,
                 playlistSelectedOrdinal: item.ordinal,
-                playsContinuouslyFromStart: continuous,
                 playbackReturnContextOnSuccessfulPlay: .shiori
             )
         }
@@ -616,7 +619,7 @@ extension AppCoordinator {
     @discardableResult
     func dispatchPlaybackShioriOverlayItem(
         _ item: PlaybackCueResultItem,
-        open: (Shiori, [Int64]?, Bool) -> Void
+        open: (Shiori, [Int64]?) -> Void
     ) -> Bool {
         guard case .shiori(let shiori) = item.target else {
             return false
@@ -626,7 +629,7 @@ extension AppCoordinator {
                 ? shioriIDs
                 : nil
         }
-        open(shiori, resultIDs, true)
+        open(shiori, resultIDs)
         return true
     }
 

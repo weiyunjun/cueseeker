@@ -166,15 +166,12 @@ func playbackShioriDispatchUsesCurrentWorkbenchResultOrder() throws {
         ordinal: 1
     )
     var receivedScope: [Int64]?
-    var receivedContinuous = false
 
-    let dispatched = app.dispatchPlaybackShioriOverlayItem(item) { _, scope, continuous in
+    let dispatched = app.dispatchPlaybackShioriOverlayItem(item) { _, scope in
         receivedScope = scope
-        receivedContinuous = continuous
     }
 
     #expect(dispatched)
-    #expect(receivedContinuous)
     #expect(receivedScope == store.tableResultShioriIDs)
 }
 

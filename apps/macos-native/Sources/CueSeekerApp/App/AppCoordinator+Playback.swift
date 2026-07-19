@@ -253,7 +253,6 @@ extension AppCoordinator {
         recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil,
         returnPanelMode: WorkbenchPanelMode? = nil,
-        playsContinuouslyFromStart: Bool = false,
         playbackSearchPromotion: PlaybackSearchPromotion? = nil,
         playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
@@ -314,10 +313,7 @@ extension AppCoordinator {
         workbenchLayout.selectPanelMode(.search)
         Task { @MainActor in
             await Task.yield()
-            let didStartPlayback = play(
-                result,
-                playsContinuouslyFromStart: playsContinuouslyFromStart
-            )
+            let didStartPlayback = play(result)
             if let returnPanelMode {
                 commitPlaybackReturnContext(
                     for: returnPanelMode,
@@ -370,10 +366,7 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func play(
-        _ result: SubtitleSearchResult,
-        playsContinuouslyFromStart: Bool = false
-    ) -> Bool {
+    func play(_ result: SubtitleSearchResult) -> Bool {
         ensurePlayerInitialized()
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
@@ -390,8 +383,7 @@ extension AppCoordinator {
         do {
             let autoStopBoundary = configureCueAutoStopBoundary(
                 startMilliseconds: result.startMilliseconds,
-                endMilliseconds: result.endMilliseconds,
-                playsContinuouslyFromStart: playsContinuouslyFromStart
+                endMilliseconds: result.endMilliseconds
             )
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: result.videoPath),
@@ -440,11 +432,9 @@ extension AppCoordinator {
 
     func cueAutoStopBoundary(
         startMilliseconds: Int,
-        endMilliseconds: Int,
-        playsContinuouslyFromStart: Bool = false
+        endMilliseconds: Int
     ) -> PlaybackAutoStopBoundary? {
-        guard !playsContinuouslyFromStart,
-              activePlaylistCueSettings?.autoPauseEnabled == true
+        guard activePlaylistCueSettings?.autoPauseEnabled == true
         else {
             return nil
         }
@@ -457,13 +447,11 @@ extension AppCoordinator {
 
     func configureCueAutoStopBoundary(
         startMilliseconds: Int,
-        endMilliseconds: Int,
-        playsContinuouslyFromStart: Bool = false
+        endMilliseconds: Int
     ) -> PlaybackAutoStopBoundary? {
         let boundary = cueAutoStopBoundary(
             startMilliseconds: startMilliseconds,
-            endMilliseconds: endMilliseconds,
-            playsContinuouslyFromStart: playsContinuouslyFromStart
+            endMilliseconds: endMilliseconds
         )
         activateCueAutoStopBoundary(boundary)
         return boundary
