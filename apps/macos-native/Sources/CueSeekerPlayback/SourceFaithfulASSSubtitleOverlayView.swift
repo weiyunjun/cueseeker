@@ -420,6 +420,33 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         ObjectIdentifier(rendererWorker)
     }
 
+    func currentPresentationSurface() -> PlaybackASSSubtitleSurface? {
+        guard areSubtitlesVisible,
+              let renderedFrame
+        else {
+            return nil
+        }
+
+        switch renderedFrame {
+        case .sparse(let frame):
+            guard let surface = frame.surface else {
+                return nil
+            }
+            return PlaybackASSSubtitleSurface(
+                rgbaData: surface.rgbaData,
+                width: surface.width,
+                height: surface.height,
+                stride: surface.stride,
+                destinationX: surface.destinationX,
+                destinationY: surface.destinationY,
+                frameWidth: frame.frameWidth,
+                frameHeight: frame.frameHeight
+            )
+        case .unchanged:
+            return nil
+        }
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }

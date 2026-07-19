@@ -37,6 +37,20 @@ or pausing the active video and without invoking FFmpeg.
   image directly to an in-memory PNG and publishes `public.png` without a save
   panel or temporary file.
 
+### 3. Current Subtitle Presentation
+
+- Added a main-actor capture contract that snapshots one submitted video frame,
+  its current aspect-fit video rectangle, and the ASS surface already applied
+  by the playback subtitle view.
+- Composed the retained sparse ASS RGBA surface at its source destination
+  coordinates instead of asking libass to render again at the media clock.
+- Reused the actual SwiftUI simple-subtitle view to render the current visible
+  text at the current playback viewport size, cropped away letterbox pixels,
+  and scaled only that transparent overlay to the native video frame size.
+- Preserved presentation order: video frame, source-faithful ASS surface, then
+  the simple SwiftUI subtitle overlay that is visually above the native render
+  container.
+
 ## Verification
 
 - Passed: `swift test --package-path apps/macos-native --filter nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits`.
@@ -51,6 +65,13 @@ or pausing the active video and without invoking FFmpeg.
 - Confirmed both software-style BGRA and hardware-style bi-planar YUV pixel
   buffers produce the expected native pixel dimensions, and the pasteboard PNG
   decodes back to those dimensions.
+- Passed: `swift test --package-path apps/macos-native --filter Screenshot` with
+  13 screenshot-related tests.
+- Passed: `swift test --package-path apps/macos-native --filter simpleSubtitleScreenshotOverlayUsesNativeOutputDimensions`.
+- Confirmed an already-rendered sparse ASS surface is composited into the base
+  frame and the reused simple-subtitle view produces a transparent native-size
+  overlay whose visible pixels remain bottom-anchored after letterbox cropping
+  and scaling.
 
 ## Outcome
 

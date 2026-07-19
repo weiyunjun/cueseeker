@@ -524,6 +524,31 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         return PlaybackSubmittedVideoFrame(nativeSnapshot: snapshot)
     }
 
+    @MainActor
+    public func captureScreenshotPresentation() -> PlaybackScreenshotPresentation? {
+        guard let frame = captureLatestSubmittedVideoFrame() else {
+            return nil
+        }
+
+        let fallbackSize = CGSize(width: frame.width, height: frame.height)
+        guard let container = renderView as? PlaybackRenderContainerView else {
+            return PlaybackScreenshotPresentation(
+                frame: frame,
+                geometry: PlaybackScreenshotGeometry(
+                    viewportSize: fallbackSize,
+                    videoRect: CGRect(origin: .zero, size: fallbackSize)
+                ),
+                assSubtitleSurface: nil
+            )
+        }
+
+        return PlaybackScreenshotPresentation(
+            frame: frame,
+            geometry: container.screenshotGeometry(fallbackSize: fallbackSize),
+            assSubtitleSurface: container.currentASSSubtitleSurface()
+        )
+    }
+
     public func holdSubtitlePresentation(atMilliseconds milliseconds: Int) {
         let safeMilliseconds = max(0, milliseconds)
         heldSubtitlePresentationMilliseconds = safeMilliseconds
@@ -994,6 +1019,48 @@ public final class PlaybackRenderContainerView: NSView {
     func setVideoSize(_ videoSize: CGSize?) {
         currentVideoSize = videoSize
         sourceFaithfulASSOverlayView?.videoSize = videoSize
+    }
+
+    func currentASSSubtitleSurface() -> PlaybackASSSubtitleSurface? {
+        guard currentSubtitlesVisible else {
+            return nil
+        }
+        return sourceFaithfulASSOverlayView?.currentPresentationSurface()
+    }
+
+    func screenshotGeometry(fallbackSize: CGSize) -> PlaybackScreenshotGeometry {
+        let viewportSize = bounds.size.width > 0 && bounds.size.height > 0
+            ? bounds.size
+            : fallbackSize
+        guard let currentVideoSize,
+              currentVideoSize.width > 0,
+              currentVideoSize.height > 0,
+              viewportSize.width > 0,
+              viewportSize.height > 0
+        else {
+            return PlaybackScreenshotGeometry(
+                viewportSize: viewportSize,
+                videoRect: CGRect(origin: .zero, size: viewportSize)
+            )
+        }
+
+        let scale = min(
+            viewportSize.width / currentVideoSize.width,
+            viewportSize.height / currentVideoSize.height
+        )
+        let displayedSize = CGSize(
+            width: currentVideoSize.width * scale,
+            height: currentVideoSize.height * scale
+        )
+        return PlaybackScreenshotGeometry(
+            viewportSize: viewportSize,
+            videoRect: CGRect(
+                x: (viewportSize.width - displayedSize.width) / 2,
+                y: (viewportSize.height - displayedSize.height) / 2,
+                width: displayedSize.width,
+                height: displayedSize.height
+            )
+        )
     }
 
     private func ensureSourceFaithfulASSOverlayView() {

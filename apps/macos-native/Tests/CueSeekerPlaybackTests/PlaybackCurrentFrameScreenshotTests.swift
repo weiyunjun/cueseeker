@@ -1,4 +1,5 @@
 import CoreVideo
+import CoreGraphics
 import Testing
 @testable import CueSeekerPlayback
 
@@ -24,6 +25,37 @@ func currentFrameScreenshotRendererAcceptsBiPlanarHardwareFrame() throws {
 
     #expect(image.width == 8)
     #expect(image.height == 6)
+}
+
+@Test
+func currentFrameScreenshotRendererComposesCurrentASSSurface() throws {
+    let pixelBuffer = try makeScreenshotPixelBuffer(width: 6, height: 4)
+    let baseImage = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: pixelBuffer
+    )
+    let surface = PlaybackASSSubtitleSurface(
+        rgbaData: Data([
+            0xFF, 0x00, 0x00, 0xFF,
+            0xFF, 0x00, 0x00, 0xFF
+        ]),
+        width: 2,
+        height: 1,
+        stride: 8,
+        destinationX: 2,
+        destinationY: 2,
+        frameWidth: 6,
+        frameHeight: 4
+    )
+
+    let composedImage = try PlaybackCurrentFrameScreenshotRenderer.compose(
+        baseImage: baseImage,
+        assSubtitleSurface: surface,
+        simpleSubtitleOverlay: nil
+    )
+
+    #expect(composedImage.width == 6)
+    #expect(composedImage.height == 4)
+    #expect(containsOpaqueRedPixel(composedImage))
 }
 
 private func makeScreenshotPixelBuffer(width: Int, height: Int) throws -> CVPixelBuffer {
@@ -96,4 +128,33 @@ private func makeBiPlanarScreenshotPixelBuffer(
         )
     }
     return pixelBuffer
+}
+
+private func containsOpaqueRedPixel(_ image: CGImage) -> Bool {
+    let bytesPerRow = image.width * 4
+    var bytes = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+    guard let context = CGContext(
+        data: &bytes,
+        width: image.width,
+        height: image.height,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(
+            rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ).rawValue
+    ) else {
+        return false
+    }
+    context.draw(
+        image,
+        in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+    )
+    return stride(from: 0, to: bytes.count, by: 4).contains { index in
+        bytes[index] > 240
+            && bytes[index + 1] < 16
+            && bytes[index + 2] < 16
+            && bytes[index + 3] > 240
+    }
 }
