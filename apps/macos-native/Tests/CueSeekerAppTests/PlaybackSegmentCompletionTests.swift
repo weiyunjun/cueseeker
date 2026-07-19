@@ -785,6 +785,75 @@ func libraryPlaybackCompletionMilestoneSurvivesSeekingBackBeforeClose() async th
 
 @MainActor
 @Test
+func libraryPlaybackCompletionMilestoneIgnoresManualFinishedState() async throws {
+    try await withTemporarySegmentCompletionApp { app, database in
+        let videoURL = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
+            videoFile: videoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:01:24,000",
+                    endTimecode: "00:01:25,000",
+                    startMilliseconds: 84_000,
+                    endMilliseconds: 85_000,
+                    text: "library completion milestone"
+                )
+            ]
+        )
+        try database.upsertLibraryPlaybackHistory(
+            videoFile: videoURL,
+            positionMilliseconds: 42_500,
+            duration: 100
+        )
+        try database.setLibraryWatchState(
+            videoFile: videoURL,
+            duration: 100,
+            state: .finished
+        )
+
+        app.ensurePlayerInitialized()
+        defer {
+            app.stopLibraryPlaybackHistoryTracking()
+        }
+
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        app.startLibraryPlaybackHistoryTracking(videoPath: videoURL.path)
+        try database.setLibraryWatchState(
+            videoFile: videoURL,
+            duration: 100,
+            state: .watching
+        )
+        playbackViewModel.player(
+            player,
+            didChangeProperty: "duration",
+            value: .double(100)
+        )
+        playbackViewModel.player(
+            player,
+            didChangeProperty: "time-pos",
+            value: .double(85)
+        )
+        await Task.yield()
+
+        app.saveCurrentLibraryPlaybackHistorySynchronously()
+
+        let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        #expect(history.positionMilliseconds == 85_000)
+        #expect(history.completedAt != nil)
+        #expect(LibraryWatchState(
+            positionMilliseconds: history.positionMilliseconds,
+            duration: history.duration,
+            startedAt: history.startedAt,
+            completedAt: history.completedAt
+        ) == .finished)
+    }
+}
+
+@MainActor
+@Test
 func libraryPlaybackHistorySaveMarksCompletedWhenPositionReachedFinishPoint() async throws {
     try await withTemporarySegmentCompletionApp { app, database in
         let videoURL = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")

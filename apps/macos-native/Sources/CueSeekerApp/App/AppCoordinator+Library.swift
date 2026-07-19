@@ -1195,19 +1195,12 @@ extension AppCoordinator {
             )
         }
         let videoFile = URL(fileURLWithPath: videoPath)
-        let existingHistory: LibraryPlaybackHistory?
         if let subtitleDatabase {
-            existingHistory = try? subtitleDatabase.libraryPlaybackHistory(forVideoFile: videoFile)
             libraryPlaybackFinishMetadata = try? subtitleDatabase.playbackFinishMetadata(forVideoFile: videoFile)
         } else {
-            existingHistory = nil
             libraryPlaybackFinishMetadata = nil
         }
-        if existingHistory?.completedAt != nil {
-            libraryPlaybackCompletedMilestoneVideoPath = videoPath
-        } else {
-            libraryPlaybackCompletedMilestoneVideoPath = nil
-        }
+        libraryPlaybackCompletedMilestoneVideoPath = nil
         libraryPlaybackHistoryTask?.cancel()
         libraryPlaybackHistoryTask = Task { [weak self] in
             while !Task.isCancelled {

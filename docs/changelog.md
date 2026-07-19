@@ -8,8 +8,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 - Library and Recent playback now advance automatically to the next video after
   natural media completion, using the same sequence as the previous and next
-  video controls without wrapping. Reopening a completed video from either
-  entry or through adjacent-video navigation now starts from the beginning.
+  video controls without wrapping. Opening a video whose persisted playback
+  position has reached its duration now starts from the beginning, while the
+  independent Finished label no longer changes a partial resume position.
 - Split Playlist Cue playback into related `Only Play Cues in Playlist` and
   `Auto Switch to Next Cues in Playlist` settings. Auto Switch is available only
   while Only Play is on, producing the valid on/on, on/off, and off/off states;

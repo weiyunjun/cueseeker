@@ -56,13 +56,15 @@ Accepted M2 Library playback behavior:
 - Clicking a Library video row opens or updates playback from that video's
   persisted Library resume position, falling back to `0` when no history
   exists.
-- A completed Library playback history resolves to `0` instead of its persisted
-  end position. This applies when playback starts from Library or Recent and
-  when the previous or next video command opens another Library video.
+- A Library playback history whose persisted position has reached its known
+  media duration resolves to `0` instead of the persisted end position. This
+  rule is independent of the Finished watch-state label and applies when
+  playback starts from Library or Recent and when the previous or next video
+  command opens another Library video.
 - When Library or Recent playback reaches the natural end of the media and the
   current Library navigation sequence has a next video, playback opens that
-  next video automatically. The last video remains at its completed end state;
-  navigation does not wrap.
+  next video automatically, regardless of its current watch-state label. The
+  last video remains at its completed end state; navigation does not wrap.
 - If the selected Library video is already open, seeking to the resolved resume
   position is preferred over reopening when practical.
 - Library playback history is persisted only for playback sessions opened
