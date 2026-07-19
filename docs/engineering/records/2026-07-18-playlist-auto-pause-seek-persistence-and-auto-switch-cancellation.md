@@ -102,8 +102,18 @@
   ARM64, and bundle verification checks. The bundle is 36 MB; its CueSeeker
   executable SHA-256 is
   `fa9e5bb3708b26197690b5baed9843c568807c10c90ab1646dc59b9e28ba2fe0`.
+- `scripts/package_macos_app.sh --output /Applications/CueSeeker.app`: passed
+  the replacement Release build, recursive ad-hoc signing, dependency,
+  self-contained ARM64, and bundle verification checks. The installed bundle is
+  36 MB; its CueSeeker executable SHA-256 is
+  `49f7a7f3a4abc5a5362e6d1c209e94a9ec0368d648f62192ada532beeed40f95`.
+- LaunchServices registration verification: the installed bundle is active at
+  `/Applications/CueSeeker.app`, claims `cueseeker:`, and is the resolved
+  application for `cueseeker://cue?id=8869902`. No URL was opened during this
+  check, leaving application-level behavior for owner end-to-end validation.
 
 ## Outcome
 
-- Implementation and automated feature verification completed. A new packaged
-  owner end-to-end build remains required for final product acceptance.
+- Implementation, automated verification, installation, and URL handler
+  registration completed. Owner end-to-end validation of the installed build
+  remains required for final product acceptance.
