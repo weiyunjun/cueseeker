@@ -74,6 +74,91 @@ func nativePlaybackUsesCommonTimelineWhenVideoTrackStartsAfterAudio() async thro
 
 @Test
 @MainActor
+func nativePlaybackRebuildsAudioOutputAndContinuesInCurrentSession() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping audio output recovery regression test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let mediaURL = directory.appendingPathComponent("audio-output-recovery.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=15:size=160x90:rate=24",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=15",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-g",
+            "12",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            "-y",
+            mediaURL.path
+        ]
+    )
+
+    let player = SFXNativePlaybackPlayer()
+    let delegate = NativePlaybackCompletionDelegate()
+    player.delegate = delegate
+    player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
+    defer {
+        player.stop()
+    }
+
+    try player.openPath(mediaURL.path, startMilliseconds: 0)
+    try player.setPaused(false)
+
+    let started = await waitUntil(timeoutSeconds: 5) {
+        player.nativePresentedVideoFrameCount > 0
+            && player.nativeAudioPlayedBackBufferCount > 0
+    }
+    #expect(started)
+
+    let openCountBeforeRecovery = player.nativeSessionOpenCount
+    let seekCountBeforeRecovery = player.nativeInSessionSeekCount
+    let audioCountBeforeRecovery = player.nativeAudioPlayedBackBufferCount
+    let unexpectedDrainCountBeforeRecovery = player.nativeUnexpectedAudioDrainCount
+
+    player.requestAudioOutputRecoveryForTesting()
+
+    let recovered = await waitUntil(timeoutSeconds: 10) {
+        player.nativeAudioOutputRecoveryCount == 1
+    }
+    #expect(recovered)
+    #expect(player.nativeSessionOpenCount == openCountBeforeRecovery)
+    #expect(player.nativeInSessionSeekCount == seekCountBeforeRecovery)
+    #expect(player.nativeUnexpectedAudioDrainCount == unexpectedDrainCountBeforeRecovery)
+    #expect(!delegate.hasFailures)
+
+    let audioContinued = await waitUntil(timeoutSeconds: 10) {
+        player.nativeAudioPlayedBackBufferCount > audioCountBeforeRecovery
+    }
+    #expect(audioContinued)
+    #expect(player.isPlaying)
+}
+
+@Test
+@MainActor
 func nativePlaybackNotifiesNaturalCompletionAfterAudioDrain() async throws {
     guard let ffmpegURL = executableURL(named: "ffmpeg") else {
         print("Skipping native completion regression test because ffmpeg is unavailable.")

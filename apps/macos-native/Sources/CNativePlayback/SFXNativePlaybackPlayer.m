@@ -763,6 +763,8 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (void)requestAutomaticSoftwareRecycleForSession:(SFXNativePlaybackSession *)session
                                    atMilliseconds:(NSInteger)milliseconds
                            presentationGeneration:(NSUInteger)presentationGeneration;
+- (void)requestAudioOutputRecoveryForSession:(SFXNativePlaybackSession *)session;
+- (void)performPendingAudioOutputRecovery;
 - (void)cancelTimelineScrubPreviewRequests;
 - (NSUInteger)beginPresentationTransition;
 - (void)restoreCurrentPresentationGeneration:(NSUInteger)previousGeneration
@@ -840,6 +842,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	 presentationGeneration:(NSUInteger)presentationGeneration
 		      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 	                     error:(NSError **)error;
+- (BOOL)recoverAudioOutputWithError:(NSError **)error;
+- (void)requestAudioOutputRecovery;
+- (BOOL)prepareAudioOutputWithError:(NSError **)error;
+- (void)teardownAudioOutput;
 - (void)setPaused:(BOOL)paused;
 - (void)setReadAheadSuspended:(BOOL)suspended;
 - (void)setVolume:(float)volume;
@@ -865,6 +871,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 @property (nonatomic, readonly) NSUInteger audioPlayedBackBufferCount;
 @property (nonatomic, readonly) NSUInteger unexpectedAudioDrainCount;
 @property (nonatomic, readonly) NSUInteger segmentAudioDrainCount;
+@property (nonatomic, readonly) NSUInteger audioOutputRecoveryCount;
 @property (nonatomic, readonly) BOOL audioOutputDrained;
 @property (nonatomic, readonly, getter=isFinished) BOOL finished;
 @end
@@ -908,6 +915,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     AVAudioPlayerNode *_audioPlayer;
     AVAudioUnitTimePitch *_audioTimePitch;
     AVAudioFormat *_audioFormat;
+    id _audioEngineConfigurationObserver;
 
     int _videoStreamIndex;
     int _audioStreamIndex;
@@ -958,6 +966,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     NSUInteger _audioPlayedBackBufferCount;
     NSUInteger _unexpectedAudioDrainCount;
     NSUInteger _segmentAudioDrainCount;
+    NSUInteger _audioOutputRecoveryCount;
     NSUInteger _outstandingAudioBufferCount;
     NSUInteger _pendingAudioCompletionRecordCount;
     NSUInteger _playbackGeneration;
@@ -982,6 +991,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     BOOL _isPausedInsideLoop;
 	    BOOL _seekRequestPending;
 	    BOOL _seekRequestInProgress;
+	    BOOL _pendingSeekRebuildsAudioOutput;
+	    BOOL _audioOutputRecoveryRequested;
 	    BOOL _pendingSeekPauseAfterFirstFrame;
 	    NSUInteger _pendingSeekPresentationGeneration;
 	    double _pendingSeekSeconds;
@@ -1191,6 +1202,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 - (NSUInteger)segmentAudioDrainCount {
     @synchronized (self) {
         return _segmentAudioDrainCount;
+    }
+}
+
+- (NSUInteger)audioOutputRecoveryCount {
+    @synchronized (self) {
+        return _audioOutputRecoveryCount;
     }
 }
 
@@ -1895,6 +1912,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
     av_channel_layout_default(&_outputLayout, _audioOutputChannels);
 
+    return [self prepareAudioOutputWithError:error];
+}
+
+- (BOOL)prepareAudioOutputWithError:(NSError **)error {
+    [self teardownAudioOutput];
+
     _audioEngine = [[AVAudioEngine alloc] init];
     _audioPlayer = [[AVAudioPlayerNode alloc] init];
     _audioTimePitch = [[AVAudioUnitTimePitch alloc] init];
@@ -1909,6 +1932,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         if (error != NULL) {
             *error = SFXNativePlaybackError(35, @"Could not create AVAudioEngine output objects.");
         }
+        [self teardownAudioOutput];
         return NO;
     }
 
@@ -1925,10 +1949,67 @@ presentationGeneration:(NSUInteger)presentationGeneration;
                 [NSString stringWithFormat:@"AVAudioEngine start failed: %@", audioError.localizedDescription]
             );
         }
+        [self teardownAudioOutput];
         return NO;
     }
 
+    __weak typeof(self) weakSelf = self;
+    _audioEngineConfigurationObserver = [[NSNotificationCenter defaultCenter]
+        addObserverForName:AVAudioEngineConfigurationChangeNotification
+                    object:_audioEngine
+                     queue:nil
+                usingBlock:^(NSNotification *notification) {
+        (void)notification;
+        [weakSelf requestAudioOutputRecovery];
+    }];
+
     return YES;
+}
+
+- (void)teardownAudioOutput {
+    if (_audioEngineConfigurationObserver != nil) {
+        [[NSNotificationCenter defaultCenter] removeObserver:_audioEngineConfigurationObserver];
+        _audioEngineConfigurationObserver = nil;
+    }
+    [_audioPlayer stop];
+    [_audioEngine stop];
+    _audioPlayer = nil;
+    _audioTimePitch = nil;
+    _audioEngine = nil;
+    _audioFormat = nil;
+}
+
+- (void)requestAudioOutputRecovery {
+    BOOL shouldRequestRecovery = NO;
+    [_packetQueueCondition lock];
+    if (!_audioOutputRecoveryRequested
+        && !atomic_load(&_cancelled)
+        && !atomic_load(&_segmentEnding)
+        && !atomic_load(&_decodeLoopFinished)) {
+        _audioOutputRecoveryRequested = YES;
+        _audioResetInProgress = YES;
+        _audioDrainScheduled = NO;
+        _playbackGeneration += 1;
+        shouldRequestRecovery = YES;
+        [_packetQueueCondition broadcast];
+    }
+    [_packetQueueCondition unlock];
+
+    if (!shouldRequestRecovery) {
+        return;
+    }
+
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        typeof(self) strongSelf = weakSelf;
+        if (strongSelf == nil) {
+            return;
+        }
+        SFXNativePlaybackPlayer *owner = strongSelf->_owner;
+        if (owner != nil) {
+            [owner requestAudioOutputRecoveryForSession:strongSelf];
+        }
+    });
 }
 
 - (void)start {
@@ -1964,6 +2045,22 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	 presentationGeneration:(NSUInteger)presentationGeneration
 		      pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 		                     error:(NSError **)error {
+	return [self requestSeekToMilliseconds:milliseconds
+	                         endMilliseconds:endMilliseconds
+	                     pausesAtSegmentEnd:pausesAtSegmentEnd
+	                presentationGeneration:presentationGeneration
+	                    pauseAfterFirstFrame:pauseAfterFirstFrame
+	                 rebuildsAudioOutput:NO
+	                                    error:error];
+}
+
+- (BOOL)requestSeekToMilliseconds:(NSInteger)milliseconds
+                  endMilliseconds:(NSInteger)endMilliseconds
+	              pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
+	         presentationGeneration:(NSUInteger)presentationGeneration
+	             pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+	          rebuildsAudioOutput:(BOOL)rebuildsAudioOutput
+	                            error:(NSError **)error {
 	    double seekSeconds = MAX(0, (double)milliseconds / 1000.0);
 	    NSInteger safeEndMilliseconds = SFXSanitizedSegmentEndMilliseconds(milliseconds, endMilliseconds);
 	    double segmentEndSeconds = safeEndMilliseconds >= 0 ? (double)safeEndMilliseconds / 1000.0 : -1;
@@ -1990,6 +2087,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    _pendingSeekPausesAtSegmentEnd = pausesAtSegmentEnd && safeEndMilliseconds >= 0;
 	    _pendingSeekPresentationGeneration = presentationGeneration;
 	    _pendingSeekPauseAfterFirstFrame = pauseAfterFirstFrame;
+	    _pendingSeekRebuildsAudioOutput = rebuildsAudioOutput;
+	    if (rebuildsAudioOutput) {
+	        _audioOutputRecoveryRequested = NO;
+	    }
     _seekRequestPending = YES;
     _seekRequestSucceeded = NO;
     _seekRequestError = nil;
@@ -2009,6 +2110,22 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         *error = seekError ?: SFXNativePlaybackError(41, @"Native playback in-session seek did not complete.");
     }
     return succeeded;
+}
+
+- (BOOL)recoverAudioOutputWithError:(NSError **)error {
+    NSInteger currentMilliseconds = MAX(0, (NSInteger)llround(self.currentTime * 1000.0));
+    NSInteger endMilliseconds = self.segmentEndMilliseconds;
+    BOOL pausesAtSegmentEnd = self.pausesAtSegmentEnd;
+    BOOL pauseAfterFirstFrame = atomic_load(&_paused)
+        || (atomic_load(&_pauseAfterFirstFrame) && !atomic_load(&_didPauseAfterFirstFrame));
+
+    return [self requestSeekToMilliseconds:currentMilliseconds
+                           endMilliseconds:endMilliseconds
+                       pausesAtSegmentEnd:pausesAtSegmentEnd
+                  presentationGeneration:self.presentationGeneration
+                      pauseAfterFirstFrame:pauseAfterFirstFrame
+                   rebuildsAudioOutput:YES
+                                      error:error];
 }
 
 - (void)setPaused:(BOOL)paused {
@@ -2624,7 +2741,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    BOOL pausesAtSegmentEnd = _pendingSeekPausesAtSegmentEnd;
 	    NSUInteger presentationGeneration = _pendingSeekPresentationGeneration;
 	    BOOL pauseAfterFirstFrame = _pendingSeekPauseAfterFirstFrame;
+	    BOOL rebuildsAudioOutput = _pendingSeekRebuildsAudioOutput;
     _seekRequestPending = NO;
+	    _pendingSeekRebuildsAudioOutput = NO;
     _seekRequestInProgress = YES;
     [_packetQueueCondition unlock];
 
@@ -2634,7 +2753,13 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	                              pausesAtSegmentEnd:pausesAtSegmentEnd
 	                             presentationGeneration:presentationGeneration
 	                                  pauseAfterFirstFrame:pauseAfterFirstFrame
+	                               rebuildsAudioOutput:rebuildsAudioOutput
 	                                                 error:&seekError];
+	if (succeeded && rebuildsAudioOutput) {
+	    @synchronized (self) {
+	        _audioOutputRecoveryCount += 1;
+	    }
+	}
 
     [_packetQueueCondition lock];
     _seekRequestSucceeded = succeeded;
@@ -2674,6 +2799,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	              pausesAtSegmentEnd:(BOOL)pausesAtSegmentEnd
 	         presentationGeneration:(NSUInteger)presentationGeneration
 	              pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
+	           rebuildsAudioOutput:(BOOL)rebuildsAudioOutput
 	                             error:(NSError **)error {
     if (_formatContext == NULL || _videoCodecContext == NULL || _videoStreamIndex < 0) {
         if (error != NULL) {
@@ -2737,9 +2863,16 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
 
+    __block BOOL audioOutputReady = YES;
+    __block NSError *audioOutputError = nil;
     if (_audioDecodeQueue != NULL) {
         dispatch_sync(_audioDecodeQueue, ^{
-            [_audioPlayer stop];
+            if (rebuildsAudioOutput) {
+                [self teardownAudioOutput];
+                audioOutputReady = [self prepareAudioOutputWithError:&audioOutputError];
+            } else {
+                [_audioPlayer stop];
+            }
             if (_audioCodecContext != NULL) {
                 avcodec_flush_buffers(_audioCodecContext);
             }
@@ -2788,8 +2921,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);
 	    atomic_store(&_didPauseAfterFirstFrame, false);
 	    atomic_store(&_segmentEnding, false);
-	    atomic_store(&_paused, false);
-    atomic_store(&_playing, !pauseAfterFirstFrame);
+	    atomic_store(&_paused, !audioOutputReady);
+    atomic_store(&_playing, audioOutputReady && !pauseAfterFirstFrame);
     [_packetQueueCondition lock];
     if (generation == _playbackGeneration) {
         _audioResetInProgress = NO;
@@ -2797,6 +2930,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
     [self notifyTimeIfNeeded:YES];
+    if (!audioOutputReady) {
+        if (error != NULL) {
+            *error = audioOutputError ?: SFXNativePlaybackError(37, @"Audio output recovery failed.");
+        }
+        return NO;
+    }
     [self startPacketReadAhead];
     [self requestAudioDrain];
     return YES;
@@ -4150,8 +4289,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
     if (_audioDecodeQueue != NULL) {
         dispatch_sync(_audioDecodeQueue, ^{
-            [_audioPlayer stop];
-            [_audioEngine stop];
+            [self teardownAudioOutput];
         });
     }
 
@@ -4182,10 +4320,6 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     av_buffer_unref(&_hardwareDeviceContext);
     avformat_close_input(&_formatContext);
 
-    _audioPlayer = nil;
-    _audioTimePitch = nil;
-    _audioEngine = nil;
-    _audioFormat = nil;
 }
 
 @end
@@ -4203,6 +4337,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     NSUInteger _nativePresentationGeneration;
     NSUInteger _currentPresentationGeneration;
     NSUInteger _lastNotifiedVideoPresentationGeneration;
+    BOOL _audioOutputRecoveryScheduled;
+    BOOL _audioOutputRecoveryRequested;
     dispatch_queue_t _scrubPreviewQueue;
     NSUInteger _scrubPreviewGeneration;
     NSInteger _lastScrubPreviewFrameMilliseconds;
@@ -4324,6 +4460,10 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (NSUInteger)nativeSegmentAudioDrainCount {
     return _session.segmentAudioDrainCount;
+}
+
+- (NSUInteger)nativeAudioOutputRecoveryCount {
+    return _session.audioOutputRecoveryCount;
 }
 
 - (BOOL)nativeAudioOutputDrained {
@@ -4771,6 +4911,80 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     });
 }
 
+- (void)requestAudioOutputRecoveryForSession:(SFXNativePlaybackSession *)session {
+    BOOL shouldSchedule = NO;
+    @synchronized (self) {
+        if (_session != session) {
+            return;
+        }
+        _audioOutputRecoveryRequested = YES;
+        if (!_audioOutputRecoveryScheduled) {
+            _audioOutputRecoveryScheduled = YES;
+            shouldSchedule = YES;
+        }
+    }
+
+    if (shouldSchedule) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self performPendingAudioOutputRecovery];
+        });
+    }
+}
+
+- (void)performPendingAudioOutputRecovery {
+    SFXNativePlaybackSession *session = nil;
+    @synchronized (self) {
+        if (!_audioOutputRecoveryScheduled || !_audioOutputRecoveryRequested || _session == nil) {
+            _audioOutputRecoveryScheduled = NO;
+            return;
+        }
+        session = _session;
+        _audioOutputRecoveryRequested = NO;
+    }
+
+    if (session.isFinished) {
+        @synchronized (self) {
+            if (_session == session) {
+                _audioOutputRecoveryScheduled = NO;
+            }
+        }
+        return;
+    }
+
+    NSError *error = nil;
+    BOOL recovered = [session recoverAudioOutputWithError:&error];
+
+    BOOL shouldRepeat = NO;
+    BOOL shouldReportFailure = NO;
+    @synchronized (self) {
+        if (_session != session) {
+            _audioOutputRecoveryScheduled = NO;
+            _audioOutputRecoveryRequested = NO;
+            return;
+        }
+        shouldRepeat = _audioOutputRecoveryRequested;
+        _audioOutputRecoveryScheduled = shouldRepeat;
+        shouldReportFailure = !recovered && !shouldRepeat;
+    }
+
+    if (shouldRepeat) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self performPendingAudioOutputRecovery];
+        });
+    } else if (shouldReportFailure) {
+        NSString *message = error.localizedDescription ?: @"Audio output recovery failed.";
+        [self.delegate nativePlaybackPlayer:self didFailWithMessage:message];
+    }
+}
+
+- (void)requestAudioOutputRecoveryForTesting {
+    SFXNativePlaybackSession *session = nil;
+    @synchronized (self) {
+        session = _session;
+    }
+    [session requestAudioOutputRecovery];
+}
+
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error {
     if (_session == nil) {
         if (error != NULL) {
@@ -4794,6 +5008,8 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     @synchronized (self) {
         _session = nil;
         _currentPath = nil;
+        _audioOutputRecoveryScheduled = NO;
+        _audioOutputRecoveryRequested = NO;
         if (flushDisplay) {
             _latestSubmittedVideoFrameSnapshot = nil;
         }

@@ -77,6 +77,7 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic, readonly) NSUInteger nativeAudioPlayedBackBufferCount;
 @property (nonatomic, readonly) NSUInteger nativeUnexpectedAudioDrainCount;
 @property (nonatomic, readonly) NSUInteger nativeSegmentAudioDrainCount;
+@property (nonatomic, readonly) NSUInteger nativeAudioOutputRecoveryCount;
 @property (nonatomic, readonly) BOOL nativeAudioOutputDrained;
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;
@@ -114,6 +115,7 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error;
 - (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error;
 - (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds;
+- (void)requestAudioOutputRecoveryForTesting;
 - (void)stop;
 
 @end
