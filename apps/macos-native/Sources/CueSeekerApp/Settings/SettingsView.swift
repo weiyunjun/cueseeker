@@ -56,15 +56,22 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var settingsStore: SettingsStore
     @State private var selectedCategory: SettingsCategory = .library
     private let categoryColumnWidth: CGFloat = 184
-    private let sidebarBackground = Color(
-        red: 0.942,
-        green: 0.942,
-        blue: 0.936
-    )
-    private let contentBackground = Color.white
+
+    private var sidebarBackground: Color {
+        colorScheme == .dark
+            ? WorkbenchRedesignColors.appSidebarBg
+            : Color(red: 0.942, green: 0.942, blue: 0.936)
+    }
+
+    private var dividerColor: Color {
+        colorScheme == .dark
+            ? WorkbenchRedesignColors.borderDivider
+            : Color.black.opacity(0.08)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -72,14 +79,14 @@ struct SettingsView: View {
                 .frame(width: categoryColumnWidth)
 
             Rectangle()
-                .fill(Color.black.opacity(0.08))
+                .fill(dividerColor)
                 .frame(width: 1)
 
             selectedContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 680, minHeight: 420)
-        .background(contentBackground)
+        .background(WorkbenchRedesignColors.bgSurface)
         .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
     }
 

@@ -2,6 +2,7 @@ import CueSeekerCore
 import SwiftUI
 
 struct SettingsDeveloperCategory: View {
+    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var indexing: IndexingStore
@@ -57,7 +58,7 @@ struct SettingsDeveloperCategory: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white)
+        .background(WorkbenchRedesignColors.bgSurface)
         .onAppear {
             if settingsStore.searchFTSVocabularyDiagnosticsEnabled {
                 appState.refreshSearchFTSVocabularyDiagnostics()
@@ -119,8 +120,14 @@ struct SettingsDeveloperCategory: View {
             }
         }
         .padding(12)
-        .background(Color.black.opacity(0.035))
+        .background(diagnosticsPanelBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var diagnosticsPanelBackground: Color {
+        colorScheme == .dark
+            ? WorkbenchRedesignColors.bgHover
+            : Color.black.opacity(0.035)
     }
 
     @ViewBuilder

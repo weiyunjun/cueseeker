@@ -54,7 +54,7 @@ struct SettingsLibraryCategory: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white)
+        .background(WorkbenchRedesignColors.bgSurface)
         .alert(
             "Remove Folder?",
             isPresented: removalConfirmationBinding,

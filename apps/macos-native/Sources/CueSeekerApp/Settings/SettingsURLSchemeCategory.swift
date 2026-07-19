@@ -38,6 +38,6 @@ struct SettingsURLSchemeCategory: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white)
+        .background(WorkbenchRedesignColors.bgSurface)
     }
 }
