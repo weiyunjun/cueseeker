@@ -74,6 +74,93 @@ func nativePlaybackUsesCommonTimelineWhenVideoTrackStartsAfterAudio() async thro
 
 @Test
 @MainActor
+func nativePlaybackNotifiesNaturalCompletionAfterAudioDrain() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping native completion regression test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let mediaURL = directory.appendingPathComponent("natural-completion.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=duration=1:size=160x90:rate=24",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=1",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            "-y",
+            mediaURL.path
+        ]
+    )
+
+    let player = SFXNativePlaybackPlayer()
+    let delegate = NativePlaybackCompletionDelegate()
+    player.delegate = delegate
+    player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 1)!
+    defer {
+        player.stop()
+    }
+
+    try player.openPath(mediaURL.path, startMilliseconds: 0)
+    try player.setPaused(false)
+
+    let completed = await waitUntil(timeoutSeconds: 5) {
+        delegate.completionCount == 1
+    }
+
+    #expect(completed)
+    #expect(delegate.audioOutputWasDrained)
+    #expect(!delegate.hasFailures)
+
+    player.stop()
+
+    let playbackPlayer = PlaybackPlayer()
+    let playbackDelegate = PlaybackNaturalCompletionDelegate()
+    playbackPlayer.delegate = playbackDelegate
+    defer {
+        try? playbackPlayer.stop()
+    }
+    _ = try playbackPlayer.open(
+        PlaybackRequest(
+            videoURL: mediaURL,
+            startMilliseconds: 0
+        )
+    )
+    try playbackPlayer.setPaused(false)
+
+    let wrapperCompleted = await waitUntil(timeoutSeconds: 5) {
+        playbackDelegate.completionCount == 1
+    }
+
+    #expect(wrapperCompleted)
+    #expect(playbackPlayer.currentVideoURL == nil)
+    #expect(!playbackDelegate.hasFailures)
+}
+
+@Test
+@MainActor
 func nativeAutoStopKeepsSessionAliveAndResumesFromBoundary() async throws {
     guard let ffmpegURL = executableURL(named: "ffmpeg") else {
         print("Skipping native auto-stop regression test because ffmpeg is unavailable.")
@@ -138,6 +225,7 @@ func nativeAutoStopKeepsSessionAliveAndResumesFromBoundary() async throws {
     }
     #expect(reachedBoundary)
     #expect(!player.isPlaying)
+    #expect(delegate.naturalCompletionCount == 0)
     #expect(player.nativeLastSubmittedVideoFrameMilliseconds < boundaryMilliseconds)
     let openCountAtBoundary = player.nativeSessionOpenCount
     let seekCountAtBoundary = player.nativeInSessionSeekCount
@@ -260,6 +348,7 @@ func playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks() async throws {
 private final class NativeAutoStopDelegate: NSObject, SFXNativePlaybackPlayerDelegate {
     private let lock = NSLock()
     private var boundaryMilliseconds: Int?
+    private var naturalCompletions = 0
 
     func nativePlaybackPlayer(
         _ player: SFXNativePlaybackPlayer,
@@ -282,10 +371,74 @@ private final class NativeAutoStopDelegate: NSObject, SFXNativePlaybackPlayerDel
         lock.unlock()
     }
 
+    func nativePlaybackPlayerDidFinishPlayback(
+        _ player: SFXNativePlaybackPlayer
+    ) {
+        lock.lock()
+        naturalCompletions += 1
+        lock.unlock()
+    }
+
     var reachedBoundaryMilliseconds: Int? {
         lock.lock()
         defer { lock.unlock() }
         return boundaryMilliseconds
+    }
+
+    var naturalCompletionCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return naturalCompletions
+    }
+}
+
+private final class NativePlaybackCompletionDelegate: NSObject, SFXNativePlaybackPlayerDelegate {
+    private let lock = NSLock()
+    private var completions = 0
+    private var audioWasDrained = false
+    private var failures: [String] = []
+
+    func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didUpdateTime time: Double,
+        duration: Double,
+        playing: Bool
+    ) {}
+
+    func nativePlaybackPlayer(
+        _ player: SFXNativePlaybackPlayer,
+        didFailWithMessage message: String
+    ) {
+        lock.lock()
+        failures.append(message)
+        lock.unlock()
+    }
+
+    func nativePlaybackPlayerDidFinishPlayback(
+        _ player: SFXNativePlaybackPlayer
+    ) {
+        lock.lock()
+        completions += 1
+        audioWasDrained = player.nativeAudioOutputDrained
+        lock.unlock()
+    }
+
+    var completionCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return completions
+    }
+
+    var audioOutputWasDrained: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return audioWasDrained
+    }
+
+    var hasFailures: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !failures.isEmpty
     }
 }
 
@@ -344,6 +497,42 @@ private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
         lock.lock()
         defer { lock.unlock() }
         return paused
+    }
+}
+
+private final class PlaybackNaturalCompletionDelegate: PlaybackPlayerDelegate {
+    private let lock = NSLock()
+    private var completions = 0
+    private var failures: [String] = []
+
+    func player(
+        _ player: PlaybackPlayer,
+        didChangeProperty name: String,
+        value: PlaybackPropertyValue?
+    ) {}
+
+    func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
+        lock.lock()
+        failures.append(message)
+        lock.unlock()
+    }
+
+    func playerDidFinishPlayback(_ player: PlaybackPlayer) {
+        lock.lock()
+        completions += 1
+        lock.unlock()
+    }
+
+    var completionCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return completions
+    }
+
+    var hasFailures: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !failures.isEmpty
     }
 }
 

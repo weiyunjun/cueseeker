@@ -993,6 +993,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    NSError *_seekRequestError;
 	    BOOL _segmentEndReached;
 	    BOOL _segmentFinishNotified;
+	    BOOL _playbackFinishNotified;
 	    BOOL _pausesAtSegmentEnd;
     BOOL _autoPauseAuthorizationResolved;
     BOOL _autoPauseAuthorized;
@@ -1574,6 +1575,38 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     });
 }
 
+- (void)notifyPlaybackFinishedIfNeeded {
+    if (atomic_load(&_cancelled)
+        || atomic_load(&_finishingForAutomaticRecycle)
+        || [self hasActiveSegmentEnd]) {
+        return;
+    }
+
+    @synchronized (self) {
+        if (_playbackFinishNotified) {
+            return;
+        }
+        _playbackFinishNotified = YES;
+    }
+
+    id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;
+    SFXNativePlaybackPlayer *owner = _owner;
+    NSUInteger presentationGeneration = _presentationGeneration;
+    if (delegate == nil || owner == nil) {
+        return;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (![owner isCurrentPresentationForSession:self
+                             presentationGeneration:presentationGeneration]) {
+            return;
+        }
+        if ([delegate respondsToSelector:@selector(nativePlaybackPlayerDidFinishPlayback:)]) {
+            [delegate nativePlaybackPlayerDidFinishPlayback:owner];
+        }
+    });
+}
+
 - (BOOL)prepareWithError:(NSError **)error {
     int result = SFXOpenMediaInput(&_formatContext, _path.UTF8String);
     if (result < 0) {
@@ -1906,6 +1939,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             [self startAudioForDrainAfterVideoDecodeIfNeeded];
             [self waitForSegmentAudioDrainIfNeeded];
             [self waitForNaturalAudioDrainIfNeeded];
+            [self notifyPlaybackFinishedIfNeeded];
             [self waitForSegmentFinishNotificationIfNeeded];
             [self teardown];
         }

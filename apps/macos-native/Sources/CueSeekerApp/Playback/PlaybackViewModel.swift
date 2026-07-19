@@ -99,6 +99,7 @@ public final class PlaybackViewModel: ObservableObject {
     private let onPlaybackSpeedChanged: (Double) -> Void
     private let onSubtitlesVisibleChanged: (Bool) -> Void
     private let onPlaybackTimeUpdated: (Double, Double) -> Void
+    private let onPlaybackFinished: () -> Void
     private let onAutoStopBoundaryReached: (Int) -> Void
     private let onSeekInteractionBegan: () -> Void
     private let onSeekCommitted: (Int) -> Void
@@ -120,6 +121,7 @@ public final class PlaybackViewModel: ObservableObject {
         onPlaybackSpeedChanged: @escaping (Double) -> Void = { _ in },
         onSubtitlesVisibleChanged: @escaping (Bool) -> Void = { _ in },
         onPlaybackTimeUpdated: @escaping (Double, Double) -> Void = { _, _ in },
+        onPlaybackFinished: @escaping () -> Void = {},
         onAutoStopBoundaryReached: @escaping (Int) -> Void = { _ in },
         onSeekInteractionBegan: @escaping () -> Void = {},
         onSeekCommitted: @escaping (Int) -> Void = { _ in },
@@ -131,6 +133,7 @@ public final class PlaybackViewModel: ObservableObject {
         self.onPlaybackSpeedChanged = onPlaybackSpeedChanged
         self.onSubtitlesVisibleChanged = onSubtitlesVisibleChanged
         self.onPlaybackTimeUpdated = onPlaybackTimeUpdated
+        self.onPlaybackFinished = onPlaybackFinished
         self.onAutoStopBoundaryReached = onAutoStopBoundaryReached
         self.onSeekInteractionBegan = onSeekInteractionBegan
         self.onSeekCommitted = onSeekCommitted
@@ -958,6 +961,14 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
 
     nonisolated public func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
         print("Native playback failed: \(message)")
+    }
+
+    nonisolated public func playerDidFinishPlayback(_ player: PlaybackPlayer) {
+        Task { @MainActor in
+            self.isPlaying = false
+            self.publishDisplayedCurrentTimeIfNeeded(force: true)
+            self.onPlaybackFinished()
+        }
     }
 
     nonisolated public func player(

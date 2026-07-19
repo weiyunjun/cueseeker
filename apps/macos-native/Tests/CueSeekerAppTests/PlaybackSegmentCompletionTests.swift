@@ -27,6 +27,26 @@ func playbackViewModelForwardsAutoStopBoundary() async {
 
 @MainActor
 @Test
+func playbackViewModelForwardsNaturalPlaybackCompletion() async {
+    let player = PlaybackPlayer()
+    var completionCount = 0
+    let viewModel = PlaybackViewModel(
+        player: player,
+        onPlaybackFinished: {
+            completionCount += 1
+        }
+    )
+
+    viewModel.isPlaying = true
+    viewModel.playerDidFinishPlayback(player)
+    await Task.yield()
+
+    #expect(completionCount == 1)
+    #expect(!viewModel.isPlaying)
+}
+
+@MainActor
+@Test
 func playbackViewModelHoldsSubtitlePresentationAtCueInteriorTimestamp() {
     let player = PlaybackPlayer()
     let viewModel = PlaybackViewModel(player: player)
@@ -853,6 +873,103 @@ func libraryPlaybackCompletionUsesVideoEndWhenLastSubtitleIsBeforeThreshold() as
 
         let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(finishedHistory.completedAt != nil)
+    }
+}
+
+@MainActor
+@Test
+func naturalLibraryPlaybackCompletionOpensNextVideoAndPersistsCompletion() async throws {
+    try await withTemporarySegmentCompletionApp { app, database in
+        let firstVideo = LibraryVideo(
+            videoPath: "/Media/Show/Episode 1.mkv",
+            videoName: "Episode 1",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 1.srt",
+            subtitleFormat: .srt
+        )
+        let secondVideo = LibraryVideo(
+            videoPath: "/Media/Show/Episode 2.mkv",
+            videoName: "Episode 2",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 2.srt",
+            subtitleFormat: .srt
+        )
+        app.library.libraryVideos = [firstVideo, secondVideo]
+        app.library.libraryPlaybackNavigationVideos = [firstVideo, secondVideo]
+        app.library.selectedLibraryVideo = firstVideo
+        app.ensurePlayerInitialized()
+        app.startLibraryPlaybackHistoryTracking(videoPath: firstVideo.videoPath)
+        defer {
+            app.stopLibraryPlaybackHistoryTracking()
+            try? app.player?.stop()
+        }
+
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        playbackViewModel.player(
+            player,
+            didChangeProperty: "duration",
+            value: .double(100)
+        )
+        await Task.yield()
+
+        app.handlePlaybackFinishedNaturally()
+        for _ in 0..<3 {
+            await Task.yield()
+        }
+
+        #expect(app.library.selectedLibraryVideo == secondVideo)
+        let history = try #require(
+            try database.libraryPlaybackHistory(
+                forVideoFile: URL(fileURLWithPath: firstVideo.videoPath)
+            )
+        )
+        #expect(history.completedAt != nil)
+        #expect(history.positionMilliseconds == 100_000)
+    }
+}
+
+@MainActor
+@Test
+func staleNaturalLibraryCompletionCannotAdvanceReplacementSelection() async throws {
+    try await withTemporarySegmentCompletionApp { app, database in
+        let firstVideo = LibraryVideo(
+            videoPath: "/Media/Show/Episode 1.mkv",
+            videoName: "Episode 1",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 1.srt",
+            subtitleFormat: .srt
+        )
+        let secondVideo = LibraryVideo(
+            videoPath: "/Media/Show/Episode 2.mkv",
+            videoName: "Episode 2",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 2.srt",
+            subtitleFormat: .srt
+        )
+        let thirdVideo = LibraryVideo(
+            videoPath: "/Media/Show/Episode 3.mkv",
+            videoName: "Episode 3",
+            duration: 100,
+            subtitlePath: "/Media/Show/Episode 3.srt",
+            subtitleFormat: .srt
+        )
+        app.library.libraryVideos = [firstVideo, secondVideo, thirdVideo]
+        app.library.libraryPlaybackNavigationVideos = [
+            firstVideo,
+            secondVideo,
+            thirdVideo
+        ]
+        app.library.selectedLibraryVideo = secondVideo
+        app.activePlaybackSource = .library(videoPath: firstVideo.videoPath)
+
+        app.handlePlaybackFinishedNaturally()
+
+        #expect(app.library.selectedLibraryVideo == secondVideo)
+        let staleHistory = try database.libraryPlaybackHistory(
+            forVideoFile: URL(fileURLWithPath: firstVideo.videoPath)
+        )
+        #expect(staleHistory == nil)
     }
 }
 

@@ -8,6 +8,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
+    func playerDidFinishPlayback(_ player: PlaybackPlayer)
     func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int)
     @MainActor func player(
         _ player: PlaybackPlayer,
@@ -19,6 +20,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
 
 public extension PlaybackPlayerDelegate {
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
+    func playerDidFinishPlayback(_ player: PlaybackPlayer) {}
     func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int) {}
     @MainActor func player(
         _ player: PlaybackPlayer,
@@ -901,6 +903,14 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         didFinishSegmentAtMilliseconds endMilliseconds: Int
     ) {
         delegate?.player(self, didFinishSegmentAtMilliseconds: endMilliseconds)
+    }
+
+    public func nativePlaybackPlayerDidFinishPlayback(
+        _ player: SFXNativePlaybackPlayer
+    ) {
+        currentRequest = nil
+        currentVideoURL = nil
+        delegate?.playerDidFinishPlayback(self)
     }
 
     public func nativePlaybackPlayer(

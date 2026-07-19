@@ -815,7 +815,8 @@ extension AppCoordinator {
         _ video: LibraryVideo,
         recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil,
-        playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil
+        playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil,
+        savesCurrentPlaybackHistory: Bool = true
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.clearPlaylistSource()
@@ -826,7 +827,7 @@ extension AppCoordinator {
         )
         preparePlaybackKeyboardFocus()
         initializePlaybackReturnContextIfEntering()
-        if case .library = activePlaybackSource {
+        if savesCurrentPlaybackHistory, case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
         if recordsNavigationHistory {
@@ -1072,7 +1073,59 @@ extension AppCoordinator {
     }
 
     func libraryResumePositionMilliseconds(for video: LibraryVideo) -> Int {
-        libraryPlaybackHistory(for: video)?.positionMilliseconds ?? 0
+        LibraryPlaybackIntentResolver.startPositionMilliseconds(
+            history: libraryPlaybackHistory(for: video)
+        )
+    }
+
+    func handlePlaybackFinishedNaturally() {
+        guard case .library(let videoPath) = activePlaybackSource,
+              library.selectedLibraryVideo?.videoPath == videoPath
+        else {
+            return
+        }
+
+        persistNaturallyCompletedLibraryPlayback(videoPath: videoPath)
+        playback.playbackStatus = .paused
+
+        let nextVideo = libraryAdjacentVideo(offset: 1)
+        let action = LibraryPlaybackIntentResolver.completionAction(
+            hasNextVideo: nextVideo != nil
+        )
+        guard action == .playNextVideo, let nextVideo else {
+            return
+        }
+
+        openLibraryVideo(
+            nextVideo,
+            savesCurrentPlaybackHistory: false
+        )
+    }
+
+    private func persistNaturallyCompletedLibraryPlayback(videoPath: String) {
+        let playbackViewModel = playback.playbackViewModel
+        let resolvedDuration = [
+            playbackViewModel?.duration,
+            library.selectedLibraryVideo?.duration
+        ]
+        .compactMap { $0 }
+        .first { $0.isFinite && $0 > 0 }
+        let positionMilliseconds = resolvedDuration.map {
+            max(0, Int(($0 * 1_000).rounded(.down)))
+        } ?? max(
+            0,
+            Int(((playbackViewModel?.currentTime ?? 0) * 1_000).rounded(.down))
+        )
+        libraryPlaybackCompletedMilestoneVideoPath = videoPath
+        pendingLibraryPlaybackHistoryPresentationVideoPaths.insert(videoPath)
+        libraryPlaybackHistoryWriter.saveAndWait(
+            LibraryPlaybackHistorySnapshot(
+                videoPath: videoPath,
+                positionMilliseconds: positionMilliseconds,
+                duration: resolvedDuration,
+                markCompleted: true
+            )
+        )
     }
 
     func libraryPlaybackHistory(for video: LibraryVideo) -> LibraryPlaybackHistory? {

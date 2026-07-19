@@ -148,6 +148,9 @@ extension AppCoordinator {
                     duration: duration
                 )
             },
+            onPlaybackFinished: { [weak self] in
+                self?.handlePlaybackFinishedNaturally()
+            },
             onAutoStopBoundaryReached: { [weak self] endMilliseconds in
                 self?.handleCueAutoStopBoundaryReached(endMilliseconds: endMilliseconds)
             },
