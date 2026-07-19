@@ -134,10 +134,18 @@
   playback tests passed in the 778-test run. The one unrelated shared
   `UserDefaults` isolation test observed an existing `workbenchPanelMode`; its
   immediate isolated rerun passed.
+- `scripts/package_macos_app.sh --output /Applications/CueSeeker.app`: passed
+  the replacement Release build, recursive ad-hoc signing, dependency,
+  self-contained ARM64, and bundle verification checks. The installed bundle is
+  36 MB; its CueSeeker executable SHA-256 is
+  `7e809f7536253ceb71128e5ce50b5ab1ae3a6ef8939c0fbb6fafdc01a9654bb6`.
+- LaunchServices registration completed for the replacement application. Its
+  installed `Info.plist` claims the `cueseeker:` URL scheme, and strict deep
+  code-signature verification passed without launching a URL.
 
 ## Outcome
 
 - The corrected Current-seek lifecycle, pre-pause authorization, stale Item
-  invalidation, and automated verification are complete. The latest correction
-  has not been packaged in this change; owner end-to-end validation remains
-  required after the next requested application build.
+  invalidation, automated verification, and installation of the latest review
+  build are complete. Owner end-to-end validation of Auto Pause, Auto Switch,
+  Overlay Current seek, and URL Scheme entry remains required.
