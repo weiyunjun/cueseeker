@@ -70,12 +70,14 @@ func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
             cueLines: ["hello"]
         )
         app.beginCueAutoStopPlayback()
-        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+        let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: 1_000,
             endMilliseconds: 2_500
-        ))
+        )
 
-        app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+        app.handleCueAutoStopBoundaryReached(
+            endMilliseconds: try #require(boundary?.endMilliseconds)
+        )
 
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueAutoStopReached)
@@ -239,12 +241,14 @@ func newPlaylistIndexReinitializesBehaviorsAfterSeekInterruption() async throws 
             endMilliseconds: second.endMilliseconds
         )
 
-        #expect(nextBoundary?.endMilliseconds == second.endMilliseconds)
+        #expect(nextBoundary?.endMilliseconds == second.endMilliseconds - 1)
         #expect(app.activePlaylistCuePosition?.ordinal == 1)
         #expect(app.activePlaylistCueSettings?.autoPauseEnabled == true)
         #expect(app.activePlaylistCueSettings?.autoSwitchEnabled == true)
 
-        app.handleCueAutoStopBoundaryReached(endMilliseconds: second.endMilliseconds)
+        app.handleCueAutoStopBoundaryReached(
+            endMilliseconds: try #require(nextBoundary?.endMilliseconds)
+        )
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.autoSwitchCueSequenceTask != nil)
         app.cancelAutoSwitchCueSequenceTask()
@@ -324,10 +328,10 @@ func appCoordinatorKeepsCurrentItemSettingsDuringAutoSwitchGap() async throws {
         app.playback.playbackStatus = .playing
         app.search.selectedSearchResult = result
         app.beginCueAutoStopPlayback()
-        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+        let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: result.startMilliseconds,
             endMilliseconds: result.endMilliseconds
-        ))
+        )
         app.playback.playbackViewModel?.setSubtitleCues(
             [
                 PlaybackSubtitleCue(
@@ -341,7 +345,9 @@ func appCoordinatorKeepsCurrentItemSettingsDuringAutoSwitchGap() async throws {
 
         #expect(app.playback.playbackViewModel?.activeSubtitleText == nil)
 
-        app.handleCueAutoStopBoundaryReached(endMilliseconds: result.endMilliseconds)
+        app.handleCueAutoStopBoundaryReached(
+            endMilliseconds: try #require(boundary?.endMilliseconds)
+        )
 
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueAutoStopReached)
@@ -368,7 +374,7 @@ func appCoordinatorKeepsCurrentItemSettingsDuringAutoSwitchGap() async throws {
 
 @MainActor
 @Test
-func appCoordinatorKeepsStoppedCueSubtitleWithoutAutoSwitch() async throws {
+func autoPauseHoldsCurrentCueAtAdjacentBoundaryWhenSelectionDiffers() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()
         app.settings.autoPauseAfterCueFinishesEnabled = true
@@ -386,24 +392,33 @@ func appCoordinatorKeepsStoppedCueSubtitleWithoutAutoSwitch() async throws {
         )
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.search.selectedSearchResult = result
+        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 99)
         app.beginCueAutoStopPlayback()
-        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+        let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: result.startMilliseconds,
             endMilliseconds: result.endMilliseconds
-        ))
+        )
         app.playback.playbackViewModel?.setSubtitleCues(
             [
                 PlaybackSubtitleCue(
                     startMilliseconds: result.startMilliseconds,
                     endMilliseconds: result.endMilliseconds,
                     text: result.content
+                ),
+                PlaybackSubtitleCue(
+                    startMilliseconds: result.endMilliseconds,
+                    endMilliseconds: 3_500,
+                    text: "next"
                 )
             ],
             currentTimeMilliseconds: result.endMilliseconds
         )
 
-        app.handleCueAutoStopBoundaryReached(endMilliseconds: result.endMilliseconds)
+        #expect(app.playback.playbackViewModel?.activeSubtitleText == "next")
+
+        app.handleCueAutoStopBoundaryReached(
+            endMilliseconds: try #require(boundary?.endMilliseconds)
+        )
 
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.autoSwitchCueSequenceTask == nil)
@@ -434,10 +449,10 @@ func appCoordinatorKeepsStoppedShioriSubtitleWithoutAutoSwitch() async throws {
         app.playback.playbackStatus = .playing
         app.shiori.selectedShiori = selectedShiori
         app.beginCueAutoStopPlayback()
-        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+        let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: selectedShiori.startMilliseconds,
             endMilliseconds: selectedShiori.endMilliseconds
-        ))
+        )
         app.playback.playbackViewModel?.setSubtitleCues(
             [
                 PlaybackSubtitleCue(
@@ -450,7 +465,7 @@ func appCoordinatorKeepsStoppedShioriSubtitleWithoutAutoSwitch() async throws {
         )
 
         app.handleCueAutoStopBoundaryReached(
-            endMilliseconds: selectedShiori.endMilliseconds
+            endMilliseconds: try #require(boundary?.endMilliseconds)
         )
 
         #expect(app.playback.playbackStatus == .paused)
@@ -484,7 +499,9 @@ func playlistCueSettingsSupportOnlyThreeValidCombinations() async throws {
             #expect((boundary != nil) == combination.autoPause)
 
             if combination.autoPause {
-                app.handleCueAutoStopBoundaryReached(endMilliseconds: 2_500)
+                app.handleCueAutoStopBoundaryReached(
+                    endMilliseconds: try #require(boundary?.endMilliseconds)
+                )
 
                 #expect(app.playback.playbackStatus == .paused)
                 #expect(app.currentCueAutoStopReached)
@@ -596,7 +613,7 @@ func everyInitializedPlaylistItemUsesItsAutoPauseSnapshot() async throws {
             endMilliseconds: 2_500
         )
 
-        #expect(boundary?.endMilliseconds == 2_500)
+        #expect(boundary?.endMilliseconds == 2_499)
         #expect(app.activeCueAutoPauseBoundary == boundary)
         #expect(app.autoSwitchCueSequenceTask == nil)
     }

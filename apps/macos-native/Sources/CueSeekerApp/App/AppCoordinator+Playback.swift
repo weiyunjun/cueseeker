@@ -441,7 +441,10 @@ extension AppCoordinator {
 
         return PlaybackAutoStopBoundary(
             startMilliseconds: startMilliseconds,
-            endMilliseconds: endMilliseconds
+            endMilliseconds: cueAutoPauseTimestampMilliseconds(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds
+            )
         )
     }
 
@@ -572,7 +575,7 @@ extension AppCoordinator {
             } == true
     }
 
-    func cueSubtitlePresentationHoldMilliseconds(
+    func cueAutoPauseTimestampMilliseconds(
         startMilliseconds: Int,
         endMilliseconds: Int
     ) -> Int {
@@ -592,36 +595,13 @@ extension AppCoordinator {
     }
 
     private func holdCurrentCueSubtitlePresentation(matchingEndMilliseconds endMilliseconds: Int) {
-        let holdMilliseconds: Int? = switch activePlaybackSource {
-        case .search:
-            if let result = search.selectedSearchResult,
-               result.endMilliseconds == endMilliseconds {
-                cueSubtitlePresentationHoldMilliseconds(
-                    startMilliseconds: result.startMilliseconds,
-                    endMilliseconds: result.endMilliseconds
-                )
-            } else {
-                nil
-            }
-        case .shiori:
-            if let shiori = shiori.selectedShiori,
-               shiori.endMilliseconds == endMilliseconds {
-                cueSubtitlePresentationHoldMilliseconds(
-                    startMilliseconds: shiori.startMilliseconds,
-                    endMilliseconds: shiori.endMilliseconds
-                )
-            } else {
-                nil
-            }
-        case .library, .none:
-            nil
-        }
-
-        guard let holdMilliseconds else {
+        guard activeCueAutoPauseBoundary?.endMilliseconds == endMilliseconds else {
             return
         }
 
-        playback.playbackViewModel?.holdSubtitlePresentation(atMilliseconds: holdMilliseconds)
+        playback.playbackViewModel?.holdSubtitlePresentation(
+            atMilliseconds: endMilliseconds
+        )
     }
 
     private func scheduleAutoSwitchCueSequence() {
