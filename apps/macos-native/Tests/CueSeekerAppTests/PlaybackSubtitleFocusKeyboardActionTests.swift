@@ -476,7 +476,7 @@ func playbackPlaylistEnterDispatchesSelectedTargetAndDestroysOverlaySession() as
 
         #expect(app.executePlaybackSubtitleFocusAction(
             execution,
-            continuousPlay: { _ in false },
+            playCurrentCue: { _ in false },
             openPlaylistItem: { openedItem = $0 }
         ))
 
@@ -510,7 +510,7 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
 
         let didExecute = app.executePlaybackSubtitleFocusAction(
             execution,
-            continuousPlay: { context in
+            playCurrentCue: { context in
                 #expect(app.playback.subtitleFocusSession == nil)
                 #expect(session.state == .closed)
                 #expect(!session.isActive)

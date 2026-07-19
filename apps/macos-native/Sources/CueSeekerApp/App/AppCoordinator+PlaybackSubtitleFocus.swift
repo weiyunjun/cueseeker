@@ -262,7 +262,7 @@ extension AppCoordinator {
             return executePlaybackSubtitleFocusAction(
                 execution,
                 session: session,
-                continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue,
+                playCurrentCue: playPlaybackSubtitleFocusCurrentCue,
                 openPlaylistItem: openPlaybackPlaylistItem,
                 openShioriItem: openPlaybackShioriItem
             )
@@ -295,7 +295,7 @@ extension AppCoordinator {
         return executePlaybackSubtitleFocusAction(
             execution,
             session: session,
-            continuousPlay: playContinuouslyFromPlaybackSubtitleFocusCue,
+            playCurrentCue: playPlaybackSubtitleFocusCurrentCue,
             openPlaylistItem: openPlaybackPlaylistItem,
             openShioriItem: openPlaybackShioriItem
         )
@@ -304,7 +304,7 @@ extension AppCoordinator {
     @discardableResult
     func executePlaybackSubtitleFocusAction(
         _ execution: PlaybackSubtitleFocusActionExecution,
-        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool
+        playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool
     ) -> Bool {
         guard let session = playback.subtitleFocusSession else {
             return false
@@ -312,7 +312,7 @@ extension AppCoordinator {
         return executePlaybackSubtitleFocusAction(
             execution,
             session: session,
-            continuousPlay: continuousPlay,
+            playCurrentCue: playCurrentCue,
             openPlaylistItem: openPlaybackPlaylistItem,
             openShioriItem: openPlaybackShioriItem
         )
@@ -321,7 +321,7 @@ extension AppCoordinator {
     @discardableResult
     func executePlaybackSubtitleFocusAction(
         _ execution: PlaybackSubtitleFocusActionExecution,
-        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool,
+        playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool,
         openPlaylistItem: (PlaybackPlaylistItem) -> Void
     ) -> Bool {
         guard let session = playback.subtitleFocusSession else {
@@ -330,7 +330,7 @@ extension AppCoordinator {
         return executePlaybackSubtitleFocusAction(
             execution,
             session: session,
-            continuousPlay: continuousPlay,
+            playCurrentCue: playCurrentCue,
             openPlaylistItem: openPlaylistItem,
             openShioriItem: openPlaybackShioriItem
         )
@@ -339,7 +339,7 @@ extension AppCoordinator {
     @discardableResult
     func executePlaybackSubtitleFocusAction(
         _ execution: PlaybackSubtitleFocusActionExecution,
-        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool,
+        playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool,
         openPlaylistItem: (PlaybackPlaylistItem) -> Void,
         openShioriItem: (PlaybackCueResultItem) -> Void
     ) -> Bool {
@@ -349,7 +349,7 @@ extension AppCoordinator {
         return executePlaybackSubtitleFocusAction(
             execution,
             session: session,
-            continuousPlay: continuousPlay,
+            playCurrentCue: playCurrentCue,
             openPlaylistItem: openPlaylistItem,
             openShioriItem: openShioriItem
         )
@@ -358,7 +358,7 @@ extension AppCoordinator {
     private func executePlaybackSubtitleFocusAction(
         _ execution: PlaybackSubtitleFocusActionExecution,
         session: PlaybackSubtitleFocusSessionStore,
-        continuousPlay: (PlaybackSubtitleFocusActionContext) -> Bool,
+        playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool,
         openPlaylistItem: (PlaybackPlaylistItem) -> Void,
         openShioriItem: (PlaybackCueResultItem) -> Void
     ) -> Bool {
@@ -407,7 +407,7 @@ extension AppCoordinator {
                     return false
                 }
                 playback.releaseSubtitleFocusSession(session)
-                guard continuousPlay(context) else {
+                guard playCurrentCue(context) else {
                     return true
                 }
                 playback.playbackStatus = .playing
@@ -519,7 +519,7 @@ extension AppCoordinator {
         PlaybackSubtitleFocusClipboard.copy(text, to: .general)
     }
 
-    private func playContinuouslyFromPlaybackSubtitleFocusCue(
+    private func playPlaybackSubtitleFocusCurrentCue(
         _ context: PlaybackSubtitleFocusActionContext
     ) -> Bool {
         guard let playbackViewModel = playback.playbackViewModel,
@@ -535,12 +535,13 @@ extension AppCoordinator {
         }
 
         beginCueAutoStopPlayback()
-        _ = configureCueAutoStopBoundary(
+        let boundary = configureCueAutoStopBoundary(
             startMilliseconds: context.cue.startMilliseconds,
             endMilliseconds: context.cue.endMilliseconds
         )
-        guard playbackViewModel.playContinuously(
-            from: Double(context.cue.startMilliseconds) / 1_000
+        guard playbackViewModel.playFromCue(
+            at: Double(context.cue.startMilliseconds) / 1_000,
+            autoPauseBoundary: boundary
         ) else {
             clearCueAutoStopPlayback()
             return false

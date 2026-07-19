@@ -187,7 +187,10 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     @discardableResult
-    public func playContinuously(from seconds: Double) -> Bool {
+    public func playFromCue(
+        at seconds: Double,
+        autoPauseBoundary: PlaybackAutoStopBoundary?
+    ) -> Bool {
         let targetTime = clampedPlaybackTime(seconds)
         onSeekInteractionBegan()
         preparePresentationTransition(
@@ -198,16 +201,21 @@ public final class PlaybackViewModel: ObservableObject {
         accumulatedRewindSeconds = 0
 
         do {
-            let generation = try player.seek(
-                toMilliseconds: Int(targetTime * 1_000),
-                pauseAfterFirstFrame: false
-            )
+            let generation: UInt
+            if let autoPauseBoundary {
+                generation = try player.seek(to: autoPauseBoundary)
+            } else {
+                generation = try player.seek(
+                    toMilliseconds: Int(targetTime * 1_000),
+                    pauseAfterFirstFrame: false
+                )
+            }
             onSeekCommitted(Int(targetTime * 1_000))
             bindPendingPresentation(to: generation)
             return true
         } catch {
             cancelPendingPresentation()
-            print("Failed to play continuously from cue: \(error)")
+            print("Failed to play from cue: \(error)")
             return false
         }
     }

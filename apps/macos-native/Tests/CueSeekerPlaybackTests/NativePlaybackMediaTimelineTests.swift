@@ -198,6 +198,7 @@ func playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks() async throws {
         ]
     )
 
+    let staleBoundaryMilliseconds = 1_000
     let boundaryMilliseconds = 1_500
     let player = PlaybackPlayer()
     let delegate = PlaybackPlayerAutoPauseDelegate()
@@ -209,7 +210,11 @@ func playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks() async throws {
     _ = try player.open(PlaybackRequest(
         videoURL: mediaURL,
         startMilliseconds: 0,
-        autoStopAtMilliseconds: boundaryMilliseconds
+        autoStopAtMilliseconds: staleBoundaryMilliseconds
+    ))
+    player.setAutoPauseBoundary(PlaybackAutoStopBoundary(
+        startMilliseconds: 500,
+        endMilliseconds: boundaryMilliseconds
     ))
     _ = try player.seek(toMilliseconds: 500)
     try player.setPaused(false)
@@ -218,6 +223,7 @@ func playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks() async throws {
         delegate.boundaryEventCount == 1
     }
     #expect(reachedFirstPass)
+    #expect(delegate.lastBoundaryMilliseconds == boundaryMilliseconds)
 
     _ = try player.seek(toMilliseconds: 2_500, pauseAfterFirstFrame: true)
     try player.setPaused(false)
@@ -270,6 +276,7 @@ private final class NativeAutoStopDelegate: NSObject, SFXNativePlaybackPlayerDel
 private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
     private let lock = NSLock()
     private var boundaryEvents = 0
+    private var lastBoundary: Int?
 
     func player(
         _ player: PlaybackPlayer,
@@ -285,6 +292,7 @@ private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
     ) {
         lock.lock()
         boundaryEvents += 1
+        lastBoundary = endMilliseconds
         lock.unlock()
     }
 
@@ -292,6 +300,12 @@ private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
         lock.lock()
         defer { lock.unlock() }
         return boundaryEvents
+    }
+
+    var lastBoundaryMilliseconds: Int? {
+        lock.lock()
+        defer { lock.unlock() }
+        return lastBoundary
     }
 }
 
