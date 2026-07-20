@@ -32,6 +32,76 @@ func playbackCueResultMetricsMatchDocumentedTokens() {
     )
 }
 
+@Test
+func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.subtitleFocusOverlayBackgroundNative,
+            appearanceName: .aqua
+        ) == "#F6F7F9"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.subtitleFocusOverlayBackgroundNative,
+            appearanceName: .darkAqua
+        ) == "#242426"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.subtitleFocusCueSelectedNative,
+            appearanceName: .aqua
+        ) == "#111827"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.subtitleFocusCueGroupSelectedNative,
+            appearanceName: .aqua
+        ) == "#475467"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.subtitleFocusCueUnselectedNative,
+            appearanceName: .aqua
+        ) == "#858B95"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.playbackModuleSidebarSelectedNative,
+            appearanceName: .aqua
+        ) == "#111827"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.playbackModuleSidebarUnselectedNative,
+            appearanceName: .aqua
+        ) == "#667085"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.playbackPlaylistSequenceNative,
+            appearanceName: .aqua
+        ) == "#667085"
+    )
+    #expect(
+        playbackCueResultAlpha(
+            PlaybackTheme.subtitleFocusCueSelectedNative,
+            appearanceName: .darkAqua
+        ) == 0.94
+    )
+    #expect(
+        playbackCueResultAlpha(
+            PlaybackTheme.subtitleFocusCueGroupSelectedNative,
+            appearanceName: .darkAqua
+        ) == 0.62
+    )
+    #expect(
+        playbackCueResultAlpha(
+            PlaybackTheme.subtitleFocusCueUnselectedNative,
+            appearanceName: .darkAqua
+        ) == 0.34
+    )
+}
+
 @MainActor
 @Test
 func playbackCueResultPrimaryOnlyUsesCurrentTypographyAndEveryVisualLine() {
@@ -486,8 +556,43 @@ private func playbackCueResult(
     )
 }
 
-private func playbackCueResultAlpha(_ color: NSColor) -> CGFloat {
-    color.usingColorSpace(.deviceRGB)?.alphaComponent ?? -1
+private func playbackCueResultAlpha(
+    _ color: NSColor,
+    appearanceName: NSAppearance.Name = .darkAqua
+) -> CGFloat {
+    playbackCueResultColor(
+        color,
+        appearanceName: appearanceName
+    )?.alphaComponent ?? -1
+}
+
+private func playbackCueResultHex(
+    _ color: NSColor,
+    appearanceName: NSAppearance.Name
+) -> String {
+    guard let resolved = playbackCueResultColor(
+        color,
+        appearanceName: appearanceName
+    ) else {
+        return ""
+    }
+    return String(
+        format: "#%02X%02X%02X",
+        Int((resolved.redComponent * 255).rounded()),
+        Int((resolved.greenComponent * 255).rounded()),
+        Int((resolved.blueComponent * 255).rounded())
+    )
+}
+
+private func playbackCueResultColor(
+    _ color: NSColor,
+    appearanceName: NSAppearance.Name
+) -> NSColor? {
+    var resolved: NSColor?
+    NSAppearance(named: appearanceName)?.performAsCurrentDrawingAppearance {
+        resolved = color.usingColorSpace(.sRGB)
+    }
+    return resolved
 }
 
 private func playbackCueResultExpectStrictFivePointGaps(

@@ -11,43 +11,133 @@ public enum PlaybackTheme {
     private static let subtitleFocusCueGroupSelectedOpacity = 0.62
     private static let subtitleFocusCueUnselectedOpacity = 0.34
 
+    private static func subtitleFocusDynamicColor(
+        light: NSColor,
+        dark: NSColor
+    ) -> NSColor {
+        NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                ? dark
+                : light
+        }
+    }
+
     /// --color-subtitle-focus-overlay-bg
     public static var subtitleFocusOverlayBackground: Color {
         Color(nsColor: subtitleFocusOverlayBackgroundNative)
     }
 
-    static var subtitleFocusOverlayBackgroundNative: NSColor {
-        NSColor(
+    static let subtitleFocusOverlayBackgroundNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 246 / 255,
+            green: 247 / 255,
+            blue: 249 / 255,
+            alpha: 1
+        ),
+        dark: NSColor(
             red: 36 / 255,
             green: 36 / 255,
             blue: 38 / 255,
             alpha: 1
         )
-    }
+    )
 
     /// --color-subtitle-focus-cue-selected
     public static var subtitleFocusCueSelected: Color {
-        Color.white.opacity(subtitleFocusCueSelectedOpacity)
+        Color(nsColor: subtitleFocusCueSelectedNative)
     }
 
     /// --color-subtitle-focus-cue-group-selected
     public static var subtitleFocusCueGroupSelected: Color {
-        Color.white.opacity(subtitleFocusCueGroupSelectedOpacity)
+        Color(nsColor: subtitleFocusCueGroupSelectedNative)
     }
 
     /// --color-subtitle-focus-cue-unselected
     public static var subtitleFocusCueUnselected: Color {
-        Color.white.opacity(subtitleFocusCueUnselectedOpacity)
+        Color(nsColor: subtitleFocusCueUnselectedNative)
     }
 
-    static let subtitleFocusCueSelectedNative = NSColor.white.withAlphaComponent(
-        CGFloat(subtitleFocusCueSelectedOpacity)
+    static let subtitleFocusCueSelectedNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 17 / 255,
+            green: 24 / 255,
+            blue: 39 / 255,
+            alpha: 1
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(subtitleFocusCueSelectedOpacity)
+        )
     )
-    static let subtitleFocusCueGroupSelectedNative = NSColor.white.withAlphaComponent(
-        CGFloat(subtitleFocusCueGroupSelectedOpacity)
+    static let subtitleFocusCueGroupSelectedNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 71 / 255,
+            green: 84 / 255,
+            blue: 103 / 255,
+            alpha: 1
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(subtitleFocusCueGroupSelectedOpacity)
+        )
     )
-    static let subtitleFocusCueUnselectedNative = NSColor.white.withAlphaComponent(
-        CGFloat(subtitleFocusCueUnselectedOpacity)
+    static let subtitleFocusCueUnselectedNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 133 / 255,
+            green: 139 / 255,
+            blue: 149 / 255,
+            alpha: 1
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(subtitleFocusCueUnselectedOpacity)
+        )
+    )
+
+    /// --color-playback-module-sidebar-selected
+    public static var playbackModuleSidebarSelected: Color {
+        Color(nsColor: playbackModuleSidebarSelectedNative)
+    }
+
+    /// --color-playback-module-sidebar-unselected
+    public static var playbackModuleSidebarUnselected: Color {
+        Color(nsColor: playbackModuleSidebarUnselectedNative)
+    }
+
+    /// --color-playback-playlist-sequence
+    public static var playbackPlaylistSequence: Color {
+        Color(nsColor: playbackPlaylistSequenceNative)
+    }
+
+    static let playbackModuleSidebarSelectedNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 17 / 255,
+            green: 24 / 255,
+            blue: 39 / 255,
+            alpha: 1
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(subtitleFocusCueSelectedOpacity)
+        )
+    )
+    static let playbackModuleSidebarUnselectedNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 102 / 255,
+            green: 112 / 255,
+            blue: 133 / 255,
+            alpha: 1
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(subtitleFocusCueUnselectedOpacity)
+        )
+    )
+    static let playbackPlaylistSequenceNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 102 / 255,
+            green: 112 / 255,
+            blue: 133 / 255,
+            alpha: 1
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(subtitleFocusCueUnselectedOpacity)
+        )
     )
 
     // MARK: - Player Chrome Colors
