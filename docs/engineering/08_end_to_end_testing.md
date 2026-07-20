@@ -857,15 +857,17 @@ The gate passes only if:
 ### Goal
 
 Validate the complete Playback Multi-Module Overlay described by
-`docs/human/requirements/20260714-Feature-Playback Multi-Module Overlay.md` and
+`docs/human/requirements/20260714-Feature-Playback Multi-Module Overlay.md`,
+`docs/human/requirements/20260720-Feature-Playback Multi-Module Overlay Light Mode.md`, and
 `docs/human/design/UI.md`: one temporary Session contains Current, optional
 Playlist, Search, Recent, Library, and Shiori; module switches retain temporary
 state, while every Overlay exit destroys that state and cancels its work.
 
 This gate also verifies the real macOS behavior that Store and hosting tests
-cannot prove: fixed-dark visual hierarchy, first responder and IME behavior,
-pointer regions, trackpad and scrollbar input, card layout, feedback layering,
-and real playback pause, seek, and continuation.
+cannot prove: effective Light, Dark, and Auto visual hierarchy, live appearance
+changes, first responder and IME behavior, pointer regions, trackpad and
+scrollbar input, card layout, feedback layering, and real playback pause, seek,
+and continuation.
 
 ### Build And Launch
 
@@ -958,11 +960,18 @@ pbpaste
    100-millisecond debounce and Playback opens that Result.
 2. Press Enter during playback. Confirm playback pauses; the Overlay covers the
    complete Stage; Playback Chrome and Progress disappear; feedback remains the
-   top layer; and the fixed-dark Sidebar reads Current, Playlist, Search,
+   top layer; and the appearance-aware Sidebar reads Current, Playlist, Search,
    Recent, Library, Shiori in that order with only two text/icon colors. Confirm
    Pointer starts hidden, Wheel alone does not reveal it, physical Pointer Move
-   reveals it, and any key-down hides it again. Before
-   testing Current or any other module, immediately click Playlist, drag to its
+   reveals it, and any key-down hides it again.
+   In Light Appearance, confirm the Overlay background, Current, Playlist,
+   Search, Shiori, Playlist Sequence Number, Sidebar, Search Box, Recent,
+   Library, and Scrollbar use their documented Light tokens. Change Appearance
+   to Dark while the Overlay remains open and confirm every visible surface
+   updates without changing the current Module, selected identity, Reel
+   position, or card scroll position. Repeat with Auto and confirm the result
+   follows the current macOS appearance. Before testing Current or any other
+   module, immediately click Playlist, drag to its
    end, and record the last Sequence Number as the early partial count `P`.
    Sample the last Sequence once per second for three observations and record
    the first larger value as `P1`. If no increase can be observed because the
@@ -1223,9 +1232,10 @@ missing log line as evidence that a visible failure passed.
 
 The gate passes only if:
 
-- Sidebar order, optional Playlist behavior, icons, fixed-dark appearance,
-  two-color selection, no Divider, and non-collapsible layout match the human
-  UI document. Unmodified Tab is the only module-cycle command.
+- Sidebar order, optional Playlist behavior, icons, effective Light, Dark, and
+  Auto appearance, live appearance-state preservation, two-color selection, no
+  Divider, and non-collapsible layout match the human UI document. Unmodified
+  Tab is the only module-cycle command.
 - Current retains its accepted Cue geometry and navigation. Playlist, Search,
   and Shiori share the same Focus Anchor, dynamic Result geometry, scrollbar,
   motion, and viewport-bounded behavior; Result clicks remain inert.

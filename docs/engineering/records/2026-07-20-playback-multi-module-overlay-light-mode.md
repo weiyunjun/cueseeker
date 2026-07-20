@@ -31,6 +31,9 @@ selection, scrolling, and playback behavior.
    changes, changed its scrollbar to inherited appearance, applied the dedicated
    playlist sequence color, and refreshed the AppKit pointer-shield background
    without invalidating Reel measurements or session state.
+4. Synchronized the architecture and end-to-end testing rules with the accepted
+   appearance-aware Overlay direction while preserving historical records of
+   the former fixed-Dark implementation.
 
 ## Verification
 
@@ -50,14 +53,31 @@ selection, scrolling, and playback behavior.
   position, measurement-cache preservation, and inherited scrollbar mode.
 - Static inspection confirmed that the Playback Subtitle Focus sources no
   longer force Dark appearance.
+- `swift build` passed.
+- The complete `swift test` run executed 790 tests and did not pass: five tests
+  recorded ten issues under concurrent load. The failures covered Library
+  folder-removal timeout behavior, three Native Playback timing/audio cases,
+  and one Subtitle Focus Shiori timeout. All Overlay appearance tests passed in
+  that complete run.
+- Each of the five complete-suite failures passed when rerun individually:
+  `failedLibraryFolderRemovalPreservesFolderAndPresentationState`,
+  `nativePlaybackUsesCommonTimelineWhenVideoTrackStartsAfterAudio`,
+  `subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues`,
+  `nativeAutoStopKeepsSessionAliveAndResumesFromBoundary`, and
+  `nativePlaybackRebuildsAudioOutputAndContinuesInCurrentSession`.
+- Automated Light and Dark `ImageRenderer` verification passed. The App was not
+  launched for manual runtime inspection during this implementation.
 
 ## Outcome
 
 The dynamic Overlay color foundation matches the documented Light and Dark
 tokens. SwiftUI Overlay surfaces now inherit CueSeeker's effective appearance;
 Native Reel and scrollbar appearance behavior passes targeted rendering,
-state, layout, virtualization, and interaction verification.
+state, layout, virtualization, and interaction verification. The implementation
+matches the accepted scope. The full concurrent suite remains non-clean due to
+five isolated timing or I/O-sensitive failures that passed separately.
 
 ## Follow-ups
 
-- Complete integrated build, test, and appearance verification.
+- Perform manual runtime visual confirmation across all six Overlay modules in
+  Light, Dark, and Auto appearance.

@@ -367,8 +367,10 @@ Presentation virtualization rules:
 
 Playback-specific differences are limited to:
 
-- the fixed-dark full-stage Overlay shell, module Sidebar, Tab routing, Pointer
-  visibility rules, pause behavior, and Playback Feedback layer;
+- the appearance-aware full-stage Overlay shell, module Sidebar, Tab routing,
+  Pointer visibility rules, pause behavior, and Playback Feedback layer; the
+  shell follows CueSeeker's effective Light, Dark, or Auto appearance without
+  changing Overlay Session state;
 - temporary Overlay Session state and Playback Return Context;
 - the documented capability mask, including removal of batch, export, folder,
   Context, Filter-control, and table-copy entry points;
