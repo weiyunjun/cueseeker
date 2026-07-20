@@ -37,7 +37,6 @@ struct PlaybackSearchOverlay: View {
         }
         .padding(.top, PlaybackSubtitleFocusMetrics.contentInset)
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
-        .environment(\.colorScheme, .dark)
         .onAppear(perform: onActivateSearch)
     }
 }

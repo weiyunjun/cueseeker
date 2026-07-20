@@ -54,7 +54,6 @@ struct PlaybackRecentOverlay: View {
             }
         }
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
-        .environment(\.colorScheme, .dark)
     }
 
     @ViewBuilder

@@ -81,7 +81,6 @@ struct PlaybackMultiModuleOverlay: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .environment(\.colorScheme, .dark)
     }
 
     @ViewBuilder
@@ -199,8 +198,8 @@ struct PlaybackModuleSidebar: View {
                     }
                     .foregroundStyle(
                         selectedModule == module
-                            ? PlaybackTheme.subtitleFocusCueSelected
-                            : PlaybackTheme.subtitleFocusCueUnselected
+                            ? PlaybackTheme.playbackModuleSidebarSelected
+                            : PlaybackTheme.playbackModuleSidebarUnselected
                     )
                     .padding(
                         .horizontal,
@@ -344,7 +343,6 @@ struct PlaybackSubtitleFocusOverlay: View {
             .frame(width: viewportSize.width, height: viewportSize.height)
             .clipped()
             .contentShape(Rectangle())
-            .environment(\.colorScheme, .dark)
         }
         .onDisappear {
             onCueReelMotionChanged(false)

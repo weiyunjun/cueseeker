@@ -51,7 +51,6 @@ struct PlaybackLibraryOverlay: View {
             store.refreshForSourceRevision()
         }
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
-        .environment(\.colorScheme, .dark)
     }
 }
 
