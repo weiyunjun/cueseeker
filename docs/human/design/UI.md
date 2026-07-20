@@ -162,10 +162,13 @@
 
 #### Subtitle Focus
 
-- `--color-subtitle-focus-overlay-bg`: Light `#242426`; Dark `#242426`
-- `--color-subtitle-focus-cue-selected`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
-- `--color-subtitle-focus-cue-group-selected`: Light `rgba(255,255,255,0.62)`; Dark `rgba(255,255,255,0.62)`
-- `--color-subtitle-focus-cue-unselected`: Light `rgba(255,255,255,0.34)`; Dark `rgba(255,255,255,0.34)`
+- `--color-subtitle-focus-overlay-bg`: Light `#F6F7F9`; Dark `#242426`
+- `--color-subtitle-focus-cue-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
+- `--color-subtitle-focus-cue-group-selected`: Light `#475467`; Dark `rgba(255,255,255,0.62)`
+- `--color-subtitle-focus-cue-unselected`: Light `#858B95`; Dark `rgba(255,255,255,0.34)`
+- `--color-playback-module-sidebar-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
+- `--color-playback-module-sidebar-unselected`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
+- `--color-playback-playlist-sequence`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
 
 ### 1.2 字体与文本
 
@@ -503,7 +506,8 @@
 
 - 用途：在 Playback Multi-Module Overlay 的 Search 中输入查询词。
 - 复用 Search Box 的高度、圆角、水平内边距、文字、Placeholder、Search 图标和 Inline Clear Button。
-- 使用固定 Dark Appearance。
+- 跟随 CueSeeker 当前有效 Appearance。
+- Light Appearance 使用 Light Token；Dark Appearance 使用 Dark Token。
 - 状态：Empty、Typing、Filled、Clear Button Hover。
 - Empty、Typing 和 Filled 的容器外观保持一致。
 - 获得输入焦点时不增加 Focus Ring、焦点边框或焦点背景。
@@ -897,8 +901,8 @@
 - 用途：在 Playback Multi-Module Overlay 的 Current、Playlist、Search、Recent、Library 和 Shiori 之间导航。
 - 尺寸复用 `--height-app-sidebar-item`、`--padding-app-sidebar-item-x`、`--size-app-sidebar-item-icon` 和 `--spacing-3`。
 - 文字使用 `--font-family-base` 和 `--font-size-app-sidebar-item`。
-- Selected 的文字和图标使用 `--color-subtitle-focus-cue-selected`。
-- Unselected 的文字和图标使用 `--color-subtitle-focus-cue-unselected`。
+- Selected 的文字和图标使用 `--color-playback-module-sidebar-selected`。
+- Unselected 的文字和图标使用 `--color-playback-module-sidebar-unselected`。
 - 背景始终透明。
 - 不显示选中背景、边框、Focus Ring 或其他颜色。
 - 状态仅包括 Unselected 和 Selected。
@@ -1047,7 +1051,7 @@
   - 位于 Result 左侧
   - 宽度使用 `--width-playback-playlist-sequence`
   - 使用 `--font-size-body`
-  - 使用 `--color-subtitle-focus-cue-unselected`
+  - 使用 `--color-playback-playlist-sequence`
   - 右对齐
   - 与 Primary Cue 第一视觉行对齐
   - 数值表示 Playlist 内部序号
@@ -1673,7 +1677,11 @@
 - 位于 Video 和 Playback Chrome 之上。
 - 位于现有 Playback Feedback Overlay 之下。
 - 背景使用 `--color-subtitle-focus-overlay-bg`。
-- Light 和 Dark Appearance 均使用固定 Dark Appearance。
+- 跟随 CueSeeker 当前有效 Appearance。
+- Appearance Mode 为 Auto 时，跟随当前 macOS 系统 Appearance。
+- Appearance Mode 为 Light 或 Dark 时，使用对应的强制 Appearance。
+- Overlay 显示期间 Appearance 发生变化时，更新当前可见 Module、Native Reel 和 Scrollbar 的颜色。
+- Appearance 更新不重建 Overlay Session，不改变当前 Module、选择位置或滚动位置。
 - Overlay 显示时隐藏 Player Topbar、Bottom Chrome 和 Progress Bar。
 - Playback Feedback Overlay 继续显示在最上层且不参与 Hit Testing。
 - Overlay 显示期间 Playback 保持暂停，直到执行播放动作或退出 Overlay。
