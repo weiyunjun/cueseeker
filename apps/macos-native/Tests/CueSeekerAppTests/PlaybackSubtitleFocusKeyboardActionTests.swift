@@ -31,7 +31,7 @@ func subtitleFocusClipboardWritesPlainMarkdownCueLinkOnly() throws {
     ))
     #expect(
         pasteboard.string(forType: .string)
-            == "[  first line  \n\nthird line](cueseeker://cue?id=42)"
+            == "[first line third line](cueseeker://cue?id=42)"
     )
     #expect(pasteboard.data(forType: .html) == nil)
     #expect(pasteboard.data(forType: .rtf) == nil)
@@ -40,6 +40,48 @@ func subtitleFocusClipboardWritesPlainMarkdownCueLinkOnly() throws {
         cueID: 0,
         to: pasteboard
     ))
+}
+
+@Test
+func subtitleFocusMarkdownCueLinkNormalizesLineBreaksAndEscapesLabel() {
+    let lineBreakText = [
+        "  first  ",
+        "second",
+        "",
+        "third",
+        "fourth",
+        "fifth",
+        "sixth",
+        "seventh  ",
+    ].joined(separator: "\r\n")
+        + "\rthird-cr\u{000B}third-vt\u{000C}third-ff\u{0085}third-nel"
+        + "\u{2028}third-ls\u{2029}third-ps"
+
+    #expect(
+        PlaybackSubtitleFocusClipboard.markdownLink(
+            cueText: lineBreakText,
+            cueID: 42
+        )
+            == "[first second third fourth fifth sixth seventh third-cr third-vt third-ff third-nel third-ls third-ps](cueseeker://cue?id=42)"
+    )
+    #expect(
+        PlaybackSubtitleFocusClipboard.markdownLink(
+            cueText: "slash\\ brackets[] angle<> emphasis*_ code` strike~ entity& pipe|",
+            cueID: 42
+        )
+            == "[slash\\\\ brackets\\[\\] angle\\<\\> emphasis\\*\\_ code\\` strike\\~ entity\\& pipe\\|](cueseeker://cue?id=42)"
+    )
+    #expect(
+        PlaybackSubtitleFocusClipboard.markdownLink(
+            cueText: " \t\u{00A0}\r\n\u{3000} ",
+            cueID: 42
+        )
+            == "[Cue #42](cueseeker://cue?id=42)"
+    )
+    #expect(
+        PlaybackSubtitleFocusClipboard.markdownLink(cueText: "cue", cueID: 0)
+            == nil
+    )
 }
 
 @Test
@@ -171,7 +213,7 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
         #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
         #expect(
             NSPasteboard.general.string(forType: .string)
-                == "[  exact first  \n\nexact third](cueseeker://cue?id=13)"
+                == "[exact first exact third](cueseeker://cue?id=13)"
         )
         #expect(
             app.playback.playbackViewModel?.feedback?.text
@@ -371,7 +413,7 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
         #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
         #expect(
             NSPasteboard.general.string(forType: .string)
-                == "[  playlist first  \n\nplaylist third](cueseeker://cue?id=22)"
+                == "[playlist first playlist third](cueseeker://cue?id=22)"
         )
         #expect(
             app.playback.playbackViewModel?.feedback?.text

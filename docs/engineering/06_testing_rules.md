@@ -250,7 +250,10 @@ Required M2 playback interaction checks:
   continuous playback starts at the exact Primary Cue start. Space is consumed
   without a playback action.
 - Current, Playlist, and Shiori `X` tests must verify the exact plain Markdown
-  payload, CueID target, settled-action semantics, and success feedback.
+  payload, CueID target, settled-action semantics, and success feedback. The
+  payload coverage must include LF, CRLF, CR, Unicode line breaks, trimmed and
+  empty source lines, the required Markdown backslash escapes, and the visible
+  `Cue #{CueID}` fallback for an empty normalized label.
   Playback Search must keep `X` as query input and must not publish adaptive
   HTML or RTF clipboard representations.
 - Playlist setting tests must cover the three valid Auto Pause and Auto Switch

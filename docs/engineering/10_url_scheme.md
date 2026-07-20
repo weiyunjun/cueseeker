@@ -142,6 +142,15 @@ containing exactly that Cue:
 
 Unavailable CueIDs do not fall back to a keyword search or another Cue.
 
+## Cue Markdown Link Serialization
+
+Playback Overlay Cue-link copy emits one CommonMark/GFM-compatible plain-text
+fragment in the form `[Cue text](cueseeker://cue?id={CueID})`. The label splits
+LF, CRLF, CR, and Unicode line breaks, trims horizontal whitespace from each
+nonempty line, and joins the remaining lines with one ASCII space. It
+backslash-escapes `\\`, `[`, `]`, `<`, `>`, `*`, `_`, backtick, `~`, `&`, and
+`|`. A label with no visible content becomes `Cue #{CueID}`.
+
 ## Packaging and Verification
 
 The packaged `Info.plist` must declare the final bundle identifier and one URL

@@ -549,8 +549,11 @@ Playback Multi-Module Overlay cue action requirements:
 - `C` copies the exact Primary Cue's complete text, preserving its source line
   order and line breaks without copying the surrounding Cue Group, and shows
   `Subtitle Copied`.
-- `X` in Current, Playlist, and Shiori copies the exact Primary Cue as the
-  plain Markdown string `[Cue text](cueseeker://cue?id={CueID})` and shows
+- `X` in Current, Playlist, and Shiori copies the Primary Cue as the plain
+  Markdown string `[Cue text](cueseeker://cue?id={CueID})`. Its label trims each
+  nonempty source line, joins the lines with one space, backslash-escapes `\\`,
+  `[`, `]`, `<`, `>`, `*`, `_`, backtick, `~`, `&`, and `|`, and falls back to
+  `Cue #{CueID}` when no visible label remains. The action shows
   `Subtitle(markdown format) Copied`. It publishes no adaptive HTML or RTF
   clipboard representation. Playback Search reserves `X` for query input.
 - `S` and `C` keep the Overlay visible, keep playback paused, and preserve Cue

@@ -527,7 +527,10 @@ Current implementation notes and accepted fullscreen correction:
   seeks to the selected Primary Cue start, begins continuous playback, and
   shows `Play`.
 - In Current, Playlist, and Shiori, `X` copies only the plain Markdown string
-  `[Cue text](cueseeker://cue?id={CueID})` and shows
+  `[Cue text](cueseeker://cue?id={CueID})`. Its label trims each nonempty source
+  line, joins the lines with one space, backslash-escapes `\\`, `[`, `]`, `<`,
+  `>`, `*`, `_`, backtick, `~`, `&`, and `|`, and falls back to `Cue #{CueID}`
+  when no visible label remains. The action shows
   `Subtitle(markdown format) Copied`. It does not publish adaptive HTML or RTF
   clipboard representations. Playback Search keeps `X` as query input and
   exposes no Markdown-copy action.

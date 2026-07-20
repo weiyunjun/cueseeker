@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Corrected Playback Overlay `X` Markdown Cue-link copy so multiline subtitles
+  now produce one CommonMark/GFM-compatible label. Source lines are trimmed and
+  joined with one space, Markdown-sensitive label characters are escaped with
+  backslashes, and whitespace-only Cues receive a visible `Cue #{CueID}` label.
 - Library and Recent playback now advance automatically to the next video after
   natural media completion, using the same sequence as the previous and next
   video controls without wrapping. Opening a video whose persisted playback

@@ -2,6 +2,10 @@ import AppKit
 import CueSeekerCore
 
 enum PlaybackSubtitleFocusClipboard {
+    private static let markdownLinkEscapedCharacters: Set<Character> = [
+        "\\", "[", "]", "<", ">", "*", "_", "`", "~", "&", "|",
+    ]
+
     static func copy(
         _ text: String,
         to pasteboard: NSPasteboard
@@ -13,18 +17,39 @@ enum PlaybackSubtitleFocusClipboard {
         return pasteboard.setString(text, forType: .string)
     }
 
+    static func markdownLink(cueText: String, cueID: Int64) -> String? {
+        guard cueID > 0 else {
+            return nil
+        }
+
+        let normalizedCueText = cueText
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let label = normalizedCueText.isEmpty
+            ? "Cue #\(cueID)"
+            : normalizedCueText
+        var escapedLabel = ""
+        escapedLabel.reserveCapacity(label.count)
+        for character in label {
+            if markdownLinkEscapedCharacters.contains(character) {
+                escapedLabel.append("\\")
+            }
+            escapedLabel.append(character)
+        }
+        return "[\(escapedLabel)](cueseeker://cue?id=\(cueID))"
+    }
+
     static func copyMarkdownLink(
         cueText: String,
         cueID: Int64,
         to pasteboard: NSPasteboard
     ) -> Bool {
-        guard cueID > 0 else {
+        guard let markdownLink = markdownLink(cueText: cueText, cueID: cueID) else {
             return false
         }
-        return copy(
-            "[\(cueText)](cueseeker://cue?id=\(cueID))",
-            to: pasteboard
-        )
+        return copy(markdownLink, to: pasteboard)
     }
 }
 
