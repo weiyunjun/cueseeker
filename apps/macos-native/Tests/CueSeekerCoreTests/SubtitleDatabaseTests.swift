@@ -5408,6 +5408,68 @@ func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
 }
 
 @Test
+func removingIndexedFolderPreservesRetainedDerivedSearchRows() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let removedFolder = URL(fileURLWithPath: "/Media/00 Removed")
+    let firstKeptFolder = URL(fileURLWithPath: "/Media/10 Kept")
+    let secondKeptFolder = URL(fileURLWithPath: "/Media/20 Kept")
+    for folder in [removedFolder, firstKeptFolder, secondKeptFolder] {
+        _ = try database.addSearchPath(folder)
+        try database.replaceEntries(
+            subtitleFile: folder.appendingPathComponent("Episode.srt"),
+            videoFile: folder.appendingPathComponent("Episode.mkv"),
+            entries: [simpleTestEntry(text: "Shared removal ordering text")]
+        )
+    }
+
+    let removedCueGroupID = try #require(try database.firstCueGroupID(
+        forSubtitleFile: removedFolder.appendingPathComponent("Episode.srt")
+    ))
+    let firstKeptCueGroupID = try #require(try database.firstCueGroupID(
+        forSubtitleFile: firstKeptFolder.appendingPathComponent("Episode.srt")
+    ))
+    let secondKeptCueGroupID = try #require(try database.firstCueGroupID(
+        forSubtitleFile: secondKeptFolder.appendingPathComponent("Episode.srt")
+    ))
+    let firstKeptRowIDBefore = try #require(try sqliteFTSRowID(
+        cueGroupID: firstKeptCueGroupID,
+        databaseURL: databaseURL
+    ))
+    let secondKeptRowIDBefore = try #require(try sqliteFTSRowID(
+        cueGroupID: secondKeptCueGroupID,
+        databaseURL: databaseURL
+    ))
+
+    try database.removeIndexedFolder(removedFolder)
+
+    #expect(try sqliteFTSRowID(
+        cueGroupID: removedCueGroupID,
+        databaseURL: databaseURL
+    ) == nil)
+    #expect(try sqliteFTSRowID(
+        cueGroupID: firstKeptCueGroupID,
+        databaseURL: databaseURL
+    ) == firstKeptRowIDBefore)
+    #expect(try sqliteFTSRowID(
+        cueGroupID: secondKeptCueGroupID,
+        databaseURL: databaseURL
+    ) == secondKeptRowIDBefore)
+    #expect(try database.search("Shared").map(\.videoPath) == [
+        firstKeptFolder.appendingPathComponent("Episode.mkv").path,
+        secondKeptFolder.appendingPathComponent("Episode.mkv").path
+    ])
+}
+
+@Test
 func scopedSearchOnlyReturnsEntriesUnderActiveFolders() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -6825,6 +6887,36 @@ private func sqliteReferencedID(
     guard sqlite3_step(statement) == SQLITE_ROW,
           sqlite3_column_type(statement, 0) != SQLITE_NULL
     else {
+        return nil
+    }
+    return sqlite3_column_int64(statement, 0)
+}
+
+private func sqliteFTSRowID(cueGroupID: Int64, databaseURL: URL) throws -> Int64? {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer { sqlite3_close(database) }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        "SELECT rowid FROM subtitle_cue_groups_fts WHERE cue_group_id = ? LIMIT 1;",
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+          let statement
+    else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer { sqlite3_finalize(statement) }
+
+    sqlite3_bind_int64(statement, 1, cueGroupID)
+    guard sqlite3_step(statement) == SQLITE_ROW else {
         return nil
     }
     return sqlite3_column_int64(statement, 0)

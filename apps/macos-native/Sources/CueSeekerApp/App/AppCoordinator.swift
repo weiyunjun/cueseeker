@@ -399,6 +399,7 @@ final class AppCoordinator: ObservableObject {
     var canCompactDatabase: Bool {
         subtitleDatabase != nil
             && !indexing.indexingStatus.isIndexing
+            && !indexing.folderRemovalStatus.isRemoving
             && !indexing.databaseMaintenanceStatus.isCompacting
             && !search.isSearching
             && indexing.searchFTSVocabularyDiagnosticsTask == nil
@@ -413,6 +414,7 @@ final class AppCoordinator: ObservableObject {
     let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     var startupDatabaseTask: Task<Void, Never>?
     var indexingTask: Task<Void, Never>?
+    var folderRemovalTask: Task<Void, Never>?
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
     var testRecentWatchingTask: Task<Void, Never>?
@@ -466,17 +468,20 @@ final class AppCoordinator: ObservableObject {
     var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
     var pendingURLSchemeCuePlaybackIntent: URLSchemeCuePlaybackIntent?
     var urlSchemeCueLookupTask: Task<Void, Never>?
+    let libraryFolderRemovalExecutor: any LibraryFolderRemovalExecuting
 
     init(
         userDefaults: UserDefaults? = nil,
         databaseURL: URL? = nil,
-        uiProbeScope: String = UUID().uuidString
+        uiProbeScope: String = UUID().uuidString,
+        libraryFolderRemovalExecutor: any LibraryFolderRemovalExecuting = LibraryFolderRemovalExecutor()
     ) {
         let userDefaults = userDefaults ?? ApplicationPersistence.sharedUserDefaults()
         self.uiProbeScope = uiProbeScope
         self.userDefaults = userDefaults
         let resolvedDatabaseURL = databaseURL ?? Self.defaultDatabaseURL()
         self.databaseURL = resolvedDatabaseURL
+        self.libraryFolderRemovalExecutor = libraryFolderRemovalExecutor
         playbackSubtitleFocusDatabaseReader = PlaybackSubtitleFocusDatabaseReader(
             databaseURL: resolvedDatabaseURL
         )

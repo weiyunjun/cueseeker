@@ -7921,7 +7921,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try removeIndexedData(
             under: folder,
             keeping: subtitleFiles,
-            removeSearchPath: false
+            removeSearchPath: false,
+            rebuildSearchDerivedIndex: true
         )
     }
 
@@ -7929,7 +7930,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try removeIndexedData(
             under: folder,
             keeping: [],
-            removeSearchPath: true
+            removeSearchPath: true,
+            rebuildSearchDerivedIndex: false
         )
     }
 
@@ -8948,7 +8950,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private func removeIndexedData(
         under folder: URL,
         keeping subtitleFiles: Set<String>,
-        removeSearchPath: Bool
+        removeSearchPath: Bool,
+        rebuildSearchDerivedIndex: Bool
     ) throws {
         let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
         let prefixCondition = folderPathPrefixes
@@ -9129,7 +9132,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
             }
 
-            try rebuildSearchDerivedIndexInCurrentTransaction()
+            if rebuildSearchDerivedIndex {
+                try rebuildSearchDerivedIndexInCurrentTransaction()
+            }
             try database.execute("COMMIT")
             clearSearchResultCache()
         } catch {

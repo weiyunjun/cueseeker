@@ -258,6 +258,7 @@ extension AppCoordinator {
         guard !folders.isEmpty,
               let database = subtitleDatabase,
               !indexing.indexingStatus.isIndexing,
+              !indexing.folderRemovalStatus.isRemoving,
               !indexing.databaseMaintenanceStatus.isCompacting
         else {
             return

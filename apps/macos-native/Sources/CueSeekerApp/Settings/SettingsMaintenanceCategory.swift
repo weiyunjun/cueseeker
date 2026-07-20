@@ -51,7 +51,10 @@ struct SettingsMaintenanceCategory: View {
                 } label: {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                .disabled(indexing.databaseMaintenanceStatus.isCompacting)
+                .disabled(
+                    indexing.folderRemovalStatus.isRemoving
+                        || indexing.databaseMaintenanceStatus.isCompacting
+                )
 
                 Button {
                     isShowingCompactConfirmation = true

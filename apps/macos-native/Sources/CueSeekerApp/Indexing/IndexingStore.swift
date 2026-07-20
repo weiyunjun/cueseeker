@@ -8,6 +8,7 @@ final class IndexingStore: ObservableObject {
 
     @Published var selectedFolders: [URL]
     @Published var indexingStatus: IndexingStatus = .idle
+    @Published var folderRemovalStatus: LibraryFolderRemovalStatus = .idle
     @Published var databaseStorageStats: DatabaseStorageStats?
     @Published var databaseMaintenanceStatus: DatabaseMaintenanceStatus = .idle
     @Published var searchFTSVocabularyDiagnostics: SubtitleFTSVocabularyDiagnostics?
@@ -43,6 +44,12 @@ final class IndexingStore: ObservableObject {
     func removeFolder(_ folder: URL) {
         selectedFolders.removeAll { $0 == folder }
         persistSelectedFolders()
+    }
+
+    var isLibraryFolderOperationActive: Bool {
+        indexingStatus.isIndexing
+            || folderRemovalStatus.isRemoving
+            || databaseMaintenanceStatus.isCompacting
     }
 
     private func persistSelectedFolders() {

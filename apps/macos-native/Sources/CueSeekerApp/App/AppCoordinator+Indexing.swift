@@ -5,6 +5,16 @@ import CueSeekerPlayback
 @MainActor
 extension AppCoordinator {
     func addFolder(_ folder: URL) {
+        guard !indexing.folderRemovalStatus.isRemoving else {
+            startupError = "Folder removal is running"
+            return
+        }
+
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
+            startupError = "Database compaction is running"
+            return
+        }
+
         let folder = folder.standardizedFileURL
 
         guard !indexing.selectedFolders.contains(folder) else {
@@ -24,36 +34,73 @@ extension AppCoordinator {
     }
 
     func removeFolder(_ folder: URL) {
+        guard !indexing.indexingStatus.isIndexing else {
+            startupError = "Indexing is running"
+            return
+        }
+
+        guard !indexing.folderRemovalStatus.isRemoving else {
+            startupError = "Folder removal is running"
+            return
+        }
+
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = "Database compaction is running"
             return
         }
 
         let folder = folder.standardizedFileURL
-        guard let database = subtitleDatabase else {
+        guard subtitleDatabase != nil else {
             startupError = "Database is not initialized"
             return
         }
-        cancelLibraryDisplayRenditionTask()
-        cancelStartupDatabaseTask()
-        do {
-            try database.removeIndexedFolder(folder)
-        } catch {
-            startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
-            return
-        }
 
-        indexing.removeFolder(folder)
-        clearSearchAndPlaybackState(under: folder)
-        refreshLibrary()
-        refreshRecentWatching()
-        refreshLoadedTestRecentWatching()
-        refreshCompleteLibrary()
-        refreshCurrentSearch(clearExistingResults: true)
-        refreshDatabaseStorageStats()
+        startupError = nil
+        indexing.folderRemovalStatus = .removing(folder)
+        databaseStorageStatsTask?.cancel()
+        databaseStorageStatsTask = nil
+        if case .loadingStats = indexing.databaseMaintenanceStatus {
+            indexing.databaseMaintenanceStatus = .idle
+        }
+        cancelDatabaseReadTasksBeforeIndexing()
+
+        let databaseURL = self.databaseURL
+        let removalExecutor = libraryFolderRemovalExecutor
+        folderRemovalTask = Task { [weak self] in
+            do {
+                try await removalExecutor.removeFolder(folder, databaseURL: databaseURL)
+                guard let self else {
+                    return
+                }
+
+                self.indexing.removeFolder(folder)
+                self.clearSearchAndPlaybackState(under: folder)
+                self.indexing.folderRemovalStatus = .idle
+                self.refreshLibrary()
+                self.refreshRecentWatching()
+                self.refreshLoadedTestRecentWatching()
+                self.refreshCompleteLibrary()
+                self.refreshCurrentSearch(clearExistingResults: true)
+                self.refreshDatabaseStorageStats()
+                self.folderRemovalTask = nil
+            } catch {
+                guard let self else {
+                    return
+                }
+
+                self.indexing.folderRemovalStatus = .idle
+                self.startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
+                self.folderRemovalTask = nil
+            }
+        }
     }
 
     func indexFolder(_ folder: URL) {
+        guard !indexing.folderRemovalStatus.isRemoving else {
+            startupError = "Folder removal is running"
+            return
+        }
+
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = "Database compaction is running"
             return
@@ -109,6 +156,11 @@ extension AppCoordinator {
     }
 
     func indexAllFolders() {
+        guard !indexing.folderRemovalStatus.isRemoving else {
+            startupError = "Folder removal is running"
+            return
+        }
+
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = "Database compaction is running"
             return
@@ -216,7 +268,9 @@ extension AppCoordinator {
     }
 
     func refreshDatabaseStorageStats() {
-        guard !indexing.databaseMaintenanceStatus.isCompacting else {
+        guard !indexing.folderRemovalStatus.isRemoving,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
             return
         }
 
@@ -291,6 +345,11 @@ extension AppCoordinator {
 
     func compactDatabaseStorage() {
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
+            return
+        }
+
+        guard !indexing.folderRemovalStatus.isRemoving else {
+            indexing.databaseMaintenanceStatus = .failed("Folder removal is running")
             return
         }
 

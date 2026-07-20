@@ -21,6 +21,19 @@ enum IndexingStatus: Equatable {
     }
 }
 
+enum LibraryFolderRemovalStatus: Equatable {
+    case idle
+    case removing(URL)
+
+    var isRemoving: Bool {
+        if case .removing = self {
+            return true
+        }
+
+        return false
+    }
+}
+
 enum SearchStatus: Equatable {
     case idle
     case searching

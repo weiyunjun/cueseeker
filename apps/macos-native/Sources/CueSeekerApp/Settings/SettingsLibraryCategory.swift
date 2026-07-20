@@ -28,14 +28,14 @@ struct SettingsLibraryCategory: View {
                     } label: {
                         Label("Add Folder", systemImage: "folder.badge.plus")
                     }
-                    .disabled(indexing.indexingStatus.isIndexing || isChoosingFolder)
+                    .disabled(indexing.isLibraryFolderOperationActive || isChoosingFolder)
 
                     Button {
                         appState.indexAllFolders()
                     } label: {
                         Label("Index Now", systemImage: "arrow.clockwise")
                     }
-                    .disabled(indexing.selectedFolders.isEmpty || indexing.indexingStatus.isIndexing)
+                    .disabled(indexing.selectedFolders.isEmpty || indexing.isLibraryFolderOperationActive)
                 }
             }
 
@@ -93,7 +93,7 @@ struct SettingsLibraryCategory: View {
                     } label: {
                         Label("Remove", systemImage: "minus.circle")
                     }
-                    .disabled(indexing.indexingStatus.isIndexing)
+                    .disabled(indexing.isLibraryFolderOperationActive)
                 }
                 .padding(.vertical, 4)
             }
@@ -155,59 +155,68 @@ struct SettingsLibraryCategory: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
 
-            switch indexing.indexingStatus {
-            case .idle:
-                EmptyView()
-            case .indexing(let folder):
+            if case .removing(let folder) = indexing.folderRemovalStatus {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Indexing \(folder.lastPathComponent)...")
+                    Text("Removing \(folder.lastPathComponent)…")
                         .font(.subheadline)
                 }
-            case .indexingAll(let folder, let completedFolders, let totalFolders):
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Indexing folder \(completedFolders + 1) of \(totalFolders): \(folder.lastPathComponent)...")
-                        .font(.subheadline)
-                }
-            case .completed(let folder, let result):
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Indexed \(folder.lastPathComponent)", systemImage: "checkmark.circle")
-                        .foregroundStyle(.green)
-                    Text(indexingSummary(result))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if !result.failedFiles.isEmpty {
-                        Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
+            } else {
+                switch indexing.indexingStatus {
+                case .idle:
+                    EmptyView()
+                case .indexing(let folder):
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Indexing \(folder.lastPathComponent)...")
+                            .font(.subheadline)
+                    }
+                case .indexingAll(let folder, let completedFolders, let totalFolders):
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Indexing folder \(completedFolders + 1) of \(totalFolders): \(folder.lastPathComponent)...")
+                            .font(.subheadline)
+                    }
+                case .completed(let folder, let result):
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Indexed \(folder.lastPathComponent)", systemImage: "checkmark.circle")
+                            .foregroundStyle(.green)
+                        Text(indexingSummary(result))
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
+                        if !result.failedFiles.isEmpty {
+                            Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .lineLimit(2)
+                        }
+                    }
+                case .completedAll(let folderCount, let result):
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Indexed \(folderCount) folder(s)", systemImage: "checkmark.circle")
+                            .foregroundStyle(.green)
+                        Text(indexingSummary(result))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if !result.failedFiles.isEmpty {
+                            Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .lineLimit(2)
+                        }
+                    }
+                case .failed(let folder, let message):
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Failed to index \(folder.lastPathComponent)", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             .lineLimit(2)
                     }
-                }
-            case .completedAll(let folderCount, let result):
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Indexed \(folderCount) folder(s)", systemImage: "checkmark.circle")
-                        .foregroundStyle(.green)
-                    Text(indexingSummary(result))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if !result.failedFiles.isEmpty {
-                        Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .lineLimit(2)
-                    }
-                }
-            case .failed(let folder, let message):
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Failed to index \(folder.lastPathComponent)", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
                 }
             }
         }

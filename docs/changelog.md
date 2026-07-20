@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Made Settings Library folder removal responsive and proportional to the
+  removed folder. Removal now runs through a serialized background database
+  executor, exposes a visible Removing state, blocks conflicting folder,
+  indexing, and compaction commands in both UI and backend orchestration, and
+  preserves the existing folder and presentation state if deletion fails.
+  Target FTS and search-order rows are deleted without rebuilding or
+  renumbering the retained search index.
 - Removed the retired Playback Quick Search `/back` and `/forward` history
   backend. Library, Search, and Shiori playback entry no longer records a
   cross-source restoration stack, and database schema version 31 removes the

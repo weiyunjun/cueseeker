@@ -1,0 +1,232 @@
+import AppKit
+import Foundation
+import Testing
+import CueSeekerCore
+@testable import CueSeekerApp
+
+private enum LibraryFolderRemovalTestError: Error {
+    case expected
+}
+
+private actor ControlledLibraryFolderRemovalExecutor: LibraryFolderRemovalExecuting {
+    enum Outcome {
+        case success
+        case failure
+    }
+
+    private let outcome: Outcome
+    private var started = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(outcome: Outcome = .success) {
+        self.outcome = outcome
+    }
+
+    func removeFolder(_ folder: URL, databaseURL: URL) async throws {
+        started = true
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+
+        if outcome == .failure {
+            throw LibraryFolderRemovalTestError.expected
+        }
+    }
+
+    func hasStarted() -> Bool {
+        started
+    }
+
+    func finish() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+@MainActor
+@Test
+func libraryFolderRemovalPublishesProgressWithoutBlockingMainActor() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let executor = ControlledLibraryFolderRemovalExecutor()
+    let app = fixture.makeApp(executor: executor)
+
+    app.removeFolder(fixture.folder)
+    let removalTask = try #require(app.folderRemovalTask)
+
+    #expect(app.indexing.folderRemovalStatus == .removing(fixture.folder))
+    #expect(app.indexing.selectedFolders == [fixture.folder])
+    #expect(app.indexing.isLibraryFolderOperationActive)
+    #expect(!app.canCompactDatabase)
+    try await waitUntilLibraryFolderRemovalStarts(executor)
+
+    let mainActorProbe = Task { @MainActor in true }
+    #expect(await mainActorProbe.value)
+
+    await executor.finish()
+    await removalTask.value
+
+    #expect(app.indexing.folderRemovalStatus == .idle)
+    #expect(app.indexing.selectedFolders.isEmpty)
+    #expect(app.folderRemovalTask == nil)
+}
+
+@MainActor
+@Test
+func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    try database.migrate()
+    _ = try database.addSearchPath(fixture.folder)
+    try database.replaceEntries(
+        subtitleFile: fixture.folder.appendingPathComponent("Episode.srt"),
+        videoFile: fixture.folder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Actual folder removal executor"
+            )
+        ]
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(
+        userDefaults: fixture.userDefaults,
+        databaseURL: fixture.databaseURL
+    )
+    app.removeFolder(fixture.folder)
+    let removalTask = try #require(app.folderRemovalTask)
+    await removalTask.value
+    await app.databaseStorageStatsTask?.value
+
+    #expect(app.indexing.folderRemovalStatus == .idle)
+    #expect(app.indexing.selectedFolders.isEmpty)
+    #expect(try app.subtitleDatabase?.search("Actual").isEmpty == true)
+}
+
+@MainActor
+@Test
+func libraryFolderRemovalAndIndexingRejectEachOther() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let executor = ControlledLibraryFolderRemovalExecutor()
+    let app = fixture.makeApp(executor: executor)
+
+    app.indexing.indexingStatus = .indexing(fixture.folder)
+    app.removeFolder(fixture.folder)
+    #expect(app.folderRemovalTask == nil)
+    #expect(app.indexing.folderRemovalStatus == .idle)
+    #expect(app.indexing.selectedFolders == [fixture.folder])
+    #expect(app.startupError == "Indexing is running")
+
+    app.indexing.indexingStatus = .idle
+    app.removeFolder(fixture.folder)
+    let removalTask = try #require(app.folderRemovalTask)
+    try await waitUntilLibraryFolderRemovalStarts(executor)
+
+    app.indexAllFolders()
+    #expect(app.indexing.indexingStatus == .idle)
+    #expect(app.startupError == "Folder removal is running")
+
+    let otherFolder = URL(fileURLWithPath: "/Media/Other Folder")
+    app.addFolder(otherFolder)
+    #expect(app.indexing.selectedFolders == [fixture.folder])
+
+    await executor.finish()
+    await removalTask.value
+}
+
+@MainActor
+@Test
+func failedLibraryFolderRemovalPreservesFolderAndPresentationState() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let executor = ControlledLibraryFolderRemovalExecutor(outcome: .failure)
+    let app = fixture.makeApp(executor: executor)
+    let existingVideo = LibraryVideo(
+        videoPath: fixture.folder.appendingPathComponent("Episode.mkv").path,
+        videoName: "Episode.mkv",
+        duration: 1_200,
+        subtitlePath: fixture.folder.appendingPathComponent("Episode.srt").path,
+        subtitleFormat: .srt
+    )
+    app.library.libraryVideos = [existingVideo]
+    app.library.selectedLibraryVideo = existingVideo
+
+    app.removeFolder(fixture.folder)
+    let removalTask = try #require(app.folderRemovalTask)
+    try await waitUntilLibraryFolderRemovalStarts(executor)
+
+    #expect(app.indexing.selectedFolders == [fixture.folder])
+    #expect(app.library.libraryVideos == [existingVideo])
+    #expect(app.library.selectedLibraryVideo == existingVideo)
+    await executor.finish()
+    await removalTask.value
+
+    #expect(app.indexing.folderRemovalStatus == .idle)
+    #expect(app.indexing.selectedFolders == [fixture.folder])
+    #expect(app.library.libraryVideos == [existingVideo])
+    #expect(app.library.selectedLibraryVideo == existingVideo)
+    #expect(app.startupError?.contains("Failed to remove folder index") == true)
+    #expect(app.folderRemovalTask == nil)
+}
+
+private struct LibraryFolderRemovalTestFixture {
+    let suiteName: String
+    let userDefaults: UserDefaults
+    let databaseURL: URL
+    let folder: URL
+
+    @MainActor
+    init() throws {
+        suiteName = "CueSeekerLibraryFolderRemovalTests-\(UUID().uuidString)"
+        userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        databaseURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerLibraryFolderRemovalTests-\(UUID().uuidString)")
+            .appendingPathExtension("sqlite")
+        folder = URL(fileURLWithPath: "/Media/Removal Fixture").standardizedFileURL
+        userDefaults.set([folder.path], forKey: "selectedFolderPaths")
+    }
+
+    @MainActor
+    func makeApp(
+        executor: any LibraryFolderRemovalExecuting
+    ) -> AppCoordinator {
+        _ = NSApplication.shared
+        return AppCoordinator(
+            userDefaults: userDefaults,
+            databaseURL: databaseURL,
+            libraryFolderRemovalExecutor: executor
+        )
+    }
+
+    func cleanUp() {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: databaseURL)
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+    }
+}
+
+private func waitUntilLibraryFolderRemovalStarts(
+    _ executor: ControlledLibraryFolderRemovalExecutor
+) async throws {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(3))
+    while !(await executor.hasStarted()) {
+        guard clock.now < deadline else {
+            Issue.record("Timed out waiting for Library folder removal")
+            return
+        }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+}
