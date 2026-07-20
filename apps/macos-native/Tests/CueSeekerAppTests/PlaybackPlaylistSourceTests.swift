@@ -325,7 +325,6 @@ func shioriPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
 
     app.openShiori(
         app.shiori.shioris[1],
-        recordsNavigationHistory: false,
         navigationScopeIDs: [9, 3, 7],
         playlistScope: .explicitIDs([9, 3, 7]),
         playlistSelectedOrdinal: 1

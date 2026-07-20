@@ -166,7 +166,6 @@ extension AppCoordinator {
         )
         openSearchResult(
             result,
-            recordsNavigationHistory: false,
             returnPanelMode: .search,
             playlistSourceOverride: playlistSource
         )

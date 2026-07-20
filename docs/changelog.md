@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed the retired Playback Quick Search `/back` and `/forward` history
+  backend. Library, Search, and Shiori playback entry no longer records a
+  cross-source restoration stack, and database schema version 31 removes the
+  obsolete history tables and their stored data. URL Scheme playback, Seek,
+  Playlist navigation, adjacent media/result navigation, and Subtitle Focus
+  navigation remain unchanged.
 - Corrected Playback Overlay `X` Markdown Cue-link copy so multiline subtitles
   now produce one CommonMark/GFM-compatible label. Source lines are trimmed and
   joined with one space, Markdown-sensitive label characters are escaped with

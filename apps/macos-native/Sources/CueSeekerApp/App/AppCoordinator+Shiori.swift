@@ -397,7 +397,6 @@ extension AppCoordinator {
 
     func openShiori(
         _ shiori: Shiori,
-        recordsNavigationHistory: Bool = true,
         navigationScopeIDs: [Int64]? = nil,
         playlistScope: PlaybackPlaylistShioriScope? = nil,
         playlistSelectedOrdinal: Int? = nil,
@@ -445,9 +444,6 @@ extension AppCoordinator {
         initializePlaybackReturnContextIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
-        if recordsNavigationHistory {
-            recordPlaybackNavigationEntry(playbackNavigationPayload(for: shiori))
-        }
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
         search.selectedSearchResult = nil

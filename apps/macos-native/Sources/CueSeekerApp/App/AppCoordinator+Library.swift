@@ -813,7 +813,6 @@ extension AppCoordinator {
 
     func openLibraryVideo(
         _ video: LibraryVideo,
-        recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil,
         playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil,
         savesCurrentPlaybackHistory: Bool = true
@@ -829,9 +828,6 @@ extension AppCoordinator {
         initializePlaybackReturnContextIfEntering()
         if savesCurrentPlaybackHistory, case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
-        }
-        if recordsNavigationHistory {
-            recordPlaybackNavigationEntry(playbackNavigationPayload(for: video))
         }
         recordRecentLibraryWatching(for: video, refreshPresentation: false)
         library.selectedLibraryVideo = video

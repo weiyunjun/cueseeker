@@ -833,7 +833,7 @@ func openingSearchResultUpdatesNavigationStateImmediately() throws {
     app.search.searchResults = [first, second, third]
     app.search.searchResultTotalCount = 3
 
-    app.openSearchResult(first, recordsNavigationHistory: false)
+    app.openSearchResult(first)
 
     #expect(!app.canOpenPreviousSearchResult)
     #expect(app.canOpenNextSearchResult)
@@ -841,7 +841,7 @@ func openingSearchResultUpdatesNavigationStateImmediately() throws {
     #expect(app.search.searchNavigationSnapshot?.current?.entryID == first.entryID)
     #expect(app.search.searchNavigationSnapshot?.next?.entryID == second.entryID)
 
-    app.openSearchResult(second, recordsNavigationHistory: false)
+    app.openSearchResult(second)
 
     #expect(app.canOpenPreviousSearchResult)
     #expect(app.canOpenNextSearchResult)

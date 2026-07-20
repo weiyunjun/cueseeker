@@ -253,7 +253,6 @@ extension AppCoordinator {
 
     func openSearchResult(
         _ result: SubtitleSearchResult,
-        recordsNavigationHistory: Bool = true,
         displayTitle: String? = nil,
         returnPanelMode: WorkbenchPanelMode? = nil,
         playbackSearchPromotion: PlaybackSearchPromotion? = nil,
@@ -290,13 +289,6 @@ extension AppCoordinator {
         initializePlaybackReturnContextIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
-        if recordsNavigationHistory {
-            recordPlaybackNavigationEntry(playbackNavigationPayload(
-                for: result,
-                searchQuery: playbackSearchPromotion?.query,
-                scopePaths: playbackSearchPromotion?.scopePaths
-            ))
-        }
         activePlaybackSource = .search
         search.selectedSearchResult = result
         if playbackSearchPromotion == nil {
