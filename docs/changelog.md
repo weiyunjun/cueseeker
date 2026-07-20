@@ -8,9 +8,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 - Made Settings Library folder removal responsive and proportional to the
   removed folder. Removal now runs through a serialized background database
-  executor, exposes a visible Removing state, blocks conflicting folder,
-  indexing, and compaction commands in both UI and backend orchestration, and
-  preserves the existing folder and presentation state if deletion fails.
+  executor, exposes visible Removing and Removed states, blocks conflicting
+  folder, indexing, and compaction commands in both UI and backend
+  orchestration, and preserves the existing folder and presentation state if
+  deletion fails.
   Target FTS and search-order rows are deleted without rebuilding or
   renumbering the retained search index.
 - Removed the retired Playback Quick Search `/back` and `/forward` history

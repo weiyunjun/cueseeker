@@ -162,6 +162,9 @@ struct SettingsLibraryCategory: View {
                     Text("Removing \(folder.lastPathComponent)…")
                         .font(.subheadline)
                 }
+            } else if let removedFolder = indexing.removedFolderNotice {
+                Label("Removed \(removedFolder.lastPathComponent)", systemImage: "checkmark.circle")
+                    .foregroundStyle(.green)
             } else {
                 switch indexing.indexingStatus {
                 case .idle:

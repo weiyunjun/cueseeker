@@ -56,6 +56,7 @@ extension AppCoordinator {
         }
 
         startupError = nil
+        indexing.removedFolderNotice = nil
         indexing.folderRemovalStatus = .removing(folder)
         databaseStorageStatsTask?.cancel()
         databaseStorageStatsTask = nil
@@ -76,6 +77,7 @@ extension AppCoordinator {
                 self.indexing.removeFolder(folder)
                 self.clearSearchAndPlaybackState(under: folder)
                 self.indexing.folderRemovalStatus = .idle
+                self.indexing.removedFolderNotice = folder
                 self.refreshLibrary()
                 self.refreshRecentWatching()
                 self.refreshLoadedTestRecentWatching()
@@ -106,6 +108,7 @@ extension AppCoordinator {
             return
         }
 
+        indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
@@ -171,6 +174,7 @@ extension AppCoordinator {
             return
         }
 
+        indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()

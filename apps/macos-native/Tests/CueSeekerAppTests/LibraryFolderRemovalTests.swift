@@ -56,6 +56,7 @@ func libraryFolderRemovalPublishesProgressWithoutBlockingMainActor() async throw
     let removalTask = try #require(app.folderRemovalTask)
 
     #expect(app.indexing.folderRemovalStatus == .removing(fixture.folder))
+    #expect(app.indexing.removedFolderNotice == nil)
     #expect(app.indexing.selectedFolders == [fixture.folder])
     #expect(app.indexing.isLibraryFolderOperationActive)
     #expect(!app.canCompactDatabase)
@@ -68,6 +69,7 @@ func libraryFolderRemovalPublishesProgressWithoutBlockingMainActor() async throw
     await removalTask.value
 
     #expect(app.indexing.folderRemovalStatus == .idle)
+    #expect(app.indexing.removedFolderNotice == fixture.folder)
     #expect(app.indexing.selectedFolders.isEmpty)
     #expect(app.folderRemovalTask == nil)
 }
@@ -107,6 +109,7 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
     await app.databaseStorageStatsTask?.value
 
     #expect(app.indexing.folderRemovalStatus == .idle)
+    #expect(app.indexing.removedFolderNotice == fixture.folder)
     #expect(app.indexing.selectedFolders.isEmpty)
     #expect(try app.subtitleDatabase?.search("Actual").isEmpty == true)
 }
@@ -173,11 +176,28 @@ func failedLibraryFolderRemovalPreservesFolderAndPresentationState() async throw
     await removalTask.value
 
     #expect(app.indexing.folderRemovalStatus == .idle)
+    #expect(app.indexing.removedFolderNotice == nil)
     #expect(app.indexing.selectedFolders == [fixture.folder])
     #expect(app.library.libraryVideos == [existingVideo])
     #expect(app.library.selectedLibraryVideo == existingVideo)
     #expect(app.startupError?.contains("Failed to remove folder index") == true)
     #expect(app.folderRemovalTask == nil)
+}
+
+@MainActor
+@Test
+func libraryFolderRemovalNoticeClearsWhenIndexingStarts() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let app = fixture.makeApp(executor: ControlledLibraryFolderRemovalExecutor())
+    app.indexing.removedFolderNotice = fixture.folder
+
+    app.indexFolder(fixture.folder)
+
+    #expect(app.indexing.removedFolderNotice == nil)
+    app.indexingTask?.cancel()
+    await app.indexingTask?.value
 }
 
 private struct LibraryFolderRemovalTestFixture {
