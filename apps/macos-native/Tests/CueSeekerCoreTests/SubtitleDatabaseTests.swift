@@ -5750,6 +5750,44 @@ func searchSegmentsJapaneseKanaContent() throws {
 }
 
 @Test
+func searchTreatsASCIIAndIdeographicSpacesAsEquivalent() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/JapaneseSpaces.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/JapaneseSpaces.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "日本 語"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:04,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 4_000,
+                endMilliseconds: 6_000,
+                text: "日本　語"
+            )
+        ]
+    )
+
+    let expectedContents = ["日本 語", "日本　語"]
+    #expect(try database.search("日本 語").map(\.content) == expectedContents)
+    #expect(try database.search("日本　語").map(\.content) == expectedContents)
+}
+
+@Test
 func invalidExplicitFTSQueryReturnsNoResults() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

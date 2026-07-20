@@ -8671,7 +8671,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private static func searchQueryPlan(for query: String) -> SearchQueryPlan? {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = normalizeSearchSpaces(query)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return nil
         }
@@ -8707,15 +8708,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private static func line(_ line: String, matches rule: LineMatchRule) -> Bool {
-        switch rule {
+        let normalizedLine = normalizeSearchSpaces(line)
+        return switch rule {
         case .latinPrefix(let token):
-            tokenizeLatinTokens(line).contains { $0.hasPrefix(token) }
+            tokenizeLatinTokens(normalizedLine).contains { $0.hasPrefix(token) }
         case .orderedLatinTokens(let tokens):
-            matchesOrderedWholeTokens(line, queryTokens: tokens)
+            matchesOrderedWholeTokens(normalizedLine, queryTokens: tokens)
         case .cjkSubstring(let query):
-            line.contains(query)
+            normalizedLine.contains(query)
         case .explicitFTS(let query):
-            matchesExplicitFTSLineFallback(line, query: query)
+            matchesExplicitFTSLineFallback(normalizedLine, query: query)
         }
     }
 
@@ -8765,6 +8767,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         return currentIsOperator()
+    }
+
+    private static func normalizeSearchSpaces(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{3000}", with: " ")
     }
 
     private static func tokenizeLatinTokens(_ text: String) -> [String] {
