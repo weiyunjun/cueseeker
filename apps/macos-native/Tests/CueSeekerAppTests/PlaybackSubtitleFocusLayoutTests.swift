@@ -2643,7 +2643,7 @@ func subtitleFocusPreciseWheelUsesContentDependentDistanceAndNearestSettlement()
 
 @MainActor
 @Test
-func subtitleFocusOverlayRendersCommittedSnapshotAtStageSize() throws {
+func subtitleFocusOverlayRendersAppearanceBackgroundAtStageSize() throws {
     _ = NSApplication.shared
     let filledLine = String(repeating: "█", count: 80)
     let snapshot = SubtitleFocusSnapshot(
@@ -2656,41 +2656,86 @@ func subtitleFocusOverlayRendersCommittedSnapshotAtStageSize() throws {
             )
         }
     )
-    let renderer = ImageRenderer(
-        content: PlaybackSubtitleFocusOverlay(snapshot: snapshot)
-            .frame(width: 1_280, height: 720)
-    )
-    renderer.scale = 1
+    for (colorScheme, expectsLightBackground) in [
+        (ColorScheme.light, true),
+        (ColorScheme.dark, false),
+    ] {
+        let renderer = ImageRenderer(
+            content: PlaybackSubtitleFocusOverlay(snapshot: snapshot)
+                .frame(width: 1_280, height: 720)
+                .environment(\.colorScheme, colorScheme)
+        )
+        renderer.scale = 1
 
-    let renderedImage = try #require(renderer.nsImage)
-    #expect(renderedImage.size.width == 1_280)
-    #expect(renderedImage.size.height == 720)
+        let renderedImage = try #require(renderer.nsImage)
+        #expect(renderedImage.size.width == 1_280)
+        #expect(renderedImage.size.height == 720)
 
-    let imageData = try #require(renderedImage.tiffRepresentation)
-    let bitmap = try #require(NSBitmapImageRep(data: imageData))
-    let edgeRows = [
-        8,
-        16,
-        24,
-        bitmap.pixelsHigh - 24,
-        bitmap.pixelsHigh - 16,
-        bitmap.pixelsHigh - 8,
-    ]
-    var maximumEdgeComponent: CGFloat = 0
-    for y in edgeRows {
-        for x in stride(from: 0, to: bitmap.pixelsWide, by: 4) {
-            guard let color = bitmap.colorAt(x: x, y: y)?
-                .usingColorSpace(.deviceRGB) else {
-                continue
-            }
-            let pixelMaximum = max(
+        let imageData = try #require(renderedImage.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: imageData))
+        let cornerPoints = [
+            (8, 8),
+            (bitmap.pixelsWide - 8, 8),
+            (8, bitmap.pixelsHigh - 8),
+            (bitmap.pixelsWide - 8, bitmap.pixelsHigh - 8),
+        ]
+        for (x, y) in cornerPoints {
+            let color = try #require(
+                bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB)
+            )
+            let minimumComponent = min(
+                color.redComponent,
+                min(color.greenComponent, color.blueComponent)
+            )
+            let maximumComponent = max(
                 color.redComponent,
                 max(color.greenComponent, color.blueComponent)
             )
-            maximumEdgeComponent = max(maximumEdgeComponent, pixelMaximum)
+            if expectsLightBackground {
+                #expect(minimumComponent > 0.9)
+            } else {
+                #expect(maximumComponent < 0.3)
+            }
         }
     }
-    #expect(maximumEdgeComponent < 0.3)
+}
+
+@MainActor
+@Test
+func subtitleFocusNativeReelAppearanceChangePreservesStateAndCaches() throws {
+    _ = NSApplication.shared
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.appearance = NSAppearance(named: .aqua)
+    view.update(
+        cues: focusLayoutCues(0..<20),
+        totalCount: 20,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    let scrollbarView = try #require(
+        playbackSubtitleFocusSubview(
+            of: TableScrollbarOverlayView.self,
+            in: view
+        )
+    )
+    let selectedOrdinal = view.selectedOrdinalForTesting
+    let fractionalOrdinal = view.fractionalOrdinalForTesting
+    let measurementCacheCount = view.measurementCacheCountForTesting
+
+    #expect(scrollbarView.appearanceMode == .inherited)
+    view.appearance = NSAppearance(named: .darkAqua)
+    view.layoutSubtreeIfNeeded()
+
+    #expect(view.selectedOrdinalForTesting == selectedOrdinal)
+    #expect(view.fractionalOrdinalForTesting == fractionalOrdinal)
+    #expect(view.measurementCacheCountForTesting == measurementCacheCount)
+    view.invalidate()
 }
 
 @MainActor

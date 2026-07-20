@@ -369,12 +369,14 @@ private struct PlaybackSubtitleFocusPointerShield: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = PlaybackSubtitleFocusPointerShieldView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = PlaybackTheme
-            .subtitleFocusOverlayBackgroundNative.cgColor
+        view.updateBackgroundColor()
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? PlaybackSubtitleFocusPointerShieldView)?
+            .updateBackgroundColor()
+    }
 }
 
 private final class PlaybackSubtitleFocusPointerShieldView: NSView {
@@ -384,6 +386,20 @@ private final class PlaybackSubtitleFocusPointerShieldView: NSView {
 
     override var acceptsFirstResponder: Bool {
         false
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBackgroundColor()
+    }
+
+    func updateBackgroundColor() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = PlaybackTheme
+                .subtitleFocusOverlayBackgroundNative
+                .usingColorSpace(.sRGB)?
+                .cgColor
+        }
     }
 
     override func mouseDown(with event: NSEvent) {

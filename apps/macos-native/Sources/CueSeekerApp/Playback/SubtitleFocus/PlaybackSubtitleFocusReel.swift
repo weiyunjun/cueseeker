@@ -1354,7 +1354,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         scrollView.documentView = documentView
         addSubview(scrollView)
 
-        scrollbarView.appearanceMode = .fixedDark
+        scrollbarView.appearanceMode = .inherited
         scrollbarView.presentationProvider = { [weak self] in
             self?.scrollbarMetrics.presentation
         }
@@ -2816,6 +2816,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     override var acceptsFirstResponder: Bool {
         false
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 
     var selectedOrdinalForTesting: Int? {

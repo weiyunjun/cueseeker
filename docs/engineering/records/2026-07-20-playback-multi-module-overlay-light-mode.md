@@ -27,6 +27,10 @@ selection, scrolling, and playback behavior.
    Search, Recent, and Library surfaces so they inherit CueSeeker's effective
    appearance. Connected the module Sidebar to its dedicated appearance-aware
    colors without changing layout or interaction.
+3. Made the Native Reel redraw its resident content when effective appearance
+   changes, changed its scrollbar to inherited appearance, applied the dedicated
+   playlist sequence color, and refreshed the AppKit pointer-shield background
+   without invalidating Reel measurements or session state.
 
 ## Verification
 
@@ -35,15 +39,25 @@ selection, scrolling, and playback behavior.
 - `swift test --filter playbackCueResult` passed with 12 tests.
 - `swift test --filter playbackMultiModule` passed with 2 tests.
 - `swift test --filter 'playbackRecent|playbackLibrary'` passed with 9 tests.
-- Static inspection confirmed that the only remaining fixed Dark appearance in
-  the Overlay source is the Native Reel scrollbar scheduled for the next step.
+- The focused appearance-rendering, state-preservation, inherited-scrollbar,
+  and playlist-sequence test run passed with 3 tests.
+- `swift test --filter subtitleFocus` passed with 69 tests.
+- `swift test --filter playbackCueResult` passed with 12 tests.
+- The first state-preservation test attempted to inspect `NSView.needsDisplay`
+  without mounting the view in a window. AppKit immediately cleared that
+  internal flag, so the test was corrected to verify rendered Light and Dark
+  output separately while the state test verifies selection, fractional
+  position, measurement-cache preservation, and inherited scrollbar mode.
+- Static inspection confirmed that the Playback Subtitle Focus sources no
+  longer force Dark appearance.
 
 ## Outcome
 
 The dynamic Overlay color foundation matches the documented Light and Dark
 tokens. SwiftUI Overlay surfaces now inherit CueSeeker's effective appearance;
-Native Reel and scrollbar refresh behavior remains for the following step.
+Native Reel and scrollbar appearance behavior passes targeted rendering,
+state, layout, virtualization, and interaction verification.
 
 ## Follow-ups
 
-- Refresh Native Reel colors and scrollbar drawing when appearance changes.
+- Complete integrated build, test, and appearance verification.

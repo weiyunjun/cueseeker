@@ -246,7 +246,7 @@ final class PlaybackCueResultLayout {
                         ofSize: PlaybackSubtitleFocusMetrics.playlistSequenceFontSize,
                         weight: .regular
                     ),
-                    color: PlaybackTheme.subtitleFocusCueUnselectedNative,
+                    color: PlaybackTheme.playbackPlaylistSequenceNative,
                     primaryFirstLineBaseline: line.baseline
                 )
             }
