@@ -11,7 +11,7 @@ main
 2. 立即禁用 Add Folder、Remove、Index Now、数据库压缩
 3. 后端同样拒绝新的 Index 请求，不能只依赖按钮禁用
 4. 在串行数据库执行器中完成删除
-5. 成功后刷新界面并回到 idle；失败则恢复状态并提示错误
+5. 成功后刷新界面提示Removed xxx；失败则恢复状态并提示错误
 
 # 细节说明
 1. Indexing 已开始时，Remove按钮变为disabled状态，UI上拒绝用户移除。
