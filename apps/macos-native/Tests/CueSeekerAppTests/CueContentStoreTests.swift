@@ -55,6 +55,65 @@ func searchStoreKeepsOnlyOrderAndResolvesCurrentCanonicalCueContent() {
     #expect(searchStore.searchResults.map(\.searchRank) == [12])
 }
 
+@MainActor
+@Test
+func canonicalCueChangeAutomaticallyReloadsResidentSearchTableProjection() {
+    let cueStore = CueContentStore()
+    let searchStore = SearchStore(cueContentStore: cueStore)
+    let original = cueContent(cueID: 7, content: "Original")
+    let updated = cueContent(cueID: 7, content: "Updated")
+    searchStore.replaceLoadedSearchResults([
+        SubtitleSearchResult(cueContent: original, searchRank: 12),
+    ])
+    searchStore.tableRowStore.updateResidentSearchReferences(
+        cueIDs: searchStore.loadedSearchResultCueIDs,
+        ranksByCueID: searchStore.searchRankByCueID,
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        sourceRevision: searchStore.tableProjectionRevision,
+        tableName: "search"
+    )
+    let originalSnapshotVersion = searchStore.tableRowStore.snapshot.version
+    let originalProjectionRevision = searchStore.tableProjectionRevision
+
+    cueStore.install([updated])
+
+    #expect(searchStore.tableProjectionRevision == originalProjectionRevision)
+    #expect(searchStore.tableRowStore.snapshot.version == originalSnapshotVersion + 1)
+    #expect(searchStore.tableRowStore.snapshot.update == .reload)
+    #expect(searchStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Updated")
+}
+
+@MainActor
+@Test
+func canonicalCueChangeAutomaticallyReloadsResidentShioriTableProjection() {
+    let cueStore = CueContentStore()
+    let shioriStore = ShioriStore(cueContentStore: cueStore)
+    let original = cueContent(cueID: 7, content: "Original Shiori")
+    let updated = cueContent(cueID: 7, content: "Updated Shiori")
+    let relation = ShioriRelation(
+        id: 70,
+        listID: ShioriListIdentity.defaultListID,
+        cueID: 7,
+        createdAt: "2026-07-22T00:00:00Z"
+    )
+    cueStore.install([original])
+    shioriStore.tableRowStore.updateResidentShioriRelations(
+        [relation],
+        tagsByShioriID: [:],
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        tableName: "shiori"
+    )
+    let originalSnapshotVersion = shioriStore.tableRowStore.snapshot.version
+
+    cueStore.install([updated])
+
+    #expect(shioriStore.tableRowStore.snapshot.version == originalSnapshotVersion + 1)
+    #expect(shioriStore.tableRowStore.snapshot.update == .reload)
+    #expect(shioriStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Updated Shiori")
+}
+
 private func cueContent(cueID: Int64, content: String) -> CueContent {
     CueContent(
         cueID: cueID,

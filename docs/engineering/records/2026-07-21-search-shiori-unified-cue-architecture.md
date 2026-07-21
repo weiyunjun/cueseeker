@@ -62,6 +62,12 @@ table presentation resources.
     scalar source revision instead of reading and reconstructing the complete
     `SubtitleSearchResult` collection; shared Cue-content revision changes still
     force a table reload independently of the Search source revision.
+13. Closed the canonical Cue-content notification chain. The Cue content store
+    now publishes committed changes with their affected CueIDs; the long-lived
+    Search and Shiori stores subscribe directly and reload only resident table
+    projections that reference those CueIDs. Result identity revisions remain
+    independent from content revisions, and table refresh no longer depends on
+    a SwiftUI metadata change or a manual row-store update.
 
 ## Verification
 
@@ -84,6 +90,9 @@ table presentation resources.
 - Search remount with 10,000 resident Cue references preserves one row store,
   performs no row materialization, and keeps the table snapshot version stable:
   passed.
+- Canonical content replacement automatically advances both Search and Shiori
+  table snapshot versions through the store notification chain, without a
+  manual row-store update: passed.
 - Final full 804-test regression run completed. All requirement-focused,
   database, Search, Shiori, Playback integration, table interaction, Cue Group
   reflow, and presentation-cache tests passed. Ten native-media, MainActor, or

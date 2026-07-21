@@ -502,11 +502,17 @@ final class AppCoordinator: ObservableObject {
             uiProbeScope: uiProbeScope
         )
         indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
-        shiori = ShioriStore(uiProbeScope: uiProbeScope)
         library = LibraryStore()
         let cueContentStore = CueContentStore()
         cueContent = cueContentStore
-        search = SearchStore(cueContentStore: cueContentStore)
+        shiori = ShioriStore(
+            cueContentStore: cueContentStore,
+            uiProbeScope: uiProbeScope
+        )
+        search = SearchStore(
+            cueContentStore: cueContentStore,
+            uiProbeScope: uiProbeScope
+        )
         playback = PlaybackStore(userDefaults: userDefaults)
 
         let openedDatabase: SubtitleDatabase?

@@ -1,9 +1,11 @@
+import Combine
 import Foundation
 import CueSeekerCore
 
 @MainActor
 final class ShioriStore: ObservableObject {
     private let uiProbeScope: String?
+    private var cueContentChangesCancellable: AnyCancellable?
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
     @Published var tableSubmittedSearchText = ""
@@ -25,8 +27,20 @@ final class ShioriStore: ObservableObject {
 
     let tableRowStore = TableSandboxRowModelStore()
 
-    init(uiProbeScope: String? = nil) {
+    init(
+        cueContentStore: CueContentStore? = nil,
+        uiProbeScope: String? = nil
+    ) {
         self.uiProbeScope = uiProbeScope
+        cueContentChangesCancellable = cueContentStore?.changes.sink {
+            [weak tableRowStore] change in
+            tableRowStore?.refreshReferencedCueContent(
+                change,
+                tableName: "shiori",
+                probeSurface: .shiori,
+                probeScope: uiProbeScope
+            )
+        }
     }
 
     func clearTableRowsForReload(tableName: String = "shiori") {

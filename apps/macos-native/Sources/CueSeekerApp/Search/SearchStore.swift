@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import CueSeekerCore
 
@@ -23,6 +24,8 @@ struct CueContextSearchRequest: Equatable, Identifiable {
 @MainActor
 final class SearchStore: ObservableObject {
     private let cueContentStore: CueContentStore
+    private var cueContentChangesCancellable: AnyCancellable?
+    private let uiProbeScope: String?
     private(set) var loadedSearchResultCueIDs: [Int64] = []
     private(set) var searchRankByCueID: [Int64: Int] = [:]
     private(set) var tableProjectionRevision: UInt64 = 0
@@ -54,9 +57,22 @@ final class SearchStore: ObservableObject {
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []
 
-    init(cueContentStore: CueContentStore = CueContentStore()) {
+    init(
+        cueContentStore: CueContentStore = CueContentStore(),
+        uiProbeScope: String? = nil
+    ) {
         self.cueContentStore = cueContentStore
+        self.uiProbeScope = uiProbeScope
         tableRowStore = TableSandboxRowModelStore()
+        cueContentChangesCancellable = cueContentStore.changes.sink {
+            [weak tableRowStore] change in
+            tableRowStore?.refreshReferencedCueContent(
+                change,
+                tableName: "test-search",
+                probeSurface: .search,
+                probeScope: uiProbeScope
+            )
+        }
     }
 
     var searchResults: [SubtitleSearchResult] {
@@ -80,13 +96,12 @@ final class SearchStore: ObservableObject {
         orderedCueIDs: [Int64]? = nil
     ) {
         objectWillChange.send()
-        let contentChanged = cueContentStore.install(results.map(\.cueContent))
+        cueContentStore.install(results.map(\.cueContent))
         let nextCueIDs = results.map(\.entryID)
         let nextRanks = Dictionary(uniqueKeysWithValues: results.map {
             ($0.entryID, $0.searchRank)
         })
-        let projectionChanged = contentChanged
-            || loadedSearchResultCueIDs != nextCueIDs
+        let projectionChanged = loadedSearchResultCueIDs != nextCueIDs
             || searchRankByCueID != nextRanks
         loadedSearchResultCueIDs = nextCueIDs
         searchRankByCueID = nextRanks

@@ -1,9 +1,17 @@
+import Combine
 import Foundation
 import CueSeekerCore
 
+struct CueContentStoreChange: Equatable {
+    let revision: UInt64
+    let cueIDs: Set<Int64>
+}
+
+@MainActor
 final class CueContentStore {
     private(set) var revision: UInt64 = 0
     private var contentByCueID: [Int64: CueContent] = [:]
+    let changes = PassthroughSubject<CueContentStoreChange, Never>()
 
     var count: Int {
         contentByCueID.count
@@ -27,39 +35,47 @@ final class CueContentStore {
 
     @discardableResult
     func install(_ contents: [CueContent]) -> Bool {
-        var changed = false
+        var changedCueIDs: Set<Int64> = []
         for content in contents where contentByCueID[content.cueID] != content {
             contentByCueID[content.cueID] = content
-            changed = true
+            changedCueIDs.insert(content.cueID)
         }
-        if changed {
-            revision &+= 1
-        }
-        return changed
+        return publishChange(cueIDs: changedCueIDs)
     }
 
     @discardableResult
     func remove(cueIDs: Set<Int64>) -> Bool {
         guard !cueIDs.isEmpty else { return false }
-        let oldCount = contentByCueID.count
-        contentByCueID = contentByCueID.filter { !cueIDs.contains($0.key) }
-        guard contentByCueID.count != oldCount else { return false }
-        revision &+= 1
-        return true
+        let removedCueIDs = Set(contentByCueID.keys.filter(cueIDs.contains))
+        for cueID in removedCueIDs {
+            contentByCueID.removeValue(forKey: cueID)
+        }
+        return publishChange(cueIDs: removedCueIDs)
     }
 
     @discardableResult
     func remove(where shouldRemove: (CueContent) -> Bool) -> Bool {
-        let oldCount = contentByCueID.count
-        contentByCueID = contentByCueID.filter { !shouldRemove($0.value) }
-        guard contentByCueID.count != oldCount else { return false }
-        revision &+= 1
-        return true
+        let removedCueIDs = Set(contentByCueID.compactMap { cueID, content in
+            shouldRemove(content) ? cueID : nil
+        })
+        for cueID in removedCueIDs {
+            contentByCueID.removeValue(forKey: cueID)
+        }
+        return publishChange(cueIDs: removedCueIDs)
     }
 
     func removeAll() {
         guard !contentByCueID.isEmpty else { return }
+        let removedCueIDs = Set(contentByCueID.keys)
         contentByCueID.removeAll(keepingCapacity: true)
+        _ = publishChange(cueIDs: removedCueIDs)
+    }
+
+    @discardableResult
+    private func publishChange(cueIDs: Set<Int64>) -> Bool {
+        guard !cueIDs.isEmpty else { return false }
         revision &+= 1
+        changes.send(CueContentStoreChange(revision: revision, cueIDs: cueIDs))
+        return true
     }
 }

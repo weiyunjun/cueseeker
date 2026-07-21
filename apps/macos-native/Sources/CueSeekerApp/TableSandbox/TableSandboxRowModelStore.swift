@@ -216,6 +216,38 @@ final class TableSandboxRowModelStore: ObservableObject {
         self.displayTitleResolver = displayTitleResolver
     }
 
+    func refreshReferencedCueContent(
+        _ change: CueContentStoreChange,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) {
+        guard snapshot.cueContentRevision != change.revision else {
+            return
+        }
+        let affectsSearch = snapshot.searchCueIDs.contains {
+            change.cueIDs.contains($0)
+        }
+        let affectsShiori = snapshot.shioriRelations.contains {
+            change.cueIDs.contains($0.cueID)
+        }
+        guard affectsSearch || affectsShiori else {
+            return
+        }
+
+        var nextSnapshot = snapshot
+        nextSnapshot.cueContentRevision = change.revision
+        nextSnapshot.version += 1
+        nextSnapshot.update = .reload
+        publishSnapshot(
+            nextSnapshot,
+            tableName: tableName,
+            probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+            probeScope: probeScope,
+            reason: "canonical_cue_content_changed"
+        )
+    }
+
     func updateResidentSearchResults(
         _ results: [SubtitleSearchResult],
         cueContentProvider: @escaping (Int64) -> CueContent?,
