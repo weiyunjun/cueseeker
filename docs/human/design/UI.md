@@ -134,6 +134,8 @@
 - `--color-library-time-badge-bg`: Light `rgba(15,23,42,0.72)`; Dark `rgba(0,0,0,0.58)`
 - `--color-library-time-badge-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#303036`
+- `--color-library-cover-crop-accent`: macOS accent color
+- `--color-library-cover-crop-mask`: macOS shadow color
 - `--color-library-media-card-hover-bg`:
   - Light: macOS accent color with Alpha `0.08`
   - Dark: macOS accent color with Alpha `0.12`
@@ -704,6 +706,7 @@
 - Recent 和 Library Folder 在卡片交互区域触发。
 - Library Episode 只在 Cover Region 触发。
 - 所有 Library Card Context Menu 均包含 `Change Cover`。
+- `Change Cover` 位于 `Open Folder` 下方，Leading Icon 使用上箭头托盘图标。
 - `Change Cover` 打开 Finder；选择图片后打开 Edit Cover Dialog。
 - Workbench 中的其他 Menu Item 由所属 Card Layout 定义。
 - Playback 复用所属 Card Layout 定义的 Menu Item 和动作，但不显示 `Context` Menu Item。
@@ -863,12 +866,16 @@
 #### Library Cover Crop Editor
 
 - 用途：调整图片的封面裁剪区域。
+- Token：`--aspect-library-cover`、`--color-library-cover-crop-accent`、`--color-library-cover-crop-mask`、`--color-bg-surface`。
 - 裁剪区域固定使用 `--aspect-library-cover`。
 - 初始裁剪框为图片范围内最大的 `--aspect-library-cover` 区域。
-- 裁剪框显示四个角柄和四个边柄；拖动任一缩放柄时保持固定比例。
+- 裁剪框仅显示四个角柄；拖动任一角柄时保持固定比例。
+- 裁剪框边框和四个角柄边框使用 `--color-library-cover-crop-accent`。
+- 四个角柄内部使用 `--color-bg-surface`。
 - 拖动裁剪框内部移动完整裁剪区域。
 - 裁剪框不得超出图片范围，并具有最小尺寸。
-- 裁剪框外显示遮罩。
+- 裁剪框外的图片区域使用 `--color-library-cover-crop-mask`。
+- 移动或缩放裁剪框时，遮罩随当前裁剪区域同步更新；裁剪框内部不显示遮罩。
 
 #### Library Cover Progress Overlay
 
@@ -1472,7 +1479,7 @@
 - Hint：`Support: JPG, JPEG, PNG, and GIF no more than 20 MB.`
 - Actions：
   - Neutral Button：`Cancel`
-  - Primary Button：`Done`
+  - Primary Button：`Save`
 
 #### Confirmation Dialog Layout
 

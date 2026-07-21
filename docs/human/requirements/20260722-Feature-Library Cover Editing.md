@@ -9,9 +9,9 @@ main
 5. 保存成功后，刷新对应封面区域（不要刷新整个界面）。
 6. Index封面和用户上传图片独立，并保证不会互相覆盖。
 7. 新封面保存并切换成功后，删除旧用户封面文件并清除旧内存缓存；失败时保留旧封面，Index封面始终保留。
-8. UI改动见# UI文档改动。
+8. UI改动见# UI文档改动1和# UI文档改动2。
 
-# UI文档改动
+# UI文档改动1
 
 ### 1. 增加 Primary Button
 
@@ -127,4 +127,99 @@ main
   - Primary Button：`Done`
 
 #### Confirmation Dialog Layout
+```
+
+# UI文档改动2
+
+### 1. `Core Tokens / Library Media` 增加 Crop Editor 颜色
+
+修改前
+
+```markdown
+- `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#303036`
+- `--color-library-media-card-hover-bg`:
+  - Light: macOS accent color with Alpha `0.08`
+  - Dark: macOS accent color with Alpha `0.12`
+```
+
+修改后
+
+```markdown
+- `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#303036`
+- `--color-library-cover-crop-accent`: macOS accent color
+- `--color-library-cover-crop-mask`: macOS shadow color
+- `--color-library-media-card-hover-bg`:
+  - Light: macOS accent color with Alpha `0.08`
+  - Dark: macOS accent color with Alpha `0.12`
+```
+
+### 2. 补充 `Change Cover` 的位置和图标
+
+修改前
+
+```markdown
+- 所有 Library Card Context Menu 均包含 `Change Cover`。
+- `Change Cover` 打开 Finder；选择图片后打开 Edit Cover Dialog。
+- Workbench 中的其他 Menu Item 由所属 Card Layout 定义。
+```
+
+修改后
+
+```markdown
+- 所有 Library Card Context Menu 均包含 `Change Cover`。
+- `Change Cover` 位于 `Open Folder` 下方，Leading Icon 使用上箭头托盘图标。
+- `Change Cover` 打开 Finder；选择图片后打开 Edit Cover Dialog。
+- Workbench 中的其他 Menu Item 由所属 Card Layout 定义。
+```
+
+### 3. 修正 `Library Cover Crop Editor`
+
+修改前
+
+```markdown
+#### Library Cover Crop Editor
+
+- 用途：调整图片的封面裁剪区域。
+- 裁剪区域固定使用 `--aspect-library-cover`。
+- 初始裁剪框为图片范围内最大的 `--aspect-library-cover` 区域。
+- 裁剪框显示四个角柄和四个边柄；拖动任一缩放柄时保持固定比例。
+- 拖动裁剪框内部移动完整裁剪区域。
+- 裁剪框不得超出图片范围，并具有最小尺寸。
+- 裁剪框外显示遮罩。
+```
+
+修改后
+
+```markdown
+#### Library Cover Crop Editor
+
+- 用途：调整图片的封面裁剪区域。
+- Token：`--aspect-library-cover`、`--color-library-cover-crop-accent`、`--color-library-cover-crop-mask`、`--color-bg-surface`。
+- 裁剪区域固定使用 `--aspect-library-cover`。
+- 初始裁剪框为图片范围内最大的 `--aspect-library-cover` 区域。
+- 裁剪框仅显示四个角柄；拖动任一角柄时保持固定比例。
+- 裁剪框边框和四个角柄边框使用 `--color-library-cover-crop-accent`。
+- 四个角柄内部使用 `--color-bg-surface`。
+- 拖动裁剪框内部移动完整裁剪区域。
+- 裁剪框不得超出图片范围，并具有最小尺寸。
+- 裁剪框外的图片区域使用 `--color-library-cover-crop-mask`。
+- 移动或缩放裁剪框时，遮罩随当前裁剪区域同步更新；裁剪框内部不显示遮罩。
+```
+
+### 4. 将 `Done` 改为 `Save`
+
+修改前
+
+```markdown
+- Actions：
+  - Neutral Button：`Cancel`
+  - Primary Button：`Done`
+```
+
+修改后
+
+```markdown
+- Actions：
+  - Neutral Button：`Cancel`
+  - Primary Button：`Save`
 ```
