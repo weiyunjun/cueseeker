@@ -29,9 +29,13 @@ table presentation resources.
    Search store and Workbench table now resolve current values through the same
    AppCoordinator Cue content store used by Shiori, and table rows are projected
    lazily from CueIDs instead of retaining a second complete row collection.
-6. Pending: preserve independent surface state and remove full-collection
+6. Removed the legacy resident `[Shiori]` and file-group presentation dataset.
+   Playback database order, explicit scopes, adjacent navigation, Context, and
+   row actions now resolve Shiori relations through the canonical Cue store;
+   the obsolete card-surface hydration path no longer runs after mutations.
+7. Pending: preserve independent surface state and remove full-collection
    reconstruction during switching.
-7. Pending: remove full row payload retention from table measurement caches and
+8. Pending: remove full row payload retention from table measurement caches and
    complete regression verification.
 
 ## Verification

@@ -7,7 +7,6 @@ struct SearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var indexing: IndexingStore
-    @EnvironmentObject private var shiori: ShioriStore
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
@@ -204,101 +203,6 @@ struct SearchView: View {
             }
         } else {
             collapsedLibraryFolderPaths.insert(folderPath)
-        }
-    }
-
-    private var shioriPanel: some View {
-        AppPerformanceProbe.measure("SearchView.shioriPanel.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count(
-                "UI.ShioriPanel.body",
-                scope: appState.uiProbeScope
-            )
-
-            return GeometryReader { geometry in
-                VStack(alignment: .leading, spacing: 6) {
-                    shioriHeader
-
-                    if shiori.shioris.isEmpty {
-                        InfoPageStateView(state: .shioriEmpty)
-                        .font(.system(size: SearchTypography.bodySize))
-                    } else {
-                        shioriCardList
-                    }
-
-                    Spacer()
-                }
-                .frame(maxHeight: .infinity, alignment: .topLeading)
-                .padding(.top, AppShellLayout.contentTopPadding)
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
-                .contentShape(Rectangle())
-            }
-            .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
-            .background(LayoutPerformanceProbe(name: "SearchView.shioriPanel.layout"))
-            .task {
-                appState.hydrateShiorisAsync()
-            }
-        }
-    }
-
-    private var shioriHeader: some View {
-        HStack(spacing: 12) {
-            Text(shioriSummaryText)
-                .font(.system(size: SearchTypography.detailSize))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            if shiori.hasShioriFileGroups {
-                Button {
-                    appState.workbenchLayout.clearSearchFocus()
-                    appState.collapseAllShioriGroups()
-                } label: {
-                    Text("Collapse All")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.leading, 12)
-        .padding(.trailing, 28)
-        .frame(height: 36)
-    }
-
-    private var shioriSummaryText: String {
-        "\(shiori.shioriCount) shioris in \(shiori.shioriFileCount) files"
-    }
-
-    private var shioriCardList: some View {
-        UIInvalidationProbe.count(
-            "UI.ShioriCards.rendered",
-            details: "groups=\(shiori.shioriFileGroups.count) rows=\(shiori.shioriCount)"
-        )
-
-        return GeometryReader { geo in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: SearchCardLayout.groupSpacing) {
-                    ForEach(shiori.shioriFileGroups) { group in
-                        ShioriCardGroupView(
-                            group: group,
-                            onToggle: {
-                                appState.workbenchLayout.clearSearchFocus()
-                                appState.toggleShioriGroup(group.subtitlePath)
-                            },
-                            onOpenShiori: { shiori, displayTitle in
-                                appState.workbenchLayout.clearSearchFocus()
-                                appState.openShiori(shiori, displayTitle: displayTitle)
-                            },
-                            onExportToAnki: {
-                                appState.workbenchLayout.clearSearchFocus()
-                                appState.exportShioriGroupToAnki(group)
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
-                .padding(.top, SearchCardLayout.contentTopPadding)
-                .padding(.bottom, SearchCardLayout.contentBottomPadding)
-                .frame(width: max(0, geo.size.width), alignment: .topLeading)
-            }
         }
     }
 

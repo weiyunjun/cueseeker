@@ -274,7 +274,11 @@ extension AppCoordinator {
         case .explicitIDs(let shioriIDs):
             shioriIDs.count
         case .databaseOrder:
-            shiori.shioris.count
+            if shiori.residentDataRevision != nil {
+                shiori.residentRelations.count
+            } else {
+                (try? subtitleDatabase?.shioriCount()) ?? 0
+            }
         case .table(let context):
             min(
                 context.totalCount,
@@ -291,12 +295,22 @@ extension AppCoordinator {
         case .table:
             return shioriTablePlaybackItem(ordinal: ordinal)
         case .databaseOrder:
-            guard shiori.shioris.indices.contains(ordinal) else {
+            let relations: [ShioriRelation]
+            if shiori.residentDataRevision != nil {
+                relations = shiori.residentRelations
+            } else {
+                relations = (try? subtitleDatabase?.shioriRelations()) ?? []
+            }
+            guard relations.indices.contains(ordinal),
+                  let item = shiori(withID: relations[ordinal].id)
+            else {
                 return nil
             }
             return PlaybackPlaylistItem(
-                shiori: shiori.shioris[ordinal],
-                cuePresentation: nil,
+                shiori: item,
+                cuePresentation: cueContent.content(
+                    for: relations[ordinal].cueID
+                ).map(ShioriCuePresentation.init(cueContent:)),
                 ordinal: ordinal
             )
         case .explicitIDs(let shioriIDs):
@@ -311,14 +325,15 @@ extension AppCoordinator {
                     itemOrdinal: ordinal
                 )
             }
-            guard let item = shiori.shioris.first(where: {
-                $0.id == shioriID
-            }) else {
+            guard let item = shiori(withID: shioriID) else {
                 return nil
             }
             return PlaybackPlaylistItem(
                 shiori: item,
-                cuePresentation: nil,
+                cuePresentation: shiori.residentRelations
+                    .first { $0.id == shioriID }
+                    .flatMap { cueContent.content(for: $0.cueID) }
+                    .map(ShioriCuePresentation.init(cueContent:)),
                 ordinal: ordinal
             )
         }

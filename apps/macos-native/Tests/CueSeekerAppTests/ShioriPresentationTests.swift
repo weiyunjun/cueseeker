@@ -38,14 +38,12 @@ func removeShioriDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
     )
 
     #expect(try database.shioriCount() == 2)
-    #expect(app.shiori.shioris.isEmpty)
-    #expect(app.shiori.shioriFileGroups.isEmpty)
+    #expect(app.shiori.residentRelations.isEmpty)
 
     #expect(app.removeShiori(first, reloadPresentation: true))
 
     #expect(try database.shioriCount() == 1)
-    #expect(app.shiori.shioris.isEmpty)
-    #expect(app.shiori.shioriFileGroups.isEmpty)
+    #expect(app.shiori.residentRelations.isEmpty)
     #expect(!app.shiori.tableHasLoadedInitialPage)
 }
 

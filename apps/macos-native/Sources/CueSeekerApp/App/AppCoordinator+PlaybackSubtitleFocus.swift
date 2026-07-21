@@ -500,7 +500,6 @@ extension AppCoordinator {
         if result == .saved {
             shiori.invalidateTableRows()
             loadShioriTableRowsIfNeeded()
-            hydrateShiorisAsync(invalidatesTableRows: false)
         }
         guard playbackSubtitleFocusActionGeneration == taskGeneration,
               playback.subtitleFocusSession === session,

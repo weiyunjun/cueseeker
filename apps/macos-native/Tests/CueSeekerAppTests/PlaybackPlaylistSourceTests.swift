@@ -308,9 +308,24 @@ func shioriPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     app.shioriPlaybackNavigationScopeIDs = [9, 3, 7]
-    app.shiori.shioris = [9, 3, 7].map {
-        makePlaybackPlaylistShiori(id: $0)
+    let relations = [9, 3, 7].map {
+        ShioriRelation(
+            id: $0,
+            listID: ShioriListIdentity.defaultListID,
+            cueID: $0,
+            createdAt: "2026-07-15T00:00:00Z"
+        )
     }
+    let contents = [9, 3, 7].map(makePlaybackPlaylistCueContent)
+    app.cueContent.install(contents)
+    app.shiori.installResidentSnapshot(
+        ShioriResidentSnapshot(
+            relations: relations,
+            cueContents: contents,
+            tagsByShioriID: [:]
+        ),
+        dataRevision: app.shiori.tableDataRevision
+    )
 
     app.installShioriPlaybackPlaylistSource()
 
@@ -324,7 +339,7 @@ func shioriPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     #expect(window.item(at: 2)?.identity == .shiori(7))
 
     app.openShiori(
-        app.shiori.shioris[1],
+        Shiori(relation: relations[1], cueContent: contents[1]),
         navigationScopeIDs: [9, 3, 7],
         playlistScope: .explicitIDs([9, 3, 7]),
         playlistSelectedOrdinal: 1
@@ -400,5 +415,29 @@ private func makePlaybackPlaylistShiori(
         content: content ?? "shiori-\(id)",
         isValid: true,
         createdAt: "2026-07-15T00:00:00Z"
+    )
+}
+
+private func makePlaybackPlaylistCueContent(id: Int64) -> CueContent {
+    let shiori = makePlaybackPlaylistShiori(id: id)
+    return CueContent(
+        cueID: id,
+        cueGroupID: id + 100,
+        cueEventIndex: shiori.cueEventIndex ?? Int(id),
+        cueDisplayOrder: shiori.cueDisplayOrder ?? 0,
+        primaryGroupIndex: 0,
+        subtitlePath: shiori.subtitlePath,
+        subtitleFormat: shiori.subtitleFormat,
+        videoPath: shiori.videoPath,
+        videoName: shiori.videoName,
+        displayTitle: "Shiori \(id)",
+        timeRange: shiori.timeRange,
+        startMilliseconds: shiori.startMilliseconds,
+        endMilliseconds: shiori.endMilliseconds,
+        content: shiori.content,
+        cueLines: shiori.cueLines,
+        cueGroupLines: shiori.cueLines,
+        languages: [.unknown],
+        speakers: []
     )
 }

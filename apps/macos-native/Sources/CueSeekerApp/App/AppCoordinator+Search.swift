@@ -111,17 +111,18 @@ extension AppCoordinator {
     }
 
     func openShioriContext(_ item: Shiori, displayTitle: String) {
-        let targetCueID: Int64?
-        if let database = subtitleDatabase {
-            do {
-                targetCueID = try database.cueID(forShioriID: item.id)
-            } catch {
-                print("Failed to resolve Shiori context cue: \(error)")
-                targetCueID = nil
-            }
-        } else {
-            targetCueID = nil
-        }
+        let targetCueID = shiori.residentRelations
+            .first { $0.id == item.id }?
+            .cueID
+            ?? {
+                guard let database = subtitleDatabase else { return nil }
+                do {
+                    return try database.shioriRelation(id: item.id)?.cueID
+                } catch {
+                    print("Failed to resolve Shiori context cue: \(error)")
+                    return nil
+                }
+            }()
 
         guard let targetCueID else {
             return

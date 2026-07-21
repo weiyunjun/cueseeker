@@ -4,9 +4,6 @@ import CueSeekerCore
 @MainActor
 final class ShioriStore: ObservableObject {
     private let uiProbeScope: String?
-    @Published var collapsedShioriGroupPaths: Set<String> = []
-    @Published var shioris: [Shiori] = []
-    @Published var shioriFileGroups: [ShioriFileGroup] = []
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
     @Published var tableSubmittedSearchText = ""
@@ -27,18 +24,6 @@ final class ShioriStore: ObservableObject {
 
     init(uiProbeScope: String? = nil) {
         self.uiProbeScope = uiProbeScope
-    }
-
-    var hasShioriFileGroups: Bool {
-        !shioriFileGroups.isEmpty
-    }
-
-    var shioriCount: Int {
-        shioris.count
-    }
-
-    var shioriFileCount: Int {
-        shioriFileGroups.count
     }
 
     func clearTableRowsForReload(tableName: String = "shiori") {

@@ -245,61 +245,6 @@ extension AppCoordinator {
         }
     }
 
-    func hydrateShiorisAsync(invalidatesTableRows: Bool = true) {
-        guard let database = subtitleDatabase else {
-            return
-        }
-
-        shiorisTask?.cancel()
-        shiorisTask = Task { [weak self] in
-            do {
-                let loadedShioris = try await Task.detached(priority: .userInitiated) {
-                    try database.shioris()
-                }.value
-
-                guard !Task.isCancelled else { return }
-
-                self?.applyShioris(
-                    loadedShioris,
-                    invalidatesTableRows: invalidatesTableRows
-                )
-            } catch {
-                guard !Task.isCancelled else { return }
-                print("Failed to load shioris asynchronously: \(error)")
-            }
-        }
-    }
-
-    func applyShioris(
-        _ nextShioris: [Shiori],
-        invalidatesTableRows: Bool = true
-    ) {
-        let sortedShioris = nextShioris.sorted(by: Self.shioriSort)
-        if invalidatesTableRows,
-           shiori.shioris != sortedShioris {
-            shiori.invalidateTableRows()
-        }
-        shiori.shioris = sortedShioris
-        rebuildShioriFileGroups()
-    }
-
-    func languages(for shiori: Shiori) -> Set<SubtitleLanguageCode> {
-        guard let database = subtitleDatabase else {
-            return [.unknown]
-        }
-
-        do {
-            return try database.cueGroupLanguages(
-                forSubtitlePath: shiori.subtitlePath,
-                startMilliseconds: shiori.startMilliseconds,
-                endMilliseconds: shiori.endMilliseconds
-            )
-        } catch {
-            print("Failed to load Shiori languages: \(error)")
-            return [.unknown]
-        }
-    }
-
     @discardableResult
     func removeShiori(_ item: Shiori, reloadPresentation: Bool = true) -> Bool {
         guard let database = subtitleDatabase else {
@@ -309,15 +254,8 @@ extension AppCoordinator {
 
         do {
             try database.removeShiori(id: item.id)
-            if reloadPresentation {
-                try refreshShioriPresentationAfterMutation(database: database)
-            } else {
-                shiori.invalidateTableRows()
-                shiori.shioris.removeAll { $0.id == item.id }
-                if !shiori.shioriFileGroups.isEmpty {
-                    rebuildShioriFileGroups()
-                }
-            }
+            _ = reloadPresentation
+            shiori.invalidateTableRows()
             removeShioriFromPlaybackNavigationScope(item.id)
             if shiori.selectedShiori?.id == item.id {
                 shiori.selectedShiori = nil
@@ -338,18 +276,6 @@ extension AppCoordinator {
             playback.playbackViewModel?.showShioriFeedback(.unavailable)
             return false
         }
-    }
-
-    func rebuildShioriFileGroups() {
-        shiori.shioriFileGroups = Self.makeShioriFileGroups(
-            from: shiori.shioris,
-            collapsedGroupPaths: shiori.collapsedShioriGroupPaths
-        )
-        UIInvalidationProbe.count(
-            "UI.ShioriPresentation.rebuilt",
-            scope: uiProbeScope,
-            details: "groups=\(shiori.shioriFileGroups.count) rows=\(shiori.shioris.count)"
-        )
     }
 
     func openShiori(
@@ -487,44 +413,6 @@ extension AppCoordinator {
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
             return false
         }
-    }
-
-    func refreshShioriPresentationAfterMutation(database: SubtitleDatabase) throws {
-        let hasLegacyPresentation = !shiori.shioris.isEmpty || !shiori.shioriFileGroups.isEmpty
-        shiori.invalidateTableRows()
-        guard hasLegacyPresentation else {
-            return
-        }
-        applyShioris(try database.shioris())
-    }
-
-
-    func toggleShioriGroup(_ subtitlePath: String) {
-        UIInvalidationProbe.mark(
-            "ACTION UI.ShioriGroup.toggled",
-            details: "collapsedBefore=\(shiori.collapsedShioriGroupPaths.contains(subtitlePath))"
-        )
-        if shiori.collapsedShioriGroupPaths.contains(subtitlePath) {
-            shiori.collapsedShioriGroupPaths.remove(subtitlePath)
-        } else {
-            shiori.collapsedShioriGroupPaths.insert(subtitlePath)
-        }
-        rebuildShioriFileGroups()
-    }
-
-    func collapseAllShioriGroups() {
-        let groupPaths = Set(shiori.shioriFileGroups.map(\.id))
-        guard !groupPaths.isEmpty else {
-            return
-        }
-
-        let collapsedPaths = shiori.collapsedShioriGroupPaths.union(groupPaths)
-        guard collapsedPaths != shiori.collapsedShioriGroupPaths else {
-            return
-        }
-
-        shiori.collapsedShioriGroupPaths = collapsedPaths
-        rebuildShioriFileGroups()
     }
 
     var canOpenPreviousShiori: Bool {
@@ -666,7 +554,19 @@ extension AppCoordinator {
         }
 
         let residentOrdinal = validatedPreferredOrdinal
-            ?? shiori.shioris.firstIndex(where: { $0.id == selectedID })
+            ?? shiori.residentRelations.firstIndex(where: { $0.id == selectedID })
+
+        if let index = residentOrdinal {
+            let residentRelations = shiori.residentRelations
+            shioriPlaybackNavigationSnapshot = (
+                currentID: selectedID,
+                previousID: index > 0 ? residentRelations[index - 1].id : nil,
+                nextID: index + 1 < residentRelations.count
+                    ? residentRelations[index + 1].id
+                    : nil
+            )
+            return index
+        }
 
         if let database = subtitleDatabase {
             do {
@@ -675,19 +575,10 @@ extension AppCoordinator {
                     previousID: try database.adjacentShiori(to: selectedShiori, direction: .previous)?.id,
                     nextID: try database.adjacentShiori(to: selectedShiori, direction: .next)?.id
                 )
-                return residentOrdinal
+                return nil
             } catch {
                 print("Failed to load adjacent Shiori: \(error)")
             }
-        }
-
-        if let index = residentOrdinal {
-            shioriPlaybackNavigationSnapshot = (
-                currentID: selectedID,
-                previousID: index > 0 ? shiori.shioris[index - 1].id : nil,
-                nextID: index + 1 < shiori.shioris.count ? shiori.shioris[index + 1].id : nil
-            )
-            return index
         }
 
         shioriPlaybackNavigationSnapshot = (
@@ -698,20 +589,29 @@ extension AppCoordinator {
         return nil
     }
 
-    private func shiori(withID id: Int64) -> Shiori? {
-        if let cached = shiori.shioris.first(where: { $0.id == id }) {
-            return cached
-        }
+    func shiori(withID id: Int64) -> Shiori? {
         if let entryID = Int(exactly: id),
            let tableItem = shiori.tableRowStore.snapshot.shiori(entryID: entryID) {
             return tableItem
+        }
+        if let relation = shiori.residentRelations.first(where: { $0.id == id }),
+           let content = cueContent.content(for: relation.cueID) {
+            return Shiori(relation: relation, cueContent: content)
         }
         guard let database = subtitleDatabase else {
             return nil
         }
 
         do {
-            return try database.shiori(id: id)
+            guard let relation = try database.shioriRelation(id: id),
+                  let content = try database.cueContents(
+                    forCueIDs: [relation.cueID]
+                  ).first
+            else {
+                return nil
+            }
+            cueContent.install([content])
+            return Shiori(relation: relation, cueContent: content)
         } catch {
             print("Failed to load scoped Shiori: \(error)")
             return nil

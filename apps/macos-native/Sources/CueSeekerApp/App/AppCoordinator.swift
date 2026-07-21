@@ -191,7 +191,7 @@ final class AppCoordinator: ObservableObject {
         for selectedLibraryVideo: LibraryVideo,
         providedDisplayTitle: String? = nil
     ) -> String {
-        playbackDisplayTitle(
+        return playbackDisplayTitle(
             providedDisplayTitle: providedDisplayTitle,
             fallback: library.libraryFolderGroups
                 .lazy
@@ -229,11 +229,12 @@ final class AppCoordinator: ObservableObject {
         for selectedShiori: Shiori,
         providedDisplayTitle: String? = nil
     ) -> String {
-        playbackDisplayTitle(
+        let residentDisplayTitle = shiori.residentRelations
+            .first { $0.id == selectedShiori.id }
+            .flatMap { cueContent.content(for: $0.cueID)?.displayTitle }
+        return playbackDisplayTitle(
             providedDisplayTitle: providedDisplayTitle,
-            fallback: shiori.shioriFileGroups
-                .first { $0.subtitlePath == selectedShiori.subtitlePath }?
-                .subtitleDisplayTitle
+            fallback: residentDisplayTitle
             ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedShiori.subtitlePath)
         )
     }
@@ -427,7 +428,6 @@ final class AppCoordinator: ObservableObject {
     var libraryDisplayRenditionTask: Task<Void, Never>?
     var libraryDisplayRenditionAttemptedScopeKey: String?
     var libraryDisplayRenditionGeneration = 0
-    var shiorisTask: Task<Void, Never>?
     var shioriTableRowsTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?

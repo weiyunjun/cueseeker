@@ -133,7 +133,7 @@ func shioriPlaybackNavigationUsesDatabaseWhenStoreIsNotHydrated() async throws {
             createdAt: Date(timeIntervalSince1970: 1_900_000_000)
         )
 
-        #expect(app.shiori.shioris.isEmpty)
+        #expect(app.shiori.residentRelations.isEmpty)
 
         app.openShiori(middle)
         #expect(app.canOpenPreviousShiori)
@@ -175,7 +175,7 @@ func shioriPlaybackNavigationUsesProvidedTableScope() async throws {
             createdAt: Date(timeIntervalSince1970: 1_900_000_000)
         )
 
-        #expect(app.shiori.shioris.isEmpty)
+        #expect(app.shiori.residentRelations.isEmpty)
         app.openShiori(
             filteredMiddle,
             navigationScopeIDs: [filteredNewest.id, filteredMiddle.id]
