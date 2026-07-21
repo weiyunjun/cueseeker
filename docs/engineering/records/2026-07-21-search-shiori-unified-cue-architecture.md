@@ -132,15 +132,15 @@ table presentation resources.
   snapshot version, while the existing relevant-change and missed-notification
   conservative reload coverage remains passing: passed.
 - Cue Group response-gating integration suite, including covered Search and
-  remount behavior: 11/11 passed.
-- Final full 810-test regression run completed. All requirement-focused,
-  database, Search, Shiori, Playback integration, table interaction, Cue Group
-  reflow, and presentation-cache tests passed. Eight shared-preference,
-  native-media, MainActor, or temporary-database timing tests failed under the
-  full parallel load with 13 issues. Every failed test passed immediately in
-  isolation: shared-persistence migration 1/1, Library folder removal 6/6,
-  native playback timeline 5/5, Subtitle Focus Shiori 1/1, and Recent pointer
-  dispatch 1/1.
+  remount behavior: 12/12 passed.
+- Final full 815-test regression completed twice. All requirement-focused tests,
+  including the new same-folder reindex and unrelated-Cue remount cases, passed
+  in both runs. The parallel runs reported 10 and 7 issues respectively across
+  changing sets of pre-existing Library folder-removal waits, native-media
+  timing, temporary-database access, and Subtitle Focus Shiori timing. The
+  observed failures all passed immediately in focused reruns: the combined
+  Library/Subtitle Focus/native timeline selection passed 7/7, and the second
+  run's remaining Library/native timing selection passed 4/4.
 
 ## Outcome
 
