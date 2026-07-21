@@ -22,9 +22,12 @@ struct CueContextSearchRequest: Equatable, Identifiable {
 
 @MainActor
 final class SearchStore: ObservableObject {
+    private let cueContentStore: CueContentStore
+    private var loadedSearchResultCueIDs: [Int64] = []
+    private var searchRankByCueID: [Int64: Int] = [:]
+
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
-    @Published var searchResults: [SubtitleSearchResult] = []
     @Published var searchResultCueIDs: [Int64] = []
     @Published var searchResultTotalCount = 0
     @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
@@ -41,6 +44,49 @@ final class SearchStore: ObservableObject {
     @Published var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var cueContextSearchRequest: CueContextSearchRequest?
+
+    init(cueContentStore: CueContentStore = CueContentStore()) {
+        self.cueContentStore = cueContentStore
+    }
+
+    var searchResults: [SubtitleSearchResult] {
+        get {
+            loadedSearchResultCueIDs.compactMap { cueID in
+                cueContentStore.content(for: cueID).map {
+                    SubtitleSearchResult(
+                        cueContent: $0,
+                        searchRank: searchRankByCueID[cueID] ?? 0
+                    )
+                }
+            }
+        }
+        set {
+            replaceLoadedSearchResults(newValue)
+        }
+    }
+
+    func replaceLoadedSearchResults(
+        _ results: [SubtitleSearchResult],
+        orderedCueIDs: [Int64]? = nil
+    ) {
+        objectWillChange.send()
+        cueContentStore.install(results.map(\.cueContent))
+        loadedSearchResultCueIDs = results.map(\.entryID)
+        searchRankByCueID = Dictionary(uniqueKeysWithValues: results.map {
+            ($0.entryID, $0.searchRank)
+        })
+
+        if let orderedCueIDs {
+            searchResultCueIDs = orderedCueIDs
+        } else if results.isEmpty {
+            searchResultCueIDs = []
+        } else if searchResultCueIDs.isEmpty
+                    || !Set(loadedSearchResultCueIDs).isSubset(
+                        of: Set(searchResultCueIDs)
+                    ) {
+            searchResultCueIDs = loadedSearchResultCueIDs
+        }
+    }
 
     var resultFilterSet = SubtitleSearchFilterSet()
     var isPlaybackTemporaryFilterActive = false

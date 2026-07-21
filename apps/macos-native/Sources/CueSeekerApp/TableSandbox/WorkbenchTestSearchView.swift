@@ -163,10 +163,6 @@ struct WorkbenchTestSearchView: View {
             }
             applyFilterRules(newValue)
         }
-        .onReceive(search.$searchResults) {
-            guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
-            updateRows($0)
-        }
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
             resetContinuousRowLoading()
@@ -515,15 +511,20 @@ struct WorkbenchTestSearchView: View {
             hasDeferredRefreshWhileCovered = true
             return
         }
-        rowStore.updateSearchRows(
+        rowStore.updateResidentSearchResults(
             results,
-            totalRowCount: results.count,
+            cueContentProvider: searchCueContentProvider,
             tableName: "test-search",
             probeSurface: tableProbeSurface,
             probeScope: appState.uiProbeScope
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         refreshSelectedCollageAvailability()
+    }
+
+    private var searchCueContentProvider: (Int64) -> CueContent? {
+        let store = appState.cueContent
+        return { cueID in store.content(for: cueID) }
     }
 
     private func clearTableRows(resetScroll: Bool) {
@@ -538,9 +539,9 @@ struct WorkbenchTestSearchView: View {
         lastVisibleRows = nil
         rowSelection.reset()
         resetSelectedCollageAvailability()
-        rowStore.updateSearchRows(
+        rowStore.updateResidentSearchResults(
             [],
-            totalRowCount: 0,
+            cueContentProvider: searchCueContentProvider,
             tableName: "test-search",
             probeSurface: tableProbeSurface,
             probeScope: appState.uiProbeScope
@@ -686,10 +687,10 @@ struct WorkbenchTestSearchView: View {
         guard page.range.lowerBound == expectedStartIndex, !page.results.isEmpty else {
             return false
         }
-        rowStore.hydrateSearchRows(
+        rowStore.hydrateResidentSearchResults(
             page.results,
             startIndex: expectedStartIndex,
-            totalRowCount: expectedStartIndex + page.results.count,
+            cueContentProvider: searchCueContentProvider,
             tableName: "test-search",
             probeSurface: tableProbeSurface,
             probeScope: appState.uiProbeScope
@@ -731,9 +732,9 @@ struct WorkbenchTestSearchView: View {
             guard let page = await appState.loadTableSandboxAllCueRows(
                 range: 0..<TableSandboxHydrationPaging.pageSize
             ) else {
-                rowStore.updateSearchRows(
+                rowStore.updateResidentSearchResults(
                     [],
-                    totalRowCount: 0,
+                    cueContentProvider: searchCueContentProvider,
                     tableName: "test-search",
                     probeSurface: tableProbeSurface,
                     probeScope: appState.uiProbeScope
@@ -742,9 +743,9 @@ struct WorkbenchTestSearchView: View {
             }
             guard allowsTableResponse else { return }
             appState.applyTableSandboxAllCueSearchContext(page)
-            rowStore.updateSearchRows(
+            rowStore.updateResidentSearchResults(
                 page.results,
-                totalRowCount: page.results.count,
+                cueContentProvider: searchCueContentProvider,
                 tableName: "test-search",
                 probeSurface: tableProbeSurface,
                 probeScope: appState.uiProbeScope,
@@ -776,9 +777,9 @@ struct WorkbenchTestSearchView: View {
                 anchorsInitialPage: true
             ) else {
                 guard generation == cueContextLoadGeneration else { return }
-                rowStore.updateSearchRows(
+                rowStore.updateResidentSearchResults(
                     [],
-                    totalRowCount: 0,
+                    cueContentProvider: searchCueContentProvider,
                     tableName: "test-search",
                     probeSurface: .context,
                     probeScope: appState.uiProbeScope
@@ -795,9 +796,9 @@ struct WorkbenchTestSearchView: View {
             }
 
             appState.applyTableSandboxAllCueSearchContext(page)
-            rowStore.updateSearchRows(
+            rowStore.updateResidentSearchResults(
                 page.results,
-                totalRowCount: page.results.count,
+                cueContentProvider: searchCueContentProvider,
                 tableName: "test-search",
                 probeSurface: .context,
                 probeScope: appState.uiProbeScope,
@@ -936,8 +937,9 @@ struct WorkbenchTestSearchView: View {
                     isLoadingCueContextRows = false
                     return
                 }
-                let prependedCount = rowStore.prependSearchRows(
+                let prependedCount = rowStore.prependResidentSearchResults(
                     page.results,
+                    cueContentProvider: searchCueContentProvider,
                     tableName: "test-search",
                     probeSurface: .context,
                     probeScope: appState.uiProbeScope
@@ -961,8 +963,9 @@ struct WorkbenchTestSearchView: View {
                     isLoadingCueContextRows = false
                     return
                 }
-                let appendedCount = rowStore.appendSearchRows(
+                let appendedCount = rowStore.appendResidentSearchResults(
                     page.results,
+                    cueContentProvider: searchCueContentProvider,
                     tableName: "test-search",
                     probeSurface: .context,
                     probeScope: appState.uiProbeScope

@@ -5,6 +5,10 @@ import CueSeekerCore
 struct TableSandboxRowsSnapshot {
     fileprivate var materializedRows: [SubtitleTableRow] = []
     var searchResultsByEntryID: [Int: SubtitleSearchResult] = [:]
+    fileprivate var searchCueIDs: [Int64] = []
+    fileprivate var searchCueIndexByEntryID: [Int: Int] = [:]
+    fileprivate var searchRankByCueID: [Int64: Int] = [:]
+    fileprivate var searchCueContentProvider: ((Int64) -> CueContent?)?
     var shiorisByEntryID: [Int: Shiori] = [:]
     var shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:]
     fileprivate var shioriRelations: [ShioriRelation] = []
@@ -18,6 +22,9 @@ struct TableSandboxRowsSnapshot {
     init(
         rows: [SubtitleTableRow] = [],
         searchResultsByEntryID: [Int: SubtitleSearchResult] = [:],
+        searchCueIDs: [Int64] = [],
+        searchRankByCueID: [Int64: Int] = [:],
+        searchCueContentProvider: ((Int64) -> CueContent?)? = nil,
         shiorisByEntryID: [Int: Shiori] = [:],
         shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:],
         shioriRelations: [ShioriRelation] = [],
@@ -29,6 +36,14 @@ struct TableSandboxRowsSnapshot {
     ) {
         materializedRows = rows
         self.searchResultsByEntryID = searchResultsByEntryID
+        self.searchCueIDs = searchCueIDs
+        self.searchCueIndexByEntryID = Dictionary(
+            uniqueKeysWithValues: searchCueIDs.enumerated().map { index, cueID in
+                (Int(cueID), index)
+            }
+        )
+        self.searchRankByCueID = searchRankByCueID
+        self.searchCueContentProvider = searchCueContentProvider
         self.shiorisByEntryID = shiorisByEntryID
         self.shioriCuePresentationsByEntryID = shioriCuePresentationsByEntryID
         self.shioriRelations = shioriRelations
@@ -45,12 +60,19 @@ struct TableSandboxRowsSnapshot {
     }
 
     var rows: [SubtitleTableRow] {
-        guard !shioriRelations.isEmpty else { return materializedRows }
-        return shioriRelations.indices.compactMap { row(at: $0) }
+        if !shioriRelations.isEmpty {
+            return shioriRelations.indices.compactMap { row(at: $0) }
+        }
+        if !searchCueIDs.isEmpty {
+            return searchCueIDs.indices.compactMap { row(at: $0) }
+        }
+        return materializedRows
     }
 
     var loadedReferenceCount: Int {
-        shioriRelations.isEmpty ? materializedRows.count : shioriRelations.count
+        if !shioriRelations.isEmpty { return shioriRelations.count }
+        if !searchCueIDs.isEmpty { return searchCueIDs.count }
+        return materializedRows.count
     }
 
     var materializedRowCount: Int {
@@ -70,17 +92,41 @@ struct TableSandboxRowsSnapshot {
                 shioriTags: shioriTagsByEntryID[Int(relation.id)] ?? []
             )
         }
+        if searchCueIDs.indices.contains(index) {
+            let cueID = searchCueIDs[index]
+            guard let content = searchCueContentProvider?(cueID) else {
+                return nil
+            }
+            return tableSandboxSearchRow(
+                for: SubtitleSearchResult(
+                    cueContent: content,
+                    searchRank: searchRankByCueID[cueID] ?? index
+                )
+            )
+        }
         guard materializedRows.indices.contains(index) else { return nil }
         return materializedRows[index]
     }
 
     func rowIndex(entryID: Int) -> Int? {
         shioriRelationIndexByEntryID[entryID]
+            ?? searchCueIndexByEntryID[entryID]
             ?? materializedRows.firstIndex(where: { $0.id == entryID })
     }
 
     func searchResult(entryID: Int) -> SubtitleSearchResult? {
-        searchResultsByEntryID[entryID]
+        if let result = searchResultsByEntryID[entryID] {
+            return result
+        }
+        guard searchCueIndexByEntryID[entryID] != nil,
+              let content = searchCueContentProvider?(Int64(entryID))
+        else {
+            return nil
+        }
+        return SubtitleSearchResult(
+            cueContent: content,
+            searchRank: searchRankByCueID[Int64(entryID)] ?? 0
+        )
     }
 
     func shiori(entryID: Int) -> Shiori? {
@@ -152,6 +198,138 @@ final class TableSandboxRowModelStore: ObservableObject {
         }
     ) {
         self.displayTitleResolver = displayTitleResolver
+    }
+
+    func updateResidentSearchResults(
+        _ results: [SubtitleSearchResult],
+        cueContentProvider: @escaping (Int64) -> CueContent?,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil,
+        isHydration: Bool = false
+    ) {
+        let cueIDs = results.map(\.entryID)
+        let ranks = Dictionary(uniqueKeysWithValues: results.map {
+            ($0.entryID, $0.searchRank)
+        })
+        let update: TableSandboxRowsUpdate
+        if snapshot.loadedReferenceCount == 0, !cueIDs.isEmpty {
+            update = .append(0..<cueIDs.count)
+        } else if snapshot.searchCueIDs == cueIDs,
+                  snapshot.materializedRows.isEmpty,
+                  snapshot.shioriRelations.isEmpty,
+                  snapshot.searchRankByCueID == ranks {
+            return
+        } else {
+            update = .reload
+        }
+        publishSnapshot(TableSandboxRowsSnapshot(
+            searchCueIDs: cueIDs,
+            searchRankByCueID: ranks,
+            searchCueContentProvider: cueContentProvider,
+            version: snapshot.version + 1,
+            update: update,
+            totalRowCount: cueIDs.count
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "search_resident_projection",
+           isHydration: isHydration)
+    }
+
+    func hydrateResidentSearchResults(
+        _ results: [SubtitleSearchResult],
+        startIndex: Int,
+        cueContentProvider: @escaping (Int64) -> CueContent?,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) {
+        guard startIndex >= 0,
+              startIndex <= snapshot.searchCueIDs.count,
+              !results.isEmpty
+        else {
+            return
+        }
+        var cueIDs = snapshot.searchCueIDs
+        var ranks = snapshot.searchRankByCueID
+        for (offset, result) in results.enumerated() {
+            let index = startIndex + offset
+            if cueIDs.indices.contains(index) {
+                cueIDs[index] = result.entryID
+            } else {
+                cueIDs.append(result.entryID)
+            }
+            ranks[result.entryID] = result.searchRank
+        }
+        let oldCount = snapshot.searchCueIDs.count
+        let update: TableSandboxRowsUpdate = oldCount == startIndex
+            ? .append(oldCount..<cueIDs.count)
+            : .reload
+        publishSnapshot(TableSandboxRowsSnapshot(
+            searchCueIDs: cueIDs,
+            searchRankByCueID: ranks,
+            searchCueContentProvider: cueContentProvider,
+            version: snapshot.version + 1,
+            update: update,
+            totalRowCount: cueIDs.count
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "search_resident_hydration",
+           isHydration: true)
+    }
+
+    @discardableResult
+    func prependResidentSearchResults(
+        _ results: [SubtitleSearchResult],
+        cueContentProvider: @escaping (Int64) -> CueContent?,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) -> Int {
+        let existingIDs = Set(snapshot.searchCueIDs)
+        let inserted = results.filter { !existingIDs.contains($0.entryID) }
+        guard !inserted.isEmpty else { return 0 }
+        let nextResults = inserted + snapshot.searchCueIDs.compactMap { cueID in
+            snapshot.searchCueContentProvider?(cueID).map {
+                SubtitleSearchResult(
+                    cueContent: $0,
+                    searchRank: snapshot.searchRankByCueID[cueID] ?? 0
+                )
+            }
+        }
+        updateResidentSearchResults(
+            nextResults,
+            cueContentProvider: cueContentProvider,
+            tableName: tableName,
+            probeSurface: probeSurface,
+            probeScope: probeScope,
+            isHydration: true
+        )
+        return inserted.count
+    }
+
+    @discardableResult
+    func appendResidentSearchResults(
+        _ results: [SubtitleSearchResult],
+        cueContentProvider: @escaping (Int64) -> CueContent?,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) -> Int {
+        let existingIDs = Set(snapshot.searchCueIDs)
+        let inserted = results.filter { !existingIDs.contains($0.entryID) }
+        guard !inserted.isEmpty else { return 0 }
+        hydrateResidentSearchResults(
+            inserted,
+            startIndex: snapshot.searchCueIDs.count,
+            cueContentProvider: cueContentProvider,
+            tableName: tableName,
+            probeSurface: probeSurface,
+            probeScope: probeScope
+        )
+        return inserted.count
     }
 
     func updateSearchRows(

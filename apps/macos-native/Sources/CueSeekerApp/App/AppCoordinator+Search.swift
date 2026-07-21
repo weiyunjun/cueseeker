@@ -284,6 +284,7 @@ extension AppCoordinator {
                     return nil
                 }
 
+                cueContent.install(page.results.map(\.cueContent))
                 return TableSandboxSearchHydrationPage(
                     range: lowerBound..<(lowerBound + page.results.count),
                     results: page.results,
@@ -328,6 +329,7 @@ extension AppCoordinator {
                 return nil
             }
 
+            cueContent.install(page.results.map(\.cueContent))
             return TableSandboxSearchHydrationPage(
                 range: lowerBound..<(lowerBound + page.results.count),
                 results: page.results,
@@ -372,6 +374,7 @@ extension AppCoordinator {
                 return nil
             }
 
+            cueContent.install(page.results.map(\.cueContent))
             return TableSandboxSearchHydrationPage(
                 range: lowerBound..<(lowerBound + page.results.count),
                 results: page.results,
@@ -423,6 +426,7 @@ extension AppCoordinator {
                 return nil
             }
 
+            cueContent.install(page.results.map(\.cueContent))
             return TableSandboxSearchHydrationPage(
                 range: page.appliedCursor.offset..<(page.appliedCursor.offset + page.results.count),
                 results: page.results,
@@ -436,8 +440,10 @@ extension AppCoordinator {
 
     func applyTableSandboxAllCueSearchContext(_ page: TableSandboxSearchHydrationPage) {
         search.searchStatus = .completed
-        search.searchResults = page.results
-        search.searchResultCueIDs = page.results.map(\.entryID)
+        search.replaceLoadedSearchResults(
+            page.results,
+            orderedCueIDs: page.results.map(\.entryID)
+        )
         search.searchResultTotalCount = page.totalRowCount
         search.searchCountState = .exact
         search.searchKnownResultCount = page.totalRowCount
@@ -738,8 +744,7 @@ extension AppCoordinator {
                         offset + page.results.count
                     )
                 } else {
-                    search.searchResults = page.results
-                    search.searchResultCueIDs = []
+                    search.replaceLoadedSearchResults(page.results)
                     loadedGlobalSearchResultCount = page.results.count
                 }
                 let shouldPreserveExactMetadata = appending && search.searchCountState == .exact
@@ -929,8 +934,10 @@ extension AppCoordinator {
         lastSearchCountProgressUpdate = now
 
         if !progress.results.isEmpty {
-            search.searchResults = progress.results
-            search.searchResultCueIDs = progress.cueIDs
+            search.replaceLoadedSearchResults(
+                progress.results,
+                orderedCueIDs: progress.cueIDs
+            )
             loadedGlobalSearchResultCount = progress.results.count
         }
         search.searchResultTotalCount = progress.knownResultCount
@@ -1057,10 +1064,14 @@ extension AppCoordinator {
 
                 let stateAssignStart = SearchPerformanceLogger.now()
                 if !page.renderableResults.isEmpty {
-                    search.searchResults = page.renderableResults
+                    search.replaceLoadedSearchResults(
+                        page.renderableResults,
+                        orderedCueIDs: page.cueIDs
+                    )
                     loadedGlobalSearchResultCount = page.renderableResults.count
+                } else {
+                    search.searchResultCueIDs = page.cueIDs
                 }
-                search.searchResultCueIDs = page.cueIDs
                 search.searchResultTotalCount = page.totalCount
                 search.searchFileSummaries = page.fileSummaries
                 search.searchCountState = page.countState
@@ -1815,7 +1826,8 @@ extension AppCoordinator {
 
     func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
         let existingEntryIDs = Set(search.searchResults.map(\.entryID))
-        search.searchResults.append(contentsOf: results.filter { !existingEntryIDs.contains($0.entryID) })
+        search.searchResults = search.searchResults
+            + results.filter { !existingEntryIDs.contains($0.entryID) }
     }
 
     func resetSearchResultLoadingState() {

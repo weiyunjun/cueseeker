@@ -503,8 +503,9 @@ final class AppCoordinator: ObservableObject {
         indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
         shiori = ShioriStore(uiProbeScope: uiProbeScope)
         library = LibraryStore()
-        search = SearchStore()
-        cueContent = CueContentStore()
+        let cueContentStore = CueContentStore()
+        cueContent = cueContentStore
+        search = SearchStore(cueContentStore: cueContentStore)
         playback = PlaybackStore(userDefaults: userDefaults)
 
         let openedDatabase: SubtitleDatabase?
@@ -661,7 +662,13 @@ final class AppCoordinator: ObservableObject {
 
 
     func clearSearchAndPlaybackState(under folder: URL) {
-        search.searchResults.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
+        let remainingSearchResults = search.searchResults.filter {
+            !Self.path($0.subtitlePath, isUnder: folder)
+        }
+        search.replaceLoadedSearchResults(
+            remainingSearchResults,
+            orderedCueIDs: remainingSearchResults.map(\.entryID)
+        )
         search.searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
         search.searchResultTotalCount = search.searchFileSummaries.reduce(0) { $0 + $1.matchCount }
         search.searchCountState = .exact

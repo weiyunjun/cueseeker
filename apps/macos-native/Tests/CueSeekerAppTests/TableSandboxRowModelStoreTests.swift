@@ -922,6 +922,36 @@ func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingColl
 
 @MainActor
 @Test
+func tableSandboxRowModelStoreProjectsSearchCueIDsWithoutMaterializingRows() {
+    let cueStore = CueContentStore()
+    let results = (1...10_000).map { value in
+        SubtitleSearchResult(
+            cueContent: residentCueContent(
+                cueID: Int64(value),
+                content: "Search Cue \(value)"
+            ),
+            searchRank: value - 1
+        )
+    }
+    cueStore.install(results.map(\.cueContent))
+    let store = TableSandboxRowModelStore { _ in "unused" }
+
+    store.updateResidentSearchResults(
+        results,
+        cueContentProvider: { cueStore.content(for: $0) },
+        tableName: "search"
+    )
+
+    #expect(store.snapshot.totalRowCount == 10_000)
+    #expect(store.snapshot.loadedReferenceCount == 10_000)
+    #expect(store.snapshot.materializedRowCount == 0)
+    #expect(store.snapshot.row(at: 9_999)?.primaryCueText == "Search Cue 10000")
+    #expect(store.snapshot.searchResult(entryID: 10_000)?.searchRank == 9_999)
+    #expect(store.snapshot.rowIndex(entryID: 10_000) == 9_999)
+}
+
+@MainActor
+@Test
 func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     let store = ShioriStore()
     store.tableSearchDraft = "tomori"

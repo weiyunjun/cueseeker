@@ -198,13 +198,16 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 origin: .search(resultListGeneration: 0),
                 totalCount: searchStore.searchResults.count
             ) { [weak searchStore] ordinal in
-                guard let searchStore,
-                      searchStore.searchResults.indices.contains(ordinal)
+                guard let searchStore else {
+                    return nil
+                }
+                let results = searchStore.searchResults
+                guard results.indices.contains(ordinal)
                 else {
                     return nil
                 }
                 return PlaybackCueResultItem(
-                    searchResult: searchStore.searchResults[ordinal],
+                    searchResult: results[ordinal],
                     ordinal: ordinal
                 )
             }
@@ -216,7 +219,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             if let searchWindow {
                 observeCueResultWindow(searchWindow, module: .search)
             }
-            searchResultsCancellable = searchStore.$searchResults
+            searchResultsCancellable = searchStore.$searchResultCueIDs
                 .dropFirst()
                 .sink { [weak self, weak searchStore, weak searchSource] _ in
                     Task { @MainActor [weak self, weak searchStore, weak searchSource] in

@@ -25,9 +25,13 @@ table presentation resources.
    relations from memory, arbitrary row access no longer queries SQLite, and
    table rows are projected on demand without retaining a full materialized row
    collection.
-5. Pending: preserve independent surface state and remove full-collection
+5. Changed Search's durable result ownership to ordered CueIDs plus ranks. The
+   Search store and Workbench table now resolve current values through the same
+   AppCoordinator Cue content store used by Shiori, and table rows are projected
+   lazily from CueIDs instead of retaining a second complete row collection.
+6. Pending: preserve independent surface state and remove full-collection
    reconstruction during switching.
-6. Pending: remove full row payload retention from table measurement caches and
+7. Pending: remove full row payload retention from table measurement caches and
    complete regression verification.
 
 ## Verification
@@ -38,6 +42,7 @@ table presentation resources.
   ordering, and indexed-folder removal coverage: passed.
 - Canonical Cue bulk-resolution and single-value-per-CueID store tests: passed.
 - Resident Shiori snapshot and 10,000-relation lazy row projection tests: passed.
+- Canonical Search ownership and 10,000-Cue lazy row projection tests: passed.
 - Remaining application migration and automated regression verification:
   pending.
 

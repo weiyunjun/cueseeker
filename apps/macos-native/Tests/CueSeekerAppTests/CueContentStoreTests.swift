@@ -37,6 +37,24 @@ func cueContentStoreResolvesOrderedCueIDCollectionsWithoutCopiesOfOwnership() {
     #expect(store.content(for: 2) == second)
 }
 
+@MainActor
+@Test
+func searchStoreKeepsOnlyOrderAndResolvesCurrentCanonicalCueContent() {
+    let cueStore = CueContentStore()
+    let searchStore = SearchStore(cueContentStore: cueStore)
+    let original = cueContent(cueID: 7, content: "Original")
+    let updated = cueContent(cueID: 7, content: "Updated")
+
+    searchStore.replaceLoadedSearchResults([
+        SubtitleSearchResult(cueContent: original, searchRank: 12),
+    ])
+    cueStore.install([updated])
+
+    #expect(searchStore.searchResultCueIDs == [7])
+    #expect(searchStore.searchResults.map(\.content) == ["Updated"])
+    #expect(searchStore.searchResults.map(\.searchRank) == [12])
+}
+
 private func cueContent(cueID: Int64, content: String) -> CueContent {
     CueContent(
         cueID: cueID,
