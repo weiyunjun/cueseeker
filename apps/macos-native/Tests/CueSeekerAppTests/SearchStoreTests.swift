@@ -998,6 +998,32 @@ func indexedCueMutationInvalidatesFilterProjectionAndAdvancesItsIdentity() throw
 
 @MainActor
 @Test
+func indexedCueMutationPreservesResidentSearchProjection() {
+    let search = SearchStore()
+    let result = makeTableSandboxSearchResult(
+        id: 42,
+        content: "Resident Search Cue",
+        speakers: [],
+        searchRank: 0
+    )
+    search.replaceLoadedSearchResults([result])
+    search.activateResidentSearchTableProjection()
+    let originalSource = search.tableProjectionSource
+    let originalVersion = search.tableRowStore.snapshot.version
+
+    let mutation = search.beginIndexedCueDataMutation()
+
+    #expect(search.tableProjectionSource == originalSource)
+    #expect(search.tableRowStore.snapshot.version == originalVersion)
+    #expect(search.tableRowStore.snapshot.orderedEntryIDs == [42])
+    #expect(search.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Resident Search Cue")
+    #expect(search.completeIndexedCueDataMutation(mutation))
+    #expect(search.tableProjectionSource == originalSource)
+    #expect(search.tableRowStore.snapshot.version == originalVersion)
+}
+
+@MainActor
+@Test
 func residentSearchProjectionRevisionDirectlyUpdatesOwnedRowStore() {
     let search = SearchStore()
     let original = makeTableSandboxSearchResult(

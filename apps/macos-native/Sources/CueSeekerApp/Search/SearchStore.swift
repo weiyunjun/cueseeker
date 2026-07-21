@@ -305,6 +305,9 @@ final class SearchStore: ObservableObject {
         )
         activeIndexedCueMutationGeneration = token.generation
         cueContextSearchRequest = nil
+        if case .residentSearch = tableProjectionSource {
+            return token
+        }
         setTableProjectionSource(nil)
         tableRowStore.updateResidentSearchReferences(
             cueIDs: [],

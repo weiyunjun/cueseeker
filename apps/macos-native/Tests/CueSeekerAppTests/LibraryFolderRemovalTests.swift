@@ -244,6 +244,51 @@ func failedLibraryFolderRemovalPreservesFolderAndPresentationState() async throw
 
 @MainActor
 @Test
+func indexedCueMutationFailureRecoveryReloadsPrunedResidentSearch() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    try database.migrate()
+    _ = try database.addSearchPath(fixture.folder)
+    try database.replaceEntries(
+        subtitleFile: fixture.folder.appendingPathComponent("Episode.srt"),
+        videoFile: fixture.folder.appendingPathComponent("Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Reload pruned resident Search result"
+            ),
+        ]
+    )
+
+    let app = fixture.makeApp(executor: ControlledLibraryFolderRemovalExecutor())
+    app.submitSearch("Reload pruned")
+    await app.searchTask?.value
+    app.search.activateResidentSearchTableProjection()
+    let originalCueIDs = app.search.searchResultCueIDs
+    try #require(originalCueIDs.count == 1)
+
+    app.clearSearchAndPlaybackState(under: fixture.folder)
+    #expect(app.search.searchResultCueIDs.isEmpty)
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 0)
+
+    app.restoreCurrentSearchAfterIndexedCueMutationFailure()
+    await app.searchTask?.value
+
+    #expect(app.search.searchResultCueIDs == originalCueIDs)
+    #expect(app.search.tableRowStore.snapshot.orderedEntryIDs
+        == originalCueIDs.map(Int.init))
+    #expect(app.search.tableRowStore.snapshot.row(at: 0)?.primaryCueText
+        == "Reload pruned resident Search result")
+}
+
+@MainActor
+@Test
 func libraryFolderRemovalNoticeClearsWhenIndexingStarts() async throws {
     let fixture = try LibraryFolderRemovalTestFixture()
     defer { fixture.cleanUp() }

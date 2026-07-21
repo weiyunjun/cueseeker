@@ -5,6 +5,36 @@ import Testing
 @testable import CueSeekerApp
 @testable import CueSeekerCore
 
+private enum MountedLibraryFolderRemovalFailure: Error {
+    case expected
+}
+
+private actor MountedFailingLibraryFolderRemovalExecutor:
+    LibraryFolderRemovalExecuting
+{
+    private var started = false
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func removeFolder(_ folder: URL, databaseURL: URL) async throws {
+        started = true
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+        throw MountedLibraryFolderRemovalFailure.expected
+    }
+
+    func waitUntilStarted() async {
+        while !started {
+            await Task.yield()
+        }
+    }
+
+    func finish() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 @Suite(.serialized)
 struct CueGroupRefreshScopeIntegrationTests {
     @MainActor
@@ -163,6 +193,62 @@ struct CueGroupRefreshScopeIntegrationTests {
             ) > 0)
             #expect(Set(app.search.tableRowStore.snapshot.orderedEntryIDs)
                 .isDisjoint(with: oldEntryIDs))
+        }
+    }
+
+    @MainActor
+    @Test
+    func failedFolderRemovalRestoresMountedResidentSearch() async throws {
+        let executor = MountedFailingLibraryFolderRemovalExecutor()
+        let uiProbeScope = UUID().uuidString
+        try await withMountedCueTable(
+            surface: .search,
+            libraryFolderRemovalExecutor: executor,
+            uiProbeScope: uiProbeScope
+        ) { app, window, coordinator in
+            app.submitSearch("primary")
+            await app.searchTask?.value
+            let didLoadCanonicalSearch = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return app.search.tableRowStore.snapshot.totalRowCount == 200
+                    && app.search.tableRowStore.snapshot.orderedEntryIDs
+                        == app.search.searchResultCueIDs.map(Int.init)
+            }
+            try #require(didLoadCanonicalSearch)
+            let originalEntryIDs = app.search.tableRowStore.snapshot.orderedEntryIDs
+            coordinator.scrollToRow(100)
+            let didCaptureViewport = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return (app.search.tableViewportAnchor?.rowIndex ?? 0) > 0
+            }
+            try #require(didCaptureViewport)
+            let originalAnchor = try #require(app.search.tableViewportAnchor)
+            let folder = try #require(app.indexing.selectedFolders.first)
+
+            app.removeFolder(folder)
+            let removalTask = try #require(app.folderRemovalTask)
+            await executor.waitUntilStarted()
+
+            if case .residentSearch = app.search.tableProjectionSource {
+                #expect(app.search.tableRowStore.snapshot.orderedEntryIDs
+                    == originalEntryIDs)
+            } else {
+                Issue.record("Resident Search projection was cleared during removal")
+            }
+
+            await executor.finish()
+            await removalTask.value
+            await app.searchTask?.value
+            let didRestoreSearch = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return app.search.tableRowStore.snapshot.orderedEntryIDs
+                    == originalEntryIDs
+            }
+            try #require(didRestoreSearch)
+
+            #expect(app.indexing.folderRemovalStatus == .idle)
+            #expect(app.search.tableRowStore.snapshot.totalRowCount == 200)
+            #expect(app.search.tableViewportAnchor?.entryID == originalAnchor.entryID)
         }
     }
 
@@ -643,6 +729,7 @@ private func withMountedCueTable(
     usesMissingContextTarget: Bool = false,
     usesFilterOnlySearch: Bool = false,
     initialShowCueGroup: Bool = false,
+    libraryFolderRemovalExecutor: (any LibraryFolderRemovalExecuting)? = nil,
     uiProbeScope: String,
     _ body: @MainActor (AppCoordinator, NSWindow, SubtitleTableView.Coordinator) async throws -> Void
 ) async throws {
@@ -652,6 +739,7 @@ private func withMountedCueTable(
         usesMissingContextTarget: usesMissingContextTarget,
         usesFilterOnlySearch: usesFilterOnlySearch,
         initialShowCueGroup: initialShowCueGroup,
+        libraryFolderRemovalExecutor: libraryFolderRemovalExecutor,
         uiProbeScope: uiProbeScope
     )
     defer { harness.tearDown() }
@@ -704,6 +792,7 @@ private final class CueGroupRefreshScopeMountedHarness {
         usesMissingContextTarget: Bool,
         usesFilterOnlySearch: Bool,
         initialShowCueGroup: Bool,
+        libraryFolderRemovalExecutor: (any LibraryFolderRemovalExecuting)?,
         uiProbeScope: String
     ) throws {
         suiteName = "CueGroupRefreshScopeTests-\(UUID().uuidString)"
@@ -735,11 +824,21 @@ private final class CueGroupRefreshScopeMountedHarness {
         userDefaults.set([root.path], forKey: "selectedFolderPaths")
         userDefaults.set(initialShowCueGroup, forKey: "showCueGroup")
 
-        let app = AppCoordinator(
-            userDefaults: userDefaults,
-            databaseURL: databaseURL,
-            uiProbeScope: uiProbeScope
-        )
+        let app: AppCoordinator
+        if let libraryFolderRemovalExecutor {
+            app = AppCoordinator(
+                userDefaults: userDefaults,
+                databaseURL: databaseURL,
+                uiProbeScope: uiProbeScope,
+                libraryFolderRemovalExecutor: libraryFolderRemovalExecutor
+            )
+        } else {
+            app = AppCoordinator(
+                userDefaults: userDefaults,
+                databaseURL: databaseURL,
+                uiProbeScope: uiProbeScope
+            )
+        }
         switch surface {
         case .search:
             if usesFilterOnlySearch {

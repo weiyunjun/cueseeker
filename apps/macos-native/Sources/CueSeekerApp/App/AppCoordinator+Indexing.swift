@@ -97,6 +97,9 @@ extension AppCoordinator {
                 self.indexing.folderRemovalStatus = .idle
                 self.reloadShioriAfterIndexedContentMutation()
                 self.search.completeIndexedCueDataMutation(searchMutationToken)
+                self.restoreCurrentSearchAfterIndexedCueMutationFailure(
+                    reloadFromDatabase: false
+                )
                 self.startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
                 self.folderRemovalTask = nil
             }
@@ -166,6 +169,7 @@ extension AppCoordinator {
                 indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
                 reloadShioriAfterIndexedContentMutation()
                 search.completeIndexedCueDataMutation(searchMutationToken)
+                restoreCurrentSearchAfterIndexedCueMutationFailure()
             }
         }
     }
@@ -249,6 +253,7 @@ extension AppCoordinator {
                     indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
                     reloadShioriAfterIndexedContentMutation()
                     search.completeIndexedCueDataMutation(searchMutationToken)
+                    restoreCurrentSearchAfterIndexedCueMutationFailure()
                     return
                 }
             }
@@ -273,6 +278,7 @@ extension AppCoordinator {
                 indexing.indexingStatus = .failed(firstFolder, Self.errorMessage(for: error))
                 reloadShioriAfterIndexedContentMutation()
                 search.completeIndexedCueDataMutation(searchMutationToken)
+                restoreCurrentSearchAfterIndexedCueMutationFailure()
                 return
             }
 
@@ -289,6 +295,21 @@ extension AppCoordinator {
             refreshCurrentSearch()
             refreshDatabaseStorageStats()
         }
+    }
+
+    func restoreCurrentSearchAfterIndexedCueMutationFailure(
+        reloadFromDatabase: Bool = true
+    ) {
+        guard !search.searchQuery.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty else {
+            return
+        }
+        search.activateResidentSearchTableProjection()
+        guard reloadFromDatabase else {
+            return
+        }
+        refreshCurrentSearch(clearExistingResults: true)
     }
 
     func refreshDatabaseStorageStats() {

@@ -92,6 +92,13 @@ table presentation resources.
     newer global revision without a corresponding notification, the row store
     still performs one conservative reload. Covered surfaces continue to merge
     pending changes and now avoid a reload when the merged CueIDs are unrelated.
+17. Narrowed indexed-content mutation invalidation to database-derived
+    filter-only and Context projections. A mounted resident Search now keeps its
+    source and valid rows while a mutation is running. Folder-removal failure
+    reactivates that unchanged in-memory projection without disturbing its
+    viewport, while single-folder and all-folder indexing failures explicitly
+    rerun the current non-empty Search to restore any results pruned before the
+    failed index operation.
 
 ## Verification
 
@@ -131,6 +138,18 @@ table presentation resources.
 - Covered Shiori with an unrelated canonical Cue change preserves its resident
   snapshot version, while the existing relevant-change and missed-notification
   conservative reload coverage remains passing: passed.
+- Mounted resident Search remains populated while a controlled folder removal
+  fails, then retains the same ordered CueIDs and viewport anchor after the
+  failure terminal state: passed.
+- A resident Search deliberately pruned like the indexing start path is fully
+  restored by the shared indexing-failure recovery query: passed.
+- Indexed-mutation, filter paging, folder-removal, and serialized mounted-table
+  regression selection: 24/24 passed.
+- Final 818-test regression retained all requirement-focused passes. The
+  parallel run reported 11 issues across seven pre-existing folder-removal,
+  playback overlay, Subtitle Focus, and native-media timing tests. Every affected
+  test passed in isolated suite reruns: 27/27 passed, including the mounted
+  resident-Search folder-removal failure regression.
 - Cue Group response-gating integration suite, including covered Search and
   remount behavior: 12/12 passed.
 - Final full 815-test regression completed twice. All requirement-focused tests,
