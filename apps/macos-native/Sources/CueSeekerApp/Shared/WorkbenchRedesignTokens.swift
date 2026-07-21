@@ -133,6 +133,8 @@ enum WorkbenchRedesignColors {
         static let libraryTimeBadgeBg = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.72, darkHex: "#000000", darkAlpha: 0.58)
         static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
         static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
+        static let libraryCoverCropAccent = NSColor.controlAccentColor
+        static let libraryCoverCropMask = NSColor.shadowColor
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
 
         // Shadow Color
@@ -229,6 +231,8 @@ enum WorkbenchRedesignColors {
     static let libraryTimeBadgeBg = Color(nsColor: NS.libraryTimeBadgeBg)
     static let libraryTimeBadgeText = Color(nsColor: NS.libraryTimeBadgeText)
     static let libraryCoverPlaceholderBg = Color(nsColor: NS.libraryCoverPlaceholderBg)
+    static let libraryCoverCropAccent = Color(nsColor: NS.libraryCoverCropAccent)
+    static let libraryCoverCropMask = Color(nsColor: NS.libraryCoverCropMask)
     static let libraryMediaCardHoverBg = Color(nsColor: NS.libraryMediaCardHoverBg)
 
     // Shadow Popover
