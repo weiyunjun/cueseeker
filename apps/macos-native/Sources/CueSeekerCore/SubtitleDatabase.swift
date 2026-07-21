@@ -768,6 +768,28 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
             completedAt: completedAt
         )
     }
+
+    public func replacingCover(path: String, revision: String) -> Self {
+        Self(
+            videoPath: videoPath,
+            videoName: videoName,
+            duration: duration,
+            subtitlePath: subtitlePath,
+            subtitleFormat: subtitleFormat,
+            displayTitle: displayTitle,
+            fileExtension: fileExtension,
+            folderPath: folderPath,
+            folderTitle: folderTitle,
+            episodeNumber: episodeNumber,
+            positionMilliseconds: positionMilliseconds,
+            playbackDuration: playbackDuration,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            updatedAt: updatedAt,
+            coverPath: path,
+            coverRevision: revision
+        )
+    }
 }
 
 public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiable {
@@ -814,6 +836,31 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
             completedAt: completedAt
         )
     }
+
+    public func replacingCover(path: String, revision: String) -> Self {
+        Self(
+            videoPath: videoPath,
+            videoName: videoName,
+            fileSize: fileSize,
+            videoCodec: videoCodec,
+            videoWidth: videoWidth,
+            videoHeight: videoHeight,
+            frameRate: frameRate,
+            duration: duration,
+            subtitlePath: subtitlePath,
+            subtitleFormat: subtitleFormat,
+            displayTitle: displayTitle,
+            fileExtension: fileExtension,
+            episodeNumber: episodeNumber,
+            positionMilliseconds: positionMilliseconds,
+            playbackDuration: playbackDuration,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            historyUpdatedAt: historyUpdatedAt,
+            coverPath: path,
+            coverRevision: revision
+        )
+    }
 }
 
 public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Identifiable {
@@ -826,6 +873,16 @@ public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Ide
     public var id: String {
         folderPath
     }
+
+    public func replacingCover(path: String, revision: String) -> Self {
+        Self(
+            folderPath: folderPath,
+            folderTitle: folderTitle,
+            coverPath: path,
+            coverRevision: revision,
+            episodeCount: episodeCount
+        )
+    }
 }
 
 public struct CompleteLibraryFolderDetailPresentation: Equatable, Sendable, Identifiable {
@@ -835,6 +892,22 @@ public struct CompleteLibraryFolderDetailPresentation: Equatable, Sendable, Iden
 
     public var id: String {
         folderPath
+    }
+
+    public func replacingVideoCover(
+        videoPath: String,
+        coverPath: String,
+        coverRevision: String
+    ) -> Self {
+        Self(
+            folderPath: folderPath,
+            folderTitle: folderTitle,
+            videos: videos.map { video in
+                video.videoPath == videoPath
+                    ? video.replacingCover(path: coverPath, revision: coverRevision)
+                    : video
+            }
+        )
     }
 }
 

@@ -7,7 +7,7 @@
 
 ## Status
 
-In progress.
+Completed.
 
 ## Scope
 
@@ -52,7 +52,10 @@ In progress.
    `square.and.arrow.up` tray/share symbol for Recent video, Library folder,
    and Library episode cards. The existing shared card views carry the same
    actions into Playback without changing menu-item styling.
-6. Pending: complete targeted refresh integration and full verification.
+6. Returned the persisted cover revision from the save service and locally
+   replaced only matching Recent, Library folder, and loaded Library episode
+   presentation snapshots. The targeted update does not increment page-level
+   revisions or trigger a full Library refresh.
 
 ## Verification
 
@@ -70,8 +73,16 @@ In progress.
 - Menu copy/icon selection and shared Playback Recent routing: 2 tests passed.
 - Playback Library shared folder/episode hierarchy and refresh behavior: 5
   tests passed.
-- Pending later-stage and full test runs.
+- Persisted revision handoff and targeted video/folder snapshot refresh without
+  page-level revision changes: 3 tests passed.
+- Complete cover-editing test filter: 35 tests passed.
+- Full non-parallel package run: 834 tests completed with one unrelated
+  shared-`UserDefaults` state failure; the failed persistence migration test
+  passed in an isolated rerun (1 test passed).
 
 ## Outcome
 
-Implementation is in progress.
+Library video and folder covers can now be selected, cropped, saved, resolved
+ahead of Index covers, and refreshed in place across the shared Library card
+surfaces without overwriting Index output or retaining replaced user-cover
+files.

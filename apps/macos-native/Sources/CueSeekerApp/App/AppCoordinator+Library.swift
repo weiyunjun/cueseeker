@@ -179,7 +179,7 @@ extension AppCoordinator {
                 return
             }
             do {
-                _ = try await libraryUserCoverService.save(
+                let result = try await libraryUserCoverService.save(
                     source: session.source,
                     cropRect: session.cropRect,
                     target: session.target
@@ -187,6 +187,7 @@ extension AppCoordinator {
                 guard self.library.coverEditingSession?.id == session.id else {
                     return
                 }
+                self.applyLibraryUserCoverSave(result, target: session.target)
                 session.isSaving = false
                 self.library.coverEditingSession = nil
             } catch {
@@ -197,6 +198,19 @@ extension AppCoordinator {
                 print("Failed to save Library cover: \(error)")
             }
         }
+    }
+
+    private func applyLibraryUserCoverSave(
+        _ result: LibraryUserCoverSaveResult,
+        target: LibraryUserCoverTarget
+    ) {
+        library.applyUserCoverSave(result, target: target)
+
+        UIInvalidationProbe.count(
+            "UI.LibraryCover.locallyUpdated",
+            scope: uiProbeScope,
+            details: "target=\(target.invalidationDescription)"
+        )
     }
 
     func openPreviousLibraryVideo() {

@@ -151,6 +151,7 @@ func libraryUserCoverServiceReplacesFileAndInvalidatesOnlyOldCache() async throw
     )
     #expect(FileManager.default.fileExists(atPath: first.displayCoverPath))
     let firstCover = try #require(try database.libraryUserVideoCover(forVideoFile: videoFile))
+    #expect(first.coverRevision == firstCover.revision)
     let firstKey = LibraryCoverImageKey(
         path: first.displayCoverPath,
         revision: firstCover.revision
@@ -170,10 +171,9 @@ func libraryUserCoverServiceReplacesFileAndInvalidatesOnlyOldCache() async throw
     #expect(second.replacedDisplayCoverPath == first.displayCoverPath)
     #expect(!FileManager.default.fileExists(atPath: first.displayCoverPath))
     #expect(FileManager.default.fileExists(atPath: second.displayCoverPath))
-    #expect(
-        try database.libraryUserVideoCover(forVideoFile: videoFile)?.displayCoverPath
-            == second.displayCoverPath
-    )
+    let secondCover = try #require(try database.libraryUserVideoCover(forVideoFile: videoFile))
+    #expect(secondCover.displayCoverPath == second.displayCoverPath)
+    #expect(secondCover.revision == second.coverRevision)
     let cachedKeys = await pipeline.diagnostics().cachedKeys
     #expect(!cachedKeys.contains(firstKey))
     #expect(cachedKeys.contains(retainedKey))

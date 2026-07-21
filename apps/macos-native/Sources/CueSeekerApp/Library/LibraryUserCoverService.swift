@@ -8,6 +8,15 @@ import CueSeekerPlayback
 enum LibraryUserCoverTarget: Equatable, Sendable {
     case video(path: String)
     case folder(path: String)
+
+    var invalidationDescription: String {
+        switch self {
+        case .video:
+            "video"
+        case .folder:
+            "folder"
+        }
+    }
 }
 
 struct LibraryUserCoverSource: @unchecked Sendable {
@@ -20,6 +29,7 @@ struct LibraryUserCoverSource: @unchecked Sendable {
 
 struct LibraryUserCoverSaveResult: Equatable, Sendable {
     let displayCoverPath: String
+    let coverRevision: String
     let replacedDisplayCoverPath: String?
 }
 
@@ -339,9 +349,19 @@ actor LibraryUserCoverService {
         }
 
         let previousCover: LibraryUserCover?
+        let savedCover: LibraryUserCover
         do {
             previousCover = try storedCover(for: target)
             try persist(displayCoverPath: destinationURL.path, for: target)
+            guard let persistedCover = try storedCover(for: target),
+                  persistedCover.displayCoverPath == destinationURL.path
+            else {
+                try restore(previousCover: previousCover, for: target)
+                throw LibraryUserCoverError.persistenceFailed(
+                    "persisted cover could not be read back"
+                )
+            }
+            savedCover = persistedCover
         } catch {
             try? fileManager.removeItem(at: destinationURL)
             throw LibraryUserCoverError.persistenceFailed(String(describing: error))
@@ -365,6 +385,7 @@ actor LibraryUserCoverService {
 
         return LibraryUserCoverSaveResult(
             displayCoverPath: destinationURL.path,
+            coverRevision: savedCover.revision,
             replacedDisplayCoverPath: previousCover?.displayCoverPath
         )
     }
