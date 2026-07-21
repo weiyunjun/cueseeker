@@ -305,9 +305,7 @@ extension AppCoordinator {
             }
             let shioriID = shioriIDs[ordinal]
             let snapshot = shiori.tableRowStore.snapshot
-            if let rowOrdinal = snapshot.rows.firstIndex(where: {
-                $0.id == Int(shioriID)
-            }) {
+            if let rowOrdinal = snapshot.rowIndex(entryID: Int(shioriID)) {
                 return shioriTablePlaybackItem(
                     ordinal: rowOrdinal,
                     itemOrdinal: ordinal

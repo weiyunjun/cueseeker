@@ -1,7 +1,6 @@
 import Foundation
 import CueSeekerCore
 
-@MainActor
 final class CueContentStore {
     private(set) var revision: UInt64 = 0
     private var contentByCueID: [Int64: CueContent] = [:]

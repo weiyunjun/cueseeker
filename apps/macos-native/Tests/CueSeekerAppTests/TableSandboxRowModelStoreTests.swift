@@ -882,6 +882,46 @@ func tableSandboxRowModelStoreRemovesDeletedShioriTagFromAffectedVisibleRows() {
 
 @MainActor
 @Test
+func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingCollection() {
+    let store = TableSandboxRowModelStore { _ in "unused" }
+    let relations = (1...10_000).map { value in
+        ShioriRelation(
+            id: Int64(value),
+            listID: ShioriListIdentity.defaultListID,
+            cueID: Int64(value),
+            createdAt: "2026-07-21T12:00:00Z"
+        )
+    }
+    let selectedCue = residentCueContent(cueID: 10_000, content: "Last resident Cue")
+    let selectedTag = ShioriTag(
+        id: 7,
+        name: "Review",
+        createdAt: "2026-07-21T12:00:00Z"
+    )
+
+    store.updateResidentShioriRelations(
+        relations,
+        tagsByShioriID: [10_000: [selectedTag]],
+        cueContentProvider: { cueID in
+            cueID == selectedCue.cueID ? selectedCue : residentCueContent(
+                cueID: cueID,
+                content: "Cue \(cueID)"
+            )
+        },
+        tableName: "shiori"
+    )
+
+    #expect(store.snapshot.totalRowCount == 10_000)
+    #expect(store.snapshot.loadedReferenceCount == 10_000)
+    #expect(store.snapshot.materializedRowCount == 0)
+    #expect(store.snapshot.row(at: 9_999)?.primaryCueText == "Last resident Cue")
+    #expect(store.snapshot.row(at: 9_999)?.shioriTags.map(\.label) == ["Review"])
+    #expect(store.snapshot.shiori(entryID: 10_000)?.content == "Last resident Cue")
+    #expect(store.snapshot.rowIndex(entryID: 10_000) == 9_999)
+}
+
+@MainActor
+@Test
 func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     let store = ShioriStore()
     store.tableSearchDraft = "tomori"
@@ -1006,5 +1046,28 @@ private func shioriSource(
         languages: languages,
         shioriTags: shioriTags,
         cuePresentation: cuePresentation
+    )
+}
+
+private func residentCueContent(cueID: Int64, content: String) -> CueContent {
+    CueContent(
+        cueID: cueID,
+        cueGroupID: cueID,
+        cueEventIndex: Int(cueID),
+        cueDisplayOrder: Int(cueID),
+        primaryGroupIndex: 0,
+        subtitlePath: "/tmp/CueSeeker/Series/episode-\(cueID).ass",
+        subtitleFormat: .ass,
+        videoPath: "/tmp/CueSeeker/Series/episode-\(cueID).mkv",
+        videoName: "episode-\(cueID).mkv",
+        displayTitle: "Episode \(cueID)",
+        timeRange: "00:01 - 00:02",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        content: content,
+        cueLines: [content],
+        cueGroupLines: [content],
+        languages: [.japanese],
+        speakers: []
     )
 }

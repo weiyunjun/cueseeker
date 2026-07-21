@@ -19,6 +19,9 @@ final class ShioriStore: ObservableObject {
     @Published var tableDataRevision = 0
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultShioriIDs: [Int64]?
+    private(set) var residentRelations: [ShioriRelation] = []
+    private(set) var residentTagsByShioriID: [Int64: [ShioriTag]] = [:]
+    private(set) var residentDataRevision: Int?
 
     let tableRowStore = TableSandboxRowModelStore()
 
@@ -62,7 +65,35 @@ final class ShioriStore: ObservableObject {
         tableResultRowCount = shioriIDs.count
     }
 
+    func installResidentSnapshot(
+        _ snapshot: ShioriResidentSnapshot,
+        dataRevision: Int
+    ) {
+        residentRelations = snapshot.relations
+        residentTagsByShioriID = snapshot.tagsByShioriID
+        residentDataRevision = dataRevision
+    }
+
+    func updateResidentTags(_ tags: [ShioriTag], forShioriID shioriID: Int64) {
+        guard residentDataRevision != nil else { return }
+        residentTagsByShioriID[shioriID] = tags
+    }
+
+    func removeResidentTag(tagID: Int64, fromShioriIDs shioriIDs: [Int64]) {
+        guard residentDataRevision != nil else { return }
+        for shioriID in shioriIDs {
+            residentTagsByShioriID[shioriID]?.removeAll { $0.id == tagID }
+        }
+    }
+
+    func clearResidentSnapshot() {
+        residentRelations = []
+        residentTagsByShioriID = [:]
+        residentDataRevision = nil
+    }
+
     func invalidateTableRows(tableName: String = "shiori") {
+        clearResidentSnapshot()
         clearTableRowsForReload(tableName: tableName)
         tableDataRevision += 1
     }

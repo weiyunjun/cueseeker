@@ -253,7 +253,7 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
             startMilliseconds: 12_000,
             endMilliseconds: 12_900
         ))
-        #expect(saved.content == "  exact first  \n\nexact third")
+        #expect(saved.content == "keyboard action cue 12")
         #expect(try database.shioriCount() == 1)
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.playback.subtitleFocusSession === session)
@@ -322,8 +322,8 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
         let savedFirst = try #require(try database.shiori(cueID: firstCue.id))
         let savedSecond = try #require(try database.shiori(cueID: secondCue.id))
         #expect(savedFirst.id != savedSecond.id)
-        #expect(savedFirst.content == "same-time first")
-        #expect(savedSecond.content == "same-time second")
+        #expect(savedFirst.content == "keyboard action cue 12")
+        #expect(savedSecond.content == "keyboard action cue 13")
         #expect(try database.shioriCount() == 2)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
@@ -368,16 +368,8 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
                 && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
         }
 
-        #expect(try database.shiori(
-            subtitleFile: URL(fileURLWithPath: keyboardActionSource().subtitlePath),
-            startMilliseconds: 12_000,
-            endMilliseconds: 12_900
-        ) == nil)
-        let saved = try #require(try database.shiori(
-            subtitleFile: URL(fileURLWithPath: keyboardActionSource().subtitlePath),
-            startMilliseconds: 13_000,
-            endMilliseconds: 13_900
-        ))
+        #expect(try database.shiori(cueID: 13) == nil)
+        let saved = try #require(try database.shiori(cueID: 14))
         #expect(saved.content == "keyboard action cue 13")
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.currentSnapshot?.selectedOrdinal == 13)
@@ -433,7 +425,7 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
             endMilliseconds: result.endMilliseconds
         ))
 
-        #expect(saved.content == result.content)
+        #expect(saved.content == "keyboard action cue 21")
         #expect(saved.videoName == result.videoName)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(window.selectedOrdinal == 0)

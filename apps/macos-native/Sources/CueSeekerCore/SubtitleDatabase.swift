@@ -885,6 +885,22 @@ public struct ShioriRelation: Equatable, Sendable, Identifiable {
     }
 }
 
+public struct ShioriResidentSnapshot: Equatable, Sendable {
+    public let relations: [ShioriRelation]
+    public let cueContents: [CueContent]
+    public let tagsByShioriID: [Int64: [ShioriTag]]
+
+    public init(
+        relations: [ShioriRelation],
+        cueContents: [CueContent],
+        tagsByShioriID: [Int64: [ShioriTag]]
+    ) {
+        self.relations = relations
+        self.cueContents = cueContents
+        self.tagsByShioriID = tagsByShioriID
+    }
+}
+
 /// A resolved Shiori value used by playback and legacy presentation call sites.
 /// Persisted Shiori state is represented by `ShioriRelation`; every other field
 /// here is resolved from the referenced current Cue.
@@ -936,6 +952,24 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         self.content = content
         self.isValid = isValid
         self.createdAt = createdAt
+    }
+
+    public init(relation: ShioriRelation, cueContent: CueContent) {
+        self.init(
+            id: relation.id,
+            subtitlePath: cueContent.subtitlePath,
+            subtitleFormat: cueContent.subtitleFormat,
+            videoPath: cueContent.videoPath,
+            videoName: cueContent.videoName,
+            timeRange: cueContent.timeRange,
+            startMilliseconds: cueContent.startMilliseconds,
+            endMilliseconds: cueContent.endMilliseconds,
+            cueEventIndex: cueContent.cueEventIndex,
+            cueDisplayOrder: cueContent.cueDisplayOrder,
+            content: cueContent.content,
+            isValid: true,
+            createdAt: relation.createdAt
+        )
     }
 
     public var cueIdentity: SubtitleCueIdentity? {
@@ -1003,6 +1037,17 @@ public struct ShioriCuePresentation: Equatable, Sendable {
         self.cueGroupTexts = cueGroupTexts
         self.languages = languages.isEmpty ? [.unknown] : languages
         self.speakers = speakers
+    }
+
+    public init(cueContent: CueContent) {
+        self.init(
+            cueID: cueContent.cueID,
+            cueGroupID: cueContent.cueGroupID,
+            primaryGroupIndex: cueContent.primaryGroupIndex,
+            cueGroupTexts: cueContent.cueGroupLines,
+            languages: cueContent.languages,
+            speakers: cueContent.speakers
+        )
     }
 }
 
@@ -7268,6 +7313,25 @@ public final class SubtitleDatabase: @unchecked Sendable {
             relations.append(shioriRelation(from: statement))
         }
         return relations
+    }
+
+    public func shioriResidentSnapshot(
+        listID: Int64 = ShioriListIdentity.defaultListID
+    ) throws -> ShioriResidentSnapshot {
+        let relations = try shioriRelations(listID: listID)
+        let cueContents = try cueContents(forCueIDs: relations.map(\.cueID))
+        guard cueContents.map(\.cueID) == relations.map(\.cueID) else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Every Shiori relation must resolve its current Cue content"
+            )
+        }
+        return ShioriResidentSnapshot(
+            relations: relations,
+            cueContents: cueContents,
+            tagsByShioriID: try shioriTagsByShioriID(
+                forShioriIDs: relations.map(\.id)
+            )
+        )
     }
 
     public func shioriRelation(id: Int64) throws -> ShioriRelation? {

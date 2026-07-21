@@ -19,11 +19,15 @@ table presentation resources.
    rows. The default list is active, `(list_id, cue_id)` is unique, Tags remain
    keyed by ShioriID, and resolved playback values now join the current Cue.
 3. Added a canonical `CueContent` domain value, ordered bulk CueID resolution,
-   and one AppCoordinator-owned Cue content store. Search, Shiori, and Playback
-   consumer cutovers remain the next steps.
-4. Pending: preserve independent surface state and remove full-collection
+   and one AppCoordinator-owned Cue content store.
+4. Replaced Shiori's paged database hydration with one complete resident
+   relation/Cue/Tag snapshot. Shiori search and filters now project ordered
+   relations from memory, arbitrary row access no longer queries SQLite, and
+   table rows are projected on demand without retaining a full materialized row
+   collection.
+5. Pending: preserve independent surface state and remove full-collection
    reconstruction during switching.
-5. Pending: remove full row payload retention from table measurement caches and
+6. Pending: remove full row payload retention from table measurement caches and
    complete regression verification.
 
 ## Verification
@@ -33,6 +37,7 @@ table presentation resources.
 - Valid-Cue migration, default-list relation, cross-list identity, tag, filter,
   ordering, and indexed-folder removal coverage: passed.
 - Canonical Cue bulk-resolution and single-value-per-CueID store tests: passed.
+- Resident Shiori snapshot and 10,000-relation lazy row projection tests: passed.
 - Remaining application migration and automated regression verification:
   pending.
 

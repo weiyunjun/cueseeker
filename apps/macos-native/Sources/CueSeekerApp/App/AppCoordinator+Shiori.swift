@@ -3,35 +3,6 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
-private func tableSandboxShioriRowSources(
-    from page: ShioriPage,
-    tagsByShioriID: [Int64: [ShioriTag]] = [:]
-) -> [TableSandboxShioriRowSource] {
-    page.shioris.map { shiori in
-        TableSandboxShioriRowSource(
-            shiori: shiori,
-            displayTitle: page.displayTitlesByShioriID[shiori.id]
-                ?? URL(fileURLWithPath: shiori.subtitlePath).lastPathComponent,
-            dateAddedText: shioriDateAddedDisplayText(for: shiori.createdAt),
-            languages: page.languagesByShioriID[shiori.id] ?? [.unknown],
-            shioriTags: tagsByShioriID[shiori.id] ?? [],
-            cuePresentation: page.cuePresentationsByShioriID[shiori.id]
-        )
-    }
-}
-
-private func shioriDateAddedDisplayText(for value: String) -> String {
-    let isoFormatter = ISO8601DateFormatter()
-    guard let date = isoFormatter.date(from: value) else {
-        return value
-    }
-
-    let displayFormatter = DateFormatter()
-    displayFormatter.locale = Locale(identifier: "en_US_POSIX")
-    displayFormatter.dateFormat = "yy-MM-dd HH:mm"
-    return displayFormatter.string(from: date)
-}
-
 struct ShioriTagPopoverState: Equatable {
     let allTags: [ShioriTag]
     let currentTags: [ShioriTag]
@@ -65,6 +36,16 @@ extension AppCoordinator {
         let searchText = shiori.tableSubmittedSearchText
         let filterSet = shiori.tableFilterRules.subtitleSearchFilterSet
         let dataRevision = shiori.tableDataRevision
+        if shiori.residentDataRevision == dataRevision {
+            applyResidentShioriTableProjection(
+                resultSnapshotID: resultSnapshotID,
+                searchText: searchText,
+                filterSet: filterSet,
+                dataRevision: dataRevision
+            )
+            return
+        }
+
         shioriTableRowsTask = Task { @MainActor [weak self] in
             guard let self else {
                 return
@@ -75,29 +56,12 @@ extension AppCoordinator {
                 }
             }
 
-            var resultShioriIDs: [Int64]?
-            var nextOffset = 0
-            var isFirstPage = true
-            while !Task.isCancelled {
-                let pageSize = isFirstPage
-                    ? TableSandboxHydrationPaging.pageSize
-                    : 1_000
-                guard let page = await self.loadTableSandboxShioriRows(
-                    range: nextOffset..<(nextOffset + pageSize),
-                    searchText: searchText,
-                    filterSet: filterSet,
-                    resultShioriIDs: resultShioriIDs
-                ) else {
-                    if isFirstPage,
-                       self.shioriTableRequestMatches(
-                           resultSnapshotID: resultSnapshotID,
-                           searchText: searchText,
-                           filterSignature: filterSet.cacheSignature,
-                           dataRevision: dataRevision
-                       ) {
-                        self.shiori.markTableRowsLoaded(totalSavedRowCount: 0)
-                    }
-                    return
+            do {
+                let databaseURL = self.databaseURL
+                let residentSnapshot = try await Self.runCancellableDetached(
+                    priority: .userInitiated
+                ) {
+                    try SubtitleDatabase(path: databaseURL).shioriResidentSnapshot()
                 }
                 guard self.shioriTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
@@ -107,33 +71,87 @@ extension AppCoordinator {
                 ) else {
                     return
                 }
-
-                if isFirstPage {
-                    resultShioriIDs = page.resultShioriIDs
-                    self.shiori.installTableResultShioriIDs(page.resultShioriIDs)
-                    self.shiori.markTableRowsLoaded(
-                        totalSavedRowCount: page.totalSavedRowCount
-                    )
-                }
-                self.shiori.tableRowStore.hydrateShioriRows(
-                    page.rows,
-                    startIndex: page.range.lowerBound,
-                    totalRowCount: page.range.lowerBound + page.rows.count,
-                    tableName: "shiori",
-                    probeSurface: .shiori,
-                    probeScope: self.uiProbeScope
+                self.cueContent.install(residentSnapshot.cueContents)
+                self.shiori.installResidentSnapshot(
+                    residentSnapshot,
+                    dataRevision: dataRevision
                 )
-                self.refreshShioriPlaybackPlaylistSource()
-
-                nextOffset = page.range.upperBound
-                isFirstPage = false
-                guard nextOffset < page.totalRowCount,
-                      !page.rows.isEmpty
-                else {
-                    return
+                self.applyResidentShioriTableProjection(
+                    resultSnapshotID: resultSnapshotID,
+                    searchText: searchText,
+                    filterSet: filterSet,
+                    dataRevision: dataRevision
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                print("Failed to load resident Shiori data: \(error)")
+                if self.shioriTableRequestMatches(
+                    resultSnapshotID: resultSnapshotID,
+                    searchText: searchText,
+                    filterSignature: filterSet.cacheSignature,
+                    dataRevision: dataRevision
+                ) {
+                    self.shiori.markTableRowsLoaded(totalSavedRowCount: 0)
                 }
             }
         }
+    }
+
+    private func applyResidentShioriTableProjection(
+        resultSnapshotID: UUID,
+        searchText: String,
+        filterSet: SubtitleSearchFilterSet,
+        dataRevision: Int
+    ) {
+        guard shioriTableRequestMatches(
+            resultSnapshotID: resultSnapshotID,
+            searchText: searchText,
+            filterSignature: filterSet.cacheSignature,
+            dataRevision: dataRevision
+        ) else {
+            return
+        }
+
+        let trimmedSearchText = searchText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let relations = shiori.residentRelations.filter { relation in
+            guard let content = cueContent.content(for: relation.cueID) else {
+                return false
+            }
+            let matchesSearch = trimmedSearchText.isEmpty
+                || content.displayTitle.range(
+                    of: trimmedSearchText,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                ) != nil
+                || content.content.range(
+                    of: trimmedSearchText,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                ) != nil
+            return matchesSearch && filterSet.matches(
+                display: content.displayTitle,
+                cues: content.content,
+                languages: content.languages.map(\.rawValue).sorted(),
+                speakers: content.speakers.sorted()
+            )
+        }
+        shiori.installTableResultShioriIDs(relations.map(\.id))
+        shiori.markTableRowsLoaded(
+            totalSavedRowCount: shiori.residentRelations.count
+        )
+        shiori.tableRowStore.updateResidentShioriRelations(
+            relations,
+            tagsByShioriID: shiori.residentTagsByShioriID,
+            cueContentProvider: { [cueContent] cueID in
+                cueContent.content(for: cueID)
+            },
+            tableName: "shiori",
+            probeSurface: .shiori,
+            probeScope: uiProbeScope
+        )
+        refreshShioriPlaybackPlaylistSource()
     }
 
     private func shioriTableRequestMatches(
@@ -148,77 +166,6 @@ extension AppCoordinator {
             && shiori.tableFilterRules.subtitleSearchFilterSet.cacheSignature
                 == filterSignature
             && shiori.tableDataRevision == dataRevision
-    }
-
-    func loadTableSandboxShioriRows(
-        range: Range<Int>,
-        searchText: String,
-        filterSet: SubtitleSearchFilterSet,
-        resultShioriIDs: [Int64]? = nil
-    ) async -> TableSandboxShioriHydrationPage? {
-        guard subtitleDatabase != nil else {
-            return nil
-        }
-
-        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lowerBound = max(0, range.lowerBound)
-        let upperBound = max(lowerBound, range.upperBound)
-        guard lowerBound < upperBound else { return nil }
-
-        do {
-            let pageDatabaseURL = databaseURL
-            let page: TableSandboxShioriHydrationPage? = try await Self.runCancellableDetached(
-                priority: .userInitiated
-            ) {
-                let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
-                let resolvedShioriIDs = try resultShioriIDs
-                    ?? pageDatabase.shioriTableIDIndex(
-                        searchText: trimmedSearchText,
-                        filterSet: filterSet
-                    ).shioriIDs
-                try Task.checkCancellation()
-                let pageLowerBound = min(lowerBound, resolvedShioriIDs.count)
-                let pageUpperBound = min(upperBound, resolvedShioriIDs.count)
-                let pageShioriIDs = Array(
-                    resolvedShioriIDs[pageLowerBound..<pageUpperBound]
-                )
-                let rawPage = try pageDatabase.shioriPage(
-                    shioriIDs: pageShioriIDs
-                )
-                guard rawPage.shioris.map(\.id) == pageShioriIDs else {
-                    return nil
-                }
-                try Task.checkCancellation()
-                let tagsByShioriID = try pageDatabase.shioriTagsByShioriID(
-                    forShioriIDs: rawPage.shioris.map(\.id)
-                )
-                try Task.checkCancellation()
-                let totalSavedRowCount = try pageDatabase.shioriCount()
-                try Task.checkCancellation()
-                let rows = tableSandboxShioriRowSources(
-                    from: rawPage,
-                    tagsByShioriID: tagsByShioriID
-                )
-                return TableSandboxShioriHydrationPage(
-                    range: lowerBound..<(lowerBound + rows.count),
-                    rows: rows,
-                    totalRowCount: resolvedShioriIDs.count,
-                    totalSavedRowCount: totalSavedRowCount,
-                    resultShioriIDs: resolvedShioriIDs
-                )
-            }
-
-            guard !Task.isCancelled, let page else {
-                return nil
-            }
-
-            return page
-        } catch is CancellationError {
-            return nil
-        } catch {
-            print("Failed to load Shiori table rows: \(error)")
-            return nil
-        }
     }
 
     func shioriTagPopoverState(forShioriID shioriID: Int64) -> ShioriTagPopoverState? {
@@ -238,7 +185,9 @@ extension AppCoordinator {
         guard let database = subtitleDatabase else { return nil }
         do {
             _ = try database.assignShioriTag(tagID: tagID, toShioriID: shioriID)
-            return try database.shioriTags(forShioriID: shioriID)
+            let tags = try database.shioriTags(forShioriID: shioriID)
+            shiori.updateResidentTags(tags, forShioriID: shioriID)
+            return tags
         } catch {
             print("Failed to assign Shiori tag: \(error)")
             return nil
@@ -249,10 +198,12 @@ extension AppCoordinator {
         guard let database = subtitleDatabase else { return nil }
         do {
             _ = try database.assignShioriTag(named: name, toShioriID: shioriID)
-            return ShioriTagPopoverState(
+            let state = ShioriTagPopoverState(
                 allTags: try database.shioriTags(),
                 currentTags: try database.shioriTags(forShioriID: shioriID)
             )
+            shiori.updateResidentTags(state.currentTags, forShioriID: shioriID)
+            return state
         } catch {
             print("Failed to create Shiori tag: \(error)")
             return nil
@@ -263,7 +214,9 @@ extension AppCoordinator {
         guard let database = subtitleDatabase else { return nil }
         do {
             _ = try database.removeShioriTagAssignment(tagID: tagID, fromShioriID: shioriID)
-            return try database.shioriTags(forShioriID: shioriID)
+            let tags = try database.shioriTags(forShioriID: shioriID)
+            shiori.updateResidentTags(tags, forShioriID: shioriID)
+            return tags
         } catch {
             print("Failed to remove Shiori tag assignment: \(error)")
             return nil
@@ -274,6 +227,10 @@ extension AppCoordinator {
         guard let database = subtitleDatabase else { return nil }
         do {
             let deletion = try database.deleteShioriTag(tagID: tagID)
+            shiori.removeResidentTag(
+                tagID: tagID,
+                fromShioriIDs: deletion.affectedShioriIDs
+            )
             let state = ShioriTagPopoverState(
                 allTags: try database.shioriTags(),
                 currentTags: try database.shioriTags(forShioriID: currentShioriID)

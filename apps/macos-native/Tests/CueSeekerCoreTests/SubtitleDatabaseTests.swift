@@ -3728,6 +3728,56 @@ func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
 }
 
 @Test
+func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Resident Cue"
+            ),
+        ]
+    )
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let saved = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let tag = try database.assignShioriTag(
+        named: "Review",
+        toShioriID: saved.id
+    )
+
+    let snapshot = try database.shioriResidentSnapshot()
+
+    #expect(snapshot.relations.map(\.id) == [saved.id])
+    #expect(snapshot.relations.map(\.cueID) == snapshot.cueContents.map(\.cueID))
+    #expect(snapshot.cueContents.map(\.content) == ["Resident Cue"])
+    #expect(snapshot.tagsByShioriID[saved.id] == [tag])
+}
+
+@Test
 func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

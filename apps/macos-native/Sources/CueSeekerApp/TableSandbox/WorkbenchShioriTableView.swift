@@ -282,20 +282,11 @@ private struct WorkbenchShioriTableContent: View {
         else {
             return nil
         }
-        guard let page = await appState.loadTableSandboxShioriRows(
-            range: range,
-            searchText: source.searchText,
-            filterSet: source.filterSet,
-            resultShioriIDs: source.resultShioriIDs
-        ),
-            textCopySourceStillMatches(source),
-            page.range == range,
-            page.rows.count == range.count,
-            page.totalRowCount == source.resultRowCount
-        else {
+        let rows = range.compactMap { rowStore.snapshot.row(at: $0) }
+        guard textCopySourceStillMatches(source), rows.count == range.count else {
             return nil
         }
-        return page.rows.map { tableSandboxShioriRow(for: $0) }
+        return rows
     }
 
     private func textCopySourceStillMatches(
