@@ -16,6 +16,11 @@ struct ShioriTagDeletionOutcome: Equatable {
 @MainActor
 extension AppCoordinator {
     func loadShioriTableRowsIfNeeded() {
+        guard !indexing.indexingStatus.isIndexing,
+              !indexing.folderRemovalStatus.isRemoving
+        else {
+            return
+        }
         guard shioriTableRowsTask == nil else {
             return
         }
@@ -29,6 +34,11 @@ extension AppCoordinator {
     }
 
     func reloadShioriTableRows() {
+        guard !indexing.indexingStatus.isIndexing,
+              !indexing.folderRemovalStatus.isRemoving
+        else {
+            return
+        }
         shioriTableRowsTask?.cancel()
         shiori.clearTableRowsForReload()
 
@@ -97,6 +107,25 @@ extension AppCoordinator {
                 }
             }
         }
+    }
+
+    func prepareShioriForIndexedContentMutation(under folders: [URL]) {
+        shioriTableRowsTask?.cancel()
+        shioriTableRowsTask = nil
+        cueContent.remove { content in
+            folders.contains { folder in
+                Self.path(content.subtitlePath, isUnder: folder)
+            }
+        }
+        shiori.invalidateTableRows()
+        shioriPlaybackNavigationScopeIDs = nil
+        shioriPlaybackNavigationSnapshot = nil
+    }
+
+    func reloadShioriAfterIndexedContentMutation() {
+        shioriTableRowsTask?.cancel()
+        shioriTableRowsTask = nil
+        reloadShioriTableRows()
     }
 
     private func applyResidentShioriTableProjection(

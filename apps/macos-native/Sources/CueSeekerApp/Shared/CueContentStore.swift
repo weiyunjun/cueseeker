@@ -48,6 +48,15 @@ final class CueContentStore {
         return true
     }
 
+    @discardableResult
+    func remove(where shouldRemove: (CueContent) -> Bool) -> Bool {
+        let oldCount = contentByCueID.count
+        contentByCueID = contentByCueID.filter { !shouldRemove($0.value) }
+        guard contentByCueID.count != oldCount else { return false }
+        revision &+= 1
+        return true
+    }
+
     func removeAll() {
         guard !contentByCueID.isEmpty else { return }
         contentByCueID.removeAll(keepingCapacity: true)

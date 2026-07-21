@@ -116,6 +116,64 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
 
 @MainActor
 @Test
+func libraryFolderRemovalClearsResidentShioriAndCanonicalCueContent() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    try database.migrate()
+    _ = try database.addSearchPath(fixture.folder)
+    let subtitleFile = fixture.folder.appendingPathComponent("Saved Episode.srt")
+    let videoFile = fixture.folder.appendingPathComponent("Saved Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Resident Shiori must disappear"
+            ),
+        ]
+    )
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let cueID = try #require(selection.cueLineID)
+    _ = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(
+        userDefaults: fixture.userDefaults,
+        databaseURL: fixture.databaseURL
+    )
+    app.reloadShioriTableRows()
+    await app.shioriTableRowsTask?.value
+    #expect(app.shiori.residentRelations.map(\.cueID) == [cueID])
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.cueContent.content(for: cueID) != nil)
+
+    app.removeFolder(fixture.folder)
+    await app.folderRemovalTask?.value
+    await app.shioriTableRowsTask?.value
+
+    #expect(app.shiori.residentRelations.isEmpty)
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 0)
+    #expect(app.cueContent.content(for: cueID) == nil)
+}
+
+@MainActor
+@Test
 func libraryFolderRemovalAndIndexingRejectEachOther() async throws {
     let fixture = try LibraryFolderRemovalTestFixture()
     defer { fixture.cleanUp() }

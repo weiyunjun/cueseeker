@@ -64,6 +64,7 @@ extension AppCoordinator {
             indexing.databaseMaintenanceStatus = .idle
         }
         cancelDatabaseReadTasksBeforeIndexing()
+        prepareShioriForIndexedContentMutation(under: [folder])
 
         let databaseURL = self.databaseURL
         let removalExecutor = libraryFolderRemovalExecutor
@@ -77,6 +78,7 @@ extension AppCoordinator {
                 self.indexing.removeFolder(folder)
                 self.clearSearchAndPlaybackState(under: folder)
                 self.indexing.folderRemovalStatus = .idle
+                self.reloadShioriAfterIndexedContentMutation()
                 self.indexing.removedFolderNotice = folder
                 self.refreshLibrary()
                 self.refreshRecentWatching()
@@ -91,6 +93,7 @@ extension AppCoordinator {
                 }
 
                 self.indexing.folderRemovalStatus = .idle
+                self.reloadShioriAfterIndexedContentMutation()
                 self.startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
                 self.folderRemovalTask = nil
             }
@@ -111,6 +114,7 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        prepareShioriForIndexedContentMutation(under: [folder])
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         clearSearchAndPlaybackState(under: folder)
         indexing.indexingStatus = .indexing(folder)
@@ -142,6 +146,7 @@ extension AppCoordinator {
                 }
 
                 indexing.indexingStatus = .completed(folder, result)
+                reloadShioriAfterIndexedContentMutation()
                 refreshLibrary()
                 refreshRecentWatching()
                 refreshLoadedTestRecentWatching()
@@ -154,6 +159,7 @@ extension AppCoordinator {
                 }
 
                 indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
+                reloadShioriAfterIndexedContentMutation()
             }
         }
     }
@@ -177,6 +183,7 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        prepareShioriForIndexedContentMutation(under: folders)
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         for folder in folders {
             clearSearchAndPlaybackState(under: folder)
@@ -233,6 +240,7 @@ extension AppCoordinator {
                     }
 
                     indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
+                    reloadShioriAfterIndexedContentMutation()
                     return
                 }
             }
@@ -255,6 +263,7 @@ extension AppCoordinator {
                 }
 
                 indexing.indexingStatus = .failed(firstFolder, Self.errorMessage(for: error))
+                reloadShioriAfterIndexedContentMutation()
                 return
             }
 
@@ -262,6 +271,7 @@ extension AppCoordinator {
                 folderCount: folders.count,
                 aggregateResult
             )
+            reloadShioriAfterIndexedContentMutation()
             refreshLibrary()
             refreshRecentWatching()
             refreshLoadedTestRecentWatching()

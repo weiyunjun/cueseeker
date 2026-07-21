@@ -46,6 +46,10 @@ table presentation resources.
    Shiori relations inside the rebuild transaction. ShioriID, list membership,
    creation time, and tag assignments survive Cue content changes; only source
    Cue identities that disappear are allowed to cascade away.
+10. Added one indexed-content mutation lifecycle for Shiori. Indexing and
+    folder removal now cancel obsolete Shiori reads, invalidate resident
+    relations and table rows, remove affected canonical Cue content, and reload
+    the complete surviving Shiori snapshot after the database mutation ends.
 
 ## Verification
 
@@ -60,6 +64,8 @@ table presentation resources.
 - Dynamic-row presentation-cache range and 50,000-row repeated-jump coverage:
   passed.
 - Shiori rebuild remapping with changed Cue content and preserved Tags: passed.
+- Folder removal resident-Shiori, table-row, and canonical-Cue invalidation:
+  passed.
 - Full 799-test regression run completed. All requirement-focused, database,
   Search, Shiori, Playback integration, table interaction, Cue Group reflow,
   and presentation-cache tests passed. Three unrelated native-media or
