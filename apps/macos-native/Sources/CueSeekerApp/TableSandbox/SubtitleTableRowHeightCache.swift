@@ -87,11 +87,15 @@ struct SubtitleTableRowHeightCache {
     }
 
     mutating func removeAll() {
-        entries.removeAll(keepingCapacity: true)
+        entries.removeAll(keepingCapacity: false)
     }
 
     mutating func remove(rowIndex: Int) {
         entries.removeValue(forKey: rowIndex)
+    }
+
+    mutating func retain(rowIndices: Range<Int>) {
+        entries = entries.filter { rowIndices.contains($0.key) }
     }
 
     mutating func prune(to rows: [SubtitleTableRow]) {

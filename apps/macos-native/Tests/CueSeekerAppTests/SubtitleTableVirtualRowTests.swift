@@ -2628,6 +2628,12 @@ func subtitleTableViewMeasurementAndDrawingWorkStayViewportBoundedAtLargeCounts(
     image.unlockFocus()
     #expect(large.coordinator.drawnRowCountForTesting() > 0)
     #expect(large.coordinator.drawnRowCountForTesting() <= (largeDrawRange?.count ?? 0))
+
+    for targetRow in stride(from: 1_000, through: 49_000, by: 1_000) {
+        large.coordinator.scrollToRow(targetRow)
+        let retainedLimit = large.coordinator.measurementRowRangeForTesting()?.count ?? 0
+        #expect(large.coordinator.retainedRowMeasurementCountForTesting() <= retainedLimit)
+    }
 }
 
 @Test

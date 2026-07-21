@@ -38,6 +38,8 @@ private struct WorkbenchShioriTableContent: View {
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
     @State private var didRestoreViewport = false
+    @State private var hasPreparedViewportRestoration = false
+    @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var pendingRemoval: Shiori?
     @State private var pendingTagDeletion: PendingShioriTagDeletion?
@@ -172,6 +174,7 @@ private struct WorkbenchShioriTableContent: View {
             }
         }
         .onAppear {
+            prepareViewportRestoration()
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
         }
@@ -343,6 +346,7 @@ private struct WorkbenchShioriTableContent: View {
         resetSelectedCollageAvailability()
         if resetScroll {
             shioriStore.tableViewportAnchor = nil
+            viewportAnchorToRestore = nil
             tableScrollTargetRow = nil
             didRestoreViewport = true
             tableScrollResetToken += 1
@@ -534,9 +538,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func captureVisibleRows(_ visibleRows: Range<Int>) {
-        if !didRestoreViewport, shioriStore.tableViewportAnchor != nil {
-            return
-        }
+        guard hasPreparedViewportRestoration, didRestoreViewport else { return }
         guard !visibleRows.isEmpty else { return }
         let anchorRow = min(
             visibleRows.upperBound - 1,
@@ -553,7 +555,7 @@ private struct WorkbenchShioriTableContent: View {
     private func restoreViewportIfPossible() {
         guard !didRestoreViewport,
               rowStore.snapshot.totalRowCount > 0,
-              let anchor = shioriStore.tableViewportAnchor
+              let anchor = viewportAnchorToRestore
         else {
             return
         }
@@ -562,9 +564,17 @@ private struct WorkbenchShioriTableContent: View {
             rowCount: rowStore.snapshot.totalRowCount,
             identityRow: rowStore.snapshot.rowIndex(entryID: anchor.entryID)
         ) else { return }
+        viewportAnchorToRestore = nil
+        didRestoreViewport = true
         tableScrollTargetRow = row
         tableScrollResetToken += 1
-        didRestoreViewport = true
+    }
+
+    private func prepareViewportRestoration() {
+        guard !hasPreparedViewportRestoration else { return }
+        hasPreparedViewportRestoration = true
+        viewportAnchorToRestore = shioriStore.tableViewportAnchor
+        didRestoreViewport = viewportAnchorToRestore == nil
     }
 
     private func persistSelection() {

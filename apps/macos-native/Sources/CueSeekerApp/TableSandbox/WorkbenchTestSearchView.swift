@@ -43,6 +43,8 @@ struct WorkbenchTestSearchView: View {
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
     @State private var didRestoreViewport = false
+    @State private var hasPreparedViewportRestoration = false
+    @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var canExportSelectedRowsAsCollage = false
     @State private var lastHandledCueContextRequestID: UUID?
@@ -142,6 +144,7 @@ struct WorkbenchTestSearchView: View {
             }
         }
         .onAppear {
+            prepareViewportRestoration()
             restoreTableControls()
             if let request = search.cueContextSearchRequest,
                applyCueContextSearchRequest(request) {
@@ -182,6 +185,7 @@ struct WorkbenchTestSearchView: View {
             rowSelection.reset()
             persistSelection()
             search.tableViewportAnchor = nil
+            viewportAnchorToRestore = nil
             didRestoreViewport = true
             lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -572,6 +576,7 @@ struct WorkbenchTestSearchView: View {
         )
         if resetScroll {
             search.tableViewportAnchor = nil
+            viewportAnchorToRestore = nil
             tableScrollTargetRow = nil
             didRestoreViewport = true
             tableScrollResetToken += 1
@@ -1038,6 +1043,7 @@ struct WorkbenchTestSearchView: View {
         if !force {
             persistSelection()
             search.tableViewportAnchor = nil
+            viewportAnchorToRestore = nil
             didRestoreViewport = true
         }
         resetSelectedCollageAvailability()
@@ -1172,9 +1178,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func captureVisibleRows(_ visibleRows: Range<Int>) {
-        if !didRestoreViewport, search.tableViewportAnchor != nil {
-            return
-        }
+        guard hasPreparedViewportRestoration, didRestoreViewport else { return }
         guard !visibleRows.isEmpty else { return }
         let anchorRow = min(
             visibleRows.upperBound - 1,
@@ -1192,7 +1196,7 @@ struct WorkbenchTestSearchView: View {
         guard !didRestoreViewport,
               activeCueContextRequest == nil,
               rowStore.snapshot.totalRowCount > 0,
-              let anchor = search.tableViewportAnchor
+              let anchor = viewportAnchorToRestore
         else {
             return
         }
@@ -1201,9 +1205,17 @@ struct WorkbenchTestSearchView: View {
             rowCount: rowStore.snapshot.totalRowCount,
             identityRow: rowStore.snapshot.rowIndex(entryID: anchor.entryID)
         ) else { return }
+        viewportAnchorToRestore = nil
+        didRestoreViewport = true
         tableScrollTargetRow = row
         tableScrollResetToken += 1
-        didRestoreViewport = true
+    }
+
+    private func prepareViewportRestoration() {
+        guard !hasPreparedViewportRestoration else { return }
+        hasPreparedViewportRestoration = true
+        viewportAnchorToRestore = search.tableViewportAnchor
+        didRestoreViewport = viewportAnchorToRestore == nil
     }
 
     private func persistSelection() {

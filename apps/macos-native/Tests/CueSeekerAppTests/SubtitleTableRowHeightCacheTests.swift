@@ -69,6 +69,29 @@ func subtitleTableRowHeightCachePrunesRowsNotInSnapshot() {
 }
 
 @Test
+func subtitleTableRowHeightCacheRetainsOnlyThePresentationRange() {
+    var cache = SubtitleTableRowHeightCache()
+    for index in 0..<100 {
+        let row = SubtitleTableRow(
+            id: index + 1,
+            displayTitle: "Episode \(index + 1)",
+            cues: "line \(index + 1)"
+        )
+        _ = cache.lookup(
+            rowIndex: index,
+            row: row,
+            effectiveCuesWidth: 640,
+            showsCueGroup: false,
+            styleRevision: 1
+        ) { testRowMeasurement(42) }
+    }
+
+    cache.retain(rowIndices: 45..<54)
+
+    #expect(cache.count == 9)
+}
+
+@Test
 func subtitleTableRowHeightCacheStoresSparseRowIndexes() {
     var cache = SubtitleTableRowHeightCache()
     let row = SubtitleTableRow(id: 2_000_001, displayTitle: "Episode 2000001", cues: "line")

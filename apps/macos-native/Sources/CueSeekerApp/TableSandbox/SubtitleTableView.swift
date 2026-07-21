@@ -3446,6 +3446,10 @@ struct SubtitleTableView: NSViewRepresentable {
             measurementComputeCount
         }
 
+        func retainedRowMeasurementCountForTesting() -> Int {
+            rowMeasurementCache.count
+        }
+
         func resetMeasurementComputeCountForTesting() {
             measurementComputeCount = 0
         }
@@ -3631,6 +3635,10 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let scrollView,
                   let range = measurementRowRange(in: scrollView.contentView.bounds)
             else { return }
+            // Reflow can temporarily move the clip view while preserving a
+            // primary-Cue anchor. Prune only after the visible range settles,
+            // otherwise a second layout pass can lose that anchor measurement.
+            rowMeasurementCache.retain(rowIndices: range)
             guard force || range != lastNotifiedVisibleRows else { return }
             lastNotifiedVisibleRows = range
             onVisibleRowsChange(range)

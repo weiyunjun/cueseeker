@@ -38,8 +38,10 @@ table presentation resources.
    now remounts against the resident logical snapshots, restores the same entry
    when it still exists, and falls back to the nearest preceding position when
    filtering removed it.
-8. Pending: remove full row payload retention from table measurement caches and
-   complete regression verification.
+8. Bounded the dynamic-row measurement cache to the visible viewport plus the
+   existing measurement overscan. Complete row payloads, Cue Group strings, and
+   Tags now leave the cache when their rows leave that range; compact scalar
+   row heights remain available for stable scrollbar geometry.
 
 ## Verification
 
@@ -51,12 +53,17 @@ table presentation resources.
 - Resident Shiori snapshot and 10,000-relation lazy row projection tests: passed.
 - Canonical Search ownership and 10,000-Cue lazy row projection tests: passed.
 - Independent viewport-anchor and Shiori remount-state tests: passed.
-- Remaining table-presentation cache work and full automated regression
-  verification: pending.
+- Dynamic-row presentation-cache range and 50,000-row repeated-jump coverage:
+  passed.
+- Full 799-test regression run completed. All requirement-focused, database,
+  Search, Shiori, Playback integration, table interaction, Cue Group reflow,
+  and presentation-cache tests passed. Three unrelated native-media or
+  temporary-database timing tests that timed out under the full run each passed
+  immediately when rerun in isolation.
 
 ## Outcome
 
-In progress.
+Implemented. End-to-end product and memory acceptance remains with the user.
 
 ## Follow-ups
 
