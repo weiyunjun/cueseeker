@@ -84,11 +84,13 @@ table presentation resources.
 - Search remount with 10,000 resident Cue references preserves one row store,
   performs no row materialization, and keeps the table snapshot version stable:
   passed.
-- Full 799-test regression run completed. All requirement-focused, database,
-  Search, Shiori, Playback integration, table interaction, Cue Group reflow,
-  and presentation-cache tests passed. Three unrelated native-media or
-  temporary-database timing tests that timed out under the full run each passed
-  immediately when rerun in isolation.
+- Final full 804-test regression run completed. All requirement-focused,
+  database, Search, Shiori, Playback integration, table interaction, Cue Group
+  reflow, and presentation-cache tests passed. Ten native-media, MainActor, or
+  temporary-database timing tests failed under the full parallel load with 17
+  issues. Every failed test passed immediately in isolation: Library folder
+  removal 6/6, native playback timeline 5/5, Subtitle Focus Shiori 2/2,
+  playlist copy/Shiori 1/1, and Recent pointer dispatch 1/1.
 
 ## Outcome
 
