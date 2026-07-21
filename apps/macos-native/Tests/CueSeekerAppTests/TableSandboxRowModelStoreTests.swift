@@ -952,6 +952,75 @@ func tableSandboxRowModelStoreProjectsSearchCueIDsWithoutMaterializingRows() {
 
 @MainActor
 @Test
+func tableSandboxSearchProjectionReloadsWhenCanonicalCueContentChanges() {
+    let cueStore = CueContentStore()
+    let original = residentCueContent(cueID: 42, content: "Original Cue")
+    let changed = residentCueContent(cueID: 42, content: "Changed Cue")
+    cueStore.install([original])
+    let store = TableSandboxRowModelStore { _ in "unused" }
+    let stableResults = [SubtitleSearchResult(cueContent: original, searchRank: 0)]
+
+    store.updateResidentSearchResults(
+        stableResults,
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        tableName: "search"
+    )
+    let originalVersion = store.snapshot.version
+    cueStore.install([changed])
+    store.updateResidentSearchResults(
+        stableResults,
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        tableName: "search"
+    )
+
+    #expect(store.snapshot.version == originalVersion + 1)
+    #expect(store.snapshot.update == .reload)
+    #expect(store.snapshot.row(at: 0)?.primaryCueText == "Changed Cue")
+}
+
+@MainActor
+@Test
+func tableSandboxShioriProjectionReloadsWhenCanonicalCueContentChanges() {
+    let cueStore = CueContentStore()
+    let original = residentCueContent(cueID: 42, content: "Original Shiori Cue")
+    let changed = residentCueContent(cueID: 42, content: "Changed Shiori Cue")
+    cueStore.install([original])
+    let store = TableSandboxRowModelStore { _ in "unused" }
+    let relations = [
+        ShioriRelation(
+            id: 7,
+            listID: ShioriListIdentity.defaultListID,
+            cueID: 42,
+            createdAt: "2026-07-21T12:00:00Z"
+        ),
+    ]
+
+    store.updateResidentShioriRelations(
+        relations,
+        tagsByShioriID: [:],
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        tableName: "shiori"
+    )
+    let originalVersion = store.snapshot.version
+    cueStore.install([changed])
+    store.updateResidentShioriRelations(
+        relations,
+        tagsByShioriID: [:],
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        tableName: "shiori"
+    )
+
+    #expect(store.snapshot.version == originalVersion + 1)
+    #expect(store.snapshot.update == .reload)
+    #expect(store.snapshot.row(at: 0)?.primaryCueText == "Changed Shiori Cue")
+}
+
+@MainActor
+@Test
 func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     let store = ShioriStore()
     store.tableSearchDraft = "tomori"

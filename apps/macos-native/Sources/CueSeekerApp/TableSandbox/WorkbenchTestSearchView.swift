@@ -541,6 +541,7 @@ struct WorkbenchTestSearchView: View {
         rowStore.updateResidentSearchResults(
             results,
             cueContentProvider: searchCueContentProvider,
+            cueContentRevision: appState.cueContent.revision,
             tableName: "test-search",
             probeSurface: tableProbeSurface,
             probeScope: appState.uiProbeScope
@@ -570,6 +571,7 @@ struct WorkbenchTestSearchView: View {
         rowStore.updateResidentSearchResults(
             [],
             cueContentProvider: searchCueContentProvider,
+            cueContentRevision: appState.cueContent.revision,
             tableName: "test-search",
             probeSurface: tableProbeSurface,
             probeScope: appState.uiProbeScope
@@ -723,6 +725,7 @@ struct WorkbenchTestSearchView: View {
             page.results,
             startIndex: expectedStartIndex,
             cueContentProvider: searchCueContentProvider,
+            cueContentRevision: appState.cueContent.revision,
             tableName: "test-search",
             probeSurface: tableProbeSurface,
             probeScope: appState.uiProbeScope
@@ -768,6 +771,7 @@ struct WorkbenchTestSearchView: View {
                 rowStore.updateResidentSearchResults(
                     [],
                     cueContentProvider: searchCueContentProvider,
+                    cueContentRevision: appState.cueContent.revision,
                     tableName: "test-search",
                     probeSurface: tableProbeSurface,
                     probeScope: appState.uiProbeScope
@@ -779,6 +783,7 @@ struct WorkbenchTestSearchView: View {
             rowStore.updateResidentSearchResults(
                 page.results,
                 cueContentProvider: searchCueContentProvider,
+                cueContentRevision: appState.cueContent.revision,
                 tableName: "test-search",
                 probeSurface: tableProbeSurface,
                 probeScope: appState.uiProbeScope,
@@ -813,6 +818,7 @@ struct WorkbenchTestSearchView: View {
                 rowStore.updateResidentSearchResults(
                     [],
                     cueContentProvider: searchCueContentProvider,
+                    cueContentRevision: appState.cueContent.revision,
                     tableName: "test-search",
                     probeSurface: .context,
                     probeScope: appState.uiProbeScope
@@ -832,6 +838,7 @@ struct WorkbenchTestSearchView: View {
             rowStore.updateResidentSearchResults(
                 page.results,
                 cueContentProvider: searchCueContentProvider,
+                cueContentRevision: appState.cueContent.revision,
                 tableName: "test-search",
                 probeSurface: .context,
                 probeScope: appState.uiProbeScope,
@@ -973,6 +980,7 @@ struct WorkbenchTestSearchView: View {
                 let prependedCount = rowStore.prependResidentSearchResults(
                     page.results,
                     cueContentProvider: searchCueContentProvider,
+                    cueContentRevision: appState.cueContent.revision,
                     tableName: "test-search",
                     probeSurface: .context,
                     probeScope: appState.uiProbeScope
@@ -999,6 +1007,7 @@ struct WorkbenchTestSearchView: View {
                 let appendedCount = rowStore.appendResidentSearchResults(
                     page.results,
                     cueContentProvider: searchCueContentProvider,
+                    cueContentRevision: appState.cueContent.revision,
                     tableName: "test-search",
                     probeSurface: .context,
                     probeScope: appState.uiProbeScope

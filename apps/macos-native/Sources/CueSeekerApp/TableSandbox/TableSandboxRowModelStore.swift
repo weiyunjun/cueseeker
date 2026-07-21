@@ -15,6 +15,7 @@ struct TableSandboxRowsSnapshot {
     fileprivate var shioriRelationIndexByEntryID: [Int: Int] = [:]
     fileprivate var shioriTagsByEntryID: [Int: [ShioriTag]] = [:]
     fileprivate var cueContentProvider: ((Int64) -> CueContent?)?
+    fileprivate var cueContentRevision: UInt64 = 0
     var version = 0
     var update = TableSandboxRowsUpdate.none
     var totalRowCount = 0
@@ -30,6 +31,7 @@ struct TableSandboxRowsSnapshot {
         shioriRelations: [ShioriRelation] = [],
         shioriTagsByEntryID: [Int: [ShioriTag]] = [:],
         cueContentProvider: ((Int64) -> CueContent?)? = nil,
+        cueContentRevision: UInt64 = 0,
         version: Int = 0,
         update: TableSandboxRowsUpdate = .none,
         totalRowCount: Int = 0
@@ -54,6 +56,7 @@ struct TableSandboxRowsSnapshot {
         )
         self.shioriTagsByEntryID = shioriTagsByEntryID
         self.cueContentProvider = cueContentProvider
+        self.cueContentRevision = cueContentRevision
         self.version = version
         self.update = update
         self.totalRowCount = totalRowCount
@@ -213,6 +216,7 @@ final class TableSandboxRowModelStore: ObservableObject {
     func updateResidentSearchResults(
         _ results: [SubtitleSearchResult],
         cueContentProvider: @escaping (Int64) -> CueContent?,
+        cueContentRevision: UInt64 = 0,
         tableName: String,
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil,
@@ -228,7 +232,8 @@ final class TableSandboxRowModelStore: ObservableObject {
         } else if snapshot.searchCueIDs == cueIDs,
                   snapshot.materializedRows.isEmpty,
                   snapshot.shioriRelations.isEmpty,
-                  snapshot.searchRankByCueID == ranks {
+                  snapshot.searchRankByCueID == ranks,
+                  snapshot.cueContentRevision == cueContentRevision {
             return
         } else {
             update = .reload
@@ -237,6 +242,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchCueIDs: cueIDs,
             searchRankByCueID: ranks,
             searchCueContentProvider: cueContentProvider,
+            cueContentRevision: cueContentRevision,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: cueIDs.count
@@ -251,6 +257,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         _ results: [SubtitleSearchResult],
         startIndex: Int,
         cueContentProvider: @escaping (Int64) -> CueContent?,
+        cueContentRevision: UInt64 = 0,
         tableName: String,
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
@@ -280,6 +287,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchCueIDs: cueIDs,
             searchRankByCueID: ranks,
             searchCueContentProvider: cueContentProvider,
+            cueContentRevision: cueContentRevision,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: cueIDs.count
@@ -294,6 +302,7 @@ final class TableSandboxRowModelStore: ObservableObject {
     func prependResidentSearchResults(
         _ results: [SubtitleSearchResult],
         cueContentProvider: @escaping (Int64) -> CueContent?,
+        cueContentRevision: UInt64 = 0,
         tableName: String,
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
@@ -312,6 +321,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         updateResidentSearchResults(
             nextResults,
             cueContentProvider: cueContentProvider,
+            cueContentRevision: cueContentRevision,
             tableName: tableName,
             probeSurface: probeSurface,
             probeScope: probeScope,
@@ -324,6 +334,7 @@ final class TableSandboxRowModelStore: ObservableObject {
     func appendResidentSearchResults(
         _ results: [SubtitleSearchResult],
         cueContentProvider: @escaping (Int64) -> CueContent?,
+        cueContentRevision: UInt64 = 0,
         tableName: String,
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
@@ -335,6 +346,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             inserted,
             startIndex: snapshot.searchCueIDs.count,
             cueContentProvider: cueContentProvider,
+            cueContentRevision: cueContentRevision,
             tableName: tableName,
             probeSurface: probeSurface,
             probeScope: probeScope
@@ -542,6 +554,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         _ relations: [ShioriRelation],
         tagsByShioriID: [Int64: [ShioriTag]],
         cueContentProvider: @escaping (Int64) -> CueContent?,
+        cueContentRevision: UInt64 = 0,
         tableName: String,
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
@@ -552,6 +565,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         let contentChanged = relations != snapshot.shioriRelations
             || normalizedTags != snapshot.shioriTagsByEntryID
             || !snapshot.materializedRows.isEmpty
+            || snapshot.cueContentRevision != cueContentRevision
         guard contentChanged || snapshot.totalRowCount != relations.count else {
             return
         }
@@ -566,6 +580,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             shioriRelations: relations,
             shioriTagsByEntryID: normalizedTags,
             cueContentProvider: cueContentProvider,
+            cueContentRevision: cueContentRevision,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: relations.count
@@ -683,6 +698,7 @@ final class TableSandboxRowModelStore: ObservableObject {
                 shioriRelations: snapshot.shioriRelations,
                 shioriTagsByEntryID: nextTags,
                 cueContentProvider: snapshot.cueContentProvider,
+                cueContentRevision: snapshot.cueContentRevision,
                 version: snapshot.version + 1,
                 update: .cells([
                     TableSandboxCellInvalidation(row: rowIndex, columnID: "tags")
@@ -759,6 +775,7 @@ final class TableSandboxRowModelStore: ObservableObject {
                 shioriRelations: snapshot.shioriRelations,
                 shioriTagsByEntryID: nextTagsByEntryID,
                 cueContentProvider: snapshot.cueContentProvider,
+                cueContentRevision: snapshot.cueContentRevision,
                 version: snapshot.version + 1,
                 update: .cells(invalidations),
                 totalRowCount: snapshot.totalRowCount

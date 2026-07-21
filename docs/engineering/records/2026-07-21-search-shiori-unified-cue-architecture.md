@@ -50,6 +50,10 @@ table presentation resources.
     folder removal now cancel obsolete Shiori reads, invalidate resident
     relations and table rows, remove affected canonical Cue content, and reload
     the complete surviving Shiori snapshot after the database mutation ends.
+11. Added canonical Cue content revision ownership to lazy Search and Shiori
+    table snapshots. A content change now advances the table snapshot version
+    and emits a reload even when CueIDs, ranks, relations, and Tags are stable,
+    which invalidates native drawing and dynamic-row measurement caches.
 
 ## Verification
 
@@ -66,6 +70,7 @@ table presentation resources.
 - Shiori rebuild remapping with changed Cue content and preserved Tags: passed.
 - Folder removal resident-Shiori, table-row, and canonical-Cue invalidation:
   passed.
+- Same-CueID Search and Shiori content replacement invalidation: passed.
 - Full 799-test regression run completed. All requirement-focused, database,
   Search, Shiori, Playback integration, table interaction, Cue Group reflow,
   and presentation-cache tests passed. Three unrelated native-media or

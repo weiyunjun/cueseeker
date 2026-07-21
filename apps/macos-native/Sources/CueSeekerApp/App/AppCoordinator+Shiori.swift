@@ -176,6 +176,7 @@ extension AppCoordinator {
             cueContentProvider: { [cueContent] cueID in
                 cueContent.content(for: cueID)
             },
+            cueContentRevision: cueContent.revision,
             tableName: "shiori",
             probeSurface: .shiori,
             probeScope: uiProbeScope
