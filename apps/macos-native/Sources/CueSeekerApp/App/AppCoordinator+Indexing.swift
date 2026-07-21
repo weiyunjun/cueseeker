@@ -54,6 +54,7 @@ extension AppCoordinator {
             startupError = "Database is not initialized"
             return
         }
+        let searchMutationToken = search.beginIndexedCueDataMutation()
 
         startupError = nil
         indexing.removedFolderNotice = nil
@@ -79,6 +80,7 @@ extension AppCoordinator {
                 self.clearSearchAndPlaybackState(under: folder)
                 self.indexing.folderRemovalStatus = .idle
                 self.reloadShioriAfterIndexedContentMutation()
+                self.search.completeIndexedCueDataMutation(searchMutationToken)
                 self.indexing.removedFolderNotice = folder
                 self.refreshLibrary()
                 self.refreshRecentWatching()
@@ -94,6 +96,7 @@ extension AppCoordinator {
 
                 self.indexing.folderRemovalStatus = .idle
                 self.reloadShioriAfterIndexedContentMutation()
+                self.search.completeIndexedCueDataMutation(searchMutationToken)
                 self.startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
                 self.folderRemovalTask = nil
             }
@@ -114,15 +117,16 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        guard let database = subtitleDatabase else {
+            indexing.indexingStatus = .failed(folder, "Database is not initialized")
+            return
+        }
+        let searchMutationToken = search.beginIndexedCueDataMutation()
         prepareShioriForIndexedContentMutation(under: [folder])
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         clearSearchAndPlaybackState(under: folder)
         indexing.indexingStatus = .indexing(folder)
 
-        guard let database = subtitleDatabase else {
-            indexing.indexingStatus = .failed(folder, "Database is not initialized")
-            return
-        }
         let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
         indexingTask = Task {
             do {
@@ -147,6 +151,7 @@ extension AppCoordinator {
 
                 indexing.indexingStatus = .completed(folder, result)
                 reloadShioriAfterIndexedContentMutation()
+                search.completeIndexedCueDataMutation(searchMutationToken)
                 refreshLibrary()
                 refreshRecentWatching()
                 refreshLoadedTestRecentWatching()
@@ -160,6 +165,7 @@ extension AppCoordinator {
 
                 indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
                 reloadShioriAfterIndexedContentMutation()
+                search.completeIndexedCueDataMutation(searchMutationToken)
             }
         }
     }
@@ -183,6 +189,11 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
+        guard let database = subtitleDatabase else {
+            indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
+            return
+        }
+        let searchMutationToken = search.beginIndexedCueDataMutation()
         prepareShioriForIndexedContentMutation(under: folders)
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         for folder in folders {
@@ -194,10 +205,6 @@ extension AppCoordinator {
             totalFolders: folders.count
         )
 
-        guard let database = subtitleDatabase else {
-            indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
-            return
-        }
         let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
         indexingTask = Task {
             var aggregateResult: SubtitleIndexingResult?
@@ -241,6 +248,7 @@ extension AppCoordinator {
 
                     indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
                     reloadShioriAfterIndexedContentMutation()
+                    search.completeIndexedCueDataMutation(searchMutationToken)
                     return
                 }
             }
@@ -264,6 +272,7 @@ extension AppCoordinator {
 
                 indexing.indexingStatus = .failed(firstFolder, Self.errorMessage(for: error))
                 reloadShioriAfterIndexedContentMutation()
+                search.completeIndexedCueDataMutation(searchMutationToken)
                 return
             }
 
@@ -272,6 +281,7 @@ extension AppCoordinator {
                 aggregateResult
             )
             reloadShioriAfterIndexedContentMutation()
+            search.completeIndexedCueDataMutation(searchMutationToken)
             refreshLibrary()
             refreshRecentWatching()
             refreshLoadedTestRecentWatching()

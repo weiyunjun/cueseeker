@@ -24,6 +24,21 @@ struct CueContextSearchRequest: Equatable, Identifiable {
 struct SearchFilterOnlyProjectionKey: Equatable {
     let filterSignature: String
     let folderPaths: [String]
+    let indexedCueDataRevision: UInt64
+
+    init(
+        filterSignature: String,
+        folderPaths: [String],
+        indexedCueDataRevision: UInt64 = 0
+    ) {
+        self.filterSignature = filterSignature
+        self.folderPaths = folderPaths
+        self.indexedCueDataRevision = indexedCueDataRevision
+    }
+}
+
+struct SearchIndexedCueMutationToken: Equatable {
+    let generation: UInt64
 }
 
 struct SearchFilterOnlyLoadToken: Equatable {
@@ -54,7 +69,10 @@ final class SearchStore: ObservableObject {
     private var isFilterOnlyLoadInProgress = false
     private var hasLoadedFilterOnlyInitialPage = false
     private var filterOnlyTotalRowCount = 0
+    private var indexedCueMutationGeneration: UInt64 = 0
+    private var activeIndexedCueMutationGeneration: UInt64?
 
+    @Published private(set) var indexedCueDataRevision: UInt64 = 0
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
     @Published var searchResultCueIDs: [Int64] = []
@@ -277,6 +295,41 @@ final class SearchStore: ObservableObject {
         }
         filterOnlyLoadGeneration &+= 1
         isFilterOnlyLoadInProgress = false
+    }
+
+    @discardableResult
+    func beginIndexedCueDataMutation() -> SearchIndexedCueMutationToken {
+        indexedCueMutationGeneration &+= 1
+        let token = SearchIndexedCueMutationToken(
+            generation: indexedCueMutationGeneration
+        )
+        activeIndexedCueMutationGeneration = token.generation
+        cueContextSearchRequest = nil
+        setTableProjectionSource(nil)
+        tableRowStore.updateResidentSearchReferences(
+            cueIDs: [],
+            ranksByCueID: [:],
+            cueContentProvider: { [cueContentStore] cueID in
+                cueContentStore.content(for: cueID)
+            },
+            cueContentRevision: cueContentStore.revision,
+            tableName: "test-search",
+            probeSurface: .search,
+            probeScope: uiProbeScope
+        )
+        return token
+    }
+
+    @discardableResult
+    func completeIndexedCueDataMutation(
+        _ token: SearchIndexedCueMutationToken
+    ) -> Bool {
+        guard token.generation == activeIndexedCueMutationGeneration else {
+            return false
+        }
+        activeIndexedCueMutationGeneration = nil
+        indexedCueDataRevision &+= 1
+        return true
     }
 
     private func setTableProjectionSource(_ source: SearchTableProjectionSource?) {

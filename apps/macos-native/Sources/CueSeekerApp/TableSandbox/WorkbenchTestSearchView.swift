@@ -224,6 +224,10 @@ struct WorkbenchTestSearchView: View {
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRowsFromResidentSearch()
         }
+        .onChange(of: search.indexedCueDataRevision) { _ in
+            guard isFilterOnlyMode else { return }
+            loadAllCueRows(resetScroll: false)
+        }
         .onChange(of: rowStore.snapshot.version) { _ in
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
@@ -697,14 +701,17 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func loadAllCueRows(resetScroll: Bool) {
-        guard allowsTableResponse else {
+        guard allowsTableResponse,
+              !appState.indexing.isLibraryFolderOperationActive
+        else {
             hasDeferredRefreshWhileCovered = true
             resetCoveredTableLoading()
             return
         }
         let projectionKey = SearchFilterOnlyProjectionKey(
             filterSignature: search.activeFilterSetSignature,
-            folderPaths: appState.indexing.selectedFolders.map(\.path)
+            folderPaths: appState.indexing.selectedFolders.map(\.path),
+            indexedCueDataRevision: search.indexedCueDataRevision
         )
         let sourceChanged = search.prepareFilterOnlyTableProjection(
             key: projectionKey

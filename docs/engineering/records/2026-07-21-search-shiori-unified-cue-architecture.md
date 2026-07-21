@@ -76,6 +76,14 @@ table presentation resources.
     loaded boundary, permits only one in-flight page, and rejects stale page
     responses before any Search or row-store mutation. The forced on-appear
     filter application and duplicate initial load path were removed.
+15. Added an indexed-Cue data revision to filter-only projection identity and
+    one mutation generation shared by indexing and folder removal. Starting an
+    indexed-content mutation now rejects in-flight filter pages, clears stale
+    CueID and Context references, and prevents reads while the database is
+    changing. Successful and failed terminal paths advance the stable data
+    revision, causing an active or remounted filter-only Search to query the
+    new database generation even when its filter and folder paths are
+    unchanged.
 
 ## Verification
 
@@ -106,6 +114,9 @@ table presentation resources.
   hydration requests: passed.
 - Complete filter projections reject duplicate page loads; partial projections
   resume at the loaded boundary and reject stale generation responses: passed.
+- Same-folder reindex invalidates the complete filter projection immediately,
+  rejects its old CueIDs and page token, and hydrates a new revision only after
+  the index operation becomes stable: passed.
 - Cue Group response-gating integration suite, including covered Search and
   remount behavior: 11/11 passed.
 - Final full 810-test regression run completed. All requirement-focused,

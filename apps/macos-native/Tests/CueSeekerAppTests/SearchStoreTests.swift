@@ -942,6 +942,62 @@ func filterOnlyProjectionResumesPartialSourceAndRejectsStaleResponse() throws {
 
 @MainActor
 @Test
+func indexedCueMutationInvalidatesFilterProjectionAndAdvancesItsIdentity() throws {
+    let search = SearchStore()
+    let originalKey = SearchFilterOnlyProjectionKey(
+        filterSignature: "cues:contains:review",
+        folderPaths: ["/Media"],
+        indexedCueDataRevision: search.indexedCueDataRevision
+    )
+    _ = search.prepareFilterOnlyTableProjection(key: originalKey)
+    let stalePageToken = try #require(search.beginFilterOnlyPageLoad(
+        key: originalKey,
+        loadedRowCount: 0
+    ))
+    search.tableRowStore.updateResidentSearchResults(
+        [makeTableSandboxSearchResult(
+            id: 42,
+            content: "Stale indexed Cue",
+            speakers: [],
+            searchRank: 0
+        )],
+        cueContentProvider: { _ in nil },
+        tableName: "test-search"
+    )
+    search.cueContextSearchRequest = CueContextSearchRequest(
+        displayTitle: "Episode",
+        subtitlePath: "/Media/Episode.srt",
+        targetCueID: 42
+    )
+
+    let mutation = search.beginIndexedCueDataMutation()
+
+    #expect(search.tableProjectionSource == nil)
+    #expect(search.tableRowStore.snapshot.totalRowCount == 0)
+    #expect(search.cueContextSearchRequest == nil)
+    #expect(!search.acceptsFilterOnlyPageLoad(stalePageToken))
+    #expect(search.indexedCueDataRevision == 0)
+    #expect(search.completeIndexedCueDataMutation(mutation))
+    #expect(!search.completeIndexedCueDataMutation(mutation))
+    #expect(search.indexedCueDataRevision == 1)
+
+    let refreshedKey = SearchFilterOnlyProjectionKey(
+        filterSignature: originalKey.filterSignature,
+        folderPaths: originalKey.folderPaths,
+        indexedCueDataRevision: search.indexedCueDataRevision
+    )
+    #expect(refreshedKey != originalKey)
+    #expect(search.prepareFilterOnlyTableProjection(key: refreshedKey))
+
+    let supersededMutation = search.beginIndexedCueDataMutation()
+    let currentMutation = search.beginIndexedCueDataMutation()
+    #expect(!search.completeIndexedCueDataMutation(supersededMutation))
+    #expect(search.completeIndexedCueDataMutation(currentMutation))
+    #expect(search.indexedCueDataRevision == 2)
+}
+
+@MainActor
+@Test
 func residentSearchProjectionRevisionDirectlyUpdatesOwnedRowStore() {
     let search = SearchStore()
     let original = makeTableSandboxSearchResult(

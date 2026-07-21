@@ -117,6 +117,57 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
+    func filterOnlySearchRejectsResidentCueIDsAfterSameFolderReindex() async throws {
+        let uiProbeScope = UUID().uuidString
+        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
+            scope: uiProbeScope
+        )
+        defer { session.finish() }
+
+        try await withMountedCueTable(
+            surface: .search,
+            usesFilterOnlySearch: true,
+            uiProbeScope: uiProbeScope
+        ) { app, window, _ in
+            let oldEntryIDs = app.search.tableRowStore.snapshot.orderedEntryIDs
+            let oldDataRevision = app.search.indexedCueDataRevision
+            let recordingBeforeReindex = session.recording()
+            let folder = try #require(app.indexing.selectedFolders.first)
+
+            app.indexFolder(folder)
+
+            #expect(app.search.tableProjectionSource == nil)
+            #expect(app.search.tableRowStore.snapshot.totalRowCount == 0)
+            await app.indexingTask?.value
+            let didReloadStableProjection = await waitUntil(timeout: 3) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                let expectedKey = SearchFilterOnlyProjectionKey(
+                    filterSignature: app.search.activeFilterSetSignature,
+                    folderPaths: app.indexing.selectedFolders.map(\.path),
+                    indexedCueDataRevision: app.search.indexedCueDataRevision
+                )
+                return app.search.indexedCueDataRevision == oldDataRevision + 1
+                    && app.search.tableProjectionSource == .filterOnly(expectedKey)
+                    && !app.indexing.isLibraryFolderOperationActive
+            }
+            try #require(didReloadStableProjection)
+            try await Task.sleep(nanoseconds: 100_000_000)
+
+            let reindexRecording = session.recording().delta(
+                since: recordingBeforeReindex
+            )
+            #expect(reindexRecording.count(
+                SubtitleTableProbeSurface.search.counterName(
+                    "row_hydration_requested"
+                )
+            ) > 0)
+            #expect(Set(app.search.tableRowStore.snapshot.orderedEntryIDs)
+                .isDisjoint(with: oldEntryIDs))
+        }
+    }
+
+    @MainActor
+    @Test
     func widthReflowStaysWithMountedTableWhileMountedFocusRemainsStable() async throws {
         let uiProbeScope = UUID().uuidString
         let session = UIInvalidationProbe.beginAsyncRecordingForTesting(scope: uiProbeScope)
