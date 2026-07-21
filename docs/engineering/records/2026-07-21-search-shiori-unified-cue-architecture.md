@@ -49,7 +49,10 @@ table presentation resources.
 10. Added one indexed-content mutation lifecycle for Shiori. Indexing and
     folder removal now cancel obsolete Shiori reads, invalidate resident
     relations and table rows, remove affected canonical Cue content, and reload
-    the complete surviving Shiori snapshot after the database mutation ends.
+    the complete surviving Shiori snapshot after the database mutation ends
+    when that snapshot was resident or loading before the mutation. An unloaded
+    Shiori surface remains unloaded until first use and starts no redundant
+    post-mutation database read.
 11. Added canonical Cue content revision ownership to lazy Search and Shiori
     table snapshots. A content change now advances the table snapshot version
     and emits a reload even when CueIDs, ranks, relations, and Tags are stable,
@@ -75,6 +78,8 @@ table presentation resources.
 - Shiori rebuild remapping with changed Cue content and preserved Tags: passed.
 - Folder removal resident-Shiori, table-row, and canonical-Cue invalidation:
   passed.
+- Folder removal without a prior resident Shiori snapshot starts no redundant
+  post-mutation Shiori read: passed.
 - Same-CueID Search and Shiori content replacement invalidation: passed.
 - Search remount with 10,000 resident Cue references preserves one row store,
   performs no row materialization, and keeps the table snapshot version stable:

@@ -110,6 +110,11 @@ extension AppCoordinator {
     }
 
     func prepareShioriForIndexedContentMutation(under folders: [URL]) {
+        shioriNeedsReloadAfterIndexedContentMutation =
+            shioriNeedsReloadAfterIndexedContentMutation
+            || shiori.residentDataRevision != nil
+            || shiori.tableHasLoadedInitialPage
+            || shioriTableRowsTask != nil
         shioriTableRowsTask?.cancel()
         shioriTableRowsTask = nil
         cueContent.remove { content in
@@ -125,6 +130,10 @@ extension AppCoordinator {
     func reloadShioriAfterIndexedContentMutation() {
         shioriTableRowsTask?.cancel()
         shioriTableRowsTask = nil
+        guard shioriNeedsReloadAfterIndexedContentMutation else {
+            return
+        }
+        shioriNeedsReloadAfterIndexedContentMutation = false
         reloadShioriTableRows()
     }
 

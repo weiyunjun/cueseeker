@@ -417,6 +417,7 @@ final class AppCoordinator: ObservableObject {
     var startupDatabaseTask: Task<Void, Never>?
     var indexingTask: Task<Void, Never>?
     var folderRemovalTask: Task<Void, Never>?
+    var shioriNeedsReloadAfterIndexedContentMutation = false
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
     var testRecentWatchingTask: Task<Void, Never>?
