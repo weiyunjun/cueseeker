@@ -42,6 +42,10 @@ table presentation resources.
    existing measurement overscan. Complete row payloads, Cue Group strings, and
    Tags now leave the cache when their rows leave that range; compact scalar
    row heights remain available for stable scrollbar geometry.
+9. Corrected subtitle rebuild semantics so source-matched Cues remap existing
+   Shiori relations inside the rebuild transaction. ShioriID, list membership,
+   creation time, and tag assignments survive Cue content changes; only source
+   Cue identities that disappear are allowed to cascade away.
 
 ## Verification
 
@@ -55,6 +59,7 @@ table presentation resources.
 - Independent viewport-anchor and Shiori remount-state tests: passed.
 - Dynamic-row presentation-cache range and 50,000-row repeated-jump coverage:
   passed.
+- Shiori rebuild remapping with changed Cue content and preserved Tags: passed.
 - Full 799-test regression run completed. All requirement-focused, database,
   Search, Shiori, Playback integration, table interaction, Cue Group reflow,
   and presentation-cache tests passed. Three unrelated native-media or

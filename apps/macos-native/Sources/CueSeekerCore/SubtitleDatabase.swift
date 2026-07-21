@@ -2985,6 +2985,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         do {
             let preservedCueLineSpeakers = try cueLineSpeakersByStableKey(forSubtitlePath: subtitleFile.path)
+            var preservedShioris = try shioriRelationsByCueSourceIdentity(
+                forSubtitlePath: subtitleFile.path
+            )
             try deleteIndexedSubtitlePath(
                 subtitleFile.path,
                 preserveFileIdentity: true
@@ -3064,6 +3067,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                             cueGroupID: cueGroupID,
                             speakers: speakers
                         )
+                    }
+                    let cueIdentity = CueLineSourceIdentity(line: line)
+                    if let relations = preservedShioris.removeValue(
+                        forKey: cueIdentity
+                    ) {
+                        try restoreShioriRelations(relations, cueID: cueLineID)
                     }
                 }
                 try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
@@ -8507,6 +8516,39 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
+    private struct CueLineSourceIdentity: Hashable {
+        let sourceFormat: SubtitleFormat
+        let eventIndex: Int
+        let displayOrder: Int
+
+        init(line: SubtitleCueLine) {
+            sourceFormat = line.sourceFormat
+            eventIndex = line.eventIndex
+            displayOrder = line.displayOrder
+        }
+
+        init(statement: SQLiteStatement, columnOffset: Int32 = 0) {
+            sourceFormat = SubtitleFormat(
+                rawValue: statement.stringColumn(columnOffset)
+            ) ?? .srt
+            eventIndex = statement.intColumn(columnOffset + 1)
+            displayOrder = statement.intColumn(columnOffset + 2)
+        }
+    }
+
+    private struct PreservedShioriTagAssignment {
+        let tagID: Int64
+        let createdAt: String
+    }
+
+    private struct PreservedShioriRelation {
+        let id: Int64
+        let listID: Int64
+        let createdAt: String
+        let cueIdentity: CueLineSourceIdentity
+        var tagAssignments: [PreservedShioriTagAssignment]
+    }
+
     private struct SearchQueryPlan {
         let ftsQuery: String
         let lineMatchRule: LineMatchRule
@@ -9739,6 +9781,99 @@ public final class SubtitleDatabase: @unchecked Sendable {
             speakersByKey[key, default: []].insert(statement.stringColumn(10))
         }
         return speakersByKey
+    }
+
+    private func shioriRelationsByCueSourceIdentity(
+        forSubtitlePath subtitlePath: String
+    ) throws -> [CueLineSourceIdentity: [PreservedShioriRelation]] {
+        let relationStatement = try database.prepare(
+            """
+            SELECT s.id, s.list_id, s.created_at,
+                   l.source_format, l.event_index, l.display_order
+            FROM shioris s
+            JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY s.id ASC;
+            """
+        )
+        try relationStatement.bind(subtitlePath, at: 1)
+
+        var relationsByID: [Int64: PreservedShioriRelation] = [:]
+        while try relationStatement.step() {
+            let shioriID = relationStatement.int64Column(0)
+            relationsByID[shioriID] = PreservedShioriRelation(
+                id: shioriID,
+                listID: relationStatement.int64Column(1),
+                createdAt: relationStatement.stringColumn(2),
+                cueIdentity: CueLineSourceIdentity(
+                    statement: relationStatement,
+                    columnOffset: 3
+                ),
+                tagAssignments: []
+            )
+        }
+
+        guard !relationsByID.isEmpty else { return [:] }
+
+        let tagStatement = try database.prepare(
+            """
+            SELECT a.shiori_id, a.tag_id, a.created_at
+            FROM shiori_tag_assignments a
+            JOIN shioris s ON s.id = a.shiori_id
+            JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            WHERE sf.subtitle_path = ?
+            ORDER BY a.shiori_id ASC, a.tag_id ASC;
+            """
+        )
+        try tagStatement.bind(subtitlePath, at: 1)
+        while try tagStatement.step() {
+            let shioriID = tagStatement.int64Column(0)
+            guard var relation = relationsByID[shioriID] else { continue }
+            relation.tagAssignments.append(PreservedShioriTagAssignment(
+                tagID: tagStatement.int64Column(1),
+                createdAt: tagStatement.stringColumn(2)
+            ))
+            relationsByID[shioriID] = relation
+        }
+
+        return Dictionary(grouping: relationsByID.values, by: \.cueIdentity)
+    }
+
+    private func restoreShioriRelations(
+        _ relations: [PreservedShioriRelation],
+        cueID: Int64
+    ) throws {
+        let relationStatement = try database.prepare(
+            """
+            INSERT INTO shioris(id, list_id, cue_id, created_at)
+            VALUES (?, ?, ?, ?);
+            """
+        )
+        let tagStatement = try database.prepare(
+            """
+            INSERT INTO shiori_tag_assignments(shiori_id, tag_id, created_at)
+            VALUES (?, ?, ?);
+            """
+        )
+
+        for relation in relations.sorted(by: { $0.id < $1.id }) {
+            try relationStatement.bind(relation.id, at: 1)
+            try relationStatement.bind(relation.listID, at: 2)
+            try relationStatement.bind(cueID, at: 3)
+            try relationStatement.bind(relation.createdAt, at: 4)
+            try relationStatement.run()
+            try relationStatement.reset()
+
+            for assignment in relation.tagAssignments {
+                try tagStatement.bind(relation.id, at: 1)
+                try tagStatement.bind(assignment.tagID, at: 2)
+                try tagStatement.bind(assignment.createdAt, at: 3)
+                try tagStatement.run()
+                try tagStatement.reset()
+            }
+        }
     }
 
     private func insertCueGroup(

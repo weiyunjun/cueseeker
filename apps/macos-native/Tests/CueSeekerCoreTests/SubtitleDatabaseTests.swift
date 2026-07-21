@@ -3898,6 +3898,79 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
 }
 
 @Test
+func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.mkv")
+    let originalEntry = SubtitleEntry(
+        sequenceNumber: 1,
+        startTimecode: "00:00:01,000",
+        endTimecode: "00:00:03,000",
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        text: "Original saved cue."
+    )
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [originalEntry]
+    )
+
+    let originalCue = try #require(
+        try database.cueLineRecords(forSubtitleFile: subtitleFile).first
+    )
+    let originalShiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: shioriSelection(originalCue),
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let tag = try database.assignShioriTag(
+        named: "Keep after reindex",
+        toShioriID: originalShiori.id
+    )
+
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "Updated saved cue."
+            ),
+        ]
+    )
+
+    let rebuiltCue = try #require(
+        try database.cueLineRecords(forSubtitleFile: subtitleFile).first
+    )
+    let rebuiltRelation = try #require(
+        try database.shioriRelation(id: originalShiori.id)
+    )
+    let rebuiltShiori = try #require(try database.shiori(id: originalShiori.id))
+
+    #expect(rebuiltCue.id != originalCue.id)
+    #expect(rebuiltRelation.id == originalShiori.id)
+    #expect(rebuiltRelation.cueID == rebuiltCue.id)
+    #expect(rebuiltShiori.content == "Updated saved cue.")
+    #expect(rebuiltShiori.createdAt == originalShiori.createdAt)
+    #expect(try database.shioriTags(forShioriID: originalShiori.id) == [tag])
+}
+
+@Test
 func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
