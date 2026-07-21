@@ -79,6 +79,16 @@ struct TableSandboxRowsSnapshot {
         materializedRows.count
     }
 
+    var orderedEntryIDs: [Int] {
+        if !shioriRelations.isEmpty {
+            return shioriRelations.map { Int($0.id) }
+        }
+        if !searchCueIDs.isEmpty {
+            return searchCueIDs.map(Int.init)
+        }
+        return materializedRows.map(\.id)
+    }
+
     func row(at index: Int) -> SubtitleTableRow? {
         guard index >= 0 else { return nil }
         if shioriRelations.indices.contains(index) {

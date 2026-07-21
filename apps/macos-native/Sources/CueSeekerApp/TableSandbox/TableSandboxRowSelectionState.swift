@@ -6,6 +6,23 @@ enum WorkbenchCheckboxState: Equatable {
     case indeterminate
 }
 
+struct TableViewportAnchor: Equatable {
+    let entryID: Int
+    let rowIndex: Int
+}
+
+func resolvedTableViewportRow(
+    anchor: TableViewportAnchor,
+    rowCount: Int,
+    identityRow: Int?
+) -> Int? {
+    guard rowCount > 0 else { return nil }
+    if let identityRow, identityRow >= 0, identityRow < rowCount {
+        return identityRow
+    }
+    return min(max(0, anchor.rowIndex - 1), rowCount - 1)
+}
+
 struct TableSandboxRowSelectionState: Equatable {
     private enum Storage: Equatable {
         case explicit(Set<Int>)

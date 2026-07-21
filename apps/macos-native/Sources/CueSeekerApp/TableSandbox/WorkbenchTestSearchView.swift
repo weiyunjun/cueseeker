@@ -42,6 +42,7 @@ struct WorkbenchTestSearchView: View {
     @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
+    @State private var didRestoreViewport = false
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var canExportSelectedRowsAsCollage = false
     @State private var lastHandledCueContextRequestID: UUID?
@@ -141,12 +142,15 @@ struct WorkbenchTestSearchView: View {
             }
         }
         .onAppear {
+            restoreTableControls()
             if let request = search.cueContextSearchRequest,
                applyCueContextSearchRequest(request) {
                 return
             }
 
-            searchDraft = search.searchQuery
+            searchDraft = search.tableSearchDraft.isEmpty
+                ? search.searchQuery
+                : search.tableSearchDraft
             applyFilterRules(filterRules, force: true)
             if showsSearchEmptyHint {
                 clearTableRows(resetScroll: false)
@@ -155,18 +159,30 @@ struct WorkbenchTestSearchView: View {
             } else {
                 updateRows(search.searchResults)
             }
+            restoreSelectionIfPossible()
+            restoreViewportIfPossible()
         }
         .onChange(of: filterRules) { newValue in
+            search.tableFilterRules = newValue
             if suppressNextFilterRulesReload {
                 suppressNextFilterRulesReload = false
                 return
             }
             applyFilterRules(newValue)
         }
+        .onChange(of: visibleColumnIDs) { newValue in
+            search.tableVisibleColumnIDs = newValue
+        }
+        .onChange(of: activeFilterSetID) { newValue in
+            search.tableActiveFilterSetID = newValue
+        }
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
             resetContinuousRowLoading()
             rowSelection.reset()
+            persistSelection()
+            search.tableViewportAnchor = nil
+            didRestoreViewport = true
             lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 activeCueContextRequest = nil
@@ -198,6 +214,10 @@ struct WorkbenchTestSearchView: View {
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRows(search.searchResults)
         }
+        .onChange(of: rowStore.snapshot.version) { _ in
+            restoreSelectionIfPossible()
+            restoreViewportIfPossible()
+        }
         .onChange(of: search.cueContextSearchRequest) { request in
             guard let request else {
                 return
@@ -218,6 +238,8 @@ struct WorkbenchTestSearchView: View {
         }
         .onDisappear {
             resetContinuousRowLoading()
+            persistTableControls()
+            persistSelection()
         }
         .background(
             CueGroupPresentationGate(
@@ -497,6 +519,7 @@ struct WorkbenchTestSearchView: View {
         guard newValue != search.searchQuery else {
             return
         }
+        search.tableSearchDraft = newValue
         search.cueContextSearchRequest = nil
         suppressNextEmptySearchQueryReload = false
         activeCueContextRequest = nil
@@ -538,6 +561,7 @@ struct WorkbenchTestSearchView: View {
         resetCueContextWindow()
         lastVisibleRows = nil
         rowSelection.reset()
+        persistSelection()
         resetSelectedCollageAvailability()
         rowStore.updateResidentSearchResults(
             [],
@@ -547,7 +571,9 @@ struct WorkbenchTestSearchView: View {
             probeScope: appState.uiProbeScope
         )
         if resetScroll {
+            search.tableViewportAnchor = nil
             tableScrollTargetRow = nil
+            didRestoreViewport = true
             tableScrollResetToken += 1
         }
         AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
@@ -575,6 +601,7 @@ struct WorkbenchTestSearchView: View {
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
         guard allowsTableResponse else { return }
         lastVisibleRows = visibleRows
+        captureVisibleRows(visibleRows)
         if activeCueContextRequest != nil {
             loadCueContextAdjacentRowsIfNeeded(generation: cueContextLoadGeneration)
             return
@@ -713,6 +740,7 @@ struct WorkbenchTestSearchView: View {
         lastVisibleRows = nil
         if resetScroll {
             rowSelection.reset()
+            persistSelection()
             resetSelectedCollageAvailability()
             tableScrollResetToken += 1
         }
@@ -1007,6 +1035,11 @@ struct WorkbenchTestSearchView: View {
         appliedFilterSignature = nextSignature
         resetContinuousRowLoading()
         rowSelection.reset()
+        if !force {
+            persistSelection()
+            search.tableViewportAnchor = nil
+            didRestoreViewport = true
+        }
         resetSelectedCollageAvailability()
         lastVisibleRows = nil
         tableScrollResetToken += 1
@@ -1128,12 +1161,77 @@ struct WorkbenchTestSearchView: View {
 
     private func toggleRowSelection(_ row: Int) {
         rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        persistSelection()
         refreshSelectedCollageAvailability()
     }
 
     private func toggleAllRowSelection() {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
+        persistSelection()
         refreshSelectedCollageAvailability()
+    }
+
+    private func captureVisibleRows(_ visibleRows: Range<Int>) {
+        if !didRestoreViewport, search.tableViewportAnchor != nil {
+            return
+        }
+        guard !visibleRows.isEmpty else { return }
+        let anchorRow = min(
+            visibleRows.upperBound - 1,
+            visibleRows.lowerBound + SubtitleTableCueGeometry.measurementOverscan
+        )
+        guard let row = rowStore.snapshot.row(at: anchorRow) else { return }
+        search.tableViewportAnchor = TableViewportAnchor(
+            entryID: row.id,
+            rowIndex: anchorRow
+        )
+        didRestoreViewport = true
+    }
+
+    private func restoreViewportIfPossible() {
+        guard !didRestoreViewport,
+              activeCueContextRequest == nil,
+              rowStore.snapshot.totalRowCount > 0,
+              let anchor = search.tableViewportAnchor
+        else {
+            return
+        }
+        guard let row = resolvedTableViewportRow(
+            anchor: anchor,
+            rowCount: rowStore.snapshot.totalRowCount,
+            identityRow: rowStore.snapshot.rowIndex(entryID: anchor.entryID)
+        ) else { return }
+        tableScrollTargetRow = row
+        tableScrollResetToken += 1
+        didRestoreViewport = true
+    }
+
+    private func persistSelection() {
+        search.tableSelectionState = rowSelection
+        search.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
+    }
+
+    private func restoreSelectionIfPossible() {
+        let entryIDs = rowStore.snapshot.orderedEntryIDs
+        guard entryIDs == search.tableSelectionEntryIDs else { return }
+        rowSelection = search.tableSelectionState
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+    }
+
+    private func restoreTableControls() {
+        visibleColumnIDs = search.tableVisibleColumnIDs
+        activeFilterSetID = search.tableActiveFilterSetID
+        if filterRules != search.tableFilterRules {
+            suppressNextFilterRulesReload = true
+            filterRules = search.tableFilterRules
+        }
+    }
+
+    private func persistTableControls() {
+        search.tableSearchDraft = searchDraft
+        search.tableVisibleColumnIDs = visibleColumnIDs
+        search.tableActiveFilterSetID = activeFilterSetID
+        search.tableFilterRules = filterRules
     }
 }
 

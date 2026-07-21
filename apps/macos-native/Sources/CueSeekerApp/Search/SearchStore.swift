@@ -44,6 +44,13 @@ final class SearchStore: ObservableObject {
     @Published var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var cueContextSearchRequest: CueContextSearchRequest?
+    @Published var tableSearchDraft = ""
+    @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs
+    @Published var tableActiveFilterSetID = SchemaWorkbenchSearchDefaults.defaultFilterSetID
+    @Published var tableFilterRules = SchemaWorkbenchSearchDefaults.defaultFilterRules
+    var tableViewportAnchor: TableViewportAnchor?
+    var tableSelectionState = TableSandboxRowSelectionState()
+    var tableSelectionEntryIDs: [Int] = []
 
     init(cueContentStore: CueContentStore = CueContentStore()) {
         self.cueContentStore = cueContentStore

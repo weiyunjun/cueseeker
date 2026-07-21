@@ -974,6 +974,11 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
         tableName: "shiori"
     )
     store.tableResultRowCount = 37
+    store.tableViewportAnchor = TableViewportAnchor(entryID: 1, rowIndex: 0)
+    var selection = TableSandboxRowSelectionState()
+    selection.toggleAll(rowCount: 1)
+    store.tableSelectionState = selection
+    store.tableSelectionEntryIDs = [1]
     store.markTableRowsLoaded(totalSavedRowCount: 1)
 
     #expect(store.tableSearchDraft == "tomori")
@@ -983,6 +988,9 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     #expect(store.tableHasLoadedInitialPage)
     #expect(store.tableTotalSavedRowCount == 1)
     #expect(store.tableResultRowCount == 37)
+    #expect(store.tableViewportAnchor == TableViewportAnchor(entryID: 1, rowIndex: 0))
+    #expect(store.tableSelectionState.headerState(rowCount: 1) == .checked)
+    #expect(store.tableSelectionEntryIDs == [1])
     #expect(store.tableRowStore.snapshot.row(at: 0)?.cues == "cached shiori")
 }
 

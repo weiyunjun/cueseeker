@@ -33,8 +33,11 @@ table presentation resources.
    Playback database order, explicit scopes, adjacent navigation, Context, and
    row actions now resolve Shiori relations through the canonical Cue store;
    the obsolete card-surface hydration path no longer runs after mutations.
-7. Pending: preserve independent surface state and remove full-collection
-   reconstruction during switching.
+7. Preserved Search and Shiori table controls, selection, and CueID/ShioriID
+   viewport anchors independently in their surface stores. Switching surfaces
+   now remounts against the resident logical snapshots, restores the same entry
+   when it still exists, and falls back to the nearest preceding position when
+   filtering removed it.
 8. Pending: remove full row payload retention from table measurement caches and
    complete regression verification.
 
@@ -47,8 +50,9 @@ table presentation resources.
 - Canonical Cue bulk-resolution and single-value-per-CueID store tests: passed.
 - Resident Shiori snapshot and 10,000-relation lazy row projection tests: passed.
 - Canonical Search ownership and 10,000-Cue lazy row projection tests: passed.
-- Remaining application migration and automated regression verification:
-  pending.
+- Independent viewport-anchor and Shiori remount-state tests: passed.
+- Remaining table-presentation cache work and full automated regression
+  verification: pending.
 
 ## Outcome
 

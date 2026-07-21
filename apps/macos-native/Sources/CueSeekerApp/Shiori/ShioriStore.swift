@@ -19,6 +19,9 @@ final class ShioriStore: ObservableObject {
     private(set) var residentRelations: [ShioriRelation] = []
     private(set) var residentTagsByShioriID: [Int64: [ShioriTag]] = [:]
     private(set) var residentDataRevision: Int?
+    var tableViewportAnchor: TableViewportAnchor?
+    var tableSelectionState = TableSandboxRowSelectionState()
+    var tableSelectionEntryIDs: [Int] = []
 
     let tableRowStore = TableSandboxRowModelStore()
 

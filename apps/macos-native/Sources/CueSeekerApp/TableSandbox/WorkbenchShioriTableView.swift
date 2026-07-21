@@ -36,6 +36,8 @@ private struct WorkbenchShioriTableContent: View {
     @ObservedObject var rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var tableScrollResetToken = 0
+    @State private var tableScrollTargetRow: Int?
+    @State private var didRestoreViewport = false
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var pendingRemoval: Shiori?
     @State private var pendingTagDeletion: PendingShioriTagDeletion?
@@ -90,7 +92,9 @@ private struct WorkbenchShioriTableContent: View {
                     showsCueGroup: appliedShowCueGroup
                         ?? (allowsTableResponse && settingsStore.showCueGroup),
                     scrollResetToken: tableScrollResetToken,
+                    scrollTargetRow: tableScrollTargetRow,
                     suspendsMenuOutsideClickDismiss: pendingTagDeletion != nil,
+                    onVisibleRowsChange: captureVisibleRows,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
@@ -167,8 +171,16 @@ private struct WorkbenchShioriTableContent: View {
                 .zIndex(30)
             }
         }
+        .onAppear {
+            restoreSelectionIfPossible()
+            restoreViewportIfPossible()
+        }
         .task {
             loadInitialRowsIfNeeded()
+        }
+        .onChange(of: rowStore.snapshot.version) { _ in
+            restoreSelectionIfPossible()
+            restoreViewportIfPossible()
         }
         .onChange(of: shioriStore.tableDataRevision) { _ in
             reloadRows(resetScroll: false)
@@ -180,6 +192,9 @@ private struct WorkbenchShioriTableContent: View {
             if isActive {
                 resumeDeferredTableResponse()
             }
+        }
+        .onDisappear {
+            persistSelection()
         }
         .background(
             CueGroupPresentationGate(
@@ -324,8 +339,12 @@ private struct WorkbenchShioriTableContent: View {
             return
         }
         rowSelection.reset()
+        persistSelection()
         resetSelectedCollageAvailability()
         if resetScroll {
+            shioriStore.tableViewportAnchor = nil
+            tableScrollTargetRow = nil
+            didRestoreViewport = true
             tableScrollResetToken += 1
         }
         appState.reloadShioriTableRows()
@@ -504,12 +523,60 @@ private struct WorkbenchShioriTableContent: View {
 
     private func toggleRowSelection(_ row: Int) {
         rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        persistSelection()
         refreshSelectedCollageAvailability()
     }
 
     private func toggleAllRowSelection() {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
+        persistSelection()
         refreshSelectedCollageAvailability()
+    }
+
+    private func captureVisibleRows(_ visibleRows: Range<Int>) {
+        if !didRestoreViewport, shioriStore.tableViewportAnchor != nil {
+            return
+        }
+        guard !visibleRows.isEmpty else { return }
+        let anchorRow = min(
+            visibleRows.upperBound - 1,
+            visibleRows.lowerBound + SubtitleTableCueGeometry.measurementOverscan
+        )
+        guard let row = rowStore.snapshot.row(at: anchorRow) else { return }
+        shioriStore.tableViewportAnchor = TableViewportAnchor(
+            entryID: row.id,
+            rowIndex: anchorRow
+        )
+        didRestoreViewport = true
+    }
+
+    private func restoreViewportIfPossible() {
+        guard !didRestoreViewport,
+              rowStore.snapshot.totalRowCount > 0,
+              let anchor = shioriStore.tableViewportAnchor
+        else {
+            return
+        }
+        guard let row = resolvedTableViewportRow(
+            anchor: anchor,
+            rowCount: rowStore.snapshot.totalRowCount,
+            identityRow: rowStore.snapshot.rowIndex(entryID: anchor.entryID)
+        ) else { return }
+        tableScrollTargetRow = row
+        tableScrollResetToken += 1
+        didRestoreViewport = true
+    }
+
+    private func persistSelection() {
+        shioriStore.tableSelectionState = rowSelection
+        shioriStore.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
+    }
+
+    private func restoreSelectionIfPossible() {
+        let entryIDs = rowStore.snapshot.orderedEntryIDs
+        guard entryIDs == shioriStore.tableSelectionEntryIDs else { return }
+        rowSelection = shioriStore.tableSelectionState
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
 }
 

@@ -2,6 +2,46 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
+func tableViewportAnchorPrefersTheSameEntryAfterRowsMove() {
+    let anchor = TableViewportAnchor(entryID: 100, rowIndex: 100)
+
+    #expect(
+        resolvedTableViewportRow(
+            anchor: anchor,
+            rowCount: 200,
+            identityRow: 42
+        ) == 42
+    )
+}
+
+@Test
+func tableViewportAnchorFallsBackToTheNearestPreviousPosition() {
+    let anchor = TableViewportAnchor(entryID: 100, rowIndex: 100)
+
+    #expect(
+        resolvedTableViewportRow(
+            anchor: anchor,
+            rowCount: 200,
+            identityRow: nil
+        ) == 99
+    )
+    #expect(
+        resolvedTableViewportRow(
+            anchor: anchor,
+            rowCount: 50,
+            identityRow: nil
+        ) == 49
+    )
+    #expect(
+        resolvedTableViewportRow(
+            anchor: anchor,
+            rowCount: 0,
+            identityRow: nil
+        ) == nil
+    )
+}
+
+@Test
 func tableSandboxRowSelectionTogglesIndividualRows() {
     var selection = TableSandboxRowSelectionState()
 
