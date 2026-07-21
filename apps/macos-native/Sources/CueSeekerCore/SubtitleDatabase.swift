@@ -581,6 +581,11 @@ public struct LibraryFolderCover: Equatable, Sendable {
     public let generatedAt: String
 }
 
+public struct LibraryUserCover: Equatable, Sendable {
+    public let displayCoverPath: String
+    public let revision: String
+}
+
 public struct LibraryVideoPresentation: Equatable, Sendable, Identifiable {
     public let videoPath: String
     public let videoName: String
@@ -1463,7 +1468,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 32
+    public static let currentSchemaVersion: Int = 33
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1917,6 +1922,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             CREATE INDEX IF NOT EXISTS idx_folder_covers_source_video
                 ON folder_covers(source_video_file_id);
+
+            CREATE TABLE IF NOT EXISTS user_video_covers (
+                video_file_id INTEGER PRIMARY KEY,
+                display_cover_path TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS user_folder_covers (
+                folder_path TEXT PRIMARY KEY,
+                display_cover_path TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
 
             CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
                 subtitle_path TEXT PRIMARY KEY,
@@ -6127,6 +6145,84 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    public func libraryUserVideoCover(forVideoFile videoFile: URL) throws -> LibraryUserCover? {
+        let statement = try database.prepare(
+            """
+            SELECT uvc.display_cover_path, uvc.updated_at
+            FROM user_video_covers uvc
+            JOIN video_files vf ON vf.id = uvc.video_file_id
+            WHERE vf.path = ?;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+        return LibraryUserCover(
+            displayCoverPath: statement.stringColumn(0),
+            revision: statement.stringColumn(1)
+        )
+    }
+
+    public func upsertLibraryUserVideoCover(
+        forVideoFile videoFile: URL,
+        displayCoverPath: String
+    ) throws {
+        let videoFileID = try requireVideoFileID(for: videoFile)
+        let statement = try database.prepare(
+            """
+            INSERT INTO user_video_covers(video_file_id, display_cover_path, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(video_file_id) DO UPDATE SET
+                display_cover_path = excluded.display_cover_path,
+                updated_at = excluded.updated_at;
+            """
+        )
+        try statement.bind(videoFileID, at: 1)
+        try statement.bind(displayCoverPath, at: 2)
+        try statement.bind(Self.libraryCoverRevisionTimestamp(), at: 3)
+        try statement.run()
+    }
+
+    public func libraryUserFolderCover(folderPath: String) throws -> LibraryUserCover? {
+        let statement = try database.prepare(
+            """
+            SELECT display_cover_path, updated_at
+            FROM user_folder_covers
+            WHERE folder_path = ?;
+            """
+        )
+        try statement.bind(folderPath, at: 1)
+
+        guard try statement.step() else {
+            return nil
+        }
+        return LibraryUserCover(
+            displayCoverPath: statement.stringColumn(0),
+            revision: statement.stringColumn(1)
+        )
+    }
+
+    public func upsertLibraryUserFolderCover(
+        folderPath: String,
+        displayCoverPath: String
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO user_folder_covers(folder_path, display_cover_path, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(folder_path) DO UPDATE SET
+                display_cover_path = excluded.display_cover_path,
+                updated_at = excluded.updated_at;
+            """
+        )
+        try statement.bind(folderPath, at: 1)
+        try statement.bind(displayCoverPath, at: 2)
+        try statement.bind(Self.libraryCoverRevisionTimestamp(), at: 3)
+        try statement.run()
+    }
+
     public func libraryPresentation(under folders: [URL]) throws -> [LibraryFolderPresentation] {
         let pathPrefixes = Self.folderPathPrefixes(for: folders)
         guard !pathPrefixes.isEmpty else {
@@ -6232,13 +6328,16 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        WHEN ws.state = 'unwatched' THEN NULL
                        ELSE h.completed_at
                    END,
-                   h.updated_at, vc.display_cover_path, vc.generated_at
+                   h.updated_at,
+                   COALESCE(uvc.display_cover_path, vc.display_cover_path),
+                   COALESCE(uvc.updated_at, vc.generated_at)
             FROM library_playback_history h
             JOIN library_video_rows lvr ON lvr.video_file_id = h.video_file_id
             LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
             LEFT JOIN video_files vf ON vf.id = lvr.video_file_id
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
                 AND vc.status = ? AND vc.display_profile_version = ?
+            LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
             WHERE \(scopeCondition)
             ORDER BY julianday(h.updated_at) DESC, h.updated_at DESC,
                      lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
@@ -6321,19 +6420,23 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        ELSE h.completed_at
                    END,
                    h.updated_at, julianday(h.updated_at),
-                   vc.display_cover_path, fvc.display_cover_path,
+                   COALESCE(uvc.display_cover_path, vc.display_cover_path),
+                   COALESCE(ufc.display_cover_path, fvc.display_cover_path),
                    vf.file_size, vf.video_codec,
                    vf.video_width, vf.video_height, vf.frame_rate,
-                   vc.generated_at, fvc.generated_at
+                   COALESCE(uvc.updated_at, vc.generated_at),
+                   COALESCE(ufc.updated_at, fvc.generated_at)
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_file_id = lvr.video_file_id
             LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
             LEFT JOIN video_files vf ON vf.id = lvr.video_file_id
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
                 AND vc.status = ? AND vc.display_profile_version = ?
+            LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
             LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
             LEFT JOIN video_covers fvc ON fvc.video_file_id = fc.source_video_file_id
                 AND fvc.status = ? AND fvc.display_profile_version = ?
+            LEFT JOIN user_folder_covers ufc ON ufc.folder_path = lvr.folder_path
             WHERE \(scopeCondition)
             ORDER BY lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
             """
@@ -6470,7 +6573,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT lvr.folder_path, lvr.folder_title, COUNT(*) AS episode_count,
-                   fvc.display_cover_path,
+                   COALESCE(ufc.display_cover_path, fvc.display_cover_path),
                    (
                        SELECT vc.display_cover_path
                        FROM library_video_rows first_lvr
@@ -6481,7 +6584,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
                        LIMIT 1
                    ) AS first_video_cover_path,
-                   fvc.generated_at,
+                   COALESCE(ufc.updated_at, fvc.generated_at),
                    (
                        SELECT vc.generated_at
                        FROM library_video_rows first_lvr
@@ -6497,8 +6600,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
             LEFT JOIN folder_covers fc ON fc.folder_path = lvr.folder_path
             LEFT JOIN video_covers fvc ON fvc.video_file_id = fc.source_video_file_id
                 AND fvc.status = ? AND fvc.display_profile_version = ?
+            LEFT JOIN user_folder_covers ufc ON ufc.folder_path = lvr.folder_path
             WHERE \(scopeCondition)
             GROUP BY lvr.folder_path, lvr.folder_title,
+                     ufc.display_cover_path, ufc.updated_at,
                      fvc.display_cover_path, fvc.generated_at
             ORDER BY MIN(lvr.folder_order) ASC, lvr.folder_path ASC;
             """
@@ -6571,15 +6676,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
                        WHEN ws.state = 'unwatched' THEN NULL
                        ELSE h.completed_at
                    END,
-                   h.updated_at, vc.display_cover_path,
+                   h.updated_at,
+                   COALESCE(uvc.display_cover_path, vc.display_cover_path),
                    vf.file_size, vf.video_codec, vf.video_width, vf.video_height,
-                   vf.frame_rate, vc.generated_at
+                   vf.frame_rate, COALESCE(uvc.updated_at, vc.generated_at)
             FROM library_video_rows lvr
             LEFT JOIN library_playback_history h ON h.video_file_id = lvr.video_file_id
             LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
             LEFT JOIN video_files vf ON vf.id = lvr.video_file_id
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
                 AND vc.status = ? AND vc.display_profile_version = ?
+            LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
             WHERE lvr.folder_path = ?
             ORDER BY lvr.video_order ASC, lvr.video_path ASC;
             """

@@ -2955,6 +2955,130 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
 }
 
 @Test
+func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let root = URL(fileURLWithPath: "/Media")
+    let folderPath = "/Media/Show"
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
+        videoFile: videoFile,
+        entries: [databaseTestEntry(text: "Cover precedence")]
+    )
+    try database.rebuildLibraryPresentationSnapshot()
+    try database.upsertLibraryPlaybackHistory(
+        videoFile: videoFile,
+        positionMilliseconds: 10_000,
+        duration: 100
+    )
+
+    let candidate = try #require(
+        try database.libraryCoverEligibleVideos(under: [root]).first
+    )
+    try database.upsertLibraryVideoCover(
+        videoFileID: candidate.videoFileID,
+        masterCoverPath: "/Covers/Videos/index-master.jpg",
+        displayCoverPath: "/Covers/Display/v1/index-display.jpg",
+        displayProfileVersion: LibraryCoverDisplayProfileVersion.current,
+        sourceTimeMilliseconds: 1_000,
+        score: 80,
+        algorithmVersion: 1,
+        generatedFileSize: candidate.fileSize,
+        generatedDuration: candidate.duration,
+        status: .generated,
+        errorMessage: nil
+    )
+    try database.upsertLibraryFolderCover(
+        folderPath: folderPath,
+        masterCoverPath: "/Covers/Videos/index-master.jpg",
+        sourceVideoFileID: candidate.videoFileID
+    )
+
+    try database.upsertLibraryUserVideoCover(
+        forVideoFile: videoFile,
+        displayCoverPath: "/Covers/User/Display/v1/user-video.jpg"
+    )
+    try database.upsertLibraryUserFolderCover(
+        folderPath: folderPath,
+        displayCoverPath: "/Covers/User/Display/v1/user-folder.jpg"
+    )
+
+    let userVideoCover = try #require(
+        try database.libraryUserVideoCover(forVideoFile: videoFile)
+    )
+    let userFolderCover = try #require(
+        try database.libraryUserFolderCover(folderPath: folderPath)
+    )
+    #expect(userVideoCover.displayCoverPath == "/Covers/User/Display/v1/user-video.jpg")
+    #expect(userFolderCover.displayCoverPath == "/Covers/User/Display/v1/user-folder.jpg")
+
+    let recent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    #expect(recent.coverPath == userVideoCover.displayCoverPath)
+    #expect(recent.coverRevision == userVideoCover.revision)
+
+    let complete = try #require(try database.completeLibraryPresentation(under: [root]).first)
+    #expect(complete.folderCoverPath == userFolderCover.displayCoverPath)
+    #expect(complete.folderCoverRevision == userFolderCover.revision)
+    #expect(complete.videos.first?.coverPath == userVideoCover.displayCoverPath)
+    #expect(complete.videos.first?.coverRevision == userVideoCover.revision)
+
+    let summary = try #require(try database.completeLibraryFolderSummaries(under: [root]).first)
+    #expect(summary.coverPath == userFolderCover.displayCoverPath)
+    #expect(summary.coverRevision == userFolderCover.revision)
+
+    let detail = try #require(try database.completeLibraryFolderDetail(folderPath: folderPath))
+    #expect(detail.videos.first?.coverPath == userVideoCover.displayCoverPath)
+    #expect(detail.videos.first?.coverRevision == userVideoCover.revision)
+
+    try database.upsertLibraryVideoCover(
+        videoFileID: candidate.videoFileID,
+        masterCoverPath: "/Covers/Videos/reindexed-master.jpg",
+        displayCoverPath: "/Covers/Display/v1/reindexed-display.jpg",
+        displayProfileVersion: LibraryCoverDisplayProfileVersion.current,
+        sourceTimeMilliseconds: 2_000,
+        score: 90,
+        algorithmVersion: 2,
+        generatedFileSize: candidate.fileSize,
+        generatedDuration: candidate.duration,
+        status: .generated,
+        errorMessage: nil
+    )
+
+    let reindexedCover = try #require(
+        try database.libraryVideoCover(forVideoFileID: candidate.videoFileID)
+    )
+    #expect(reindexedCover.displayCoverPath == "/Covers/Display/v1/reindexed-display.jpg")
+    #expect(
+        try database.recentLibraryWatching(under: [root]).first?.coverPath
+            == userVideoCover.displayCoverPath
+    )
+
+    try database.upsertLibraryUserVideoCover(
+        forVideoFile: videoFile,
+        displayCoverPath: "/Covers/User/Display/v1/replacement-video.jpg"
+    )
+    try database.upsertLibraryUserFolderCover(
+        folderPath: folderPath,
+        displayCoverPath: "/Covers/User/Display/v1/replacement-folder.jpg"
+    )
+    #expect(
+        try database.libraryUserVideoCover(forVideoFile: videoFile)?.displayCoverPath
+            == "/Covers/User/Display/v1/replacement-video.jpg"
+    )
+    #expect(
+        try database.libraryUserFolderCover(folderPath: folderPath)?.displayCoverPath
+            == "/Covers/User/Display/v1/replacement-folder.jpg"
+    )
+}
+
+@Test
 func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
