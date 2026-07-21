@@ -6,6 +6,8 @@ import CueSeekerCore
 final class ShioriStore: ObservableObject {
     private let uiProbeScope: String?
     private var cueContentChangesCancellable: AnyCancellable?
+    private var isTableProjectionResponseActive = true
+    private var pendingCueContentChange: CueContentStoreChange?
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
     @Published var tableSubmittedSearchText = ""
@@ -33,14 +35,39 @@ final class ShioriStore: ObservableObject {
     ) {
         self.uiProbeScope = uiProbeScope
         cueContentChangesCancellable = cueContentStore?.changes.sink {
-            [weak tableRowStore] change in
-            tableRowStore?.refreshReferencedCueContent(
-                change,
-                tableName: "shiori",
-                probeSurface: .shiori,
-                probeScope: uiProbeScope
-            )
+            [weak self] change in
+            self?.receiveCueContentChange(change)
         }
+    }
+
+    func setTableProjectionResponseActive(_ isActive: Bool) {
+        guard isTableProjectionResponseActive != isActive else {
+            return
+        }
+        isTableProjectionResponseActive = isActive
+        guard isActive, let pendingCueContentChange else {
+            return
+        }
+        self.pendingCueContentChange = nil
+        refreshReferencedCueContent(pendingCueContentChange)
+    }
+
+    private func receiveCueContentChange(_ change: CueContentStoreChange) {
+        guard isTableProjectionResponseActive else {
+            pendingCueContentChange = pendingCueContentChange?.merging(change)
+                ?? change
+            return
+        }
+        refreshReferencedCueContent(change)
+    }
+
+    private func refreshReferencedCueContent(_ change: CueContentStoreChange) {
+        tableRowStore.refreshReferencedCueContent(
+            change,
+            tableName: "shiori",
+            probeSurface: .shiori,
+            probeScope: uiProbeScope
+        )
     }
 
     func clearTableRowsForReload(tableName: String = "shiori") {

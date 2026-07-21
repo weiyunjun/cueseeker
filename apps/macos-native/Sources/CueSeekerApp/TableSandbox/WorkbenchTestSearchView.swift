@@ -50,8 +50,6 @@ struct WorkbenchTestSearchView: View {
     @State private var lastHandledCueContextRequestID: UUID?
     @State private var activeCueContextRequest: CueContextSearchRequest?
     @State private var cueContextLoadGeneration = 0
-    @State private var continuousLoadGeneration = 0
-    @State private var isLoadingContinuousRows = false
     @State private var cueContextLoadedSourceRange: Range<Int>?
     @State private var cueContextTotalRowCount = 0
     @State private var cueContextTargetSourceIndex: Int?
@@ -148,6 +146,7 @@ struct WorkbenchTestSearchView: View {
             }
         }
         .onAppear {
+            search.setTableProjectionResponseActive(allowsTableResponse)
             prepareViewportRestoration()
             restoreTableControls()
             if let request = search.cueContextSearchRequest,
@@ -158,8 +157,9 @@ struct WorkbenchTestSearchView: View {
             searchDraft = search.tableSearchDraft.isEmpty
                 ? search.searchQuery
                 : search.tableSearchDraft
-            applyFilterRules(filterRules, force: true)
+            appliedFilterSignature = filterRules.subtitleSearchFilterSet.cacheSignature
             if showsSearchEmptyHint {
+                search.clearTableProjectionSource()
                 clearTableRows(resetScroll: false)
             } else if isFilterOnlyMode {
                 loadAllCueRows(resetScroll: false)
@@ -185,7 +185,7 @@ struct WorkbenchTestSearchView: View {
         }
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
-            resetContinuousRowLoading()
+            search.suspendFilterOnlyPageLoad()
             rowSelection.reset()
             persistSelection()
             search.tableViewportAnchor = nil
@@ -193,6 +193,7 @@ struct WorkbenchTestSearchView: View {
             didRestoreViewport = true
             lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                search.activateResidentSearchTableProjection()
                 activeCueContextRequest = nil
                 tableScrollTargetRow = nil
                 cueContextLoadGeneration += 1
@@ -204,6 +205,7 @@ struct WorkbenchTestSearchView: View {
                     return
                 }
                 if search.activeFilterSet.isEffectivelyEmpty {
+                    search.clearTableProjectionSource()
                     clearTableRows(resetScroll: true)
                 } else {
                     loadAllCueRows(resetScroll: true)
@@ -233,6 +235,7 @@ struct WorkbenchTestSearchView: View {
             _ = applyCueContextSearchRequest(request)
         }
         .onChange(of: isTableResponseActive) { isActive in
+            search.setTableProjectionResponseActive(isActive)
             if !isActive {
                 resetCoveredTableLoading()
             } else {
@@ -245,7 +248,7 @@ struct WorkbenchTestSearchView: View {
             resumeDeferredTableResponse()
         }
         .onDisappear {
-            resetContinuousRowLoading()
+            search.setTableProjectionResponseActive(false)
             persistTableControls()
             persistSelection()
         }
@@ -423,6 +426,7 @@ struct WorkbenchTestSearchView: View {
 
         lastHandledCueContextRequestID = request.id
         activeCueContextRequest = request
+        search.activateContextTableProjection(requestID: request.id)
         cueContextLoadGeneration += 1
         resetCueContextWindow()
         let generation = cueContextLoadGeneration
@@ -559,16 +563,7 @@ struct WorkbenchTestSearchView: View {
             hasDeferredRefreshWhileCovered = true
             return
         }
-        rowStore.updateResidentSearchReferences(
-            cueIDs: search.loadedSearchResultCueIDs,
-            ranksByCueID: search.searchRankByCueID,
-            cueContentProvider: searchCueContentProvider,
-            cueContentRevision: appState.cueContent.revision,
-            sourceRevision: search.tableProjectionRevision,
-            tableName: "test-search",
-            probeSurface: tableProbeSurface,
-            probeScope: appState.uiProbeScope
-        )
+        search.activateResidentSearchTableProjection()
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         refreshSelectedCollageAvailability()
     }
@@ -585,7 +580,6 @@ struct WorkbenchTestSearchView: View {
             return
         }
         let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
-        resetContinuousRowLoading()
         resetCueContextWindow()
         lastVisibleRows = nil
         rowSelection.reset()
@@ -642,12 +636,7 @@ struct WorkbenchTestSearchView: View {
         else {
             return
         }
-        loadNextContinuousRowsIfNeeded(generation: continuousLoadGeneration)
-    }
-
-    private func resetContinuousRowLoading() {
-        continuousLoadGeneration += 1
-        isLoadingContinuousRows = false
+        loadAllCueRows(resetScroll: false)
     }
 
     private func resetCueContextWindow() {
@@ -658,7 +647,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func resetCoveredTableLoading() {
-        resetContinuousRowLoading()
+        search.suspendFilterOnlyPageLoad()
         cueContextLoadGeneration += 1
         isLoadingCueContextRows = false
     }
@@ -683,56 +672,6 @@ struct WorkbenchTestSearchView: View {
             loadAllCueRows(resetScroll: false)
         } else {
             updateRowsFromResidentSearch()
-        }
-    }
-
-    private func loadNextContinuousRowsIfNeeded(generation: Int) {
-        guard generation == continuousLoadGeneration,
-              allowsTableResponse,
-              !isLoadingContinuousRows,
-              isFilterOnlyMode,
-              activeCueContextRequest == nil
-        else {
-            return
-        }
-
-        let loadedRowCount = rowStore.snapshot.totalRowCount
-        let totalRowCount = search.searchResultTotalCount
-        guard loadedRowCount < totalRowCount else { return }
-
-        isLoadingContinuousRows = true
-        let upperBound = min(totalRowCount, loadedRowCount + Self.continuousPageSize)
-        let range = loadedRowCount..<upperBound
-
-        Task { @MainActor in
-            guard allowsTableResponse else {
-                if generation == continuousLoadGeneration {
-                    isLoadingContinuousRows = false
-                }
-                return
-            }
-            UIInvalidationProbe.count(
-                SubtitleTableProbeSurface.search.counterName("row_hydration_requested"),
-                scope: appState.uiProbeScope
-            )
-            guard let page = await appState.loadTableSandboxAllCueRows(range: range),
-                  generation == continuousLoadGeneration,
-                  allowsTableResponse,
-                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  activeCueContextRequest == nil,
-                  search.activeFilterSetSignature == appliedFilterSignature
-            else {
-                if generation == continuousLoadGeneration {
-                    isLoadingContinuousRows = false
-                }
-                return
-            }
-
-            let appended = appendContinuousRows(page, expectedStartIndex: loadedRowCount)
-            isLoadingContinuousRows = false
-            if appended {
-                loadNextContinuousRowsIfNeeded(generation: generation)
-            }
         }
     }
 
@@ -763,11 +702,16 @@ struct WorkbenchTestSearchView: View {
             resetCoveredTableLoading()
             return
         }
+        let projectionKey = SearchFilterOnlyProjectionKey(
+            filterSignature: search.activeFilterSetSignature,
+            folderPaths: appState.indexing.selectedFolders.map(\.path)
+        )
+        let sourceChanged = search.prepareFilterOnlyTableProjection(
+            key: projectionKey
+        )
         activeCueContextRequest = nil
         tableScrollTargetRow = nil
         resetCueContextWindow()
-        resetContinuousRowLoading()
-        let generation = continuousLoadGeneration
         lastVisibleRows = nil
         if resetScroll {
             rowSelection.reset()
@@ -775,45 +719,78 @@ struct WorkbenchTestSearchView: View {
             resetSelectedCollageAvailability()
             tableScrollResetToken += 1
         }
+        if sourceChanged {
+            rowStore.updateResidentSearchResults(
+                [],
+                cueContentProvider: searchCueContentProvider,
+                cueContentRevision: appState.cueContent.revision,
+                tableName: "test-search",
+                probeSurface: tableProbeSurface,
+                probeScope: appState.uiProbeScope
+            )
+        }
+        guard let loadToken = search.beginFilterOnlyPageLoad(
+            key: projectionKey,
+            loadedRowCount: rowStore.snapshot.totalRowCount
+        ) else {
+            return
+        }
+        let pageSize = loadToken.startIndex == 0
+            ? TableSandboxHydrationPaging.pageSize
+            : Self.continuousPageSize
+        let range = loadToken.startIndex..<(loadToken.startIndex + pageSize)
 
         Task { @MainActor in
-            guard allowsTableResponse else { return }
-            guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return
-            }
-            guard !search.activeFilterSet.isEffectivelyEmpty else {
+            guard allowsTableResponse,
+                  search.acceptsFilterOnlyPageLoad(loadToken),
+                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !search.activeFilterSet.isEffectivelyEmpty
+            else {
+                search.failFilterOnlyPageLoad(loadToken)
                 return
             }
             UIInvalidationProbe.count(
                 SubtitleTableProbeSurface.search.counterName("row_hydration_requested"),
                 scope: appState.uiProbeScope
             )
-            guard let page = await appState.loadTableSandboxAllCueRows(
-                range: 0..<TableSandboxHydrationPaging.pageSize
-            ) else {
+            guard let page = await appState.loadTableSandboxAllCueRows(range: range),
+                  search.acceptsFilterOnlyPageLoad(loadToken),
+                  allowsTableResponse,
+                  page.range.lowerBound == loadToken.startIndex,
+                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  activeCueContextRequest == nil,
+                  search.activeFilterSetSignature == projectionKey.filterSignature
+            else {
+                search.failFilterOnlyPageLoad(loadToken)
+                return
+            }
+            if loadToken.startIndex == 0 {
+                appState.applyTableSandboxAllCueSearchContext(page)
                 rowStore.updateResidentSearchResults(
-                    [],
+                    page.results,
                     cueContentProvider: searchCueContentProvider,
                     cueContentRevision: appState.cueContent.revision,
                     tableName: "test-search",
                     probeSurface: tableProbeSurface,
-                    probeScope: appState.uiProbeScope
+                    probeScope: appState.uiProbeScope,
+                    isHydration: true
                 )
-                return
+                rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+            } else {
+                _ = appendContinuousRows(
+                    page,
+                    expectedStartIndex: loadToken.startIndex
+                )
             }
-            guard allowsTableResponse else { return }
-            appState.applyTableSandboxAllCueSearchContext(page)
-            rowStore.updateResidentSearchResults(
-                page.results,
-                cueContentProvider: searchCueContentProvider,
-                cueContentRevision: appState.cueContent.revision,
-                tableName: "test-search",
-                probeSurface: tableProbeSurface,
-                probeScope: appState.uiProbeScope,
-                isHydration: true
+            let loadedRowCount = rowStore.snapshot.totalRowCount
+            let shouldContinue = search.completeFilterOnlyPageLoad(
+                loadToken,
+                totalRowCount: page.totalRowCount,
+                loadedRowCount: loadedRowCount
             )
-            rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-            loadNextContinuousRowsIfNeeded(generation: generation)
+            if shouldContinue, loadedRowCount > loadToken.startIndex {
+                loadAllCueRows(resetScroll: false)
+            }
         }
     }
 
@@ -1059,10 +1036,10 @@ struct WorkbenchTestSearchView: View {
         }
     }
 
-    private func applyFilterRules(_ rules: [SchemaWorkbenchFilterRule], force: Bool = false) {
+    private func applyFilterRules(_ rules: [SchemaWorkbenchFilterRule]) {
         let filterSet = rules.subtitleSearchFilterSet
         let nextSignature = filterSet.cacheSignature
-        guard force || nextSignature != appliedFilterSignature else {
+        guard nextSignature != appliedFilterSignature else {
             return
         }
 
@@ -1070,20 +1047,19 @@ struct WorkbenchTestSearchView: View {
         tableScrollTargetRow = nil
         cueContextLoadGeneration += 1
         appliedFilterSignature = nextSignature
-        resetContinuousRowLoading()
+        search.suspendFilterOnlyPageLoad()
         rowSelection.reset()
-        if !force {
-            persistSelection()
-            search.tableViewportAnchor = nil
-            viewportAnchorToRestore = nil
-            didRestoreViewport = true
-        }
+        persistSelection()
+        search.tableViewportAnchor = nil
+        viewportAnchorToRestore = nil
+        didRestoreViewport = true
         resetSelectedCollageAvailability()
         lastVisibleRows = nil
         tableScrollResetToken += 1
         appState.updateSearchFilterSet(filterSet)
         if search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             if filterSet.isEffectivelyEmpty {
+                search.clearTableProjectionSource()
                 clearTableRows(resetScroll: false)
             } else {
                 loadAllCueRows(resetScroll: false)

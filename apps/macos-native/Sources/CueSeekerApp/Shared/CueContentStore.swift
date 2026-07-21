@@ -5,6 +5,13 @@ import CueSeekerCore
 struct CueContentStoreChange: Equatable {
     let revision: UInt64
     let cueIDs: Set<Int64>
+
+    func merging(_ other: CueContentStoreChange) -> CueContentStoreChange {
+        CueContentStoreChange(
+            revision: max(revision, other.revision),
+            cueIDs: cueIDs.union(other.cueIDs)
+        )
+    }
 }
 
 @MainActor

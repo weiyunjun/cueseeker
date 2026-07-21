@@ -67,7 +67,15 @@ table presentation resources.
     Search and Shiori stores subscribe directly and reload only resident table
     projections that reference those CueIDs. Result identity revisions remain
     independent from content revisions, and table refresh no longer depends on
-    a SwiftUI metadata change or a manual row-store update.
+    a SwiftUI metadata change or a manual row-store update. Covered tables
+    coalesce changes and apply the latest revision when their response gate
+    reopens, preserving the existing no-background-rebuild rule.
+14. Moved filter-only Search projection identity and paging generation into the
+    long-lived Search store. View remount now reuses a complete matching
+    filter/folder source without querying, resumes a partial source at its
+    loaded boundary, permits only one in-flight page, and rejects stale page
+    responses before any Search or row-store mutation. The forced on-appear
+    filter application and duplicate initial load path were removed.
 
 ## Verification
 
@@ -93,6 +101,13 @@ table presentation resources.
 - Canonical content replacement automatically advances both Search and Shiori
   table snapshot versions through the store notification chain, without a
   manual row-store update: passed.
+- Filter-only Search UI mount, Shiori switch, and Search remount preserve the
+  same row-store version, Cue order, and viewport anchor with zero remount
+  hydration requests: passed.
+- Complete filter projections reject duplicate page loads; partial projections
+  resume at the loaded boundary and reject stale generation responses: passed.
+- Cue Group response-gating integration suite, including covered Search and
+  remount behavior: 11/11 passed.
 - Final full 804-test regression run completed. All requirement-focused,
   database, Search, Shiori, Playback integration, table interaction, Cue Group
   reflow, and presentation-cache tests passed. Ten native-media, MainActor, or

@@ -65,14 +65,7 @@ func canonicalCueChangeAutomaticallyReloadsResidentSearchTableProjection() {
     searchStore.replaceLoadedSearchResults([
         SubtitleSearchResult(cueContent: original, searchRank: 12),
     ])
-    searchStore.tableRowStore.updateResidentSearchReferences(
-        cueIDs: searchStore.loadedSearchResultCueIDs,
-        ranksByCueID: searchStore.searchRankByCueID,
-        cueContentProvider: { cueStore.content(for: $0) },
-        cueContentRevision: cueStore.revision,
-        sourceRevision: searchStore.tableProjectionRevision,
-        tableName: "search"
-    )
+    searchStore.activateResidentSearchTableProjection()
     let originalSnapshotVersion = searchStore.tableRowStore.snapshot.version
     let originalProjectionRevision = searchStore.tableProjectionRevision
 

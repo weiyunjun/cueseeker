@@ -866,24 +866,10 @@ func searchTableProjectionSurvivesViewRemountWithoutMaterializingResults() {
     search.replaceLoadedSearchResults(results)
     let rowStore = search.tableRowStore
 
-    rowStore.updateResidentSearchReferences(
-        cueIDs: search.loadedSearchResultCueIDs,
-        ranksByCueID: search.searchRankByCueID,
-        cueContentProvider: { cueStore.content(for: $0) },
-        cueContentRevision: cueStore.revision,
-        sourceRevision: search.tableProjectionRevision,
-        tableName: "search"
-    )
+    search.activateResidentSearchTableProjection()
     let mountedVersion = rowStore.snapshot.version
 
-    rowStore.updateResidentSearchReferences(
-        cueIDs: search.loadedSearchResultCueIDs,
-        ranksByCueID: search.searchRankByCueID,
-        cueContentProvider: { cueStore.content(for: $0) },
-        cueContentRevision: cueStore.revision,
-        sourceRevision: search.tableProjectionRevision,
-        tableName: "search"
-    )
+    search.activateResidentSearchTableProjection()
 
     #expect(search.tableRowStore === rowStore)
     #expect(rowStore.snapshot.version == mountedVersion)
@@ -891,6 +877,89 @@ func searchTableProjectionSurvivesViewRemountWithoutMaterializingResults() {
     #expect(rowStore.snapshot.loadedReferenceCount == 10_000)
     #expect(rowStore.snapshot.materializedRowCount == 0)
     #expect(rowStore.snapshot.row(at: 9_999)?.primaryCueText == "Search Cue 10000")
+}
+
+@MainActor
+@Test
+func filterOnlyProjectionReusesCompleteSourceAndRejectsDuplicatePageLoads() throws {
+    let search = SearchStore()
+    let key = SearchFilterOnlyProjectionKey(
+        filterSignature: "display:contains:episode",
+        folderPaths: ["/Media"]
+    )
+
+    #expect(search.prepareFilterOnlyTableProjection(key: key))
+    let firstToken = try #require(search.beginFilterOnlyPageLoad(
+        key: key,
+        loadedRowCount: 0
+    ))
+    #expect(search.beginFilterOnlyPageLoad(key: key, loadedRowCount: 0) == nil)
+    #expect(!search.completeFilterOnlyPageLoad(
+        firstToken,
+        totalRowCount: 200,
+        loadedRowCount: 200
+    ))
+
+    #expect(!search.prepareFilterOnlyTableProjection(key: key))
+    #expect(search.beginFilterOnlyPageLoad(key: key, loadedRowCount: 200) == nil)
+    #expect(search.tableProjectionSource == .filterOnly(key))
+}
+
+@MainActor
+@Test
+func filterOnlyProjectionResumesPartialSourceAndRejectsStaleResponse() throws {
+    let search = SearchStore()
+    let key = SearchFilterOnlyProjectionKey(
+        filterSignature: "cues:contains:review",
+        folderPaths: ["/Media"]
+    )
+    _ = search.prepareFilterOnlyTableProjection(key: key)
+    let firstToken = try #require(search.beginFilterOnlyPageLoad(
+        key: key,
+        loadedRowCount: 0
+    ))
+    #expect(search.completeFilterOnlyPageLoad(
+        firstToken,
+        totalRowCount: 2_000,
+        loadedRowCount: 200
+    ))
+    let pendingToken = try #require(search.beginFilterOnlyPageLoad(
+        key: key,
+        loadedRowCount: 200
+    ))
+
+    search.suspendFilterOnlyPageLoad()
+
+    #expect(!search.acceptsFilterOnlyPageLoad(pendingToken))
+    #expect(!search.prepareFilterOnlyTableProjection(key: key))
+    let resumedToken = try #require(search.beginFilterOnlyPageLoad(
+        key: key,
+        loadedRowCount: 200
+    ))
+    #expect(resumedToken.startIndex == 200)
+    #expect(resumedToken.generation != pendingToken.generation)
+}
+
+@MainActor
+@Test
+func residentSearchProjectionRevisionDirectlyUpdatesOwnedRowStore() {
+    let search = SearchStore()
+    let original = makeTableSandboxSearchResult(
+        id: 42,
+        content: "Stable Cue",
+        speakers: [],
+        searchRank: 0
+    )
+    search.replaceLoadedSearchResults([original])
+    search.activateResidentSearchTableProjection()
+    let originalSnapshotVersion = search.tableRowStore.snapshot.version
+
+    search.replaceLoadedSearchResults([
+        SubtitleSearchResult(cueContent: original.cueContent, searchRank: 7),
+    ])
+
+    #expect(search.tableRowStore.snapshot.version == originalSnapshotVersion + 1)
+    #expect(search.tableRowStore.snapshot.searchResult(entryID: 42)?.searchRank == 7)
 }
 
 private func makeSearchResults() throws -> [SubtitleSearchResult] {

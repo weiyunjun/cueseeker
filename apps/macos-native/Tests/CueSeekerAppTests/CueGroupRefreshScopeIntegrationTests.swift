@@ -47,6 +47,76 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
+    func filterOnlySearchRemountReusesResidentProjectionWithoutHydration() async throws {
+        let uiProbeScope = UUID().uuidString
+        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
+            scope: uiProbeScope
+        )
+        defer { session.finish() }
+
+        try await withMountedCueTable(
+            surface: .search,
+            usesFilterOnlySearch: true,
+            uiProbeScope: uiProbeScope
+        ) { app, window, coordinator in
+            let rowStore = app.search.tableRowStore
+            let versionBefore = rowStore.snapshot.version
+            let entryIDsBefore = rowStore.snapshot.orderedEntryIDs
+            #expect(rowStore.snapshot.totalRowCount == 200)
+            #expect(session.recording().count(
+                SubtitleTableProbeSurface.search.counterName(
+                    "row_hydration_requested"
+                )
+            ) > 0)
+            coordinator.scrollToRow(100)
+            let didCaptureViewport = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return (app.search.tableViewportAnchor?.rowIndex ?? 0) > 0
+            }
+            try #require(didCaptureViewport)
+            let viewportAnchorBefore = try #require(
+                app.search.tableViewportAnchor
+            )
+
+            app.activateWorkbenchPanelMode(.shiori)
+            let didMountShiori = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return findSubtitleTableCoordinator(
+                    in: window.contentView,
+                    surface: .shiori
+                ) != nil
+            }
+            try #require(didMountShiori)
+            let recordingBeforeRemount = session.recording()
+
+            app.activateWorkbenchPanelMode(.search)
+            let didRemountSearch = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return findSubtitleTableCoordinator(
+                    in: window.contentView,
+                    surface: .search
+                ) != nil
+            }
+            try #require(didRemountSearch)
+            try await Task.sleep(nanoseconds: 100_000_000)
+
+            let remountRecording = session.recording().delta(
+                since: recordingBeforeRemount
+            )
+            #expect(remountRecording.count(
+                SubtitleTableProbeSurface.search.counterName(
+                    "row_hydration_requested"
+                )
+            ) == 0)
+            #expect(rowStore.snapshot.version == versionBefore)
+            #expect(rowStore.snapshot.orderedEntryIDs == entryIDsBefore)
+            #expect(rowStore.snapshot.totalRowCount == 200)
+            #expect(app.search.tableViewportAnchor?.entryID == viewportAnchorBefore.entryID)
+        }
+    }
+
+    @MainActor
+    @Test
     func widthReflowStaysWithMountedTableWhileMountedFocusRemainsStable() async throws {
         let uiProbeScope = UUID().uuidString
         let session = UIInvalidationProbe.beginAsyncRecordingForTesting(scope: uiProbeScope)
@@ -520,6 +590,7 @@ private func nativeSwitchDescendant(in root: NSView) -> NSView? {
 private func withMountedCueTable(
     surface: SubtitleTableProbeSurface,
     usesMissingContextTarget: Bool = false,
+    usesFilterOnlySearch: Bool = false,
     initialShowCueGroup: Bool = false,
     uiProbeScope: String,
     _ body: @MainActor (AppCoordinator, NSWindow, SubtitleTableView.Coordinator) async throws -> Void
@@ -528,6 +599,7 @@ private func withMountedCueTable(
     let harness = try CueGroupRefreshScopeMountedHarness(
         surface: surface,
         usesMissingContextTarget: usesMissingContextTarget,
+        usesFilterOnlySearch: usesFilterOnlySearch,
         initialShowCueGroup: initialShowCueGroup,
         uiProbeScope: uiProbeScope
     )
@@ -579,6 +651,7 @@ private final class CueGroupRefreshScopeMountedHarness {
     init(
         surface: SubtitleTableProbeSurface,
         usesMissingContextTarget: Bool,
+        usesFilterOnlySearch: Bool,
         initialShowCueGroup: Bool,
         uiProbeScope: String
     ) throws {
@@ -618,15 +691,29 @@ private final class CueGroupRefreshScopeMountedHarness {
         )
         switch surface {
         case .search:
-            app.search.searchQuery = "primary"
-            app.search.searchResults = cueGroupRefreshScopeSearchResults(
-                subtitlePath: subtitleURL.path,
-                videoPath: videoURL.path,
-                rowCount: 200
-            )
-            app.search.searchResultCueIDs = app.search.searchResults.map(\.entryID)
-            app.search.searchResultTotalCount = app.search.searchResults.count
-            app.search.searchStatus = .completed
+            if usesFilterOnlySearch {
+                let rules = [
+                    SchemaWorkbenchSearchDefaults.makeFilterRule(
+                        join: nil,
+                        fieldID: "cues",
+                        operatorID: .contains,
+                        value: "primary"
+                    ),
+                ]
+                app.search.searchQuery = ""
+                app.search.tableFilterRules = rules
+                app.search.activeFilterSet = rules.subtitleSearchFilterSet
+            } else {
+                app.search.searchQuery = "primary"
+                app.search.searchResults = cueGroupRefreshScopeSearchResults(
+                    subtitlePath: subtitleURL.path,
+                    videoPath: videoURL.path,
+                    rowCount: 200
+                )
+                app.search.searchResultCueIDs = app.search.searchResults.map(\.entryID)
+                app.search.searchResultTotalCount = app.search.searchResults.count
+                app.search.searchStatus = .completed
+            }
             app.activateWorkbenchPanelMode(.search)
         case .context:
             app.search.cueContextSearchRequest = CueContextSearchRequest(

@@ -174,6 +174,7 @@ private struct WorkbenchShioriTableContent: View {
             }
         }
         .onAppear {
+            shioriStore.setTableProjectionResponseActive(allowsTableResponse)
             prepareViewportRestoration()
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
@@ -192,11 +193,13 @@ private struct WorkbenchShioriTableContent: View {
             reloadRows(resetScroll: true)
         }
         .onChange(of: isTableResponseActive) { isActive in
+            shioriStore.setTableProjectionResponseActive(isActive)
             if isActive {
                 resumeDeferredTableResponse()
             }
         }
         .onDisappear {
+            shioriStore.setTableProjectionResponseActive(false)
             persistSelection()
         }
         .background(
