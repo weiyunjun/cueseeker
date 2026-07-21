@@ -850,6 +850,49 @@ func openingSearchResultUpdatesNavigationStateImmediately() throws {
     #expect(app.search.searchNavigationSnapshot?.next?.entryID == third.entryID)
 }
 
+@MainActor
+@Test
+func searchTableProjectionSurvivesViewRemountWithoutMaterializingResults() {
+    let cueStore = CueContentStore()
+    let search = SearchStore(cueContentStore: cueStore)
+    let results = (1...10_000).map { value in
+        makeTableSandboxSearchResult(
+            id: Int64(value),
+            content: "Search Cue \(value)",
+            speakers: [],
+            searchRank: value - 1
+        )
+    }
+    search.replaceLoadedSearchResults(results)
+    let rowStore = search.tableRowStore
+
+    rowStore.updateResidentSearchReferences(
+        cueIDs: search.loadedSearchResultCueIDs,
+        ranksByCueID: search.searchRankByCueID,
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        sourceRevision: search.tableProjectionRevision,
+        tableName: "search"
+    )
+    let mountedVersion = rowStore.snapshot.version
+
+    rowStore.updateResidentSearchReferences(
+        cueIDs: search.loadedSearchResultCueIDs,
+        ranksByCueID: search.searchRankByCueID,
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        sourceRevision: search.tableProjectionRevision,
+        tableName: "search"
+    )
+
+    #expect(search.tableRowStore === rowStore)
+    #expect(rowStore.snapshot.version == mountedVersion)
+    #expect(rowStore.snapshot.totalRowCount == 10_000)
+    #expect(rowStore.snapshot.loadedReferenceCount == 10_000)
+    #expect(rowStore.snapshot.materializedRowCount == 0)
+    #expect(rowStore.snapshot.row(at: 9_999)?.primaryCueText == "Search Cue 10000")
+}
+
 private func makeSearchResults() throws -> [SubtitleSearchResult] {
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSearchStoreTests-\(UUID().uuidString).sqlite")

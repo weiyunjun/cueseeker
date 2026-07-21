@@ -224,6 +224,7 @@ struct SearchView: View {
                 .ignoresSafeArea()
 
             WorkbenchTestSearchView(
+                rowStore: appState.search.tableRowStore,
                 isTableResponseActive: !appState.isPlaybackPageVisible
             )
         }

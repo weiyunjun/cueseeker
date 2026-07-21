@@ -32,7 +32,7 @@ struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
-    @StateObject private var rowStore = TableSandboxRowModelStore()
+    @ObservedObject private var rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
     @State private var visibleColumnIDs: Set<String>
@@ -73,7 +73,11 @@ struct WorkbenchTestSearchView: View {
         case none
     }
 
-    init(isTableResponseActive: Bool = true) {
+    init(
+        rowStore: TableSandboxRowModelStore,
+        isTableResponseActive: Bool = true
+    ) {
+        _rowStore = ObservedObject(wrappedValue: rowStore)
         self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
@@ -160,7 +164,7 @@ struct WorkbenchTestSearchView: View {
             } else if isFilterOnlyMode {
                 loadAllCueRows(resetScroll: false)
             } else {
-                updateRows(search.searchResults)
+                updateRowsFromResidentSearch()
             }
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
@@ -208,15 +212,15 @@ struct WorkbenchTestSearchView: View {
         }
         .onChange(of: search.searchResultTotalCount) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
-            updateRows(search.searchResults)
+            updateRowsFromResidentSearch()
         }
         .onChange(of: search.searchCountState) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
-            updateRows(search.searchResults)
+            updateRowsFromResidentSearch()
         }
         .onChange(of: search.searchResultCueIDs) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
-            updateRows(search.searchResults)
+            updateRowsFromResidentSearch()
         }
         .onChange(of: rowStore.snapshot.version) { _ in
             restoreSelectionIfPossible()
@@ -550,6 +554,25 @@ struct WorkbenchTestSearchView: View {
         refreshSelectedCollageAvailability()
     }
 
+    private func updateRowsFromResidentSearch() {
+        guard allowsTableResponse else {
+            hasDeferredRefreshWhileCovered = true
+            return
+        }
+        rowStore.updateResidentSearchReferences(
+            cueIDs: search.loadedSearchResultCueIDs,
+            ranksByCueID: search.searchRankByCueID,
+            cueContentProvider: searchCueContentProvider,
+            cueContentRevision: appState.cueContent.revision,
+            sourceRevision: search.tableProjectionRevision,
+            tableName: "test-search",
+            probeSurface: tableProbeSurface,
+            probeScope: appState.uiProbeScope
+        )
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+        refreshSelectedCollageAvailability()
+    }
+
     private var searchCueContentProvider: (Int64) -> CueContent? {
         let store = appState.cueContent
         return { cueID in store.content(for: cueID) }
@@ -659,7 +682,7 @@ struct WorkbenchTestSearchView: View {
         } else if isFilterOnlyMode {
             loadAllCueRows(resetScroll: false)
         } else {
-            updateRows(search.searchResults)
+            updateRowsFromResidentSearch()
         }
     }
 

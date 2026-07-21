@@ -23,8 +23,10 @@ struct CueContextSearchRequest: Equatable, Identifiable {
 @MainActor
 final class SearchStore: ObservableObject {
     private let cueContentStore: CueContentStore
-    private var loadedSearchResultCueIDs: [Int64] = []
-    private var searchRankByCueID: [Int64: Int] = [:]
+    private(set) var loadedSearchResultCueIDs: [Int64] = []
+    private(set) var searchRankByCueID: [Int64: Int] = [:]
+    private(set) var tableProjectionRevision: UInt64 = 0
+    let tableRowStore: TableSandboxRowModelStore
 
     @Published var searchQuery = ""
     @Published var searchStatus: SearchStatus = .idle
@@ -54,6 +56,7 @@ final class SearchStore: ObservableObject {
 
     init(cueContentStore: CueContentStore = CueContentStore()) {
         self.cueContentStore = cueContentStore
+        tableRowStore = TableSandboxRowModelStore()
     }
 
     var searchResults: [SubtitleSearchResult] {
@@ -77,11 +80,19 @@ final class SearchStore: ObservableObject {
         orderedCueIDs: [Int64]? = nil
     ) {
         objectWillChange.send()
-        cueContentStore.install(results.map(\.cueContent))
-        loadedSearchResultCueIDs = results.map(\.entryID)
-        searchRankByCueID = Dictionary(uniqueKeysWithValues: results.map {
+        let contentChanged = cueContentStore.install(results.map(\.cueContent))
+        let nextCueIDs = results.map(\.entryID)
+        let nextRanks = Dictionary(uniqueKeysWithValues: results.map {
             ($0.entryID, $0.searchRank)
         })
+        let projectionChanged = contentChanged
+            || loadedSearchResultCueIDs != nextCueIDs
+            || searchRankByCueID != nextRanks
+        loadedSearchResultCueIDs = nextCueIDs
+        searchRankByCueID = nextRanks
+        if projectionChanged {
+            tableProjectionRevision &+= 1
+        }
 
         if let orderedCueIDs {
             searchResultCueIDs = orderedCueIDs

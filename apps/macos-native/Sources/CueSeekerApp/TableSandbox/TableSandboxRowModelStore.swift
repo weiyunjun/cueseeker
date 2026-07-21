@@ -9,6 +9,7 @@ struct TableSandboxRowsSnapshot {
     fileprivate var searchCueIndexByEntryID: [Int: Int] = [:]
     fileprivate var searchRankByCueID: [Int64: Int] = [:]
     fileprivate var searchCueContentProvider: ((Int64) -> CueContent?)?
+    fileprivate var searchSourceRevision: UInt64?
     var shiorisByEntryID: [Int: Shiori] = [:]
     var shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:]
     fileprivate var shioriRelations: [ShioriRelation] = []
@@ -26,6 +27,7 @@ struct TableSandboxRowsSnapshot {
         searchCueIDs: [Int64] = [],
         searchRankByCueID: [Int64: Int] = [:],
         searchCueContentProvider: ((Int64) -> CueContent?)? = nil,
+        searchSourceRevision: UInt64? = nil,
         shiorisByEntryID: [Int: Shiori] = [:],
         shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:],
         shioriRelations: [ShioriRelation] = [],
@@ -46,6 +48,7 @@ struct TableSandboxRowsSnapshot {
         )
         self.searchRankByCueID = searchRankByCueID
         self.searchCueContentProvider = searchCueContentProvider
+        self.searchSourceRevision = searchSourceRevision
         self.shiorisByEntryID = shiorisByEntryID
         self.shioriCuePresentationsByEntryID = shioriCuePresentationsByEntryID
         self.shioriRelations = shioriRelations
@@ -226,6 +229,36 @@ final class TableSandboxRowModelStore: ObservableObject {
         let ranks = Dictionary(uniqueKeysWithValues: results.map {
             ($0.entryID, $0.searchRank)
         })
+        updateResidentSearchReferences(
+            cueIDs: cueIDs,
+            ranksByCueID: ranks,
+            cueContentProvider: cueContentProvider,
+            cueContentRevision: cueContentRevision,
+            tableName: tableName,
+            probeSurface: probeSurface,
+            probeScope: probeScope,
+            isHydration: isHydration
+        )
+    }
+
+    func updateResidentSearchReferences(
+        cueIDs: [Int64],
+        ranksByCueID ranks: [Int64: Int],
+        cueContentProvider: @escaping (Int64) -> CueContent?,
+        cueContentRevision: UInt64,
+        sourceRevision: UInt64? = nil,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil,
+        isHydration: Bool = false
+    ) {
+        if let sourceRevision,
+           snapshot.searchSourceRevision == sourceRevision,
+           snapshot.cueContentRevision == cueContentRevision,
+           snapshot.materializedRows.isEmpty,
+           snapshot.shioriRelations.isEmpty {
+            return
+        }
         let update: TableSandboxRowsUpdate
         if snapshot.loadedReferenceCount == 0, !cueIDs.isEmpty {
             update = .append(0..<cueIDs.count)
@@ -242,6 +275,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchCueIDs: cueIDs,
             searchRankByCueID: ranks,
             searchCueContentProvider: cueContentProvider,
+            searchSourceRevision: sourceRevision,
             cueContentRevision: cueContentRevision,
             version: snapshot.version + 1,
             update: update,
@@ -287,6 +321,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchCueIDs: cueIDs,
             searchRankByCueID: ranks,
             searchCueContentProvider: cueContentProvider,
+            searchSourceRevision: snapshot.searchSourceRevision,
             cueContentRevision: cueContentRevision,
             version: snapshot.version + 1,
             update: update,

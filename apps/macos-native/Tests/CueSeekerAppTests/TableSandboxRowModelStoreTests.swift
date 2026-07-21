@@ -958,20 +958,22 @@ func tableSandboxSearchProjectionReloadsWhenCanonicalCueContentChanges() {
     let changed = residentCueContent(cueID: 42, content: "Changed Cue")
     cueStore.install([original])
     let store = TableSandboxRowModelStore { _ in "unused" }
-    let stableResults = [SubtitleSearchResult(cueContent: original, searchRank: 0)]
-
-    store.updateResidentSearchResults(
-        stableResults,
+    store.updateResidentSearchReferences(
+        cueIDs: [original.cueID],
+        ranksByCueID: [original.cueID: 0],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
+        sourceRevision: 1,
         tableName: "search"
     )
     let originalVersion = store.snapshot.version
     cueStore.install([changed])
-    store.updateResidentSearchResults(
-        stableResults,
+    store.updateResidentSearchReferences(
+        cueIDs: [original.cueID],
+        ranksByCueID: [original.cueID: 0],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
+        sourceRevision: 1,
         tableName: "search"
     )
 

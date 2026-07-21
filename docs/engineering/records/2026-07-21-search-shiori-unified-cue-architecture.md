@@ -54,6 +54,11 @@ table presentation resources.
     table snapshots. A content change now advances the table snapshot version
     and emits a reload even when CueIDs, ranks, relations, and Tags are stable,
     which invalidates native drawing and dynamic-row measurement caches.
+12. Moved the Search table projection into a Search-store-owned persistent row
+    store. Search remounts now reuse the resident CueID/rank containers and a
+    scalar source revision instead of reading and reconstructing the complete
+    `SubtitleSearchResult` collection; shared Cue-content revision changes still
+    force a table reload independently of the Search source revision.
 
 ## Verification
 
@@ -71,6 +76,9 @@ table presentation resources.
 - Folder removal resident-Shiori, table-row, and canonical-Cue invalidation:
   passed.
 - Same-CueID Search and Shiori content replacement invalidation: passed.
+- Search remount with 10,000 resident Cue references preserves one row store,
+  performs no row materialization, and keeps the table snapshot version stable:
+  passed.
 - Full 799-test regression run completed. All requirement-focused, database,
   Search, Shiori, Playback integration, table interaction, Cue Group reflow,
   and presentation-cache tests passed. Three unrelated native-media or
