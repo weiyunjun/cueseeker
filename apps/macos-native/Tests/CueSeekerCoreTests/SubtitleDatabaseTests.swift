@@ -3675,6 +3675,59 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
 }
 
 @Test
+func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Cue Contents.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Cue Contents.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "First canonical Cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Second canonical Cue."
+            ),
+        ]
+    )
+    let firstID = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    )?.cueLineID)
+    let secondID = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 3_500
+    )?.cueLineID)
+
+    let contents = try database.cueContents(
+        forCueIDs: [secondID, firstID, secondID, -1]
+    )
+    #expect(contents.map(\.cueID) == [secondID, firstID])
+    #expect(contents.map(\.content) == [
+        "Second canonical Cue.",
+        "First canonical Cue.",
+    ])
+    #expect(contents.allSatisfy { $0.videoPath == videoFile.path })
+}
+
+@Test
 func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

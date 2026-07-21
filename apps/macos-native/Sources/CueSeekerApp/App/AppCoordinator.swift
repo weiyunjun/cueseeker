@@ -35,6 +35,7 @@ final class AppCoordinator: ObservableObject {
     let shiori: ShioriStore
     let library: LibraryStore
     let search: SearchStore
+    let cueContent: CueContentStore
     let playback: PlaybackStore
     var settingsCancellables: Set<AnyCancellable> = []
 
@@ -503,6 +504,7 @@ final class AppCoordinator: ObservableObject {
         shiori = ShioriStore(uiProbeScope: uiProbeScope)
         library = LibraryStore()
         search = SearchStore()
+        cueContent = CueContentStore()
         playback = PlaybackStore(userDefaults: userDefaults)
 
         let openedDatabase: SubtitleDatabase?

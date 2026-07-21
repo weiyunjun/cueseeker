@@ -26,6 +26,74 @@ public struct SubtitleDatabaseEntryIndexItem: Equatable, Sendable {
     }
 }
 
+public struct CueContent: Equatable, Sendable, Identifiable {
+    public let cueID: Int64
+    public let cueGroupID: Int64
+    public let cueEventIndex: Int
+    public let cueDisplayOrder: Int
+    public let primaryGroupIndex: Int
+    public let subtitlePath: String
+    public let subtitleFormat: SubtitleFormat
+    public let videoPath: String
+    public let videoName: String
+    public let displayTitle: String
+    public let timeRange: String
+    public let startMilliseconds: Int
+    public let endMilliseconds: Int
+    public let content: String
+    public let cueLines: [String]
+    public let cueGroupLines: [String]
+    public let languages: Set<SubtitleLanguageCode>
+    public let speakers: Set<String>
+
+    public var id: Int64 { cueID }
+
+    public init(
+        cueID: Int64,
+        cueGroupID: Int64,
+        cueEventIndex: Int,
+        cueDisplayOrder: Int,
+        primaryGroupIndex: Int,
+        subtitlePath: String,
+        subtitleFormat: SubtitleFormat,
+        videoPath: String,
+        videoName: String,
+        displayTitle: String,
+        timeRange: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        content: String,
+        cueLines: [String],
+        cueGroupLines: [String],
+        languages: Set<SubtitleLanguageCode>,
+        speakers: Set<String>
+    ) {
+        self.cueID = cueID
+        self.cueGroupID = cueGroupID
+        self.cueEventIndex = cueEventIndex
+        self.cueDisplayOrder = cueDisplayOrder
+        self.primaryGroupIndex = max(0, primaryGroupIndex)
+        self.subtitlePath = subtitlePath
+        self.subtitleFormat = subtitleFormat
+        self.videoPath = videoPath
+        self.videoName = videoName
+        self.displayTitle = displayTitle
+        self.timeRange = timeRange.isEmpty
+            ? SubtitleCueTimeRangeDisplay.text(
+                startMilliseconds: startMilliseconds,
+                endMilliseconds: endMilliseconds
+            )
+            : timeRange
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+        self.content = content
+        self.cueLines = cueLines
+        self.cueGroupLines = cueGroupLines.isEmpty ? [content] : cueGroupLines
+        self.languages = languages.isEmpty ? [.unknown] : languages
+        self.speakers = speakers
+    }
+}
+
 public struct SubtitleSearchResult: Equatable, Sendable {
     public let entryID: Int64
     public let cueGroupID: Int64
@@ -100,6 +168,53 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         self.languages = languages.isEmpty ? [.unknown] : languages
         self.speakers = speakers
         self.searchRank = searchRank
+    }
+
+    public init(cueContent: CueContent, searchRank: Int = 0) {
+        self.init(
+            entryID: cueContent.cueID,
+            cueGroupID: cueContent.cueGroupID,
+            cueEventIndex: cueContent.cueEventIndex,
+            cueDisplayOrder: cueContent.cueDisplayOrder,
+            primaryGroupIndex: cueContent.primaryGroupIndex,
+            subtitlePath: cueContent.subtitlePath,
+            subtitleFormat: cueContent.subtitleFormat,
+            videoPath: cueContent.videoPath,
+            videoName: cueContent.videoName,
+            displayTitle: cueContent.displayTitle,
+            timeRange: cueContent.timeRange,
+            startMilliseconds: cueContent.startMilliseconds,
+            endMilliseconds: cueContent.endMilliseconds,
+            content: cueContent.content,
+            cueLines: cueContent.cueLines,
+            cueGroupLines: cueContent.cueGroupLines,
+            languages: cueContent.languages,
+            speakers: cueContent.speakers,
+            searchRank: searchRank
+        )
+    }
+
+    public var cueContent: CueContent {
+        CueContent(
+            cueID: entryID,
+            cueGroupID: cueGroupID,
+            cueEventIndex: cueEventIndex,
+            cueDisplayOrder: cueDisplayOrder,
+            primaryGroupIndex: primaryGroupIndex,
+            subtitlePath: subtitlePath,
+            subtitleFormat: subtitleFormat,
+            videoPath: videoPath,
+            videoName: videoName,
+            displayTitle: displayTitle,
+            timeRange: timeRange,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            content: content,
+            cueLines: cueLines,
+            cueGroupLines: cueGroupLines,
+            languages: languages,
+            speakers: speakers
+        )
     }
 }
 
@@ -4600,22 +4715,42 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    public func cuePlaybackResult(cueID: Int64) throws -> SubtitleSearchResult? {
-        guard cueID > 0 else {
-            return nil
+    public func cueContents(forCueIDs cueIDs: [Int64]) throws -> [CueContent] {
+        var seenCueIDs = Set<Int64>()
+        let orderedCueIDs = cueIDs.filter { cueID in
+            cueID > 0 && seenCueIDs.insert(cueID).inserted
         }
+        guard !orderedCueIDs.isEmpty else { return [] }
+
         let page = try searchIndexedVisiblePage(
             from: SubtitleSearchResultIDIndexWindow(
-                cueIDs: [cueID],
+                cueIDs: orderedCueIDs,
                 offset: 0,
-                totalCount: 1,
+                totalCount: orderedCueIDs.count,
                 fileSummaries: [],
-                countSnapshot: .exact(totalCount: 1, fileSummaryCount: 0),
+                countSnapshot: .exact(
+                    totalCount: orderedCueIDs.count,
+                    fileSummaryCount: 0
+                ),
                 appliedCursor: .start,
                 nextCursor: nil
             )
         )
-        return page?.results.first
+        guard let page,
+              page.results.map(\.entryID) == orderedCueIDs
+        else {
+            return []
+        }
+        return page.results.map(\.cueContent)
+    }
+
+    public func cuePlaybackResult(cueID: Int64) throws -> SubtitleSearchResult? {
+        guard cueID > 0 else {
+            return nil
+        }
+        return try cueContents(forCueIDs: [cueID]).first.map {
+            SubtitleSearchResult(cueContent: $0)
+        }
     }
 
     public func searchNavigationSnapshotFromResultIDIndex(

@@ -18,8 +18,9 @@ table presentation resources.
 2. Migrated schema version 32 to `shiori_lists` plus relation-only `shioris`
    rows. The default list is active, `(list_id, cue_id)` is unique, Tags remain
    keyed by ShioriID, and resolved playback values now join the current Cue.
-3. Pending: introduce the canonical Cue snapshot and move Shiori, Search, and
-   Playback consumers to it.
+3. Added a canonical `CueContent` domain value, ordered bulk CueID resolution,
+   and one AppCoordinator-owned Cue content store. Search, Shiori, and Playback
+   consumer cutovers remain the next steps.
 4. Pending: preserve independent surface state and remove full-collection
    reconstruction during switching.
 5. Pending: remove full row payload retention from table measurement caches and
@@ -31,6 +32,7 @@ table presentation resources.
 - Shiori database and playback-navigation focused tests: passed.
 - Valid-Cue migration, default-list relation, cross-list identity, tag, filter,
   ordering, and indexed-folder removal coverage: passed.
+- Canonical Cue bulk-resolution and single-value-per-CueID store tests: passed.
 - Remaining application migration and automated regression verification:
   pending.
 
