@@ -598,6 +598,13 @@
 - Leading Icon 可选，图文间距使用 `--spacing-2`。
 - 状态：Default、Hover、Disabled。
 
+#### Primary Button
+
+- 用途：执行当前界面的主要确认操作。
+- Token：`--height-control`、`--radius-control`、`--padding-control-x`、`--color-primary-button-bg`、`--color-primary-button-bg-hover`、`--color-primary-button-text`、`--color-bg-disabled`、`--color-text-disabled`。
+- 文字使用 `--font-family-base`、`--font-size-control`、`--font-weight-control`。
+- 状态：Default、Hover、Disabled。
+
 #### Inline Add Button
 
 - 用途：添加筛选条件、筛选集或其他内联项目。
@@ -696,7 +703,9 @@
 - Menu Item Hover 使用 `--color-bg-hover`。
 - Recent 和 Library Folder 在卡片交互区域触发。
 - Library Episode 只在 Cover Region 触发。
-- Workbench 中的 Menu Item 由所属 Card Layout 定义。
+- 所有 Library Card Context Menu 均包含 `Change Cover`。
+- `Change Cover` 打开 Finder；选择图片后打开 Edit Cover Dialog。
+- Workbench 中的其他 Menu Item 由所属 Card Layout 定义。
 - Playback 复用所属 Card Layout 定义的 Menu Item 和动作，但不显示 `Context` Menu Item。
 - Playback 中打开 Menu 后，锁定右键所在卡片为动作目标，直到 Menu 关闭。
 - 菜单锚定右键位置并限制在可见区域内。
@@ -850,6 +859,16 @@
 - 状态：No Cover、Loaded。
 - 图片填满容器并保持比例裁切。
 - 本组件不定义点击动作，交互由所属卡片决定。
+
+#### Library Cover Crop Editor
+
+- 用途：调整图片的封面裁剪区域。
+- 裁剪区域固定使用 `--aspect-library-cover`。
+- 初始裁剪框为图片范围内最大的 `--aspect-library-cover` 区域。
+- 裁剪框显示四个角柄和四个边柄；拖动任一缩放柄时保持固定比例。
+- 拖动裁剪框内部移动完整裁剪区域。
+- 裁剪框不得超出图片范围，并具有最小尺寸。
+- 裁剪框外显示遮罩。
 
 #### Library Cover Progress Overlay
 
@@ -1441,6 +1460,19 @@
   - 不需要 Value 的 Presence-style 规则，例如 `Cues is not empty`。
 
 ### 4.4 Dialogs 与 Popovers
+
+#### Edit Cover Dialog Layout
+
+- 从上到下包括：
+  1. Title
+  2. Library Cover Crop Editor
+  3. Hint
+  4. Actions
+- Title：`Edit Cover`。
+- Hint：`Support: JPG, JPEG, PNG, and GIF no more than 20 MB.`
+- Actions：
+  - Neutral Button：`Cancel`
+  - Primary Button：`Done`
 
 #### Confirmation Dialog Layout
 
