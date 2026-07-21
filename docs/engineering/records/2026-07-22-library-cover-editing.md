@@ -13,7 +13,9 @@ In progress.
 
 - Persist user-selected Library video and folder covers independently from
   Index-generated covers.
-- Import and validate JPEG, JPG, PNG, and GIF sources up to 20,000,000 bytes.
+- Import and validate JPEG, JPG, PNG, and GIF sources up to
+  20 x 1,024 x 1,024 bytes (20,971,520 bytes), rather than the decimal byte
+  count displayed by macOS Finder.
 - Provide the fixed 16:9 Edit Cover crop workflow and shared Library card
   context-menu entry.
 - Save only a 512 x 288 JPEG display rendition and refresh the affected cover
@@ -33,7 +35,9 @@ In progress.
 
 1. Added user video and folder cover persistence, schema migration, and
    user-first presentation resolution while preserving Index cover records.
-2. Pending: add import validation, crop export, atomic replacement, and targeted
+2. Added binary 20 MB source validation, supported-type ImageIO decoding, GIF
+   first-frame selection, opaque sRGB white Matte compositing, exact 512 x 288
+   JPEG 0.90 crop export, rollback-safe file replacement, and old-path-only
    decoded-image cache invalidation.
 3. Pending: add fixed-ratio crop geometry and AppKit interaction.
 4. Pending: add Finder selection and the Edit Cover dialog workflow.
@@ -46,6 +50,9 @@ In progress.
   passed.
 - Existing Library cover and split folder/detail presentation selection: 18
   tests passed.
+- Binary size limit, supported types, GIF first frame, transparency Matte,
+  exact JPEG output, rollback safety, old-file removal, and targeted cache
+  invalidation: 6 tests passed.
 - Pending later-stage and full test runs.
 
 ## Outcome

@@ -6185,6 +6185,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    public func deleteLibraryUserVideoCover(forVideoFile videoFile: URL) throws {
+        let statement = try database.prepare(
+            """
+            DELETE FROM user_video_covers
+            WHERE video_file_id = (
+                SELECT id FROM video_files WHERE path = ?
+            );
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+        try statement.run()
+    }
+
     public func libraryUserFolderCover(folderPath: String) throws -> LibraryUserCover? {
         let statement = try database.prepare(
             """
@@ -6220,6 +6233,17 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.bind(folderPath, at: 1)
         try statement.bind(displayCoverPath, at: 2)
         try statement.bind(Self.libraryCoverRevisionTimestamp(), at: 3)
+        try statement.run()
+    }
+
+    public func deleteLibraryUserFolderCover(folderPath: String) throws {
+        let statement = try database.prepare(
+            """
+            DELETE FROM user_folder_covers
+            WHERE folder_path = ?;
+            """
+        )
+        try statement.bind(folderPath, at: 1)
         try statement.run()
     }
 

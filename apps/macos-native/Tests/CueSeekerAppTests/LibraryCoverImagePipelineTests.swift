@@ -285,6 +285,31 @@ func libraryCoverImagePipelineRemoveAllCancelsWaitersAndRejectsLateResult() asyn
 }
 
 @Test
+func libraryCoverImagePipelineRemovesOnlyTheReplacedPath() async throws {
+    let probe = try LibraryCoverPipelineDecodeProbe(cost: 16)
+    let pipeline = LibraryCoverImagePipeline(
+        configuration: .init(
+            costLimitBytes: 1_024,
+            countLimit: 8,
+            maxConcurrentDecodes: 2
+        ),
+        decoder: probe.decode
+    )
+    let oldRevision = LibraryCoverImageKey(path: "/old.jpg", revision: "old-1")
+    let secondOldRevision = LibraryCoverImageKey(path: "/old.jpg", revision: "old-2")
+    let retained = LibraryCoverImageKey(path: "/retained.jpg", revision: "retained")
+
+    _ = try await pipeline.image(for: oldRevision)
+    _ = try await pipeline.image(for: secondOldRevision)
+    _ = try await pipeline.image(for: retained)
+    await pipeline.remove(path: "/old.jpg")
+
+    let diagnostics = await pipeline.diagnostics()
+    #expect(diagnostics.cachedKeys == [retained])
+    #expect(diagnostics.totalCostBytes == 16)
+}
+
+@Test
 func libraryCoverImagePipelineDefaultDecoderRejectsMasterSizedImages() async throws {
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerCoverPipelineDecoderTests-\(UUID().uuidString)")

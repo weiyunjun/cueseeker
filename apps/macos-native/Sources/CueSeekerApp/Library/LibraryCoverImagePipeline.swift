@@ -192,6 +192,35 @@ actor LibraryCoverImagePipeline {
         }
     }
 
+    func remove(path: String) {
+        let cachedKeys = cache.keys.filter { $0.path == path }
+        for key in cachedKeys {
+            if let entry = cache.removeValue(forKey: key) {
+                totalCostBytes = max(0, totalCostBytes - entry.cost)
+            }
+        }
+
+        pendingKeys.removeAll { $0.path == path }
+        let requestKeys = inFlight.keys.filter { $0.path == path }
+        for key in requestKeys {
+            guard var request = inFlight[key] else {
+                continue
+            }
+            for waiter in request.waiters.values {
+                waiter.cancellation.cancel()
+                waiter.continuation.resume(throwing: CancellationError())
+            }
+            request.waiters.removeAll(keepingCapacity: false)
+            request.acceptsResult = false
+            if let task = request.task {
+                task.cancel()
+                inFlight[key] = request
+            } else {
+                inFlight.removeValue(forKey: key)
+            }
+        }
+    }
+
     private func registerWaiter(
         _ continuation: CheckedContinuation<LibraryDecodedCoverImage?, Error>,
         cancellation: LibraryCoverImageWaiterCancellation,
