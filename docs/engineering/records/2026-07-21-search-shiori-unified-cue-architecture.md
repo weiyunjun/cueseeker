@@ -15,8 +15,9 @@ table presentation resources.
 
 1. Accepted ADR-0014 and documented the unified content, relation, residency,
    and presentation-resource ownership rules.
-2. Pending: migrate Shiori persistence to relation-owned fields and a default
-   list.
+2. Migrated schema version 32 to `shiori_lists` plus relation-only `shioris`
+   rows. The default list is active, `(list_id, cue_id)` is unique, Tags remain
+   keyed by ShioriID, and resolved playback values now join the current Cue.
 3. Pending: introduce the canonical Cue snapshot and move Shiori, Search, and
    Playback consumers to it.
 4. Pending: preserve independent surface state and remove full-collection
@@ -27,7 +28,11 @@ table presentation resources.
 ## Verification
 
 - Documentation cross-check against the committed human requirement: passed.
-- Implementation and automated regression verification: pending.
+- Shiori database and playback-navigation focused tests: passed.
+- Valid-Cue migration, default-list relation, cross-list identity, tag, filter,
+  ordering, and indexed-folder removal coverage: passed.
+- Remaining application migration and automated regression verification:
+  pending.
 
 ## Outcome
 

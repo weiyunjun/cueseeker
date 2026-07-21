@@ -130,7 +130,10 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
         "video_file_id", "subtitle_file_id"
     ]))
     #expect(try sqliteColumnNames(in: "subtitle_search_order_rows", databaseURL: databaseURL).contains("subtitle_file_id"))
-    #expect(try sqliteColumnNames(in: "shioris", databaseURL: databaseURL).contains("cue_id"))
+    #expect(try sqliteColumnNames(in: "shioris", databaseURL: databaseURL) == Set([
+        "id", "list_id", "cue_id", "created_at"
+    ]))
+    #expect(try sqliteTableExists("shiori_lists", databaseURL: databaseURL))
 }
 
 @Test
@@ -3672,6 +3675,74 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
 }
 
 @Test
+func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Relation Lists.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Relation Lists.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "One Cue, two relation lists."
+            )
+        ]
+    )
+    let selection = try #require(try database.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let cueID = try #require(selection.cueLineID)
+    let defaultShiori = try database.upsertShiori(
+        subtitleFile: subtitleFile,
+        subtitleFormat: .srt,
+        videoFile: videoFile,
+        videoName: videoFile.lastPathComponent,
+        selection: selection
+    )
+
+    try executeSQLite(
+        at: databaseURL,
+        """
+        INSERT INTO shiori_lists(id, name, created_at)
+        VALUES (2, 'Future List', '2026-07-21T00:00:00Z');
+        INSERT INTO shioris(list_id, cue_id, created_at)
+        VALUES (2, \(cueID), '2026-07-21T00:00:01Z');
+        """
+    )
+
+    #expect(try database.shioriRelations().map(\.id) == [defaultShiori.id])
+    let futureRelation = try #require(try database.shioriRelations(listID: 2).first)
+    #expect(futureRelation.cueID == cueID)
+    #expect(futureRelation.listID == 2)
+
+    do {
+        try executeSQLite(
+            at: databaseURL,
+            """
+            INSERT INTO shioris(list_id, cue_id, created_at)
+            VALUES (2, \(cueID), '2026-07-21T00:00:02Z');
+            """
+        )
+        Issue.record("Expected one Shiori relation per Cue inside one list")
+    } catch {
+        // Expected unique(list_id, cue_id) enforcement.
+    }
+}
+
+@Test
 func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -3711,24 +3782,10 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
         selection: selection
     )
 
-    #expect(
-        try sqliteReferencedID(
-            table: "shioris",
-            idColumn: "cue_id",
-            pathColumn: "subtitle_path",
-            path: subtitleFile.path,
-            databaseURL: databaseURL
-        ) == cueID
-    )
-
-    try executeSQLite(
-        at: databaseURL,
-        """
-        UPDATE shioris
-        SET cue_event_index = NULL, start_ms = 9000, end_ms = 9001
-        WHERE id = \(shiori.id);
-        """
-    )
+    let relation = try #require(try database.shioriRelation(id: shiori.id))
+    #expect(relation.cueID == cueID)
+    #expect(relation.listID == ShioriListIdentity.defaultListID)
+    #expect(try database.shioriLists().map(\.id) == [ShioriListIdentity.defaultListID])
 
     let page = try database.shioriPage(shioriIDs: [shiori.id])
     #expect(page.cuePresentationsByShioriID[shiori.id]?.cueID == cueID)
@@ -4623,31 +4680,7 @@ func shioriTagValidationRejectsInvalidNames() throws {
 }
 
 @Test
-func migrationAddsShioriTagsWithoutDroppingExistingShioris() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    try createVersionTwentyFiveDatabaseWithShiori(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-    #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL))
-    #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL))
-
-    let shiori = try #require(try database.shioris().first)
-    #expect(shiori.content == "Durable Shiori survives tag migration.")
-
-    let tag = try database.assignShioriTag(named: "Review", toShioriID: shiori.id)
-    #expect(tag.name == "Review")
-    #expect(try database.shioriTags(forShioriID: shiori.id).map(\.name) == ["Review"])
-}
-
-@Test
-func migrationConvertsLegacyShioriToJapaneseCueAndBottommostFallback() throws {
+func migrationRejectsLegacyShioriWithoutCueID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -4656,72 +4689,16 @@ func migrationConvertsLegacyShioriToJapaneseCueAndBottommostFallback() throws {
     try createVersionTwentySevenCueGroupShioriDatabase(at: databaseURL)
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-
-    let japanese = try #require(try database.shiori(id: 42))
-    #expect(japanese.content == "日本語の下段です")
-    #expect(japanese.startMilliseconds == 1_050)
-    #expect(japanese.endMilliseconds == 2_950)
-    #expect(japanese.cueEventIndex == 102)
-    #expect(japanese.cueDisplayOrder == 1)
-    #expect(!japanese.isValid)
-    #expect(japanese.createdAt == "2026-07-10T01:02:03Z")
-
-    let fallback = try #require(try database.shiori(id: 44))
-    #expect(fallback.content == "Lower fallback cue")
-    #expect(fallback.cueEventIndex == 201)
-    #expect(fallback.cueDisplayOrder == 1)
-
-    let mixedFileDetection = try #require(try database.shiori(id: 45))
-    #expect(mixedFileDetection.content == "これは日本語です")
-    #expect(mixedFileDetection.cueEventIndex == 300)
-    #expect(mixedFileDetection.cueDisplayOrder == 0)
-
-    let mixedStyleDetection = try #require(try database.shiori(id: 46))
-    #expect(mixedStyleDetection.content == "これは同じスタイルの日本語です")
-    #expect(mixedStyleDetection.cueEventIndex == 400)
-    #expect(mixedStyleDetection.cueDisplayOrder == 0)
-}
-
-@Test
-func migrationPreservesLegacyShioriTagsAndUnindexedSnapshot() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+    do {
+        try database.migrate()
+        Issue.record("Expected relation migration to reject missing CueID")
+    } catch {
+        #expect(String(describing: error).contains("requires every Shiori to have a CueID"))
     }
-
-    try createVersionTwentySevenCueGroupShioriDatabase(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.shioriTags(forShioriID: 42).map(\.name) == ["Review"])
-    #expect(try database.shioriTags(forShioriID: 43).map(\.name) == ["Review"])
-
-    let orphan = try #require(try database.shiori(id: 43))
-    #expect(orphan.subtitlePath == "/Media/Missing.ass")
-    #expect(orphan.content == "Unindexed Japanese and Chinese snapshot")
-    #expect(orphan.startMilliseconds == 6_000)
-    #expect(orphan.endMilliseconds == 7_000)
-    #expect(orphan.cueIdentity == nil)
-    #expect(orphan.isValid)
-    #expect(orphan.createdAt == "2026-07-10T02:03:04Z")
-
-    let page = try database.shioriPage(limit: 10, offset: 0)
-    let presentation = try #require(page.cuePresentationsByShioriID[orphan.id])
-    #expect(presentation.cueID == nil)
-    #expect(presentation.cueGroupID == nil)
-    #expect(presentation.primaryGroupIndex == nil)
-    #expect(presentation.cueGroupTexts == [orphan.content])
-    #expect(presentation.languages == [.unknown])
-    #expect(presentation.speakers.isEmpty)
 }
 
 @Test
-func removingIndexedFolderPreservesShiori() throws {
+func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -4762,10 +4739,8 @@ func removingIndexedFolderPreservesShiori() throws {
     try database.removeIndexedFolder(folder)
 
     #expect(try database.search("Shiori").isEmpty)
-    let shiori = try #require(try database.shioris().first)
-    #expect(shiori.subtitlePath == subtitleFile.path)
-    #expect(shiori.videoPath == videoFile.path)
-    #expect(shiori.content == "Shiori should survive index removal.")
+    #expect(try database.shioris().isEmpty)
+    #expect(try database.shioriRelations().isEmpty)
 }
 
 @Test
@@ -7558,63 +7533,6 @@ private func createVersionNineteenDatabaseWithLibraryPlaybackHistory(at url: URL
             ('/Media/Completed.mkv', 960000, 1000.0, '2026-06-01T00:01:00Z');
 
         PRAGMA user_version = 19;
-        """
-    )
-}
-
-private func createVersionTwentyFiveDatabaseWithShiori(at url: URL) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(
-        database,
-        """
-        CREATE TABLE shioris (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_path TEXT NOT NULL,
-            subtitle_format TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            video_path TEXT NOT NULL,
-            video_name TEXT NOT NULL,
-            content TEXT NOT NULL,
-            is_valid INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL,
-            UNIQUE(subtitle_path, start_ms, end_ms)
-        );
-
-        INSERT INTO shioris(
-            subtitle_path,
-            subtitle_format,
-            start_ms,
-            end_ms,
-            video_path,
-            video_name,
-            content,
-            is_valid,
-            created_at
-        )
-        VALUES (
-            '/Media/Durable.srt',
-            'srt',
-            1000,
-            2000,
-            '/Media/Durable.mkv',
-            'Durable.mkv',
-            'Durable Shiori survives tag migration.',
-            1,
-            '2026-07-08T00:00:00Z'
-        );
-
-        PRAGMA user_version = 25;
         """
     )
 }

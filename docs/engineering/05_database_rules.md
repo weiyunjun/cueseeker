@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version is `31`.
+- The implemented schema version is `32`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -162,9 +162,9 @@ Current mechanism:
 - Schema version `30` makes the current single-list Shiori-to-Cue binding
   globally unique.
 - Schema version `31` removes obsolete persisted playback navigation tables.
-- The next Shiori relation migration will create a default Shiori list, reduce
-  `shioris` to relation-owned fields, require a valid CueID, and enforce
-  uniqueness on `(list_id, cue_id)`. It is governed by ADR-0014.
+- Schema version `32` creates a default Shiori list, reduces `shioris` to
+  relation-owned fields, requires a valid CueID, and enforces uniqueness on
+  `(list_id, cue_id)`. It is governed by ADR-0014.
 
 ## 5. Migration Rules
 

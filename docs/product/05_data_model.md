@@ -429,7 +429,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Implemented schema version: `31`.
+- Implemented schema version: `32`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -474,8 +474,8 @@ Current native schema:
   Shiori CueID bindings.
 - Version 30 makes the current single-list CueID binding unique.
 - Version 31 removes obsolete persisted playback navigation tables.
-- The next Shiori relation version creates the default list and replaces the
-  stored Shiori content snapshot with `(id, list_id, cue_id, created_at)`.
+- Version 32 creates the default list and replaces the stored Shiori content
+  snapshot with `(id, list_id, cue_id, created_at)`.
 
 ## 15. Flutter Data Compatibility
 

@@ -740,6 +740,39 @@ public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiab
     }
 }
 
+public enum ShioriListIdentity {
+    public static let defaultListID: Int64 = 1
+}
+
+public struct ShioriList: Equatable, Sendable, Identifiable {
+    public let id: Int64
+    public let name: String
+    public let createdAt: String
+
+    public init(id: Int64, name: String, createdAt: String) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+    }
+}
+
+public struct ShioriRelation: Equatable, Sendable, Identifiable {
+    public let id: Int64
+    public let listID: Int64
+    public let cueID: Int64
+    public let createdAt: String
+
+    public init(id: Int64, listID: Int64, cueID: Int64, createdAt: String) {
+        self.id = id
+        self.listID = listID
+        self.cueID = cueID
+        self.createdAt = createdAt
+    }
+}
+
+/// A resolved Shiori value used by playback and legacy presentation call sites.
+/// Persisted Shiori state is represented by `ShioriRelation`; every other field
+/// here is resolved from the referenced current Cue.
 public struct Shiori: Equatable, Sendable, Identifiable {
     public let id: Int64
     public let subtitlePath: String
@@ -1270,7 +1303,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 31
+    public static let currentSchemaVersion: Int = 32
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1349,6 +1382,68 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
         if previousVersion < 3 {
             try dropDerivedSubtitleIndexTables()
+        }
+
+        let shioriSchemaSQL: String
+        if previousVersion >= 32 {
+            shioriSchemaSQL = """
+            CREATE TABLE IF NOT EXISTS shiori_lists (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            INSERT OR IGNORE INTO shiori_lists(id, name, created_at)
+            VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
+
+            CREATE TABLE IF NOT EXISTS shioris (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                list_id INTEGER NOT NULL,
+                cue_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(list_id, cue_id),
+                FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE,
+                FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_list_order
+                ON shioris(list_id, created_at DESC, id DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_cue
+                ON shioris(cue_id);
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_created_order
+                ON shioris(created_at DESC, id DESC);
+            """
+        } else {
+            shioriSchemaSQL = """
+            CREATE TABLE IF NOT EXISTS shioris (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cue_id INTEGER,
+                subtitle_path TEXT NOT NULL,
+                subtitle_format TEXT NOT NULL,
+                start_ms INTEGER NOT NULL,
+                end_ms INTEGER NOT NULL,
+                cue_event_index INTEGER,
+                cue_display_order INTEGER,
+                video_path TEXT NOT NULL,
+                video_name TEXT NOT NULL,
+                content TEXT NOT NULL,
+                is_valid INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms),
+                FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE SET NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_subtitle_path
+                ON shioris(subtitle_path);
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_order
+                ON shioris(subtitle_path, start_ms, end_ms);
+
+            CREATE INDEX IF NOT EXISTS idx_shioris_created_order
+                ON shioris(created_at DESC, id DESC);
+            """
         }
 
         try database.execute(
@@ -1679,32 +1774,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
                 ON subtitle_search_order_rows(folder_order, file_order, subtitle_path);
 
-            CREATE TABLE IF NOT EXISTS shioris (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cue_id INTEGER,
-                subtitle_path TEXT NOT NULL,
-                subtitle_format TEXT NOT NULL,
-                start_ms INTEGER NOT NULL,
-                end_ms INTEGER NOT NULL,
-                cue_event_index INTEGER,
-                cue_display_order INTEGER,
-                video_path TEXT NOT NULL,
-                video_name TEXT NOT NULL,
-                content TEXT NOT NULL,
-                is_valid INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL,
-                UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms),
-                FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE SET NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_shioris_subtitle_path
-                ON shioris(subtitle_path);
-
-            CREATE INDEX IF NOT EXISTS idx_shioris_order
-                ON shioris(subtitle_path, start_ms, end_ms);
-
-            CREATE INDEX IF NOT EXISTS idx_shioris_created_order
-                ON shioris(created_at DESC, id DESC);
+            \(shioriSchemaSQL)
 
             CREATE TABLE IF NOT EXISTS shiori_tags (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1952,8 +2022,89 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
             )
         }
+        if previousVersion < 32 {
+            try migrateShiorisToRelationArchitecture()
+        }
 
         try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
+    }
+
+    private func migrateShiorisToRelationArchitecture() throws {
+        let unresolvedCountStatement = try database.prepare(
+            "SELECT COUNT(*) FROM shioris WHERE cue_id IS NULL;"
+        )
+        guard try unresolvedCountStatement.step() else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Could not validate Shiori CueID relationships"
+            )
+        }
+        let unresolvedCount = unresolvedCountStatement.intColumn(0)
+        try unresolvedCountStatement.reset()
+        guard unresolvedCount == 0 else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Shiori relation migration requires every Shiori to have a CueID"
+            )
+        }
+
+        try database.execute("PRAGMA foreign_keys = OFF;")
+        do {
+            try database.execute("BEGIN IMMEDIATE TRANSACTION;")
+            try database.execute(
+                """
+                CREATE TABLE IF NOT EXISTS shiori_lists (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                INSERT OR IGNORE INTO shiori_lists(id, name, created_at)
+                VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
+
+                DROP TABLE IF EXISTS shioris_v32;
+                CREATE TABLE shioris_v32 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    list_id INTEGER NOT NULL,
+                    cue_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(list_id, cue_id),
+                    FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE,
+                    FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
+                );
+
+                INSERT INTO shioris_v32(id, list_id, cue_id, created_at)
+                SELECT id, 1, cue_id, created_at
+                FROM shioris
+                ORDER BY id ASC;
+
+                DROP INDEX IF EXISTS idx_shioris_cue;
+                DROP INDEX IF EXISTS idx_shioris_subtitle_path;
+                DROP INDEX IF EXISTS idx_shioris_order;
+                DROP INDEX IF EXISTS idx_shioris_created_order;
+                DROP TABLE shioris;
+                ALTER TABLE shioris_v32 RENAME TO shioris;
+
+                CREATE INDEX idx_shioris_list_order
+                    ON shioris(list_id, created_at DESC, id DESC);
+                CREATE INDEX idx_shioris_cue
+                    ON shioris(cue_id);
+                CREATE INDEX idx_shioris_created_order
+                    ON shioris(created_at DESC, id DESC);
+                """
+            )
+
+            let foreignKeyCheck = try database.prepare("PRAGMA foreign_key_check;")
+            guard try !foreignKeyCheck.step() else {
+                throw SQLiteDatabaseError.executeFailed(
+                    "Shiori relation migration left an invalid foreign-key reference"
+                )
+            }
+            try database.execute("COMMIT;")
+            try database.execute("PRAGMA foreign_keys = ON;")
+        } catch {
+            try? database.execute("ROLLBACK;")
+            try? database.execute("PRAGMA foreign_keys = ON;")
+            throw error
+        }
     }
 
     private func migratePermanentIdentityColumns() throws {
@@ -6870,6 +7021,18 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    private static let resolvedShioriSelectSQL = """
+        SELECT s.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+               l.start_ms, l.end_ms, l.event_index, l.display_order,
+               l.content, 1, s.created_at
+        FROM shioris s
+        JOIN subtitle_cue_lines l ON l.id = s.cue_id
+        JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+        JOIN subtitle_video_matches m
+          ON m.subtitle_file_id = sf.id AND m.is_active = 1
+        JOIN video_files vf ON vf.id = m.video_file_id
+        """
+
     public func upsertShiori(
         subtitleFile: URL,
         subtitleFormat: SubtitleFormat,
@@ -6884,80 +7047,105 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
+        _ = subtitleFile
+        _ = subtitleFormat
+        _ = videoFile
+        _ = videoName
+
         let statement = try database.prepare(
             """
             INSERT INTO shioris(
+                list_id,
                 cue_id,
-                subtitle_path,
-                subtitle_format,
-                start_ms,
-                end_ms,
-                cue_event_index,
-                cue_display_order,
-                video_path,
-                video_name,
-                content,
-                is_valid,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-            ON CONFLICT(cue_id) DO UPDATE SET
-                subtitle_path = excluded.subtitle_path,
-                subtitle_format = excluded.subtitle_format,
-                start_ms = excluded.start_ms,
-                end_ms = excluded.end_ms,
-                cue_event_index = excluded.cue_event_index,
-                cue_display_order = excluded.cue_display_order,
-                video_path = excluded.video_path,
-                video_name = excluded.video_name,
-                content = excluded.content,
-                is_valid = 1;
+            VALUES (?, ?, ?)
+            ON CONFLICT(list_id, cue_id) DO NOTHING;
             """
         )
 
-        try statement.bind(cueID, at: 1)
-        try statement.bind(subtitleFile.path, at: 2)
-        try statement.bind(subtitleFormat.rawValue, at: 3)
-        try statement.bind(selection.startMilliseconds, at: 4)
-        try statement.bind(selection.endMilliseconds, at: 5)
-        if let eventIndex = selection.cueEventIndex {
-            try statement.bind(eventIndex, at: 6)
-        } else {
-            try statement.bindNull(at: 6)
-        }
-        if let displayOrder = selection.cueDisplayOrder {
-            try statement.bind(displayOrder, at: 7)
-        } else {
-            try statement.bindNull(at: 7)
-        }
-        try statement.bind(videoFile.path, at: 8)
-        try statement.bind(videoName, at: 9)
-        try statement.bind(selection.text, at: 10)
-        try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 11)
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(cueID, at: 2)
+        try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 3)
         try statement.run()
 
-        guard let savedShiori = try shiori(cueID: cueID) else {
+        guard let savedShiori = try shiori(
+            cueID: cueID,
+            listID: ShioriListIdentity.defaultListID
+        ) else {
             throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
         }
 
         return savedShiori
     }
 
-    public func shiori(cueID: Int64) throws -> Shiori? {
+    public func shiori(
+        cueID: Int64,
+        listID: Int64 = ShioriListIdentity.defaultListID
+    ) throws -> Shiori? {
         let statement = try database.prepare(
             """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, cue_event_index, cue_display_order,
-                   content, is_valid, created_at
-            FROM shioris
-            WHERE cue_id = ?;
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ? AND s.cue_id = ?;
             """
         )
-        try statement.bind(cueID, at: 1)
+        try statement.bind(listID, at: 1)
+        try statement.bind(cueID, at: 2)
         guard try statement.step() else {
             return nil
         }
         return shiori(from: statement)
+    }
+
+    public func shioriLists() throws -> [ShioriList] {
+        let statement = try database.prepare(
+            """
+            SELECT id, name, created_at
+            FROM shiori_lists
+            ORDER BY id ASC;
+            """
+        )
+        var lists: [ShioriList] = []
+        while try statement.step() {
+            lists.append(ShioriList(
+                id: statement.int64Column(0),
+                name: statement.stringColumn(1),
+                createdAt: statement.stringColumn(2)
+            ))
+        }
+        return lists
+    }
+
+    public func shioriRelations(
+        listID: Int64 = ShioriListIdentity.defaultListID
+    ) throws -> [ShioriRelation] {
+        let statement = try database.prepare(
+            """
+            SELECT id, list_id, cue_id, created_at
+            FROM shioris
+            WHERE list_id = ?
+            ORDER BY created_at DESC, id DESC;
+            """
+        )
+        try statement.bind(listID, at: 1)
+        var relations: [ShioriRelation] = []
+        while try statement.step() {
+            relations.append(shioriRelation(from: statement))
+        }
+        return relations
+    }
+
+    public func shioriRelation(id: Int64) throws -> ShioriRelation? {
+        let statement = try database.prepare(
+            """
+            SELECT id, list_id, cue_id, created_at
+            FROM shioris
+            WHERE id = ?;
+            """
+        )
+        try statement.bind(id, at: 1)
+        guard try statement.step() else { return nil }
+        return shioriRelation(from: statement)
     }
 
     public func cueID(forShioriID shioriID: Int64) throws -> Int64? {
@@ -6978,20 +7166,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
     ) throws -> Shiori? {
         let statement = try database.prepare(
             """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, cue_event_index, cue_display_order,
-                   content, is_valid, created_at
-            FROM shioris
-            WHERE subtitle_path = ?
-              AND start_ms = ?
-              AND end_ms = ?
-            ORDER BY cue_display_order DESC, cue_event_index DESC, id ASC
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ?
+              AND sf.subtitle_path = ?
+              AND l.start_ms = ?
+              AND l.end_ms = ?
+            ORDER BY l.display_order DESC, l.event_index DESC, s.id ASC
             LIMIT 1;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(max(0, startMilliseconds), at: 2)
-        try statement.bind(max(startMilliseconds, endMilliseconds), at: 3)
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(subtitleFile.path, at: 2)
+        try statement.bind(max(0, startMilliseconds), at: 3)
+        try statement.bind(max(startMilliseconds, endMilliseconds), at: 4)
         guard try statement.step() else {
             return nil
         }
@@ -7001,11 +7188,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func shiori(id: Int64) throws -> Shiori? {
         let statement = try database.prepare(
             """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, cue_event_index, cue_display_order,
-                   content, is_valid, created_at
-            FROM shioris
-            WHERE id = ?;
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.id = ?;
             """
         )
 
@@ -7026,28 +7210,26 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let orderingClause: String
         switch direction {
         case .previous:
-            orderingPredicate = "(created_at > ? OR (created_at = ? AND id > ?))"
-            orderingClause = "ORDER BY created_at ASC, id ASC"
+            orderingPredicate = "(s.created_at > ? OR (s.created_at = ? AND s.id > ?))"
+            orderingClause = "ORDER BY s.created_at ASC, s.id ASC"
         case .next:
-            orderingPredicate = "(created_at < ? OR (created_at = ? AND id < ?))"
-            orderingClause = "ORDER BY created_at DESC, id DESC"
+            orderingPredicate = "(s.created_at < ? OR (s.created_at = ? AND s.id < ?))"
+            orderingClause = "ORDER BY s.created_at DESC, s.id DESC"
         }
 
         let statement = try database.prepare(
             """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, cue_event_index, cue_display_order,
-                   content, is_valid, created_at
-            FROM shioris
-            WHERE \(orderingPredicate)
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ? AND \(orderingPredicate)
             \(orderingClause)
             LIMIT 1;
             """
         )
 
-        try statement.bind(item.createdAt, at: 1)
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
         try statement.bind(item.createdAt, at: 2)
-        try statement.bind(item.id, at: 3)
+        try statement.bind(item.createdAt, at: 3)
+        try statement.bind(item.id, at: 4)
 
         guard try statement.step() else {
             return nil
@@ -7059,13 +7241,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func shioris() throws -> [Shiori] {
         let statement = try database.prepare(
             """
-            SELECT id, subtitle_path, subtitle_format, video_path, video_name,
-                   start_ms, end_ms, cue_event_index, cue_display_order,
-                   content, is_valid, created_at
-            FROM shioris
-            ORDER BY subtitle_path ASC, start_ms ASC, end_ms ASC, id ASC;
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ?
+            ORDER BY sf.subtitle_path ASC, l.start_ms ASC, l.end_ms ASC, s.id ASC;
             """
         )
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
 
         var shioris: [Shiori] = []
         while try statement.step() {
@@ -7078,9 +7259,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT COUNT(*)
-            FROM shioris;
+            FROM shioris
+            WHERE list_id = ?;
             """
         )
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
 
         guard try statement.step() else {
             return 0
@@ -7186,9 +7369,9 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
     private static let shioriTableCandidateSelectSQL = """
-        SELECT s.id, s.subtitle_path, s.subtitle_format, s.video_path, s.video_name,
-               s.start_ms, s.end_ms, s.cue_event_index, s.cue_display_order,
-               s.content, s.is_valid, s.created_at,
+        SELECT s.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+               l.start_ms, l.end_ms, l.event_index, l.display_order,
+               l.content, 1, s.created_at,
                sor.display_title,
                sf.id,
                l.id, l.cue_group_id, l.event_index, l.source_format,
@@ -7202,9 +7385,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    WHERE cgl.cue_group_id = l.cue_group_id
                ) AS language_values
         FROM shioris s
-        LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
-        LEFT JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
-        LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+        JOIN subtitle_cue_lines l ON l.id = s.cue_id
+        JOIN subtitle_cue_groups resolved_group ON resolved_group.id = l.cue_group_id
+        JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+        JOIN subtitle_video_matches m
+          ON m.subtitle_file_id = sf.id AND m.is_active = 1
+        JOIN video_files vf ON vf.id = m.video_file_id
         LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
         """
 
@@ -7228,6 +7414,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
                 SELECT id
                 FROM shioris
+                WHERE list_id = 1
                 ORDER BY created_at DESC, id DESC;
                 """
             )
@@ -7252,11 +7439,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
         if !requiresLanguages, !requiresSpeakers {
             let statement = try database.prepare(
                 """
-                SELECT s.id, s.content, sor.display_title, s.subtitle_path
+                SELECT s.id, l.content, sor.display_title, sf.subtitle_path
                 FROM shioris s
-                LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
                 LEFT JOIN subtitle_search_order_rows sor
                   ON sor.subtitle_file_id = l.subtitle_file_id
+                WHERE s.list_id = 1
                 ORDER BY s.created_at DESC, s.id DESC;
                 """
             )
@@ -7299,7 +7488,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         if requiresSpeakers, !requiresLanguages {
             let statement = try database.prepare(
                 """
-                SELECT s.id, s.content, sor.display_title, s.subtitle_path,
+                SELECT s.id, l.content, sor.display_title, sf.subtitle_path,
                        (
                            SELECT GROUP_CONCAT(speaker_hex, ',')
                            FROM (
@@ -7311,9 +7500,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
                            )
                        ) AS speaker_hex_values
                 FROM shioris s
-                LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
                 LEFT JOIN subtitle_search_order_rows sor
                   ON sor.subtitle_file_id = l.subtitle_file_id
+                WHERE s.list_id = 1
                 ORDER BY s.created_at DESC, s.id DESC;
                 """
             )
@@ -7381,7 +7572,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """ : ""
         let statement = try database.prepare(
             """
-            SELECT s.id, s.subtitle_path, s.subtitle_format, s.content,
+            SELECT s.id, sf.subtitle_path, sf.format, l.content,
                    sor.display_title, sf.id,
                    l.id, l.cue_group_id, l.event_index, l.source_format,
                    l.source_style, l.source_layer, l.start_time, l.end_time,
@@ -7390,12 +7581,13 @@ public final class SubtitleDatabase: @unchecked Sendable {
                    \(languageSelect)
                    \(speakerSelect)
             FROM shioris s
-            LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
-            LEFT JOIN subtitle_cue_groups resolved_group
+            JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            JOIN subtitle_cue_groups resolved_group
               ON resolved_group.id = l.cue_group_id
-            LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
             LEFT JOIN subtitle_search_order_rows sor
               ON sor.subtitle_file_id = sf.id
+            WHERE s.list_id = 1
             ORDER BY s.created_at DESC, s.id DESC;
             """
         )
@@ -7519,6 +7711,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             \(Self.shioriTableCandidateSelectSQL)
+            WHERE s.list_id = 1
             ORDER BY s.created_at DESC, s.id DESC
             \(limitClause);
             """
@@ -7541,7 +7734,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             \(Self.shioriTableCandidateSelectSQL)
-            WHERE s.id IN (\(placeholders))
+            WHERE s.list_id = 1 AND s.id IN (\(placeholders))
             ORDER BY s.id ASC;
             """
         )
@@ -10760,6 +10953,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
             id: statement.int64Column(0),
             name: statement.stringColumn(1),
             createdAt: statement.stringColumn(2)
+        )
+    }
+
+    private func shioriRelation(from statement: SQLiteStatement) -> ShioriRelation {
+        ShioriRelation(
+            id: statement.int64Column(0),
+            listID: statement.int64Column(1),
+            cueID: statement.int64Column(2),
+            createdAt: statement.stringColumn(3)
         )
     }
 
