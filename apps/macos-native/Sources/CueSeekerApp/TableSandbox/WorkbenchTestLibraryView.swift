@@ -328,6 +328,7 @@ private struct LibraryItemFramePreferenceKey: PreferenceKey {
 private struct LibraryCardActionHandlers {
     let revealFile: (String) -> Void
     let openFolder: (String) -> Void
+    let changeCover: (LibraryUserCoverTarget) -> Void
     let markVideo: (LibraryVideo, LibraryWatchState) -> Void
     let markFolder: (String, LibraryWatchState) -> Void
     let openVideoContext: (LibraryVideo, String) -> Void
@@ -336,6 +337,7 @@ private struct LibraryCardActionHandlers {
         LibraryCardActionHandlers(
             revealFile: { appState.revealFile(atPath: $0) },
             openFolder: { appState.openFolder(atPath: $0) },
+            changeCover: { appState.beginChangingLibraryCover(target: $0) },
             markVideo: { appState.markLibraryVideo($0, as: $1) },
             markFolder: { appState.markCompleteLibraryFolder(folderPath: $0, as: $1) },
             openVideoContext: { appState.openLibraryVideoContext($0, displayTitle: $1) }
@@ -440,6 +442,12 @@ private struct RecentWatchingCard: View {
         var items = [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 actions.revealFile(item.videoPath)
+            },
+            LibraryCardContextMenuItem(
+                title: LibraryCoverContextMenuItem.title,
+                systemImage: LibraryCoverContextMenuItem.systemImage
+            ) {
+                actions.changeCover(.video(path: item.videoPath))
             },
             LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
                 actions.markVideo(item.libraryVideo, .finished)
@@ -628,6 +636,12 @@ private struct LibraryFolderCard: View {
         [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 actions.openFolder(folder.folderPath)
+            },
+            LibraryCardContextMenuItem(
+                title: LibraryCoverContextMenuItem.title,
+                systemImage: LibraryCoverContextMenuItem.systemImage
+            ) {
+                actions.changeCover(.folder(path: folder.folderPath))
             },
             LibraryCardContextMenuItem(title: "Mark All as Finished", systemImage: "checkmark.circle") {
                 actions.markFolder(folder.folderPath, .finished)
@@ -863,6 +877,12 @@ private struct LibraryEpisodeCard: View {
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 actions.revealFile(video.videoPath)
             },
+            LibraryCardContextMenuItem(
+                title: LibraryCoverContextMenuItem.title,
+                systemImage: LibraryCoverContextMenuItem.systemImage
+            ) {
+                actions.changeCover(.video(path: video.videoPath))
+            },
             LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
                 actions.markVideo(video.libraryVideo, .finished)
             },
@@ -970,6 +990,11 @@ private struct LibraryCardContextMenuItem: Identifiable {
     var id: String {
         title
     }
+}
+
+enum LibraryCoverContextMenuItem {
+    static let title = "Change Cover"
+    static let systemImage = "square.and.arrow.up"
 }
 
 private struct LibraryCardContextMenuState: Identifiable {

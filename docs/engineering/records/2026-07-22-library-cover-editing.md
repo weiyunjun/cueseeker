@@ -48,7 +48,10 @@ In progress.
    Edit Cover sheet with the accepted title, crop editor, exact hint copy,
    Neutral Cancel action, Primary Save action, and asynchronous load/save
    orchestration.
-5. Pending: connect the shared Library card context menus.
+5. Added `Change Cover` immediately below `Open Folder` with the
+   `square.and.arrow.up` tray/share symbol for Recent video, Library folder,
+   and Library episode cards. The existing shared card views carry the same
+   actions into Playback without changing menu-item styling.
 6. Pending: complete targeted refresh integration and full verification.
 
 ## Verification
@@ -64,6 +67,9 @@ In progress.
   minimum size, fixed aspect ratio, and system token bindings: 4 tests passed.
 - Edit-session initialization, accepted copy/content types, and Finder
   enablement for valid, unsupported, and oversized entries: 3 tests passed.
+- Menu copy/icon selection and shared Playback Recent routing: 2 tests passed.
+- Playback Library shared folder/episode hierarchy and refresh behavior: 5
+  tests passed.
 - Pending later-stage and full test runs.
 
 ## Outcome
