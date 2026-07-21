@@ -466,6 +466,85 @@ struct WorkbenchButton: View {
     }
 }
 
+struct WorkbenchPrimaryButton: View {
+    let title: String
+    var systemImage: String? = nil
+    var action: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignButtonIconSize,
+                            weight: WorkbenchControlMetrics.redesignButtonIconWeight
+                        ))
+                        .frame(
+                            width: WorkbenchControlMetrics.redesignButtonIconSize,
+                            height: WorkbenchControlMetrics.redesignButtonIconSize
+                        )
+                }
+
+                Text(title)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeControl,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .foregroundStyle(
+                isEnabled
+                    ? WorkbenchRedesignColors.primaryButtonText
+                    : WorkbenchRedesignColors.textDisabled
+            )
+            .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+            .frame(height: WorkbenchControlMetrics.redesignHeight)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    style: .continuous
+                )
+                .fill(
+                    isEnabled
+                        ? (
+                            isHovered
+                                ? WorkbenchRedesignColors.primaryButtonBgHover
+                                : WorkbenchRedesignColors.primaryButtonBg
+                        )
+                        : WorkbenchRedesignColors.bgDisabled
+                )
+            )
+            .overlay {
+                if isFocused && isEnabled {
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                            + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                        style: .continuous
+                    )
+                    .stroke(
+                        WorkbenchRedesignColors.focusRing,
+                        lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                    )
+                    .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
+        .focused($isFocused)
+        .disableFocusEffect()
+        .onHover { isHovered = $0 }
+    }
+}
+
 struct WorkbenchDestructiveButton: View {
     let title: String
     var systemImage: String? = nil

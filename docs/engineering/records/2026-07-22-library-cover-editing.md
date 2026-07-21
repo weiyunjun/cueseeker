@@ -43,7 +43,11 @@ In progress.
    largest initial crop, bounded movement, minimum-size resizing from four
    corner handles, a system Accent border, a surface-token handle fill, and a
    system Shadow Matte that updates with the crop rectangle.
-4. Pending: add Finder selection and the Edit Cover dialog workflow.
+4. Added Finder selection with JPEG/PNG/GIF type filtering and delegate-based
+   disabling of unsupported, oversized, or invalid image files. Added the
+   Edit Cover sheet with the accepted title, crop editor, exact hint copy,
+   Neutral Cancel action, Primary Save action, and asynchronous load/save
+   orchestration.
 5. Pending: connect the shared Library card context menus.
 6. Pending: complete targeted refresh integration and full verification.
 
@@ -58,6 +62,8 @@ In progress.
   invalidation: 6 tests passed.
 - Initial crop fitting, bounded movement, all four anchored corner resizes,
   minimum size, fixed aspect ratio, and system token bindings: 4 tests passed.
+- Edit-session initialization, accepted copy/content types, and Finder
+  enablement for valid, unsupported, and oversized entries: 3 tests passed.
 - Pending later-stage and full test runs.
 
 ## Outcome

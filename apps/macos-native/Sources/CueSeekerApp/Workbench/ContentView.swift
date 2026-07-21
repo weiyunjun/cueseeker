@@ -22,6 +22,7 @@ private struct ContentRootView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var libraryStore: LibraryStore
     @EnvironmentObject private var playback: PlaybackStore
 
     private let windowBackground = Color(
@@ -75,6 +76,16 @@ private struct ContentRootView: View {
             }
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
+            .sheet(item: $libraryStore.coverEditingSession) { session in
+                LibraryEditCoverDialog(
+                    session: session,
+                    onCancel: appState.cancelLibraryCoverEditing,
+                    onSave: {
+                        appState.saveLibraryCoverEditing(session)
+                    }
+                )
+                .interactiveDismissDisabled(session.isSaving)
+            }
             .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }

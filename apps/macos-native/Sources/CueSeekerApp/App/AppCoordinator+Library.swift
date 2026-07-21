@@ -103,6 +103,102 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 
 @MainActor
 extension AppCoordinator {
+    func beginChangingLibraryCover(target: LibraryUserCoverTarget) {
+        guard library.coverEditingSession == nil else {
+            return
+        }
+
+        let panel = NSOpenPanel()
+        let delegate = LibraryCoverOpenPanelDelegate()
+        panel.delegate = delegate
+        panel.title = "Choose Cover Image"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.resolvesAliases = true
+        panel.allowedContentTypes = LibraryCoverOpenPanelPolicy.allowedContentTypes
+        panel.allowsOtherFileTypes = false
+
+        let completion: (NSApplication.ModalResponse) -> Void = { [weak self, delegate] response in
+            _ = delegate
+            guard let self,
+                  response == .OK,
+                  let sourceURL = panel.url
+            else {
+                return
+            }
+
+            self.libraryCoverImportTask?.cancel()
+            self.libraryCoverImportTask = Task { [weak self] in
+                do {
+                    let source = try await Task.detached(priority: .userInitiated) {
+                        try LibraryUserCoverProcessor.loadSource(at: sourceURL)
+                    }.value
+                    try Task.checkCancellation()
+                    guard let self else {
+                        return
+                    }
+                    self.library.coverEditingSession = LibraryCoverEditingSession(
+                        target: target,
+                        source: source
+                    )
+                } catch is CancellationError {
+                    return
+                } catch {
+                    print("Failed to load Library cover source: \(error)")
+                }
+            }
+        }
+
+        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: completion)
+            return
+        }
+        completion(panel.runModal())
+    }
+
+    func cancelLibraryCoverEditing() {
+        guard library.coverEditingSession?.isSaving != true else {
+            return
+        }
+        library.coverEditingSession = nil
+    }
+
+    func saveLibraryCoverEditing(_ session: LibraryCoverEditingSession) {
+        guard library.coverEditingSession?.id == session.id,
+              !session.isSaving,
+              let libraryUserCoverService
+        else {
+            return
+        }
+
+        session.isSaving = true
+        libraryCoverSaveTask = Task { [weak self, weak session] in
+            guard let self, let session else {
+                return
+            }
+            do {
+                _ = try await libraryUserCoverService.save(
+                    source: session.source,
+                    cropRect: session.cropRect,
+                    target: session.target
+                )
+                guard self.library.coverEditingSession?.id == session.id else {
+                    return
+                }
+                session.isSaving = false
+                self.library.coverEditingSession = nil
+            } catch {
+                guard self.library.coverEditingSession?.id == session.id else {
+                    return
+                }
+                session.isSaving = false
+                print("Failed to save Library cover: \(error)")
+            }
+        }
+    }
+
     func openPreviousLibraryVideo() {
         let hasResult = canOpenPreviousLibraryVideo
         playback.playbackViewModel?.showLibraryNavigationFeedback(direction: .previous, hasResult: hasResult)

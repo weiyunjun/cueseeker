@@ -42,6 +42,7 @@ final class AppCoordinator: ObservableObject {
     let databaseURL: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var subtitleDatabase: SubtitleDatabase?
+    let libraryUserCoverService: LibraryUserCoverService?
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
@@ -429,6 +430,8 @@ final class AppCoordinator: ObservableObject {
     var libraryDisplayRenditionTask: Task<Void, Never>?
     var libraryDisplayRenditionAttemptedScopeKey: String?
     var libraryDisplayRenditionGeneration = 0
+    var libraryCoverImportTask: Task<Void, Never>?
+    var libraryCoverSaveTask: Task<Void, Never>?
     var shioriTableRowsTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var searchTask: Task<Void, Never>?
@@ -529,6 +532,14 @@ final class AppCoordinator: ObservableObject {
         }
 
         self.subtitleDatabase = openedDatabase
+        self.libraryUserCoverService = openedDatabase.map { database in
+            LibraryUserCoverService(
+                database: database,
+                coverDirectory: LibraryCoverIndexer.defaultCoverDirectory(
+                    forDatabaseURL: resolvedDatabaseURL
+                )
+            )
+        }
         libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedDatabase)
 
         if let initialError {

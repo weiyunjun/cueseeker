@@ -22,5 +22,6 @@ final class LibraryStore: ObservableObject {
     @Published var completeLibraryRevision = 0
     @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?
+    @Published var coverEditingSession: LibraryCoverEditingSession?
     var libraryPlaybackNavigationVideos: [LibraryVideo] = []
 }
