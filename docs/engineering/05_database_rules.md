@@ -114,7 +114,7 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version is `28`.
+- The implemented schema version is `31`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -157,6 +157,14 @@ Current mechanism:
   assignments; resolvable legacy rows prefer a Japanese Cue and use the
   physically bottommost eligible Cue as the deterministic tie-break and
   fallback. Unindexed rows remain durable with unresolved Cue identity.
+- Schema version `29` adds permanent indexed-resource identity columns and the
+  Shiori-to-Cue binding used by CueID routing.
+- Schema version `30` makes the current single-list Shiori-to-Cue binding
+  globally unique.
+- Schema version `31` removes obsolete persisted playback navigation tables.
+- The next Shiori relation migration will create a default Shiori list, reduce
+  `shioris` to relation-owned fields, require a valid CueID, and enforce
+  uniqueness on `(list_id, cue_id)`. It is governed by ADR-0014.
 
 ## 5. Migration Rules
 
@@ -285,11 +293,15 @@ Rules:
   stable video identity, persist resume position and update timestamp, and must
   not be rebuilt from subtitle index data.
 - Search-result playback must not read or mutate Library playback history.
-- Shiori records are durable local user state. Shiori identity uses
-  `subtitle_path`, `cue_event_index`, `start_ms`, and `end_ms`, persists
-  `cue_display_order`, `subtitle_format`, `video_path`, `video_name`, `content`,
-  and `created_at`, and permits different Cues in one Cue Group to be saved
-  independently.
+- Shiori persistence is relation state, not a Cue-content snapshot. A Shiori
+  relation stores ShioriID, CueID, list identity, and creation time. Tags remain
+  separate relation-owned assignments keyed by ShioriID.
+- The initial relation schema contains one default list. It permits the same
+  CueID in different lists while preventing duplicate relations for one CueID
+  inside the same list.
+- Shiori database reads must join or batch-resolve canonical indexed Cue data;
+  they must not reconstruct content from historical Shiori path, timing, or
+  text columns.
 
 ## 9. Media Native Compatibility Profile Rules
 

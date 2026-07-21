@@ -304,7 +304,39 @@ Rules:
   line's screen-space position. Row-local hover, menu, measurement, and scroll
   state must remain outside Search, Shiori, Library, and Playback stores.
 
-### 7.1 Shared Workbench Feature Hosts In Playback
+### 7.1 Unified Cue And Shiori Data Ownership
+
+The accepted identity and memory architecture is defined by ADR-0014.
+
+Rules:
+
+- Cue content has one authoritative in-memory representation keyed by CueID.
+  Search and Shiori may own different ordered result identities and surface
+  state, but they must resolve content through that same representation.
+- Search owns an ordered CueID result collection. Shiori owns an ordered
+  Shiori-relation collection whose relation identity remains distinct from its
+  referenced CueID.
+- A Shiori relation owns ShioriID, CueID, list identity, creation time, and
+  relation-scoped Tags. It must not own another subtitle text, Cue Group,
+  title, language, timing, path, or media snapshot.
+- The first relation implementation uses one default Shiori list. Multi-list
+  management and presentation remain future product work.
+- Shiori initialization loads its complete relation collection and all
+  referenced Cue content into memory before presenting the ready table.
+  Arbitrary table positions must not trigger database hydration.
+- Search, Shiori, Context, and Playback must use one Cue-to-table projection for
+  shared columns and Cue actions. Surface-specific relation metadata is applied
+  as a lightweight overlay.
+- Workbench and Playback must not keep parallel long-lived copies of the same
+  authoritative Cue collection.
+- A hidden Search or Shiori surface retains its logical state and stable scroll
+  anchor. Switching surfaces must not reconstruct the full logical collection.
+- Table drawing and heavyweight presentation caches remain viewport bounded.
+  Lightweight scalar height information may outlive the viewport, but it must
+  not retain Cue text, Tags, complete row values, attributed text, or native row
+  views.
+
+### 7.2 Shared Workbench Feature Hosts In Playback
 
 Search, Recent, Library, and Shiori in Playback are capability-restricted hosts
 of their Workbench features. They are not separate feature implementations.

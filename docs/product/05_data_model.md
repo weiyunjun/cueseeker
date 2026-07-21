@@ -358,52 +358,35 @@ returned Cue must independently satisfy the query semantics.
 
 ## 13. Shiori
 
-Shiori stores saved subtitle cues for later review.
+Shiori stores a relation from a Shiori list to an indexed Cue for later review.
 
 Expected fields:
 
 - `id`
-- `subtitle_path`
-- `subtitle_format`
-- `cue_event_index`
-- `cue_display_order`
-- `start_ms`
-- `end_ms`
-- `video_path`
-- `video_name`
-- `content`
-- `is_valid`
+- `list_id`
+- `cue_id`
 - `created_at`
 
 The initial native table should be named `shioris`.
 
-`created_at` stores the real-world timestamp when the user saved the Shiori
-record. The initial Shiori panel does not need to display this timestamp, but the
-field must be persisted when the record is created.
+`created_at` stores the real-world timestamp when the relation was created.
+ShioriID identifies the relation; CueID identifies the referenced content.
+Subtitle text, Cue Group, title, language, timing, subtitle path, and media
+information are always resolved from the current Cue data and are not copied
+into the Shiori relation.
 
-Shiori identity is one Cue. It is based on source subtitle path, source
-`cue_event_index`, and the Cue's own time range, not on volatile indexed row
-IDs. `cue_display_order` preserves the Cue's presentation relationship inside
-its Cue Group but is not a substitute for Cue identity.
+Every Shiori relation must reference a valid CueID. The current data set has no
+unresolved Shiori rows, and the unified architecture does not provide a path,
+timing, historical-text, or missing-Cue fallback.
 
-Creating Shiori for a Cue that already has matching `subtitle_path`,
-`cue_event_index`, `start_ms`, and `end_ms` should be treated as an existing
-record rather than creating a duplicate row. Different Cues in the same Cue
-Group may each have their own Shiori record.
+The first implementation creates one default Shiori list and does not add
+multi-list controls. The schema nevertheless permits a CueID to be referenced
+by different lists. A CueID may occur only once inside one list, so relation
+uniqueness is `(list_id, cue_id)` rather than CueID alone.
 
-The implemented version-28 migration converts legacy Cue-Group Shiori rows to
-one indexed Cue in the matching exact time window. It prefers Cues recognized as
-Japanese; when several Japanese Cues exist it chooses the physically bottommost
-one, and when no Cue can be recognized as Japanese it falls back to the
-physically bottommost Cue. It replaces stored group text with that Cue's
-complete text and preserves the Shiori row ID, validity, creation timestamp,
-and tag assignments. A legacy Shiori whose source Cue is unavailable remains
-durable with an unresolved Cue identity instead of being deleted.
-
-A Shiori record is durable user state. Its current resolved link to
-an indexed subtitle cue, video file, or Library row is derived index state. If
-the indexed resource disappears, the Shiori record should remain and show an invalid
-or unavailable resource state until the index is rebuilt or repaired.
+Search and Shiori resolve the same CueID through the same current Cue content
+source. If indexed Cue content changes while retaining its CueID, Shiori shows
+the updated content.
 
 ## 13.1 Shiori Tags
 
@@ -446,7 +429,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Implemented schema version: `28`.
+- Implemented schema version: `31`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -487,6 +470,12 @@ Current native schema:
   Cue identity, preserves tag assignments, and migrates resolvable legacy rows
   to a Japanese Cue when one is identifiable, choosing the physically
   bottommost eligible Cue as the deterministic tie-break and fallback.
+- Version 29 adds permanent indexed-resource identity columns and explicit
+  Shiori CueID bindings.
+- Version 30 makes the current single-list CueID binding unique.
+- Version 31 removes obsolete persisted playback navigation tables.
+- The next Shiori relation version creates the default list and replaces the
+  stored Shiori content snapshot with `(id, list_id, cue_id, created_at)`.
 
 ## 15. Flutter Data Compatibility
 
