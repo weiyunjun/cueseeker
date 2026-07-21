@@ -108,13 +108,14 @@ table presentation resources.
   resume at the loaded boundary and reject stale generation responses: passed.
 - Cue Group response-gating integration suite, including covered Search and
   remount behavior: 11/11 passed.
-- Final full 804-test regression run completed. All requirement-focused,
+- Final full 810-test regression run completed. All requirement-focused,
   database, Search, Shiori, Playback integration, table interaction, Cue Group
-  reflow, and presentation-cache tests passed. Ten native-media, MainActor, or
-  temporary-database timing tests failed under the full parallel load with 17
-  issues. Every failed test passed immediately in isolation: Library folder
-  removal 6/6, native playback timeline 5/5, Subtitle Focus Shiori 2/2,
-  playlist copy/Shiori 1/1, and Recent pointer dispatch 1/1.
+  reflow, and presentation-cache tests passed. Eight shared-preference,
+  native-media, MainActor, or temporary-database timing tests failed under the
+  full parallel load with 13 issues. Every failed test passed immediately in
+  isolation: shared-persistence migration 1/1, Library folder removal 6/6,
+  native playback timeline 5/5, Subtitle Focus Shiori 1/1, and Recent pointer
+  dispatch 1/1.
 
 ## Outcome
 
