@@ -84,6 +84,14 @@ table presentation resources.
     revision, causing an active or remounted filter-only Search to query the
     new database generation even when its filter and folder paths are
     unchanged.
+16. Split canonical Cue change tracking in the table row store into a global
+    observed revision and a projection-local referenced-content revision. Every
+    notification advances the observation cursor, but only changes intersecting
+    the current Search CueIDs or Shiori relations advance the table snapshot and
+    invalidate native drawing and row-height caches. If a caller presents a
+    newer global revision without a corresponding notification, the row store
+    still performs one conservative reload. Covered surfaces continue to merge
+    pending changes and now avoid a reload when the merged CueIDs are unrelated.
 
 ## Verification
 
@@ -117,6 +125,12 @@ table presentation resources.
 - Same-folder reindex invalidates the complete filter projection immediately,
   rejects its old CueIDs and page token, and hydrates a new revision only after
   the index operation becomes stable: passed.
+- Covered Search with an unrelated canonical Cue change reopens with the same
+  source and table snapshot version; mixed related and unrelated changes
+  coalesce into exactly one reload with current content: passed.
+- Covered Shiori with an unrelated canonical Cue change preserves its resident
+  snapshot version, while the existing relevant-change and missed-notification
+  conservative reload coverage remains passing: passed.
 - Cue Group response-gating integration suite, including covered Search and
   remount behavior: 11/11 passed.
 - Final full 810-test regression run completed. All requirement-focused,

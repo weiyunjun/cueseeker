@@ -206,6 +206,8 @@ final class TableSandboxRowModelStore: ObservableObject {
     @Published private(set) var snapshot = TableSandboxRowsSnapshot()
 
     private var displayTitlesBySubtitlePath: [String: String] = [:]
+    private var observedCueContentRevision: UInt64 = 0
+    private var referencedCueContentRevision: UInt64 = 0
     private let displayTitleResolver: (String) -> String
 
     init(
@@ -222,9 +224,10 @@ final class TableSandboxRowModelStore: ObservableObject {
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
     ) {
-        guard snapshot.cueContentRevision != change.revision else {
+        guard change.revision > observedCueContentRevision else {
             return
         }
+        observedCueContentRevision = change.revision
         let affectsSearch = snapshot.searchCueIDs.contains {
             change.cueIDs.contains($0)
         }
@@ -235,8 +238,9 @@ final class TableSandboxRowModelStore: ObservableObject {
             return
         }
 
+        referencedCueContentRevision &+= 1
         var nextSnapshot = snapshot
-        nextSnapshot.cueContentRevision = change.revision
+        nextSnapshot.cueContentRevision = referencedCueContentRevision
         nextSnapshot.version += 1
         nextSnapshot.update = .reload
         publishSnapshot(
@@ -284,9 +288,10 @@ final class TableSandboxRowModelStore: ObservableObject {
         probeScope: String? = nil,
         isHydration: Bool = false
     ) {
+        acknowledgeCueContentRevision(cueContentRevision)
         if let sourceRevision,
            snapshot.searchSourceRevision == sourceRevision,
-           snapshot.cueContentRevision == cueContentRevision,
+           snapshot.cueContentRevision == referencedCueContentRevision,
            snapshot.materializedRows.isEmpty,
            snapshot.shioriRelations.isEmpty {
             return
@@ -298,7 +303,7 @@ final class TableSandboxRowModelStore: ObservableObject {
                   snapshot.materializedRows.isEmpty,
                   snapshot.shioriRelations.isEmpty,
                   snapshot.searchRankByCueID == ranks,
-                  snapshot.cueContentRevision == cueContentRevision {
+                  snapshot.cueContentRevision == referencedCueContentRevision {
             return
         } else {
             update = .reload
@@ -308,7 +313,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchRankByCueID: ranks,
             searchCueContentProvider: cueContentProvider,
             searchSourceRevision: sourceRevision,
-            cueContentRevision: cueContentRevision,
+            cueContentRevision: referencedCueContentRevision,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: cueIDs.count
@@ -334,6 +339,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         else {
             return
         }
+        acknowledgeCueContentRevision(cueContentRevision)
         var cueIDs = snapshot.searchCueIDs
         var ranks = snapshot.searchRankByCueID
         for (offset, result) in results.enumerated() {
@@ -354,7 +360,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             searchRankByCueID: ranks,
             searchCueContentProvider: cueContentProvider,
             searchSourceRevision: snapshot.searchSourceRevision,
-            cueContentRevision: cueContentRevision,
+            cueContentRevision: referencedCueContentRevision,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: cueIDs.count
@@ -626,13 +632,14 @@ final class TableSandboxRowModelStore: ObservableObject {
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
     ) {
+        acknowledgeCueContentRevision(cueContentRevision)
         let normalizedTags = Dictionary(uniqueKeysWithValues: tagsByShioriID.map { key, value in
             (Int(key), value)
         })
         let contentChanged = relations != snapshot.shioriRelations
             || normalizedTags != snapshot.shioriTagsByEntryID
             || !snapshot.materializedRows.isEmpty
-            || snapshot.cueContentRevision != cueContentRevision
+            || snapshot.cueContentRevision != referencedCueContentRevision
         guard contentChanged || snapshot.totalRowCount != relations.count else {
             return
         }
@@ -647,7 +654,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             shioriRelations: relations,
             shioriTagsByEntryID: normalizedTags,
             cueContentProvider: cueContentProvider,
-            cueContentRevision: cueContentRevision,
+            cueContentRevision: referencedCueContentRevision,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: relations.count
@@ -655,6 +662,14 @@ final class TableSandboxRowModelStore: ObservableObject {
            probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
            probeScope: probeScope,
            reason: "shiori_resident_projection")
+    }
+
+    private func acknowledgeCueContentRevision(_ revision: UInt64) {
+        guard revision > observedCueContentRevision else {
+            return
+        }
+        observedCueContentRevision = revision
+        referencedCueContentRevision &+= 1
     }
 
     func hydrateShioriRows(

@@ -79,6 +79,50 @@ func canonicalCueChangeAutomaticallyReloadsResidentSearchTableProjection() {
 
 @MainActor
 @Test
+func unrelatedCanonicalCueChangeDoesNotReloadCoveredResidentSearch() {
+    let cueStore = CueContentStore()
+    let searchStore = SearchStore(cueContentStore: cueStore)
+    let resident = cueContent(cueID: 7, content: "Resident")
+    searchStore.replaceLoadedSearchResults([
+        SubtitleSearchResult(cueContent: resident, searchRank: 12),
+    ])
+    searchStore.activateResidentSearchTableProjection()
+    let originalSnapshotVersion = searchStore.tableRowStore.snapshot.version
+    let originalProjectionRevision = searchStore.tableProjectionRevision
+
+    searchStore.setTableProjectionResponseActive(false)
+    cueStore.install([cueContent(cueID: 99, content: "Unrelated")])
+    searchStore.setTableProjectionResponseActive(true)
+
+    #expect(searchStore.tableProjectionRevision == originalProjectionRevision)
+    #expect(searchStore.tableRowStore.snapshot.version == originalSnapshotVersion)
+    #expect(searchStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Resident")
+}
+
+@MainActor
+@Test
+func coveredResidentSearchCoalescesRelevantAndUnrelatedCueChangesIntoOneReload() {
+    let cueStore = CueContentStore()
+    let searchStore = SearchStore(cueContentStore: cueStore)
+    let original = cueContent(cueID: 7, content: "Original")
+    searchStore.replaceLoadedSearchResults([
+        SubtitleSearchResult(cueContent: original, searchRank: 12),
+    ])
+    searchStore.activateResidentSearchTableProjection()
+    let originalSnapshotVersion = searchStore.tableRowStore.snapshot.version
+
+    searchStore.setTableProjectionResponseActive(false)
+    cueStore.install([cueContent(cueID: 99, content: "Unrelated")])
+    cueStore.install([cueContent(cueID: 7, content: "Updated")])
+    searchStore.setTableProjectionResponseActive(true)
+
+    #expect(searchStore.tableRowStore.snapshot.version == originalSnapshotVersion + 1)
+    #expect(searchStore.tableRowStore.snapshot.update == .reload)
+    #expect(searchStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Updated")
+}
+
+@MainActor
+@Test
 func canonicalCueChangeAutomaticallyReloadsResidentShioriTableProjection() {
     let cueStore = CueContentStore()
     let shioriStore = ShioriStore(cueContentStore: cueStore)
@@ -105,6 +149,36 @@ func canonicalCueChangeAutomaticallyReloadsResidentShioriTableProjection() {
     #expect(shioriStore.tableRowStore.snapshot.version == originalSnapshotVersion + 1)
     #expect(shioriStore.tableRowStore.snapshot.update == .reload)
     #expect(shioriStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Updated Shiori")
+}
+
+@MainActor
+@Test
+func unrelatedCanonicalCueChangeDoesNotReloadCoveredResidentShiori() {
+    let cueStore = CueContentStore()
+    let shioriStore = ShioriStore(cueContentStore: cueStore)
+    let resident = cueContent(cueID: 7, content: "Resident Shiori")
+    let relation = ShioriRelation(
+        id: 70,
+        listID: ShioriListIdentity.defaultListID,
+        cueID: 7,
+        createdAt: "2026-07-22T00:00:00Z"
+    )
+    cueStore.install([resident])
+    shioriStore.tableRowStore.updateResidentShioriRelations(
+        [relation],
+        tagsByShioriID: [:],
+        cueContentProvider: { cueStore.content(for: $0) },
+        cueContentRevision: cueStore.revision,
+        tableName: "shiori"
+    )
+    let originalSnapshotVersion = shioriStore.tableRowStore.snapshot.version
+
+    shioriStore.setTableProjectionResponseActive(false)
+    cueStore.install([cueContent(cueID: 99, content: "Unrelated")])
+    shioriStore.setTableProjectionResponseActive(true)
+
+    #expect(shioriStore.tableRowStore.snapshot.version == originalSnapshotVersion)
+    #expect(shioriStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Resident Shiori")
 }
 
 private func cueContent(cueID: Int64, content: String) -> CueContent {
