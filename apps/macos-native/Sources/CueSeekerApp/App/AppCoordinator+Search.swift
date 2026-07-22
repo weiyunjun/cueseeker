@@ -115,7 +115,7 @@ extension AppCoordinator {
             .first { $0.id == item.id }?
             .cueID
             ?? {
-                guard let database = subtitleDatabase else { return nil }
+                guard let database = shioriDatabase else { return nil }
                 do {
                     return try database.shioriRelation(id: item.id)?.cueID
                 } catch {

@@ -170,6 +170,17 @@ and remove the old God Object without a permanent forwarding facade.
 - Removed the corresponding operations from `SubtitleDatabase`, reducing it
   further to 6,906 lines.
 
+### 14. Shiori Relationship Reads
+
+- Moved Shiori list, relation, Cue-ID, and subtitle-time lookup operations into
+  `ShioriDatabase`.
+- Updated App context resolution and database-order playback navigation to use
+  the focused Shiori repository.
+- Made the remaining legacy resident snapshot compose both relations and tags
+  through one read-only Shiori connection.
+- Removed the relation decoder and corresponding public reads from
+  `SubtitleDatabase`, reducing it further to 6,807 lines.
+
 ## Verification
 
 ### Step 1
@@ -283,9 +294,17 @@ and remove the old God Object without a permanent forwarding facade.
   on `ShioriDatabase`.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 14
+
+- Built every product and test target after moving Shiori relationship reads.
+- Ran the complete 58-test Shiori-named Core/App regression set; all passed.
+- Confirmed Shiori list/relation/Cue-ID APIs are declared only on
+  `ShioriDatabase`.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Steps 1 through 13 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 14 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

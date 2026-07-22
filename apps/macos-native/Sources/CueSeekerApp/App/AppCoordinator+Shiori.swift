@@ -640,12 +640,14 @@ extension AppCoordinator {
            let content = cueContent.content(for: relation.cueID) {
             return Shiori(relation: relation, cueContent: content)
         }
-        guard let database = subtitleDatabase else {
+        guard let database = subtitleDatabase,
+              let shioriDatabase
+        else {
             return nil
         }
 
         do {
-            guard let relation = try database.shioriRelation(id: id),
+            guard let relation = try shioriDatabase.shioriRelation(id: id),
                   let content = try database.cueContents(
                     forCueIDs: [relation.cueID]
                   ).first

@@ -299,7 +299,7 @@ extension AppCoordinator {
             if shiori.residentDataRevision != nil {
                 relations = shiori.residentRelations
             } else {
-                relations = (try? subtitleDatabase?.shioriRelations()) ?? []
+                relations = (try? shioriDatabase?.shioriRelations()) ?? []
             }
             guard relations.indices.contains(ordinal),
                   let item = shiori(withID: relations[ordinal].id)

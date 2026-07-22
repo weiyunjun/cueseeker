@@ -233,6 +233,7 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
 @Test
 func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws {
     try await withKeyboardActionApp { app, database in
+        let shioriDatabase = try #require(app.shioriDatabase)
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: true)
         ))
@@ -248,7 +249,7 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
                 && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
         }
 
-        let saved = try #require(try database.shiori(
+        let saved = try #require(try shioriDatabase.shiori(
             subtitleFile: URL(fileURLWithPath: keyboardActionSource().subtitlePath),
             startMilliseconds: 12_000,
             endMilliseconds: 12_900
@@ -383,6 +384,7 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
 @Test
 func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
     try await withKeyboardActionApp { app, database in
+        let shioriDatabase = try #require(app.shioriDatabase)
         let result = keyboardActionPlaylistSearchResult(
             id: 22,
             videoPath: keyboardActionSource().videoPath,
@@ -421,7 +423,7 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
             session.activeKeyboardAction == nil
                 && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
         }
-        let saved = try #require(try database.shiori(
+        let saved = try #require(try shioriDatabase.shiori(
             subtitleFile: URL(fileURLWithPath: result.subtitlePath),
             startMilliseconds: result.startMilliseconds,
             endMilliseconds: result.endMilliseconds

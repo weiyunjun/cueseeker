@@ -3939,8 +3939,8 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
         """
     )
 
-    #expect(try database.shioriRelations().map(\.id) == [defaultShiori.id])
-    let futureRelation = try #require(try database.shioriRelations(listID: 2).first)
+    #expect(try ShioriDatabase(path: database.path).shioriRelations().map(\.id) == [defaultShiori.id])
+    let futureRelation = try #require(try ShioriDatabase(path: database.path).shioriRelations(listID: 2).first)
     #expect(futureRelation.cueID == cueID)
     #expect(futureRelation.listID == 2)
 
@@ -3995,10 +3995,10 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
         selection: selection
     )
 
-    let relation = try #require(try database.shioriRelation(id: shiori.id))
+    let relation = try #require(try ShioriDatabase(path: database.path).shioriRelation(id: shiori.id))
     #expect(relation.cueID == cueID)
     #expect(relation.listID == ShioriListIdentity.defaultListID)
-    #expect(try database.shioriLists().map(\.id) == [ShioriListIdentity.defaultListID])
+    #expect(try ShioriDatabase(path: database.path).shioriLists().map(\.id) == [ShioriListIdentity.defaultListID])
 
     let page = try database.shioriPage(shioriIDs: [shiori.id])
     #expect(page.cuePresentationsByShioriID[shiori.id]?.cueID == cueID)
@@ -4065,7 +4065,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
         try database.cueLineRecords(forSubtitleFile: subtitleFile).first
     )
     let rebuiltRelation = try #require(
-        try database.shioriRelation(id: originalShiori.id)
+        try ShioriDatabase(path: database.path).shioriRelation(id: originalShiori.id)
     )
     let rebuiltShiori = try #require(try ShioriDatabase(path: database.path).shiori(id: originalShiori.id))
 
@@ -4455,7 +4455,7 @@ func shioriCuePresentationUsesCueIDAndPrimaryCueMetadata() throws {
     #expect(presentation.languages == [.japanese])
     #expect(presentation.speakers == ["Japanese Speaker", "Control\u{1f}Speaker"])
     #expect(page.languagesByShioriID[shiori.id] == [.japanese])
-    #expect(try database.cueID(forShioriID: shiori.id) == currentJapaneseCue.id)
+    #expect(try ShioriDatabase(path: database.path).cueID(forShioriID: shiori.id) == currentJapaneseCue.id)
 
     let japaneseSpeakerPage = try database.shioriTablePage(
         limit: 10,
@@ -4960,7 +4960,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
 
     #expect(try database.search("Shiori").isEmpty)
     #expect(try database.shioris().isEmpty)
-    #expect(try database.shioriRelations().isEmpty)
+    #expect(try ShioriDatabase(path: database.path).shioriRelations().isEmpty)
 }
 
 @Test

@@ -85,6 +85,85 @@ public final class ShioriDatabase: @unchecked Sendable {
         return true
     }
 
+    public func shioriLists() throws -> [ShioriList] {
+        let statement = try database.prepare(
+            """
+            SELECT id, name, created_at
+            FROM shiori_lists
+            ORDER BY id ASC;
+            """
+        )
+        var lists: [ShioriList] = []
+        while try statement.step() {
+            lists.append(ShioriList(
+                id: statement.int64Column(0),
+                name: statement.stringColumn(1),
+                createdAt: statement.stringColumn(2)
+            ))
+        }
+        return lists
+    }
+
+    public func shioriRelations(
+        listID: Int64 = ShioriListIdentity.defaultListID
+    ) throws -> [ShioriRelation] {
+        let statement = try database.prepare(
+            """
+            SELECT id, list_id, cue_id, created_at
+            FROM shioris
+            WHERE list_id = ?
+            ORDER BY created_at DESC, id DESC;
+            """
+        )
+        try statement.bind(listID, at: 1)
+        var relations: [ShioriRelation] = []
+        while try statement.step() {
+            relations.append(shioriRelation(from: statement))
+        }
+        return relations
+    }
+
+    public func shioriRelation(id: Int64) throws -> ShioriRelation? {
+        let statement = try database.prepare(
+            """
+            SELECT id, list_id, cue_id, created_at
+            FROM shioris
+            WHERE id = ?;
+            """
+        )
+        try statement.bind(id, at: 1)
+        return try statement.step() ? shioriRelation(from: statement) : nil
+    }
+
+    public func cueID(forShioriID shioriID: Int64) throws -> Int64? {
+        let statement = try database.prepare("SELECT cue_id FROM shioris WHERE id = ?;")
+        try statement.bind(shioriID, at: 1)
+        return try statement.step() ? statement.nullableInt64Column(0) : nil
+    }
+
+    public func shiori(
+        subtitleFile: URL,
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) throws -> Shiori? {
+        let statement = try database.prepare(
+            """
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ?
+              AND sf.subtitle_path = ?
+              AND l.start_ms = ?
+              AND l.end_ms = ?
+            ORDER BY l.display_order DESC, l.event_index DESC, s.id ASC
+            LIMIT 1;
+            """
+        )
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(subtitleFile.path, at: 2)
+        try statement.bind(max(0, startMilliseconds), at: 3)
+        try statement.bind(max(startMilliseconds, endMilliseconds), at: 4)
+        return try statement.step() ? shiori(from: statement) : nil
+    }
+
     public func shioriTags() throws -> [ShioriTag] {
         let statement = try database.prepare(
             """
@@ -330,6 +409,15 @@ public final class ShioriDatabase: @unchecked Sendable {
             content: statement.stringColumn(9),
             isValid: statement.intColumn(10) != 0,
             createdAt: statement.stringColumn(11)
+        )
+    }
+
+    private func shioriRelation(from statement: SQLiteStatement) -> ShioriRelation {
+        ShioriRelation(
+            id: statement.int64Column(0),
+            listID: statement.int64Column(1),
+            cueID: statement.int64Column(2),
+            createdAt: statement.stringColumn(3)
         )
     }
 
