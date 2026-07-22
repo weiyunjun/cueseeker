@@ -13,12 +13,14 @@ public final class ShioriDatabase: @unchecked Sendable {
         JOIN video_files vf ON vf.id = m.video_file_id
         """
 
+    private let path: URL
     private let database: SQLiteDatabase
 
     public init(
         path: URL,
         access: DatabaseConnectionAccess = .readWrite
     ) throws {
+        self.path = path
         database = try SQLiteDatabase(path: path, access: access)
     }
 
@@ -121,6 +123,25 @@ public final class ShioriDatabase: @unchecked Sendable {
             relations.append(shioriRelation(from: statement))
         }
         return relations
+    }
+
+    public func shioriResidentSnapshot(
+        listID: Int64 = ShioriListIdentity.defaultListID
+    ) throws -> ShioriResidentSnapshot {
+        let relations = try shioriRelations(listID: listID)
+        let cueContents = try CueContentDatabase(path: path).cueContents(
+            forCueIDs: relations.map(\.cueID)
+        )
+        guard cueContents.map(\.cueID) == relations.map(\.cueID) else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Every Shiori relation must resolve its current Cue content"
+            )
+        }
+        return ShioriResidentSnapshot(
+            relations: relations,
+            cueContents: cueContents,
+            tagsByShioriID: try shioriTagsByShioriID(forShioriIDs: relations.map(\.id))
+        )
     }
 
     public func shioriRelation(id: Int64) throws -> ShioriRelation? {

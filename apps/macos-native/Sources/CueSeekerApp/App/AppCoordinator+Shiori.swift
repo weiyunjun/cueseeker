@@ -71,7 +71,7 @@ extension AppCoordinator {
                 let residentSnapshot = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    try SubtitleDatabase(
+                    try ShioriDatabase(
                         path: databaseURL,
                         access: .readOnly
                     ).shioriResidentSnapshot()
@@ -640,15 +640,13 @@ extension AppCoordinator {
            let content = cueContent.content(for: relation.cueID) {
             return Shiori(relation: relation, cueContent: content)
         }
-        guard let database = subtitleDatabase,
-              let shioriDatabase
-        else {
+        guard let shioriDatabase else {
             return nil
         }
 
         do {
             guard let relation = try shioriDatabase.shioriRelation(id: id),
-                  let content = try database.cueContents(
+                  let content = try CueContentDatabase(path: databaseURL).cueContents(
                     forCueIDs: [relation.cueID]
                   ).first
             else {

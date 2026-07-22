@@ -190,6 +190,18 @@ and remove the old God Object without a permanent forwarding facade.
 - Removed the legacy resolved-Shiori query and corresponding public operations
   from `SubtitleDatabase`, reducing it further to 6,729 lines.
 
+### 16. Shiori Query Completion
+
+- Added read-only `CueContentDatabase` for ordered canonical Cue content,
+  including Cue Group lines, language resolution, and speaker assignments.
+- Moved the production resident snapshot completely into `ShioriDatabase` and
+  updated the App to open that focused read-only repository.
+- Removed the database-level Shiori page/filter/index APIs because production
+  now filters and pages the resident snapshot in memory; only obsolete tests
+  referenced those APIs.
+- Removed the retired Shiori page/index models and all Shiori table query
+  helpers from `SubtitleDatabase`, reducing it further to 5,977 lines.
+
 ## Verification
 
 ### Step 1
@@ -320,9 +332,22 @@ and remove the old God Object without a permanent forwarding facade.
   `ShioriDatabase`.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 16
+
+- Built every product and test target after completing the Shiori query
+  boundary.
+- Ran 53 Shiori-named Core/App regression tests; all passed.
+- Ran three focused CueContent ordering, resident snapshot, and CueID relation
+  tests; all passed.
+- Ran the complete 830-test Swift suite. Three concurrent timing-sensitive
+  Shiori/native-playback tests failed in that loaded run and all three passed
+  immediately when rerun together in isolation.
+- Confirmed the old database type exposes no Shiori query operation and ran
+  `git diff --check` without errors.
+
 ## Outcome
 
-Steps 1 through 15 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 16 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

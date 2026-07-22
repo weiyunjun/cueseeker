@@ -203,40 +203,6 @@ public struct ShioriCuePresentation: Equatable, Sendable {
     }
 }
 
-public struct ShioriPage: Equatable, Sendable {
-    public let shioris: [Shiori]
-    public let totalCount: Int
-    public let languagesByShioriID: [Int64: Set<SubtitleLanguageCode>]
-    public let displayTitlesByShioriID: [Int64: String]
-    public let cuePresentationsByShioriID: [Int64: ShioriCuePresentation]
-
-    public init(
-        shioris: [Shiori],
-        totalCount: Int,
-        languagesByShioriID: [Int64: Set<SubtitleLanguageCode>],
-        displayTitlesByShioriID: [Int64: String] = [:],
-        cuePresentationsByShioriID: [Int64: ShioriCuePresentation] = [:]
-    ) {
-        self.shioris = shioris
-        self.totalCount = totalCount
-        self.languagesByShioriID = languagesByShioriID
-        self.displayTitlesByShioriID = displayTitlesByShioriID
-        self.cuePresentationsByShioriID = cuePresentationsByShioriID
-    }
-}
-
-public struct ShioriTableIDIndex: Equatable, Sendable {
-    public let shioriIDs: [Int64]
-
-    public init(shioriIDs: [Int64]) {
-        self.shioriIDs = shioriIDs
-    }
-
-    public var totalCount: Int {
-        shioriIDs.count
-    }
-}
-
 public enum ShioriNavigationDirection: Equatable, Sendable {
     case previous
     case next
