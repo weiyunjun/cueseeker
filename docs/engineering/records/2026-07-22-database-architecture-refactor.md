@@ -50,6 +50,18 @@ and remove the old God Object without a permanent forwarding facade.
 - Replaced all business-level raw transaction-control SQL with the centralized
   transaction executor.
 
+### 4. Domain Models, Schema Ownership, And Dead API Removal
+
+- Moved Indexing, Search, Library, Shiori, Playback/ASS, AI cache, and
+  Maintenance data contracts into seven focused source files.
+- Moved all schema-33 validation and creation SQL into `DatabaseBootstrap`;
+  `SubtitleDatabase` and tests no longer expose or call a migration method.
+- Removed the empty Search result-cache invalidation API, its permanently-zero
+  statistics model, misleading benchmark output, and tests coupled to those
+  no-op interfaces.
+- Reduced `SubtitleDatabase.swift` from the original 11,869 lines to 9,044
+  lines before persistence operation extraction.
+
 ## Verification
 
 ### Step 1
@@ -85,11 +97,20 @@ and remove the old God Object without a permanent forwarding facade.
   coverage. Its only failure was the same unrelated shared-preferences
   migration assertion, which has already passed when run in isolation.
 
+### Step 4
+
+- Built the complete package, including `SearchBench`, after moving the domain
+  models and schema implementation.
+- Ran 133 database and Subtitle Focus tests; all passed.
+- Confirmed there are no remaining `.migrate()` calls and no Search cache API
+  declarations or call sites.
+
 ## Outcome
 
-Steps 1 through 3 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 4 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
-access, and transaction ownership have explicit persistence-layer boundaries.
+access, transaction ownership, and domain data contracts have explicit
+persistence-layer boundaries.
 
 ## Follow-ups
 

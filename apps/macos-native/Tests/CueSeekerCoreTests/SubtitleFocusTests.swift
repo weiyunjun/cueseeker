@@ -18,7 +18,7 @@ func subtitleFocusDatabaseBootstrapLoadsSixBeforeAndThreeAfter() throws {
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Focus.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Focus.mkv")
     try database.replaceEntries(
@@ -53,7 +53,7 @@ func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() thro
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Focus-Boundaries.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Focus-Boundaries.mkv")
     try database.replaceEntries(
@@ -95,7 +95,7 @@ func subtitleFocusDatabaseBootstrapUsesPreviousCueAndFallsBackToFirstCue() throw
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Gaps.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Gaps.mkv")
     try database.replaceEntries(
@@ -133,7 +133,7 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Focus.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Focus.mkv")
     try database.replaceCueGroups(
@@ -194,7 +194,7 @@ func subtitleFocusDatabaseBatchReadsCompleteCurrentVideoCollection() throws {
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Complete-Focus.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Complete-Focus.mkv")
     let cueCount = 2_500
@@ -223,8 +223,7 @@ func subtitleFocusDatabaseBatchRejectsPreCancelledTasks() async throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let task = Task.detached { () throws -> SubtitleFocusCueBatch in
         let database = try SubtitleDatabase(path: databaseURL)
         withUnsafeCurrentTask { task in
@@ -253,7 +252,7 @@ func subtitleFocusDatabaseBatchStopsAfterCancellationDuringRowIteration() async 
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Cancellation-Iteration.srt")
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     try database.replaceEntries(
         subtitleFile: subtitleFile,
         videoFile: URL(fileURLWithPath: "/Media/Cancellation-Iteration.mkv"),
@@ -295,7 +294,7 @@ func subtitleFocusDatabaseUsesOneStableOrderForSelectionAndWindow() throws {
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Focus-Ordering.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Focus-Ordering.mkv")
     try database.replaceCueGroups(

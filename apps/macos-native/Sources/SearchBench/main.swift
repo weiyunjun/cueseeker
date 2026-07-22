@@ -259,15 +259,6 @@ print("  avg:    \(formatMs(avg)) ms")
 print("  max:    \(formatMs(maxMs)) ms")
 print("  raw:    \(times.map(formatMs).joined(separator: ", "))")
 print("")
-let cacheStatsAfterHot = database.searchResultCacheStats()
-print("Search result cache:")
-print("  entries:       \(cacheStatsAfterHot.entries)")
-print("  hits:          \(cacheStatsAfterHot.hits)")
-print("  misses:        \(cacheStatsAfterHot.misses)")
-print("  stores:        \(cacheStatsAfterHot.stores)")
-print("  invalidations: \(cacheStatsAfterHot.invalidations)")
-print("")
-
 if includesStep1Gaps {
     let perFileLimit = min(limit, 100)
     let perFileSummary = warmupPage.fileSummaries.first
@@ -352,8 +343,3 @@ if includesFTSVocabularyDiagnostics {
         print("    \(term.term) docs=\(term.documentCount) occurrences=\(term.occurrenceCount)")
     }
 }
-
-database.clearSearchResultCache()
-coldDatabase.clearSearchResultCache()
-print("")
-print("Search result cache cleared.")

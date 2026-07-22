@@ -118,8 +118,7 @@ func freshSchemaOmitsLegacyPlaybackNavigationTables() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteTableExists(
         "playback_navigation_state",
@@ -138,8 +137,7 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL).isSuperset(of: [
         "id", "library_id", "relative_path"
@@ -172,7 +170,7 @@ func indexedMediaStoresLibraryIDAndRelativePaths() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let libraryID = try database.addSearchPath(libraryFolder)
     let subtitleFile = libraryFolder
         .appendingPathComponent("Season 1")
@@ -226,7 +224,7 @@ func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     _ = try database.addSearchPath(libraryFolder)
     let subtitleFile = libraryFolder.appendingPathComponent("Episode.srt")
     let videoFile = libraryFolder.appendingPathComponent("Episode.mkv")
@@ -301,7 +299,7 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try database.busyTimeoutMilliseconds() == SubtitleDatabase.configuredBusyTimeoutMilliseconds)
     #expect(try database.journalMode().lowercased() == "wal")
@@ -319,7 +317,7 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
 
     let searchTask = Task.detached { () throws -> SubtitleSearchPage in
         let database = try SubtitleDatabase(path: databaseURL)
-        try database.migrate()
+        try DatabaseBootstrap.prepare(at: databaseURL)
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
@@ -358,8 +356,7 @@ func recentLibraryWatchingRejectsPreCancelledTasks() async throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let recentTask = Task.detached { () throws -> [RecentLibraryWatchingPresentation] in
         let database = try SubtitleDatabase(path: databaseURL)
@@ -386,8 +383,7 @@ func completeLibraryReadersRejectPreCancelledTasks() async throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let summariesTask = Task.detached {
         () throws -> [CompleteLibraryFolderSummaryPresentation] in
@@ -432,7 +428,7 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerTest.srt")
     let videoFile = URL(fileURLWithPath: "/Media/SpeakerTest.mkv")
@@ -526,7 +522,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/AllCues.ass")
     let videoFile = URL(fileURLWithPath: "/Media/AllCues.mkv")
@@ -643,7 +639,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let contextSubtitleFile = URL(fileURLWithPath: "/Media/ContextRank.srt")
     let contextVideoFile = URL(fileURLWithPath: "/Media/ContextRank.mkv")
@@ -773,7 +769,7 @@ func cueContextSearchPageAnchorsExactSiblingCueInStableSourceOrder() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/ContextSiblings.ass")
     let videoFile = URL(fileURLWithPath: "/Media/ContextSiblings.mkv")
@@ -862,7 +858,7 @@ func replacesCueLineSpeakersAsStringSets() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerSetTest.srt")
     let videoFile = URL(fileURLWithPath: "/Media/SpeakerSetTest.mkv")
@@ -940,7 +936,7 @@ func preservesCueLineSpeakersWhenReplacingCueGroups() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerPreserve.srt")
     let videoFile = URL(fileURLWithPath: "/Media/SpeakerPreserve.mkv")
@@ -993,7 +989,7 @@ func reportsStorageStatsAndCompactsFreelistPages() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Large.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Large.mkv")
@@ -1038,7 +1034,7 @@ func upsertsSearchPathAndReturnsStableID() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/tmp/CueSeeker/Subtitles")
     let firstID = try database.addSearchPath(folder)
@@ -1055,7 +1051,7 @@ func storesAndLoadsAIChunkCacheEntry() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let key = AIChunkCacheKey(
         normalizedSentence: "運も実力のうちだ",
@@ -1101,7 +1097,7 @@ func refreshingAIChunkCachePreservesCacheDate() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let key = AIChunkCacheKey(
         normalizedSentence: "春日影はわたくしたちの歌ですのね",
@@ -1135,7 +1131,7 @@ func storesSameAIChunkSeparatelyForDifferentSubtitleLines() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let firstKey = AIChunkCacheKey(
         normalizedSentence: "運も実力のうちだ",
@@ -1173,7 +1169,7 @@ func clearsAIChunkCacheEntries() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let key = AIChunkCacheKey(
         normalizedSentence: "運も実力のうちだ",
@@ -1199,7 +1195,7 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Movie.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Movie.mkv")
@@ -1248,7 +1244,7 @@ func searchFiltersByLibraryWatchState() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let unwatchedSubtitleFile = URL(fileURLWithPath: "/Media/Unwatched.srt")
     let unwatchedVideoFile = URL(fileURLWithPath: "/Media/Unwatched.mkv")
@@ -1324,7 +1320,7 @@ func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/WindowedSubtitles.srt")
     let videoFile = URL(fileURLWithPath: "/Media/WindowedSubtitles.mkv")
@@ -1368,7 +1364,7 @@ func persistsSRTLanguageAnalysisWithCueGroupLanguages() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Japanese.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Japanese.mkv")
@@ -1426,7 +1422,7 @@ func persistsASSStyleLanguageAnalysisForUsedStylesOnly() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Bilingual.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Bilingual.mkv")
@@ -1479,7 +1475,7 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/LanguageFilter.srt")
     let videoFile = URL(fileURLWithPath: "/Media/LanguageFilter.mkv")
@@ -1567,7 +1563,7 @@ func searchResultsExposeCueGroupLanguages() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/LanguageResultTags.srt")
     let videoFile = URL(fileURLWithPath: "/Media/LanguageResultTags.mkv")
@@ -1621,7 +1617,7 @@ func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throw
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/BilingualLineFilter.ass")
     let videoFile = URL(fileURLWithPath: "/Media/BilingualLineFilter.mkv")
@@ -1722,7 +1718,7 @@ func searchLanguageFilterTreatsMissingLanguageRowsAsUnknown() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/LegacyLanguage.srt")
     let videoFile = URL(fileURLWithPath: "/Media/LegacyLanguage.mkv")
@@ -1747,7 +1743,7 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Series.mkv")
@@ -1787,7 +1783,7 @@ func searchPageReturnsContinuationCursorForNextPage() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Series.mkv")
@@ -1835,7 +1831,7 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Series.mkv")
@@ -1891,7 +1887,7 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Alpha.srt"),
@@ -1930,7 +1926,7 @@ func searchExactPageCanReturnOnlyCueIDsForCompletion() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/IDCompletion.srt"),
@@ -1964,7 +1960,7 @@ func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/FilteredWindow.srt")
     let videoFile = URL(fileURLWithPath: "/Media/FilteredWindow.mkv")
@@ -2038,7 +2034,7 @@ func searchFilterSetMatchesLanguageCollectionValues() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/FilterLanguages.srt")
     let videoFile = URL(fileURLWithPath: "/Media/FilterLanguages.mkv")
@@ -2089,7 +2085,7 @@ func searchExactPageLeavesResultIDIndexWindowUnavailable() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/IndexedWindow.srt")
     let videoFile = URL(fileURLWithPath: "/Media/IndexedWindow.mkv")
@@ -2154,7 +2150,7 @@ func searchNavigationSnapshotFromResultIDIndexStaysUnavailableWhenCacheDisabled(
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/IndexedNavigation.srt")
     let videoFile = URL(fileURLWithPath: "/Media/IndexedNavigation.mkv")
@@ -2229,7 +2225,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Progress.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Progress.mkv")
@@ -2312,14 +2308,14 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
 }
 
 @Test
-func searchPageDoesNotCacheRepeatedQueries() throws {
+func repeatedSearchPagesExecuteWithoutHiddenCacheEvents() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Cache.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Cache.mkv")
@@ -2336,29 +2332,22 @@ func searchPageDoesNotCacheRepeatedQueries() throws {
     let firstPage = try database.searchPage("cache", limit: 10, diagnostics: firstDiagnostics.record)
     let secondDiagnostics = SearchDiagnosticRecorder()
     let secondPage = try database.searchPage("cache", limit: 10, diagnostics: secondDiagnostics.record)
-    let stats = database.searchResultCacheStats()
-
     #expect(firstPage == secondPage)
     #expect(!firstDiagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
     #expect(!secondDiagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
     #expect(firstDiagnostics.events.contains { $0.name == "fts_batch" })
     #expect(secondDiagnostics.events.contains { $0.name == "fts_batch" })
-    #expect(stats.entries == 0)
-    #expect(stats.hits == 0)
-    #expect(stats.misses == 0)
-    #expect(stats.stores == 0)
-    #expect(stats.invalidations == 0)
 }
 
 @Test
-func searchPageSeesIndexedContentChangesWithoutCacheInvalidationState() throws {
+func searchPageSeesIndexedContentChangesImmediately() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/CacheInvalidation.srt")
     let videoFile = URL(fileURLWithPath: "/Media/CacheInvalidation.mkv")
@@ -2372,7 +2361,6 @@ func searchPageSeesIndexedContentChangesWithoutCacheInvalidationState() throws {
 
     _ = try database.searchPage("cache", limit: 10)
     _ = try database.searchPage("cache", limit: 10)
-    #expect(database.searchResultCacheStats().hits == 0)
 
     try database.replaceEntries(
         subtitleFile: subtitleFile,
@@ -2385,19 +2373,12 @@ func searchPageSeesIndexedContentChangesWithoutCacheInvalidationState() throws {
 
     let diagnostics = SearchDiagnosticRecorder()
     let page = try database.searchPage("cache", limit: 10, diagnostics: diagnostics.record)
-    let stats = database.searchResultCacheStats()
-
     #expect(page.totalCount == 2)
     #expect(page.results.map(\.content) == [
         "Cache invalidation first",
         "Cache invalidation second"
     ])
     #expect(!diagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
-    #expect(stats.entries == 0)
-    #expect(stats.hits == 0)
-    #expect(stats.misses == 0)
-    #expect(stats.stores == 0)
-    #expect(stats.invalidations == 0)
 }
 
 @Test
@@ -2408,7 +2389,7 @@ func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let betaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Beta.srt")
     let betaVideo = URL(fileURLWithPath: "/Media/AFolder/Beta.mkv")
@@ -2461,7 +2442,7 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Alpha.srt")
     let alphaVideo = URL(fileURLWithPath: "/Media/ZFolder/Alpha.mkv")
@@ -2526,7 +2507,7 @@ func cueOccurrenceCountMatchesSearchPageExactTotals() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let mediaFolder = URL(fileURLWithPath: "/Media")
     let mediaSubtitle = mediaFolder.appendingPathComponent("Exam.srt")
@@ -2577,7 +2558,7 @@ func searchPageExposesExactCountsWhenRowsContinue() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
     let alphaVideo = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
@@ -2642,7 +2623,7 @@ func searchPageExposesExactCountsWhenAllRowsFitInPage() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
     let video = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
@@ -2679,7 +2660,7 @@ func ftsVocabularyDiagnosticsReportsTopAndQueryTerms() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
     let alphaVideo = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
@@ -2737,7 +2718,7 @@ func searchNavigationUsesCompleteResultOrderAndPlaybackTimeAnchor() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
     let alphaVideo = URL(fileURLWithPath: "/Media/Alpha/Episode.mkv")
@@ -2820,7 +2801,7 @@ func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let show2Episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
     let show2Episode11Video = URL(fileURLWithPath: "/Media/Show 2/Episode 11.mkv")
@@ -2868,7 +2849,7 @@ func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
     let episode11Video = URL(fileURLWithPath: "/Media/Show 2/Episode 11.mkv")
@@ -2916,7 +2897,7 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoURL = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.replaceEntries(
@@ -2988,7 +2969,7 @@ func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let folderPath = "/Media/Show"
@@ -3112,7 +3093,7 @@ func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
     let episode11Video = URL(fileURLWithPath: "/Media/Show 2/Episode 11.mkv")
@@ -3163,7 +3144,7 @@ func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.upsertLibraryPlaybackHistory(
@@ -3206,7 +3187,7 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.upsertLibraryPlaybackHistory(
@@ -3251,7 +3232,7 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
@@ -3326,7 +3307,7 @@ func libraryPlaybackHistoryDoesNotFinishFromResumePositionAlone() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.upsertLibraryPlaybackHistory(
@@ -3354,7 +3335,7 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let showA1 = root.appendingPathComponent("Show A/Episode 1.mkv")
@@ -3429,7 +3410,7 @@ func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let episode3 = root.appendingPathComponent("Show/Episode 3.mkv")
@@ -3472,7 +3453,7 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let show = root.appendingPathComponent("Show")
@@ -3532,7 +3513,7 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let showA1 = root.appendingPathComponent("Show A/Episode 1.mkv")
@@ -3580,7 +3561,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let showA1 = root.appendingPathComponent("Show A/Episode 1.mkv")
@@ -3659,7 +3640,7 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
     let videoFile = root.appendingPathComponent("Show/Episode 1.mkv")
@@ -3768,7 +3749,7 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Episode 1.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
@@ -3832,7 +3813,7 @@ func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Cue Contents.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Cue Contents.mkv")
     try database.replaceEntries(
@@ -3885,7 +3866,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.mkv")
     try database.replaceEntries(
@@ -3935,7 +3916,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Relation Lists.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Relation Lists.mkv")
@@ -4003,7 +3984,7 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.mkv")
@@ -4055,7 +4036,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.mkv")
@@ -4128,7 +4109,7 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Same Time.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Same Time.mkv")
@@ -4225,7 +4206,7 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Shiori Page.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Shiori Page.mkv")
@@ -4321,7 +4302,7 @@ func shioriPageForIDsPreservesInputOrderAndCuePresentations() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Shiori Scope.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Shiori Scope.mkv")
@@ -4416,7 +4397,7 @@ func shioriCuePresentationUsesCueIDAndPrimaryCueMetadata() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/ShioriPresentation.ass")
     let videoFile = URL(fileURLWithPath: "/Media/ShioriPresentation.mkv")
@@ -4614,7 +4595,7 @@ func shioriTablePageAppliesSearchAndFiltersBeforeSlicing() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Shiori Table.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Shiori Table.mkv")
@@ -4735,7 +4716,7 @@ func shioriTableIDIndexStopsImmediatelyAfterCancellationDuringScan() async throw
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Shiori-Cancel.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Shiori-Cancel.mkv")
     try database.replaceEntries(
@@ -4842,8 +4823,7 @@ func freshSchemaCreatesShioriTablePerformanceIndexes() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteIndexExists("idx_shioris_created_order", databaseURL: databaseURL))
     #expect(try sqliteIndexExists("idx_subtitle_cue_groups_file_time", databaseURL: databaseURL))
@@ -4856,8 +4836,7 @@ func freshSchemaCreatesShioriTagTablesAndIndexes() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL))
     #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL))
@@ -4874,7 +4853,7 @@ func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Tags.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Tags.mkv")
@@ -4980,7 +4959,7 @@ func shioriTagValidationRejectsInvalidNames() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     expectShioriTagValidationError(.emptyName) {
         _ = try database.createShioriTag(named: "   ")
@@ -5013,7 +4992,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/Media/Show")
     let subtitleFile = folder.appendingPathComponent("Episode 1.srt")
@@ -5059,7 +5038,7 @@ func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/Media/Show")
     _ = try database.addSearchPath(folder)
@@ -5104,7 +5083,7 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let series = root.appendingPathComponent("葬送的芙莉莲")
     try FileManager.default.createDirectory(at: series, withIntermediateDirectories: true)
@@ -5167,7 +5146,7 @@ func searchPageFailsWhenSearchOrderRowsAreMissing() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Series/Episode.srt"),
@@ -5203,7 +5182,7 @@ func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha.srt")
     let alphaVideo = URL(fileURLWithPath: "/Media/Alpha.mkv")
@@ -5265,7 +5244,7 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Effects.mkv")
@@ -5314,7 +5293,7 @@ func storesAndLoadsASSFontReferences() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Effects.mkv")
@@ -5368,7 +5347,7 @@ func storesAndLoadsASSFontResourceManifest() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Effects.mkv")
@@ -5435,7 +5414,7 @@ func insertingCueGroupsRecordsTheirLineCount() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Mixed.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Mixed.mkv")
@@ -5478,7 +5457,7 @@ func replacingEntriesRemovesStaleFTSRows() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Episode.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Episode.mp4")
@@ -5528,7 +5507,7 @@ func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let removedFolder = URL(fileURLWithPath: "/Media/Removed")
     let keptFolder = URL(fileURLWithPath: "/Media/Kept")
@@ -5586,7 +5565,7 @@ func removingIndexedFolderPreservesRetainedDerivedSearchRows() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let removedFolder = URL(fileURLWithPath: "/Media/00 Removed")
     let firstKeptFolder = URL(fileURLWithPath: "/Media/10 Kept")
@@ -5646,7 +5625,7 @@ func scopedSearchOnlyReturnsEntriesUnderActiveFolders() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let activeFolder = URL(fileURLWithPath: "/Media/Active")
     let staleFolder = URL(fileURLWithPath: "/Media/Stale")
@@ -5694,7 +5673,7 @@ func reconcileIndexedContentClearsAllDataWhenNoFoldersAreActive() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/Media/Removed")
     let searchPathID = try database.addSearchPath(folder)
@@ -5730,7 +5709,7 @@ func reconcileIndexedContentPrunesDataOutsideActiveFolders() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let activeFolder = URL(fileURLWithPath: "/Media/Active")
     let staleFolder = URL(fileURLWithPath: "/Media/Stale")
@@ -5785,7 +5764,7 @@ func emptySearchQueryReturnsNoResults() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try database.search("").isEmpty)
     #expect(try database.search("   ").isEmpty)
@@ -5799,7 +5778,7 @@ func searchNormalizesFTSQuerySyntaxCharacters() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Special.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Special.mkv")
@@ -5834,7 +5813,7 @@ func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Prefix.srt"),
@@ -5865,7 +5844,7 @@ func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Ordered.srt"),
@@ -5911,7 +5890,7 @@ func searchSegmentsCJKContentLikeFlutter() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/CJK.srt"),
@@ -5949,7 +5928,7 @@ func searchSegmentsJapaneseKanaContent() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Japanese.srt"),
@@ -5988,7 +5967,7 @@ func searchTreatsASCIIAndIdeographicSpacesAsEquivalent() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/JapaneseSpaces.srt"),
@@ -6026,7 +6005,7 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/InvalidSyntax.srt"),
@@ -6054,7 +6033,7 @@ func searchesIndividualCuesAndRejectsCrossCueOnlyMatches() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Movie.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Movie.mkv")
@@ -6126,7 +6105,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SiblingMatches.ass")
     let videoFile = URL(fileURLWithPath: "/Media/SiblingMatches.mkv")
@@ -6234,7 +6213,7 @@ func searchPrimaryGroupIndexDistinguishesSiblingCuesWithIdenticalText() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/DuplicateSiblingText.ass")
     let cueGroup = SubtitleCueGroup(
         sequenceNumber: nil,
@@ -6287,7 +6266,7 @@ func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/MultilineCue.srt")
     let content = "shared first line\nshared second line"
@@ -6321,7 +6300,7 @@ func searchCueFiltersAndSpeakersDoNotLeakFromSiblingCue() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/CueFilterIsolation.ass")
     let cueGroup = languageFilterASSCueGroup(
@@ -6368,7 +6347,7 @@ func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Bilingual.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Bilingual.mkv")
@@ -6414,7 +6393,7 @@ func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Filtered.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Filtered.mkv")
@@ -6483,7 +6462,7 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/FilteredVisible.ass")
     let videoFile = URL(fileURLWithPath: "/Media/FilteredVisible.mkv")
@@ -6561,7 +6540,7 @@ func storesASSPrimaryStylePlaybackFinishMetadata() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Primary.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Primary.mkv")
@@ -6695,7 +6674,7 @@ func returnsCueTimingsForWindowedASSPreparation() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Windowed.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Windowed.mkv")
@@ -6732,7 +6711,7 @@ func cueTextSelectionUsesShortestActiveCueAndLatestEndTieBreak() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Selection.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Selection.mkv")
@@ -6763,7 +6742,7 @@ func cueTextSelectionFallsBackToPreviousCueRange() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Previous.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Previous.mkv")
@@ -6796,7 +6775,7 @@ func cueTextSelectionReturnsPhysicallyBottommostCueAsSingleCue() throws {
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Lines.ass")
     let videoFile = URL(fileURLWithPath: "/Media/Lines.mkv")
@@ -6848,7 +6827,7 @@ func activeSubtitleEntryLookupKeepsLongRunningCueActivePastShortLaterCues() thro
     }
 
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Signs.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Signs.mkv")
