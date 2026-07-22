@@ -10,6 +10,7 @@ import Testing
 @Test
 func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
     try withNormalPlaybackApp { app, database in
+        let shioriDatabase = try #require(app.shioriDatabase)
         let viewModel = try #require(app.playback.playbackViewModel)
 
         #expect(viewModel.areSubtitlesVisible)
@@ -32,7 +33,7 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
 
         #expect(!viewModel.areSubtitlesVisible)
         #expect(viewModel.feedback == feedbackAfterQ)
-        #expect(try database.shioriCount() == 0)
+        #expect(try shioriDatabase.shioriCount() == 0)
     }
 }
 

@@ -255,7 +255,7 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
             endMilliseconds: 12_900
         ))
         #expect(saved.content == "keyboard action cue 12")
-        #expect(try database.shioriCount() == 1)
+        #expect(try shioriDatabase.shioriCount() == 1)
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.currentSnapshot?.selectedOrdinal == 12)
@@ -268,7 +268,7 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
                     == "Shiori Already Saved"
         }
 
-        #expect(try database.shioriCount() == 1)
+        #expect(try shioriDatabase.shioriCount() == 1)
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(app.playback.playbackStatus == .paused)
@@ -326,7 +326,7 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
         #expect(savedFirst.id != savedSecond.id)
         #expect(savedFirst.content == "keyboard action cue 12")
         #expect(savedSecond.content == "keyboard action cue 13")
-        #expect(try database.shioriCount() == 2)
+        #expect(try shioriDatabase.shioriCount() == 2)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
         try await waitForKeyboardActionState {
@@ -334,7 +334,7 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
                 && app.playback.playbackViewModel?.feedback?.text
                     == "Shiori Already Saved"
         }
-        #expect(try database.shioriCount() == 2)
+        #expect(try shioriDatabase.shioriCount() == 2)
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 2)
         #expect(session.currentSnapshot?.selectedCue == secondCue)
         #expect(app.playback.playbackStatus == .paused)
@@ -468,6 +468,7 @@ func playbackOverlaySearchDoesNotCopyMarkdownCueLink() async throws {
 @Test
 func playbackPlaylistShioriItemReportsAlreadySavedWithoutCreatingAnotherRow() async throws {
     try await withKeyboardActionApp { app, database in
+        let shioriDatabase = try #require(app.shioriDatabase)
         let shiori = Shiori(
             id: 801,
             subtitlePath: "/subtitle/playlist-shiori.ass",
@@ -496,7 +497,7 @@ func playbackPlaylistShioriItemReportsAlreadySavedWithoutCreatingAnotherRow() as
             app.playback.playbackViewModel?.feedback?.text
                 == "Shiori Already Saved"
         )
-        #expect(try database.shioriCount() == 0)
+        #expect(try shioriDatabase.shioriCount() == 0)
         #expect(session.activeKeyboardAction == nil)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(window.selectedOrdinal == 0)

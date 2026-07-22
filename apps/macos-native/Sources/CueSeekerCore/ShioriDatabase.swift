@@ -164,6 +164,60 @@ public final class ShioriDatabase: @unchecked Sendable {
         return try statement.step() ? shiori(from: statement) : nil
     }
 
+    public func adjacentShiori(
+        to item: Shiori,
+        direction: ShioriNavigationDirection
+    ) throws -> Shiori? {
+        let orderingPredicate: String
+        let orderingClause: String
+        switch direction {
+        case .previous:
+            orderingPredicate = "(s.created_at > ? OR (s.created_at = ? AND s.id > ?))"
+            orderingClause = "ORDER BY s.created_at ASC, s.id ASC"
+        case .next:
+            orderingPredicate = "(s.created_at < ? OR (s.created_at = ? AND s.id < ?))"
+            orderingClause = "ORDER BY s.created_at DESC, s.id DESC"
+        }
+
+        let statement = try database.prepare(
+            """
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ? AND \(orderingPredicate)
+            \(orderingClause)
+            LIMIT 1;
+            """
+        )
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(item.createdAt, at: 2)
+        try statement.bind(item.createdAt, at: 3)
+        try statement.bind(item.id, at: 4)
+        return try statement.step() ? shiori(from: statement) : nil
+    }
+
+    public func shioris() throws -> [Shiori] {
+        let statement = try database.prepare(
+            """
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ?
+            ORDER BY sf.subtitle_path ASC, l.start_ms ASC, l.end_ms ASC, s.id ASC;
+            """
+        )
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        var shioris: [Shiori] = []
+        while try statement.step() {
+            shioris.append(shiori(from: statement))
+        }
+        return shioris
+    }
+
+    public func shioriCount() throws -> Int {
+        let statement = try database.prepare(
+            "SELECT COUNT(*) FROM shioris WHERE list_id = ?;"
+        )
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        return try statement.step() ? statement.intColumn(0) : 0
+    }
+
     public func shioriTags() throws -> [ShioriTag] {
         let statement = try database.prepare(
             """

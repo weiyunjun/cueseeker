@@ -3792,7 +3792,7 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
     #expect(shiori.isValid)
     #expect(shiori.createdAt == ISO8601DateFormatter().string(from: createdAt))
     #expect(duplicate.createdAt == shiori.createdAt)
-    #expect(try database.shioris().count == 1)
+    #expect(try ShioriDatabase(path: database.path).shioris().count == 1)
 }
 
 @Test
@@ -4142,7 +4142,7 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
     #expect(top.cueIdentity == topSelection.cueIdentity)
     #expect(bottom.cueIdentity == bottomSelection.cueIdentity)
     #expect(duplicateBottom.createdAt == bottom.createdAt)
-    #expect(try database.shioriCount() == 2)
+    #expect(try ShioriDatabase(path: database.path).shioriCount() == 2)
     #expect(try ShioriDatabase(path: database.path).removeShiori(id: bottom.id))
     #expect(try ShioriDatabase(path: database.path).shiori(id: top.id) != nil)
     #expect(try ShioriDatabase(path: database.path).shiori(id: bottom.id) == nil)
@@ -4248,10 +4248,10 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
     let old = try #require(allShioris.first { $0.content == "Old saved cue." })
 
     #expect(try ShioriDatabase(path: database.path).shiori(id: middle.id)?.content == "Middle saved cue.")
-    #expect(try database.adjacentShiori(to: middle, direction: .previous)?.id == newest.id)
-    #expect(try database.adjacentShiori(to: middle, direction: .next)?.id == old.id)
-    #expect(try database.adjacentShiori(to: newest, direction: .previous) == nil)
-    #expect(try database.adjacentShiori(to: old, direction: .next) == nil)
+    #expect(try ShioriDatabase(path: database.path).adjacentShiori(to: middle, direction: .previous)?.id == newest.id)
+    #expect(try ShioriDatabase(path: database.path).adjacentShiori(to: middle, direction: .next)?.id == old.id)
+    #expect(try ShioriDatabase(path: database.path).adjacentShiori(to: newest, direction: .previous) == nil)
+    #expect(try ShioriDatabase(path: database.path).adjacentShiori(to: old, direction: .next) == nil)
 }
 
 @Test
@@ -4959,7 +4959,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
     try database.removeIndexedFolder(folder)
 
     #expect(try database.search("Shiori").isEmpty)
-    #expect(try database.shioris().isEmpty)
+    #expect(try ShioriDatabase(path: database.path).shioris().isEmpty)
     #expect(try ShioriDatabase(path: database.path).shioriRelations().isEmpty)
 }
 

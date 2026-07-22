@@ -610,7 +610,7 @@ extension AppCoordinator {
             return index
         }
 
-        if let database = subtitleDatabase {
+        if let database = shioriDatabase {
             do {
                 shioriPlaybackNavigationSnapshot = (
                     currentID: selectedID,

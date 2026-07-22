@@ -26,6 +26,7 @@ func removeShioriDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let database = try #require(app.subtitleDatabase)
+    let shioriDatabase = try #require(app.shioriDatabase)
     let first = try makeShiori(
         in: database,
         id: 1,
@@ -37,12 +38,12 @@ func removeShioriDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
         content: "second saved cue"
     )
 
-    #expect(try database.shioriCount() == 2)
+    #expect(try shioriDatabase.shioriCount() == 2)
     #expect(app.shiori.residentRelations.isEmpty)
 
     #expect(app.removeShiori(first, reloadPresentation: true))
 
-    #expect(try database.shioriCount() == 1)
+    #expect(try shioriDatabase.shioriCount() == 1)
     #expect(app.shiori.residentRelations.isEmpty)
     #expect(!app.shiori.tableHasLoadedInitialPage)
 }

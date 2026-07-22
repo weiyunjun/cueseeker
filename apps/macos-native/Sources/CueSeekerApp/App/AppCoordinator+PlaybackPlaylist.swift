@@ -277,7 +277,7 @@ extension AppCoordinator {
             if shiori.residentDataRevision != nil {
                 shiori.residentRelations.count
             } else {
-                (try? subtitleDatabase?.shioriCount()) ?? 0
+                (try? shioriDatabase?.shioriCount()) ?? 0
             }
         case .table(let context):
             min(

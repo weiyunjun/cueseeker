@@ -3406,18 +3406,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
 
-    private static let resolvedShioriSelectSQL = """
-        SELECT s.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-               l.start_ms, l.end_ms, l.event_index, l.display_order,
-               l.content, 1, s.created_at
-        FROM shioris s
-        JOIN subtitle_cue_lines l ON l.id = s.cue_id
-        JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-        JOIN subtitle_video_matches m
-          ON m.subtitle_file_id = sf.id AND m.is_active = 1
-        JOIN video_files vf ON vf.id = m.video_file_id
-        """
-
     public func shioriResidentSnapshot(
         listID: Int64 = ShioriListIdentity.defaultListID
     ) throws -> ShioriResidentSnapshot {
@@ -3438,77 +3426,11 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    public func adjacentShiori(
-        to item: Shiori,
-        direction: ShioriNavigationDirection
-    ) throws -> Shiori? {
-        let orderingPredicate: String
-        let orderingClause: String
-        switch direction {
-        case .previous:
-            orderingPredicate = "(s.created_at > ? OR (s.created_at = ? AND s.id > ?))"
-            orderingClause = "ORDER BY s.created_at ASC, s.id ASC"
-        case .next:
-            orderingPredicate = "(s.created_at < ? OR (s.created_at = ? AND s.id < ?))"
-            orderingClause = "ORDER BY s.created_at DESC, s.id DESC"
-        }
-
-        let statement = try database.prepare(
-            """
-            \(Self.resolvedShioriSelectSQL)
-            WHERE s.list_id = ? AND \(orderingPredicate)
-            \(orderingClause)
-            LIMIT 1;
-            """
-        )
-
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
-        try statement.bind(item.createdAt, at: 2)
-        try statement.bind(item.createdAt, at: 3)
-        try statement.bind(item.id, at: 4)
-
-        guard try statement.step() else {
-            return nil
-        }
-
-        return shiori(from: statement)
-    }
-
-    public func shioris() throws -> [Shiori] {
-        let statement = try database.prepare(
-            """
-            \(Self.resolvedShioriSelectSQL)
-            WHERE s.list_id = ?
-            ORDER BY sf.subtitle_path ASC, l.start_ms ASC, l.end_ms ASC, s.id ASC;
-            """
-        )
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
-
-        var shioris: [Shiori] = []
-        while try statement.step() {
-            shioris.append(shiori(from: statement))
-        }
-        return shioris
-    }
-
-    public func shioriCount() throws -> Int {
-        let statement = try database.prepare(
-            """
-            SELECT COUNT(*)
-            FROM shioris
-            WHERE list_id = ?;
-            """
-        )
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
-
-        guard try statement.step() else {
-            return 0
-        }
-        return statement.intColumn(0)
-    }
-
     public func shioriPage(limit: Int, offset: Int) throws -> ShioriPage {
-        let totalCount = try shioriCount()
+        let totalCount = try ShioriDatabase(
+            path: path,
+            access: .readOnly
+        ).shioriCount()
         let safeLimit = max(0, limit)
         let safeOffset = max(0, offset)
         guard safeLimit > 0, safeOffset < totalCount else {
