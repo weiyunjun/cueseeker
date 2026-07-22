@@ -54,7 +54,7 @@ public struct LibraryCoverDisplayRenditionIndexer: Sendable {
     @discardableResult
     public func backfillDisplayRenditions(
         under folders: [URL],
-        into database: SubtitleDatabase
+        into database: any LibraryCoverPersistence
     ) async throws -> LibraryCoverDisplayBackfillResult {
         let commitToken = configuration.commitToken
             ?? LibraryCoverDisplayRenditionCommitGate().beginGeneration()
@@ -129,7 +129,7 @@ public struct LibraryCoverDisplayRenditionIndexer: Sendable {
 
     private func generateAndCommitDisplayRenditions(
         for jobs: [GenerationJob],
-        into database: SubtitleDatabase,
+        into database: any LibraryCoverPersistence,
         commitToken: LibraryCoverDisplayRenditionCommitToken
     ) async throws -> CommitCounts {
         guard !jobs.isEmpty else {
@@ -176,7 +176,7 @@ public struct LibraryCoverDisplayRenditionIndexer: Sendable {
 
     private static func commit(
         _ result: GenerationResult,
-        into database: SubtitleDatabase,
+        into database: any LibraryCoverPersistence,
         commitToken: LibraryCoverDisplayRenditionCommitToken
     ) throws -> CommitCounts {
         guard let encodedRendition = result.encodedRendition,

@@ -8,7 +8,7 @@ public struct PlaybackVideoMetadataIndexer {
     @discardableResult
     public func indexDurations(
         under folder: URL,
-        into database: SubtitleDatabase
+        into database: any PlaybackVideoMetadataPersistence
     ) throws -> Int {
         let videos = try database.libraryVideos(under: [folder])
         var updatedVideoPaths = Set<String>()

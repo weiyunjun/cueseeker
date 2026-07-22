@@ -5276,14 +5276,15 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
         assRenderSegments: segments
     )
 
-    #expect(try database.hasASSRenderSegments(forSubtitleFile: subtitleFile))
-    let loadedSegment = try database.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 30_250)
+    let playback = try PlaybackSubtitleDatabase(path: databaseURL)
+    #expect(try playback.hasASSRenderSegments(forSubtitleFile: subtitleFile))
+    let loadedSegment = try playback.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 30_250)
     let segment = try #require(loadedSegment)
     #expect(segment.startMilliseconds == 30_000)
     #expect(segment.endMilliseconds == 60_000)
     #expect(segment.eventCount == 1)
     #expect(segment.scriptText.contains("Dialogue:"))
-    #expect(try database.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 60_000) == nil)
+    #expect(try playback.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 60_000) == nil)
 }
 
 @Test
@@ -5321,8 +5322,9 @@ func storesAndLoadsASSFontReferences() throws {
         assFontReferences: references
     )
 
-    #expect(try database.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile))
-    #expect(try database.assFontReferences(forSubtitleFile: subtitleFile) == [
+    let playback = try PlaybackSubtitleDatabase(path: databaseURL)
+    #expect(try playback.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile))
+    #expect(try playback.assFontReferences(forSubtitleFile: subtitleFile) == [
         ASSFontReference(
             subtitlePath: subtitleFile.path,
             fontName: "华文中宋",
@@ -5376,7 +5378,8 @@ func storesAndLoadsASSFontResourceManifest() throws {
         resourceSignature: "signature-v1"
     )
 
-    let loadedManifest = try database.assFontResourceManifest(
+    let playback = try PlaybackSubtitleDatabase(path: databaseURL)
+    let loadedManifest = try playback.assFontResourceManifest(
         forSubtitleFile: subtitleFile,
         videoFile: videoFile
     )
@@ -5398,7 +5401,7 @@ func storesAndLoadsASSFontResourceManifest() throws {
         errorMessage: nil
     )
 
-    let updatedManifest = try #require(try database.assFontResourceManifest(
+    let updatedManifest = try #require(try playback.assFontResourceManifest(
         forSubtitleFile: subtitleFile,
         videoFile: videoFile
     ))
@@ -6639,7 +6642,8 @@ func storesASSPrimaryStylePlaybackFinishMetadata() throws {
         ]
     )
 
-    let metadata = try #require(try database.playbackFinishMetadata(forSubtitleFile: subtitleFile))
+    let playback = try PlaybackSubtitleDatabase(path: databaseURL)
+    let metadata = try #require(try playback.playbackFinishMetadata(forSubtitleFile: subtitleFile))
     #expect(metadata.primaryStyles == ["MainCN", "MainJP"])
     #expect(metadata.primaryStyleLastEndMilliseconds == 93_000)
     #expect(metadata.lastSubtitleEndMilliseconds == 99_000)
@@ -6692,7 +6696,8 @@ func returnsCueTimingsForWindowedASSPreparation() throws {
         ]
     )
 
-    let timings = try database.cueTimings(
+    let playback = try PlaybackSubtitleDatabase(path: databaseURL)
+    let timings = try playback.cueTimings(
         forSubtitleFile: subtitleFile,
         startingAtMilliseconds: 2_000,
         limit: 2

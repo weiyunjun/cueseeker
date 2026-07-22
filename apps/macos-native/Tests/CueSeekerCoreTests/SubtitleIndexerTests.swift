@@ -522,13 +522,14 @@ func indexesASSFontReferencesAndSkipsUnchangedAfterManifest() throws {
     let initialResult = try indexer.index(folder: fixture.root, into: database)
     let indexedSubtitlePath = try #require(try database.subtitleFiles().first?.subtitlePath)
     let indexedSubtitleURL = URL(fileURLWithPath: indexedSubtitlePath)
-    let references = try database.assFontReferences(forSubtitleFile: indexedSubtitleURL)
+    let playback = try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+    let references = try playback.assFontReferences(forSubtitleFile: indexedSubtitleURL)
     let unchangedResult = try indexer.index(folder: fixture.root, into: database)
 
     #expect(initialResult.indexedSubtitleFiles == 1)
     #expect(references.map(\.fontName) == ["华文中宋", "EPSON 太明朝体Ｂ", "汉仪小隶书简"])
     #expect(references.map(\.source) == [.style, .style, .inlineOverride])
-    #expect(try database.hasCurrentASSFontReferenceManifest(forSubtitleFile: indexedSubtitleURL))
+    #expect(try playback.hasCurrentASSFontReferenceManifest(forSubtitleFile: indexedSubtitleURL))
     #expect(unchangedResult.indexedSubtitleFiles == 0)
     #expect(unchangedResult.skippedUnchangedSubtitleFiles == 1)
 }

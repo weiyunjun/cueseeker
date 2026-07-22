@@ -75,6 +75,21 @@ and remove the old God Object without a permanent forwarding facade.
   repository.
 - Reduced `SubtitleDatabase.swift` further to 8,871 lines.
 
+### 6. Playback Subtitle Data Boundary
+
+- Added read-only-by-default `PlaybackSubtitleDatabase` for Cue timing,
+  playback finish metadata, ASS render segments, ASS font references, and the
+  remaining font-resource manifest read.
+- Updated App playback preparation and Library completion tracking to use the
+  focused playback repository.
+- Updated subtitle indexing cache validation to query playback-derived data
+  through the focused repository instead of retaining those reads on the God
+  Object.
+- Removed concrete `SubtitleDatabase` dependencies from `CueSeekerPlayback`.
+  Cover and video-metadata indexers now accept minimal Sendable persistence
+  protocols declared by the owning Library domain.
+- Reduced `SubtitleDatabase.swift` further to 8,614 lines.
+
 ## Verification
 
 ### Step 1
@@ -124,9 +139,18 @@ and remove the old God Object without a permanent forwarding facade.
 - Ran eight focused AI cache, maintenance, App startup, and settings migration
   tests; all passed.
 
+### Step 6
+
+- Built every package product after extracting playback reads and protocol
+  boundaries.
+- Ran 27 focused Playback subtitle, ASS, Indexer, font-intent, and Library cover
+  tests; all passed.
+- Confirmed the `CueSeekerPlayback` target contains no concrete
+  `SubtitleDatabase` type reference.
+
 ## Outcome
 
-Steps 1 through 5 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 6 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

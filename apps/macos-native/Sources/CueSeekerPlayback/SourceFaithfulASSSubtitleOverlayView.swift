@@ -339,10 +339,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             return nil
         }
 
-        let database = try SubtitleDatabase(
-            path: renderCacheDatabaseURL,
-            access: .readOnly
-        )
+        let database = try PlaybackSubtitleDatabase(path: renderCacheDatabaseURL)
         return try database.assRenderSegment(
             forSubtitleFile: URL(fileURLWithPath: sourcePath),
             atMilliseconds: timestampMilliseconds

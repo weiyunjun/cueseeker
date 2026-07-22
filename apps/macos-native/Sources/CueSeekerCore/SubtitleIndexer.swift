@@ -32,6 +32,7 @@ public struct SubtitleIndexer {
 
     public func index(folder: URL, into database: SubtitleDatabase) throws -> SubtitleIndexingResult {
         _ = try database.addSearchPath(folder)
+        let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
 
         var result = SubtitleIndexingResult()
         let subtitleFiles = scanner.scanSubtitleFiles(in: folder)
@@ -59,6 +60,7 @@ public struct SubtitleIndexer {
                     videoFile: videoFile,
                     subtitleFile: subtitleFile,
                     database: database,
+                    playbackDatabase: playbackDatabase,
                     fileSize: fileSize,
                     modifiedAt: modifiedAt
                )
@@ -129,6 +131,7 @@ public struct SubtitleIndexer {
         videoFile: URL,
         subtitleFile: URL,
         database: SubtitleDatabase,
+        playbackDatabase: PlaybackSubtitleDatabase,
         fileSize: Int64?,
         modifiedAt: Date?
     ) throws -> Bool {
@@ -149,17 +152,17 @@ public struct SubtitleIndexer {
             return false
         }
 
-        guard try database.hasCurrentPlaybackFinishMetadata(forSubtitleFile: subtitleFile) else {
+        guard try playbackDatabase.hasCurrentPlaybackFinishMetadata(forSubtitleFile: subtitleFile) else {
             return false
         }
 
         if metadata.subtitleFormat == .ass,
-           try !database.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) {
+           try !playbackDatabase.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) {
             return false
         }
 
         if ASSRenderSegmenter.shouldSegment(format: metadata.subtitleFormat, fileSize: fileSize) {
-            return try database.hasASSRenderSegments(forSubtitleFile: subtitleFile)
+            return try playbackDatabase.hasASSRenderSegments(forSubtitleFile: subtitleFile)
         }
 
         return true

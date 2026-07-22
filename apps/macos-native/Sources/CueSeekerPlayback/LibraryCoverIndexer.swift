@@ -95,7 +95,7 @@ public struct LibraryCoverIndexer: Sendable {
     @discardableResult
     public func indexCovers(
         under folder: URL,
-        into database: SubtitleDatabase
+        into database: any LibraryCoverPersistence
     ) async throws -> LibraryCoverIndexingResult {
         let startedAt = Date()
         let videos = try database.libraryCoverEligibleVideos(under: [folder])
@@ -469,7 +469,7 @@ public struct LibraryCoverIndexer: Sendable {
 
     private func refreshFolderCoverReferences(
         for videos: [LibraryCoverEligibleVideo],
-        in database: SubtitleDatabase
+        in database: any LibraryCoverPersistence
     ) throws {
         let folderPaths = Set(videos.map(\.folderPath))
         var firstGeneratedCoverByFolder: [String: (video: LibraryCoverEligibleVideo, cover: LibraryVideoCover)] = [:]

@@ -1337,11 +1337,12 @@ extension AppCoordinator {
             endMilliseconds: fallbackEndMilliseconds
         )
 
-        guard let database = subtitleDatabase else {
+        guard subtitleDatabase != nil else {
             return fallback
         }
 
         do {
+            let database = try PlaybackSubtitleDatabase(path: databaseURL)
             let timings = try database.cueTimings(
                 forSubtitleFile: subtitleFile,
                 startingAtMilliseconds: startMilliseconds,

@@ -1302,8 +1302,9 @@ extension AppCoordinator {
             )
         }
         let videoFile = URL(fileURLWithPath: videoPath)
-        if let subtitleDatabase {
-            libraryPlaybackFinishMetadata = try? subtitleDatabase.playbackFinishMetadata(forVideoFile: videoFile)
+        if subtitleDatabase != nil {
+            libraryPlaybackFinishMetadata = try? PlaybackSubtitleDatabase(path: databaseURL)
+                .playbackFinishMetadata(forVideoFile: videoFile)
         } else {
             libraryPlaybackFinishMetadata = nil
         }
