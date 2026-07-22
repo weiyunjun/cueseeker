@@ -81,7 +81,7 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
     defer { fixture.cleanUp() }
 
     try DatabaseBootstrap.prepare(at: fixture.databaseURL)
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     _ = try database.addSearchPath(fixture.folder)
     try database.replaceEntries(
         subtitleFile: fixture.folder.appendingPathComponent("Episode.srt"),
@@ -121,7 +121,7 @@ func libraryFolderRemovalClearsResidentShioriAndCanonicalCueContent() async thro
     defer { fixture.cleanUp() }
 
     try DatabaseBootstrap.prepare(at: fixture.databaseURL)
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     _ = try database.addSearchPath(fixture.folder)
     let subtitleFile = fixture.folder.appendingPathComponent("Saved Episode.srt")
     let videoFile = fixture.folder.appendingPathComponent("Saved Episode.mkv")
@@ -245,7 +245,7 @@ func indexedCueMutationFailureRecoveryReloadsPrunedResidentSearch() async throws
     defer { fixture.cleanUp() }
 
     try DatabaseBootstrap.prepare(at: fixture.databaseURL)
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     _ = try database.addSearchPath(fixture.folder)
     try database.replaceEntries(
         subtitleFile: fixture.folder.appendingPathComponent("Episode.srt"),

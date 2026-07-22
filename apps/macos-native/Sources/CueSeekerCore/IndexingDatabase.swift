@@ -1,6 +1,6 @@
 import Foundation
 
-public final class SubtitleDatabase: @unchecked Sendable {
+public final class IndexingDatabase: @unchecked Sendable {
     let path: URL
     private let database: SQLiteDatabase
 
@@ -27,16 +27,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds
         )
-    }
-
-
-    public func schemaVersion() throws -> Int {
-        let statement = try database.prepare("PRAGMA user_version")
-        guard try statement.step() else {
-            return 0
-        }
-
-        return statement.intColumn(0)
     }
 
     @discardableResult
@@ -119,8 +109,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         assRenderSegments: [ASSRenderSegmentPayload] = [],
         assFontReferences: [ASSFontReferenceIntent] = [],
         fileSize: Int64? = nil,
-        modifiedAt: Date? = nil,
-        rebuildSearchDerivedIndex: Bool = true
+        modifiedAt: Date? = nil
     ) throws {
         try replaceCueGroupsPersistingLanguageAnalysis(
             subtitleFile: subtitleFile,
@@ -131,8 +120,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             assFontReferences: assFontReferences,
             fileSize: fileSize,
             modifiedAt: modifiedAt,
-            languageAnalysis: nil,
-            rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
+            languageAnalysis: nil
         )
     }
 
@@ -145,8 +133,31 @@ public final class SubtitleDatabase: @unchecked Sendable {
         assFontReferences: [ASSFontReferenceIntent] = [],
         fileSize: Int64? = nil,
         modifiedAt: Date? = nil,
-        languageAnalysis: SubtitleLanguageAnalysis,
-        rebuildSearchDerivedIndex: Bool = true
+        languageAnalysis: SubtitleLanguageAnalysis
+    ) throws {
+        try replaceCueGroupsPersistingLanguageAnalysis(
+            subtitleFile: subtitleFile,
+            videoFile: videoFile,
+            format: format,
+            cueGroups: cueGroups,
+            assRenderSegments: assRenderSegments,
+            assFontReferences: assFontReferences,
+            fileSize: fileSize,
+            modifiedAt: modifiedAt,
+            languageAnalysis: languageAnalysis
+        )
+    }
+
+    func replaceCueGroupsForIndexingBatch(
+        subtitleFile: URL,
+        videoFile: URL,
+        format: SubtitleFormat,
+        cueGroups: [SubtitleCueGroup],
+        assRenderSegments: [ASSRenderSegmentPayload],
+        assFontReferences: [ASSFontReferenceIntent],
+        fileSize: Int64?,
+        modifiedAt: Date?,
+        languageAnalysis: SubtitleLanguageAnalysis
     ) throws {
         try replaceCueGroupsPersistingLanguageAnalysis(
             subtitleFile: subtitleFile,
@@ -158,7 +169,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             fileSize: fileSize,
             modifiedAt: modifiedAt,
             languageAnalysis: languageAnalysis,
-            rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
+            rebuildSearchDerivedIndex: false
         )
     }
 
@@ -279,150 +290,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
             try deleteOrphanedVideoFiles()
         }
-    }
-
-    public func entries(forSubtitleFile subtitleFile: URL) throws -> [SubtitleDatabaseEntry] {
-        try entries(forSubtitleFile: subtitleFile, limit: Int.max, offset: 0)
-    }
-
-    public func subtitleEntryIndex(
-        forSubtitleFile subtitleFile: URL
-    ) throws -> [SubtitleDatabaseEntryIndexItem] {
-        let statement = try database.prepare(
-            """
-            SELECT g.id, g.start_ms, g.end_ms
-            FROM subtitle_cue_groups g
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY g.start_ms ASC, g.id ASC;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-
-        var index: [SubtitleDatabaseEntryIndexItem] = []
-        while try statement.step() {
-            index.append(
-                SubtitleDatabaseEntryIndexItem(
-                    id: statement.int64Column(0),
-                    startMilliseconds: statement.intColumn(1),
-                    endMilliseconds: statement.intColumn(2)
-                )
-            )
-        }
-
-        return index
-    }
-
-    public func entries(
-        forSubtitleFile subtitleFile: URL,
-        limit: Int,
-        offset: Int
-    ) throws -> [SubtitleDatabaseEntry] {
-        let requestedLimit = max(0, limit)
-        guard requestedLimit > 0 else {
-            return []
-        }
-
-        let statement = try database.prepare(
-            """
-            SELECT g.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.seq, g.start_time, g.end_time, g.start_ms, g.end_ms, g.search_content
-            FROM subtitle_cue_groups g
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY g.start_ms ASC, g.id ASC
-            LIMIT ? OFFSET ?;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.bind(requestedLimit, at: 2)
-        try statement.bind(max(0, offset), at: 3)
-
-        var entries: [SubtitleDatabaseEntry] = []
-        while try statement.step() {
-            entries.append(entry(from: statement))
-        }
-
-        return entries
-    }
-
-    public func cueLineRecords(forSubtitleFile subtitleFile: URL) throws -> [SubtitleCueLineRecord] {
-        let statement = try database.prepare(
-            """
-            SELECT l.id, l.cue_group_id, l.event_index, l.source_format,
-                   l.source_style, l.source_layer, l.start_time, l.end_time,
-                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
-                   l.display_order
-            FROM subtitle_cue_lines l
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY g.start_ms ASC, g.id ASC, l.display_order ASC, l.event_index ASC, l.id ASC;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-
-        var records: [SubtitleCueLineRecord] = []
-        while try statement.step() {
-            records.append(cueLineRecord(from: statement))
-        }
-        return records
-    }
-
-    public func speakersByCueLineID(
-        forSubtitleFile subtitleFile: URL
-    ) throws -> [Int64: Set<String>] {
-        let statement = try database.prepare(
-            """
-            SELECT l.id, s.speaker
-            FROM subtitle_cue_line_speakers s
-            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY l.id ASC, s.speaker_key ASC;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-
-        var speakersByCueLineID: [Int64: Set<String>] = [:]
-        while try statement.step() {
-            speakersByCueLineID[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
-        }
-        return speakersByCueLineID
-    }
-
-    public func speakersByCueGroupID(
-        forSubtitleFile subtitleFile: URL
-    ) throws -> [Int64: Set<String>] {
-        let statement = try database.prepare(
-            """
-            SELECT g.id, s.speaker
-            FROM subtitle_cue_line_speakers s
-            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-            GROUP BY g.id, s.speaker_key, s.speaker
-            ORDER BY g.id ASC, s.speaker_key ASC;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-
-        var speakersByCueGroupID: [Int64: Set<String>] = [:]
-        while try statement.step() {
-            speakersByCueGroupID[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
-        }
-        return speakersByCueGroupID
     }
 
     public func replaceCueLineSpeakers(
@@ -652,56 +519,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
     }
 
 
-    public func upsertASSFontResourceManifest(
-        subtitleFile: URL,
-        videoFile: URL,
-        status: ASSFontResourceStatus,
-        fontsDirectory: URL?,
-        resourceSignature: String,
-        errorMessage: String? = nil
-    ) throws {
-        let subtitleFileID = try requireSubtitleFileID(for: subtitleFile)
-        let videoFileID = try requireVideoFileID(for: videoFile)
-        let statement = try database.prepare(
-            """
-            INSERT INTO ass_font_resources(
-                subtitle_file_id,
-                video_file_id,
-                status,
-                fonts_directory,
-                resource_signature,
-                error_message,
-                prepared_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(subtitle_file_id) DO UPDATE SET
-                video_file_id = excluded.video_file_id,
-                status = excluded.status,
-                fonts_directory = excluded.fonts_directory,
-                resource_signature = excluded.resource_signature,
-                error_message = excluded.error_message,
-                prepared_at = excluded.prepared_at;
-            """
-        )
-
-        try statement.bind(subtitleFileID, at: 1)
-        try statement.bind(videoFileID, at: 2)
-        try statement.bind(status.rawValue, at: 3)
-        if let fontsDirectory {
-            try statement.bind(fontsDirectory.path, at: 4)
-        } else {
-            try statement.bindNull(at: 4)
-        }
-        try statement.bind(resourceSignature, at: 5)
-        if let errorMessage {
-            try statement.bind(errorMessage, at: 6)
-        } else {
-            try statement.bindNull(at: 6)
-        }
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 7)
-        try statement.run()
-    }
-
     public func subtitleFiles() throws -> [SubtitleFileMetadata] {
         let statement = try database.prepare(
             """
@@ -758,13 +575,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
-    public func rebuildSearchDerivedIndex() throws {
-        try database.withImmediateTransaction {
-            try rebuildSearchDerivedIndexInCurrentTransaction()
-        }
-    }
-
-    public func clearIndexedContent() throws {
+    private func clearIndexedContent() throws {
         try database.withImmediateTransaction {
             try database.execute("DELETE FROM library_video_rows;")
             try database.execute("DELETE FROM subtitle_search_order_rows;")
@@ -1472,43 +1283,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         try statement.bind(subtitleFileID, at: 1)
         try statement.bind(videoFileID, at: 2)
         try statement.run()
-    }
-
-    private func requireSubtitleFileID(for subtitleFile: URL) throws -> Int64 {
-        let statement = try database.prepare(
-            """
-            SELECT id
-            FROM subtitle_files
-            WHERE subtitle_path = ?;
-            """
-        )
-        try statement.bind(subtitleFile.path, at: 1)
-
-        guard try statement.step() else {
-            throw SQLiteDatabaseError.stepFailed("Subtitle file is not indexed: \(subtitleFile.path)")
-        }
-
-        return statement.int64Column(0)
-    }
-
-    private func requireVideoFileID(for videoFile: URL) throws -> Int64 {
-        guard let videoFileID = try videoFileID(for: videoFile) else {
-            throw SQLiteDatabaseError.stepFailed("Video file is not indexed: \(videoFile.path)")
-        }
-        return videoFileID
-    }
-
-    private func videoFileID(for videoFile: URL) throws -> Int64? {
-        let statement = try database.prepare(
-            """
-            SELECT id
-            FROM video_files
-            WHERE path = ?;
-            """
-        )
-        try statement.bind(videoFile.path, at: 1)
-
-        return try statement.step() ? statement.int64Column(0) : nil
     }
 
     private func cueLineSpeakersByStableKey(forSubtitlePath subtitlePath: String) throws -> [CueLineStableKey: Set<String>] {
@@ -2507,49 +2281,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
         )
     }
-
-    private func entry(from statement: SQLiteStatement) -> SubtitleDatabaseEntry {
-        SubtitleDatabaseEntry(
-            id: statement.int64Column(0),
-            subtitlePath: statement.stringColumn(1),
-            subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
-            videoPath: statement.stringColumn(3),
-            videoName: statement.stringColumn(4),
-            sequenceNumber: statement.nullableIntColumn(5),
-            startTimecode: statement.stringColumn(6),
-            endTimecode: statement.stringColumn(7),
-            startMilliseconds: statement.intColumn(8),
-            endMilliseconds: statement.intColumn(9),
-            content: statement.stringColumn(10)
-        )
-    }
-
-
-    private func cueLineRecord(
-        from statement: SQLiteStatement,
-        startingAt columnOffset: Int32 = 0
-    ) -> SubtitleCueLineRecord {
-        SubtitleCueLineRecord(
-            id: statement.int64Column(columnOffset),
-            cueGroupID: statement.int64Column(columnOffset + 1),
-            line: SubtitleCueLine(
-                eventIndex: statement.intColumn(columnOffset + 2),
-                sourceFormat: SubtitleFormat(rawValue: statement.stringColumn(columnOffset + 3)) ?? .srt,
-                sourceStyle: statement.nullableStringColumn(columnOffset + 4),
-                sourceLayer: statement.nullableIntColumn(columnOffset + 5),
-                startTimecode: statement.stringColumn(columnOffset + 6),
-                endTimecode: statement.stringColumn(columnOffset + 7),
-                startMilliseconds: statement.intColumn(columnOffset + 8),
-                endMilliseconds: statement.intColumn(columnOffset + 9),
-                content: statement.stringColumn(columnOffset + 10),
-                displayX: statement.nullableDoubleColumn(columnOffset + 11),
-                displayY: statement.nullableDoubleColumn(columnOffset + 12),
-                displayOrder: statement.intColumn(columnOffset + 13)
-            )
-        )
-    }
-
-
 
     private func bindStaleEntryParameters(
         statement: SQLiteStatement,

@@ -32,7 +32,7 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     try database.replaceEntries(
         subtitleFile: fixtureRoot.appendingPathComponent("Episode.srt"),
         videoFile: fixtureRoot.appendingPathComponent("Episode.mkv"),
@@ -131,7 +131,7 @@ func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throw
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     let videoURL = fixtureRoot.appendingPathComponent("Episode.mkv")
     try database.replaceEntries(
         subtitleFile: fixtureRoot.appendingPathComponent("Episode.srt"),
@@ -293,7 +293,7 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     let seedSubtitleFile = fixtureRoot.appendingPathComponent("Seed.ass")
     let seedVideoFile = fixtureRoot.appendingPathComponent("Seed.mkv")
     let seedGroup = SubtitleCueGroup(
@@ -388,7 +388,7 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
     )
     app.indexing.selectedFolders = [fixtureRoot]
 
-    let cues = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cues = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let upperCue = try #require(cues.first { $0.line.eventIndex == 10 })
     let lowerCue = try #require(cues.first { $0.line.eventIndex == 11 })
     #expect(upperCue.cueGroupID == lowerCue.cueGroupID)
@@ -605,7 +605,7 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     let subtitleFile = fixtureRoot.appendingPathComponent("Episode.srt")
     let videoFile = fixtureRoot.appendingPathComponent("Episode.mkv")
     try database.replaceEntries(
@@ -735,7 +735,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     let subtitleFile = fixtureRoot.appendingPathComponent("Episode.srt")
     let videoFile = fixtureRoot.appendingPathComponent("Episode.mkv")
     try database.replaceEntries(
@@ -1050,7 +1050,7 @@ private func makeSearchResults() throws -> [SubtitleSearchResult] {
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Episode.srt"),
         videoFile: URL(fileURLWithPath: "/Media/Episode.mkv"),

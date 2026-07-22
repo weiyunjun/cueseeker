@@ -49,9 +49,8 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try SubtitleDatabase(path: databaseURL)
 
-    #expect(try database.schemaVersion() == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
 }
 
 @Test
@@ -62,13 +61,13 @@ func currentSchemaValidationDoesNotMutateStoredData() throws {
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     let folder = URL(fileURLWithPath: "/Media/Current Schema")
     _ = try database.addSearchPath(folder)
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try database.schemaVersion() == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     #expect(try sqliteRowCount(in: "search_paths", databaseURL: databaseURL) == 1)
 }
 
@@ -90,7 +89,7 @@ func readOnlyConnectionDoesNotCreateMissingDatabase() throws {
     }
 
     #expect(throws: (any Error).self) {
-        _ = try SubtitleDatabase(path: databaseURL, access: .readOnly)
+        _ = try IndexingDatabase(path: databaseURL, access: .readOnly)
     }
     #expect(!FileManager.default.fileExists(atPath: databaseURL.path))
 }
@@ -103,7 +102,7 @@ func readOnlyConnectionRejectsWrites() throws {
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try SubtitleDatabase(path: databaseURL, access: .readOnly)
+    let database = try IndexingDatabase(path: databaseURL, access: .readOnly)
 
     #expect(throws: SQLiteDatabaseError.self) {
         _ = try database.addSearchPath(URL(fileURLWithPath: "/Media/Read Only"))
@@ -169,7 +168,7 @@ func indexedMediaStoresLibraryIDAndRelativePaths() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     let libraryID = try database.addSearchPath(libraryFolder)
     let subtitleFile = libraryFolder
@@ -223,7 +222,7 @@ func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     _ = try database.addSearchPath(libraryFolder)
     let subtitleFile = libraryFolder.appendingPathComponent("Episode.srt")
@@ -316,7 +315,7 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
     }
 
     let searchTask = Task.detached { () throws -> SubtitleSearchPage in
-        let database = try SubtitleDatabase(path: databaseURL)
+        let database = try IndexingDatabase(path: databaseURL)
         try DatabaseBootstrap.prepare(at: databaseURL)
         withUnsafeCurrentTask { task in
             task?.cancel()
@@ -335,7 +334,7 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
     }
 
     let allCueTask = Task.detached { () throws -> SubtitleSearchPage in
-        let database = try SubtitleDatabase(path: databaseURL)
+        let database = try IndexingDatabase(path: databaseURL)
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
@@ -359,7 +358,7 @@ func recentLibraryWatchingRejectsPreCancelledTasks() async throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let recentTask = Task.detached { () throws -> [RecentLibraryWatchingPresentation] in
-        let database = try SubtitleDatabase(path: databaseURL)
+        let database = try IndexingDatabase(path: databaseURL)
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
@@ -387,7 +386,7 @@ func completeLibraryReadersRejectPreCancelledTasks() async throws {
 
     let summariesTask = Task.detached {
         () throws -> [CompleteLibraryFolderSummaryPresentation] in
-        let database = try SubtitleDatabase(path: databaseURL)
+        let database = try IndexingDatabase(path: databaseURL)
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
@@ -404,7 +403,7 @@ func completeLibraryReadersRejectPreCancelledTasks() async throws {
 
     let detailTask = Task.detached {
         () throws -> CompleteLibraryFolderDetailPresentation? in
-        let database = try SubtitleDatabase(path: databaseURL)
+        let database = try IndexingDatabase(path: databaseURL)
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
@@ -427,7 +426,7 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerTest.srt")
@@ -469,7 +468,7 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
             )
         ]
     )
-    let cueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueLines = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let secondCueLine = try #require(cueLines.first { $0.line.content == "second cue" })
     try database.replaceCueLineSpeakers(
         forSubtitleFile: subtitleFile,
@@ -521,7 +520,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/AllCues.ass")
@@ -580,7 +579,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
         cueGroups: [cueGroup],
         languageAnalysis: analysis
     )
-    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     try database.replaceCueLineSpeakers(
         forSubtitleFile: subtitleFile,
         assignments: [
@@ -638,7 +637,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let contextSubtitleFile = URL(fileURLWithPath: "/Media/ContextRank.srt")
@@ -674,7 +673,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
         ]
     )
 
-    let contextCues = try database.cueLineRecords(forSubtitleFile: contextSubtitleFile)
+    let contextCues = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: contextSubtitleFile)
     let firstContextCue = try #require(contextCues.first)
     let thirdContextCue = try #require(contextCues.first { $0.line.content == "context cue 3" })
     let lastContextCue = try #require(contextCues.first { $0.line.content == "context cue 6" })
@@ -768,7 +767,7 @@ func cueContextSearchPageAnchorsExactSiblingCueInStableSourceOrder() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/ContextSiblings.ass")
@@ -820,7 +819,7 @@ func cueContextSearchPageAnchorsExactSiblingCueInStableSourceOrder() throws {
         format: .ass,
         cueGroups: [firstGroup, secondGroup]
     )
-    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let lowerSibling = try #require(cueRecords.first { $0.line.eventIndex == 11 })
 
     let page = try #require(try SearchDatabase(path: database.path).cueContextSearchPage(
@@ -857,7 +856,7 @@ func replacesCueLineSpeakersAsStringSets() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerSetTest.srt")
@@ -885,7 +884,7 @@ func replacesCueLineSpeakersAsStringSets() throws {
         ]
     )
 
-    let cueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueLines = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let firstCueLine = try #require(cueLines.first { $0.line.content == "first cue" })
     let secondCueLine = try #require(cueLines.first { $0.line.content == "second cue" })
 
@@ -903,11 +902,11 @@ func replacesCueLineSpeakersAsStringSets() throws {
         ]
     )
 
-    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile) == [
+    #expect(try PlaybackSubtitleDatabase(path: database.path).speakersByCueLineID(forSubtitleFile: subtitleFile) == [
         firstCueLine.id: ["高松灯", "疑似长崎素世"],
         secondCueLine.id: ["千早爱音"]
     ])
-    #expect(try database.speakersByCueGroupID(forSubtitleFile: subtitleFile) == [
+    #expect(try PlaybackSubtitleDatabase(path: database.path).speakersByCueGroupID(forSubtitleFile: subtitleFile) == [
         firstCueLine.cueGroupID: ["高松灯", "疑似长崎素世"],
         secondCueLine.cueGroupID: ["千早爱音"]
     ])
@@ -919,13 +918,13 @@ func replacesCueLineSpeakersAsStringSets() throws {
         ]
     )
 
-    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile) == [
+    #expect(try PlaybackSubtitleDatabase(path: database.path).speakersByCueLineID(forSubtitleFile: subtitleFile) == [
         secondCueLine.id: ["椎名立希"]
     ])
 
     try database.clearCueLineSpeakers(forSubtitleFile: subtitleFile)
 
-    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile).isEmpty)
+    #expect(try PlaybackSubtitleDatabase(path: database.path).speakersByCueLineID(forSubtitleFile: subtitleFile).isEmpty)
 }
 
 @Test
@@ -935,7 +934,7 @@ func preservesCueLineSpeakersWhenReplacingCueGroups() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerPreserve.srt")
@@ -960,7 +959,7 @@ func preservesCueLineSpeakersWhenReplacingCueGroups() throws {
     ]
     try database.replaceEntries(subtitleFile: subtitleFile, videoFile: videoFile, entries: entries)
 
-    let initialCueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let initialCueLines = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let initialSecondCueLine = try #require(initialCueLines.first { $0.line.content == "second cue" })
     try database.replaceCueLineSpeakers(
         forSubtitleFile: subtitleFile,
@@ -971,10 +970,10 @@ func preservesCueLineSpeakersWhenReplacingCueGroups() throws {
 
     try database.replaceEntries(subtitleFile: subtitleFile, videoFile: videoFile, entries: entries)
 
-    let rebuiltCueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let rebuiltCueLines = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let rebuiltSecondCueLine = try #require(rebuiltCueLines.first { $0.line.content == "second cue" })
     #expect(rebuiltSecondCueLine.id != initialSecondCueLine.id)
-    #expect(try database.speakersByCueLineID(forSubtitleFile: subtitleFile) == [
+    #expect(try PlaybackSubtitleDatabase(path: database.path).speakersByCueLineID(forSubtitleFile: subtitleFile) == [
         rebuiltSecondCueLine.id: ["高松灯"]
     ])
 }
@@ -988,7 +987,7 @@ func reportsStorageStatsAndCompactsFreelistPages() throws {
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Large.srt")
@@ -1009,7 +1008,7 @@ func reportsStorageStatsAndCompactsFreelistPages() throws {
         videoFile: videoFile,
         entries: entries
     )
-    try database.clearIndexedContent()
+    try database.reconcileIndexedContent(activeFolders: [])
 
     let maintenance = try DatabaseMaintenanceDatabase(path: databaseURL)
     let statsAfterClear = try maintenance.storageStats()
@@ -1034,7 +1033,7 @@ func upsertsSearchPathAndReturnsStableID() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/tmp/CueSeeker/Subtitles")
@@ -1195,7 +1194,7 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Movie.srt")
@@ -1225,7 +1224,7 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
         entries: entries
     )
 
-    let storedEntries = try database.entries(forSubtitleFile: subtitleFile)
+    let storedEntries = try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile)
     #expect(storedEntries.count == 2)
     #expect(storedEntries[0].content == "Hello world.")
     #expect(storedEntries[0].videoName == "Movie.mkv")
@@ -1244,7 +1243,7 @@ func searchFiltersByLibraryWatchState() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let unwatchedSubtitleFile = URL(fileURLWithPath: "/Media/Unwatched.srt")
@@ -1320,7 +1319,7 @@ func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/WindowedSubtitles.srt")
@@ -1342,19 +1341,19 @@ func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
         entries: entries
     )
 
-    let index = try database.subtitleEntryIndex(forSubtitleFile: subtitleFile)
+    let index = try PlaybackSubtitleDatabase(path: database.path).subtitleEntryIndex(forSubtitleFile: subtitleFile)
     #expect(index.count == 6)
     #expect(index.map(\.startMilliseconds) == [0, 1_000, 2_000, 3_000, 4_000, 5_000])
 
     let lookup = SubtitleActiveEntryLookup(entryIndex: index)
     #expect(lookup.activeEntryID(atMilliseconds: 2_250) == index[2].id)
 
-    let window = try database.entries(forSubtitleFile: subtitleFile, limit: 2, offset: 3)
+    let window = try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile, limit: 2, offset: 3)
     #expect(window.map(\.content) == [
         "Current subtitle row 3",
         "Current subtitle row 4",
     ])
-    #expect(try database.entries(forSubtitleFile: subtitleFile, limit: 0, offset: 3).isEmpty)
+    #expect(try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile, limit: 0, offset: 3).isEmpty)
 }
 
 @Test
@@ -1364,7 +1363,7 @@ func persistsSRTLanguageAnalysisWithCueGroupLanguages() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Japanese.srt")
@@ -1409,7 +1408,7 @@ func persistsSRTLanguageAnalysisWithCueGroupLanguages() throws {
     #expect(detections[0].languages == [.japanese])
     #expect(detections[0].confidence >= SubtitleLanguageRecognizer.defaultConfidenceThreshold)
 
-    let storedEntries = try database.entries(forSubtitleFile: subtitleFile)
+    let storedEntries = try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile)
     let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: subtitleFile)
     #expect(languagesByCueGroupID[storedEntries[0].id] == [.japanese])
     #expect(languagesByCueGroupID[storedEntries[1].id] == [.japanese])
@@ -1422,7 +1421,7 @@ func persistsASSStyleLanguageAnalysisForUsedStylesOnly() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Bilingual.ass")
@@ -1462,7 +1461,7 @@ func persistsASSStyleLanguageAnalysisForUsedStylesOnly() throws {
     #expect(detections.first { $0.scopeKey == "CN" }?.languages == [.simplifiedChinese])
     #expect(detections.first { $0.scopeKey == "JP" }?.languages == [.japanese])
 
-    let storedEntries = try database.entries(forSubtitleFile: subtitleFile)
+    let storedEntries = try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile)
     let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: subtitleFile)
     #expect(languagesByCueGroupID[storedEntries[0].id] == [.japanese, .simplifiedChinese])
     #expect(languagesByCueGroupID[storedEntries[1].id] == [.japanese])
@@ -1475,7 +1474,7 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/LanguageFilter.srt")
@@ -1563,7 +1562,7 @@ func searchResultsExposeCueGroupLanguages() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/LanguageResultTags.srt")
@@ -1617,7 +1616,7 @@ func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throw
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/BilingualLineFilter.ass")
@@ -1718,7 +1717,7 @@ func searchLanguageFilterTreatsMissingLanguageRowsAsUnknown() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/LegacyLanguage.srt")
@@ -1743,7 +1742,7 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
@@ -1783,7 +1782,7 @@ func searchPageReturnsContinuationCursorForNextPage() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
@@ -1831,7 +1830,7 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Series.srt")
@@ -1887,7 +1886,7 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -1926,7 +1925,7 @@ func searchExactPageCanReturnOnlyCueIDsForCompletion() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -1960,7 +1959,7 @@ func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/FilteredWindow.srt")
@@ -2020,7 +2019,7 @@ func searchFilterSetMatchesLanguageCollectionValues() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/FilterLanguages.srt")
@@ -2071,7 +2070,7 @@ func searchExactAndVisiblePagesPreserveIndependentPaging() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/IndexedWindow.srt")
@@ -2122,7 +2121,7 @@ func searchNavigationSnapshotUsesCompleteSearchOrder() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/IndexedNavigation.srt")
@@ -2170,7 +2169,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Progress.srt")
@@ -2260,7 +2259,7 @@ func repeatedSearchPagesExecuteWithoutHiddenCacheEvents() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Cache.srt")
@@ -2292,7 +2291,7 @@ func searchPageSeesIndexedContentChangesImmediately() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/CacheInvalidation.srt")
@@ -2334,7 +2333,7 @@ func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let betaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Beta.srt")
@@ -2387,7 +2386,7 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Alpha.srt")
@@ -2452,7 +2451,7 @@ func cueOccurrenceCountMatchesSearchPageExactTotals() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let mediaFolder = URL(fileURLWithPath: "/Media")
@@ -2503,7 +2502,7 @@ func searchPageExposesExactCountsWhenRowsContinue() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
@@ -2568,7 +2567,7 @@ func searchPageExposesExactCountsWhenAllRowsFitInPage() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
@@ -2605,7 +2604,7 @@ func ftsVocabularyDiagnosticsReportsTopAndQueryTerms() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
@@ -2664,7 +2663,7 @@ func searchNavigationUsesCompleteResultOrderAndPlaybackTimeAnchor() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha/Episode.srt")
@@ -2747,7 +2746,7 @@ func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let show2Episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
@@ -2795,7 +2794,7 @@ func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
@@ -2843,7 +2842,7 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoURL = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
@@ -2915,7 +2914,7 @@ func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3047,7 +3046,7 @@ func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let episode2Video = URL(fileURLWithPath: "/Media/Show 2/Episode 2.mkv")
@@ -3189,7 +3188,7 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3295,7 +3294,7 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3371,7 +3370,7 @@ func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3414,7 +3413,7 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3474,7 +3473,7 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3522,7 +3521,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3604,7 +3603,7 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let root = URL(fileURLWithPath: "/Media")
@@ -3725,7 +3724,7 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Episode 1.srt")
@@ -3781,7 +3780,7 @@ func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Cue Contents.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Cue Contents.mkv")
@@ -3834,7 +3833,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.mkv")
@@ -3880,7 +3879,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Relation Lists.srt")
@@ -3944,7 +3943,7 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
@@ -3993,7 +3992,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
@@ -4014,7 +4013,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
     )
 
     let originalCue = try #require(
-        try database.cueLineRecords(forSubtitleFile: subtitleFile).first
+        try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile).first
     )
     let originalShiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: shioriSelection(originalCue),
@@ -4041,7 +4040,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
     )
 
     let rebuiltCue = try #require(
-        try database.cueLineRecords(forSubtitleFile: subtitleFile).first
+        try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile).first
     )
     let rebuiltRelation = try #require(
         try ShioriDatabase(path: database.path).shioriRelation(id: originalShiori.id)
@@ -4063,7 +4062,7 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Same Time.ass")
@@ -4099,7 +4098,7 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
             )
         ]
     )
-    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let topSelection = shioriSelection(cueRecords[0])
     let bottomSelection = shioriSelection(cueRecords[1])
 
@@ -4177,7 +4176,7 @@ func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
@@ -4309,7 +4308,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/Media/Show")
@@ -4351,7 +4350,7 @@ func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/Media/Show")
@@ -4396,7 +4395,7 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
         try? FileManager.default.removeItem(at: root)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let series = root.appendingPathComponent("葬送的芙莉莲")
@@ -4459,7 +4458,7 @@ func searchPageFailsWhenSearchOrderRowsAreMissing() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -4495,7 +4494,7 @@ func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let alphaSubtitle = URL(fileURLWithPath: "/Media/Alpha.srt")
@@ -4557,7 +4556,7 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
@@ -4607,7 +4606,7 @@ func storesAndLoadsASSFontReferences() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
@@ -4656,81 +4655,13 @@ func storesAndLoadsASSFontReferences() throws {
 }
 
 @Test
-func storesAndLoadsASSFontResourceManifest() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try DatabaseBootstrap.prepare(at: databaseURL)
-
-    let subtitleFile = URL(fileURLWithPath: "/Media/Effects.ass")
-    let videoFile = URL(fileURLWithPath: "/Media/Effects.mkv")
-    let fontsDirectory = URL(fileURLWithPath: "/Cache/CueSeeker/ASSFontResources/abc")
-
-    try database.replaceCueGroups(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        format: .ass,
-        cueGroups: [
-            testCueGroup(
-                startMilliseconds: 0,
-                endMilliseconds: 1_000,
-                content: "Styled line",
-                eventIndex: 0
-            )
-        ]
-    )
-
-    try database.upsertASSFontResourceManifest(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        status: .readyWithFonts,
-        fontsDirectory: fontsDirectory,
-        resourceSignature: "signature-v1"
-    )
-
-    let playback = try PlaybackSubtitleDatabase(path: databaseURL)
-    let loadedManifest = try playback.assFontResourceManifest(
-        forSubtitleFile: subtitleFile,
-        videoFile: videoFile
-    )
-    let manifest = try #require(loadedManifest)
-    #expect(manifest.subtitlePath == subtitleFile.path)
-    #expect(manifest.videoPath == videoFile.path)
-    #expect(manifest.status == .readyWithFonts)
-    #expect(manifest.fontsDirectoryPath == fontsDirectory.path)
-    #expect(manifest.resourceSignature == "signature-v1")
-    #expect(manifest.errorMessage == nil)
-    #expect(!manifest.preparedAt.isEmpty)
-
-    try database.upsertASSFontResourceManifest(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        status: .readyWithoutFonts,
-        fontsDirectory: nil,
-        resourceSignature: "signature-v2",
-        errorMessage: nil
-    )
-
-    let updatedManifest = try #require(try playback.assFontResourceManifest(
-        forSubtitleFile: subtitleFile,
-        videoFile: videoFile
-    ))
-    #expect(updatedManifest.status == .readyWithoutFonts)
-    #expect(updatedManifest.fontsDirectoryPath == nil)
-    #expect(updatedManifest.resourceSignature == "signature-v2")
-}
-
-@Test
 func insertingCueGroupsRecordsTheirLineCount() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Mixed.ass")
@@ -4773,7 +4704,7 @@ func replacingEntriesRemovesStaleFTSRows() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Episode.srt")
@@ -4823,7 +4754,7 @@ func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let removedFolder = URL(fileURLWithPath: "/Media/Removed")
@@ -4881,7 +4812,7 @@ func removingIndexedFolderPreservesRetainedDerivedSearchRows() throws {
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let removedFolder = URL(fileURLWithPath: "/Media/00 Removed")
@@ -4941,7 +4872,7 @@ func scopedSearchOnlyReturnsEntriesUnderActiveFolders() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let activeFolder = URL(fileURLWithPath: "/Media/Active")
@@ -4989,7 +4920,7 @@ func reconcileIndexedContentClearsAllDataWhenNoFoldersAreActive() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let folder = URL(fileURLWithPath: "/Media/Removed")
@@ -5025,7 +4956,7 @@ func reconcileIndexedContentPrunesDataOutsideActiveFolders() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let activeFolder = URL(fileURLWithPath: "/Media/Active")
@@ -5080,7 +5011,7 @@ func emptySearchQueryReturnsNoResults() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try SearchDatabase(path: database.path).search("").isEmpty)
@@ -5094,7 +5025,7 @@ func searchNormalizesFTSQuerySyntaxCharacters() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Special.srt")
@@ -5129,7 +5060,7 @@ func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -5160,7 +5091,7 @@ func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -5206,7 +5137,7 @@ func searchSegmentsCJKContentLikeFlutter() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -5244,7 +5175,7 @@ func searchSegmentsJapaneseKanaContent() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -5283,7 +5214,7 @@ func searchTreatsASCIIAndIdeographicSpacesAsEquivalent() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -5321,7 +5252,7 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     try database.replaceEntries(
@@ -5349,7 +5280,7 @@ func searchesIndividualCuesAndRejectsCrossCueOnlyMatches() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Movie.ass")
@@ -5421,7 +5352,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/SiblingMatches.ass")
@@ -5457,7 +5388,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
         cueGroups: [cueGroup]
     )
 
-    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let exactFirst = try SearchDatabase(path: database.path).searchPage(
         "shared",
         limit: 1,
@@ -5529,7 +5460,7 @@ func searchPrimaryGroupIndexDistinguishesSiblingCuesWithIdenticalText() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/DuplicateSiblingText.ass")
     let cueGroup = SubtitleCueGroup(
@@ -5563,7 +5494,7 @@ func searchPrimaryGroupIndexDistinguishesSiblingCuesWithIdenticalText() throws {
         cueGroups: [cueGroup]
     )
 
-    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let page = try SearchDatabase(path: database.path).searchPage("duplicate", limit: 10, cursor: .start)
 
     #expect(page.results.map(\.entryID) == cueRecords.map(\.id))
@@ -5582,7 +5513,7 @@ func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/MultilineCue.srt")
@@ -5616,7 +5547,7 @@ func searchCueFiltersAndSpeakersDoNotLeakFromSiblingCue() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/CueFilterIsolation.ass")
@@ -5633,7 +5564,7 @@ func searchCueFiltersAndSpeakersDoNotLeakFromSiblingCue() throws {
         format: .ass,
         cueGroups: [cueGroup]
     )
-    let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+    let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let sibling = try #require(cueRecords.first { $0.line.content == "secret sibling cue" })
     try database.replaceCueLineSpeakers(
         forSubtitleFile: subtitleFile,
@@ -5663,7 +5594,7 @@ func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Bilingual.ass")
@@ -5692,7 +5623,7 @@ func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
         cueGroups: cueGroups
     )
 
-    #expect(try database.entries(forSubtitleFile: subtitleFile).map(\.content) == [
+    #expect(try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile).map(\.content) == [
         "Chinese upper line\nJapanese lower line"
     ])
 
@@ -5709,7 +5640,7 @@ func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Filtered.ass")
@@ -5778,7 +5709,7 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/FilteredVisible.ass")
@@ -5856,7 +5787,7 @@ func storesASSPrimaryStylePlaybackFinishMetadata() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Primary.ass")
@@ -5991,7 +5922,7 @@ func returnsCueTimingsForWindowedASSPreparation() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Windowed.ass")
@@ -6029,7 +5960,7 @@ func cueTextSelectionUsesShortestActiveCueAndLatestEndTieBreak() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Selection.ass")
@@ -6060,7 +5991,7 @@ func cueTextSelectionFallsBackToPreviousCueRange() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Previous.ass")
@@ -6093,7 +6024,7 @@ func cueTextSelectionReturnsPhysicallyBottommostCueAsSingleCue() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Lines.ass")
@@ -6145,7 +6076,7 @@ func activeSubtitleEntryLookupKeepsLongRunningCueActivePastShortLaterCues() thro
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Signs.srt")
@@ -6181,7 +6112,7 @@ func activeSubtitleEntryLookupKeepsLongRunningCueActivePastShortLaterCues() thro
         ]
     )
 
-    let entries = try database.entries(forSubtitleFile: subtitleFile)
+    let entries = try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile)
     let lookup = SubtitleActiveEntryLookup(entries: entries)
 
     #expect(lookup.activeEntryID(atMilliseconds: 90_000) == entries[0].id)
@@ -6720,8 +6651,33 @@ private func expectUnsupportedSchemaVersion(_ version: Int) throws {
             supported: DatabaseBootstrap.currentSchemaVersion
         ))
     }
-    let database = try SubtitleDatabase(path: databaseURL, access: .readOnly)
-    #expect(try database.schemaVersion() == version)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == version)
+}
+
+private func sqliteSchemaVersion(at databaseURL: URL) throws -> Int {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(database, "PRAGMA user_version;", -1, &statement, nil) == SQLITE_OK,
+          let statement
+    else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer {
+        sqlite3_finalize(statement)
+    }
+    guard sqlite3_step(statement) == SQLITE_ROW else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    return Int(sqlite3_column_int64(statement, 0))
 }
 
 private func sqliteRowCount(in table: String, databaseURL: URL) throws -> Int {

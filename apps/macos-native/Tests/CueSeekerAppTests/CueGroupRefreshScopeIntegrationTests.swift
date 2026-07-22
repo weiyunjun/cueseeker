@@ -810,7 +810,7 @@ private final class CueGroupRefreshScopeMountedHarness {
         let firstCueID: Int64
         do {
             try DatabaseBootstrap.prepare(at: databaseURL)
-            let database = try SubtitleDatabase(path: databaseURL)
+            let database = try IndexingDatabase(path: databaseURL)
             try database.replaceCueGroups(
                 subtitleFile: subtitleURL,
                 videoFile: videoURL,

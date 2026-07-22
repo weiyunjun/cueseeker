@@ -104,7 +104,7 @@ func closingNonLibraryPlaybackFlushesPendingLibraryProgress() async throws {
 
 private func indexRecentPlaybackVideos(
     _ videoFiles: [URL],
-    in database: SubtitleDatabase
+    in database: IndexingDatabase
 ) throws {
     for (index, videoFile) in videoFiles.enumerated() {
         let subtitleFile = videoFile
@@ -129,7 +129,7 @@ private func indexRecentPlaybackVideos(
 
 @MainActor
 private func withTemporaryRecentPlaybackApp(
-    _ body: @MainActor (AppCoordinator, SubtitleDatabase) async throws -> Void
+    _ body: @MainActor (AppCoordinator, IndexingDatabase) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerRecentPlaybackTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -146,6 +146,6 @@ private func withTemporaryRecentPlaybackApp(
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     await app.startupDatabaseTask?.value
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     try await body(app, database)
 }

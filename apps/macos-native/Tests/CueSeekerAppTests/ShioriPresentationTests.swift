@@ -25,7 +25,7 @@ func removeShioriDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     let shioriDatabase = try #require(app.shioriDatabase)
     let first = try makeShiori(
         in: database,
@@ -49,7 +49,7 @@ func removeShioriDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
 }
 
 private func makeShiori(
-    in database: SubtitleDatabase,
+    in database: IndexingDatabase,
     id: Int,
     content: String
 ) throws -> Shiori {

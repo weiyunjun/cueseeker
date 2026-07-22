@@ -7,7 +7,7 @@ protocol LibraryFolderRemovalExecuting: Sendable {
 
 actor LibraryFolderRemovalExecutor: LibraryFolderRemovalExecuting {
     func removeFolder(_ folder: URL, databaseURL: URL) async throws {
-        let database = try SubtitleDatabase(path: databaseURL)
+        let database = try IndexingDatabase(path: databaseURL)
         try database.removeIndexedFolder(folder)
     }
 }

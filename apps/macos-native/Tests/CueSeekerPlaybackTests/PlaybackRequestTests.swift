@@ -168,7 +168,7 @@ func assPlaybackFontIntentProviderLoadsIndexedFontNames() throws {
     let subtitleFile = directory.appendingPathComponent("Episode.ass")
     let videoFile = directory.appendingPathComponent("Episode.mkv")
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try SubtitleDatabase(path: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
     try Data().write(to: videoFile)
 
     try database.replaceCueGroups(

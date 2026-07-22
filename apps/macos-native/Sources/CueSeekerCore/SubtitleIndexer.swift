@@ -30,7 +30,7 @@ public struct SubtitleIndexer {
         self.languageAnalyzer = languageAnalyzer
     }
 
-    public func index(folder: URL, into database: SubtitleDatabase) throws -> SubtitleIndexingResult {
+    public func index(folder: URL, into database: IndexingDatabase) throws -> SubtitleIndexingResult {
         _ = try database.addSearchPath(folder)
         let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
         let libraryDatabase = try LibraryDatabase(path: database.path)
@@ -104,7 +104,7 @@ public struct SubtitleIndexer {
             }
 
             let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
-            try database.replaceCueGroups(
+            try database.replaceCueGroupsForIndexingBatch(
                 subtitleFile: subtitleFile,
                 videoFile: videoFile,
                 format: format,
@@ -113,8 +113,7 @@ public struct SubtitleIndexer {
                 assFontReferences: assFontReferences,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt,
-                languageAnalysis: languageAnalysis,
-                rebuildSearchDerivedIndex: false
+                languageAnalysis: languageAnalysis
             )
 
             keptSubtitlePaths.insert(subtitleFile.path)
@@ -131,7 +130,7 @@ public struct SubtitleIndexer {
         metadata: SubtitleFileMetadata,
         videoFile: URL,
         subtitleFile: URL,
-        database: SubtitleDatabase,
+        database: IndexingDatabase,
         playbackDatabase: PlaybackSubtitleDatabase,
         fileSize: Int64?,
         modifiedAt: Date?

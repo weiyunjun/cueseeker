@@ -22,7 +22,7 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let preparedDatabase = try SubtitleDatabase(path: databaseURL)
+    let preparedDatabase = try IndexingDatabase(path: databaseURL)
     try preparedDatabase.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Startup.srt"),
         videoFile: URL(fileURLWithPath: "/Media/Startup.mkv"),
@@ -153,7 +153,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
     let masterDataBefore = try Data(contentsOf: masterURL)
 
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let preparedDatabase = try SubtitleDatabase(path: databaseURL)
+    let preparedDatabase = try IndexingDatabase(path: databaseURL)
     let preparedLibraryDatabase = try LibraryDatabase(path: databaseURL)
     let preparedCoverDatabase = try LibraryCoverDatabase(path: databaseURL)
     try preparedDatabase.replaceEntries(

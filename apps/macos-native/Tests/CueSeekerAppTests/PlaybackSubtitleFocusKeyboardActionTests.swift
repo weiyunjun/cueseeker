@@ -638,7 +638,7 @@ func subtitleFocusCommittedShioriInvalidatesRowsAfterActionIsSuperseded() async 
 
 @MainActor
 private func withKeyboardActionApp(
-    _ body: (AppCoordinator, SubtitleDatabase) async throws -> Void
+    _ body: (AppCoordinator, IndexingDatabase) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerSubtitleFocusKeyboardActionTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -659,7 +659,7 @@ private func withKeyboardActionApp(
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     let source = keyboardActionSource()
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: source.subtitlePath),

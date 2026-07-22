@@ -1058,7 +1058,7 @@ private func segmentCompletionSearchResult(entryID: Int64) -> SubtitleSearchResu
 
 @MainActor
 private func withTemporarySegmentCompletionApp(
-    _ body: @MainActor (AppCoordinator, SubtitleDatabase) async throws -> Void
+    _ body: @MainActor (AppCoordinator, IndexingDatabase) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerSegmentCompletionTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -1075,6 +1075,6 @@ private func withTemporarySegmentCompletionApp(
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     await app.startupDatabaseTask?.value
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     try await body(app, database)
 }

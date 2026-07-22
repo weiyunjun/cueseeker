@@ -28,7 +28,10 @@ func initialPlaybackSRTCuePrefixesSpeakerWhenSettingIsEnabled() async throws {
         let result = try #require(
             try searchDatabase.searchPage("speaker", limit: 1).results.first
         )
-        let line = try #require(try database.cueLineRecords(forSubtitleFile: subtitleFile).first)
+        let playbackDatabase = try #require(app.playbackSubtitleDatabase)
+        let line = try #require(
+            try playbackDatabase.cueLineRecords(forSubtitleFile: subtitleFile).first
+        )
         try database.replaceCueLineSpeakers(
             forSubtitleFile: subtitleFile,
             assignments: [
@@ -48,7 +51,7 @@ func initialPlaybackSRTCuePrefixesSpeakerWhenSettingIsEnabled() async throws {
 
 @MainActor
 private func withTemporarySubtitleRefreshApp(
-    _ body: @MainActor (AppCoordinator, SubtitleDatabase) async throws -> Void
+    _ body: @MainActor (AppCoordinator, IndexingDatabase) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerSubtitleRefreshTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -65,6 +68,6 @@ private func withTemporarySubtitleRefreshApp(
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     await app.startupDatabaseTask?.value
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     try await body(app, database)
 }

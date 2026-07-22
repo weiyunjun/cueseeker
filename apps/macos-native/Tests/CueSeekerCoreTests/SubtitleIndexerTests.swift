@@ -25,7 +25,7 @@ func indexesFolderIntoSQLiteSearchDatabase() throws {
     )
     try fixture.writeVideo(name: "Movie.mkv")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let result = try indexer.index(folder: fixture.root, into: database)
@@ -65,7 +65,7 @@ func indexingPrefersCompleteBasenameMatchAndStoresOneAssociation() throws {
     let exactVideo = try fixture.writeVideo(name: "Episode.reference-track.mkv")
     _ = try fixture.writeVideo(name: "Episode.mp4")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let result = try SubtitleIndexer().index(folder: fixture.root, into: database)
     let subtitleFiles = try database.subtitleFiles()
     let searchResults = try SearchDatabase(path: fixture.databaseURL).search("priority")
@@ -101,7 +101,7 @@ func reindexingSwitchesFromFallbackToCompleteBasenameMatch() throws {
     )
     let fallbackVideo = try fixture.writeVideo(name: "Episode.mp4")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let initialResult = try indexer.index(folder: fixture.root, into: database)
@@ -148,7 +148,7 @@ func indexingSRTStoresLanguageAnalysisAfterVideoMatch() throws {
     )
     try fixture.writeVideo(name: "Japanese.mkv")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let result = try indexer.index(folder: fixture.root, into: database)
@@ -164,7 +164,8 @@ func indexingSRTStoresLanguageAnalysisAfterVideoMatch() throws {
     #expect(detection.scope == .file)
     #expect(detection.languages == [.japanese])
 
-    let storedEntries = try database.entries(forSubtitleFile: indexedSubtitleURL)
+    let storedEntries = try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+        .entries(forSubtitleFile: indexedSubtitleURL)
     let firstEntry = try #require(storedEntries.first)
     let secondEntry = try #require(storedEntries.dropFirst().first)
     let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: indexedSubtitleURL)
@@ -189,7 +190,7 @@ func skipsSubtitleFileWhenMatchingVideoIsMissing() throws {
         """
     )
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let result = try indexer.index(folder: fixture.root, into: database)
@@ -219,7 +220,7 @@ func reindexingFolderRemovesStaleSubtitleEntries() throws {
     )
     try fixture.writeVideo(name: "Episode.mp4")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     _ = try indexer.index(folder: fixture.root, into: database)
@@ -253,7 +254,7 @@ func reindexingFolderReplacesChangedSubtitleContent() throws {
     )
     try fixture.writeVideo(name: "Episode.mp4")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     _ = try indexer.index(folder: fixture.root, into: database)
@@ -296,7 +297,7 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
     )
     try fixture.writeVideo(name: "Episode.mp4")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let initialResult = try indexer.index(folder: fixture.root, into: database)
@@ -331,7 +332,7 @@ func reindexingUnchangedSubtitleFileRefreshesVideoFileMetadata() throws {
     )
     let videoURL = try fixture.writeVideo(name: "Episode.mp4")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     _ = try indexer.index(folder: fixture.root, into: database)
@@ -365,7 +366,7 @@ func reindexingUnchangedSubtitleFileWithoutLanguageManifestRewritesOnce() throws
     let metadata = try fixture.subtitleFileMetadata(for: scannedSubtitleURL)
 
     try DatabaseBootstrap.prepare(at: fixture.databaseURL)
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     try database.replaceEntries(
         subtitleFile: scannedSubtitleURL,
         videoFile: videoURL,
@@ -413,7 +414,7 @@ func indexesASSFilesAsGroupedCueResults() throws {
     )
     try fixture.writeVideo(name: "Movie.mkv")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let result = try indexer.index(folder: fixture.root, into: database)
@@ -466,7 +467,7 @@ func indexingASSStoresUsedStyleLanguageAnalysisOnly() throws {
     )
     try fixture.writeVideo(name: "Bilingual.mkv")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let result = try indexer.index(folder: fixture.root, into: database)
@@ -481,7 +482,8 @@ func indexingASSStoresUsedStyleLanguageAnalysisOnly() throws {
     #expect(detections.first { $0.scopeKey == "CN" }?.languages == [.simplifiedChinese])
     #expect(detections.first { $0.scopeKey == "JP" }?.languages == [.japanese])
 
-    let storedEntries = try database.entries(forSubtitleFile: indexedSubtitleURL)
+    let storedEntries = try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+        .entries(forSubtitleFile: indexedSubtitleURL)
     let firstEntry = try #require(storedEntries.first)
     let secondEntry = try #require(storedEntries.dropFirst().first)
     let languagesByCueGroupID = try database.cueGroupLanguages(forSubtitleFile: indexedSubtitleURL)
@@ -516,7 +518,7 @@ func indexesASSFontReferencesAndSkipsUnchangedAfterManifest() throws {
     )
     try fixture.writeVideo(name: "Episode.mkv")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let initialResult = try indexer.index(folder: fixture.root, into: database)
@@ -552,7 +554,7 @@ func reindexesUnchangedSubtitleWhenCueIndexAlgorithmVersionIsStale() throws {
     )
     try fixture.writeVideo(name: "Episode.mkv")
 
-    let database = try SubtitleDatabase(path: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
     let indexer = SubtitleIndexer()
 
     let initialResult = try indexer.index(folder: fixture.root, into: database)

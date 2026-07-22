@@ -48,7 +48,8 @@ struct SpeakerImport {
     static func main() throws {
         let options = try parseOptions()
         try DatabaseBootstrap.prepare(at: options.databaseURL)
-        let database = try SubtitleDatabase(path: options.databaseURL)
+        let database = try IndexingDatabase(path: options.databaseURL)
+        let playbackDatabase = try PlaybackSubtitleDatabase(path: options.databaseURL)
 
         let subtitlePathsByEpisode = try myGOSubtitlePathsByEpisode(database: database)
         let baseRowsByEpisode = try loadBaseRowsByEpisode(sourceDirectory: options.sourceDirectory)
@@ -61,7 +62,7 @@ struct SpeakerImport {
             }
 
             let subtitleFile = URL(fileURLWithPath: subtitlePath)
-            let cueLines = try database.cueLineRecords(forSubtitleFile: subtitleFile)
+            let cueLines = try playbackDatabase.cueLineRecords(forSubtitleFile: subtitleFile)
             let recordsByKey = Dictionary(grouping: cueLines) { record in
                 CueLineKey(
                     startMilliseconds: record.line.startMilliseconds,
@@ -191,7 +192,7 @@ struct SpeakerImport {
     }
 }
 
-private func myGOSubtitlePathsByEpisode(database: SubtitleDatabase) throws -> [Int: String] {
+private func myGOSubtitlePathsByEpisode(database: IndexingDatabase) throws -> [Int: String] {
     var pathsByEpisode: [Int: String] = [:]
     for metadata in try database.subtitleFiles() {
         guard metadata.subtitleFormat == .ass,

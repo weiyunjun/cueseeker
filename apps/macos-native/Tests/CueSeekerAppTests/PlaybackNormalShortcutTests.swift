@@ -132,7 +132,7 @@ func playbackPointerHideRequestDoesNotInvalidatePlaybackStore() {
 
 @MainActor
 private func withNormalPlaybackApp(
-    _ body: (AppCoordinator, SubtitleDatabase) throws -> Void
+    _ body: (AppCoordinator, IndexingDatabase) throws -> Void
 ) throws {
     let suiteName = "CueSeekerNormalPlaybackShortcutTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -153,7 +153,7 @@ private func withNormalPlaybackApp(
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     app.search.selectedSearchResult = SubtitleSearchResult(
         entryID: 1,
         subtitlePath: "/Media/Normal-Playback.srt",

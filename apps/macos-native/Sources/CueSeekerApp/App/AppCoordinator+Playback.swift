@@ -1083,7 +1083,7 @@ extension AppCoordinator {
         playbackSubtitleCuesTask?.cancel()
 
         guard format == .srt,
-              let database = subtitleDatabase
+              let database = playbackSubtitleDatabase
         else {
             return
         }
@@ -1242,13 +1242,13 @@ extension AppCoordinator {
 
     func playbackSpeakersByCueGroupID(forSubtitleFile subtitleFile: URL) -> [Int64: Set<String>] {
         guard settings.playbackSpeakerDisplayEnabled,
-              let subtitleDatabase
+              let playbackSubtitleDatabase
         else {
             return [:]
         }
 
         do {
-            return try subtitleDatabase.speakersByCueGroupID(forSubtitleFile: subtitleFile)
+            return try playbackSubtitleDatabase.speakersByCueGroupID(forSubtitleFile: subtitleFile)
         } catch {
             print("Failed to load playback speaker labels: \(error)")
             return [:]
@@ -1267,7 +1267,7 @@ extension AppCoordinator {
             return []
         }
 
-        guard let subtitleDatabase else {
+        guard let playbackSubtitleDatabase else {
             SubtitleSpeakerDisplayDiagnostics.log(
                 "app.assSpeakerDisplayCues.noDatabase",
                 fields: [
@@ -1279,8 +1279,10 @@ extension AppCoordinator {
         }
 
         do {
-            let records = try subtitleDatabase.cueLineRecords(forSubtitleFile: subtitleFile)
-            let speakersByCueLineID = try subtitleDatabase.speakersByCueLineID(forSubtitleFile: subtitleFile)
+            let records = try playbackSubtitleDatabase.cueLineRecords(forSubtitleFile: subtitleFile)
+            let speakersByCueLineID = try playbackSubtitleDatabase.speakersByCueLineID(
+                forSubtitleFile: subtitleFile
+            )
             let cues = SubtitleSpeakerDisplayCue.targetCues(
                 records: records,
                 speakersByCueLineID: speakersByCueLineID
@@ -1337,13 +1339,12 @@ extension AppCoordinator {
             endMilliseconds: fallbackEndMilliseconds
         )
 
-        guard subtitleDatabase != nil else {
+        guard let playbackSubtitleDatabase else {
             return fallback
         }
 
         do {
-            let database = try PlaybackSubtitleDatabase(path: databaseURL)
-            let timings = try database.cueTimings(
+            let timings = try playbackSubtitleDatabase.cueTimings(
                 forSubtitleFile: subtitleFile,
                 startingAtMilliseconds: startMilliseconds,
                 limit: Self.assSubtitlePreparationCueLimit

@@ -215,7 +215,7 @@ func shioriPlaybackNavigationAvailabilityUsesCachedScope() async throws {
             filteredMiddle,
             navigationScopeIDs: [filteredNewest.id, filteredMiddle.id]
         )
-        app.subtitleDatabase = nil
+        app.indexingDatabase = nil
 
         #expect(app.canOpenPreviousShiori)
         #expect(!app.canOpenNextShiori)
@@ -246,7 +246,7 @@ func shioriPlaybackNavigationAvailabilityUsesCachedDatabaseSnapshot() async thro
         )
 
         app.openShiori(middle)
-        app.subtitleDatabase = nil
+        app.indexingDatabase = nil
 
         #expect(app.canOpenPreviousShiori)
         #expect(app.canOpenNextShiori)
@@ -254,7 +254,7 @@ func shioriPlaybackNavigationAvailabilityUsesCachedDatabaseSnapshot() async thro
 }
 
 @MainActor
-private func indexFakeLibraryVideo(in database: SubtitleDatabase, basename: String) throws {
+private func indexFakeLibraryVideo(in database: IndexingDatabase, basename: String) throws {
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/\(basename).srt"),
         videoFile: URL(fileURLWithPath: "/Media/\(basename).mkv"),
@@ -272,7 +272,7 @@ private func indexFakeLibraryVideo(in database: SubtitleDatabase, basename: Stri
 }
 
 private func insertNavigationShiori(
-    in database: SubtitleDatabase,
+    in database: IndexingDatabase,
     content: String,
     startMilliseconds: Int,
     createdAt: Date
@@ -309,7 +309,7 @@ private func insertNavigationShiori(
 
 @MainActor
 private func withTemporaryNavigationApp(
-    _ body: @MainActor (AppCoordinator, SubtitleDatabase) throws -> Void
+    _ body: @MainActor (AppCoordinator, IndexingDatabase) throws -> Void
 ) async throws {
     let suiteName = "CueSeekerAppNavigationTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -326,6 +326,6 @@ private func withTemporaryNavigationApp(
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     await app.startupDatabaseTask?.value
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     try body(app, database)
 }

@@ -50,7 +50,7 @@ extension AppCoordinator {
         }
 
         let folder = folder.standardizedFileURL
-        guard subtitleDatabase != nil else {
+        guard indexingDatabase != nil else {
             startupError = "Database is not initialized"
             return
         }
@@ -120,7 +120,7 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
-        guard let database = subtitleDatabase,
+        guard let database = indexingDatabase,
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
         else {
@@ -199,7 +199,7 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
-        guard let database = subtitleDatabase,
+        guard let database = indexingDatabase,
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
         else {
@@ -332,7 +332,7 @@ extension AppCoordinator {
         }
 
         databaseStorageStatsTask?.cancel()
-        guard subtitleDatabase != nil else {
+        guard indexingDatabase != nil else {
             indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
             return
         }
@@ -445,7 +445,7 @@ extension AppCoordinator {
             return
         }
 
-        guard subtitleDatabase != nil else {
+        guard indexingDatabase != nil else {
             indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
             return
         }

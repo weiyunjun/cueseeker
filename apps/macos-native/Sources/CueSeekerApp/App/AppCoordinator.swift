@@ -41,8 +41,9 @@ final class AppCoordinator: ObservableObject {
 
     let databaseURL: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
-    var subtitleDatabase: SubtitleDatabase?
+    var indexingDatabase: IndexingDatabase?
     let searchDatabase: SearchDatabase?
+    let playbackSubtitleDatabase: PlaybackSubtitleDatabase?
     let libraryDatabase: LibraryDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
     let shioriDatabase: ShioriDatabase?
@@ -404,7 +405,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     var canCompactDatabase: Bool {
-        subtitleDatabase != nil
+        indexingDatabase != nil
             && !indexing.indexingStatus.isIndexing
             && !indexing.folderRemovalStatus.isRemoving
             && !indexing.databaseMaintenanceStatus.isCompacting
@@ -522,8 +523,9 @@ final class AppCoordinator: ObservableObject {
         )
         playback = PlaybackStore(userDefaults: userDefaults)
 
-        var openedDatabase: SubtitleDatabase?
+        var openedDatabase: IndexingDatabase?
         var openedSearchDatabase: SearchDatabase?
+        var openedPlaybackSubtitleDatabase: PlaybackSubtitleDatabase?
         var openedLibraryDatabase: LibraryDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
         var openedShioriDatabase: ShioriDatabase?
@@ -531,9 +533,10 @@ final class AppCoordinator: ObservableObject {
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
             try DatabaseBootstrap.prepare(at: self.databaseURL)
-            let database = try SubtitleDatabase(path: self.databaseURL)
+            let database = try IndexingDatabase(path: self.databaseURL)
             openedDatabase = database
             openedSearchDatabase = try SearchDatabase(path: self.databaseURL)
+            openedPlaybackSubtitleDatabase = try PlaybackSubtitleDatabase(path: self.databaseURL)
             openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
             openedShioriDatabase = try ShioriDatabase(path: self.databaseURL)
@@ -541,14 +544,16 @@ final class AppCoordinator: ObservableObject {
         } catch {
             openedDatabase = nil
             openedSearchDatabase = nil
+            openedPlaybackSubtitleDatabase = nil
             openedLibraryDatabase = nil
             openedLibraryCoverDatabase = nil
             openedShioriDatabase = nil
             initialError = error
         }
 
-        self.subtitleDatabase = openedDatabase
+        self.indexingDatabase = openedDatabase
         self.searchDatabase = openedSearchDatabase
+        self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         self.libraryDatabase = openedLibraryDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
         self.shioriDatabase = openedShioriDatabase

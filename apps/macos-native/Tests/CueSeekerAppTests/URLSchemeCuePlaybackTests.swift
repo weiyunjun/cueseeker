@@ -17,7 +17,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
         return
     }
 
-    let database = try #require(fixture.app.subtitleDatabase)
+    let database = try #require(fixture.app.indexingDatabase)
     let searchDatabase = try #require(fixture.app.searchDatabase)
     let indexedSubtitle = try #require(try database.subtitleFiles().first)
     let subtitleURL = URL(fileURLWithPath: indexedSubtitle.subtitlePath)

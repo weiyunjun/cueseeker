@@ -173,19 +173,3 @@ public struct ASSFontReference: Equatable, Sendable {
         self.firstOccurrenceOrder = firstOccurrenceOrder
     }
 }
-
-public enum ASSFontResourceStatus: String, Equatable, Sendable {
-    case readyWithFonts
-    case readyWithoutFonts
-    case failed
-}
-
-public struct ASSFontResourceManifest: Equatable, Sendable {
-    public let subtitlePath: String
-    public let videoPath: String
-    public let status: ASSFontResourceStatus
-    public let fontsDirectoryPath: String?
-    public let resourceSignature: String
-    public let errorMessage: String?
-    public let preparedAt: String
-}

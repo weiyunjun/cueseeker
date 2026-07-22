@@ -403,14 +403,41 @@ and remove the old God Object without a permanent forwarding facade.
   retired Search cache path has no remaining declaration or call site, and
   `git diff --check` reports no errors.
 
+### Step 19
+
+- Replaced the remaining write-side database type with `IndexingDatabase`,
+  whose public operations are limited to indexing persistence, indexing
+  metadata, speaker assignment, reconciliation, and indexed-folder removal.
+- Internalized deferred Search projection rebuilds behind the indexing batch
+  transaction instead of exposing the rebuild switch or a public rebuild API.
+- Moved playback subtitle entry, Cue-line, and speaker reads to the retained
+  read-only `PlaybackSubtitleDatabase` connection and updated App playback and
+  SpeakerImport callers to use that boundary.
+- Removed the unused ASS font-resource manifest API, models, and test left by
+  the retired preparation path.
+- Removed the `SubtitleDatabase` source and type. Its 2,815-line remainder was
+  replaced by the 2,546-line write-focused `IndexingDatabase`; the main
+  persistence integration test was renamed for the new boundary.
+- Built every product and test target. The focused Indexing, playback subtitle,
+  speaker, folder-removal, and startup regression run passed all 248 tests.
+- Ran the serial suite while excluding the previously observed
+  timing-sensitive shared-preferences migration test: 828 Swift Testing tests
+  and seven XCTest rendering probes passed. The excluded test then passed in
+  isolation.
+- Confirmed no Swift source references the old database type or property, no
+  ASS font-resource manifest symbol remains, and `git diff --check` reports no
+  errors.
+
 ## Outcome
 
-Steps 1 through 18 match the requirement. The runtime now treats schema 33 as
-its only supported existing database version, and schema creation, connection
-access, transaction ownership, and domain data contracts have explicit
-persistence-layer boundaries.
+Steps 1 through 19 match the requirement. The runtime now treats schema 33 as
+its only supported existing database version. The former database God Object
+has been removed, and schema creation, connection access, transaction
+ownership, domain reads, and Indexing writes have explicit persistence-layer
+boundaries.
 
 ## Follow-ups
 
-- Complete the remaining Indexing/write-side persistence extraction.
-- Record each subsequent implementation and verification step in this file.
+- Keep future schema or persistence-boundary changes behind a new human
+  requirement and record their verification in a corresponding engineering
+  record.

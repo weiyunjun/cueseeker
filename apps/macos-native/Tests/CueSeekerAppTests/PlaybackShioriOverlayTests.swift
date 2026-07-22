@@ -194,7 +194,7 @@ func sharedShioriPipelineAppliesWorkbenchSearchBeforePlaybackProjection() async 
         databaseURL: databaseURL
     )
     await app.startupDatabaseTask?.value
-    let database = try #require(app.subtitleDatabase)
+    let database = try #require(app.indexingDatabase)
     _ = try playbackDatabaseShiori(
         database: database,
         content: "alpha shared shiori",
@@ -294,7 +294,7 @@ private func playbackSharedShioriRowSource(
 }
 
 private func playbackDatabaseShiori(
-    database: SubtitleDatabase,
+    database: IndexingDatabase,
     content: String,
     timestamp: Int
 ) throws -> Shiori {
