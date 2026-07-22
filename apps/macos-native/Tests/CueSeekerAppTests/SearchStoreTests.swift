@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 import Testing
-import CueSeekerCore
+@testable import CueSeekerCore
 @testable import CueSeekerApp
 
 @MainActor
@@ -405,7 +405,7 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
     app.openSearchResultContext(lowerResult)
     #expect(app.search.cueContextSearchRequest?.targetCueID == lowerCue.id)
 
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))

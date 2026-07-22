@@ -136,6 +136,17 @@ and remove the old God Object without a permanent forwarding facade.
   `SubtitleDatabase`.
 - Reduced `SubtitleDatabase.swift` further to 7,611 lines.
 
+### 11. Subtitle Focus Read Boundary
+
+- Moved playback Cue selection, initial focus-window selection, ordinal lookup,
+  paged Cue reads, and cancellation probes into `PlaybackSubtitleDatabase`.
+- Updated the App focus reader to retain a read-only Playback repository for
+  focus data and open the legacy writer only for the not-yet-extracted Shiori
+  save operation.
+- Removed all Subtitle Focus query methods, row selection types, and SQL helpers
+  from `SubtitleDatabase`.
+- Reduced `SubtitleDatabase.swift` further to 7,270 lines.
+
 ## Verification
 
 ### Step 1
@@ -226,9 +237,17 @@ and remove the old God Object without a permanent forwarding facade.
   completion, seeking, and natural-next-item regression tests; all passed.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 11
+
+- Built every product and test target after moving Subtitle Focus reads onto
+  the read-only Playback connection.
+- Ran 112 Subtitle Focus database, cancellation, Cue selection, App session,
+  keyboard, virtual-reel, and Shiori-action tests; all passed.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Steps 1 through 10 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 11 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

@@ -3766,7 +3766,7 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
         ]
     )
 
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
@@ -3836,11 +3836,11 @@ func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
             ),
         ]
     )
-    let firstID = try #require(try database.cueTextSelection(
+    let firstID = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     )?.cueLineID)
-    let secondID = try #require(try database.cueTextSelection(
+    let secondID = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 3_500
     )?.cueLineID)
@@ -3881,7 +3881,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
             ),
         ]
     )
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
@@ -3932,7 +3932,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
             )
         ]
     )
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
@@ -4001,7 +4001,7 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
         ]
     )
 
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
@@ -4254,7 +4254,7 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
         (3_500, Date(timeIntervalSince1970: 1_800_000_000)),
         (5_500, Date(timeIntervalSince1970: 1_900_000_000)),
     ] {
-        let selection = try #require(try database.cueTextSelection(
+        let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
             forSubtitleFile: subtitleFile,
             atMilliseconds: milliseconds
         ))
@@ -4341,7 +4341,7 @@ func shioriPageForIDsPreservesInputOrderAndCuePresentations() throws {
         (3_500, Date(timeIntervalSince1970: 1_800_000_000)),
         (5_500, Date(timeIntervalSince1970: 1_900_000_000)),
     ] {
-        let selection = try #require(try database.cueTextSelection(
+        let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
             forSubtitleFile: subtitleFile,
             atMilliseconds: milliseconds
         ))
@@ -4438,7 +4438,7 @@ func shioriCuePresentationUsesCueIDAndPrimaryCueMetadata() throws {
         cueGroups: [initialGroup],
         languageAnalysis: groupOnlyLanguageAnalysis
     )
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
@@ -4643,7 +4643,7 @@ func shioriTablePageAppliesSearchAndFiltersBeforeSlicing() throws {
         (3_500, Date(timeIntervalSince1970: 1_800_000_000)),
         (5_500, Date(timeIntervalSince1970: 1_900_000_000)),
     ] {
-        let selection = try #require(try database.cueTextSelection(
+        let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
             forSubtitleFile: subtitleFile,
             atMilliseconds: milliseconds
         ))
@@ -4878,11 +4878,11 @@ func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
         ]
     )
 
-    let firstSelection = try #require(try database.cueTextSelection(
+    let firstSelection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    let secondSelection = try #require(try database.cueTextSelection(
+    let secondSelection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 3_500
     ))
@@ -5009,7 +5009,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
             )
         ]
     )
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
@@ -6730,7 +6730,7 @@ func cueTextSelectionUsesShortestActiveCueAndLatestEndTieBreak() throws {
         ]
     )
 
-    let selectedCue = try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 4_000)
+    let selectedCue = try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 4_000)
     let selection = try #require(selectedCue)
     #expect(selection.startMilliseconds == 3_500)
     #expect(selection.endMilliseconds == 5_500)
@@ -6761,13 +6761,13 @@ func cueTextSelectionFallsBackToPreviousCueRange() throws {
         ]
     )
 
-    let selectedCue = try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 6_000)
+    let selectedCue = try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 6_000)
     let selection = try #require(selectedCue)
     #expect(selection.startMilliseconds == 4_500)
     #expect(selection.endMilliseconds == 5_000)
     #expect(selection.text == "short previous")
 
-    #expect(try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 500) == nil)
+    #expect(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 500) == nil)
 }
 
 @Test
@@ -6814,7 +6814,7 @@ func cueTextSelectionReturnsPhysicallyBottommostCueAsSingleCue() throws {
         cueGroups: [cueGroup]
     )
 
-    let selectedCue = try database.cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 2_000)
+    let selectedCue = try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(forSubtitleFile: subtitleFile, atMilliseconds: 2_000)
     let selection = try #require(selectedCue)
     #expect(selection.lines == ["bottom"])
     #expect(selection.text == "bottom")

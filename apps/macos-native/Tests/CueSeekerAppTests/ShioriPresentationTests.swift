@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 import Testing
-import CueSeekerCore
+@testable import CueSeekerCore
 @testable import CueSeekerApp
 
 @MainActor
@@ -68,7 +68,7 @@ private func makeShiori(
             )
         ]
     )
-    let selection = try #require(try database.cueTextSelection(
+    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))

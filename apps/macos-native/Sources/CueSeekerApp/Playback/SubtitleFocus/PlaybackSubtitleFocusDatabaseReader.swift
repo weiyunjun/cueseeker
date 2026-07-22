@@ -8,7 +8,8 @@ enum PlaybackSubtitleFocusShioriWriteResult: Equatable, Sendable {
 
 actor PlaybackSubtitleFocusDatabaseReader {
     private let databaseURL: URL
-    private var database: SubtitleDatabase?
+    private var playbackDatabase: PlaybackSubtitleDatabase?
+    private var shioriDatabase: SubtitleDatabase?
 
     init(databaseURL: URL) {
         self.databaseURL = databaseURL
@@ -19,7 +20,7 @@ actor PlaybackSubtitleFocusDatabaseReader {
         timestampMilliseconds: Int
     ) throws -> SubtitleFocusSnapshot? {
         try Task.checkCancellation()
-        let snapshot = try resolvedDatabase().subtitleFocusInitialSnapshot(
+        let snapshot = try resolvedPlaybackDatabase().subtitleFocusInitialSnapshot(
             forSubtitleFile: URL(fileURLWithPath: subtitlePath),
             atMilliseconds: timestampMilliseconds
         )
@@ -32,7 +33,7 @@ actor PlaybackSubtitleFocusDatabaseReader {
         totalCount: Int
     ) throws -> SubtitleFocusCueBatch {
         try Task.checkCancellation()
-        let batch = try resolvedDatabase().subtitleFocusCueBatch(
+        let batch = try resolvedPlaybackDatabase().subtitleFocusCueBatch(
             forSubtitleFile: URL(fileURLWithPath: subtitlePath),
             totalCount: totalCount,
             startingAtOrdinal: 0,
@@ -47,7 +48,7 @@ actor PlaybackSubtitleFocusDatabaseReader {
         videoName: String
     ) throws -> PlaybackSubtitleFocusShioriWriteResult {
         try Task.checkCancellation()
-        let database = try resolvedDatabase()
+        let database = try resolvedShioriDatabase()
         if try database.shiori(cueID: context.cue.id) != nil {
             try Task.checkCancellation()
             return .alreadySaved
@@ -70,15 +71,21 @@ actor PlaybackSubtitleFocusDatabaseReader {
         return .saved
     }
 
-    private func resolvedDatabase() throws -> SubtitleDatabase {
-        if let database {
-            return database
+    private func resolvedPlaybackDatabase() throws -> PlaybackSubtitleDatabase {
+        if let playbackDatabase {
+            return playbackDatabase
         }
-        let database = try SubtitleDatabase(
-            path: databaseURL,
-            access: .readWrite
-        )
-        self.database = database
+        let database = try PlaybackSubtitleDatabase(path: databaseURL)
+        playbackDatabase = database
+        return database
+    }
+
+    private func resolvedShioriDatabase() throws -> SubtitleDatabase {
+        if let shioriDatabase {
+            return shioriDatabase
+        }
+        let database = try SubtitleDatabase(path: databaseURL, access: .readWrite)
+        shioriDatabase = database
         return database
     }
 }

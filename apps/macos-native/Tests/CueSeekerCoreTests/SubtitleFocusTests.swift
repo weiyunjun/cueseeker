@@ -36,7 +36,7 @@ func subtitleFocusDatabaseBootstrapLoadsSixBeforeAndThreeAfter() throws {
         }
     )
 
-    let snapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let snapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 12_500
     ))
@@ -62,14 +62,14 @@ func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() thro
         entries: focusEntries(count: 20)
     )
 
-    let firstSnapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let firstSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 100
     ))
     #expect(firstSnapshot.selectedOrdinal == 0)
     #expect(firstSnapshot.cues.map(\.ordinal) == Array(0..<10))
 
-    let lastSnapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let lastSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 19_500
     ))
@@ -81,7 +81,7 @@ func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() thro
         videoFile: videoFile,
         entries: focusEntries(count: 7)
     )
-    let shortSnapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let shortSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 3_500
     ))
@@ -113,13 +113,13 @@ func subtitleFocusDatabaseBootstrapUsesPreviousCueAndFallsBackToFirstCue() throw
         }
     )
 
-    let gapSnapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let gapSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 7_900
     ))
     #expect(gapSnapshot.selectedOrdinal == 6)
     #expect(gapSnapshot.selectedCue?.text == "gap cue 6")
-    let beforeFirstSnapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let beforeFirstSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 500
     ))
@@ -162,7 +162,7 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
         ]
     )
 
-    let batch = try database.subtitleFocusCueBatch(
+    let batch = try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
         forSubtitleFile: subtitleFile,
         totalCount: 2,
         startingAtOrdinal: 0,
@@ -178,7 +178,7 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
     #expect(Set(batch.cues.map(\.cueGroupID)).count == 1)
     #expect(batch.cues[0].id != batch.cues[1].id)
 
-    let snapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let snapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
@@ -204,7 +204,7 @@ func subtitleFocusDatabaseBatchReadsCompleteCurrentVideoCollection() throws {
         entries: focusEntries(count: cueCount)
     )
 
-    let batch = try database.subtitleFocusCueBatch(
+    let batch = try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
         forSubtitleFile: subtitleFile,
         totalCount: cueCount,
         startingAtOrdinal: 0,
@@ -229,7 +229,7 @@ func subtitleFocusDatabaseBatchRejectsPreCancelledTasks() async throws {
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
-        return try database.subtitleFocusCueBatch(
+        return try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
             forSubtitleFile: URL(fileURLWithPath: "/Media/Cancelled.srt"),
             totalCount: 1,
             startingAtOrdinal: 0,
@@ -262,7 +262,7 @@ func subtitleFocusDatabaseBatchStopsAfterCancellationDuringRowIteration() async 
     let rowReadProbe = SubtitleFocusCancellationRowReadProbe()
     let task = Task.detached { () throws -> SubtitleFocusCueBatch in
         let database = try SubtitleDatabase(path: databaseURL)
-        return try database.subtitleFocusCueBatch(
+        return try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
             forSubtitleFile: subtitleFile,
             totalCount: 2_500,
             startingAtOrdinal: 0,
@@ -309,7 +309,7 @@ func subtitleFocusDatabaseUsesOneStableOrderForSelectionAndWindow() throws {
         ]
     )
 
-    let snapshot = try #require(try database.subtitleFocusInitialSnapshot(
+    let snapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
