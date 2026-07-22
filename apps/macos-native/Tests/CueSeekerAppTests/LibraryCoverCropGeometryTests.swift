@@ -83,9 +83,16 @@ func libraryCoverCropCornerResizeKeepsAspectAnchorBoundsAndMinimum() {
 }
 
 @Test
-func libraryCoverCropColorsUseSystemAccentAndShadowTokens() {
+func libraryCoverCropColorsUseSystemAccentAndTranslucentShadowTokens() {
     #expect(WorkbenchRedesignColors.NS.libraryCoverCropAccent == NSColor.controlAccentColor)
-    #expect(WorkbenchRedesignColors.NS.libraryCoverCropMask == NSColor.shadowColor)
+    #expect(
+        WorkbenchRedesignColors.NS.libraryCoverCropMask
+            == NSColor.shadowColor.withAlphaComponent(0.55)
+    )
+    #expect(
+        abs(WorkbenchRedesignColors.NS.libraryCoverCropMask.alphaComponent - 0.55)
+            < 0.001
+    )
 }
 
 private func libraryCoverOppositeAnchor(

@@ -134,7 +134,7 @@ enum WorkbenchRedesignColors {
         static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
         static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
         static let libraryCoverCropAccent = NSColor.controlAccentColor
-        static let libraryCoverCropMask = NSColor.shadowColor
+        static let libraryCoverCropMask = NSColor.shadowColor.withAlphaComponent(0.55)
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
 
         // Shadow Color

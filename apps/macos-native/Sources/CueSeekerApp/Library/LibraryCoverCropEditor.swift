@@ -277,7 +277,6 @@ struct LibraryCoverCropEditor: View {
                         .gesture(resizeGesture(corner: corner, layout: layout))
                 }
             }
-            .clipped()
             .onAppear {
                 if !LibraryCoverCropGeometry.contains(cropRect, in: source.pixelSize) {
                     cropRect = LibraryCoverCropGeometry.initialCropRect(

@@ -56,6 +56,9 @@ Completed.
    replaced only matching Recent, Library folder, and loaded Library episode
    presentation snapshots. The targeted update does not increment page-level
    revisions or trigger a full Library refresh.
+7. Corrected the Crop Editor Matte to use the system Shadow color at Alpha
+   `0.55`, and allowed crop chrome to render beyond the image-stage bounds so
+   corner handles remain complete when the crop touches an image edge.
 
 ## Verification
 
@@ -76,6 +79,8 @@ Completed.
 - Persisted revision handoff and targeted video/folder snapshot refresh without
   page-level revision changes: 3 tests passed.
 - Complete cover-editing test filter: 35 tests passed.
+- Follow-up translucent Matte token and Crop Editor geometry: 4 tests passed;
+  the complete cover filter passed 45 tests after the correction.
 - Full non-parallel package run: 834 tests completed with one unrelated
   shared-`UserDefaults` state failure; the failed persistence migration test
   passed in an isolated rerun (1 test passed).
