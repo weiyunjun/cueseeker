@@ -298,14 +298,14 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try DatabaseMaintenanceDatabase(path: databaseURL)
 
-    #expect(try database.busyTimeoutMilliseconds() == SubtitleDatabase.configuredBusyTimeoutMilliseconds)
+    #expect(try database.busyTimeoutMilliseconds() == DatabaseMaintenanceDatabase.configuredBusyTimeoutMilliseconds)
     #expect(try database.journalMode().lowercased() == "wal")
     #expect(try database.synchronousMode() == 1)
-    #expect(try database.cacheSize() == -SubtitleDatabase.configuredCacheSizeKibibytes)
-    #expect(try database.mmapSize() == SubtitleDatabase.configuredMmapSizeBytes)
+    #expect(try database.cacheSize() == -DatabaseMaintenanceDatabase.configuredCacheSizeKibibytes)
+    #expect(try database.mmapSize() == DatabaseMaintenanceDatabase.configuredMmapSizeBytes)
 }
 
 @Test
@@ -1011,16 +1011,17 @@ func reportsStorageStatsAndCompactsFreelistPages() throws {
     )
     try database.clearIndexedContent()
 
-    let statsAfterClear = try database.storageStats()
+    let maintenance = try DatabaseMaintenanceDatabase(path: databaseURL)
+    let statsAfterClear = try maintenance.storageStats()
     #expect(statsAfterClear.pageSize > 0)
     #expect(statsAfterClear.pageCount > 0)
     #expect(statsAfterClear.freelistCount > 0)
     #expect(statsAfterClear.freelistBytes > 0)
     #expect(statsAfterClear.databaseFileBytes > 0)
 
-    try database.compactStorage()
+    try maintenance.compactStorage()
 
-    let statsAfterCompact = try database.storageStats()
+    let statsAfterCompact = try maintenance.storageStats()
     #expect(statsAfterCompact.freelistCount == 0)
     #expect(statsAfterCompact.freelistBytes == 0)
     #expect(statsAfterCompact.databaseFileBytes <= statsAfterClear.databaseFileBytes)
@@ -1050,8 +1051,8 @@ func storesAndLoadsAIChunkCacheEntry() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let cache = try AIChunkCacheDatabase(path: databaseURL)
 
     let key = AIChunkCacheKey(
         normalizedSentence: "運も実力のうちだ",
@@ -1061,12 +1062,12 @@ func storesAndLoadsAIChunkCacheEntry() throws {
     )
     let cacheDate = "2026-05-26T00:00:00Z"
 
-    let saved = try database.upsertAIChunkCacheEntry(
+    let saved = try cache.upsertAIChunkCacheEntry(
         key: key,
         chunks: mockChunks(["運", "実力", "うち"]),
         cacheDate: cacheDate
     )
-    let loaded = try database.aiChunkCacheEntry(for: key)
+    let loaded = try cache.aiChunkCacheEntry(for: key)
 
     #expect(saved.key == key)
     #expect(saved.chunks == mockChunks(["運", "実力", "うち"]))
@@ -1096,8 +1097,8 @@ func refreshingAIChunkCachePreservesCacheDate() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let cache = try AIChunkCacheDatabase(path: databaseURL)
 
     let key = AIChunkCacheKey(
         normalizedSentence: "春日影はわたくしたちの歌ですのね",
@@ -1106,17 +1107,17 @@ func refreshingAIChunkCachePreservesCacheDate() throws {
         promptVersion: "chunk-v1"
     )
 
-    try database.upsertAIChunkCacheEntry(
+    try cache.upsertAIChunkCacheEntry(
         key: key,
         chunks: mockChunks(["春日影", "わたくしたち", "歌"]),
         cacheDate: "2026-05-26T00:00:00Z"
     )
-    let refreshed = try database.upsertAIChunkCacheEntry(
+    let refreshed = try cache.upsertAIChunkCacheEntry(
         key: key,
         chunks: mockChunks(["春日影", "わたくしたちの歌"]),
         cacheDate: "2026-05-27T00:00:00Z"
     )
-    let loaded = try database.aiChunkCacheEntry(for: key)
+    let loaded = try cache.aiChunkCacheEntry(for: key)
 
     #expect(refreshed.chunks == mockChunks(["春日影", "わたくしたちの歌"]))
     #expect(refreshed.cacheDate == "2026-05-26T00:00:00Z")
@@ -1130,8 +1131,8 @@ func storesSameAIChunkSeparatelyForDifferentSubtitleLines() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let cache = try AIChunkCacheDatabase(path: databaseURL)
 
     let firstKey = AIChunkCacheKey(
         normalizedSentence: "運も実力のうちだ",
@@ -1146,19 +1147,19 @@ func storesSameAIChunkSeparatelyForDifferentSubtitleLines() throws {
         promptVersion: "chunk-v1"
     )
 
-    try database.upsertAIChunkCacheEntry(
+    try cache.upsertAIChunkCacheEntry(
         key: firstKey,
         chunks: mockChunks(["実力"]),
         cacheDate: "2026-05-26T00:00:00Z"
     )
-    try database.upsertAIChunkCacheEntry(
+    try cache.upsertAIChunkCacheEntry(
         key: secondKey,
         chunks: mockChunks(["実力"]),
         cacheDate: "2026-05-27T00:00:00Z"
     )
 
-    #expect(try database.aiChunkCacheEntry(for: firstKey)?.cacheDate == "2026-05-26T00:00:00Z")
-    #expect(try database.aiChunkCacheEntry(for: secondKey)?.cacheDate == "2026-05-27T00:00:00Z")
+    #expect(try cache.aiChunkCacheEntry(for: firstKey)?.cacheDate == "2026-05-26T00:00:00Z")
+    #expect(try cache.aiChunkCacheEntry(for: secondKey)?.cacheDate == "2026-05-27T00:00:00Z")
 }
 
 @Test
@@ -1168,8 +1169,8 @@ func clearsAIChunkCacheEntries() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let cache = try AIChunkCacheDatabase(path: databaseURL)
 
     let key = AIChunkCacheKey(
         normalizedSentence: "運も実力のうちだ",
@@ -1178,13 +1179,13 @@ func clearsAIChunkCacheEntries() throws {
         promptVersion: "chunk-v1"
     )
 
-    try database.upsertAIChunkCacheEntry(
+    try cache.upsertAIChunkCacheEntry(
         key: key,
         chunks: mockChunks(["運"])
     )
-    try database.clearAIChunkCacheEntries()
+    try cache.clearAIChunkCacheEntries()
 
-    #expect(try database.aiChunkCacheEntry(for: key) == nil)
+    #expect(try cache.aiChunkCacheEntry(for: key) == nil)
 }
 
 @Test

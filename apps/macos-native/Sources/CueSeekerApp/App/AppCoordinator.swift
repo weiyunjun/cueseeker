@@ -820,14 +820,14 @@ final class AppCoordinator: ObservableObject {
     }
 
     static func clearAIChunkCacheForPromptAwareSettingsIfNeeded(
-        database: SubtitleDatabase,
+        cache: AIChunkCacheDatabase,
         userDefaults: UserDefaults
     ) throws {
         guard !userDefaults.bool(forKey: aiChunkingPromptAwareCacheClearKey) else {
             return
         }
 
-        try database.clearAIChunkCacheEntries()
+        try cache.clearAIChunkCacheEntries()
         userDefaults.set(true, forKey: aiChunkingPromptAwareCacheClearKey)
     }
 

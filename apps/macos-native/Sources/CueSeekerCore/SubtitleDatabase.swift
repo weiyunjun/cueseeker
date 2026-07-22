@@ -1,9 +1,6 @@
 import Foundation
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let configuredBusyTimeoutMilliseconds: Int = 5_000
-    public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
-    public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
     private static let exactSearchCandidateBatchMinimum = 5_000
     private static let searchNavigationPlaybackAnchorBatchLimit = 64
 
@@ -86,44 +83,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return statement.intColumn(0)
     }
 
-    public func busyTimeoutMilliseconds() throws -> Int {
-        try database.intPragma("busy_timeout")
-    }
-
-    public func journalMode() throws -> String {
-        try database.stringPragma("journal_mode")
-    }
-
-    public func synchronousMode() throws -> Int {
-        try database.intPragma("synchronous")
-    }
-
-    public func cacheSize() throws -> Int {
-        try database.intPragma("cache_size")
-    }
-
-    public func mmapSize() throws -> Int {
-        try database.intPragma("mmap_size")
-    }
-
-    public func storageStats() throws -> DatabaseStorageStats {
-        DatabaseStorageStats(
-            databaseFileBytes: Self.fileSize(at: path),
-            walFileBytes: Self.fileSize(at: Self.sidecarPath(suffix: "-wal", for: path)),
-            shmFileBytes: Self.fileSize(at: Self.sidecarPath(suffix: "-shm", for: path)),
-            pageSize: try database.intPragma("page_size"),
-            pageCount: try database.intPragma("page_count"),
-            freelistCount: try database.intPragma("freelist_count"),
-            autoVacuumMode: try database.intPragma("auto_vacuum")
-        )
-    }
-
-    public func compactStorage() throws {
-        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-        try database.execute("VACUUM;")
-        try database.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-    }
-
     @discardableResult
     public func addSearchPath(_ folder: URL, type: String = "local") throws -> Int64 {
         let standardizedFolder = folder.standardizedFileURL
@@ -153,78 +112,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
         try backfillMediaPathIdentities(libraryID: libraryID, rootURL: standardizedFolder)
         return libraryID
-    }
-
-    public func aiChunkCacheEntry(for key: AIChunkCacheKey) throws -> AIChunkCacheEntry? {
-        try Self.validateAIChunkCacheKey(key)
-
-        let statement = try database.prepare(
-            """
-            SELECT normalized_sentence, provider, model, prompt_version, chunks_json, cache_date
-            FROM ai_chunk_cache_entries
-            WHERE normalized_sentence = ?
-              AND provider = ?
-              AND model = ?
-              AND prompt_version = ?
-            LIMIT 1;
-            """
-        )
-
-        try statement.bind(key.normalizedSentence, at: 1)
-        try statement.bind(key.provider, at: 2)
-        try statement.bind(key.model, at: 3)
-        try statement.bind(key.promptVersion, at: 4)
-
-        guard try statement.step() else {
-            return nil
-        }
-
-        return try aiChunkCacheEntry(from: statement)
-    }
-
-    @discardableResult
-    public func upsertAIChunkCacheEntry(
-        key: AIChunkCacheKey,
-        chunks: [AIChunkItem],
-        cacheDate: String = ISO8601DateFormatter().string(from: Date())
-    ) throws -> AIChunkCacheEntry {
-        try Self.validateAIChunkCacheKey(key)
-        try Self.validateAIChunkCacheChunks(chunks)
-
-        let chunksJSON = try Self.encodeAIChunks(chunks)
-        let statement = try database.prepare(
-            """
-            INSERT INTO ai_chunk_cache_entries(
-                normalized_sentence,
-                provider,
-                model,
-                prompt_version,
-                chunks_json,
-                cache_date
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(normalized_sentence, provider, model, prompt_version)
-            DO UPDATE SET chunks_json = excluded.chunks_json
-            RETURNING normalized_sentence, provider, model, prompt_version, chunks_json, cache_date;
-            """
-        )
-
-        try statement.bind(key.normalizedSentence, at: 1)
-        try statement.bind(key.provider, at: 2)
-        try statement.bind(key.model, at: 3)
-        try statement.bind(key.promptVersion, at: 4)
-        try statement.bind(chunksJSON, at: 5)
-        try statement.bind(cacheDate, at: 6)
-
-        guard try statement.step() else {
-            throw SQLiteDatabaseError.stepFailed("AI chunk cache entry could not be saved")
-        }
-
-        return try aiChunkCacheEntry(from: statement)
-    }
-
-    public func clearAIChunkCacheEntries() throws {
-        try database.execute("DELETE FROM ai_chunk_cache_entries;")
     }
 
     public func replaceEntries(
@@ -6770,15 +6657,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         text.replacingOccurrences(of: "\"", with: "\"\"")
     }
 
-    private static func fileSize(at url: URL) -> Int64 {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-        return (attributes?[.size] as? NSNumber)?.int64Value ?? 0
-    }
-
-    private static func sidecarPath(suffix: String, for path: URL) -> URL {
-        URL(fileURLWithPath: path.path + suffix)
-    }
-
     private static func expandedSQLLimit(for limit: Int) -> Int {
         let (expanded, overflow) = limit.multipliedReportingOverflow(by: 2)
         if overflow {
@@ -8587,22 +8465,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    private func aiChunkCacheEntry(from statement: SQLiteStatement) throws -> AIChunkCacheEntry {
-        let key = AIChunkCacheKey(
-            normalizedSentence: statement.stringColumn(0),
-            provider: statement.stringColumn(1),
-            model: statement.stringColumn(2),
-            promptVersion: statement.stringColumn(3)
-        )
-        let chunks = try Self.decodeAIChunks(statement.stringColumn(4))
-
-        return AIChunkCacheEntry(
-            key: key,
-            chunks: chunks,
-            cacheDate: statement.stringColumn(5)
-        )
-    }
-
     private func cueGroupSelection(from statement: SQLiteStatement) -> CueGroupSelection {
         CueGroupSelection(
             cueGroupID: statement.int64Column(0),
@@ -8721,41 +8583,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             }
         }
         return false
-    }
-
-    private static func validateAIChunkCacheKey(_ key: AIChunkCacheKey) throws {
-        guard !key.normalizedSentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw AIChunkCacheError.emptyNormalizedSentence
-        }
-        guard !key.provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw AIChunkCacheError.emptyProvider
-        }
-        guard !key.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw AIChunkCacheError.emptyModel
-        }
-        guard !key.promptVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw AIChunkCacheError.emptyPromptVersion
-        }
-    }
-
-    private static func validateAIChunkCacheChunks(_ chunks: [AIChunkItem]) throws {
-        guard !chunks.isEmpty,
-              chunks.allSatisfy({ !$0.item.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-        else {
-            throw AIChunkCacheError.emptyChunks
-        }
-    }
-
-    private static func encodeAIChunks(_ chunks: [AIChunkItem]) throws -> String {
-        String(decoding: try JSONEncoder().encode(chunks), as: UTF8.self)
-    }
-
-    private static func decodeAIChunks(_ chunksJSON: String) throws -> [AIChunkItem] {
-        guard let data = chunksJSON.data(using: .utf8) else {
-            throw SQLiteDatabaseError.stepFailed("AI chunk cache entry contains invalid UTF-8 JSON")
-        }
-
-        return try JSONDecoder().decode([AIChunkItem].self, from: data)
     }
 
     private func bindStaleEntryParameters(

@@ -29,4 +29,3 @@ public struct DatabaseStorageStats: Equatable, Sendable {
         return Double(freelistCount) / Double(pageCount)
     }
 }
-

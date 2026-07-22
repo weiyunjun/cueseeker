@@ -25,4 +25,3 @@ public struct SubtitleDatabaseEntryIndexItem: Equatable, Sendable {
         self.endMilliseconds = endMilliseconds
     }
 }
-

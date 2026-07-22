@@ -189,4 +189,3 @@ public struct ASSFontResourceManifest: Equatable, Sendable {
     public let errorMessage: String?
     public let preparedAt: String
 }
-

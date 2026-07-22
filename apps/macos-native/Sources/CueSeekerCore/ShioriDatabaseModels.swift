@@ -241,4 +241,3 @@ public enum ShioriNavigationDirection: Equatable, Sendable {
     case previous
     case next
 }
-

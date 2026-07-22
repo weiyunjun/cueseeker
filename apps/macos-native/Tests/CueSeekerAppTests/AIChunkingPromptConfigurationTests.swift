@@ -228,7 +228,7 @@ func aiChunkingCacheClearRunsOnceForPromptAwareCacheMigration() throws {
         }
 
         try DatabaseBootstrap.prepare(at: databaseURL)
-        let database = try SubtitleDatabase(path: databaseURL)
+        let cache = try AIChunkCacheDatabase(path: databaseURL)
         let key = AIChunkCacheKey(
             normalizedSentence: "運も実力のうちだ",
             provider: "deepseek",
@@ -236,28 +236,28 @@ func aiChunkingCacheClearRunsOnceForPromptAwareCacheMigration() throws {
             promptVersion: "chunk-v1"
         )
 
-        try database.upsertAIChunkCacheEntry(
+        try cache.upsertAIChunkCacheEntry(
             key: key,
             chunks: [AIChunkItem(item: "運", translation: "运")]
         )
         try AppCoordinator.clearAIChunkCacheForPromptAwareSettingsIfNeeded(
-            database: database,
+            cache: cache,
             userDefaults: userDefaults
         )
 
-        #expect(try database.aiChunkCacheEntry(for: key) == nil)
+        #expect(try cache.aiChunkCacheEntry(for: key) == nil)
         #expect(userDefaults.bool(forKey: AppCoordinator.aiChunkingPromptAwareCacheClearKey))
 
-        try database.upsertAIChunkCacheEntry(
+        try cache.upsertAIChunkCacheEntry(
             key: key,
             chunks: [AIChunkItem(item: "実力", translation: "实力")]
         )
         try AppCoordinator.clearAIChunkCacheForPromptAwareSettingsIfNeeded(
-            database: database,
+            cache: cache,
             userDefaults: userDefaults
         )
 
-        #expect(try database.aiChunkCacheEntry(for: key)?.chunks == [
+        #expect(try cache.aiChunkCacheEntry(for: key)?.chunks == [
             AIChunkItem(item: "実力", translation: "实力")
         ])
     }

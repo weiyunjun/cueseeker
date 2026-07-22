@@ -43,7 +43,8 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
         model: "deepseek-chat",
         promptVersion: "startup-v1"
     )
-    try preparedDatabase.upsertAIChunkCacheEntry(
+    let cache = try AIChunkCacheDatabase(path: databaseURL)
+    try cache.upsertAIChunkCacheEntry(
         key: cacheKey,
         chunks: [AIChunkItem(item: "startup", translation: "startup")]
     )
@@ -56,7 +57,7 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
     #expect(app.libraryDisplayRenditionTask == nil)
     let database = try #require(app.subtitleDatabase)
     #expect(try database.cueOccurrenceCount(for: "startup") == 1)
-    #expect(try database.aiChunkCacheEntry(for: cacheKey)?.chunks == [
+    #expect(try cache.aiChunkCacheEntry(for: cacheKey)?.chunks == [
         AIChunkItem(item: "startup", translation: "startup")
     ])
     #expect(app.indexing.databaseStorageStats == nil)

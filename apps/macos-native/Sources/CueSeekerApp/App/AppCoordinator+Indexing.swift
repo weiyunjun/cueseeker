@@ -320,16 +320,21 @@ extension AppCoordinator {
         }
 
         databaseStorageStatsTask?.cancel()
-        guard let database = subtitleDatabase else {
+        guard subtitleDatabase != nil else {
             indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
             return
         }
+        let databaseURL = self.databaseURL
 
         indexing.databaseMaintenanceStatus = .loadingStats
         databaseStorageStatsTask = Task {
             do {
                 let stats = try await Task.detached(priority: .utility) {
-                    try database.storageStats()
+                    let maintenance = try DatabaseMaintenanceDatabase(
+                        path: databaseURL,
+                        access: .readOnly
+                    )
+                    return try maintenance.storageStats()
                 }.value
 
                 guard !Task.isCancelled else {
@@ -423,7 +428,7 @@ extension AppCoordinator {
             return
         }
 
-        guard let database = subtitleDatabase else {
+        guard subtitleDatabase != nil else {
             indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
             return
         }
@@ -431,7 +436,11 @@ extension AppCoordinator {
         let statsBefore: DatabaseStorageStats
         do {
             cancelStartupDatabaseTask()
-            statsBefore = try database.storageStats()
+            let maintenance = try DatabaseMaintenanceDatabase(
+                path: databaseURL,
+                access: .readOnly
+            )
+            statsBefore = try maintenance.storageStats()
         } catch {
             indexing.databaseMaintenanceStatus = .failed(Self.errorMessage(for: error))
             return
@@ -447,12 +456,14 @@ extension AppCoordinator {
         cancelDatabaseReadTasksBeforeIndexing()
         indexing.databaseStorageStats = statsBefore
         indexing.databaseMaintenanceStatus = .compacting
+        let databaseURL = self.databaseURL
 
         databaseCompactionTask = Task {
             do {
                 let statsAfter = try await Task.detached(priority: .utility) {
-                    try database.compactStorage()
-                    return try database.storageStats()
+                    let maintenance = try DatabaseMaintenanceDatabase(path: databaseURL)
+                    try maintenance.compactStorage()
+                    return try maintenance.storageStats()
                 }.value
 
                 guard !Task.isCancelled else {

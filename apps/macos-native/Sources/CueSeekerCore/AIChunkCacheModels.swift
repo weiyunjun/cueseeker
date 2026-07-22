@@ -73,4 +73,3 @@ public enum AIChunkCacheError: Error, Equatable {
     case emptyPromptVersion
     case emptyChunks
 }
-

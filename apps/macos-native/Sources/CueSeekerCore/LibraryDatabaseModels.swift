@@ -452,4 +452,3 @@ public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiab
             ?? videos.first
     }
 }
-
