@@ -42,6 +42,7 @@ final class AppCoordinator: ObservableObject {
     let databaseURL: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var subtitleDatabase: SubtitleDatabase?
+    let searchDatabase: SearchDatabase?
     let libraryDatabase: LibraryDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
     let shioriDatabase: ShioriDatabase?
@@ -522,6 +523,7 @@ final class AppCoordinator: ObservableObject {
         playback = PlaybackStore(userDefaults: userDefaults)
 
         var openedDatabase: SubtitleDatabase?
+        var openedSearchDatabase: SearchDatabase?
         var openedLibraryDatabase: LibraryDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
         var openedShioriDatabase: ShioriDatabase?
@@ -531,12 +533,14 @@ final class AppCoordinator: ObservableObject {
             try DatabaseBootstrap.prepare(at: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             openedDatabase = database
+            openedSearchDatabase = try SearchDatabase(path: self.databaseURL)
             openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
             openedShioriDatabase = try ShioriDatabase(path: self.databaseURL)
             initialError = nil
         } catch {
             openedDatabase = nil
+            openedSearchDatabase = nil
             openedLibraryDatabase = nil
             openedLibraryCoverDatabase = nil
             openedShioriDatabase = nil
@@ -544,6 +548,7 @@ final class AppCoordinator: ObservableObject {
         }
 
         self.subtitleDatabase = openedDatabase
+        self.searchDatabase = openedSearchDatabase
         self.libraryDatabase = openedLibraryDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
         self.shioriDatabase = openedShioriDatabase

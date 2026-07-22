@@ -48,15 +48,14 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
         key: cacheKey,
         chunks: [AIChunkItem(item: "startup", translation: "startup")]
     )
-    #expect(try preparedDatabase.cueOccurrenceCount(for: "startup") == 1)
+    #expect(try SearchDatabase(path: databaseURL).cueOccurrenceCount(for: "startup") == 1)
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
 
     #expect(app.startupDatabaseTask == nil)
     #expect(app.libraryDisplayRenditionTask == nil)
-    let database = try #require(app.subtitleDatabase)
-    #expect(try database.cueOccurrenceCount(for: "startup") == 1)
+    #expect(try #require(app.searchDatabase).cueOccurrenceCount(for: "startup") == 1)
     #expect(try cache.aiChunkCacheEntry(for: cacheKey)?.chunks == [
         AIChunkItem(item: "startup", translation: "startup")
     ])
@@ -106,8 +105,7 @@ func explicitIndexFolderKeepsSearchAndLibraryReady() async throws {
     await app.libraryTask?.value
     await app.databaseStorageStatsTask?.value
 
-    let database = try #require(app.subtitleDatabase)
-    let page = try database.searchVisiblePage(
+    let page = try #require(app.searchDatabase).searchVisiblePage(
         "explicit",
         limit: 10,
         cursor: .start,

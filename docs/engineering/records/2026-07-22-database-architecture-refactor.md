@@ -215,6 +215,22 @@ and remove the old God Object without a permanent forwarding facade.
 - Removed the presentation queries, rebuild helpers, and Library sort helper
   from `SubtitleDatabase`, reducing it further to 5,297 lines.
 
+### 18. Search Query Repository
+
+- Added read-only-by-default `SearchDatabase` as the persistence owner for
+  Search execution, exact and visible paging, Cue context hydration, playback
+  lookup, navigation snapshots, occurrence counts, and FTS diagnostics.
+- Updated App Search, URL Cue lookup, FTS diagnostics, `SearchBench`, and tests
+  to open the focused Search repository instead of querying through
+  `SubtitleDatabase`.
+- Removed the always-unavailable Search result-ID cache path, its internal
+  model, and the database navigation fallback that could never return data.
+- Removed every public Search query operation and its SQL/read helpers from
+  `SubtitleDatabase`, reducing it from 5,297 to 2,815 lines. The extracted
+  `SearchDatabase.swift` contains 2,234 lines, so this step also removed 248
+  lines from the two Core database implementations rather than only moving
+  code between files.
+
 ## Verification
 
 ### Step 1
@@ -370,14 +386,31 @@ and remove the old God Object without a permanent forwarding facade.
 - Confirmed the moved Library presentation and snapshot operations are
   declared only on `LibraryDatabase` and ran `git diff --check` without errors.
 
+### Step 18
+
+- Built every product and test target after extracting the Search query
+  repository.
+- Ran 163 Search, Indexer, URL Cue, App startup, and Library folder-removal
+  regression tests; all passed.
+- Reran the seven failures from the first loaded complete-suite run together
+  after correcting FTS diagnostic connection access; all seven passed.
+- Ran the complete 830-test Swift suite twice. The remaining failures were
+  concurrent timing-sensitive playback, Subtitle Focus, and folder-removal
+  tests; all ten failures from the second run passed together in isolation.
+  The corrected FTS diagnostic test also passed in isolation and did not fail
+  in the second run.
+- Confirmed `SubtitleDatabase` exposes no public Search query operation, the
+  retired Search cache path has no remaining declaration or call site, and
+  `git diff --check` reports no errors.
+
 ## Outcome
 
-Steps 1 through 17 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 18 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.
 
 ## Follow-ups
 
-- Extract focused domain persistence APIs.
+- Complete the remaining Indexing/write-side persistence extraction.
 - Record each subsequent implementation and verification step in this file.

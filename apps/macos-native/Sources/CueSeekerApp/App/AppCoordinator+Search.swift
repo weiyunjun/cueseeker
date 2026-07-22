@@ -136,7 +136,7 @@ extension AppCoordinator {
     }
 
     func openLibraryVideoContext(_ video: LibraryVideo, displayTitle: String) {
-        guard let database = subtitleDatabase else {
+        guard let database = searchDatabase else {
             return
         }
 
@@ -234,7 +234,7 @@ extension AppCoordinator {
 
         guard !trimmedQuery.isEmpty,
               !folders.isEmpty,
-              subtitleDatabase != nil
+              searchDatabase != nil
         else {
             return nil
         }
@@ -255,7 +255,7 @@ extension AppCoordinator {
                 let page = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    let pageDatabase = try SubtitleDatabase(
+                    let pageDatabase = try SearchDatabase(
                         path: searchDatabaseURL,
                         access: .readOnly
                     )
@@ -311,7 +311,7 @@ extension AppCoordinator {
             let page = try await Self.runCancellableDetached(
                 priority: .userInitiated
             ) {
-                let pageDatabase = try SubtitleDatabase(
+                let pageDatabase = try SearchDatabase(
                     path: searchDatabaseURL,
                     access: .readOnly
                 )
@@ -352,7 +352,7 @@ extension AppCoordinator {
         let filterSet = search.activeFilterSet
         let filterSignature = filterSet.cacheSignature
         guard !folders.isEmpty,
-              subtitleDatabase != nil
+              searchDatabase != nil
         else {
             return nil
         }
@@ -365,7 +365,7 @@ extension AppCoordinator {
             let page = try await Self.runCancellableDetached(
                 priority: .userInitiated
             ) {
-                let pageDatabase = try SubtitleDatabase(
+                let pageDatabase = try SearchDatabase(
                     path: searchDatabaseURL,
                     access: .readOnly
                 )
@@ -402,7 +402,7 @@ extension AppCoordinator {
         anchorsInitialPage: Bool = false
     ) async -> TableSandboxSearchHydrationPage? {
         let folders = indexing.selectedFolders
-        guard subtitleDatabase != nil else {
+        guard searchDatabase != nil else {
             return nil
         }
         let pageDatabaseURL = databaseURL
@@ -414,7 +414,7 @@ extension AppCoordinator {
             let subtitlePath = request.subtitlePath
             let targetCueID = request.targetCueID
             let loadedPage = try await Task.detached(priority: .userInitiated) {
-                let pageDatabase = try SubtitleDatabase(
+                let pageDatabase = try SearchDatabase(
                     path: pageDatabaseURL,
                     access: .readOnly
                 )
@@ -644,7 +644,7 @@ extension AppCoordinator {
             return
         }
 
-        guard let database = subtitleDatabase else {
+        guard let database = searchDatabase else {
             search.searchStatus = .failed("Database is not initialized")
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
@@ -997,7 +997,7 @@ extension AppCoordinator {
     ) {
         searchExactCompletionTask?.cancel()
 
-        guard let database = subtitleDatabase else {
+        guard let database = searchDatabase else {
             return
         }
 
@@ -1318,7 +1318,7 @@ extension AppCoordinator {
 
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !indexing.selectedFolders.isEmpty,
-              let database = subtitleDatabase
+              searchDatabase != nil
         else {
             search.searchNavigationSnapshot = nil
             if let direction {
@@ -1327,7 +1327,6 @@ extension AppCoordinator {
             return
         }
 
-        let folders = indexing.selectedFolders
         let anchor = currentSearchNavigationAnchor()
         let panelRadius = Self.searchNavigationPanelRadius
         if trimmedQuery.isEmpty {
@@ -1343,69 +1342,43 @@ extension AppCoordinator {
         let filterSet = search.resultFilterSet
         let filterSignature = filterSet.cacheSignature
         searchNavigationTask = Task { [weak self] in
-            do {
-                let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.searchNavigationSnapshotFromResultIDIndex(
-                        trimmedQuery,
-                        under: folders,
-                        languageFilter: languageFilter,
-                        filterSet: filterSet,
-                        anchor: anchor,
-                        radius: panelRadius
+            guard !Task.isCancelled, let self else {
+                return
+            }
+            guard self.settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
+                  self.search.resultFilterSetSignature == filterSignature
+            else {
+                return
+            }
+
+            guard let resolvedSnapshot = self.loadedSearchNavigationSnapshot(
+                anchor: anchor,
+                radius: panelRadius
+            ) else {
+                if let direction {
+                    self.playback.playbackViewModel?.showSearchNavigationFeedback(
+                        direction: direction,
+                        hasResult: false
                     )
-                }.value
-
-                guard !Task.isCancelled else {
-                    return
                 }
+                return
+            }
 
-                guard let self else {
-                    return
-                }
+            self.applySearchNavigationSnapshot(resolvedSnapshot)
+            let target: SubtitleSearchResult? = switch direction {
+            case .previous:
+                resolvedSnapshot.previous
+            case .next:
+                resolvedSnapshot.next
+            case nil:
+                nil
+            }
 
-                guard self.settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
-                      self.search.resultFilterSetSignature == filterSignature
-                else {
-                    return
-                }
-
-                let resolvedSnapshot = snapshot ?? self.loadedSearchNavigationSnapshot(
-                    anchor: anchor,
-                    radius: panelRadius
-                )
-                guard let resolvedSnapshot else {
-                    if let direction {
-                        self.playback.playbackViewModel?.showSearchNavigationFeedback(
-                            direction: direction,
-                            hasResult: false
-                        )
-                    }
-                    return
-                }
-
-                self.applySearchNavigationSnapshot(resolvedSnapshot)
-                let target: SubtitleSearchResult? = switch direction {
-                case .previous:
-                    resolvedSnapshot.previous
-                case .next:
-                    resolvedSnapshot.next
-                case nil:
-                    nil
-                }
-
-                if let target, let direction {
-                    self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: true)
-                    self.openSearchResult(target)
-                } else if let direction {
-                    self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
-                }
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                print("Failed to load Search navigation snapshot: \(error)")
-                self?.search.searchNavigationSnapshot = nil
+            if let target, let direction {
+                self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: true)
+                self.openSearchResult(target)
+            } else if let direction {
+                self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
         }
     }
@@ -1658,7 +1631,7 @@ extension AppCoordinator {
         }
 
         let folders = indexing.selectedFolders
-        guard let database = subtitleDatabase else {
+        guard let database = searchDatabase else {
             return
         }
         let pageSize = Self.searchPageSize

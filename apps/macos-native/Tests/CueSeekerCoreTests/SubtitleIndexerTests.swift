@@ -35,7 +35,7 @@ func indexesFolderIntoSQLiteSearchDatabase() throws {
     #expect(result.indexedSubtitleEntries == 2)
     #expect(result.skippedMissingVideo == 0)
 
-    let searchResults = try database.search("searchable")
+    let searchResults = try SearchDatabase(path: fixture.databaseURL).search("searchable")
     #expect(searchResults.count == 1)
     #expect(searchResults[0].videoName == "Movie.mkv")
     #expect(searchResults[0].startMilliseconds == 1_000)
@@ -68,7 +68,7 @@ func indexingPrefersCompleteBasenameMatchAndStoresOneAssociation() throws {
     let database = try SubtitleDatabase(path: fixture.databaseURL)
     let result = try SubtitleIndexer().index(folder: fixture.root, into: database)
     let subtitleFiles = try database.subtitleFiles()
-    let searchResults = try database.search("priority")
+    let searchResults = try SearchDatabase(path: fixture.databaseURL).search("priority")
     let storedVideo = URL(
         fileURLWithPath: try #require(subtitleFiles.first?.videoPath)
     ).resolvingSymlinksInPath()
@@ -198,7 +198,7 @@ func skipsSubtitleFileWhenMatchingVideoIsMissing() throws {
     #expect(result.indexedSubtitleFiles == 0)
     #expect(result.indexedSubtitleEntries == 0)
     #expect(result.skippedMissingVideo == 1)
-    #expect(try database.search("indexed").isEmpty)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("indexed").isEmpty)
 }
 
 @Test
@@ -223,7 +223,7 @@ func reindexingFolderRemovesStaleSubtitleEntries() throws {
     let indexer = SubtitleIndexer()
 
     _ = try indexer.index(folder: fixture.root, into: database)
-    #expect(try database.search("Old").count == 1)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("Old").count == 1)
 
     try FileManager.default.removeItem(at: subtitleURL)
 
@@ -231,7 +231,7 @@ func reindexingFolderRemovesStaleSubtitleEntries() throws {
 
     #expect(result.scannedSubtitleFiles == 0)
     #expect(result.indexedSubtitleFiles == 0)
-    #expect(try database.search("Old").isEmpty)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("Old").isEmpty)
     #expect(try database.subtitleFiles().isEmpty)
 }
 
@@ -271,9 +271,9 @@ func reindexingFolderReplacesChangedSubtitleContent() throws {
     let result = try indexer.index(folder: fixture.root, into: database)
 
     #expect(result.indexedSubtitleEntries == 1)
-    #expect(try database.search("Old").isEmpty)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("Old").isEmpty)
 
-    let freshResults = try database.search("Fresh")
+    let freshResults = try SearchDatabase(path: fixture.databaseURL).search("Fresh")
     #expect(freshResults.count == 1)
     #expect(freshResults[0].startMilliseconds == 9_000)
 }
@@ -308,7 +308,7 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
     #expect(unchangedResult.indexedSubtitleEntries == 0)
     #expect(unchangedResult.skippedUnchangedSubtitleFiles == 1)
 
-    let searchResults = try database.search("Stable")
+    let searchResults = try SearchDatabase(path: fixture.databaseURL).search("Stable")
     #expect(searchResults.count == 1)
     #expect(searchResults[0].content == "Stable searchable text.")
 }
@@ -422,7 +422,7 @@ func indexesASSFilesAsGroupedCueResults() throws {
     #expect(result.indexedSubtitleFiles == 1)
     #expect(result.indexedSubtitleEntries == 2)
 
-    let searchResults = try database.search("English")
+    let searchResults = try SearchDatabase(path: fixture.databaseURL).search("English")
     #expect(searchResults.count == 1)
     #expect(searchResults[0].subtitleFormat == .ass)
     #expect(searchResults[0].videoName == "Movie.mkv")
@@ -430,7 +430,7 @@ func indexesASSFilesAsGroupedCueResults() throws {
     #expect(searchResults[0].cueGroupLines == ["日本語ライン", "English line"])
     #expect(searchResults[0].startMilliseconds == 1_000)
 
-    let kanaResults = try database.search("ライン")
+    let kanaResults = try SearchDatabase(path: fixture.databaseURL).search("ライン")
     #expect(kanaResults.count == 1)
     #expect(kanaResults[0].subtitleFormat == .ass)
     #expect(kanaResults[0].cueLines == ["日本語ライン"])

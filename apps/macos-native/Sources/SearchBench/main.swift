@@ -99,18 +99,18 @@ print("")
 
 let openStart = Date()
 try DatabaseBootstrap.prepare(at: dbPath)
-let database = try SubtitleDatabase(path: dbPath)
+let database = try SearchDatabase(path: dbPath, access: .readWrite)
 let openMs = milliseconds(since: openStart)
 print("Open connection:      \(formatMs(openMs)) ms")
 
 let migrateStart = Date()
 let migrateMs = milliseconds(since: migrateStart)
 print("Migrate (one-time):   \(formatMs(migrateMs)) ms")
-print("Schema version:       \(try database.schemaVersion())")
+print("Schema version:       \(DatabaseBootstrap.currentSchemaVersion)")
 print("")
 
 func timedSearch(
-    database: SubtitleDatabase,
+    database: SearchDatabase,
     query: String,
     limit: Int,
     subtitlePath: String? = nil
@@ -307,7 +307,7 @@ if includesStep1Gaps {
 }
 
 let coldStart = Date()
-let coldDatabase = try SubtitleDatabase(path: dbPath)
+let coldDatabase = try SearchDatabase(path: dbPath)
 let coldOpenMs = milliseconds(since: coldStart)
 let coldRun = try timedSearch(database: coldDatabase, query: query, limit: limit)
 let coldSearchMs = coldRun.milliseconds

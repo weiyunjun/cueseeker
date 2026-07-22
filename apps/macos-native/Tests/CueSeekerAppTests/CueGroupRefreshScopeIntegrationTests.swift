@@ -818,7 +818,7 @@ private final class CueGroupRefreshScopeMountedHarness {
                 cueGroups: cueGroupRefreshScopeGroups(groupCount: 200)
             )
             firstCueID = try #require(
-                try database.firstCueID(forSubtitleFile: subtitleURL)
+                try SearchDatabase(path: databaseURL).firstCueID(forSubtitleFile: subtitleURL)
             )
         }
         userDefaults.set([root.path], forKey: "selectedFolderPaths")

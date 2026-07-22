@@ -394,10 +394,10 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
     #expect(upperCue.cueGroupID == lowerCue.cueGroupID)
     #expect(upperCue.id != upperCue.cueGroupID)
     #expect(lowerCue.id != lowerCue.cueGroupID)
-    #expect(try database.firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
+    #expect(try #require(app.searchDatabase).firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
     #expect(try database.firstCueGroupID(forSubtitleFile: subtitleFile) == upperCue.cueGroupID)
 
-    let allCuePage = try database.allCuesVisiblePage(
+    let allCuePage = try #require(app.searchDatabase).allCuesVisiblePage(
         limit: 10,
         cursor: .start,
         under: [fixtureRoot]
@@ -630,7 +630,7 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     let missingIDPage = await app.loadTableSandboxSearchRows(range: 110..<112)
     #expect(missingIDPage == nil)
 
-    let exactPage = try database.searchPage(
+    let exactPage = try #require(app.searchDatabase).searchPage(
         "shared",
         limit: 0,
         under: [fixtureRoot]
@@ -769,7 +769,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
         ]
     )
     app.indexing.selectedFolders = [fixtureRoot]
-    let page = try database.allCuesVisiblePage(
+    let page = try #require(app.searchDatabase).allCuesVisiblePage(
         limit: 3,
         cursor: .start,
         under: [fixtureRoot]
@@ -1087,7 +1087,7 @@ private func makeSearchResults() throws -> [SubtitleSearchResult] {
             )
         ]
     )
-    return try database.searchPage("今日", limit: 10).results
+    return try SearchDatabase(path: databaseURL).searchPage("今日", limit: 10).results
 }
 
 private func makeTableSandboxSearchResult(

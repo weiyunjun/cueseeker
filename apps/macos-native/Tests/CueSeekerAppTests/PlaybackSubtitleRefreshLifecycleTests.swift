@@ -24,7 +24,10 @@ func initialPlaybackSRTCuePrefixesSpeakerWhenSettingIsEnabled() async throws {
                 )
             ]
         )
-        let result = try #require(try database.searchPage("speaker", limit: 1).results.first)
+        let searchDatabase = try #require(app.searchDatabase)
+        let result = try #require(
+            try searchDatabase.searchPage("speaker", limit: 1).results.first
+        )
         let line = try #require(try database.cueLineRecords(forSubtitleFile: subtitleFile).first)
         try database.replaceCueLineSpeakers(
             forSubtitleFile: subtitleFile,

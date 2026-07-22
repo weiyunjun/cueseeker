@@ -463,12 +463,6 @@ public struct SubtitleSearchResultIDIndexWindow: Equatable, Sendable {
     }
 }
 
-struct SearchResultIDIndex: Sendable {
-    let cueIDs: [Int64]
-    let fileSummaries: [SubtitleSearchFileSummary]
-    let countSnapshot: SubtitleSearchCountSnapshot
-}
-
 public struct SearchNavigationAnchor: Equatable, Sendable {
     public let selectedEntryID: Int64?
     public let selectedSearchRank: Int?

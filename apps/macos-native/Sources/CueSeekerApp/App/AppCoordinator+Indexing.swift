@@ -374,17 +374,22 @@ extension AppCoordinator {
         }
 
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
-        guard let database = subtitleDatabase else {
+        guard searchDatabase != nil else {
             indexing.searchFTSVocabularyDiagnosticsStatus = .failed("Database is not initialized")
             return
         }
 
         let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let diagnosticsDatabaseURL = databaseURL
         indexing.searchFTSVocabularyDiagnosticsStatus = .loading
         indexing.searchFTSVocabularyDiagnosticsTask = Task {
             do {
                 let diagnostics = try await Task.detached(priority: .utility) {
-                    try database.ftsVocabularyDiagnostics(for: query)
+                    let database = try SearchDatabase(
+                        path: diagnosticsDatabaseURL,
+                        access: .readWrite
+                    )
+                    return try database.ftsVocabularyDiagnostics(for: query)
                 }.value
 
                 guard !Task.isCancelled else {

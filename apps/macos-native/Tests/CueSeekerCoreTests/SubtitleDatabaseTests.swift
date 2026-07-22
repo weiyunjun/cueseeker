@@ -321,7 +321,7 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
-        return try database.searchVisiblePage(
+        return try SearchDatabase(path: database.path).searchVisiblePage(
             "cue",
             limit: 1,
             cursor: .start
@@ -339,7 +339,7 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
-        return try database.allCuesVisiblePage(limit: 1, cursor: .start)
+        return try SearchDatabase(path: database.path).allCuesVisiblePage(limit: 1, cursor: .start)
     }
     do {
         _ = try await allCueTask.value
@@ -478,7 +478,7 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
         ]
     )
 
-    let page = try database.allCuesVisiblePage(limit: 10, cursor: .start)
+    let page = try SearchDatabase(path: database.path).allCuesVisiblePage(limit: 10, cursor: .start)
 
     #expect(page.totalCount == 3)
     #expect(page.results.map(\.content) == ["first cue", "second cue", "third file cue"])
@@ -497,7 +497,7 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
         summarySubtitleFile.path: 1,
     ])
 
-    let speakerPage = try database.allCuesVisiblePage(
+    let speakerPage = try SearchDatabase(path: database.path).allCuesVisiblePage(
         limit: 10,
         cursor: .start,
         filterSet: SubtitleSearchFilterSet(
@@ -589,7 +589,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
         ]
     )
 
-    let firstPage = try database.allCuesVisiblePage(limit: 1, cursor: .start)
+    let firstPage = try SearchDatabase(path: database.path).allCuesVisiblePage(limit: 1, cursor: .start)
     #expect(firstPage.totalCount == 2)
     #expect(firstPage.results.map(\.entryID) == [cueRecords[0].id])
     #expect(firstPage.results[0].cueLines == ["中文上方"])
@@ -599,7 +599,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
     #expect(firstPage.results[0].speakers == ["上方角色"])
     #expect(firstPage.nextCursor == SubtitleSearchCursor(offset: 1))
 
-    let secondPage = try database.allCuesVisiblePage(
+    let secondPage = try SearchDatabase(path: database.path).allCuesVisiblePage(
         limit: 1,
         cursor: firstPage.nextCursor
     )
@@ -611,7 +611,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
     #expect(secondPage.results[0].speakers == ["下方角色"])
     #expect(secondPage.results[0].cueGroupID == firstPage.results[0].cueGroupID)
 
-    let filteredPage = try database.allCuesVisiblePage(
+    let filteredPage = try SearchDatabase(path: database.path).allCuesVisiblePage(
         limit: 10,
         cursor: .start,
         filterSet: SubtitleSearchFilterSet(
@@ -680,10 +680,10 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     let lastContextCue = try #require(contextCues.first { $0.line.content == "context cue 6" })
 
     #expect(
-        try database.firstCueID(forSubtitleFile: contextSubtitleFile) == firstContextCue.id
+        try SearchDatabase(path: database.path).firstCueID(forSubtitleFile: contextSubtitleFile) == firstContextCue.id
     )
     let targetFirstPage = try #require(
-        try database.cueContextSearchPage(
+        try SearchDatabase(path: database.path).cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueID: thirdContextCue.id,
             limit: 3,
@@ -701,7 +701,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     #expect(targetFirstPage.nextCursor == SubtitleSearchCursor(offset: 5))
 
     let precedingPage = try #require(
-        try database.cueContextSearchPage(
+        try SearchDatabase(path: database.path).cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueID: thirdContextCue.id,
             limit: 2,
@@ -716,7 +716,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     #expect(precedingPage.results.map(\.searchRank) == [0, 1])
 
     let followingPage = try #require(
-        try database.cueContextSearchPage(
+        try SearchDatabase(path: database.path).cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueID: thirdContextCue.id,
             limit: 3,
@@ -728,7 +728,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     #expect(followingPage.results.map(\.searchRank) == [5])
 
     let tailPage = try #require(
-        try database.cueContextSearchPage(
+        try SearchDatabase(path: database.path).cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueID: lastContextCue.id,
             limit: 3,
@@ -745,7 +745,7 @@ func cueContextSearchPageAnchorsFirstPageWithoutDroppingEarlierRows() throws {
     #expect(tailPage.results.map(\.searchRank) == [3, 4, 5])
 
     let oversizedAnchorPage = try #require(
-        try database.cueContextSearchPage(
+        try SearchDatabase(path: database.path).cueContextSearchPage(
             subtitlePath: contextSubtitleFile.path,
             targetCueID: lastContextCue.id,
             limit: 2,
@@ -823,7 +823,7 @@ func cueContextSearchPageAnchorsExactSiblingCueInStableSourceOrder() throws {
     let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
     let lowerSibling = try #require(cueRecords.first { $0.line.eventIndex == 11 })
 
-    let page = try #require(try database.cueContextSearchPage(
+    let page = try #require(try SearchDatabase(path: database.path).cueContextSearchPage(
         subtitlePath: subtitleFile.path,
         targetCueID: lowerSibling.id,
         limit: 2,
@@ -840,7 +840,7 @@ func cueContextSearchPageAnchorsExactSiblingCueInStableSourceOrder() throws {
     #expect(page.results[0].cueGroupID == cueRecords[0].cueGroupID)
     #expect(page.results.map(\.searchRank) == [1, 2])
 
-    let precedingPage = try #require(try database.cueContextSearchPage(
+    let precedingPage = try #require(try SearchDatabase(path: database.path).cueContextSearchPage(
         subtitlePath: subtitleFile.path,
         targetCueID: lowerSibling.id,
         limit: 1,
@@ -1230,7 +1230,7 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
     #expect(storedEntries[0].content == "Hello world.")
     #expect(storedEntries[0].videoName == "Movie.mkv")
 
-    let results = try database.search("world")
+    let results = try SearchDatabase(path: database.path).search("world")
     #expect(results.count == 1)
     #expect(results[0].content == "Hello world.")
     #expect(results[0].videoPath == videoFile.path)
@@ -1290,17 +1290,17 @@ func searchFiltersByLibraryWatchState() throws {
         state: .finished
     )
 
-    let allResults = try database.search("scope shared", watchStateFilter: .all)
+    let allResults = try SearchDatabase(path: database.path).search("scope shared", watchStateFilter: .all)
     #expect(allResults.map(\.videoName).sorted() == [
         "Finished.mkv",
         "Unwatched.mkv",
         "Watching.mkv"
     ])
 
-    let onlyFinishedResults = try database.search("scope shared", watchStateFilter: .onlyFinished)
+    let onlyFinishedResults = try SearchDatabase(path: database.path).search("scope shared", watchStateFilter: .onlyFinished)
     #expect(onlyFinishedResults.map(\.videoName) == ["Finished.mkv"])
 
-    let watchingAndFinishedPage = try database.searchVisiblePage(
+    let watchingAndFinishedPage = try SearchDatabase(path: database.path).searchVisiblePage(
         "scope shared",
         limit: 10,
         cursor: .start,
@@ -1509,7 +1509,7 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
         languageAnalysis: analysis
     )
 
-    #expect(try database.search("shared", languageFilter: .all).map(\.content) == [
+    #expect(try SearchDatabase(path: database.path).search("shared", languageFilter: .all).map(\.content) == [
         "Shared Japanese cue",
         "Shared English cue",
         "Shared Unknown cue",
@@ -1517,33 +1517,33 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
         "Shared Mixed cue",
         "Shared Traditional cue"
     ])
-    #expect(try database.search("shared", languageFilter: .japanese).map(\.content) == [
+    #expect(try SearchDatabase(path: database.path).search("shared", languageFilter: .japanese).map(\.content) == [
         "Shared Japanese cue",
         "Shared Unknown cue",
         "Shared Mixed cue"
     ])
-    #expect(try database.search("shared", languageFilter: .english).map(\.content) == [
+    #expect(try SearchDatabase(path: database.path).search("shared", languageFilter: .english).map(\.content) == [
         "Shared English cue",
         "Shared Unknown cue"
     ])
-    #expect(try database.search("shared", languageFilter: .chinese).map(\.content) == [
+    #expect(try SearchDatabase(path: database.path).search("shared", languageFilter: .chinese).map(\.content) == [
         "Shared Unknown cue",
         "Shared Generic Chinese cue",
         "Shared Mixed cue",
         "Shared Traditional cue"
     ])
-    #expect(try database.search("shared", languageFilter: .simplifiedChinese).map(\.content) == [
+    #expect(try SearchDatabase(path: database.path).search("shared", languageFilter: .simplifiedChinese).map(\.content) == [
         "Shared Unknown cue",
         "Shared Generic Chinese cue",
         "Shared Mixed cue"
     ])
-    #expect(try database.search("shared", languageFilter: .traditionalChinese).map(\.content) == [
+    #expect(try SearchDatabase(path: database.path).search("shared", languageFilter: .traditionalChinese).map(\.content) == [
         "Shared Unknown cue",
         "Shared Generic Chinese cue",
         "Shared Traditional cue"
     ])
 
-    let visiblePage = try database.searchVisiblePage(
+    let visiblePage = try SearchDatabase(path: database.path).searchVisiblePage(
         "shared",
         limit: 2,
         cursor: .start,
@@ -1589,7 +1589,7 @@ func searchResultsExposeCueGroupLanguages() throws {
         languageAnalysis: analysis
     )
 
-    let exactPage = try database.searchPage("shared", limit: 10)
+    let exactPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 10)
     #expect(exactPage.results.map(\.displayTitle) == [
         "LanguageResultTags.srt",
         "LanguageResultTags.srt"
@@ -1599,7 +1599,7 @@ func searchResultsExposeCueGroupLanguages() throws {
         [.japanese, .simplifiedChinese]
     ])
 
-    let visiblePage = try database.searchVisiblePage("shared", limit: 2, cursor: .start)
+    let visiblePage = try SearchDatabase(path: database.path).searchVisiblePage("shared", limit: 2, cursor: .start)
     #expect(visiblePage.results.map(\.displayTitle) == [
         "LanguageResultTags.srt",
         "LanguageResultTags.srt"
@@ -1679,19 +1679,19 @@ func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throw
         languageAnalysis: analysis
     )
 
-    #expect(try database.search("今天", languageFilter: .all).map(\.startMilliseconds) == [
+    #expect(try SearchDatabase(path: database.path).search("今天", languageFilter: .all).map(\.startMilliseconds) == [
         1_000,
         3_000
     ])
-    #expect(try database.search("今天", languageFilter: .japanese).map(\.startMilliseconds) == [
+    #expect(try SearchDatabase(path: database.path).search("今天", languageFilter: .japanese).map(\.startMilliseconds) == [
         3_000
     ])
-    #expect(try database.search("今天", languageFilter: .chinese).map(\.startMilliseconds) == [
+    #expect(try SearchDatabase(path: database.path).search("今天", languageFilter: .chinese).map(\.startMilliseconds) == [
         1_000,
         3_000
     ])
 
-    let japaneseResults = try database.search("今日", languageFilter: .japanese)
+    let japaneseResults = try SearchDatabase(path: database.path).search("今日", languageFilter: .japanese)
     #expect(japaneseResults.map(\.startMilliseconds) == [2_000])
     #expect(japaneseResults.first?.cueLines == ["今日は大丈夫です"])
     #expect(japaneseResults.first?.cueGroupLines == [
@@ -1699,9 +1699,9 @@ func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throw
         "今日は大丈夫です"
     ])
     #expect(japaneseResults.first?.languages == [.japanese])
-    #expect(try database.search("今日", languageFilter: .chinese).isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("今日", languageFilter: .chinese).isEmpty)
 
-    let visiblePage = try database.searchVisiblePage(
+    let visiblePage = try SearchDatabase(path: database.path).searchVisiblePage(
         "今天",
         limit: 1,
         cursor: .start,
@@ -1731,7 +1731,7 @@ func searchLanguageFilterTreatsMissingLanguageRowsAsUnknown() throws {
         ]
     )
 
-    #expect(try database.search("legacy", languageFilter: .japanese).map(\.content) == [
+    #expect(try SearchDatabase(path: database.path).search("legacy", languageFilter: .japanese).map(\.content) == [
         "Legacy shared row"
     ])
 }
@@ -1765,8 +1765,8 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
         entries: entries
     )
 
-    let firstPage = try database.search("shared", limit: 50)
-    let secondPage = try database.search("shared", limit: 50, offset: 50)
+    let firstPage = try SearchDatabase(path: database.path).search("shared", limit: 50)
+    let secondPage = try SearchDatabase(path: database.path).search("shared", limit: 50, offset: 50)
 
     #expect(firstPage.count == 50)
     #expect(secondPage.count == 5)
@@ -1805,9 +1805,9 @@ func searchPageReturnsContinuationCursorForNextPage() throws {
         entries: entries
     )
 
-    let firstPage = try database.searchPage("shared", limit: 2)
-    let secondPage = try database.searchPage("shared", limit: 2, cursor: firstPage.nextCursor)
-    let thirdPage = try database.searchPage("shared", limit: 2, cursor: secondPage.nextCursor)
+    let firstPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 2)
+    let secondPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 2, cursor: firstPage.nextCursor)
+    let thirdPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 2, cursor: secondPage.nextCursor)
 
     #expect(firstPage.appliedCursor.offset == 0)
     #expect(firstPage.nextCursor?.offset == 2)
@@ -1853,8 +1853,8 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
         entries: entries
     )
 
-    let firstPage = try database.searchVisiblePage("shared", limit: 2, cursor: .start)
-    let secondPage = try database.searchVisiblePage("shared", limit: 3, cursor: firstPage.nextCursor)
+    let firstPage = try SearchDatabase(path: database.path).searchVisiblePage("shared", limit: 2, cursor: .start)
+    let secondPage = try SearchDatabase(path: database.path).searchVisiblePage("shared", limit: 3, cursor: firstPage.nextCursor)
 
     #expect(firstPage.pageMode == .visibleWindow)
     #expect(firstPage.countState == .exactProgress)
@@ -1912,7 +1912,7 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
             value: "Beta"
         )
     ])
-    let page = try database.searchPage("shared", limit: 10, filterSet: filterSet)
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 10, filterSet: filterSet)
 
     #expect(page.totalCount == 1)
     #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["Beta.srt"])
@@ -1944,7 +1944,7 @@ func searchExactPageCanReturnOnlyCueIDsForCompletion() throws {
         }
     )
 
-    let page = try database.searchPage("shared", limit: 0)
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 0)
 
     #expect(page.results.isEmpty)
     #expect(page.renderableResults.isEmpty)
@@ -1992,7 +1992,7 @@ func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
         )
     ])
 
-    let exactPage = try database.searchPage("shared", limit: 2, filterSet: filterSet)
+    let exactPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 2, filterSet: filterSet)
     #expect(exactPage.totalCount == 3)
     #expect(exactPage.nextCursor?.offset == 2)
     #expect(exactPage.results.map(\.content) == [
@@ -2000,21 +2000,7 @@ func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
         "Shared filtered keep 2"
     ])
 
-    #expect(database.searchResultIDIndexWindow(
-        "shared",
-        limit: 1,
-        cursor: .start,
-        minimumKnownResultCount: 4
-    ) == nil)
-
-    #expect(database.searchResultIDIndexWindow(
-        "shared",
-        limit: 1,
-        cursor: SubtitleSearchCursor(offset: 2),
-        filterSet: filterSet,
-        minimumKnownResultCount: 3
-    ) == nil)
-    let visiblePage = try database.searchVisiblePage(
+    let visiblePage = try SearchDatabase(path: database.path).searchVisiblePage(
         "shared",
         limit: 1,
         cursor: SubtitleSearchCursor(offset: 2),
@@ -2069,7 +2055,7 @@ func searchFilterSetMatchesLanguageCollectionValues() throws {
             value: "ja"
         )
     ])
-    let page = try database.searchPage("shared", limit: 10, filterSet: filterSet)
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 10, filterSet: filterSet)
 
     #expect(page.totalCount == 2)
     #expect(page.results.map(\.content) == [
@@ -2079,7 +2065,7 @@ func searchFilterSetMatchesLanguageCollectionValues() throws {
 }
 
 @Test
-func searchExactPageLeavesResultIDIndexWindowUnavailable() throws {
+func searchExactAndVisiblePagesPreserveIndependentPaging() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -2107,24 +2093,10 @@ func searchExactPageLeavesResultIDIndexWindowUnavailable() throws {
         entries: entries
     )
 
-    #expect(database.searchResultIDIndexWindow(
-        "shared",
-        limit: 2,
-        cursor: SubtitleSearchCursor(offset: 4),
-        minimumKnownResultCount: 6
-    ) == nil)
-
-    let exactPage = try database.searchPage("shared", limit: 2)
+    let exactPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 2)
     #expect(exactPage.totalCount == 8)
 
-    #expect(database.searchResultIDIndexWindow(
-        "shared",
-        limit: 2,
-        cursor: SubtitleSearchCursor(offset: 4),
-        minimumKnownResultCount: 6
-    ) == nil)
-
-    let visiblePage = try database.searchVisiblePage(
+    let visiblePage = try SearchDatabase(path: database.path).searchVisiblePage(
         "shared",
         limit: 2,
         cursor: SubtitleSearchCursor(offset: 4)
@@ -2144,7 +2116,7 @@ func searchExactPageLeavesResultIDIndexWindowUnavailable() throws {
 }
 
 @Test
-func searchNavigationSnapshotFromResultIDIndexStaysUnavailableWhenCacheDisabled() throws {
+func searchNavigationSnapshotUsesCompleteSearchOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -2172,34 +2144,7 @@ func searchNavigationSnapshotFromResultIDIndexStaysUnavailableWhenCacheDisabled(
         entries: entries
     )
 
-    let missingSnapshot = try database.searchNavigationSnapshotFromResultIDIndex(
-        "shared",
-        anchor: SearchNavigationAnchor(
-            selectedEntryID: 4,
-            selectedSearchRank: 3,
-            videoPath: videoFile.path,
-            subtitlePath: subtitleFile.path,
-            currentMilliseconds: 3_000
-        ),
-        radius: 1
-    )
-    #expect(missingSnapshot == nil)
-
-    _ = try database.searchPage("shared", limit: 2)
-    let stillMissingSnapshot = try database.searchNavigationSnapshotFromResultIDIndex(
-        "shared",
-        anchor: SearchNavigationAnchor(
-            selectedEntryID: 5,
-            selectedSearchRank: 4,
-            videoPath: videoFile.path,
-            subtitlePath: subtitleFile.path,
-            currentMilliseconds: 4_000
-        ),
-        radius: 1
-    )
-    #expect(stillMissingSnapshot == nil)
-
-    let snapshot = try database.searchNavigationSnapshot(
+    let snapshot = try SearchDatabase(path: database.path).searchNavigationSnapshot(
         "shared",
         under: nil,
         anchor: SearchNavigationAnchor(
@@ -2248,7 +2193,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     )
 
     let collector = SearchProgressCollector()
-    let page = try database.searchPage(
+    let page = try SearchDatabase(path: database.path).searchPage(
         "progress",
         limit: 50,
         cursor: .start,
@@ -2279,7 +2224,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     #expect(page.renderableResults.last?.content == "Progress count stream line 5099")
 
     let boundedCollector = SearchProgressCollector()
-    let boundedPage = try database.searchPage(
+    let boundedPage = try SearchDatabase(path: database.path).searchPage(
         "progress",
         limit: 0,
         cursor: .start,
@@ -2330,9 +2275,9 @@ func repeatedSearchPagesExecuteWithoutHiddenCacheEvents() throws {
     )
 
     let firstDiagnostics = SearchDiagnosticRecorder()
-    let firstPage = try database.searchPage("cache", limit: 10, diagnostics: firstDiagnostics.record)
+    let firstPage = try SearchDatabase(path: database.path).searchPage("cache", limit: 10, diagnostics: firstDiagnostics.record)
     let secondDiagnostics = SearchDiagnosticRecorder()
-    let secondPage = try database.searchPage("cache", limit: 10, diagnostics: secondDiagnostics.record)
+    let secondPage = try SearchDatabase(path: database.path).searchPage("cache", limit: 10, diagnostics: secondDiagnostics.record)
     #expect(firstPage == secondPage)
     #expect(!firstDiagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
     #expect(!secondDiagnostics.events.contains { $0.name.hasPrefix("search_cache_") })
@@ -2360,8 +2305,8 @@ func searchPageSeesIndexedContentChangesImmediately() throws {
         ]
     )
 
-    _ = try database.searchPage("cache", limit: 10)
-    _ = try database.searchPage("cache", limit: 10)
+    _ = try SearchDatabase(path: database.path).searchPage("cache", limit: 10)
+    _ = try SearchDatabase(path: database.path).searchPage("cache", limit: 10)
 
     try database.replaceEntries(
         subtitleFile: subtitleFile,
@@ -2373,7 +2318,7 @@ func searchPageSeesIndexedContentChangesImmediately() throws {
     )
 
     let diagnostics = SearchDiagnosticRecorder()
-    let page = try database.searchPage("cache", limit: 10, diagnostics: diagnostics.record)
+    let page = try SearchDatabase(path: database.path).searchPage("cache", limit: 10, diagnostics: diagnostics.record)
     #expect(page.totalCount == 2)
     #expect(page.results.map(\.content) == [
         "Cache invalidation first",
@@ -2426,7 +2371,7 @@ func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
         ]
     )
 
-    let firstVisiblePage = try database.searchVisiblePage("shared product", limit: 1, cursor: .start)
+    let firstVisiblePage = try SearchDatabase(path: database.path).searchVisiblePage("shared product", limit: 1, cursor: .start)
 
     #expect(firstVisiblePage.results.map(\.subtitlePath) == [alphaSubtitle.path])
     #expect(firstVisiblePage.results.map(\.content) == ["Shared product-order alpha"])
@@ -2487,7 +2432,7 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
         ]
     )
 
-    let page = try database.searchPage("shared", limit: 2)
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 2)
 
     #expect(page.totalCount == 3)
     #expect(page.countState == .exact)
@@ -2534,20 +2479,20 @@ func cueOccurrenceCountMatchesSearchPageExactTotals() throws {
         ]
     )
 
-    let allCJKPage = try database.searchPage("一級", limit: 10)
-    #expect(try database.cueOccurrenceCount(for: " 一級 ") == allCJKPage.totalCount)
+    let allCJKPage = try SearchDatabase(path: database.path).searchPage("一級", limit: 10)
+    #expect(try SearchDatabase(path: database.path).cueOccurrenceCount(for: " 一級 ") == allCJKPage.totalCount)
     #expect(allCJKPage.totalCount == 3)
 
-    let scopedCJKPage = try database.searchPage("一級", limit: 10, under: [mediaFolder])
-    #expect(try database.cueOccurrenceCount(for: "一級", under: [mediaFolder]) == scopedCJKPage.totalCount)
+    let scopedCJKPage = try SearchDatabase(path: database.path).searchPage("一級", limit: 10, under: [mediaFolder])
+    #expect(try SearchDatabase(path: database.path).cueOccurrenceCount(for: "一級", under: [mediaFolder]) == scopedCJKPage.totalCount)
     #expect(scopedCJKPage.totalCount == 2)
 
-    let phrasePage = try database.searchPage("一級試験", limit: 10)
-    #expect(try database.cueOccurrenceCount(for: "一級試験") == phrasePage.totalCount)
+    let phrasePage = try SearchDatabase(path: database.path).searchPage("一級試験", limit: 10)
+    #expect(try SearchDatabase(path: database.path).cueOccurrenceCount(for: "一級試験") == phrasePage.totalCount)
     #expect(phrasePage.totalCount == 2)
 
-    let latinPage = try database.searchPage("mag", limit: 10)
-    #expect(try database.cueOccurrenceCount(for: "mag") == latinPage.totalCount)
+    let latinPage = try SearchDatabase(path: database.path).searchPage("mag", limit: 10)
+    #expect(try SearchDatabase(path: database.path).cueOccurrenceCount(for: "mag") == latinPage.totalCount)
     #expect(latinPage.totalCount == 1)
 }
 
@@ -2603,7 +2548,7 @@ func searchPageExposesExactCountsWhenRowsContinue() throws {
         ]
     )
 
-    let page = try database.searchPage("shared", limit: 2)
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 2)
 
     #expect(page.results.map(\.content) == ["Shared alpha one", "Shared alpha two"])
     #expect(page.countState == .exact)
@@ -2643,7 +2588,7 @@ func searchPageExposesExactCountsWhenAllRowsFitInPage() throws {
         ]
     )
 
-    let page = try database.searchPage("shared", limit: 10)
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 10)
 
     #expect(page.countState == .exact)
     #expect(page.knownResultCount == 1)
@@ -2697,7 +2642,8 @@ func ftsVocabularyDiagnosticsReportsTopAndQueryTerms() throws {
         ]
     )
 
-    let diagnostics = try database.ftsVocabularyDiagnostics(for: "shared alpha", topTermLimit: 2)
+    let diagnostics = try SearchDatabase(path: database.path, access: .readWrite)
+        .ftsVocabularyDiagnostics(for: "shared alpha", topTermLimit: 2)
 
     #expect(diagnostics.uniqueTermCount >= 3)
     #expect(diagnostics.totalOccurrences >= 6)
@@ -2763,14 +2709,14 @@ func searchNavigationUsesCompleteResultOrderAndPlaybackTimeAnchor() throws {
         ]
     )
 
-    let page = try database.searchPage("shared", limit: 10, under: [URL(fileURLWithPath: "/Media")])
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 10, under: [URL(fileURLWithPath: "/Media")])
     #expect(page.results.map(\.content) == [
         "Shared alpha first",
         "Shared alpha second",
         "Shared beta only"
     ])
 
-    let snapshot = try database.searchNavigationSnapshot(
+    let snapshot = try SearchDatabase(path: database.path).searchNavigationSnapshot(
         "shared",
         under: [URL(fileURLWithPath: "/Media")],
         anchor: SearchNavigationAnchor(
@@ -4393,7 +4339,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
 
     try database.removeIndexedFolder(folder)
 
-    #expect(try database.search("Shiori").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("Shiori").isEmpty)
     #expect(try ShioriDatabase(path: database.path).shioris().isEmpty)
     #expect(try ShioriDatabase(path: database.path).shioriRelations().isEmpty)
 }
@@ -4494,7 +4440,7 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     try FileManager.default.removeItem(at: series)
 
     let diagnostics = SearchDiagnosticRecorder()
-    let page = try database.searchPage("shared", limit: 10, diagnostics: diagnostics.record)
+    let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 10, diagnostics: diagnostics.record)
     let sortEvent = try #require(diagnostics.events.first { $0.name == "sort_results" })
     let sortFields = Dictionary(uniqueKeysWithValues: sortEvent.fields.map { ($0.name, $0.value) })
 
@@ -4534,7 +4480,7 @@ func searchPageFailsWhenSearchOrderRowsAreMissing() throws {
 
     var thrownMessage: String?
     do {
-        _ = try database.searchPage("shared", limit: 10)
+        _ = try SearchDatabase(path: database.path).searchPage("shared", limit: 10)
     } catch {
         thrownMessage = String(describing: error)
     }
@@ -4590,8 +4536,8 @@ func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
         ]
     )
 
-    let globalPage = try database.searchPage("shared", limit: 100)
-    let zetaRows = try database.search(
+    let globalPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 100)
+    let zetaRows = try SearchDatabase(path: database.path).search(
         "shared",
         limit: 100,
         inSubtitlePath: zetaSubtitle.path
@@ -4863,9 +4809,9 @@ func replacingEntriesRemovesStaleFTSRows() throws {
         ]
     )
 
-    #expect(try database.search("Old").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("Old").isEmpty)
 
-    let freshResults = try database.search("Fresh")
+    let freshResults = try SearchDatabase(path: database.path).search("Fresh")
     #expect(freshResults.count == 1)
     #expect(freshResults[0].startMilliseconds == 9_000)
 }
@@ -4916,8 +4862,8 @@ func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
 
     try database.removeIndexedFolder(removedFolder)
 
-    #expect(try database.search("Removed").isEmpty)
-    #expect(try database.search("Kept").count == 1)
+    #expect(try SearchDatabase(path: database.path).search("Removed").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("Kept").count == 1)
     #expect(try database.subtitleFiles().map(\.subtitlePath) == [
         keptFolder.appendingPathComponent("Episode.srt").path
     ])
@@ -4982,7 +4928,7 @@ func removingIndexedFolderPreservesRetainedDerivedSearchRows() throws {
         cueGroupID: secondKeptCueGroupID,
         databaseURL: databaseURL
     ) == secondKeptRowIDBefore)
-    #expect(try database.search("Shared").map(\.videoPath) == [
+    #expect(try SearchDatabase(path: database.path).search("Shared").map(\.videoPath) == [
         firstKeptFolder.appendingPathComponent("Episode.mkv").path,
         secondKeptFolder.appendingPathComponent("Episode.mkv").path
     ])
@@ -5029,11 +4975,11 @@ func scopedSearchOnlyReturnsEntriesUnderActiveFolders() throws {
         ]
     )
 
-    #expect(try database.search("Shared").count == 2)
-    #expect(try database.search("Shared", under: [activeFolder]).map(\.subtitlePath) == [
+    #expect(try SearchDatabase(path: database.path).search("Shared").count == 2)
+    #expect(try SearchDatabase(path: database.path).search("Shared", under: [activeFolder]).map(\.subtitlePath) == [
         activeFolder.appendingPathComponent("Episode.srt").path
     ])
-    #expect(try database.search("Shared", under: []).isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("Shared", under: []).isEmpty)
 }
 
 @Test
@@ -5065,7 +5011,7 @@ func reconcileIndexedContentClearsAllDataWhenNoFoldersAreActive() throws {
 
     try database.reconcileIndexedContent(activeFolders: [])
 
-    #expect(try database.search("Temporary").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("Temporary").isEmpty)
     #expect(try database.subtitleFiles().isEmpty)
 
     let newSearchPathID = try database.addSearchPath(folder)
@@ -5117,8 +5063,8 @@ func reconcileIndexedContentPrunesDataOutsideActiveFolders() throws {
 
     try database.reconcileIndexedContent(activeFolders: [activeFolder])
 
-    #expect(try database.search("Active").count == 1)
-    #expect(try database.search("Stale").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("Active").count == 1)
+    #expect(try SearchDatabase(path: database.path).search("Stale").isEmpty)
     #expect(try database.subtitleFiles().map(\.subtitlePath) == [
         activeFolder.appendingPathComponent("Episode.srt").path
     ])
@@ -5137,8 +5083,8 @@ func emptySearchQueryReturnsNoResults() throws {
     let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try database.search("").isEmpty)
-    #expect(try database.search("   ").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("   ").isEmpty)
 }
 
 @Test
@@ -5169,11 +5115,11 @@ func searchNormalizesFTSQuerySyntaxCharacters() throws {
         ]
     )
 
-    let results = try database.search(#""hello": spider-man"#)
+    let results = try SearchDatabase(path: database.path).search(#""hello": spider-man"#)
 
     #expect(results.count == 1)
     #expect(results[0].content == "He said hello to spider-man again.")
-    #expect(try database.search(":::").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search(":::").isEmpty)
 }
 
 @Test
@@ -5201,7 +5147,7 @@ func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
         ]
     )
 
-    let results = try database.search("spi")
+    let results = try SearchDatabase(path: database.path).search("spi")
 
     #expect(results.count == 1)
     #expect(results[0].content == "Spider-man returns.")
@@ -5248,7 +5194,7 @@ func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
         ]
     )
 
-    let results = try database.search("alpha beta")
+    let results = try SearchDatabase(path: database.path).search("alpha beta")
 
     #expect(results.map(\.content) == ["alpha beta gamma", "alpha middle beta"])
 }
@@ -5286,7 +5232,7 @@ func searchSegmentsCJKContentLikeFlutter() throws {
         ]
     )
 
-    let results = try database.search("好世")
+    let results = try SearchDatabase(path: database.path).search("好世")
 
     #expect(results.map(\.content) == ["你好世界"])
 }
@@ -5324,10 +5270,10 @@ func searchSegmentsJapaneseKanaContent() throws {
         ]
     )
 
-    #expect(try database.search("ライン").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
-    #expect(try database.search("かな").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
-    #expect(try database.search("カナ").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
-    #expect(try database.search("ﾃｽﾄ").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+    #expect(try SearchDatabase(path: database.path).search("ライン").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+    #expect(try SearchDatabase(path: database.path).search("かな").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+    #expect(try SearchDatabase(path: database.path).search("カナ").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
+    #expect(try SearchDatabase(path: database.path).search("ﾃｽﾄ").map(\.content) == ["日本語ラインかなカナﾃｽﾄ"])
 }
 
 @Test
@@ -5364,8 +5310,8 @@ func searchTreatsASCIIAndIdeographicSpacesAsEquivalent() throws {
     )
 
     let expectedContents = ["日本 語", "日本　語"]
-    #expect(try database.search("日本 語").map(\.content) == expectedContents)
-    #expect(try database.search("日本　語").map(\.content) == expectedContents)
+    #expect(try SearchDatabase(path: database.path).search("日本 語").map(\.content) == expectedContents)
+    #expect(try SearchDatabase(path: database.path).search("日本　語").map(\.content) == expectedContents)
 }
 
 @Test
@@ -5393,7 +5339,7 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
         ]
     )
 
-    #expect(try database.search("hello AND").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("hello AND").isEmpty)
 }
 
 @Test
@@ -5454,7 +5400,7 @@ func searchesIndividualCuesAndRejectsCrossCueOnlyMatches() throws {
         cueGroups: [cueGroup]
     )
 
-    let alphaResults = try database.search("alpha")
+    let alphaResults = try SearchDatabase(path: database.path).search("alpha")
     #expect(alphaResults.count == 1)
     #expect(alphaResults[0].subtitleFormat == .ass)
     #expect(alphaResults[0].content == "alpha")
@@ -5465,7 +5411,7 @@ func searchesIndividualCuesAndRejectsCrossCueOnlyMatches() throws {
     #expect(alphaResults[0].videoPath == videoFile.path)
     #expect(alphaResults[0].startMilliseconds == 1_000)
 
-    #expect(try database.search("alpha beta").isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("alpha beta").isEmpty)
 }
 
 @Test
@@ -5512,7 +5458,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     )
 
     let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
-    let exactFirst = try database.searchPage(
+    let exactFirst = try SearchDatabase(path: database.path).searchPage(
         "shared",
         limit: 1,
         cursor: .start
@@ -5524,7 +5470,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     #expect(exactFirst.nextCursor == SubtitleSearchCursor(offset: 1))
     #expect(exactFirst.results[0].cueGroupLines == ["shared upper", "shared lower"])
 
-    let exactSecond = try database.searchPage(
+    let exactSecond = try SearchDatabase(path: database.path).searchPage(
         "shared",
         limit: 1,
         cursor: exactFirst.nextCursor
@@ -5533,12 +5479,12 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     #expect(exactSecond.results.map(\.searchRank) == [1])
     #expect(exactSecond.nextCursor == nil)
 
-    let visibleFirst = try database.searchVisiblePage(
+    let visibleFirst = try SearchDatabase(path: database.path).searchVisiblePage(
         "shared",
         limit: 1,
         cursor: .start
     )
-    let visibleSecond = try database.searchVisiblePage(
+    let visibleSecond = try SearchDatabase(path: database.path).searchVisiblePage(
         "shared",
         limit: 1,
         cursor: visibleFirst.nextCursor
@@ -5548,7 +5494,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     #expect(visibleFirst.results[0].cueGroupID == visibleSecond.results[0].cueGroupID)
     #expect(visibleFirst.results[0].entryID != visibleSecond.results[0].entryID)
 
-    let hydratedPage = try #require(try database.searchIndexedVisiblePage(
+    let hydratedPage = try #require(try SearchDatabase(path: database.path).searchIndexedVisiblePage(
         from: SubtitleSearchResultIDIndexWindow(
             cueIDs: exactFirst.cueIDs,
             offset: 0,
@@ -5562,7 +5508,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     #expect(hydratedPage.results.map(\.content) == ["shared upper", "shared lower"])
     #expect(hydratedPage.results.map(\.entryID) == exactFirst.cueIDs)
 
-    let navigation = try database.searchNavigationSnapshot(
+    let navigation = try SearchDatabase(path: database.path).searchNavigationSnapshot(
         "shared",
         anchor: SearchNavigationAnchor(
             selectedEntryID: exactFirst.cueIDs[1],
@@ -5618,7 +5564,7 @@ func searchPrimaryGroupIndexDistinguishesSiblingCuesWithIdenticalText() throws {
     )
 
     let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
-    let page = try database.searchPage("duplicate", limit: 10, cursor: .start)
+    let page = try SearchDatabase(path: database.path).searchPage("duplicate", limit: 10, cursor: .start)
 
     #expect(page.results.map(\.entryID) == cueRecords.map(\.id))
     #expect(page.results.map(\.content) == ["duplicate cue", "duplicate cue"])
@@ -5656,7 +5602,7 @@ func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
         ]
     )
 
-    let results = try database.search("shared first second")
+    let results = try SearchDatabase(path: database.path).search("shared first second")
     #expect(results.count == 1)
     #expect(results[0].content == content)
     #expect(results[0].cueLines == [content])
@@ -5702,10 +5648,10 @@ func searchCueFiltersAndSpeakersDoNotLeakFromSiblingCue() throws {
     let siblingSpeakerFilter = SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(field: .speaker, operatorID: .contains, value: "Sibling Speaker")
     ])
-    #expect(try database.search("target", filterSet: siblingCueFilter).isEmpty)
-    #expect(try database.search("target", filterSet: siblingSpeakerFilter).isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("target", filterSet: siblingCueFilter).isEmpty)
+    #expect(try SearchDatabase(path: database.path).search("target", filterSet: siblingSpeakerFilter).isEmpty)
 
-    let siblingResults = try database.search("secret")
+    let siblingResults = try SearchDatabase(path: database.path).search("secret")
     #expect(siblingResults.map(\.content) == ["secret sibling cue"])
     #expect(siblingResults.first?.speakers == ["Sibling Speaker"])
 }
@@ -5750,7 +5696,7 @@ func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
         "Chinese upper line\nJapanese lower line"
     ])
 
-    let results = try database.search("Chinese")
+    let results = try SearchDatabase(path: database.path).search("Chinese")
     #expect(results.map(\.content) == ["Chinese upper line"])
     #expect(results.first?.cueLines == ["Chinese upper line"])
     #expect(results.first?.cueGroupLines == ["Chinese upper line", "Japanese lower line"])
@@ -5818,8 +5764,8 @@ func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
         cueGroups: cueGroups
     )
 
-    let firstPage = try database.search("alpha beta", limit: 2)
-    let secondPage = try database.search("alpha beta", limit: 2, offset: 2)
+    let firstPage = try SearchDatabase(path: database.path).search("alpha beta", limit: 2)
+    let secondPage = try SearchDatabase(path: database.path).search("alpha beta", limit: 2, offset: 2)
 
     #expect(firstPage.map(\.content) == ["alpha beta page 100", "alpha beta page 101"])
     #expect(secondPage.map(\.content) == ["alpha beta page 102"])
@@ -5887,8 +5833,8 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
         cueGroups: cueGroups
     )
 
-    let firstPage = try database.searchVisiblePage("alpha beta", limit: 2, cursor: .start)
-    let secondPage = try database.searchVisiblePage("alpha beta", limit: 2, cursor: firstPage.nextCursor)
+    let firstPage = try SearchDatabase(path: database.path).searchVisiblePage("alpha beta", limit: 2, cursor: .start)
+    let secondPage = try SearchDatabase(path: database.path).searchVisiblePage("alpha beta", limit: 2, cursor: firstPage.nextCursor)
 
     #expect(firstPage.results.map(\.content) == [
         "alpha beta visible page 100",

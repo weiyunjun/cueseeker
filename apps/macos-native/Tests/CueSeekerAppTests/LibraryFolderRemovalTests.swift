@@ -111,7 +111,7 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
     #expect(app.indexing.folderRemovalStatus == .idle)
     #expect(app.indexing.removedFolderNotice == fixture.folder)
     #expect(app.indexing.selectedFolders.isEmpty)
-    #expect(try app.subtitleDatabase?.search("Actual").isEmpty == true)
+    #expect(try app.searchDatabase?.search("Actual").isEmpty == true)
 }
 
 @MainActor
