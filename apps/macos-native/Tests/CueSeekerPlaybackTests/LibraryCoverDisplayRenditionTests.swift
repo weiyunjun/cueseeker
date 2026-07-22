@@ -158,6 +158,7 @@ func libraryCoverDisplayBackfillUsesMasterAndIsIdempotent() async throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try SubtitleDatabase(path: databaseURL)
+    let coverDatabase = try LibraryCoverDatabase(path: databaseURL)
     try database.replaceEntries(
         subtitleFile: subtitleURL,
         videoFile: videoURL,
@@ -172,8 +173,8 @@ func libraryCoverDisplayBackfillUsesMasterAndIsIdempotent() async throws {
             )
         ]
     )
-    let video = try #require(database.libraryCoverEligibleVideos(under: [mediaDirectory]).first)
-    try database.upsertLibraryVideoCover(
+    let video = try #require(coverDatabase.libraryCoverEligibleVideos(under: [mediaDirectory]).first)
+    try coverDatabase.upsertLibraryVideoCover(
         videoFileID: video.videoFileID,
         masterCoverPath: masterURL.path,
         sourceTimeMilliseconds: 1_000,
@@ -190,7 +191,7 @@ func libraryCoverDisplayBackfillUsesMasterAndIsIdempotent() async throws {
     )
     let firstResult = try await indexer.backfillDisplayRenditions(
         under: [mediaDirectory],
-        into: database
+        into: coverDatabase
     )
     #expect(firstResult.eligibleMasterCoverCount == 1)
     #expect(firstResult.skippedFreshDisplayCoverCount == 0)
@@ -201,7 +202,7 @@ func libraryCoverDisplayBackfillUsesMasterAndIsIdempotent() async throws {
     #expect(try modificationDate(at: masterURL) == masterModificationDateBefore)
 
     let storedCover = try #require(
-        try database.libraryVideoCover(forVideoFileID: video.videoFileID)
+        try coverDatabase.libraryVideoCover(forVideoFileID: video.videoFileID)
     )
     #expect(storedCover.masterCoverPath == masterURL.path)
     #expect(storedCover.displayProfileVersion == LibraryCoverDisplayProfile.current.version)
@@ -215,7 +216,7 @@ func libraryCoverDisplayBackfillUsesMasterAndIsIdempotent() async throws {
 
     let secondResult = try await indexer.backfillDisplayRenditions(
         under: [mediaDirectory],
-        into: database
+        into: coverDatabase
     )
     #expect(secondResult.eligibleMasterCoverCount == 1)
     #expect(secondResult.skippedFreshDisplayCoverCount == 1)
@@ -228,14 +229,14 @@ func libraryCoverDisplayBackfillUsesMasterAndIsIdempotent() async throws {
     try FileManager.default.removeItem(at: masterURL)
     let missingFilesResult = try await indexer.backfillDisplayRenditions(
         under: [mediaDirectory],
-        into: database
+        into: coverDatabase
     )
     #expect(missingFilesResult.eligibleMasterCoverCount == 1)
     #expect(missingFilesResult.generatedDisplayCoverCount == 0)
     #expect(missingFilesResult.clearedInvalidDisplayCoverCount == 1)
     #expect(missingFilesResult.failedDisplayCoverCount == 1)
     let clearedCover = try #require(
-        try database.libraryVideoCover(forVideoFileID: video.videoFileID)
+        try coverDatabase.libraryVideoCover(forVideoFileID: video.videoFileID)
     )
     #expect(clearedCover.displayCoverPath == nil)
     #expect(clearedCover.displayProfileVersion == nil)

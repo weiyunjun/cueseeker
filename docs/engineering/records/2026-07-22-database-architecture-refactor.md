@@ -101,6 +101,18 @@ and remove the old God Object without a permanent forwarding facade.
   planning behavior.
 - Reduced `SubtitleDatabase.swift` further to 8,344 lines.
 
+### 8. Library Cover Repository
+
+- Added `LibraryCoverDatabase` as the dedicated persistence owner for cover
+  candidates, generated video/folder cover metadata, display renditions, and
+  user-selected video/folder covers.
+- Removed every Library Cover operation and its decoding/validation helpers
+  from `SubtitleDatabase`; the old type no longer conforms to
+  `LibraryCoverPersistence`.
+- Updated App startup, indexing, display-rendition backfill, user-cover service,
+  Playback cover indexers, and tests to use the focused repository directly.
+- Reduced `SubtitleDatabase.swift` further to 7,893 lines.
+
 ## Verification
 
 ### Step 1
@@ -167,9 +179,17 @@ and remove the old God Object without a permanent forwarding facade.
   all passed.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 8
+
+- Built all package products and test targets after moving Library Cover
+  ownership to its independent connection.
+- Ran 28 Library Cover/Core/Playback tests and eight user-cover, startup
+  backfill, and App snapshot tests; all passed.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Steps 1 through 7 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 8 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

@@ -302,13 +302,13 @@ enum LibraryUserCoverProcessor {
 }
 
 actor LibraryUserCoverService {
-    private let database: SubtitleDatabase
+    private let database: LibraryCoverDatabase
     private let userDisplayDirectory: URL
     private let imagePipeline: LibraryCoverImagePipeline
     private let fileManager: FileManager
 
     init(
-        database: SubtitleDatabase,
+        database: LibraryCoverDatabase,
         coverDirectory: URL,
         imagePipeline: LibraryCoverImagePipeline = .shared,
         fileManager: FileManager = .default

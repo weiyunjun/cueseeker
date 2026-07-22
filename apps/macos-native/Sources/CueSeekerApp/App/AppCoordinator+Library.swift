@@ -366,7 +366,7 @@ extension AppCoordinator {
     func ensureLibraryDisplayRenditionsAsync() {
         let folders = indexing.selectedFolders
         guard !folders.isEmpty,
-              let database = subtitleDatabase,
+              let database = libraryCoverDatabase,
               !indexing.indexingStatus.isIndexing,
               !indexing.folderRemovalStatus.isRemoving,
               !indexing.databaseMaintenanceStatus.isCompacting

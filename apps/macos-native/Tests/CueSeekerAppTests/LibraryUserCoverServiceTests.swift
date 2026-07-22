@@ -114,6 +114,7 @@ func libraryUserCoverServiceReplacesFileAndInvalidatesOnlyOldCache() async throw
     let databaseURL = directory.appendingPathComponent("test.sqlite")
     try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try SubtitleDatabase(path: databaseURL)
+    let coverDatabase = try LibraryCoverDatabase(path: databaseURL)
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
@@ -129,7 +130,7 @@ func libraryUserCoverServiceReplacesFileAndInvalidatesOnlyOldCache() async throw
         )
     )
     let service = LibraryUserCoverService(
-        database: database,
+        database: coverDatabase,
         coverDirectory: directory.appendingPathComponent("Covers"),
         imagePipeline: pipeline
     )
@@ -151,7 +152,7 @@ func libraryUserCoverServiceReplacesFileAndInvalidatesOnlyOldCache() async throw
         target: .video(path: videoFile.path)
     )
     #expect(FileManager.default.fileExists(atPath: first.displayCoverPath))
-    let firstCover = try #require(try database.libraryUserVideoCover(forVideoFile: videoFile))
+    let firstCover = try #require(try coverDatabase.libraryUserVideoCover(forVideoFile: videoFile))
     #expect(first.coverRevision == firstCover.revision)
     let firstKey = LibraryCoverImageKey(
         path: first.displayCoverPath,
@@ -172,7 +173,7 @@ func libraryUserCoverServiceReplacesFileAndInvalidatesOnlyOldCache() async throw
     #expect(second.replacedDisplayCoverPath == first.displayCoverPath)
     #expect(!FileManager.default.fileExists(atPath: first.displayCoverPath))
     #expect(FileManager.default.fileExists(atPath: second.displayCoverPath))
-    let secondCover = try #require(try database.libraryUserVideoCover(forVideoFile: videoFile))
+    let secondCover = try #require(try coverDatabase.libraryUserVideoCover(forVideoFile: videoFile))
     #expect(secondCover.displayCoverPath == second.displayCoverPath)
     #expect(secondCover.revision == second.coverRevision)
     let cachedKeys = await pipeline.diagnostics().cachedKeys
@@ -188,6 +189,7 @@ func libraryUserCoverServiceRestoresOldCoverWhenOldFileCannotBeSafelyRemoved() a
     let databaseURL = directory.appendingPathComponent("test.sqlite")
     try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try SubtitleDatabase(path: databaseURL)
+    let coverDatabase = try LibraryCoverDatabase(path: databaseURL)
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
@@ -196,13 +198,13 @@ func libraryUserCoverServiceRestoresOldCoverWhenOldFileCannotBeSafelyRemoved() a
     )
     let externalOldURL = directory.appendingPathComponent("must-remain.jpg")
     try Data([0x01]).write(to: externalOldURL)
-    try database.upsertLibraryUserVideoCover(
+    try coverDatabase.upsertLibraryUserVideoCover(
         forVideoFile: videoFile,
         displayCoverPath: externalOldURL.path
     )
 
     let service = LibraryUserCoverService(
-        database: database,
+        database: coverDatabase,
         coverDirectory: directory.appendingPathComponent("Covers")
     )
     let source = LibraryUserCoverSource(
@@ -225,7 +227,7 @@ func libraryUserCoverServiceRestoresOldCoverWhenOldFileCannotBeSafelyRemoved() a
     }
     #expect(FileManager.default.fileExists(atPath: externalOldURL.path))
     #expect(
-        try database.libraryUserVideoCover(forVideoFile: videoFile)?.displayCoverPath
+        try coverDatabase.libraryUserVideoCover(forVideoFile: videoFile)?.displayCoverPath
             == externalOldURL.path
     )
 }

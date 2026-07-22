@@ -338,7 +338,7 @@ func reindexingUnchangedSubtitleFileRefreshesVideoFileMetadata() throws {
     try Data(repeating: 0x42, count: 16).write(to: videoURL)
 
     let unchangedResult = try indexer.index(folder: fixture.root, into: database)
-    let coverVideos = try database.libraryCoverEligibleVideos(under: [fixture.root])
+    let coverVideos = try LibraryCoverDatabase(path: fixture.databaseURL).libraryCoverEligibleVideos(under: [fixture.root])
     let coverVideo = try #require(coverVideos.first)
 
     #expect(unchangedResult.skippedUnchangedSubtitleFiles == 1)

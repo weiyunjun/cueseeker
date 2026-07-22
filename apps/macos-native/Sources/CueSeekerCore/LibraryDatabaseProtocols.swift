@@ -75,4 +75,5 @@ public extension LibraryCoverPersistence {
     }
 }
 
-extension SubtitleDatabase: LibraryCoverPersistence, PlaybackVideoMetadataPersistence {}
+extension LibraryCoverDatabase: LibraryCoverPersistence {}
+extension SubtitleDatabase: PlaybackVideoMetadataPersistence {}

@@ -156,6 +156,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
 
     try DatabaseBootstrap.prepare(at: databaseURL)
     let preparedDatabase = try SubtitleDatabase(path: databaseURL)
+    let preparedCoverDatabase = try LibraryCoverDatabase(path: databaseURL)
     try preparedDatabase.replaceEntries(
         subtitleFile: subtitleURL,
         videoFile: videoURL,
@@ -190,12 +191,12 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
         positionMilliseconds: 1_000,
         duration: 100
     )
-    let candidates = try preparedDatabase.libraryCoverEligibleVideos(under: [mediaDirectory])
+    let candidates = try preparedCoverDatabase.libraryCoverEligibleVideos(under: [mediaDirectory])
     let candidate = try #require(candidates.first { $0.videoPath == videoURL.path })
     let missingMasterCandidate = try #require(
         candidates.first { $0.videoPath == missingMasterVideoURL.path }
     )
-    try preparedDatabase.upsertLibraryVideoCover(
+    try preparedCoverDatabase.upsertLibraryVideoCover(
         videoFileID: candidate.videoFileID,
         masterCoverPath: masterURL.path,
         sourceTimeMilliseconds: 1_000,
@@ -206,7 +207,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
         status: .generated,
         errorMessage: nil
     )
-    try preparedDatabase.upsertLibraryVideoCover(
+    try preparedCoverDatabase.upsertLibraryVideoCover(
         videoFileID: missingMasterCandidate.videoFileID,
         masterCoverPath: fixtureRoot.appendingPathComponent("missing-master.jpg").path,
         sourceTimeMilliseconds: 1_000,
@@ -224,7 +225,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
     #expect(app.startupDatabaseTask == nil)
     #expect(app.libraryDisplayRenditionTask == nil)
     #expect(
-        try app.subtitleDatabase?.libraryVideoCover(forVideoFileID: candidate.videoFileID)?
+        try app.libraryCoverDatabase?.libraryVideoCover(forVideoFileID: candidate.videoFileID)?
             .displayCoverPath == nil
     )
 
@@ -234,7 +235,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
     await app.testRecentWatchingTask?.value
 
     let storedCover = try #require(
-        try app.subtitleDatabase?.libraryVideoCover(forVideoFileID: candidate.videoFileID)
+        try app.libraryCoverDatabase?.libraryVideoCover(forVideoFileID: candidate.videoFileID)
     )
     let displayPath = try #require(storedCover.displayCoverPath)
     #expect(storedCover.displayProfileVersion == LibraryCoverDisplayProfileVersion.current)
@@ -244,7 +245,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
     #expect(app.indexingTask == nil)
     #expect(app.libraryDisplayRenditionAttemptedScopeKey != nil)
     #expect(
-        try app.subtitleDatabase?.libraryVideoCover(
+        try app.libraryCoverDatabase?.libraryVideoCover(
             forVideoFileID: missingMasterCandidate.videoFileID
         )?.displayCoverPath == nil
     )

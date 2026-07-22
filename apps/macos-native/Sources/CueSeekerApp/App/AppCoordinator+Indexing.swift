@@ -120,7 +120,9 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
-        guard let database = subtitleDatabase else {
+        guard let database = subtitleDatabase,
+              let coverDatabase = libraryCoverDatabase
+        else {
             indexing.indexingStatus = .failed(folder, "Database is not initialized")
             return
         }
@@ -143,7 +145,7 @@ extension AppCoordinator {
                             displayRenditionCommitToken: displayRenditionCommitToken
                         )
                     )
-                    _ = try await coverIndexer.indexCovers(under: folder, into: database)
+                    _ = try await coverIndexer.indexCovers(under: folder, into: coverDatabase)
                     try database.rebuildLibraryPresentationSnapshot()
                     return result
                 }.value
@@ -193,7 +195,9 @@ extension AppCoordinator {
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
-        guard let database = subtitleDatabase else {
+        guard let database = subtitleDatabase,
+              let coverDatabase = libraryCoverDatabase
+        else {
             indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
             return
         }
@@ -235,7 +239,7 @@ extension AppCoordinator {
                                 displayRenditionCommitToken: displayRenditionCommitToken
                             )
                         )
-                        _ = try await coverIndexer.indexCovers(under: folder, into: database)
+                        _ = try await coverIndexer.indexCovers(under: folder, into: coverDatabase)
                         return result
                     }.value
 
