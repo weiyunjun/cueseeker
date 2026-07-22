@@ -211,7 +211,7 @@ extension AppCoordinator {
     }
 
     func shioriTagPopoverState(forShioriID shioriID: Int64) -> ShioriTagPopoverState? {
-        guard let database = subtitleDatabase else { return nil }
+        guard let database = shioriDatabase else { return nil }
         do {
             return ShioriTagPopoverState(
                 allTags: try database.shioriTags(),
@@ -224,7 +224,7 @@ extension AppCoordinator {
     }
 
     func assignShioriTag(tagID: Int64, toShioriID shioriID: Int64) -> [ShioriTag]? {
-        guard let database = subtitleDatabase else { return nil }
+        guard let database = shioriDatabase else { return nil }
         do {
             _ = try database.assignShioriTag(tagID: tagID, toShioriID: shioriID)
             let tags = try database.shioriTags(forShioriID: shioriID)
@@ -237,7 +237,7 @@ extension AppCoordinator {
     }
 
     func createAndAssignShioriTag(named name: String, toShioriID shioriID: Int64) -> ShioriTagPopoverState? {
-        guard let database = subtitleDatabase else { return nil }
+        guard let database = shioriDatabase else { return nil }
         do {
             _ = try database.assignShioriTag(named: name, toShioriID: shioriID)
             let state = ShioriTagPopoverState(
@@ -253,7 +253,7 @@ extension AppCoordinator {
     }
 
     func removeShioriTagAssignment(tagID: Int64, fromShioriID shioriID: Int64) -> [ShioriTag]? {
-        guard let database = subtitleDatabase else { return nil }
+        guard let database = shioriDatabase else { return nil }
         do {
             _ = try database.removeShioriTagAssignment(tagID: tagID, fromShioriID: shioriID)
             let tags = try database.shioriTags(forShioriID: shioriID)
@@ -266,7 +266,7 @@ extension AppCoordinator {
     }
 
     func deleteShioriTagGlobally(tagID: Int64, currentShioriID: Int64) -> ShioriTagDeletionOutcome? {
-        guard let database = subtitleDatabase else { return nil }
+        guard let database = shioriDatabase else { return nil }
         do {
             let deletion = try database.deleteShioriTag(tagID: tagID)
             shiori.removeResidentTag(

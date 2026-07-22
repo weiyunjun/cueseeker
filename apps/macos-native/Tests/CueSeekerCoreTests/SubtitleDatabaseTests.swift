@@ -3893,7 +3893,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    let tag = try database.assignShioriTag(
+    let tag = try ShioriDatabase(path: databaseURL).assignShioriTag(
         named: "Review",
         toShioriID: saved.id
     )
@@ -3983,6 +3983,7 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
 
     let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.mkv")
@@ -4022,8 +4023,8 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
     let page = try database.shioriPage(shioriIDs: [shiori.id])
     #expect(page.cuePresentationsByShioriID[shiori.id]?.cueID == cueID)
 
-    let tag = try database.assignShioriTag(named: "CueID", toShioriID: shiori.id)
-    #expect(try database.shioriTags(forShioriID: shiori.id) == [tag])
+    let tag = try shioriDatabase.assignShioriTag(named: "CueID", toShioriID: shiori.id)
+    #expect(try shioriDatabase.shioriTags(forShioriID: shiori.id) == [tag])
 }
 
 @Test
@@ -4035,6 +4036,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
 
     let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.mkv")
@@ -4063,7 +4065,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
         selection: shioriSelection(originalCue),
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    let tag = try database.assignShioriTag(
+    let tag = try shioriDatabase.assignShioriTag(
         named: "Keep after reindex",
         toShioriID: originalShiori.id
     )
@@ -4096,7 +4098,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
     #expect(rebuiltRelation.cueID == rebuiltCue.id)
     #expect(rebuiltShiori.content == "Updated saved cue.")
     #expect(rebuiltShiori.createdAt == originalShiori.createdAt)
-    #expect(try database.shioriTags(forShioriID: originalShiori.id) == [tag])
+    #expect(try shioriDatabase.shioriTags(forShioriID: originalShiori.id) == [tag])
 }
 
 @Test
@@ -4852,6 +4854,7 @@ func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
 
     let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Tags.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Tags.mkv")
@@ -4902,50 +4905,50 @@ func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
     )
 
     let createdAt = try #require(ISO8601DateFormatter().date(from: "2026-07-08T00:00:00Z"))
-    let tag = try database.createShioriTag(named: "  Tag  ", createdAt: createdAt)
-    let duplicate = try database.createShioriTag(named: "Tag")
-    let lowerCaseTag = try database.createShioriTag(named: "tag")
+    let tag = try shioriDatabase.createShioriTag(named: "  Tag  ", createdAt: createdAt)
+    let duplicate = try shioriDatabase.createShioriTag(named: "Tag")
+    let lowerCaseTag = try shioriDatabase.createShioriTag(named: "tag")
 
     #expect(tag.name == "Tag")
     #expect(duplicate.id == tag.id)
     #expect(lowerCaseTag.id != tag.id)
-    #expect(try database.shioriTag(named: " Tag ")?.id == tag.id)
+    #expect(try shioriDatabase.shioriTag(named: " Tag ")?.id == tag.id)
 
-    #expect(try database.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
-    #expect(try !database.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
-    let secondTag = try database.assignShioriTag(named: "復習", toShioriID: secondShiori.id)
+    #expect(try shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
+    #expect(try !shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
+    let secondTag = try shioriDatabase.assignShioriTag(named: "復習", toShioriID: secondShiori.id)
 
-    var tagsByShioriID = try database.shioriTagsByShioriID(
+    var tagsByShioriID = try shioriDatabase.shioriTagsByShioriID(
         forShioriIDs: [firstShiori.id, secondShiori.id]
     )
     #expect(tagsByShioriID[firstShiori.id]?.map(\.name) == ["Tag"])
     #expect(tagsByShioriID[secondShiori.id]?.map(\.name) == ["復習"])
 
-    #expect(try database.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
-    #expect(try !database.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
-    #expect(try database.shioriTags(forShioriID: firstShiori.id).isEmpty)
+    #expect(try shioriDatabase.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
+    #expect(try !shioriDatabase.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
+    #expect(try shioriDatabase.shioriTags(forShioriID: firstShiori.id).isEmpty)
 
-    #expect(try database.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
-    #expect(try database.assignShioriTag(tagID: tag.id, toShioriID: secondShiori.id))
-    let deletion = try database.deleteShioriTag(tagID: tag.id)
+    #expect(try shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
+    #expect(try shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: secondShiori.id))
+    let deletion = try shioriDatabase.deleteShioriTag(tagID: tag.id)
     #expect(deletion.didDelete)
     #expect(deletion.affectedShioriIDs == [firstShiori.id, secondShiori.id].sorted())
-    #expect(try database.shioriTag(id: tag.id) == nil)
-    tagsByShioriID = try database.shioriTagsByShioriID(
+    #expect(try shioriDatabase.shioriTag(id: tag.id) == nil)
+    tagsByShioriID = try shioriDatabase.shioriTagsByShioriID(
         forShioriIDs: [firstShiori.id, secondShiori.id]
     )
     #expect(tagsByShioriID[firstShiori.id]?.isEmpty == true)
     #expect(tagsByShioriID[secondShiori.id]?.map(\.id) == [secondTag.id])
 
-    let missingDeletion = try database.deleteShioriTag(tagID: -1)
+    let missingDeletion = try shioriDatabase.deleteShioriTag(tagID: -1)
     #expect(!missingDeletion.didDelete)
     #expect(missingDeletion.affectedShioriIDs.isEmpty)
 
     do {
-        _ = try database.assignShioriTag(named: "Orphan", toShioriID: -1)
+        _ = try shioriDatabase.assignShioriTag(named: "Orphan", toShioriID: -1)
         Issue.record("Expected missing Shiori assignment to fail")
     } catch {
-        #expect(try database.shioriTag(named: "Orphan") == nil)
+        #expect(try shioriDatabase.shioriTag(named: "Orphan") == nil)
     }
 }
 
@@ -4956,29 +4959,29 @@ func shioriTagValidationRejectsInvalidNames() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
     expectShioriTagValidationError(.emptyName) {
-        _ = try database.createShioriTag(named: "   ")
+        _ = try shioriDatabase.createShioriTag(named: "   ")
     }
     expectShioriTagValidationError(.nameTooLong(maximumCharacters: 20)) {
-        _ = try database.createShioriTag(named: "123456789012345678901")
+        _ = try shioriDatabase.createShioriTag(named: "123456789012345678901")
     }
     expectShioriTagValidationError(.invalidCharacters) {
-        _ = try database.createShioriTag(named: "hello\nworld")
+        _ = try shioriDatabase.createShioriTag(named: "hello\nworld")
     }
     expectShioriTagValidationError(.invalidCharacters) {
-        _ = try database.createShioriTag(named: "\nhello")
+        _ = try shioriDatabase.createShioriTag(named: "\nhello")
     }
     expectShioriTagValidationError(.invalidCharacters) {
-        _ = try database.createShioriTag(named: "hello\tworld")
+        _ = try shioriDatabase.createShioriTag(named: "hello\tworld")
     }
     expectShioriTagValidationError(.invalidCharacters) {
-        _ = try database.createShioriTag(named: "hello\u{200B}world")
+        _ = try shioriDatabase.createShioriTag(named: "hello\u{200B}world")
     }
 
-    let allowed = try database.createShioriTag(named: #" C++ "Q" / \ & 😀 "#)
+    let allowed = try shioriDatabase.createShioriTag(named: #" C++ "Q" / \ & 😀 "#)
     #expect(allowed.name == #"C++ "Q" / \ & 😀"#)
 }
 

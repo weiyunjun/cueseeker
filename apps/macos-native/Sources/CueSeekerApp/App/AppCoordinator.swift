@@ -44,6 +44,7 @@ final class AppCoordinator: ObservableObject {
     var subtitleDatabase: SubtitleDatabase?
     let libraryDatabase: LibraryDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
+    let shioriDatabase: ShioriDatabase?
     let libraryUserCoverService: LibraryUserCoverService?
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
@@ -523,6 +524,7 @@ final class AppCoordinator: ObservableObject {
         var openedDatabase: SubtitleDatabase?
         var openedLibraryDatabase: LibraryDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
+        var openedShioriDatabase: ShioriDatabase?
         var initialError: Error?
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
@@ -531,17 +533,20 @@ final class AppCoordinator: ObservableObject {
             openedDatabase = database
             openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
+            openedShioriDatabase = try ShioriDatabase(path: self.databaseURL)
             initialError = nil
         } catch {
             openedDatabase = nil
             openedLibraryDatabase = nil
             openedLibraryCoverDatabase = nil
+            openedShioriDatabase = nil
             initialError = error
         }
 
         self.subtitleDatabase = openedDatabase
         self.libraryDatabase = openedLibraryDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
+        self.shioriDatabase = openedShioriDatabase
         self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in
             LibraryUserCoverService(
                 database: database,
