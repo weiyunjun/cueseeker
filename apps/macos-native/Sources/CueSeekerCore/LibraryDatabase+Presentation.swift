@@ -520,7 +520,7 @@ extension LibraryDatabase {
         )
     }
 
-    public func rebuildLibraryPresentationSnapshot() throws {
+    public func refreshPresentationAfterIndexedContentChange() throws {
         let videosByFolderPath = Dictionary(grouping: try indexedLibraryVideos(scopedTo: nil)) {
             URL(fileURLWithPath: $0.videoPath)
                 .deletingLastPathComponent()

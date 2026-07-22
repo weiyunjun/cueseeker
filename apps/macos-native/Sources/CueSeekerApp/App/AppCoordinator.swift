@@ -40,6 +40,7 @@ final class AppCoordinator: ObservableObject {
     var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
+    let libraryCoverDirectory: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var indexingDatabase: IndexingDatabase?
     let searchDatabase: SearchDatabase?
@@ -490,7 +491,11 @@ final class AppCoordinator: ObservableObject {
         self.uiProbeScope = uiProbeScope
         self.userDefaults = userDefaults
         let resolvedDatabaseURL = databaseURL ?? Self.defaultDatabaseURL()
+        let resolvedLibraryCoverDirectory = resolvedDatabaseURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Covers", isDirectory: true)
         self.databaseURL = resolvedDatabaseURL
+        self.libraryCoverDirectory = resolvedLibraryCoverDirectory
         self.libraryFolderRemovalExecutor = libraryFolderRemovalExecutor
         playbackSubtitleFocusDatabaseReader = PlaybackSubtitleFocusDatabaseReader(
             databaseURL: resolvedDatabaseURL
@@ -560,9 +565,7 @@ final class AppCoordinator: ObservableObject {
         self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in
             LibraryUserCoverService(
                 database: database,
-                coverDirectory: LibraryCoverIndexer.defaultCoverDirectory(
-                    forDatabaseURL: resolvedDatabaseURL
-                )
+                coverDirectory: resolvedLibraryCoverDirectory
             )
         }
         libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedLibraryDatabase)

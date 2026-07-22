@@ -428,13 +428,41 @@ and remove the old God Object without a permanent forwarding facade.
   ASS font-resource manifest symbol remains, and `git diff --check` reports no
   errors.
 
+### Step 20
+
+- Split the 6,796-line cross-domain database integration test file into ten
+  domain files for bootstrap, Indexing, Search, Library, Shiori, playback
+  subtitle data, subtitle language, speakers, AI cache, and maintenance, plus
+  one shared test-support file. All 118 tests were preserved.
+- Reduced the reorganized tests and support to 6,679 lines by deleting four
+  unused helper declarations instead of carrying dead fixtures into the new
+  files. The largest resulting domain file is the 2,540-line Search integration
+  test file; `IndexingDatabaseTests.swift` is 453 lines.
+- Moved the remaining playback entry models out of the deleted
+  `IndexingDatabaseModels.swift` file and renamed them from the legacy
+  `SubtitleDatabaseEntry` namespace to the Playback Subtitle domain.
+- Removed database-path-derived cover-directory policy from
+  `CueSeekerPlayback`; AppCoordinator now resolves and passes the concrete cover
+  directory. Renamed the public Library table-rebuild command to the domain
+  workflow event `refreshPresentationAfterIndexedContentChange` so callers no
+  longer control a derived-table implementation detail.
+- Built every product and test target. All 118 reorganized database tests and
+  101 focused Indexing, Library, cover, and App startup tests passed.
+- The serial suite reproduced the existing shared-preferences migration test
+  isolation issue. With that test excluded, 828 Swift Testing tests and seven
+  XCTest rendering probes passed; the excluded test then passed in isolation.
+- Confirmed production and test Swift sources contain no `SubtitleDatabase*`
+  symbol, `CueSeekerPlayback` contains no SQLite/bootstrap/database-path
+  dependency, AppCoordinator exposes no derived-table rebuild command, and
+  `git diff --check` reports no errors.
+
 ## Outcome
 
-Steps 1 through 19 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 20 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version. The former database God Object
 has been removed, and schema creation, connection access, transaction
 ownership, domain reads, and Indexing writes have explicit persistence-layer
-boundaries.
+boundaries. Tests and playback dependencies now reflect those same boundaries.
 
 ## Follow-ups
 

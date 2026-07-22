@@ -133,7 +133,7 @@ extension AppCoordinator {
         clearSearchAndPlaybackState(under: folder)
         indexing.indexingStatus = .indexing(folder)
 
-        let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
+        let coverDirectory = libraryCoverDirectory
         indexingTask = Task {
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
@@ -150,7 +150,7 @@ extension AppCoordinator {
                         )
                     )
                     _ = try await coverIndexer.indexCovers(under: folder, into: coverDatabase)
-                    try libraryDatabase.rebuildLibraryPresentationSnapshot()
+                    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
                     return result
                 }.value
 
@@ -218,7 +218,7 @@ extension AppCoordinator {
             totalFolders: folders.count
         )
 
-        let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
+        let coverDirectory = libraryCoverDirectory
         indexingTask = Task {
             var aggregateResult: SubtitleIndexingResult?
 
@@ -280,7 +280,7 @@ extension AppCoordinator {
 
             do {
                 try await Task.detached(priority: .userInitiated) {
-                    try libraryDatabase.rebuildLibraryPresentationSnapshot()
+                    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
                 }.value
             } catch {
                 guard !Task.isCancelled else {

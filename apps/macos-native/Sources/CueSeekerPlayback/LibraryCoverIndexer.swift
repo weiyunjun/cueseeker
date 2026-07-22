@@ -86,12 +86,6 @@ public struct LibraryCoverIndexer: Sendable {
         self.ffmpegCommand = Self.resolveFFmpegCommand(configuredPath: configuration.ffmpegPath)
     }
 
-    public static func defaultCoverDirectory(forDatabaseURL databaseURL: URL) -> URL {
-        databaseURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("Covers", isDirectory: true)
-    }
-
     @discardableResult
     public func indexCovers(
         under folder: URL,

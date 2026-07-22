@@ -184,7 +184,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
             )
         ]
     )
-    try preparedLibraryDatabase.rebuildLibraryPresentationSnapshot()
+    try preparedLibraryDatabase.refreshPresentationAfterIndexedContentChange()
     try preparedLibraryDatabase.upsertLibraryPlaybackHistory(
         videoFile: videoURL,
         positionMilliseconds: 1_000,

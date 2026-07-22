@@ -253,7 +253,7 @@ private func prepareLibraryRouteFixture(
             )
         ]
     )
-    try libraryDatabase.rebuildLibraryPresentationSnapshot()
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
     try libraryDatabase.upsertLibraryPlaybackHistory(
         videoFile: videoURL,
         positionMilliseconds: 10_000,

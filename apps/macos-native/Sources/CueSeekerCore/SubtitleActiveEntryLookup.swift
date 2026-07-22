@@ -8,10 +8,10 @@ public struct SubtitleActiveEntryLookup: Sendable {
 
     private let records: [Record]
 
-    public init(entries: [SubtitleDatabaseEntry] = []) {
+    public init(entries: [PlaybackSubtitleEntry] = []) {
         self.init(
             entryIndex: entries.map {
-                SubtitleDatabaseEntryIndexItem(
+                PlaybackSubtitleEntryIndexItem(
                     id: $0.id,
                     startMilliseconds: $0.startMilliseconds,
                     endMilliseconds: $0.endMilliseconds
@@ -20,7 +20,7 @@ public struct SubtitleActiveEntryLookup: Sendable {
         )
     }
 
-    public init(entryIndex: [SubtitleDatabaseEntryIndexItem]) {
+    public init(entryIndex: [PlaybackSubtitleEntryIndexItem]) {
         var maxEndMilliseconds = Int.min
         records = entryIndex
             .sorted { lhs, rhs in

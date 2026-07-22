@@ -13,7 +13,7 @@ func recentPlaybackNavigationPreparesSameFolderEpisodes() async throws {
         let episode2 = root.appendingPathComponent("Show/Episode 2.mkv")
         let episode3 = root.appendingPathComponent("Show/Episode 3.mkv")
         try indexRecentPlaybackVideos([episode1, episode2, episode3], in: database)
-        try app.libraryDatabase!.rebuildLibraryPresentationSnapshot()
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
         try app.libraryDatabase!.upsertLibraryPlaybackHistory(
             videoFile: episode2,
             positionMilliseconds: 120_000,
@@ -40,7 +40,7 @@ func closingRecentLibraryPlaybackRefreshesRecentWatchingProgress() async throws 
         let root = URL(fileURLWithPath: "/Media")
         let episode = root.appendingPathComponent("Show/Episode 1.mkv")
         try indexRecentPlaybackVideos([episode], in: database)
-        try app.libraryDatabase!.rebuildLibraryPresentationSnapshot()
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
         try app.libraryDatabase!.upsertLibraryPlaybackHistory(
             videoFile: episode,
             positionMilliseconds: 10_000,
@@ -73,7 +73,7 @@ func closingNonLibraryPlaybackFlushesPendingLibraryProgress() async throws {
         let root = URL(fileURLWithPath: "/Media")
         let episode = root.appendingPathComponent("Show/Episode 1.mkv")
         try indexRecentPlaybackVideos([episode], in: database)
-        try app.libraryDatabase!.rebuildLibraryPresentationSnapshot()
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
         try app.libraryDatabase!.upsertLibraryPlaybackHistory(
             videoFile: episode,
             positionMilliseconds: 10_000,

@@ -237,13 +237,13 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
 }
 
 extension PlaybackSubtitleDatabase {
-    public func entries(forSubtitleFile subtitleFile: URL) throws -> [SubtitleDatabaseEntry] {
+    public func entries(forSubtitleFile subtitleFile: URL) throws -> [PlaybackSubtitleEntry] {
         try entries(forSubtitleFile: subtitleFile, limit: Int.max, offset: 0)
     }
 
     public func subtitleEntryIndex(
         forSubtitleFile subtitleFile: URL
-    ) throws -> [SubtitleDatabaseEntryIndexItem] {
+    ) throws -> [PlaybackSubtitleEntryIndexItem] {
         let statement = try database.prepare(
             """
             SELECT g.id, g.start_ms, g.end_ms
@@ -258,10 +258,10 @@ extension PlaybackSubtitleDatabase {
 
         try statement.bind(subtitleFile.path, at: 1)
 
-        var index: [SubtitleDatabaseEntryIndexItem] = []
+        var index: [PlaybackSubtitleEntryIndexItem] = []
         while try statement.step() {
             index.append(
-                SubtitleDatabaseEntryIndexItem(
+                PlaybackSubtitleEntryIndexItem(
                     id: statement.int64Column(0),
                     startMilliseconds: statement.intColumn(1),
                     endMilliseconds: statement.intColumn(2)
@@ -276,7 +276,7 @@ extension PlaybackSubtitleDatabase {
         forSubtitleFile subtitleFile: URL,
         limit: Int,
         offset: Int
-    ) throws -> [SubtitleDatabaseEntry] {
+    ) throws -> [PlaybackSubtitleEntry] {
         let requestedLimit = max(0, limit)
         guard requestedLimit > 0 else {
             return []
@@ -300,7 +300,7 @@ extension PlaybackSubtitleDatabase {
         try statement.bind(requestedLimit, at: 2)
         try statement.bind(max(0, offset), at: 3)
 
-        var entries: [SubtitleDatabaseEntry] = []
+        var entries: [PlaybackSubtitleEntry] = []
         while try statement.step() {
             entries.append(entry(from: statement))
         }
@@ -381,8 +381,8 @@ extension PlaybackSubtitleDatabase {
         return speakersByCueGroupID
     }
 
-    private func entry(from statement: SQLiteStatement) -> SubtitleDatabaseEntry {
-        SubtitleDatabaseEntry(
+    private func entry(from statement: SQLiteStatement) -> PlaybackSubtitleEntry {
+        PlaybackSubtitleEntry(
             id: statement.int64Column(0),
             subtitlePath: statement.stringColumn(1),
             subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,

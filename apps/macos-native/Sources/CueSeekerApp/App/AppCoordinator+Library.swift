@@ -384,7 +384,7 @@ extension AppCoordinator {
         let commitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         libraryDisplayRenditionGeneration += 1
         let generation = libraryDisplayRenditionGeneration
-        let coverDirectory = LibraryCoverIndexer.defaultCoverDirectory(forDatabaseURL: databaseURL)
+        let coverDirectory = libraryCoverDirectory
         libraryDisplayRenditionTask = Task { [weak self] in
             let worker = Task.detached(priority: .utility) {
                 try await LibraryCoverDisplayRenditionIndexer(
