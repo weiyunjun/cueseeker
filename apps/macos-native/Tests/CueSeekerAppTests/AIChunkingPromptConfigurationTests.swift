@@ -227,8 +227,8 @@ func aiChunkingCacheClearRunsOnceForPromptAwareCacheMigration() throws {
             try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
         }
 
+        try DatabaseBootstrap.prepare(at: databaseURL)
         let database = try SubtitleDatabase(path: databaseURL)
-        try database.migrate()
         let key = AIChunkCacheKey(
             normalizedSentence: "運も実力のうちだ",
             provider: "deepseek",

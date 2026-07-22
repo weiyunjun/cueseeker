@@ -522,8 +522,8 @@ final class AppCoordinator: ObservableObject {
         let initialError: Error?
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
+            try DatabaseBootstrap.prepare(at: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
-            try database.migrate()
             openedDatabase = database
             initialError = nil
         } catch {

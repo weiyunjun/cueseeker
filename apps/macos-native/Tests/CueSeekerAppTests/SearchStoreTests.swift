@@ -1051,8 +1051,8 @@ private func makeSearchResults() throws -> [SubtitleSearchResult] {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Episode.srt"),
         videoFile: URL(fileURLWithPath: "/Media/Episode.mkv"),

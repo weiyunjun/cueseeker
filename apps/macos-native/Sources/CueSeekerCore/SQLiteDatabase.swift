@@ -24,16 +24,27 @@ public enum SQLiteDatabaseError: Error, Equatable, CustomStringConvertible {
     }
 }
 
+public enum DatabaseConnectionAccess: Equatable, Sendable {
+    case readOnly
+    case readWrite
+}
+
 final class SQLiteDatabase: @unchecked Sendable {
     static let busyTimeoutMilliseconds: Int32 = 5_000
     static let cacheSizeKibibytes: Int = 20_000
     static let mmapSizeBytes: Int = 256 * 1024 * 1024
 
+    private let lock = NSRecursiveLock()
     private var handle: OpaquePointer?
 
-    init(path: URL) throws {
+    init(path: URL, access: DatabaseConnectionAccess = .readWrite) throws {
         var database: OpaquePointer?
-        let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
+        let flags = switch access {
+        case .readOnly:
+            SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
+        case .readWrite:
+            SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
+        }
 
         guard sqlite3_open_v2(path.path, &database, flags, nil) == SQLITE_OK else {
             let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
@@ -43,7 +54,7 @@ final class SQLiteDatabase: @unchecked Sendable {
 
         handle = database
         do {
-            try configureConnection()
+            try configureConnection(access: access)
         } catch {
             sqlite3_close(handle)
             handle = nil
@@ -56,27 +67,47 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     func execute(_ sql: String) throws {
-        var errorMessage: UnsafeMutablePointer<CChar>?
-        guard sqlite3_exec(handle, sql, nil, nil, &errorMessage) == SQLITE_OK else {
-            let message = errorMessage.map { String(cString: $0) } ?? lastErrorMessage
-            sqlite3_free(errorMessage)
-            throw SQLiteDatabaseError.executeFailed(message)
+        try withConnectionLock {
+            var errorMessage: UnsafeMutablePointer<CChar>?
+            guard sqlite3_exec(handle, sql, nil, nil, &errorMessage) == SQLITE_OK else {
+                let message = errorMessage.map { String(cString: $0) } ?? lastErrorMessage
+                sqlite3_free(errorMessage)
+                throw SQLiteDatabaseError.executeFailed(message)
+            }
         }
     }
 
     func prepare(_ sql: String) throws -> SQLiteStatement {
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK,
-              let statement
-        else {
-            throw SQLiteDatabaseError.prepareFailed(lastErrorMessage)
-        }
+        try withConnectionLock {
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK,
+                  let statement
+            else {
+                throw SQLiteDatabaseError.prepareFailed(lastErrorMessage)
+            }
 
-        return SQLiteStatement(database: self, statement: statement)
+            return SQLiteStatement(database: self, statement: statement)
+        }
     }
 
     func lastInsertRowID() -> Int64 {
-        sqlite3_last_insert_rowid(handle)
+        withConnectionLock {
+            sqlite3_last_insert_rowid(handle)
+        }
+    }
+
+    func withImmediateTransaction<T>(_ body: () throws -> T) throws -> T {
+        try withConnectionLock {
+            try execute("BEGIN IMMEDIATE TRANSACTION")
+            do {
+                let result = try body()
+                try execute("COMMIT")
+                return result
+            } catch {
+                try? execute("ROLLBACK")
+                throw error
+            }
+        }
     }
 
     func intPragma(_ name: String) throws -> Int {
@@ -98,14 +129,22 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     var lastErrorMessage: String {
-        guard let handle else {
-            return "SQLite database is closed"
-        }
+        withConnectionLock {
+            guard let handle else {
+                return "SQLite database is closed"
+            }
 
-        return String(cString: sqlite3_errmsg(handle))
+            return String(cString: sqlite3_errmsg(handle))
+        }
     }
 
-    private func configureConnection() throws {
+    func withConnectionLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
+
+    private func configureConnection(access: DatabaseConnectionAccess) throws {
         guard let handle else {
             throw SQLiteDatabaseError.openFailed("SQLite database is closed")
         }
@@ -114,8 +153,12 @@ final class SQLiteDatabase: @unchecked Sendable {
             throw SQLiteDatabaseError.openFailed(lastErrorMessage)
         }
 
-        try execute("PRAGMA journal_mode = WAL")
-        try execute("PRAGMA synchronous = NORMAL")
+        if access == .readWrite {
+            try execute("PRAGMA journal_mode = WAL")
+            try execute("PRAGMA synchronous = NORMAL")
+        } else {
+            try execute("PRAGMA query_only = ON")
+        }
         try execute("PRAGMA foreign_keys = ON")
         try execute("PRAGMA cache_size = -\(Self.cacheSizeKibibytes)")
         try execute("PRAGMA mmap_size = \(Self.mmapSizeBytes)")
@@ -132,49 +175,63 @@ final class SQLiteStatement {
     }
 
     deinit {
-        sqlite3_finalize(statement)
+        _ = database.withConnectionLock {
+            sqlite3_finalize(statement)
+        }
     }
 
     func bind(_ value: String, at index: Int32) throws {
-        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-        guard sqlite3_bind_text(statement, index, value, -1, transient) == SQLITE_OK else {
-            throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            guard sqlite3_bind_text(statement, index, value, -1, transient) == SQLITE_OK else {
+                throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+            }
         }
     }
 
     func bind(_ value: Int, at index: Int32) throws {
-        guard sqlite3_bind_int64(statement, index, Int64(value)) == SQLITE_OK else {
-            throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            guard sqlite3_bind_int64(statement, index, Int64(value)) == SQLITE_OK else {
+                throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+            }
         }
     }
 
     func bind(_ value: Int64, at index: Int32) throws {
-        guard sqlite3_bind_int64(statement, index, value) == SQLITE_OK else {
-            throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            guard sqlite3_bind_int64(statement, index, value) == SQLITE_OK else {
+                throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+            }
         }
     }
 
     func bind(_ value: Double, at index: Int32) throws {
-        guard sqlite3_bind_double(statement, index, value) == SQLITE_OK else {
-            throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            guard sqlite3_bind_double(statement, index, value) == SQLITE_OK else {
+                throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+            }
         }
     }
 
     func bindNull(at index: Int32) throws {
-        guard sqlite3_bind_null(statement, index) == SQLITE_OK else {
-            throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            guard sqlite3_bind_null(statement, index) == SQLITE_OK else {
+                throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+            }
         }
     }
 
     func step() throws -> Bool {
-        let result = sqlite3_step(statement)
-        switch result {
-        case SQLITE_ROW:
-            return true
-        case SQLITE_DONE:
-            return false
-        default:
-            throw SQLiteDatabaseError.stepFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            let result = sqlite3_step(statement)
+            switch result {
+            case SQLITE_ROW:
+                return true
+            case SQLITE_DONE:
+                return false
+            default:
+                throw SQLiteDatabaseError.stepFailed(database.lastErrorMessage)
+            }
         }
     }
 
@@ -183,19 +240,25 @@ final class SQLiteStatement {
     }
 
     func reset() throws {
-        guard sqlite3_reset(statement) == SQLITE_OK else {
-            throw SQLiteDatabaseError.stepFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            guard sqlite3_reset(statement) == SQLITE_OK else {
+                throw SQLiteDatabaseError.stepFailed(database.lastErrorMessage)
+            }
         }
     }
 
     func clearBindings() throws {
-        guard sqlite3_clear_bindings(statement) == SQLITE_OK else {
-            throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+        try database.withConnectionLock {
+            guard sqlite3_clear_bindings(statement) == SQLITE_OK else {
+                throw SQLiteDatabaseError.bindFailed(database.lastErrorMessage)
+            }
         }
     }
 
     func int64Column(_ index: Int32) -> Int64 {
-        sqlite3_column_int64(statement, index)
+        database.withConnectionLock {
+            sqlite3_column_int64(statement, index)
+        }
     }
 
     func intColumn(_ index: Int32) -> Int {
@@ -203,42 +266,52 @@ final class SQLiteStatement {
     }
 
     func nullableIntColumn(_ index: Int32) -> Int? {
-        guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
-            return nil
-        }
+        database.withConnectionLock {
+            guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+                return nil
+            }
 
-        return intColumn(index)
+            return intColumn(index)
+        }
     }
 
     func nullableInt64Column(_ index: Int32) -> Int64? {
-        guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
-            return nil
-        }
+        database.withConnectionLock {
+            guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+                return nil
+            }
 
-        return int64Column(index)
+            return int64Column(index)
+        }
     }
 
     func nullableDoubleColumn(_ index: Int32) -> Double? {
-        guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
-            return nil
-        }
+        database.withConnectionLock {
+            guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+                return nil
+            }
 
-        return sqlite3_column_double(statement, index)
+            return sqlite3_column_double(statement, index)
+        }
     }
 
     func stringColumn(_ index: Int32) -> String {
-        guard let text = sqlite3_column_text(statement, index) else {
-            return ""
-        }
+        database.withConnectionLock {
+            guard let text = sqlite3_column_text(statement, index) else {
+                return ""
+            }
 
-        return String(cString: text)
+            return String(cString: text)
+        }
     }
 
     func nullableStringColumn(_ index: Int32) -> String? {
-        guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
-            return nil
-        }
+        database.withConnectionLock {
+            guard sqlite3_column_type(statement, index) != SQLITE_NULL else {
+                return nil
+            }
 
-        return stringColumn(index)
+            return stringColumn(index)
+        }
     }
 }

@@ -31,7 +31,6 @@ public struct SubtitleIndexer {
     }
 
     public func index(folder: URL, into database: SubtitleDatabase) throws -> SubtitleIndexingResult {
-        try database.migrate()
         _ = try database.addSearchPath(folder)
 
         var result = SubtitleIndexingResult()

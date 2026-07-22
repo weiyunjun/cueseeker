@@ -364,8 +364,8 @@ func reindexingUnchangedSubtitleFileWithoutLanguageManifestRewritesOnce() throws
     let videoURL = try #require(VideoMatcher().matchingVideo(for: scannedSubtitleURL))
     let metadata = try fixture.subtitleFileMetadata(for: scannedSubtitleURL)
 
+    try DatabaseBootstrap.prepare(at: fixture.databaseURL)
     let database = try SubtitleDatabase(path: fixture.databaseURL)
-    try database.migrate()
     try database.replaceEntries(
         subtitleFile: scannedSubtitleURL,
         videoFile: videoURL,
@@ -645,6 +645,7 @@ private struct IndexingFixture {
             .appendingPathComponent("CueSeekerIndexerTests-\(UUID().uuidString)")
         databaseURL = root.appendingPathComponent("index.sqlite")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try DatabaseBootstrap.prepare(at: databaseURL)
     }
 
     @discardableResult

@@ -255,7 +255,10 @@ extension AppCoordinator {
                 let page = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
+                    let pageDatabase = try SubtitleDatabase(
+                        path: searchDatabaseURL,
+                        access: .readOnly
+                    )
                     let indexWindow = SubtitleSearchResultIDIndexWindow(
                         cueIDs: cueIDs,
                         offset: lowerBound,
@@ -308,7 +311,10 @@ extension AppCoordinator {
             let page = try await Self.runCancellableDetached(
                 priority: .userInitiated
             ) {
-                let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
+                let pageDatabase = try SubtitleDatabase(
+                    path: searchDatabaseURL,
+                    access: .readOnly
+                )
                 return try pageDatabase.searchVisiblePage(
                     trimmedQuery,
                     limit: upperBound - lowerBound,
@@ -359,7 +365,10 @@ extension AppCoordinator {
             let page = try await Self.runCancellableDetached(
                 priority: .userInitiated
             ) {
-                let pageDatabase = try SubtitleDatabase(path: searchDatabaseURL)
+                let pageDatabase = try SubtitleDatabase(
+                    path: searchDatabaseURL,
+                    access: .readOnly
+                )
                 return try pageDatabase.allCuesVisiblePage(
                     limit: upperBound - lowerBound,
                     cursor: SubtitleSearchCursor(offset: lowerBound),
@@ -405,7 +414,10 @@ extension AppCoordinator {
             let subtitlePath = request.subtitlePath
             let targetCueID = request.targetCueID
             let loadedPage = try await Task.detached(priority: .userInitiated) {
-                let pageDatabase = try SubtitleDatabase(path: pageDatabaseURL)
+                let pageDatabase = try SubtitleDatabase(
+                    path: pageDatabaseURL,
+                    access: .readOnly
+                )
                 return try pageDatabase.cueContextSearchPage(
                     subtitlePath: subtitlePath,
                     targetCueID: targetCueID,

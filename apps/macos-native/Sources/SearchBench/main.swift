@@ -98,12 +98,12 @@ print("FTS vocab diagnostics: \(includesFTSVocabularyDiagnostics ? "enabled" : "
 print("")
 
 let openStart = Date()
+try DatabaseBootstrap.prepare(at: dbPath)
 let database = try SubtitleDatabase(path: dbPath)
 let openMs = milliseconds(since: openStart)
 print("Open connection:      \(formatMs(openMs)) ms")
 
 let migrateStart = Date()
-try database.migrate()
 let migrateMs = milliseconds(since: migrateStart)
 print("Migrate (one-time):   \(formatMs(migrateMs)) ms")
 print("Schema version:       \(try database.schemaVersion())")
@@ -317,7 +317,6 @@ if includesStep1Gaps {
 
 let coldStart = Date()
 let coldDatabase = try SubtitleDatabase(path: dbPath)
-try coldDatabase.migrate()
 let coldOpenMs = milliseconds(since: coldStart)
 let coldRun = try timedSearch(database: coldDatabase, query: query, limit: limit)
 let coldSearchMs = coldRun.milliseconds

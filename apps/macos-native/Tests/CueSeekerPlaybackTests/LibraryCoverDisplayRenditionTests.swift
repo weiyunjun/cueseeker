@@ -156,8 +156,8 @@ func libraryCoverDisplayBackfillUsesMasterAndIsIdempotent() async throws {
     let masterDataBefore = try Data(contentsOf: masterURL)
     let masterModificationDateBefore = try modificationDate(at: masterURL)
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
     try database.replaceEntries(
         subtitleFile: subtitleURL,
         videoFile: videoURL,

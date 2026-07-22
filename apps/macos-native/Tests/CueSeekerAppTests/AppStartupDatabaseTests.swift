@@ -21,8 +21,8 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let preparedDatabase = try SubtitleDatabase(path: databaseURL)
-    try preparedDatabase.migrate()
     try preparedDatabase.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Startup.srt"),
         videoFile: URL(fileURLWithPath: "/Media/Startup.mkv"),
@@ -153,8 +153,8 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
     try writeStartupTestJPEG(width: 1_440, height: 1_080, to: masterURL)
     let masterDataBefore = try Data(contentsOf: masterURL)
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let preparedDatabase = try SubtitleDatabase(path: databaseURL)
-    try preparedDatabase.migrate()
     try preparedDatabase.replaceEntries(
         subtitleFile: subtitleURL,
         videoFile: videoURL,

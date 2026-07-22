@@ -48,10 +48,10 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
 
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(try database.schemaVersion() == DatabaseBootstrap.currentSchemaVersion)
 }
 
 @Test
@@ -61,14 +61,14 @@ func currentSchemaValidationDoesNotMutateStoredData() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
     let folder = URL(fileURLWithPath: "/Media/Current Schema")
     _ = try database.addSearchPath(folder)
 
-    try database.migrate()
+    try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(try database.schemaVersion() == DatabaseBootstrap.currentSchemaVersion)
     #expect(try sqliteRowCount(in: "search_paths", databaseURL: databaseURL) == 1)
 }
 
@@ -80,6 +80,35 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
     try expectUnsupportedSchemaVersion(34)
+}
+
+@Test
+func readOnlyConnectionDoesNotCreateMissingDatabase() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    #expect(throws: (any Error).self) {
+        _ = try SubtitleDatabase(path: databaseURL, access: .readOnly)
+    }
+    #expect(!FileManager.default.fileExists(atPath: databaseURL.path))
+}
+
+@Test
+func readOnlyConnectionRejectsWrites() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try SubtitleDatabase(path: databaseURL, access: .readOnly)
+
+    #expect(throws: SQLiteDatabaseError.self) {
+        _ = try database.addSearchPath(URL(fileURLWithPath: "/Media/Read Only"))
+    }
+    #expect(try sqliteRowCount(in: "search_paths", databaseURL: databaseURL) == 0)
 }
 
 @Test
@@ -7384,16 +7413,16 @@ private func expectUnsupportedSchemaVersion(_ version: Int) throws {
     }
 
     try executeSQLite(at: databaseURL, "PRAGMA user_version = \(version);")
-    let database = try SubtitleDatabase(path: databaseURL)
     do {
-        try database.migrate()
+        try DatabaseBootstrap.prepare(at: databaseURL)
         Issue.record("Expected schema \(version) to be rejected")
-    } catch let error as SubtitleDatabaseError {
+    } catch let error as DatabaseBootstrapError {
         #expect(error == .unsupportedSchemaVersion(
             found: version,
-            supported: SubtitleDatabase.currentSchemaVersion
+            supported: DatabaseBootstrap.currentSchemaVersion
         ))
     }
+    let database = try SubtitleDatabase(path: databaseURL, access: .readOnly)
     #expect(try database.schemaVersion() == version)
 }
 

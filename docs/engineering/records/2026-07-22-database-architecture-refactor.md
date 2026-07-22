@@ -35,6 +35,21 @@ and remove the old God Object without a permanent forwarding facade.
 - Removed obsolete migration helpers, compatibility tests, and old-version test
   fixtures now that pre-33 databases are intentionally unsupported.
 
+### 3. Bootstrap, Connection, And Transaction Ownership
+
+- Added `DatabaseBootstrap` as the only production entry point that creates or
+  validates the schema; feature code no longer calls migration directly.
+- Added explicit read-only and read-write connection access. App background
+  Search, Shiori, URL lookup, and Playback rendering readers now open SQLite in
+  read-only/query-only mode and cannot create the database. Subtitle Focus uses
+  an explicit writer because the same boundary saves Shiori relations.
+- Removed migration work from `SubtitleIndexer`; App startup, tools, and test
+  fixtures bootstrap before opening feature connections.
+- Centralized immediate transaction begin/commit/rollback in `SQLiteDatabase`
+  and serialized each complete transaction with a recursive connection lock.
+- Replaced all business-level raw transaction-control SQL with the centralized
+  transaction executor.
+
 ## Verification
 
 ### Step 1
@@ -55,13 +70,28 @@ and remove the old God Object without a permanent forwarding facade.
   immediately when rerun in isolation.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 3
+
+- Built all Swift package products successfully.
+- Ran seven focused bootstrap/read-only/transaction-path tests; all passed.
+- Ran all 16 `SubtitleIndexerTests` after moving bootstrap ownership into the
+  fixture boundary; all passed.
+- Ran all 17 Playback Subtitle Focus keyboard-action tests after explicitly
+  classifying its Shiori-saving connection as a writer; all passed.
+- The first complete-suite run exposed the expected missing test-fixture
+  bootstrap calls plus the previously observed unrelated shared-preferences
+  test flake. The fixture boundary was corrected before the final suite run.
+- The final 831-test suite passed all database, indexing, App, and Playback
+  coverage. Its only failure was the same unrelated shared-preferences
+  migration assertion, which has already passed when run in isolation.
+
 ## Outcome
 
-Steps 1 and 2 match the requirement. The runtime now treats schema 33 as its
-only supported existing database version, and the removed compatibility path
-reduces the database implementation and its tests before domain extraction.
+Steps 1 through 3 match the requirement. The runtime now treats schema 33 as
+its only supported existing database version, and schema creation, connection
+access, and transaction ownership have explicit persistence-layer boundaries.
 
 ## Follow-ups
 
-- Extract connection/bootstrap ownership and focused domain persistence APIs.
+- Extract focused domain persistence APIs.
 - Record each subsequent implementation and verification step in this file.

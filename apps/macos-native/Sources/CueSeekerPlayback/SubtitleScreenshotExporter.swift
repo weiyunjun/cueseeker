@@ -555,8 +555,10 @@ public enum SubtitleScreenshotExporter {
             return nil
         }
 
-        let database = try SubtitleDatabase(path: renderCacheDatabaseURL)
-        try database.migrate()
+        let database = try SubtitleDatabase(
+            path: renderCacheDatabaseURL,
+            access: .readOnly
+        )
         return try database.assRenderSegment(
             forSubtitleFile: source.url,
             atMilliseconds: timestampMilliseconds

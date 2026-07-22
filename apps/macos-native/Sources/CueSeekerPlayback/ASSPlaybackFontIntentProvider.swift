@@ -13,8 +13,10 @@ enum ASSPlaybackFontIntentProvider {
         }
 
         let subtitleFile = URL(fileURLWithPath: sourcePath)
-        let database = try SubtitleDatabase(path: renderCacheDatabaseURL)
-        try database.migrate()
+        let database = try SubtitleDatabase(
+            path: renderCacheDatabaseURL,
+            access: .readOnly
+        )
         guard try database.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) else {
             return nil
         }

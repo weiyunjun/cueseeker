@@ -71,7 +71,10 @@ extension AppCoordinator {
                 let residentSnapshot = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    try SubtitleDatabase(path: databaseURL).shioriResidentSnapshot()
+                    try SubtitleDatabase(
+                        path: databaseURL,
+                        access: .readOnly
+                    ).shioriResidentSnapshot()
                 }
                 guard self.shioriTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,

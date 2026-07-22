@@ -93,7 +93,10 @@ extension AppCoordinator {
                     result = try await Self.runCancellableDetached(
                         priority: .userInitiated
                     ) {
-                        let database = try SubtitleDatabase(path: lookupDatabaseURL)
+                        let database = try SubtitleDatabase(
+                            path: lookupDatabaseURL,
+                            access: .readOnly
+                        )
                         return try database.cuePlaybackResult(cueID: cueID)
                     }
                 } catch {

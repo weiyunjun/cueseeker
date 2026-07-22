@@ -111,8 +111,9 @@ func libraryUserCoverServiceReplacesFileAndInvalidatesOnlyOldCache() async throw
     let directory = libraryUserCoverTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let database = try SubtitleDatabase(path: directory.appendingPathComponent("test.sqlite"))
-    try database.migrate()
+    let databaseURL = directory.appendingPathComponent("test.sqlite")
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try SubtitleDatabase(path: databaseURL)
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),
@@ -184,8 +185,9 @@ func libraryUserCoverServiceRestoresOldCoverWhenOldFileCannotBeSafelyRemoved() a
     let directory = libraryUserCoverTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let database = try SubtitleDatabase(path: directory.appendingPathComponent("test.sqlite"))
-    try database.migrate()
+    let databaseURL = directory.appendingPathComponent("test.sqlite")
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try SubtitleDatabase(path: databaseURL)
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
     try database.replaceEntries(
         subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode 1.srt"),

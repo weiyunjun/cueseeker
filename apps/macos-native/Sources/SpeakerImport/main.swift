@@ -47,8 +47,8 @@ private struct CueLineKey: Hashable {
 struct SpeakerImport {
     static func main() throws {
         let options = try parseOptions()
+        try DatabaseBootstrap.prepare(at: options.databaseURL)
         let database = try SubtitleDatabase(path: options.databaseURL)
-        try database.migrate()
 
         let subtitlePathsByEpisode = try myGOSubtitlePathsByEpisode(database: database)
         let baseRowsByEpisode = try loadBaseRowsByEpisode(sourceDirectory: options.sourceDirectory)

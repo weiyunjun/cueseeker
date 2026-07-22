@@ -74,7 +74,10 @@ actor PlaybackSubtitleFocusDatabaseReader {
         if let database {
             return database
         }
-        let database = try SubtitleDatabase(path: databaseURL)
+        let database = try SubtitleDatabase(
+            path: databaseURL,
+            access: .readWrite
+        )
         self.database = database
         return database
     }

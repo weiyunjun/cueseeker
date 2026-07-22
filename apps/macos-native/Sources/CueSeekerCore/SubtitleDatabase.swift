@@ -1540,7 +1540,7 @@ public struct DatabaseStorageStats: Equatable, Sendable {
     }
 }
 
-public enum SubtitleDatabaseError: Error, Equatable, CustomStringConvertible {
+public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
     case unsupportedSchemaVersion(found: Int, supported: Int)
 
     public var description: String {
@@ -1552,7 +1552,6 @@ public enum SubtitleDatabaseError: Error, Equatable, CustomStringConvertible {
 }
 
 public final class SubtitleDatabase: @unchecked Sendable {
-    public static let currentSchemaVersion: Int = 33
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
     public static let configuredCacheSizeKibibytes: Int = SQLiteDatabase.cacheSizeKibibytes
     public static let configuredMmapSizeBytes: Int = SQLiteDatabase.mmapSizeBytes
@@ -1572,9 +1571,12 @@ public final class SubtitleDatabase: @unchecked Sendable {
         let relativePath: String
     }
 
-    public init(path: URL) throws {
+    public init(
+        path: URL,
+        access: DatabaseConnectionAccess = .readWrite
+    ) throws {
         self.path = path
-        database = try SQLiteDatabase(path: path)
+        database = try SQLiteDatabase(path: path, access: access)
     }
 
     public func cueOccurrenceCount(
@@ -1614,21 +1616,20 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    public func migrate() throws {
+    func migrate() throws {
         let previousVersion = try schemaVersion()
 
-        guard previousVersion == 0 || previousVersion == Self.currentSchemaVersion else {
-            throw SubtitleDatabaseError.unsupportedSchemaVersion(
+        guard previousVersion == 0 || previousVersion == DatabaseBootstrap.currentSchemaVersion else {
+            throw DatabaseBootstrapError.unsupportedSchemaVersion(
                 found: previousVersion,
-                supported: Self.currentSchemaVersion
+                supported: DatabaseBootstrap.currentSchemaVersion
             )
         }
         guard previousVersion == 0 else {
             return
         }
 
-        try database.execute("BEGIN IMMEDIATE TRANSACTION;")
-        do {
+        try database.withImmediateTransaction {
             try database.execute(
                 """
                 CREATE TABLE IF NOT EXISTS search_paths (
@@ -2061,11 +2062,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             """
             )
 
-            try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
-            try database.execute("COMMIT;")
-        } catch {
-            try? database.execute("ROLLBACK;")
-            throw error
+            try database.execute("PRAGMA user_version = \(DatabaseBootstrap.currentSchemaVersion);")
         }
     }
 
@@ -2349,9 +2346,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     ) throws {
         try validateLanguageAnalysis(languageAnalysis, format: format, cueGroupCount: cueGroups.count)
         let playbackFinishMetadata = Self.playbackFinishMetadata(format: format, cueGroups: cueGroups)
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-
-        do {
+        try database.withImmediateTransaction {
             let preservedCueLineSpeakers = try cueLineSpeakersByStableKey(forSubtitlePath: subtitleFile.path)
             var preservedShioris = try shioriRelationsByCueSourceIdentity(
                 forSubtitlePath: subtitleFile.path
@@ -2453,12 +2448,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 try rebuildSearchDerivedIndexInCurrentTransaction()
             }
             try deleteOrphanedVideoFiles()
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
+        clearSearchResultCache()
     }
 
     public func entries(forSubtitleFile subtitleFile: URL) throws -> [SubtitleDatabaseEntry] {
@@ -2617,8 +2608,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
         }
 
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
+        try database.withImmediateTransaction {
             try clearCueLineSpeakersInCurrentTransaction(forSubtitleFile: subtitleFile)
             for assignment in assignments {
                 guard let cueGroupID = cueGroupIDsByLineID[assignment.cueLineID] else {
@@ -2630,24 +2620,15 @@ public final class SubtitleDatabase: @unchecked Sendable {
                     speakers: assignment.speakers
                 )
             }
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
+        clearSearchResultCache()
     }
 
     public func clearCueLineSpeakers(forSubtitleFile subtitleFile: URL) throws {
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
+        try database.withImmediateTransaction {
             try clearCueLineSpeakersInCurrentTransaction(forSubtitleFile: subtitleFile)
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
+        clearSearchResultCache()
     }
 
     public func languageDetections(
@@ -3448,8 +3429,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return
         }
 
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
+        try database.withImmediateTransaction {
             let inactiveSubtitlePaths = try indexedSubtitlePaths()
                 .filter { !Self.path($0, isUnderAny: folders) }
             for subtitlePath in inactiveSubtitlePaths {
@@ -3464,29 +3444,19 @@ public final class SubtitleDatabase: @unchecked Sendable {
 
             try deleteOrphanedVideoFiles()
             try rebuildSearchDerivedIndexInCurrentTransaction()
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
+        clearSearchResultCache()
     }
 
     public func rebuildSearchDerivedIndex() throws {
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
+        try database.withImmediateTransaction {
             try rebuildSearchDerivedIndexInCurrentTransaction()
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
+        clearSearchResultCache()
     }
 
     public func clearIndexedContent() throws {
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
+        try database.withImmediateTransaction {
             try database.execute("DELETE FROM library_video_rows;")
             try database.execute("DELETE FROM subtitle_search_order_rows;")
             try database.execute("DELETE FROM subtitle_cue_groups_fts;")
@@ -3496,12 +3466,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             try database.execute("DELETE FROM subtitle_files;")
             try database.execute("DELETE FROM video_files;")
             try database.execute("DELETE FROM search_paths;")
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
+        clearSearchResultCache()
     }
 
     public func search(
@@ -6135,8 +6101,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             return lhs.localizedStandardCompare(rhs) == .orderedAscending
         }
 
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
+        try database.withImmediateTransaction {
             try database.execute("DELETE FROM library_video_rows;")
 
             let updatedAt = ISO8601DateFormatter().string(from: Date())
@@ -6202,10 +6167,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 }
             }
 
-            try database.execute("COMMIT")
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
     }
 
@@ -8883,8 +8844,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             keepCondition = "AND sf.subtitle_path NOT IN (\(keepPlaceholders))"
         }
 
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
+        try database.withImmediateTransaction {
             let deleteASSFontReferences = try database.prepare(
                 """
                 DELETE FROM ass_font_references
@@ -9050,12 +9010,8 @@ public final class SubtitleDatabase: @unchecked Sendable {
             if rebuildSearchDerivedIndex {
                 try rebuildSearchDerivedIndexInCurrentTransaction()
             }
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
         }
+        clearSearchResultCache()
     }
 
     private func upsertSubtitleFile(
