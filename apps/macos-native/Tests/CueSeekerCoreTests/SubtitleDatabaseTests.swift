@@ -251,7 +251,7 @@ func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
         )
     )
 
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 1_500,
         duration: 24 * 60
@@ -1279,12 +1279,12 @@ func searchFiltersByLibraryWatchState() throws {
         videoFile: finishedVideoFile,
         entries: [entry("scope shared finished")]
     )
-    try database.setLibraryWatchState(
+    try LibraryDatabase(path: databaseURL).setLibraryWatchState(
         videoFile: watchingVideoFile,
         duration: nil,
         state: .watching
     )
-    try database.setLibraryWatchState(
+    try LibraryDatabase(path: databaseURL).setLibraryWatchState(
         videoFile: finishedVideoFile,
         duration: nil,
         state: .finished
@@ -2981,7 +2981,7 @@ func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
         entries: [databaseTestEntry(text: "Cover precedence")]
     )
     try database.rebuildLibraryPresentationSnapshot()
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 10_000,
         duration: 100
@@ -3144,30 +3144,29 @@ func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 91_250,
         duration: 1_800.5
     )
 
-    let initialHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let initialHistory = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(initialHistory.videoPath == videoFile.path)
     #expect(initialHistory.positionMilliseconds == 91_250)
     #expect(initialHistory.duration == 1_800.5)
     #expect(initialHistory.startedAt != nil)
     #expect(initialHistory.completedAt == nil)
 
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 0,
         duration: nil
     )
 
-    let updatedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let updatedHistory = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(updatedHistory.positionMilliseconds == 0)
     #expect(updatedHistory.duration == nil)
     #expect(updatedHistory.startedAt == initialHistory.startedAt)
@@ -3187,18 +3186,17 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 960_000,
         duration: 1_000.0,
         markCompleted: true
     )
 
-    let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let finishedHistory = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(finishedHistory.completedAt != nil)
     #expect(LibraryWatchState(
         positionMilliseconds: finishedHistory.positionMilliseconds,
@@ -3207,13 +3205,13 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
         completedAt: finishedHistory.completedAt
     ) == .finished)
 
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 0,
         duration: 1_000.0
     )
 
-    let rewoundHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let rewoundHistory = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(rewoundHistory.positionMilliseconds == 0)
     #expect(rewoundHistory.startedAt == finishedHistory.startedAt)
     #expect(rewoundHistory.completedAt == finishedHistory.completedAt)
@@ -3245,24 +3243,24 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
     try database.rebuildLibraryPresentationSnapshot()
 
     let playedAt = Date(timeIntervalSince1970: 1_800_000_000)
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 42_500,
         duration: 100.0,
         updatedAt: playedAt
     )
 
-    let initialHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let initialHistory = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(initialHistory.positionMilliseconds == 42_500)
     #expect(initialHistory.updatedAt == "2027-01-15T08:00:00.000Z")
 
-    try database.setLibraryWatchState(
+    try LibraryDatabase(path: databaseURL).setLibraryWatchState(
         videoFile: videoFile,
         duration: 100.0,
         state: .finished
     )
 
-    let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let finishedHistory = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(finishedHistory.positionMilliseconds == 42_500)
     #expect(finishedHistory.updatedAt == initialHistory.updatedAt)
     #expect(finishedHistory.completedAt != nil)
@@ -3277,13 +3275,13 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
     #expect(finishedRecent.positionMilliseconds == 42_500)
     #expect(finishedRecent.watchState == .finished)
 
-    try database.setLibraryWatchState(
+    try LibraryDatabase(path: databaseURL).setLibraryWatchState(
         videoFile: videoFile,
         duration: 100.0,
         state: .unwatched
     )
 
-    let unwatchedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let unwatchedHistory = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(unwatchedHistory.positionMilliseconds == 42_500)
     #expect(unwatchedHistory.updatedAt == initialHistory.updatedAt)
     #expect(unwatchedHistory.startedAt == nil)
@@ -3307,17 +3305,16 @@ func libraryPlaybackHistoryDoesNotFinishFromResumePositionAlone() throws {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
-    let database = try SubtitleDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let videoFile = URL(fileURLWithPath: "/Media/Show/Episode 1.mkv")
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 960_000,
         duration: 1_000.0
     )
 
-    let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let history = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(history.startedAt != nil)
     #expect(history.completedAt == nil)
     #expect(LibraryWatchState(
@@ -3370,7 +3367,7 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
         (showA2, 70_000, 6)
     ]
     for (videoFile, positionMilliseconds, dateOffset) in history {
-        try database.upsertLibraryPlaybackHistory(
+        try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
             videoFile: videoFile,
             positionMilliseconds: positionMilliseconds,
             duration: 1_200.0,
@@ -3427,13 +3424,13 @@ func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
     try database.rebuildLibraryPresentationSnapshot()
 
     let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: episode3,
         positionMilliseconds: 30_000,
         duration: 1_200.0,
         updatedAt: baseDate.addingTimeInterval(0.100)
     )
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: episode4,
         positionMilliseconds: 40_000,
         duration: 1_200.0,
@@ -3475,20 +3472,20 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
     try database.rebuildLibraryPresentationSnapshot()
 
     let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: episode2,
         positionMilliseconds: 960_000,
         duration: 1_000.0,
         updatedAt: baseDate.addingTimeInterval(1),
         markCompleted: true
     )
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: episode3,
         positionMilliseconds: 300_000,
         duration: 1_000.0,
         updatedAt: baseDate.addingTimeInterval(3)
     )
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: episode4,
         positionMilliseconds: 400_000,
         duration: 1_000.0,
@@ -3533,13 +3530,13 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
     try database.rebuildLibraryPresentationSnapshot()
 
     let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: showB1,
         positionMilliseconds: 960_000,
         duration: 1_000.0,
         updatedAt: baseDate.addingTimeInterval(1)
     )
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: showB2,
         positionMilliseconds: 960_000,
         duration: 1_000.0,
@@ -3606,7 +3603,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
         try LibraryCoverDatabase(path: databaseURL).libraryVideoCover(forVideoFileID: showA1CoverCandidate.videoFileID)
     ).generatedAt
 
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: showA2,
         positionMilliseconds: 250_000,
         duration: 1_000.0
@@ -3651,7 +3648,7 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
         entries: [databaseTestEntry(text: "display only")]
     )
     try database.rebuildLibraryPresentationSnapshot()
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 1_000,
         duration: 100
@@ -5058,7 +5055,7 @@ func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
             )
         ]
     )
-    try database.upsertLibraryPlaybackHistory(
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 42_000,
         duration: 1_200.0
@@ -5067,7 +5064,7 @@ func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
     try database.removeIndexedFolder(folder)
 
     #expect(try LibraryDatabase(path: databaseURL).libraryVideos(under: [folder]).isEmpty)
-    let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
+    let history = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(history.videoPath == videoFile.path)
     #expect(history.positionMilliseconds == 42_000)
     #expect(history.duration == 1_200.0)

@@ -550,7 +550,7 @@ final class AppCoordinator: ObservableObject {
                 )
             )
         }
-        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedDatabase)
+        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedLibraryDatabase)
 
         if let initialError {
             startupError = Self.errorMessage(for: initialError)

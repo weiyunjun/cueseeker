@@ -718,7 +718,7 @@ func closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision() async throws {
 
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
 
-        let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        let history = try #require(try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(history.positionMilliseconds == 42_500)
         #expect(history.duration == 100.0)
         #expect(app.library.libraryPlaybackHistoryRevision == revisionBeforeSave + 1)
@@ -770,7 +770,7 @@ func libraryPlaybackCompletionMilestoneSurvivesSeekingBackBeforeClose() async th
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
         #expect(app.pendingLibraryPlaybackHistoryPresentationVideoPaths.isEmpty)
 
-        let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        let history = try #require(try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(history.positionMilliseconds == 42_500)
         #expect(history.duration == 100.0)
         #expect(history.completedAt != nil)
@@ -802,12 +802,12 @@ func libraryPlaybackCompletionMilestoneIgnoresManualFinishedState() async throws
                 )
             ]
         )
-        try database.upsertLibraryPlaybackHistory(
+        try app.libraryDatabase!.upsertLibraryPlaybackHistory(
             videoFile: videoURL,
             positionMilliseconds: 42_500,
             duration: 100
         )
-        try database.setLibraryWatchState(
+        try app.libraryDatabase!.setLibraryWatchState(
             videoFile: videoURL,
             duration: 100,
             state: .finished
@@ -821,7 +821,7 @@ func libraryPlaybackCompletionMilestoneIgnoresManualFinishedState() async throws
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
         app.startLibraryPlaybackHistoryTracking(videoPath: videoURL.path)
-        try database.setLibraryWatchState(
+        try app.libraryDatabase!.setLibraryWatchState(
             videoFile: videoURL,
             duration: 100,
             state: .watching
@@ -840,7 +840,7 @@ func libraryPlaybackCompletionMilestoneIgnoresManualFinishedState() async throws
 
         app.saveCurrentLibraryPlaybackHistorySynchronously()
 
-        let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        let history = try #require(try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(history.positionMilliseconds == 85_000)
         #expect(history.completedAt != nil)
         #expect(LibraryWatchState(
@@ -886,7 +886,7 @@ func libraryPlaybackHistorySaveMarksCompletedWhenPositionReachedFinishPoint() as
         app.startLibraryPlaybackHistoryTracking(videoPath: videoURL.path)
         app.saveCurrentLibraryPlaybackHistorySynchronously()
 
-        let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        let history = try #require(try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(history.positionMilliseconds == 85_000)
         #expect(history.completedAt != nil)
         #expect(LibraryWatchState(
@@ -933,14 +933,14 @@ func libraryPlaybackCompletionUsesVideoEndWhenLastSubtitleIsBeforeThreshold() as
         await Task.yield()
         app.saveCurrentLibraryPlaybackHistorySynchronously()
 
-        let progressHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        let progressHistory = try #require(try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(progressHistory.completedAt == nil)
 
         playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(100.0))
         await Task.yield()
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
 
-        let finishedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: videoURL))
+        let finishedHistory = try #require(try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(finishedHistory.completedAt != nil)
     }
 }
@@ -989,7 +989,7 @@ func naturalLibraryPlaybackCompletionOpensNextVideoAndPersistsCompletion() async
 
         #expect(app.library.selectedLibraryVideo == secondVideo)
         let history = try #require(
-            try database.libraryPlaybackHistory(
+            try app.libraryDatabase!.libraryPlaybackHistory(
                 forVideoFile: URL(fileURLWithPath: firstVideo.videoPath)
             )
         )
@@ -1035,7 +1035,7 @@ func staleNaturalLibraryCompletionCannotAdvanceReplacementSelection() async thro
         app.handlePlaybackFinishedNaturally()
 
         #expect(app.library.selectedLibraryVideo == secondVideo)
-        let staleHistory = try database.libraryPlaybackHistory(
+        let staleHistory = try app.libraryDatabase!.libraryPlaybackHistory(
             forVideoFile: URL(fileURLWithPath: firstVideo.videoPath)
         )
         #expect(staleHistory == nil)

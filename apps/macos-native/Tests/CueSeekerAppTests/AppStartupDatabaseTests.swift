@@ -156,6 +156,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
 
     try DatabaseBootstrap.prepare(at: databaseURL)
     let preparedDatabase = try SubtitleDatabase(path: databaseURL)
+    let preparedLibraryDatabase = try LibraryDatabase(path: databaseURL)
     let preparedCoverDatabase = try LibraryCoverDatabase(path: databaseURL)
     try preparedDatabase.replaceEntries(
         subtitleFile: subtitleURL,
@@ -186,7 +187,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
         ]
     )
     try preparedDatabase.rebuildLibraryPresentationSnapshot()
-    try preparedDatabase.upsertLibraryPlaybackHistory(
+    try preparedLibraryDatabase.upsertLibraryPlaybackHistory(
         videoFile: videoURL,
         positionMilliseconds: 1_000,
         duration: 100

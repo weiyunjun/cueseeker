@@ -152,6 +152,14 @@ public final class LibraryDatabase: @unchecked Sendable {
         }
     }
 
+    private func bind(_ value: Int64?, to statement: SQLiteStatement, at index: Int32) throws {
+        if let value {
+            try statement.bind(value, at: index)
+        } else {
+            try statement.bindNull(at: index)
+        }
+    }
+
     private func bind(_ value: String?, to statement: SQLiteStatement, at index: Int32) throws {
         if let value {
             try statement.bind(value, at: index)
@@ -210,5 +218,230 @@ public final class LibraryDatabase: @unchecked Sendable {
             return nameComparison == .orderedAscending
         }
         return lhs.videoPath.localizedStandardCompare(rhs.videoPath) == .orderedAscending
+    }
+}
+
+extension LibraryDatabase {
+    public func libraryPlaybackHistory(forVideoFile videoFile: URL) throws -> LibraryPlaybackHistory? {
+        let videoFileID = try videoFileID(for: videoFile)
+        let statement = try database.prepare(
+            """
+            SELECT COALESCE(vf.path, h.video_path), h.position_ms, h.duration,
+                   CASE
+                       WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'watching' THEN COALESCE(h.started_at, ws.updated_at)
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.started_at
+                   END,
+                   CASE
+                       WHEN ws.state = 'finished' THEN ws.updated_at
+                       WHEN ws.state = 'watching' THEN NULL
+                       WHEN ws.state = 'unwatched' THEN NULL
+                       ELSE h.completed_at
+                   END,
+                   h.updated_at
+            FROM library_playback_history h
+            LEFT JOIN video_files vf ON vf.id = h.video_file_id
+            LEFT JOIN library_watch_states ws
+              ON ws.video_file_id = h.video_file_id
+              OR (
+                  h.video_file_id IS NULL
+                  AND ws.video_file_id IS NULL
+                  AND ws.video_path = h.video_path
+              )
+            WHERE h.video_file_id = ? OR h.video_path = ?;
+            """
+        )
+        if let videoFileID {
+            try statement.bind(videoFileID, at: 1)
+        } else {
+            try statement.bindNull(at: 1)
+        }
+        try statement.bind(videoFile.path, at: 2)
+
+        guard try statement.step() else {
+            return nil
+        }
+        return LibraryPlaybackHistory(
+            videoPath: statement.stringColumn(0),
+            positionMilliseconds: max(0, statement.intColumn(1)),
+            duration: statement.nullableDoubleColumn(2),
+            startedAt: statement.nullableStringColumn(3),
+            completedAt: statement.nullableStringColumn(4),
+            updatedAt: statement.stringColumn(5)
+        )
+    }
+
+    public func upsertLibraryPlaybackHistory(
+        videoFile: URL,
+        positionMilliseconds: Int,
+        duration: Double?,
+        updatedAt: Date = Date(),
+        markStarted: Bool = true,
+        markCompleted: Bool = false
+    ) throws {
+        let videoFileID = try upsertVideoFile(videoFile)
+        let updatedAtString = Self.playbackHistoryTimestamp(from: updatedAt)
+        let normalizedDuration = duration.flatMap { value in
+            value.isFinite && value > 0 ? value : nil
+        }
+        let startedAt = markStarted || markCompleted ? updatedAtString : nil
+        let completedAt = markCompleted ? updatedAtString : nil
+        let statement = try database.prepare(
+            """
+            INSERT INTO library_playback_history(
+                video_path, video_file_id, position_ms, duration,
+                started_at, completed_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(video_path) DO UPDATE SET
+                video_file_id = excluded.video_file_id,
+                position_ms = excluded.position_ms,
+                duration = excluded.duration,
+                started_at = COALESCE(library_playback_history.started_at, excluded.started_at),
+                completed_at = COALESCE(library_playback_history.completed_at, excluded.completed_at),
+                updated_at = excluded.updated_at;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFileID, at: 2)
+        try statement.bind(max(0, positionMilliseconds), at: 3)
+        try bind(normalizedDuration, to: statement, at: 4)
+        try bind(startedAt, to: statement, at: 5)
+        try bind(completedAt, to: statement, at: 6)
+        try statement.bind(updatedAtString, at: 7)
+        try statement.run()
+
+        if markCompleted {
+            try upsertLibraryWatchState(videoFile: videoFile, state: .finished, updatedAt: updatedAt)
+        } else if markStarted {
+            let currentWatchState = try libraryPlaybackHistory(forVideoFile: videoFile).map {
+                LibraryWatchState(
+                    positionMilliseconds: $0.positionMilliseconds,
+                    duration: $0.duration,
+                    startedAt: $0.startedAt,
+                    completedAt: $0.completedAt
+                )
+            } ?? .unwatched
+            if currentWatchState != .finished {
+                try upsertLibraryWatchState(videoFile: videoFile, state: .watching, updatedAt: updatedAt)
+            }
+        }
+    }
+
+    public func setLibraryWatchState(
+        videoFile: URL,
+        duration _: Double?,
+        state: LibraryWatchState,
+        updatedAt: Date = Date()
+    ) throws {
+        try upsertLibraryWatchState(videoFile: videoFile, state: state, updatedAt: updatedAt)
+    }
+
+    private func upsertLibraryWatchState(
+        videoFile: URL,
+        state: LibraryWatchState,
+        updatedAt: Date
+    ) throws {
+        let videoFileID = try upsertVideoFile(videoFile)
+        let statement = try database.prepare(
+            """
+            INSERT INTO library_watch_states(video_path, video_file_id, state, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(video_path) DO UPDATE SET
+                video_file_id = excluded.video_file_id,
+                state = excluded.state,
+                updated_at = excluded.updated_at;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFileID, at: 2)
+        try statement.bind(state.rawValue, at: 3)
+        try statement.bind(Self.playbackHistoryTimestamp(from: updatedAt), at: 4)
+        try statement.run()
+    }
+
+    private func upsertVideoFile(_ videoFile: URL) throws -> Int64 {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
+        let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
+        let modifiedAt = attributes?[.modificationDate] as? Date
+        let pathIdentity = try mediaPathIdentity(for: videoFile)
+        let statement = try database.prepare(
+            """
+            INSERT INTO video_files(
+                library_id, relative_path, path, video_name, file_size, modified_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                library_id = excluded.library_id,
+                relative_path = excluded.relative_path,
+                video_name = excluded.video_name,
+                file_size = excluded.file_size,
+                modified_at = excluded.modified_at
+            RETURNING id;
+            """
+        )
+        try bind(pathIdentity?.libraryID, to: statement, at: 1)
+        try bind(pathIdentity?.relativePath, to: statement, at: 2)
+        try statement.bind(videoFile.path, at: 3)
+        try statement.bind(videoFile.lastPathComponent, at: 4)
+        if let fileSize {
+            try statement.bind(fileSize, at: 5)
+        } else {
+            try statement.bindNull(at: 5)
+        }
+        if let modifiedAt {
+            try statement.bind(modifiedAt.timeIntervalSince1970, at: 6)
+        } else {
+            try statement.bindNull(at: 6)
+        }
+        guard try statement.step() else {
+            return database.lastInsertRowID()
+        }
+        return statement.int64Column(0)
+    }
+
+    private func videoFileID(for videoFile: URL) throws -> Int64? {
+        let statement = try database.prepare("SELECT id FROM video_files WHERE path = ?;")
+        try statement.bind(videoFile.path, at: 1)
+        return try statement.step() ? statement.int64Column(0) : nil
+    }
+
+    private func mediaPathIdentity(
+        for file: URL
+    ) throws -> (libraryID: Int64, relativePath: String)? {
+        let statement = try database.prepare(
+            """
+            SELECT id, path
+            FROM search_paths
+            ORDER BY LENGTH(path) DESC, id ASC;
+            """
+        )
+        while try statement.step() {
+            let libraryID = statement.int64Column(0)
+            let root = URL(fileURLWithPath: statement.stringColumn(1)).standardizedFileURL
+            if let relativePath = Self.relativeMediaPath(for: file, under: root) {
+                return (libraryID, relativePath)
+            }
+        }
+        return nil
+    }
+
+    private static func relativeMediaPath(for file: URL, under root: URL) -> String? {
+        let rootPath = normalizedFolderPath(root.standardizedFileURL.path)
+        let filePath = file.standardizedFileURL.path
+        let prefix = rootPath == "/" ? rootPath : rootPath + "/"
+        guard filePath.hasPrefix(prefix) else {
+            return nil
+        }
+        let relativePath = String(filePath.dropFirst(prefix.count))
+            .precomposedStringWithCanonicalMapping
+        return relativePath.isEmpty ? nil : relativePath
+    }
+
+    private static func playbackHistoryTimestamp(from date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 }

@@ -32,13 +32,13 @@ struct LibraryWatchStateSnapshot: Sendable {
 }
 
 final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
-    let database: SubtitleDatabase?
+    let database: LibraryDatabase?
     let queue = DispatchQueue(
         label: "app.cueseeker.library-playback-history",
         qos: .utility
     )
 
-    init(database: SubtitleDatabase?) {
+    init(database: LibraryDatabase?) {
         self.database = database
     }
 
@@ -1236,7 +1236,7 @@ extension AppCoordinator {
     }
 
     func libraryPlaybackHistory(for video: LibraryVideo) -> LibraryPlaybackHistory? {
-        guard let database = subtitleDatabase else {
+        guard let database = libraryDatabase else {
             return nil
         }
         do {

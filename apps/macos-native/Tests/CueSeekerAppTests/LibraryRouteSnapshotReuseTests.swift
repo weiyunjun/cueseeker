@@ -18,7 +18,10 @@ func libraryRouteHydrationReusesCompletedSnapshotsUntilExplicitRefresh() async t
         #expect(app.library.testRecentWatchingRevision == 0)
         #expect(app.library.completeLibraryRevision == 0)
 
-        let fixture = try prepareLibraryRouteFixture(in: database)
+        let fixture = try prepareLibraryRouteFixture(
+            in: database,
+            libraryDatabase: try #require(app.libraryDatabase)
+        )
         app.indexing.selectedFolders = [fixture.root]
 
         app.hydrateLibraryAsync()
@@ -106,7 +109,10 @@ func libraryRouteHydrationReusesCompletedSnapshotsUntilExplicitRefresh() async t
 @Test
 func playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary() async throws {
     try await withTemporaryLibraryRouteApp { app, database in
-        let fixture = try prepareLibraryRouteFixture(in: database)
+        let fixture = try prepareLibraryRouteFixture(
+            in: database,
+            libraryDatabase: try #require(app.libraryDatabase)
+        )
         app.indexing.selectedFolders = [fixture.root]
         app.applyCompleteLibrary(
             try database.completeLibraryFolderSummaries(under: [fixture.root])
@@ -153,7 +159,8 @@ func playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary(
         #expect(app.library.completeLibraryRevision == manualCompleteRevision)
         #expect(app.completeLibraryTask == nil)
         #expect(
-            try database.libraryPlaybackHistory(forVideoFile: fixture.videoURL)?.completedAt != nil
+            try app.libraryDatabase?.libraryPlaybackHistory(forVideoFile: fixture.videoURL)?
+                .completedAt != nil
         )
         #expect(
             app.library.completeLibraryFolderDetailsByPath[folderPath]?
@@ -166,8 +173,11 @@ func playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary(
 @Test
 func deferredPlaybackHistoryFlushUpdatesSharedRecentAndLibraryDetail() async throws {
     try await withTemporaryLibraryRouteApp { app, database in
-        let fixture = try prepareLibraryRouteFixture(in: database)
-        try database.setLibraryWatchState(
+        let fixture = try prepareLibraryRouteFixture(
+            in: database,
+            libraryDatabase: try #require(app.libraryDatabase)
+        )
+        try app.libraryDatabase?.setLibraryWatchState(
             videoFile: fixture.videoURL,
             duration: fixture.video.duration,
             state: .unwatched
@@ -223,7 +233,8 @@ private struct LibraryRouteFixture {
 }
 
 private func prepareLibraryRouteFixture(
-    in database: SubtitleDatabase
+    in database: SubtitleDatabase,
+    libraryDatabase: LibraryDatabase
 ) throws -> LibraryRouteFixture {
     let root = URL(fileURLWithPath: "/Media/Library Route Snapshot", isDirectory: true)
     let videoURL = root.appendingPathComponent("Show/Episode 1.mkv")
@@ -243,7 +254,7 @@ private func prepareLibraryRouteFixture(
         ]
     )
     try database.rebuildLibraryPresentationSnapshot()
-    try database.upsertLibraryPlaybackHistory(
+    try libraryDatabase.upsertLibraryPlaybackHistory(
         videoFile: videoURL,
         positionMilliseconds: 10_000,
         duration: 100

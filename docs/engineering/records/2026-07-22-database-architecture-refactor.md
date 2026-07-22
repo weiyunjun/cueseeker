@@ -125,6 +125,17 @@ and remove the old God Object without a permanent forwarding facade.
   ownership moves.
 - Reduced `SubtitleDatabase.swift` further to 7,778 lines.
 
+### 10. Library Playback History Repository
+
+- Moved playback-history reads/writes and explicit watch-state updates into
+  `LibraryDatabase`, including video identity upsert and Library-relative path
+  preservation.
+- Updated the App's serialized playback-history writer and synchronous history
+  reads to depend on `LibraryDatabase` instead of the old cross-domain type.
+- Removed all public Library playback-history and watch-state operations from
+  `SubtitleDatabase`.
+- Reduced `SubtitleDatabase.swift` further to 7,611 lines.
+
 ## Verification
 
 ### Step 1
@@ -207,9 +218,17 @@ and remove the old God Object without a permanent forwarding facade.
   playback-navigation integration tests; all passed.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 10
+
+- Built all products and test targets after moving playback history and watch
+  state ownership.
+- Ran ten focused Library history/recent-watching tests and seven playback
+  completion, seeking, and natural-next-item regression tests; all passed.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Steps 1 through 9 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 10 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.
