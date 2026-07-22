@@ -1856,7 +1856,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     ) throws -> Int? {
         guard let videoPath = anchor.videoPath,
               let subtitlePath = anchor.subtitlePath,
-              let plan = Self.searchQueryPlan(for: query)
+              let plan = SearchQueryPlanner.plan(for: query)
         else {
             return nil
         }
@@ -2068,7 +2068,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
 
         let planStart = Self.diagnosticNow()
-        guard let plan = Self.searchQueryPlan(for: query) else {
+        guard let plan = SearchQueryPlanner.plan(for: query) else {
             emit("query_plan_empty", since: planStart)
             return SubtitleSearchPage(
                 results: [],
@@ -2083,7 +2083,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             since: planStart,
             fields: [
                 .init("ftsQueryLength", plan.ftsQuery.count),
-                .init("lineRule", Self.lineMatchRuleName(plan.lineMatchRule))
+                .init("lineRule", SearchQueryPlanner.matchRuleName(plan.lineMatchRule))
             ]
         )
 
@@ -2688,7 +2688,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
             matching: nil,
             limit: max(0, topTermLimit)
         )
-        let queryTerms = try Self.ftsVocabularyTerms(in: query).map { term in
+        let queryTerms = try SearchQueryPlanner.vocabularyTerms(in: query).map { term in
             try ftsVocabularyTerm(term)
         }
 
@@ -5609,18 +5609,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         var tagAssignments: [PreservedShioriTagAssignment]
     }
 
-    private struct SearchQueryPlan {
-        let ftsQuery: String
-        let lineMatchRule: LineMatchRule
-    }
-
-    private enum LineMatchRule {
-        case latinPrefix(String)
-        case orderedLatinTokens([String])
-        case cjkSubstring(String)
-        case explicitFTS(String)
-    }
-
     private static func languageCodesForSearchFilter(
         _ languageFilter: SubtitleSearchLanguageFilter
     ) -> [SubtitleLanguageCode] {
@@ -5730,23 +5718,10 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return json
     }
 
-    private static func lineMatchRuleName(_ rule: LineMatchRule) -> String {
-        switch rule {
-        case .latinPrefix:
-            return "latinPrefix"
-        case .orderedLatinTokens:
-            return "orderedLatinTokens"
-        case .cjkSubstring:
-            return "cjkSubstring"
-        case .explicitFTS:
-            return "explicitFTS"
-        }
-    }
-
     private func searchResults(
         for candidate: SearchCandidate,
         cueLineRecords: [SubtitleCueLineRecord],
-        matching plan: SearchQueryPlan,
+        matching plan: SearchQueryPlanner.Plan,
         languageFilterCodes: Set<SubtitleLanguageCode>,
         languageDetections: SearchLanguageDetections?,
         cueGroupLanguages: Set<SubtitleLanguageCode>,
@@ -5768,7 +5743,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
     private func searchMatches(
         for candidate: SearchCandidate,
         cueLineRecords: [SubtitleCueLineRecord],
-        matching plan: SearchQueryPlan,
+        matching plan: SearchQueryPlanner.Plan,
         languageFilterCodes: Set<SubtitleLanguageCode>,
         languageDetections: SearchLanguageDetections?,
         cueGroupLanguages: Set<SubtitleLanguageCode>,
@@ -5781,7 +5756,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
         matches.reserveCapacity(cueLineRecords.count)
 
         for (index, record) in cueLineRecords.enumerated() {
-            guard Self.line(record.line.content, matches: plan.lineMatchRule) else {
+            guard SearchQueryPlanner.matches(record.line.content, rule: plan.lineMatchRule) else {
                 continue
             }
 
@@ -6159,247 +6134,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             )
     }
 
-    private static func searchQueryPlan(for query: String) -> SearchQueryPlan? {
-        let trimmed = normalizeSearchSpaces(query)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        let hasExplicitPhrase = trimmed.count >= 2 && trimmed.first == "\"" && trimmed.last == "\""
-        let hasFTSSyntax = hasExplicitPhrase || trimmed.contains("*") || containsFTSOperator(in: trimmed)
-        let hasCJK = containsCJKSearchCharacter(in: trimmed)
-        let queryTokens = hasCJK ? [] : tokenizeLatinTokens(trimmed)
-        if !hasFTSSyntax && !hasCJK && queryTokens.isEmpty {
-            return nil
-        }
-
-        let ftsQuery: String
-        let lineMatchRule: LineMatchRule
-        if hasFTSSyntax {
-            ftsQuery = trimmed
-            lineMatchRule = .explicitFTS(trimmed)
-        } else if hasCJK {
-            ftsQuery = "\"\(escapeFTSPhrase(segmentCJK(trimmed).trimmingCharacters(in: .whitespacesAndNewlines)))\""
-            lineMatchRule = .cjkSubstring(trimmed)
-        } else if queryTokens.count > 1 {
-            ftsQuery = queryTokens.joined(separator: " AND ")
-            lineMatchRule = .orderedLatinTokens(queryTokens)
-        } else {
-            ftsQuery = "\(queryTokens[0])*"
-            lineMatchRule = .latinPrefix(queryTokens[0])
-        }
-
-        return SearchQueryPlan(
-            ftsQuery: ftsQuery,
-            lineMatchRule: lineMatchRule
-        )
-    }
-
-    private static func line(_ line: String, matches rule: LineMatchRule) -> Bool {
-        let normalizedLine = normalizeSearchSpaces(line)
-        return switch rule {
-        case .latinPrefix(let token):
-            tokenizeLatinTokens(normalizedLine).contains { $0.hasPrefix(token) }
-        case .orderedLatinTokens(let tokens):
-            matchesOrderedWholeTokens(normalizedLine, queryTokens: tokens)
-        case .cjkSubstring(let query):
-            normalizedLine.contains(query)
-        case .explicitFTS(let query):
-            matchesExplicitFTSLineFallback(normalizedLine, query: query)
-        }
-    }
-
-    private static func matchesExplicitFTSLineFallback(_ line: String, query: String) -> Bool {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.count >= 2, trimmed.first == "\"", trimmed.last == "\"" {
-            let phrase = String(trimmed.dropFirst().dropLast())
-            return line.range(of: phrase, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-        }
-
-        let operators = Set(["AND", "OR", "NOT", "NEAR"])
-        let queryTokens = tokenizeLatinTokens(trimmed)
-            .filter { !operators.contains($0.uppercased()) }
-        guard !queryTokens.isEmpty else {
-            return false
-        }
-
-        let lineTokens = tokenizeLatinTokens(line)
-        if trimmed.uppercased().contains(" OR ") {
-            return queryTokens.contains { token in
-                lineTokens.contains { $0 == token || $0.hasPrefix(token) }
-            }
-        }
-
-        return queryTokens.allSatisfy { token in
-            lineTokens.contains { $0 == token || $0.hasPrefix(token) }
-        }
-    }
-
-    private static func containsFTSOperator(in text: String) -> Bool {
-        let operators = Set(["AND", "OR", "NOT", "NEAR"])
-        var current = ""
-
-        func currentIsOperator() -> Bool {
-            operators.contains(current)
-        }
-
-        for character in text {
-            if isASCIIWordCharacter(character) {
-                current.append(character)
-            } else {
-                if currentIsOperator() {
-                    return true
-                }
-                current = ""
-            }
-        }
-
-        return currentIsOperator()
-    }
-
-    private static func normalizeSearchSpaces(_ text: String) -> String {
-        text.replacingOccurrences(of: "\u{3000}", with: " ")
-    }
-
-    private static func tokenizeLatinTokens(_ text: String) -> [String] {
-        var tokens: [String] = []
-        var current = ""
-        var containsApostrophe = false
-        var index = text.startIndex
-
-        func flushToken() {
-            if !current.isEmpty {
-                tokens.append(current)
-                current = ""
-            }
-            containsApostrophe = false
-        }
-
-        while index < text.endIndex {
-            let character = text[index]
-
-            if isASCIILetterOrDigit(character) {
-                current.append(contentsOf: character.lowercased())
-            } else if character == "'", !current.isEmpty, !containsApostrophe {
-                let nextIndex = text.index(after: index)
-                if nextIndex < text.endIndex, isASCIILetterOrDigit(text[nextIndex]) {
-                    current.append(character)
-                    containsApostrophe = true
-                } else {
-                    flushToken()
-                }
-            } else {
-                flushToken()
-            }
-
-            index = text.index(after: index)
-        }
-
-        flushToken()
-        return tokens
-    }
-
-    private static func ftsVocabularyTerms(in text: String) -> [String] {
-        let operators = Set(["and", "or", "not", "near"])
-        var terms: [String] = []
-        var seen = Set<String>()
-        var current = ""
-
-        func appendTerm(_ rawTerm: String) {
-            let term = rawTerm.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard !term.isEmpty, !operators.contains(term), seen.insert(term).inserted else {
-                return
-            }
-
-            terms.append(term)
-        }
-
-        func flushCurrent() {
-            appendTerm(current)
-            current = ""
-        }
-
-        for character in text {
-            if character.unicodeScalars.count == 1,
-               let scalar = character.unicodeScalars.first,
-               isCJKSearchCharacter(scalar) {
-                flushCurrent()
-                appendTerm(String(character))
-            } else if isASCIILetterOrDigit(character) {
-                current.append(contentsOf: character.lowercased())
-            } else if character == "'", !current.isEmpty {
-                current.append(character)
-            } else {
-                flushCurrent()
-            }
-        }
-
-        flushCurrent()
-        return terms
-    }
-
-    private static func matchesOrderedWholeTokens(_ content: String, queryTokens: [String]) -> Bool {
-        guard !queryTokens.isEmpty else {
-            return false
-        }
-
-        let contentTokens = tokenizeLatinTokens(content)
-        guard contentTokens.count >= queryTokens.count else {
-            return false
-        }
-
-        var queryIndex = 0
-        for token in contentTokens where token == queryTokens[queryIndex] {
-            queryIndex += 1
-            if queryIndex == queryTokens.count {
-                return true
-            }
-        }
-
-        return false
-    }
-
-    private static func segmentCJK(_ text: String) -> String {
-        var segmented = ""
-        for scalar in text.unicodeScalars {
-            segmented.unicodeScalars.append(scalar)
-            if isCJKSearchCharacter(scalar) {
-                segmented.append(" ")
-            }
-        }
-        return segmented
-    }
-
-    private static func containsCJKSearchCharacter(in text: String) -> Bool {
-        text.unicodeScalars.contains(where: isCJKSearchCharacter)
-    }
-
-    private static func isCJKSearchCharacter(_ scalar: UnicodeScalar) -> Bool {
-        let value = Int(scalar.value)
-        return (0x3400...0x4DBF).contains(value)
-            || (0x4E00...0x9FFF).contains(value)
-            || (0xF900...0xFAFF).contains(value)
-            || (0x3040...0x309F).contains(value)
-            || (0x30A0...0x30FF).contains(value)
-            || (0x31F0...0x31FF).contains(value)
-            || (0xFF66...0xFF9F).contains(value)
-    }
-
-    private static func isASCIILetterOrDigit(_ character: Character) -> Bool {
-        guard character.unicodeScalars.count == 1,
-              let value = character.unicodeScalars.first?.value
-        else {
-            return false
-        }
-
-        return (65...90).contains(value) || (97...122).contains(value) || (48...57).contains(value)
-    }
-
-    private static func escapeFTSPhrase(_ text: String) -> String {
-        text.replacingOccurrences(of: "\"", with: "\"\"")
-    }
-
     private static func expandedSQLLimit(for limit: Int) -> Int {
         let (expanded, overflow) = limit.multipliedReportingOverflow(by: 2)
         if overflow {
@@ -6419,10 +6153,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         case .visibleWindow:
             max(expandedSQLLimit(for: limit), 100)
         }
-    }
-
-    private static func isASCIIWordCharacter(_ character: Character) -> Bool {
-        isASCIILetterOrDigit(character) || character == "_"
     }
 
     private func removeIndexedData(
@@ -7442,7 +7172,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 """
             )
             try statement.bind(rowID, at: 1)
-            try statement.bind(Self.segmentCJK(content), at: 2)
+            try statement.bind(SearchQueryPlanner.segmentForFTS(content), at: 2)
             try statement.bind(cueGroupID, at: 3)
         } else {
             statement = try database.prepare(
@@ -7451,7 +7181,7 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 VALUES (?, ?);
                 """
             )
-            try statement.bind(Self.segmentCJK(content), at: 1)
+            try statement.bind(SearchQueryPlanner.segmentForFTS(content), at: 1)
             try statement.bind(cueGroupID, at: 2)
         }
         try statement.run()

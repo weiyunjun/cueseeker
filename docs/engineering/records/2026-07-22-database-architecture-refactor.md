@@ -90,6 +90,17 @@ and remove the old God Object without a permanent forwarding facade.
   protocols declared by the owning Library domain.
 - Reduced `SubtitleDatabase.swift` further to 8,614 lines.
 
+### 7. Search Query Planning Boundary
+
+- Added the connection-free `SearchQueryPlanner` for query normalization, FTS
+  expression generation, Latin/CJK token handling, result-line matching, and
+  vocabulary diagnostic term extraction.
+- Kept SQLite query execution in the database persistence layer while removing
+  pure Search policy and text processing from the God Object.
+- Added direct unit tests for Latin prefix, ordered-token, CJK, and vocabulary
+  planning behavior.
+- Reduced `SubtitleDatabase.swift` further to 8,344 lines.
+
 ## Verification
 
 ### Step 1
@@ -148,9 +159,17 @@ and remove the old God Object without a permanent forwarding facade.
 - Confirmed the `CueSeekerPlayback` target contains no concrete
   `SubtitleDatabase` type reference.
 
+### Step 7
+
+- Built all package products and test targets after extracting the Search query
+  planner.
+- Ran four direct planner tests and three Search database integration tests;
+  all passed.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Steps 1 through 6 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 7 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.
