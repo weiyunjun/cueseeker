@@ -3772,19 +3772,11 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
     ))
     let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
 
-    let shiori = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let shiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection,
         createdAt: createdAt
     )
-    let duplicate = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let duplicate = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_800_000_000)
     )
@@ -3885,11 +3877,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    let saved = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let saved = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
@@ -3937,11 +3925,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    let defaultShiori = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let defaultShiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
 
@@ -4007,11 +3991,7 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    let shiori = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let shiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
 
@@ -4057,11 +4037,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
     let originalCue = try #require(
         try database.cueLineRecords(forSubtitleFile: subtitleFile).first
     )
-    let originalShiori = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let originalShiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: shioriSelection(originalCue),
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
@@ -4091,7 +4067,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
     let rebuiltRelation = try #require(
         try database.shioriRelation(id: originalShiori.id)
     )
-    let rebuiltShiori = try #require(try database.shiori(id: originalShiori.id))
+    let rebuiltShiori = try #require(try ShioriDatabase(path: database.path).shiori(id: originalShiori.id))
 
     #expect(rebuiltCue.id != originalCue.id)
     #expect(rebuiltRelation.id == originalShiori.id)
@@ -4148,27 +4124,15 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
     let topSelection = shioriSelection(cueRecords[0])
     let bottomSelection = shioriSelection(cueRecords[1])
 
-    let top = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .ass,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let top = try ShioriDatabase(path: database.path).upsertShiori(
         selection: topSelection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    let bottom = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .ass,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let bottom = try ShioriDatabase(path: database.path).upsertShiori(
         selection: bottomSelection,
         createdAt: Date(timeIntervalSince1970: 1_800_000_000)
     )
-    let duplicateBottom = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .ass,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let duplicateBottom = try ShioriDatabase(path: database.path).upsertShiori(
         selection: bottomSelection,
         createdAt: Date(timeIntervalSince1970: 1_900_000_000)
     )
@@ -4179,9 +4143,9 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
     #expect(bottom.cueIdentity == bottomSelection.cueIdentity)
     #expect(duplicateBottom.createdAt == bottom.createdAt)
     #expect(try database.shioriCount() == 2)
-    #expect(try database.removeShiori(id: bottom.id))
-    #expect(try database.shiori(id: top.id) != nil)
-    #expect(try database.shiori(id: bottom.id) == nil)
+    #expect(try ShioriDatabase(path: database.path).removeShiori(id: bottom.id))
+    #expect(try ShioriDatabase(path: database.path).shiori(id: top.id) != nil)
+    #expect(try ShioriDatabase(path: database.path).shiori(id: bottom.id) == nil)
 }
 
 private func shioriSelection(
@@ -4260,11 +4224,7 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
             forSubtitleFile: subtitleFile,
             atMilliseconds: milliseconds
         ))
-        _ = try database.upsertShiori(
-            subtitleFile: subtitleFile,
-            subtitleFormat: .srt,
-            videoFile: videoFile,
-            videoName: videoFile.lastPathComponent,
+        _ = try ShioriDatabase(path: database.path).upsertShiori(
             selection: selection,
             createdAt: createdAt
         )
@@ -4287,7 +4247,7 @@ func shioriPageReturnsNewestRowsWithLanguages() throws {
     let middle = try #require(allShioris.first { $0.content == "Middle saved cue." })
     let old = try #require(allShioris.first { $0.content == "Old saved cue." })
 
-    #expect(try database.shiori(id: middle.id)?.content == "Middle saved cue.")
+    #expect(try ShioriDatabase(path: database.path).shiori(id: middle.id)?.content == "Middle saved cue.")
     #expect(try database.adjacentShiori(to: middle, direction: .previous)?.id == newest.id)
     #expect(try database.adjacentShiori(to: middle, direction: .next)?.id == old.id)
     #expect(try database.adjacentShiori(to: newest, direction: .previous) == nil)
@@ -4348,11 +4308,7 @@ func shioriPageForIDsPreservesInputOrderAndCuePresentations() throws {
             atMilliseconds: milliseconds
         ))
         savedShioris.append(
-            try database.upsertShiori(
-                subtitleFile: subtitleFile,
-                subtitleFormat: .srt,
-                videoFile: videoFile,
-                videoName: videoFile.lastPathComponent,
+            try ShioriDatabase(path: database.path).upsertShiori(
                 selection: selection,
                 createdAt: createdAt
             )
@@ -4445,11 +4401,7 @@ func shioriCuePresentationUsesCueIDAndPrimaryCueMetadata() throws {
         atMilliseconds: 1_500
     ))
     #expect(selection.cueEventIndex == 11)
-    let saved = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .ass,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let saved = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
     #expect(saved.cueDisplayOrder == 1)
@@ -4649,11 +4601,7 @@ func shioriTablePageAppliesSearchAndFiltersBeforeSlicing() throws {
             forSubtitleFile: subtitleFile,
             atMilliseconds: milliseconds
         ))
-        _ = try database.upsertShiori(
-            subtitleFile: subtitleFile,
-            subtitleFormat: .srt,
-            videoFile: videoFile,
-            videoName: videoFile.lastPathComponent,
+        _ = try ShioriDatabase(path: database.path).upsertShiori(
             selection: selection,
             createdAt: createdAt
         )
@@ -4736,11 +4684,7 @@ func shioriTableIDIndexStopsImmediatelyAfterCancellationDuringScan() async throw
     let cueRecords = try database.cueLineRecords(forSubtitleFile: subtitleFile)
     var insertedIDs: [Int64] = []
     for (ordinal, cueRecord) in cueRecords.enumerated() {
-        let shiori = try database.upsertShiori(
-            subtitleFile: subtitleFile,
-            subtitleFormat: .srt,
-            videoFile: videoFile,
-            videoName: videoFile.lastPathComponent,
+        let shiori = try ShioriDatabase(path: database.path).upsertShiori(
             selection: shioriSelection(cueRecord),
             createdAt: Date(timeIntervalSince1970: TimeInterval(ordinal))
         )
@@ -4889,18 +4833,10 @@ func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 3_500
     ))
-    let firstShiori = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let firstShiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: firstSelection
     )
-    let secondShiori = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let secondShiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: secondSelection
     )
 
@@ -5016,11 +4952,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    _ = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    _ = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
 

@@ -289,7 +289,7 @@ extension AppCoordinator {
 
     @discardableResult
     func removeShiori(_ item: Shiori, reloadPresentation: Bool = true) -> Bool {
-        guard let database = subtitleDatabase else {
+        guard let database = shioriDatabase else {
             playback.playbackViewModel?.showShioriFeedback(.unavailable)
             return false
         }

@@ -72,11 +72,7 @@ private func makeShiori(
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    return try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: "Shiori-\(id).mkv",
+    return try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
 }

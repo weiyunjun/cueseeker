@@ -409,11 +409,7 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    let shiori = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .ass,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    let shiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
     app.openShioriContext(shiori, displayTitle: "Episode")

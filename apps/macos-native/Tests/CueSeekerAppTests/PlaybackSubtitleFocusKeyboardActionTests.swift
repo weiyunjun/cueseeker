@@ -278,6 +278,7 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
 @Test
 func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws {
     try await withKeyboardActionApp { app, database in
+        let shioriDatabase = try #require(app.shioriDatabase)
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
         ))
@@ -319,8 +320,8 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
                 && app.shiori.tableDataRevision == tableRevisionBefore + 2
         }
 
-        let savedFirst = try #require(try database.shiori(cueID: firstCue.id))
-        let savedSecond = try #require(try database.shiori(cueID: secondCue.id))
+        let savedFirst = try #require(try shioriDatabase.shiori(cueID: firstCue.id))
+        let savedSecond = try #require(try shioriDatabase.shiori(cueID: secondCue.id))
         #expect(savedFirst.id != savedSecond.id)
         #expect(savedFirst.content == "keyboard action cue 12")
         #expect(savedSecond.content == "keyboard action cue 13")
@@ -343,6 +344,7 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
 @Test
 func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
     try await withKeyboardActionApp { app, database in
+        let shioriDatabase = try #require(app.shioriDatabase)
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
         ))
@@ -368,8 +370,8 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
                 && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
         }
 
-        #expect(try database.shiori(cueID: 13) == nil)
-        let saved = try #require(try database.shiori(cueID: 14))
+        #expect(try shioriDatabase.shiori(cueID: 13) == nil)
+        let saved = try #require(try shioriDatabase.shiori(cueID: 14))
         #expect(saved.content == "keyboard action cue 13")
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.currentSnapshot?.selectedOrdinal == 13)

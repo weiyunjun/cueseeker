@@ -318,11 +318,7 @@ private func playbackDatabaseShiori(
         forSubtitleFile: subtitleFile,
         atMilliseconds: timestamp
     ))
-    return try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: "Shiori-\(timestamp).mkv",
+    return try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: TimeInterval(timestamp))
     )

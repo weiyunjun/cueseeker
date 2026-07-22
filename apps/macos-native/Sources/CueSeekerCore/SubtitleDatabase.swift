@@ -3418,70 +3418,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         JOIN video_files vf ON vf.id = m.video_file_id
         """
 
-    public func upsertShiori(
-        subtitleFile: URL,
-        subtitleFormat: SubtitleFormat,
-        videoFile: URL,
-        videoName: String,
-        selection: SubtitleCueTextSelection,
-        createdAt: Date = Date()
-    ) throws -> Shiori {
-        guard let cueID = selection.cueLineID else {
-            throw SQLiteDatabaseError.stepFailed(
-                "Shiori requires a CueID"
-            )
-        }
-
-        _ = subtitleFile
-        _ = subtitleFormat
-        _ = videoFile
-        _ = videoName
-
-        let statement = try database.prepare(
-            """
-            INSERT INTO shioris(
-                list_id,
-                cue_id,
-                created_at
-            )
-            VALUES (?, ?, ?)
-            ON CONFLICT(list_id, cue_id) DO NOTHING;
-            """
-        )
-
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
-        try statement.bind(cueID, at: 2)
-        try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 3)
-        try statement.run()
-
-        guard let savedShiori = try shiori(
-            cueID: cueID,
-            listID: ShioriListIdentity.defaultListID
-        ) else {
-            throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
-        }
-
-        return savedShiori
-    }
-
-    public func shiori(
-        cueID: Int64,
-        listID: Int64 = ShioriListIdentity.defaultListID
-    ) throws -> Shiori? {
-        let statement = try database.prepare(
-            """
-            \(Self.resolvedShioriSelectSQL)
-            WHERE s.list_id = ? AND s.cue_id = ?;
-            """
-        )
-        try statement.bind(listID, at: 1)
-        try statement.bind(cueID, at: 2)
-        guard try statement.step() else {
-            return nil
-        }
-        return shiori(from: statement)
-    }
-
     public func shioriLists() throws -> [ShioriList] {
         let statement = try database.prepare(
             """
@@ -3589,23 +3525,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         guard try statement.step() else {
             return nil
         }
-        return shiori(from: statement)
-    }
-
-    public func shiori(id: Int64) throws -> Shiori? {
-        let statement = try database.prepare(
-            """
-            \(Self.resolvedShioriSelectSQL)
-            WHERE s.id = ?;
-            """
-        )
-
-        try statement.bind(id, at: 1)
-
-        guard try statement.step() else {
-            return nil
-        }
-
         return shiori(from: statement)
     }
 
@@ -4311,23 +4230,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
         return displayTitle.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
             || cues.range(of: searchText, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-    }
-
-    @discardableResult
-    public func removeShiori(id: Int64) throws -> Bool {
-        guard try shiori(id: id) != nil else {
-            return false
-        }
-
-        let statement = try database.prepare(
-            """
-            DELETE FROM shioris
-            WHERE id = ?;
-            """
-        )
-        try statement.bind(id, at: 1)
-        try statement.run()
-        return true
     }
 
     public func removeStaleEntries(under folder: URL, keeping subtitleFiles: Set<String>) throws {

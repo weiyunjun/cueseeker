@@ -158,6 +158,18 @@ and remove the old God Object without a permanent forwarding facade.
 - Removed the tag operations and their private SQL/validation helpers from
   `SubtitleDatabase`, reducing it further to 7,004 lines.
 
+### 13. Shiori Core Persistence
+
+- Moved Shiori Cue-identity upsert, lookup, and deletion into
+  `ShioriDatabase`.
+- Reduced the save contract to the Cue selection and creation time that are
+  actually persisted, removing four unused subtitle/video arguments.
+- Updated Subtitle Focus saving and App deletion to use the focused Shiori
+  repository directly; the focus reader no longer opens the cross-domain
+  database writer.
+- Removed the corresponding operations from `SubtitleDatabase`, reducing it
+  further to 6,906 lines.
+
 ## Verification
 
 ### Step 1
@@ -263,9 +275,17 @@ and remove the old God Object without a permanent forwarding facade.
   persistence/remapping integration tests; all 11 passed.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 13
+
+- Built every product and test target after moving Shiori core persistence.
+- Ran the complete 58-test Shiori-named Core/App regression set; all passed.
+- Confirmed Shiori Cue-identity upsert, lookup, and deletion are declared only
+  on `ShioriDatabase`.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Steps 1 through 12 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 13 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

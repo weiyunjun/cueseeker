@@ -9,7 +9,7 @@ enum PlaybackSubtitleFocusShioriWriteResult: Equatable, Sendable {
 actor PlaybackSubtitleFocusDatabaseReader {
     private let databaseURL: URL
     private var playbackDatabase: PlaybackSubtitleDatabase?
-    private var shioriDatabase: SubtitleDatabase?
+    private var shioriDatabase: ShioriDatabase?
 
     init(databaseURL: URL) {
         self.databaseURL = databaseURL
@@ -44,8 +44,7 @@ actor PlaybackSubtitleFocusDatabaseReader {
     }
 
     func saveShiori(
-        context: PlaybackSubtitleFocusActionContext,
-        videoName: String
+        context: PlaybackSubtitleFocusActionContext
     ) throws -> PlaybackSubtitleFocusShioriWriteResult {
         try Task.checkCancellation()
         let database = try resolvedShioriDatabase()
@@ -57,10 +56,6 @@ actor PlaybackSubtitleFocusDatabaseReader {
         try Task.checkCancellation()
         do {
             _ = try database.upsertShiori(
-                subtitleFile: URL(fileURLWithPath: context.source.subtitlePath),
-                subtitleFormat: context.source.subtitleFormat,
-                videoFile: URL(fileURLWithPath: context.source.videoPath),
-                videoName: videoName,
                 selection: context.cueTextSelection
             )
         } catch {
@@ -80,11 +75,11 @@ actor PlaybackSubtitleFocusDatabaseReader {
         return database
     }
 
-    private func resolvedShioriDatabase() throws -> SubtitleDatabase {
+    private func resolvedShioriDatabase() throws -> ShioriDatabase {
         if let shioriDatabase {
             return shioriDatabase
         }
-        let database = try SubtitleDatabase(path: databaseURL, access: .readWrite)
+        let database = try ShioriDatabase(path: databaseURL)
         shioriDatabase = database
         return database
     }

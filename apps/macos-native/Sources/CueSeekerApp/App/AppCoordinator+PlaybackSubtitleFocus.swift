@@ -456,17 +456,13 @@ extension AppCoordinator {
         cancelPlaybackSubtitleFocusActionTask()
         let taskGeneration = playbackSubtitleFocusActionGeneration
         let databaseReader = playbackSubtitleFocusDatabaseReader
-        let videoName = execution.target.sourceVideoName ?? currentPlaybackTitle
         playbackSubtitleFocusActionTask = Task { @MainActor [weak self, weak session] in
             guard let self, let session else {
                 return
             }
 
             do {
-                let result = try await databaseReader.saveShiori(
-                    context: actionContext,
-                    videoName: videoName
-                )
+                let result = try await databaseReader.saveShiori(context: actionContext)
                 self.finishPlaybackSubtitleFocusShioriSave(
                     result,
                     execution,

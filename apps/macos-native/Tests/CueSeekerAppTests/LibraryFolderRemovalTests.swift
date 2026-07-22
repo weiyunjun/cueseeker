@@ -144,11 +144,7 @@ func libraryFolderRemovalClearsResidentShioriAndCanonicalCueContent() async thro
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    _ = try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: videoFile.lastPathComponent,
+    _ = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
 

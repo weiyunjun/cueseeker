@@ -1,6 +1,18 @@
 import Foundation
 
 public final class ShioriDatabase: @unchecked Sendable {
+    private static let resolvedShioriSelectSQL = """
+        SELECT s.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+               l.start_ms, l.end_ms, l.event_index, l.display_order,
+               l.content, 1, s.created_at
+        FROM shioris s
+        JOIN subtitle_cue_lines l ON l.id = s.cue_id
+        JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+        JOIN subtitle_video_matches m
+          ON m.subtitle_file_id = sf.id AND m.is_active = 1
+        JOIN video_files vf ON vf.id = m.video_file_id
+        """
+
     private let database: SQLiteDatabase
 
     public init(
@@ -8,6 +20,69 @@ public final class ShioriDatabase: @unchecked Sendable {
         access: DatabaseConnectionAccess = .readWrite
     ) throws {
         database = try SQLiteDatabase(path: path, access: access)
+    }
+
+    public func upsertShiori(
+        selection: SubtitleCueTextSelection,
+        createdAt: Date = Date()
+    ) throws -> Shiori {
+        guard let cueID = selection.cueLineID else {
+            throw SQLiteDatabaseError.stepFailed("Shiori requires a CueID")
+        }
+
+        let statement = try database.prepare(
+            """
+            INSERT INTO shioris(list_id, cue_id, created_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(list_id, cue_id) DO NOTHING;
+            """
+        )
+        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(cueID, at: 2)
+        try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 3)
+        try statement.run()
+
+        guard let savedShiori = try shiori(cueID: cueID) else {
+            throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
+        }
+        return savedShiori
+    }
+
+    public func shiori(
+        cueID: Int64,
+        listID: Int64 = ShioriListIdentity.defaultListID
+    ) throws -> Shiori? {
+        let statement = try database.prepare(
+            """
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.list_id = ? AND s.cue_id = ?;
+            """
+        )
+        try statement.bind(listID, at: 1)
+        try statement.bind(cueID, at: 2)
+        return try statement.step() ? shiori(from: statement) : nil
+    }
+
+    public func shiori(id: Int64) throws -> Shiori? {
+        let statement = try database.prepare(
+            """
+            \(Self.resolvedShioriSelectSQL)
+            WHERE s.id = ?;
+            """
+        )
+        try statement.bind(id, at: 1)
+        return try statement.step() ? shiori(from: statement) : nil
+    }
+
+    @discardableResult
+    public func removeShiori(id: Int64) throws -> Bool {
+        guard try shiori(id: id) != nil else {
+            return false
+        }
+        let statement = try database.prepare("DELETE FROM shioris WHERE id = ?;")
+        try statement.bind(id, at: 1)
+        try statement.run()
+        return true
     }
 
     public func shioriTags() throws -> [ShioriTag] {
@@ -237,6 +312,24 @@ public final class ShioriDatabase: @unchecked Sendable {
             id: statement.int64Column(0),
             name: statement.stringColumn(1),
             createdAt: statement.stringColumn(2)
+        )
+    }
+
+    private func shiori(from statement: SQLiteStatement) -> Shiori {
+        Shiori(
+            id: statement.int64Column(0),
+            subtitlePath: statement.stringColumn(1),
+            subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
+            videoPath: statement.stringColumn(3),
+            videoName: statement.stringColumn(4),
+            timeRange: "",
+            startMilliseconds: statement.intColumn(5),
+            endMilliseconds: statement.intColumn(6),
+            cueEventIndex: statement.nullableIntColumn(7),
+            cueDisplayOrder: statement.nullableIntColumn(8),
+            content: statement.stringColumn(9),
+            isValid: statement.intColumn(10) != 0,
+            createdAt: statement.stringColumn(11)
         )
     }
 

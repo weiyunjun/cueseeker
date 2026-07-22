@@ -301,11 +301,7 @@ private func insertNavigationShiori(
         forSubtitleFile: subtitleFile,
         atMilliseconds: startMilliseconds
     ))
-    return try database.upsertShiori(
-        subtitleFile: subtitleFile,
-        subtitleFormat: .srt,
-        videoFile: videoFile,
-        videoName: "ShioriNavigation.mkv",
+    return try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection,
         createdAt: createdAt
     )
