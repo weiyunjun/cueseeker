@@ -147,7 +147,7 @@ main
 ```markdown
 - `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#303036`
 - `--color-library-cover-crop-accent`: macOS accent color
-- `--color-library-cover-crop-mask`: macOS shadow color
+- `--color-library-cover-crop-mask`: macOS shadow color with Alpha `0.55`
 - `--color-library-media-card-hover-bg`:
   - Light: macOS accent color with Alpha `0.08`
   - Dark: macOS accent color with Alpha `0.12`
@@ -197,7 +197,7 @@ main
 - Token：`--aspect-library-cover`、`--color-library-cover-crop-accent`、`--color-library-cover-crop-mask`、`--color-bg-surface`。
 - 裁剪区域固定使用 `--aspect-library-cover`。
 - 初始裁剪框为图片范围内最大的 `--aspect-library-cover` 区域。
-- 裁剪框仅显示四个角柄；拖动任一角柄时保持固定比例。
+- 裁剪框仅显示四个角柄，角柄视觉中心与裁剪框顶点重合并完整显示；拖动任一角柄时保持固定比例。
 - 裁剪框边框和四个角柄边框使用 `--color-library-cover-crop-accent`。
 - 四个角柄内部使用 `--color-bg-surface`。
 - 拖动裁剪框内部移动完整裁剪区域。
