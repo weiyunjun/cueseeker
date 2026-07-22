@@ -113,6 +113,18 @@ and remove the old God Object without a permanent forwarding facade.
   Playback cover indexers, and tests to use the focused repository directly.
 - Reduced `SubtitleDatabase.swift` further to 7,893 lines.
 
+### 9. Library Media Repository
+
+- Added `LibraryDatabase` with independently owned Library video reads and
+  video duration/codec/dimensions/frame-rate updates.
+- Moved `PlaybackVideoMetadataPersistence` conformance from the old database
+  type to the Library repository and updated App indexing to pass that focused
+  dependency to `PlaybackVideoMetadataIndexer`.
+- Removed the corresponding public operations from `SubtitleDatabase` while
+  retaining its private snapshot rebuild query until Library presentation
+  ownership moves.
+- Reduced `SubtitleDatabase.swift` further to 7,778 lines.
+
 ## Verification
 
 ### Step 1
@@ -187,9 +199,17 @@ and remove the old God Object without a permanent forwarding facade.
   backfill, and App snapshot tests; all passed.
 - Ran `git diff --check`; no whitespace errors were reported.
 
+### Step 9
+
+- Built every product and test target after extracting Library media reads and
+  video metadata updates.
+- Ran four focused Library media, indexing refresh, folder-removal, and App
+  playback-navigation integration tests; all passed.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Steps 1 through 8 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 9 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

@@ -2829,9 +2829,9 @@ func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
         entries: [databaseTestEntry(text: "Shared other folder")]
     )
 
-    try database.updateVideoDuration(videoFile: show2Episode2Video, duration: 125.4)
+    try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: show2Episode2Video, duration: 125.4)
 
-    let videos = try database.libraryVideos(under: [URL(fileURLWithPath: "/Media")])
+    let videos = try LibraryDatabase(path: databaseURL).libraryVideos(under: [URL(fileURLWithPath: "/Media")])
 
     #expect(videos.map(\.videoPath) == [
         show2Episode2Video.path,
@@ -2876,7 +2876,7 @@ func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
         videoFile: otherFolderVideo,
         entries: [databaseTestEntry(text: "Other folder episode")]
     )
-    try database.updateVideoDuration(videoFile: episode2Video, duration: 125.4)
+    try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: episode2Video, duration: 125.4)
 
     let videos = try LibraryCoverDatabase(path: databaseURL).libraryCoverEligibleVideos(under: [URL(fileURLWithPath: "/Media")])
 
@@ -2906,7 +2906,7 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
         videoFile: videoURL,
         entries: [databaseTestEntry(text: "Cover candidate")]
     )
-    try database.updateVideoDuration(videoFile: videoURL, duration: 1440.25)
+    try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: videoURL, duration: 1440.25)
 
     let videos = try LibraryCoverDatabase(path: databaseURL).libraryCoverEligibleVideos(under: [URL(fileURLWithPath: "/Media")])
     let video = try #require(videos.first)
@@ -3114,7 +3114,7 @@ func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
         videoFile: episode11Video,
         entries: [databaseTestEntry(text: "Later episode")]
     )
-    try database.updateVideoDuration(videoFile: episode2Video, duration: 125.4)
+    try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: episode2Video, duration: 125.4)
 
     #expect(try database.libraryPresentation(under: [URL(fileURLWithPath: "/Media")]).isEmpty)
 
@@ -3469,7 +3469,7 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
             videoFile: videoFile,
             entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
         )
-        try database.updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
+        try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
     }
 
     try database.rebuildLibraryPresentationSnapshot()
@@ -3528,7 +3528,7 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
             videoFile: videoFile,
             entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
         )
-        try database.updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
+        try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
     }
     try database.rebuildLibraryPresentationSnapshot()
 
@@ -3575,9 +3575,9 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
             videoFile: videoFile,
             entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
         )
-        try database.updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
+        try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
     }
-    try database.updateVideoMetadata(
+    try LibraryDatabase(path: databaseURL).updateVideoMetadata(
         videoFile: showA1,
         duration: 1_000.0,
         videoWidth: 1920,
@@ -5066,7 +5066,7 @@ func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
 
     try database.removeIndexedFolder(folder)
 
-    #expect(try database.libraryVideos(under: [folder]).isEmpty)
+    #expect(try LibraryDatabase(path: databaseURL).libraryVideos(under: [folder]).isEmpty)
     let history = try #require(try database.libraryPlaybackHistory(forVideoFile: videoFile))
     #expect(history.videoPath == videoFile.path)
     #expect(history.positionMilliseconds == 42_000)

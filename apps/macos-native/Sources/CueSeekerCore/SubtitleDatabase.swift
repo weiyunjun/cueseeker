@@ -2759,15 +2759,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         )
     }
 
-    public func libraryVideos(under folders: [URL]) throws -> [LibraryVideo] {
-        let pathPrefixes = Self.folderPathPrefixes(for: folders)
-        guard !pathPrefixes.isEmpty else {
-            return []
-        }
-
-        return try indexedLibraryVideos(scopedTo: pathPrefixes)
-    }
-
 
     public func libraryPresentation(under folders: [URL]) throws -> [LibraryFolderPresentation] {
         let pathPrefixes = Self.folderPathPrefixes(for: folders)
@@ -3585,112 +3576,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         }
     }
 
-    public func updateVideoDuration(videoFile: URL, duration: Double?) throws {
-        let statement = try database.prepare(
-            """
-            UPDATE video_files
-            SET duration = ?
-            WHERE path = ?;
-            """
-        )
-
-        if let duration, duration.isFinite, duration >= 0 {
-            try statement.bind(duration, at: 1)
-        } else {
-            try statement.bindNull(at: 1)
-        }
-        try statement.bind(videoFile.path, at: 2)
-        try statement.run()
-
-        let snapshotStatement = try database.prepare(
-            """
-            UPDATE library_video_rows
-            SET duration = ?
-            WHERE video_file_id = (
-                SELECT id FROM video_files WHERE path = ?
-            );
-            """
-        )
-        if let duration, duration.isFinite, duration >= 0 {
-            try snapshotStatement.bind(duration, at: 1)
-        } else {
-            try snapshotStatement.bindNull(at: 1)
-        }
-        try snapshotStatement.bind(videoFile.path, at: 2)
-        try snapshotStatement.run()
-    }
-
-    public func updateVideoMetadata(
-        videoFile: URL,
-        duration: Double?,
-        videoWidth: Int?,
-        videoHeight: Int?,
-        frameRate: Double?,
-        videoCodec: String?
-    ) throws {
-        let statement = try database.prepare(
-            """
-            UPDATE video_files
-            SET duration = ?,
-                video_width = ?,
-                video_height = ?,
-                frame_rate = ?,
-                video_codec = ?
-            WHERE path = ?;
-            """
-        )
-
-        if let duration, duration.isFinite, duration >= 0 {
-            try statement.bind(duration, at: 1)
-        } else {
-            try statement.bindNull(at: 1)
-        }
-
-        if let videoWidth, videoWidth > 0 {
-            try statement.bind(videoWidth, at: 2)
-        } else {
-            try statement.bindNull(at: 2)
-        }
-
-        if let videoHeight, videoHeight > 0 {
-            try statement.bind(videoHeight, at: 3)
-        } else {
-            try statement.bindNull(at: 3)
-        }
-
-        if let frameRate, frameRate.isFinite, frameRate > 0 {
-            try statement.bind(frameRate, at: 4)
-        } else {
-            try statement.bindNull(at: 4)
-        }
-
-        let normalizedVideoCodec = videoCodec?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let normalizedVideoCodec, !normalizedVideoCodec.isEmpty {
-            try statement.bind(normalizedVideoCodec, at: 5)
-        } else {
-            try statement.bindNull(at: 5)
-        }
-
-        try statement.bind(videoFile.path, at: 6)
-        try statement.run()
-
-        let snapshotStatement = try database.prepare(
-            """
-            UPDATE library_video_rows
-            SET duration = ?
-            WHERE video_file_id = (
-                SELECT id FROM video_files WHERE path = ?
-            );
-            """
-        )
-        if let duration, duration.isFinite, duration >= 0 {
-            try snapshotStatement.bind(duration, at: 1)
-        } else {
-            try snapshotStatement.bindNull(at: 1)
-        }
-        try snapshotStatement.bind(videoFile.path, at: 2)
-        try snapshotStatement.run()
-    }
 
     public func refreshVideoFileMetadata(_ videoFile: URL) throws {
         _ = try upsertVideoFile(videoFile)

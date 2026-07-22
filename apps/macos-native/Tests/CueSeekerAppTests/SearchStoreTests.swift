@@ -419,7 +419,8 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
     app.openShioriContext(shiori, displayTitle: "Episode")
     #expect(app.search.cueContextSearchRequest?.targetCueID == lowerCue.id)
 
-    let libraryVideo = try #require(try database.libraryVideos(under: [fixtureRoot]).first {
+    let libraryDatabase = try #require(app.libraryDatabase)
+    let libraryVideo = try #require(try libraryDatabase.libraryVideos(under: [fixtureRoot]).first {
         $0.subtitlePath == subtitleFile.path
     })
     app.openLibraryVideoContext(libraryVideo, displayTitle: "Episode")

@@ -42,6 +42,7 @@ final class AppCoordinator: ObservableObject {
     let databaseURL: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var subtitleDatabase: SubtitleDatabase?
+    let libraryDatabase: LibraryDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
     let libraryUserCoverService: LibraryUserCoverService?
     let workbenchLayout: WorkbenchLayoutState
@@ -520,6 +521,7 @@ final class AppCoordinator: ObservableObject {
         playback = PlaybackStore(userDefaults: userDefaults)
 
         var openedDatabase: SubtitleDatabase?
+        var openedLibraryDatabase: LibraryDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
         var initialError: Error?
         do {
@@ -527,15 +529,18 @@ final class AppCoordinator: ObservableObject {
             try DatabaseBootstrap.prepare(at: self.databaseURL)
             let database = try SubtitleDatabase(path: self.databaseURL)
             openedDatabase = database
+            openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
             initialError = nil
         } catch {
             openedDatabase = nil
+            openedLibraryDatabase = nil
             openedLibraryCoverDatabase = nil
             initialError = error
         }
 
         self.subtitleDatabase = openedDatabase
+        self.libraryDatabase = openedLibraryDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
         self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in
             LibraryUserCoverService(

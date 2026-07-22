@@ -28,7 +28,7 @@ func playbackChromeSnapshotUsesEntryMetadataAcrossSources() async throws {
         try indexFakeLibraryVideo(in: database, basename: "A")
         try indexFakeLibraryVideo(in: database, basename: "B")
         try indexFakeLibraryVideo(in: database, basename: "C")
-        app.library.libraryVideos = try database.libraryVideos(
+        app.library.libraryVideos = try #require(app.libraryDatabase).libraryVideos(
             under: [URL(fileURLWithPath: "/Media")]
         )
         let videoB = try #require(app.library.libraryVideos.first {
@@ -86,7 +86,7 @@ func playbackEntryClearsWorkbenchFocusAcrossSources() async throws {
         #expect(!app.workbenchLayout.isSearchFocused)
 
         try indexFakeLibraryVideo(in: database, basename: "Library")
-        app.library.libraryVideos = try database.libraryVideos(
+        app.library.libraryVideos = try #require(app.libraryDatabase).libraryVideos(
             under: [URL(fileURLWithPath: "/Media")]
         )
         let libraryVideo = try #require(app.library.libraryVideos.first {

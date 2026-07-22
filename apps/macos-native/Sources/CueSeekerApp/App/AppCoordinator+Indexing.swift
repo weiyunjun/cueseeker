@@ -121,6 +121,7 @@ extension AppCoordinator {
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
         guard let database = subtitleDatabase,
+              let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
         else {
             indexing.indexingStatus = .failed(folder, "Database is not initialized")
@@ -138,7 +139,10 @@ extension AppCoordinator {
                 let result = try await Task.detached(priority: .userInitiated) {
                     let indexer = SubtitleIndexer()
                     let result = try indexer.index(folder: folder, into: database)
-                    _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
+                    _ = try PlaybackVideoMetadataIndexer().indexDurations(
+                        under: folder,
+                        into: libraryDatabase
+                    )
                     let coverIndexer = LibraryCoverIndexer(
                         configuration: .init(
                             coverDirectory: coverDirectory,
@@ -196,6 +200,7 @@ extension AppCoordinator {
         indexingTask?.cancel()
         cancelDatabaseReadTasksBeforeIndexing()
         guard let database = subtitleDatabase,
+              let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
         else {
             indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
@@ -232,7 +237,10 @@ extension AppCoordinator {
                     let result = try await Task.detached(priority: .userInitiated) {
                         let indexer = SubtitleIndexer()
                         let result = try indexer.index(folder: folder, into: database)
-                        _ = try PlaybackVideoMetadataIndexer().indexDurations(under: folder, into: database)
+                        _ = try PlaybackVideoMetadataIndexer().indexDurations(
+                            under: folder,
+                            into: libraryDatabase
+                        )
                         let coverIndexer = LibraryCoverIndexer(
                             configuration: .init(
                                 coverDirectory: coverDirectory,
