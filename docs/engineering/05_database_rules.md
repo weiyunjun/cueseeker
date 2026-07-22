@@ -103,7 +103,8 @@ Rules:
 
 - Every production database schema must have a schema version.
 - Schema creation and migration order must be deterministic.
-- A fresh install must create the same final schema as applying all migrations in order.
+- A fresh install must create the complete current schema. Every supported
+  future migration path must produce that same final schema.
 - Schema version updates must be committed with migration notes.
 - Schema changes must update `docs/product/05_data_model.md` before implementation depends on them.
 
@@ -114,7 +115,16 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version is `32`.
+- The implemented schema version is `33`.
+- Schema version `33` adds durable user-selected video and folder cover
+  overrides.
+- Schema `33` is the minimum supported native database and the baseline for the
+  database architecture decomposition. Native schemas `1...32` are no longer
+  opened or migrated by the active app.
+- Version `0` creates the complete current schema. Version `33` opens without
+  historical migration work. Any unsupported lower version or version greater
+  than the current implementation must be rejected without changing its
+  `user_version`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -172,6 +182,13 @@ Migrations must be explicit and reviewable.
 
 Rules:
 
+- Historical native schema migrations from versions `1...32` are retired. The
+  active implementation must not retain their migration SQL, backfills, or
+  runtime compatibility branches.
+- An unsupported database must produce a clear incompatibility error. The app
+  must not silently delete it; backup and rebuild are explicit recovery steps.
+- Future migrations, when required, start from the schema-33 baseline and run
+  in ascending version order.
 - Migrations must run in ascending version order.
 - Migrations must be idempotent at the migration-runner level.
 - Migrations should run inside transactions when SQLite supports the required operations safely.

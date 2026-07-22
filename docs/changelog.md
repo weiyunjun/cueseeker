@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Accepted the database architecture decomposition and schema-33 compatibility
+  baseline. The active native app will retire schema 1-through-32 migrations,
+  reject unsupported databases without silent deletion, separate migration,
+  indexing, Search, Library, Shiori, playback-subtitle, AI-cache, and
+  maintenance ownership inside `CueSeekerCore`, and remove the cross-domain
+  `SubtitleDatabase` facade after callers migrate.
 - Added a minimum sufficient design rule and required complexity checks before
   implementation and before commit.
 - Made Settings Library folder removal responsive and proportional to the

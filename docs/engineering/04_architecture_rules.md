@@ -180,6 +180,35 @@ Rules:
   be implemented behind a product-domain boundary instead of being embedded
   directly in SwiftUI views, AppKit bridges, or native playback classes.
 
+### 5.1 Database Domain Boundaries
+
+The accepted database decomposition is defined in
+`docs/proposals/2026-07-database-architecture-decomposition.md`.
+
+Rules:
+
+- `CueSeekerCore` owns database bootstrap, schema validation, indexing,
+  Search, Library, Shiori, playback-subtitle data, AI cache, and maintenance
+  semantics, but these responsibilities must not be exposed through one
+  cross-domain database type.
+- Feature callers must depend on the smallest relevant database-domain
+  boundary instead of a concrete all-capabilities database object.
+- Schema creation and validation run only through database bootstrap. Search,
+  Library, playback, and other ordinary readers must not migrate or create the
+  production database.
+- SQLite write transactions must have one explicit serialized owner. A logical
+  transaction must not be interleaved with another operation on the same
+  connection.
+- Read-heavy feature work should use read-only connections or feature-owned
+  reader sessions that can coexist with WAL writes.
+- Playback rendering must receive resolved playback-subtitle data or a minimal
+  provider. It must not receive a database path or open SQLite directly.
+- Derived Search and Library projection rebuilds belong to their persistence
+  workflow and must not remain public AppCoordinator maintenance calls.
+- Migration to these boundaries must remove superseded methods and temporary
+  adapters in the same accepted step. A permanent forwarding facade is not an
+  accepted final architecture.
+
 ## 6. Data Flow
 
 The M1 local loop should follow this conceptual flow:
