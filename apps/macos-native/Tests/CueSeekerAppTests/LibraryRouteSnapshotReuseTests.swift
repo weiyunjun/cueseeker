@@ -115,7 +115,7 @@ func playbackHistoryChangesReloadRecentAndDetailWithoutRebuildingLibrarySummary(
         )
         app.indexing.selectedFolders = [fixture.root]
         app.applyCompleteLibrary(
-            try database.completeLibraryFolderSummaries(under: [fixture.root])
+            try #require(app.libraryDatabase).completeLibraryFolderSummaries(under: [fixture.root])
         )
         let folderPath = try #require(
             app.library.completeLibraryFolderSummaries.first?.folderPath
@@ -184,7 +184,7 @@ func deferredPlaybackHistoryFlushUpdatesSharedRecentAndLibraryDetail() async thr
         )
         app.indexing.selectedFolders = [fixture.root]
         app.applyCompleteLibrary(
-            try database.completeLibraryFolderSummaries(under: [fixture.root])
+            try #require(app.libraryDatabase).completeLibraryFolderSummaries(under: [fixture.root])
         )
         let folderPath = try #require(
             app.library.completeLibraryFolderSummaries.first?.folderPath
@@ -253,14 +253,14 @@ private func prepareLibraryRouteFixture(
             )
         ]
     )
-    try database.rebuildLibraryPresentationSnapshot()
+    try libraryDatabase.rebuildLibraryPresentationSnapshot()
     try libraryDatabase.upsertLibraryPlaybackHistory(
         videoFile: videoURL,
         positionMilliseconds: 10_000,
         duration: 100
     )
     let presentation = try #require(
-        try database.libraryPresentation(under: [root]).first?.videos.first
+        try libraryDatabase.libraryPresentation(under: [root]).first?.videos.first
     )
     return LibraryRouteFixture(
         root: root,

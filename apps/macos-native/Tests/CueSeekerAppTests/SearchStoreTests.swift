@@ -147,9 +147,10 @@ func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throw
             )
         ]
     )
-    try database.rebuildLibraryPresentationSnapshot()
+    let libraryDatabase = try #require(app.libraryDatabase)
+    try libraryDatabase.rebuildLibraryPresentationSnapshot()
     let presentation = try #require(
-        try database.libraryPresentation(under: [fixtureRoot])
+        try libraryDatabase.libraryPresentation(under: [fixtureRoot])
             .first?.videos.first
     )
     let video = presentation.libraryVideo

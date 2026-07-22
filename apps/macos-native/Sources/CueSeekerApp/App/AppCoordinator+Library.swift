@@ -240,7 +240,7 @@ extension AppCoordinator {
         }
 
         library.libraryStatus = .loading
-        guard let database = subtitleDatabase else {
+        guard let database = libraryDatabase else {
             applyLibraryPresentation([])
             library.libraryStatus = .failed("Database is not initialized")
             return
@@ -284,7 +284,7 @@ extension AppCoordinator {
             return
         }
         guard library.libraryStatus != .completed,
-              let database = subtitleDatabase,
+              let database = libraryDatabase,
               library.libraryStatus != .loading
         else {
             return
@@ -466,7 +466,7 @@ extension AppCoordinator {
             return
         }
 
-        guard let database = subtitleDatabase else {
+        guard let database = libraryDatabase else {
             applyRecentWatching([])
             library.recentWatchingStatus = .failed("Database is not initialized")
             return
@@ -502,7 +502,7 @@ extension AppCoordinator {
             return
         }
 
-        guard let database = subtitleDatabase else {
+        guard let database = libraryDatabase else {
             applyTestRecentWatching([])
             library.testRecentWatchingStatus = .failed("Database is not initialized")
             return
@@ -545,7 +545,7 @@ extension AppCoordinator {
             return
         }
 
-        guard let database = subtitleDatabase else {
+        guard let database = libraryDatabase else {
             applyCompleteLibrary([])
             library.completeLibraryStatus = .failed("Database is not initialized")
             return
@@ -575,7 +575,7 @@ extension AppCoordinator {
         folderPath: String
     ) async throws -> CompleteLibraryFolderDetailPresentation? {
         try Task.checkCancellation()
-        guard let database = subtitleDatabase else {
+        guard let database = libraryDatabase else {
             throw NSError(
                 domain: "CueSeeker.Library",
                 code: 1,

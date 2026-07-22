@@ -202,6 +202,19 @@ and remove the old God Object without a permanent forwarding facade.
 - Removed the retired Shiori page/index models and all Shiori table query
   helpers from `SubtitleDatabase`, reducing it further to 5,977 lines.
 
+### 17. Library Presentation Repository
+
+- Moved Library snapshot rebuilding, recent-watching presentation, complete
+  Library summaries/details, and ready presentation reads into
+  `LibraryDatabase`.
+- Updated App Library hydration and post-index snapshot rebuilding to use the
+  focused Library repository directly.
+- Moved the remaining index-time video metadata refresh onto
+  `LibraryDatabase`; `SubtitleIndexer` no longer calls a Library persistence
+  operation through `SubtitleDatabase`.
+- Removed the presentation queries, rebuild helpers, and Library sort helper
+  from `SubtitleDatabase`, reducing it further to 5,297 lines.
+
 ## Verification
 
 ### Step 1
@@ -345,9 +358,21 @@ and remove the old God Object without a permanent forwarding facade.
 - Confirmed the old database type exposes no Shiori query operation and ran
   `git diff --check` without errors.
 
+### Step 17
+
+- Built every product and test target after extracting Library presentation
+  persistence.
+- Ran 89 Library- and recent-watching-named Core/App regression tests; all
+  passed.
+- Ran the complete 830-test Swift suite. Four concurrent timing-sensitive
+  native-playback/Subtitle Focus tests failed in that loaded run and all four
+  passed immediately when rerun together in isolation.
+- Confirmed the moved Library presentation and snapshot operations are
+  declared only on `LibraryDatabase` and ran `git diff --check` without errors.
+
 ## Outcome
 
-Steps 1 through 16 match the requirement. The runtime now treats schema 33 as
+Steps 1 through 17 match the requirement. The runtime now treats schema 33 as
 its only supported existing database version, and schema creation, connection
 access, transaction ownership, and domain data contracts have explicit
 persistence-layer boundaries.

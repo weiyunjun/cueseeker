@@ -1,7 +1,7 @@
 import Foundation
 
 public final class LibraryDatabase: @unchecked Sendable {
-    private let database: SQLiteDatabase
+    let database: SQLiteDatabase
 
     public init(
         path: URL,
@@ -62,6 +62,10 @@ public final class LibraryDatabase: @unchecked Sendable {
         }
 
         return videosByPath.values.sorted(by: Self.libraryVideoSort)
+    }
+
+    public func refreshVideoFileMetadata(_ videoFile: URL) throws {
+        _ = try upsertVideoFile(videoFile)
     }
 
     public func updateVideoDuration(videoFile: URL, duration: Double?) throws {
@@ -172,7 +176,7 @@ public final class LibraryDatabase: @unchecked Sendable {
         duration.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
     }
 
-    private static func folderPathPrefixes(for folders: [URL]) -> [String] {
+    static func folderPathPrefixes(for folders: [URL]) -> [String] {
         Array(Set(folders.flatMap(folderPathPrefixes(for:)))).sorted()
     }
 
@@ -198,11 +202,11 @@ public final class LibraryDatabase: @unchecked Sendable {
         return path
     }
 
-    private static func pathPrefixUpperBound(for prefix: String) -> String {
+    static func pathPrefixUpperBound(for prefix: String) -> String {
         prefix + "\u{10FFFF}"
     }
 
-    private static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {
+    static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {
         let lhsFolder = URL(fileURLWithPath: lhs.videoPath)
             .deletingLastPathComponent()
             .lastPathComponent

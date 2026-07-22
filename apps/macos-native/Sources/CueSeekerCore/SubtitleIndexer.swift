@@ -33,6 +33,7 @@ public struct SubtitleIndexer {
     public func index(folder: URL, into database: SubtitleDatabase) throws -> SubtitleIndexingResult {
         _ = try database.addSearchPath(folder)
         let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
+        let libraryDatabase = try LibraryDatabase(path: database.path)
 
         var result = SubtitleIndexingResult()
         let subtitleFiles = scanner.scanSubtitleFiles(in: folder)
@@ -48,7 +49,7 @@ public struct SubtitleIndexer {
                 result.skippedMissingVideo += 1
                 continue
             }
-            try database.refreshVideoFileMetadata(videoFile)
+            try libraryDatabase.refreshVideoFileMetadata(videoFile)
 
             let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleFile.path)
             let fileSize = (attributes?[.size] as? NSNumber)?.int64Value

@@ -256,7 +256,7 @@ func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
         positionMilliseconds: 1_500,
         duration: 24 * 60
     )
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
     try database.replaceEntries(
         subtitleFile: subtitleFile,
         videoFile: videoFile,
@@ -363,7 +363,7 @@ func recentLibraryWatchingRejectsPreCancelledTasks() async throws {
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
-        return try database.recentLibraryWatching(
+        return try LibraryDatabase(path: database.path).recentLibraryWatching(
             under: [URL(fileURLWithPath: "/Media")],
             limit: Int.max
         )
@@ -391,7 +391,7 @@ func completeLibraryReadersRejectPreCancelledTasks() async throws {
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
-        return try database.completeLibraryFolderSummaries(
+        return try LibraryDatabase(path: database.path).completeLibraryFolderSummaries(
             under: [URL(fileURLWithPath: "/Media")]
         )
     }
@@ -408,7 +408,7 @@ func completeLibraryReadersRejectPreCancelledTasks() async throws {
         withUnsafeCurrentTask { task in
             task?.cancel()
         }
-        return try database.completeLibraryFolderDetail(
+        return try LibraryDatabase(path: database.path).completeLibraryFolderDetail(
             folderPath: "/Media/Show"
         )
     }
@@ -2980,7 +2980,7 @@ func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
         videoFile: videoFile,
         entries: [databaseTestEntry(text: "Cover precedence")]
     )
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
     try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 10_000,
@@ -3027,21 +3027,29 @@ func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
     #expect(userVideoCover.displayCoverPath == "/Covers/User/Display/v1/user-video.jpg")
     #expect(userFolderCover.displayCoverPath == "/Covers/User/Display/v1/user-folder.jpg")
 
-    let recent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    let recent = try #require(
+        try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root]).first
+    )
     #expect(recent.coverPath == userVideoCover.displayCoverPath)
     #expect(recent.coverRevision == userVideoCover.revision)
 
-    let complete = try #require(try database.completeLibraryPresentation(under: [root]).first)
+    let complete = try #require(
+        try LibraryDatabase(path: database.path).completeLibraryPresentation(under: [root]).first
+    )
     #expect(complete.folderCoverPath == userFolderCover.displayCoverPath)
     #expect(complete.folderCoverRevision == userFolderCover.revision)
     #expect(complete.videos.first?.coverPath == userVideoCover.displayCoverPath)
     #expect(complete.videos.first?.coverRevision == userVideoCover.revision)
 
-    let summary = try #require(try database.completeLibraryFolderSummaries(under: [root]).first)
+    let summary = try #require(
+        try LibraryDatabase(path: database.path).completeLibraryFolderSummaries(under: [root]).first
+    )
     #expect(summary.coverPath == userFolderCover.displayCoverPath)
     #expect(summary.coverRevision == userFolderCover.revision)
 
-    let detail = try #require(try database.completeLibraryFolderDetail(folderPath: folderPath))
+    let detail = try #require(
+        try LibraryDatabase(path: database.path).completeLibraryFolderDetail(folderPath: folderPath)
+    )
     #expect(detail.videos.first?.coverPath == userVideoCover.displayCoverPath)
     #expect(detail.videos.first?.coverRevision == userVideoCover.revision)
 
@@ -3064,7 +3072,7 @@ func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
     )
     #expect(reindexedCover.displayCoverPath == "/Covers/Display/v1/reindexed-display.jpg")
     #expect(
-        try database.recentLibraryWatching(under: [root]).first?.coverPath
+        try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root]).first?.coverPath
             == userVideoCover.displayCoverPath
     )
 
@@ -3116,10 +3124,15 @@ func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
     )
     try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: episode2Video, duration: 125.4)
 
-    #expect(try database.libraryPresentation(under: [URL(fileURLWithPath: "/Media")]).isEmpty)
+    #expect(
+        try LibraryDatabase(path: database.path)
+            .libraryPresentation(under: [URL(fileURLWithPath: "/Media")])
+            .isEmpty
+    )
 
-    try database.rebuildLibraryPresentationSnapshot()
-    let groups = try database.libraryPresentation(under: [URL(fileURLWithPath: "/Media")])
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
+    let groups = try LibraryDatabase(path: database.path)
+        .libraryPresentation(under: [URL(fileURLWithPath: "/Media")])
 
     #expect(groups.count == 1)
     let group = try #require(groups.first)
@@ -3240,7 +3253,7 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
         videoFile: videoFile,
         entries: [databaseTestEntry(text: "episode one")]
     )
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
 
     let playedAt = Date(timeIntervalSince1970: 1_800_000_000)
     try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
@@ -3270,7 +3283,9 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
         startedAt: finishedHistory.startedAt,
         completedAt: finishedHistory.completedAt
     ) == .finished)
-    let finishedRecent = try #require(try database.recentLibraryWatching(under: [root], limit: 5).first)
+    let finishedRecent = try #require(
+        try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root], limit: 5).first
+    )
     #expect(finishedRecent.videoPath == videoFile.path)
     #expect(finishedRecent.positionMilliseconds == 42_500)
     #expect(finishedRecent.watchState == .finished)
@@ -3292,7 +3307,9 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
         startedAt: unwatchedHistory.startedAt,
         completedAt: unwatchedHistory.completedAt
     ) == .unwatched)
-    let unwatchedRecent = try #require(try database.recentLibraryWatching(under: [root], limit: 5).first)
+    let unwatchedRecent = try #require(
+        try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root], limit: 5).first
+    )
     #expect(unwatchedRecent.videoPath == videoFile.path)
     #expect(unwatchedRecent.positionMilliseconds == 42_500)
     #expect(unwatchedRecent.watchState == .unwatched)
@@ -3354,7 +3371,7 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
             entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
         )
     }
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
 
     let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
     let history: [(URL, Int, TimeInterval)] = [
@@ -3375,7 +3392,7 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
         )
     }
 
-    let recent = try database.recentLibraryWatching(under: [root], limit: 5)
+    let recent = try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root], limit: 5)
 
     #expect(recent.map(\.videoPath) == [
         showA2.path,
@@ -3389,7 +3406,8 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
     #expect(recent.first?.positionMilliseconds == 70_000)
     #expect(recent.first?.playbackDuration == 1_200.0)
 
-    let allRecent = try database.recentLibraryWatching(under: [root], limit: Int.max)
+    let allRecent = try LibraryDatabase(path: database.path)
+        .recentLibraryWatching(under: [root], limit: Int.max)
     #expect(allRecent.map(\.videoPath) == [
         showA2.path,
         showF1.path,
@@ -3421,7 +3439,7 @@ func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
             entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
         )
     }
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
 
     let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
     try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
@@ -3437,7 +3455,7 @@ func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
         updatedAt: baseDate.addingTimeInterval(0.200)
     )
 
-    let recent = try database.recentLibraryWatching(under: [root], limit: 5)
+    let recent = try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root], limit: 5)
 
     #expect(recent.map(\.videoPath) == [episode4.path])
     #expect(recent.first?.positionMilliseconds == 40_000)
@@ -3469,7 +3487,7 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
         try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
     }
 
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
 
     let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
     try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
@@ -3492,7 +3510,7 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
         updatedAt: baseDate.addingTimeInterval(2)
     )
 
-    let groups = try database.completeLibraryPresentation(under: [root])
+    let groups = try LibraryDatabase(path: database.path).completeLibraryPresentation(under: [root])
     let group = try #require(groups.first)
 
     #expect(groups.count == 1)
@@ -3527,7 +3545,7 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
         )
         try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: videoFile, duration: 1_000.0)
     }
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
 
     let baseDate = Date(timeIntervalSince1970: 1_800_000_000)
     try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
@@ -3543,7 +3561,7 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
         updatedAt: baseDate.addingTimeInterval(2)
     )
 
-    let groups = try database.completeLibraryPresentation(under: [root])
+    let groups = try LibraryDatabase(path: database.path).completeLibraryPresentation(under: [root])
     let showA = try #require(groups.first { $0.folderTitle == "Show A" })
     let showB = try #require(groups.first { $0.folderTitle == "Show B" })
 
@@ -3582,7 +3600,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
         frameRate: 23.976,
         videoCodec: "hevc"
     )
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
 
     let eligibleVideos = try LibraryCoverDatabase(path: databaseURL).libraryCoverEligibleVideos(under: [root])
     let showA1CoverCandidate = try #require(eligibleVideos.first { $0.videoPath == showA1.path })
@@ -3609,7 +3627,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
         duration: 1_000.0
     )
 
-    let summaries = try database.completeLibraryFolderSummaries(under: [root])
+    let summaries = try LibraryDatabase(path: database.path).completeLibraryFolderSummaries(under: [root])
     #expect(summaries.map(\.folderTitle) == ["Show A", "Show B"])
 
     let showASummary = try #require(summaries.first { $0.folderTitle == "Show A" })
@@ -3617,7 +3635,10 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     #expect(showASummary.coverPath == "/Covers/Display/v1/show-a-episode-1.jpg")
     #expect(showASummary.coverRevision == showACoverRevision)
 
-    let detail = try #require(try database.completeLibraryFolderDetail(folderPath: showASummary.folderPath))
+    let detail = try #require(
+        try LibraryDatabase(path: database.path)
+            .completeLibraryFolderDetail(folderPath: showASummary.folderPath)
+    )
     #expect(detail.folderTitle == "Show A")
     #expect(detail.videos.map(\.videoPath) == [showA1.path, showA2.path])
     #expect(detail.videos.map(\.episodeNumber) == [1, 2])
@@ -3647,7 +3668,7 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
         videoFile: videoFile,
         entries: [databaseTestEntry(text: "display only")]
     )
-    try database.rebuildLibraryPresentationSnapshot()
+    try LibraryDatabase(path: database.path).rebuildLibraryPresentationSnapshot()
     try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
         videoFile: videoFile,
         positionMilliseconds: 1_000,
@@ -3676,21 +3697,26 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
         sourceVideoFileID: candidate.videoFileID
     )
 
-    let masterOnlyRecent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    let masterOnlyRecent = try #require(
+        try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root]).first
+    )
     #expect(masterOnlyRecent.coverPath == nil)
     #expect(masterOnlyRecent.coverRevision == nil)
-    let masterOnlyFull = try #require(try database.completeLibraryPresentation(under: [root]).first)
+    let masterOnlyFull = try #require(
+        try LibraryDatabase(path: database.path).completeLibraryPresentation(under: [root]).first
+    )
     #expect(masterOnlyFull.folderCoverPath == nil)
     #expect(masterOnlyFull.folderCoverRevision == nil)
     #expect(masterOnlyFull.videos.first?.coverPath == nil)
     #expect(masterOnlyFull.videos.first?.coverRevision == nil)
     let masterOnlySummary = try #require(
-        try database.completeLibraryFolderSummaries(under: [root]).first
+        try LibraryDatabase(path: database.path).completeLibraryFolderSummaries(under: [root]).first
     )
     #expect(masterOnlySummary.coverPath == nil)
     #expect(masterOnlySummary.coverRevision == nil)
     let masterOnlyDetail = try #require(
-        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)
+        try LibraryDatabase(path: database.path)
+            .completeLibraryFolderDetail(folderPath: candidate.folderPath)
     )
     #expect(masterOnlyDetail.videos.first?.coverPath == nil)
     #expect(masterOnlyDetail.videos.first?.coverRevision == nil)
@@ -3705,21 +3731,26 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
     ).generatedAt
     #expect(displayRevision.contains("."))
 
-    let displayRecent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    let displayRecent = try #require(
+        try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root]).first
+    )
     #expect(displayRecent.coverPath == displayPath)
     #expect(displayRecent.coverRevision == displayRevision)
-    let displayFull = try #require(try database.completeLibraryPresentation(under: [root]).first)
+    let displayFull = try #require(
+        try LibraryDatabase(path: database.path).completeLibraryPresentation(under: [root]).first
+    )
     #expect(displayFull.folderCoverPath == displayPath)
     #expect(displayFull.folderCoverRevision == displayRevision)
     #expect(displayFull.videos.first?.coverPath == displayPath)
     #expect(displayFull.videos.first?.coverRevision == displayRevision)
     let displaySummary = try #require(
-        try database.completeLibraryFolderSummaries(under: [root]).first
+        try LibraryDatabase(path: database.path).completeLibraryFolderSummaries(under: [root]).first
     )
     #expect(displaySummary.coverPath == displayPath)
     #expect(displaySummary.coverRevision == displayRevision)
     let displayDetail = try #require(
-        try database.completeLibraryFolderDetail(folderPath: candidate.folderPath)
+        try LibraryDatabase(path: database.path)
+            .completeLibraryFolderDetail(folderPath: candidate.folderPath)
     )
     #expect(displayDetail.videos.first?.coverPath == displayPath)
     #expect(displayDetail.videos.first?.coverRevision == displayRevision)
@@ -3729,11 +3760,13 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
         displayCoverPath: "/Covers/Display/v2/stale-profile.jpg",
         displayProfileVersion: LibraryCoverDisplayProfileVersion.current + 1
     )
-    let staleRecent = try #require(try database.recentLibraryWatching(under: [root]).first)
+    let staleRecent = try #require(
+        try LibraryDatabase(path: database.path).recentLibraryWatching(under: [root]).first
+    )
     #expect(staleRecent.coverPath == nil)
     #expect(staleRecent.coverRevision == nil)
     let staleSummary = try #require(
-        try database.completeLibraryFolderSummaries(under: [root]).first
+        try LibraryDatabase(path: database.path).completeLibraryFolderSummaries(under: [root]).first
     )
     #expect(staleSummary.coverPath == nil)
     #expect(staleSummary.coverRevision == nil)

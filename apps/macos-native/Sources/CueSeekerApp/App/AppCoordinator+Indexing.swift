@@ -150,7 +150,7 @@ extension AppCoordinator {
                         )
                     )
                     _ = try await coverIndexer.indexCovers(under: folder, into: coverDatabase)
-                    try database.rebuildLibraryPresentationSnapshot()
+                    try libraryDatabase.rebuildLibraryPresentationSnapshot()
                     return result
                 }.value
 
@@ -280,7 +280,7 @@ extension AppCoordinator {
 
             do {
                 try await Task.detached(priority: .userInitiated) {
-                    try database.rebuildLibraryPresentationSnapshot()
+                    try libraryDatabase.rebuildLibraryPresentationSnapshot()
                 }.value
             } catch {
                 guard !Task.isCancelled else {
