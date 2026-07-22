@@ -90,6 +90,20 @@ Rules:
   product-domain layer and keep presentation, OS integration, and playback
   execution in platform layers.
 
+## 2.3 Minimum Sufficient Design
+
+Rules:
+
+- Use the smallest design and change set that satisfies the current committed
+  human-owned requirement.
+- Reuse an existing source of truth, state, or execution path when it is
+  sufficient. Add abstractions, caches, duplicate state, or compatibility paths
+  only when the current requirement needs them.
+- Keep independent data migration, ownership, UI lifecycle, and performance
+  changes separately verifiable unless the requirement explicitly combines them.
+- When multiple designs meet the same acceptance criteria, choose the one with
+  fewer types, states, execution paths, and modified files.
+
 ## 3. Target Platform
 
 Primary platform:

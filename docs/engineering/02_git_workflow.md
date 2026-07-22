@@ -97,6 +97,26 @@ Rules:
 - Commit documentation changes separately when they define rules for later implementation.
 - Tests should be committed with the implementation they verify when practical.
 
+## 4.1 Complexity Checks
+
+Before implementation:
+
+- Apply the minimum sufficient design rules in
+  `docs/engineering/04_architecture_rules.md`.
+- Identify the smallest required file set and reuse existing mechanisms where
+  possible.
+- If the change adds an abstraction, cache, state source, asynchronous
+  lifecycle, or combines independent concerns, report the complexity and a
+  smaller or phased alternative before editing.
+
+Before commit:
+
+- Inspect the diff and remove changes that are not required by the accepted
+  requirement, including redundant models, forwarding layers, and replaced
+  paths introduced or superseded by the change.
+- If the actual scope is materially larger than the implementation estimate,
+  stop and report it before committing.
+
 ## 5. Commit Message Format
 
 Use concise English commit messages.

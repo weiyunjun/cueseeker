@@ -6,6 +6,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a minimum sufficient design rule and required complexity checks before
+  implementation and before commit.
 - Made Settings Library folder removal responsive and proportional to the
   removed folder. Removal now runs through a serialized background database
   executor, exposes visible Removing and Removed states, blocks conflicting
