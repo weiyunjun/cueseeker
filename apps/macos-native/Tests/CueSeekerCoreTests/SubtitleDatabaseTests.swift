@@ -55,6 +55,34 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
 }
 
 @Test
+func currentSchemaValidationDoesNotMutateStoredData() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try SubtitleDatabase(path: databaseURL)
+    try database.migrate()
+    let folder = URL(fileURLWithPath: "/Media/Current Schema")
+    _ = try database.addSearchPath(folder)
+
+    try database.migrate()
+
+    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
+    #expect(try sqliteRowCount(in: "search_paths", databaseURL: databaseURL) == 1)
+}
+
+@Test
+func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
+    try expectUnsupportedSchemaVersion(32)
+}
+
+@Test
+func rejectsNewerSchemaWithoutChangingVersion() throws {
+    try expectUnsupportedSchemaVersion(34)
+}
+
+@Test
 func freshSchemaOmitsLegacyPlaybackNavigationTables() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
@@ -64,37 +92,6 @@ func freshSchemaOmitsLegacyPlaybackNavigationTables() throws {
     let database = try SubtitleDatabase(path: databaseURL)
     try database.migrate()
 
-    #expect(try sqliteTableExists(
-        "playback_navigation_state",
-        databaseURL: databaseURL
-    ) == false)
-    #expect(try sqliteTableExists(
-        "playback_navigation_entries",
-        databaseURL: databaseURL
-    ) == false)
-}
-
-@Test
-func migrationRemovesLegacyPlaybackNavigationTablesAndData() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    try createVersionThirtyDatabaseWithPlaybackNavigationHistory(at: databaseURL)
-    #expect(try sqliteTableExists(
-        "playback_navigation_state",
-        databaseURL: databaseURL
-    ))
-    #expect(try sqliteTableExists(
-        "playback_navigation_entries",
-        databaseURL: databaseURL
-    ))
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
     #expect(try sqliteTableExists(
         "playback_navigation_state",
         databaseURL: databaseURL
@@ -4810,7 +4807,7 @@ func shioriTableIDIndexStopsImmediatelyAfterCancellationDuringScan() async throw
 }
 
 @Test
-func migrationCreatesShioriTablePerformanceIndexes() throws {
+func freshSchemaCreatesShioriTablePerformanceIndexes() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -4824,7 +4821,7 @@ func migrationCreatesShioriTablePerformanceIndexes() throws {
 }
 
 @Test
-func migrationCreatesShioriTagTablesAndIndexes() throws {
+func freshSchemaCreatesShioriTagTablesAndIndexes() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -4977,24 +4974,6 @@ func shioriTagValidationRejectsInvalidNames() throws {
 
     let allowed = try database.createShioriTag(named: #" C++ "Q" / \ & 😀 "#)
     #expect(allowed.name == #"C++ "Q" / \ & 😀"#)
-}
-
-@Test
-func migrationRejectsLegacyShioriWithoutCueID() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    try createVersionTwentySevenCueGroupShioriDatabase(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    do {
-        try database.migrate()
-        Issue.record("Expected relation migration to reject missing CueID")
-    } catch {
-        #expect(String(describing: error).contains("requires every Shiori to have a CueID"))
-    }
 }
 
 @Test
@@ -5417,120 +5396,6 @@ func storesAndLoadsASSFontResourceManifest() throws {
     #expect(updatedManifest.status == .readyWithoutFonts)
     #expect(updatedManifest.fontsDirectoryPath == nil)
     #expect(updatedManifest.resourceSignature == "signature-v2")
-}
-
-@Test
-func migrationInvalidatesOldASSRenderSegmentAlgorithmVersion() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let subtitleFile = URL(fileURLWithPath: "/Media/OldEffects.ass")
-    try createVersionFourDatabaseWithASSRenderSegments(at: databaseURL, subtitlePath: subtitleFile.path)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-    #expect(!(try database.hasASSRenderSegments(forSubtitleFile: subtitleFile)))
-    #expect(try database.assRenderSegment(forSubtitleFile: subtitleFile, atMilliseconds: 1_000) == nil)
-}
-
-@Test
-func migrationBackfillsCueGroupLineCountAndSearchOrderRows() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    try createVersionTenDatabaseWithMixedCueGroupLineCounts(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-
-    let lineCountByGroupID = try readCueGroupLineCounts(at: databaseURL)
-    #expect(lineCountByGroupID[1] == 1)
-    #expect(lineCountByGroupID[2] == 2)
-    #expect(lineCountByGroupID[3] == 3)
-
-    let searchOrderRows = try readSearchOrderRows(at: databaseURL)
-    #expect(searchOrderRows.map(\.subtitlePath) == ["/Media/Sample.ass"])
-    #expect(searchOrderRows.map(\.displayTitle) == ["Sample.ass"])
-    #expect(searchOrderRows.map(\.folderOrder) == [0])
-    #expect(searchOrderRows.map(\.fileOrder) == [0])
-}
-
-@Test
-func migrationBackfillsLibraryPlaybackHistoryWatchStateColumns() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
-    }
-
-    try createVersionNineteenDatabaseWithLibraryPlaybackHistory(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-
-    let startedVideo = URL(fileURLWithPath: "/Media/Started.mkv")
-    let startedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: startedVideo))
-    #expect(startedHistory.startedAt == startedHistory.updatedAt)
-    #expect(startedHistory.completedAt == nil)
-    #expect(LibraryWatchState(
-        positionMilliseconds: startedHistory.positionMilliseconds,
-        duration: startedHistory.duration,
-        startedAt: startedHistory.startedAt,
-        completedAt: startedHistory.completedAt
-    ) == .watching)
-
-    let completedVideo = URL(fileURLWithPath: "/Media/Completed.mkv")
-    let completedHistory = try #require(try database.libraryPlaybackHistory(forVideoFile: completedVideo))
-    #expect(completedHistory.startedAt == completedHistory.updatedAt)
-    #expect(completedHistory.completedAt == completedHistory.updatedAt)
-    #expect(LibraryWatchState(
-        positionMilliseconds: completedHistory.positionMilliseconds,
-        duration: completedHistory.duration,
-        startedAt: completedHistory.startedAt,
-        completedAt: completedHistory.completedAt
-    ) == .finished)
-}
-
-@Test
-func migrationAddsDisplayCoverFieldsWithoutReplacingMaster() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
-    }
-
-    try createVersionTwentySixDatabaseWithLibraryCover(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-
-    let cover = try #require(try database.libraryVideoCover(forVideoFileID: 1))
-    #expect(cover.masterCoverPath == "/Covers/Videos/legacy-master.jpg")
-    #expect(cover.displayCoverPath == nil)
-    #expect(cover.displayProfileVersion == nil)
-    #expect(cover.sourceTimeMilliseconds == 120_000)
-    #expect(cover.status == .generated)
-
-    let folderCover = try #require(
-        try database.libraryFolderCover(folderPath: "/Media/Legacy Show")
-    )
-    #expect(folderCover.masterCoverPath == cover.masterCoverPath)
-    #expect(folderCover.sourceVideoFileID == 1)
 }
 
 @Test
@@ -6150,42 +6015,6 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
     )
 
     #expect(try database.search("hello AND").isEmpty)
-}
-
-@Test
-func migrationPreservesSearchPathsAndClearsLegacyDerivedIndex() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    try createLegacyVersionOneDatabase(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-    #expect(try database.search("好世").isEmpty)
-
-    let searchPathID = try database.addSearchPath(URL(fileURLWithPath: "/Media"))
-    let sameSearchPathID = try database.addSearchPath(URL(fileURLWithPath: "/Media"))
-    #expect(searchPathID == sameSearchPathID)
-}
-
-@Test
-func migrationRebuildsFTSRowsForJapaneseKanaSearch() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    try createVersionFiveDatabaseWithUnsegmentedKanaFTS(at: databaseURL)
-
-    let database = try SubtitleDatabase(path: databaseURL)
-    try database.migrate()
-
-    #expect(try database.schemaVersion() == SubtitleDatabase.currentSchemaVersion)
-    #expect(try database.search("ライン").map(\.content) == ["日本語ライン"])
 }
 
 @Test
@@ -7370,56 +7199,6 @@ private func testCueLine(
     )
 }
 
-private func createVersionThirtyDatabaseWithPlaybackNavigationHistory(
-    at url: URL
-) throws {
-    try executeSQLite(
-        at: url,
-        """
-        CREATE TABLE playback_navigation_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kind TEXT NOT NULL,
-            payload_json TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE playback_navigation_state (
-            id INTEGER PRIMARY KEY CHECK(id = 1),
-            current_entry_id INTEGER,
-            index_revision INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY(current_entry_id)
-                REFERENCES playback_navigation_entries(id)
-                ON DELETE SET NULL
-        );
-
-        INSERT INTO playback_navigation_entries(
-            kind,
-            payload_json,
-            created_at,
-            updated_at
-        )
-        VALUES (
-            'library',
-            '{"library":{"videoPath":"/Media/Legacy.mkv"}}',
-            '2026-07-19T00:00:00Z',
-            '2026-07-19T00:00:00Z'
-        );
-
-        INSERT INTO playback_navigation_state(
-            id,
-            current_entry_id,
-            index_revision,
-            updated_at
-        )
-        VALUES (1, 1, 1, '2026-07-19T00:00:00Z');
-
-        PRAGMA user_version = 30;
-        """
-    )
-}
-
 private func createLegacyVersionOneDatabase(at url: URL) throws {
     var database: OpaquePointer?
     guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
@@ -7491,658 +7270,6 @@ private func createLegacyVersionOneDatabase(at url: URL) throws {
         VALUES ('local', '/Media', '2026-05-02T00:00:00Z', '2026-05-02T00:00:00Z');
 
         PRAGMA user_version = 1;
-        """
-    )
-}
-
-private func createVersionFiveDatabaseWithUnsegmentedKanaFTS(at url: URL) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(
-        database,
-        """
-        CREATE TABLE search_paths (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            type TEXT NOT NULL DEFAULT 'local',
-            path TEXT NOT NULL UNIQUE,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE subtitle_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_path TEXT NOT NULL UNIQUE,
-            format TEXT NOT NULL,
-            file_size INTEGER,
-            modified_at REAL,
-            indexed_at TEXT NOT NULL
-        );
-
-        CREATE TABLE video_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            path TEXT NOT NULL UNIQUE,
-            video_name TEXT NOT NULL,
-            file_size INTEGER,
-            modified_at REAL,
-            duration REAL,
-            video_codec TEXT,
-            audio_codec TEXT,
-            native_video_candidate INTEGER,
-            native_audio_candidate INTEGER,
-            native_compatibility_reason TEXT,
-            native_failure_reason TEXT,
-            compatibility_evaluated_at TEXT
-        );
-
-        CREATE TABLE subtitle_video_matches (
-            subtitle_file_id INTEGER NOT NULL,
-            video_file_id INTEGER NOT NULL,
-            match_method TEXT NOT NULL,
-            confidence REAL NOT NULL,
-            is_active INTEGER NOT NULL DEFAULT 1,
-            PRIMARY KEY(subtitle_file_id, video_file_id)
-        );
-
-        CREATE TABLE subtitle_cue_groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_file_id INTEGER NOT NULL,
-            subtitle_path TEXT NOT NULL,
-            seq INTEGER,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            search_content TEXT NOT NULL
-        );
-
-        CREATE TABLE subtitle_cue_lines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cue_group_id INTEGER NOT NULL,
-            event_index INTEGER NOT NULL,
-            source_format TEXT NOT NULL,
-            source_style TEXT,
-            source_layer INTEGER,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            display_x REAL,
-            display_y REAL,
-            display_order INTEGER NOT NULL
-        );
-
-        CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
-            content,
-            cue_group_id UNINDEXED
-        );
-
-        CREATE TABLE ass_render_segments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_file_id INTEGER NOT NULL,
-            segment_index INTEGER NOT NULL,
-            algorithm_version INTEGER NOT NULL DEFAULT 0,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            event_count INTEGER NOT NULL,
-            byte_count INTEGER NOT NULL,
-            script_text TEXT NOT NULL,
-            UNIQUE(subtitle_file_id, segment_index)
-        );
-
-        INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
-        VALUES ('/Media/Japanese.srt', 'srt', 128, 0, '2026-05-04T00:00:00Z');
-
-        INSERT INTO video_files(path, video_name, file_size, modified_at)
-        VALUES ('/Media/Japanese.mkv', 'Japanese.mkv', 0, 0);
-
-        INSERT INTO subtitle_video_matches(subtitle_file_id, video_file_id, match_method, confidence, is_active)
-        VALUES (1, 1, 'same-directory-basename', 1.0, 1);
-
-        INSERT INTO subtitle_cue_groups(
-            id,
-            subtitle_file_id,
-            subtitle_path,
-            seq,
-            start_time,
-            end_time,
-            start_ms,
-            end_ms,
-            search_content
-        )
-        VALUES (
-            1,
-            1,
-            '/Media/Japanese.srt',
-            1,
-            '00:00:01,000',
-            '00:00:03,000',
-            1000,
-            3000,
-            '日本語ライン'
-        );
-
-        INSERT INTO subtitle_cue_lines(
-            cue_group_id,
-            event_index,
-            source_format,
-            start_time,
-            end_time,
-            start_ms,
-            end_ms,
-            content,
-            display_order
-        )
-        VALUES (
-            1,
-            0,
-            'srt',
-            '00:00:01,000',
-            '00:00:03,000',
-            1000,
-            3000,
-            '日本語ライン',
-            0
-        );
-
-        INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
-        VALUES ('日本語ライン', 1);
-
-        PRAGMA user_version = 5;
-        """
-    )
-}
-
-private func createVersionFourDatabaseWithASSRenderSegments(at url: URL, subtitlePath: String) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(
-        database,
-        """
-        CREATE TABLE subtitle_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_path TEXT NOT NULL UNIQUE,
-            format TEXT NOT NULL,
-            file_size INTEGER,
-            modified_at REAL,
-            indexed_at TEXT NOT NULL
-        );
-
-        CREATE TABLE ass_render_segments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_file_id INTEGER NOT NULL,
-            segment_index INTEGER NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            event_count INTEGER NOT NULL,
-            byte_count INTEGER NOT NULL,
-            script_text TEXT NOT NULL,
-            UNIQUE(subtitle_file_id, segment_index)
-        );
-
-        INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
-        VALUES ('\(subtitlePath)', 'ass', 4096, 0, '2026-05-03T00:00:00Z');
-
-        INSERT INTO ass_render_segments(
-            subtitle_file_id,
-            segment_index,
-            start_ms,
-            end_ms,
-            event_count,
-            byte_count,
-            script_text
-        )
-        VALUES (1, 0, 0, 30000, 1, 32, '[Script Info]\n[Events]\n');
-
-        PRAGMA user_version = 4;
-        """
-    )
-}
-
-private func createVersionTenDatabaseWithMixedCueGroupLineCounts(at url: URL) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(
-        database,
-        """
-        CREATE TABLE subtitle_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_path TEXT NOT NULL UNIQUE,
-            format TEXT NOT NULL,
-            file_size INTEGER,
-            modified_at REAL,
-            indexed_at TEXT NOT NULL
-        );
-
-        CREATE TABLE subtitle_cue_groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_file_id INTEGER NOT NULL,
-            subtitle_path TEXT NOT NULL,
-            seq INTEGER,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            search_content TEXT NOT NULL
-        );
-
-        CREATE TABLE subtitle_cue_lines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cue_group_id INTEGER NOT NULL,
-            event_index INTEGER NOT NULL,
-            source_format TEXT NOT NULL,
-            source_style TEXT,
-            source_layer INTEGER,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            display_x REAL,
-            display_y REAL,
-            display_order INTEGER NOT NULL
-        );
-
-        INSERT INTO subtitle_files(subtitle_path, format, file_size, modified_at, indexed_at)
-        VALUES ('/Media/Sample.ass', 'ass', 1024, 0, '2026-05-04T00:00:00Z');
-
-        INSERT INTO subtitle_cue_groups(id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content)
-        VALUES (1, 1, '/Media/Sample.ass', NULL, '0', '1000', 0, 1000, 'single line');
-
-        INSERT INTO subtitle_cue_groups(id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content)
-        VALUES (2, 1, '/Media/Sample.ass', NULL, '1000', '2000', 1000, 2000, 'left\nright');
-
-        INSERT INTO subtitle_cue_groups(id, subtitle_file_id, subtitle_path, seq, start_time, end_time, start_ms, end_ms, search_content)
-        VALUES (3, 1, '/Media/Sample.ass', NULL, '2000', '3000', 2000, 3000, 'top\nmid\nbot');
-
-        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
-        VALUES (1, 0, 'ass', '0', '1000', 0, 1000, 'single line', 0);
-
-        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
-        VALUES (2, 0, 'ass', '1000', '2000', 1000, 2000, 'left', 0);
-
-        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
-        VALUES (2, 1, 'ass', '1000', '2000', 1000, 2000, 'right', 1);
-
-        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
-        VALUES (3, 0, 'ass', '2000', '3000', 2000, 3000, 'top', 0);
-
-        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
-        VALUES (3, 1, 'ass', '2000', '3000', 2000, 3000, 'mid', 1);
-
-        INSERT INTO subtitle_cue_lines(cue_group_id, event_index, source_format, start_time, end_time, start_ms, end_ms, content, display_order)
-        VALUES (3, 2, 'ass', '2000', '3000', 2000, 3000, 'bot', 2);
-
-        PRAGMA user_version = 10;
-        """
-    )
-}
-
-private func createVersionNineteenDatabaseWithLibraryPlaybackHistory(at url: URL) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(
-        database,
-        """
-        CREATE TABLE library_playback_history (
-            video_path TEXT PRIMARY KEY,
-            position_ms INTEGER NOT NULL,
-            duration REAL,
-            updated_at TEXT NOT NULL
-        );
-
-        INSERT INTO library_playback_history(video_path, position_ms, duration, updated_at)
-        VALUES
-            ('/Media/Started.mkv', 120000, 1000.0, '2026-06-01T00:00:00Z'),
-            ('/Media/Completed.mkv', 960000, 1000.0, '2026-06-01T00:01:00Z');
-
-        PRAGMA user_version = 19;
-        """
-    )
-}
-
-private func createVersionTwentySevenCueGroupShioriDatabase(at url: URL) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(
-        database,
-        """
-        PRAGMA foreign_keys = ON;
-
-        CREATE TABLE subtitle_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_path TEXT NOT NULL UNIQUE,
-            format TEXT NOT NULL,
-            file_size INTEGER,
-            modified_at REAL,
-            indexed_at TEXT NOT NULL,
-            index_algorithm_version INTEGER NOT NULL DEFAULT 0
-        );
-
-        CREATE TABLE subtitle_cue_groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_file_id INTEGER NOT NULL,
-            subtitle_path TEXT NOT NULL,
-            seq INTEGER,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            time_range TEXT NOT NULL DEFAULT '',
-            search_content TEXT NOT NULL,
-            line_count INTEGER NOT NULL DEFAULT 1,
-            FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE subtitle_cue_lines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cue_group_id INTEGER NOT NULL,
-            event_index INTEGER NOT NULL,
-            source_format TEXT NOT NULL,
-            source_style TEXT,
-            source_layer INTEGER,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            display_x REAL,
-            display_y REAL,
-            display_order INTEGER NOT NULL,
-            FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE subtitle_language_detections (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_file_id INTEGER NOT NULL,
-            scope TEXT NOT NULL,
-            scope_key TEXT NOT NULL DEFAULT '',
-            algorithm_version INTEGER NOT NULL,
-            confidence REAL NOT NULL,
-            confidence_band TEXT NOT NULL,
-            segment_count INTEGER NOT NULL,
-            effective_character_count INTEGER NOT NULL,
-            detected_at TEXT NOT NULL,
-            UNIQUE(subtitle_file_id, scope, scope_key),
-            FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE subtitle_language_detection_codes (
-            detection_id INTEGER NOT NULL,
-            language_code TEXT NOT NULL,
-            PRIMARY KEY(detection_id, language_code),
-            FOREIGN KEY(detection_id) REFERENCES subtitle_language_detections(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE shioris (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            subtitle_path TEXT NOT NULL,
-            subtitle_format TEXT NOT NULL,
-            start_ms INTEGER NOT NULL,
-            end_ms INTEGER NOT NULL,
-            video_path TEXT NOT NULL,
-            video_name TEXT NOT NULL,
-            content TEXT NOT NULL,
-            is_valid INTEGER NOT NULL DEFAULT 1,
-            created_at TEXT NOT NULL,
-            UNIQUE(subtitle_path, start_ms, end_ms)
-        );
-
-        CREATE TABLE shiori_tags (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            normalized_name TEXT NOT NULL UNIQUE,
-            created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE shiori_tag_assignments (
-            shiori_id INTEGER NOT NULL,
-            tag_id INTEGER NOT NULL,
-            created_at TEXT NOT NULL,
-            PRIMARY KEY(shiori_id, tag_id),
-            FOREIGN KEY(shiori_id) REFERENCES shioris(id) ON DELETE CASCADE,
-            FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
-        );
-
-        INSERT INTO subtitle_files(
-            id, subtitle_path, format, file_size, modified_at, indexed_at, index_algorithm_version
-        )
-        VALUES
-            (1, '/Media/Legacy.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3),
-            (2, '/Media/Fallback.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3),
-            (3, '/Media/Mixed.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3),
-            (4, '/Media/MixedStyle.ass', 'ass', 1000, 0, '2026-07-10T00:00:00Z', 3);
-
-        INSERT INTO subtitle_cue_groups(
-            id, subtitle_file_id, subtitle_path, seq, start_time, end_time,
-            start_ms, end_ms, time_range, search_content, line_count
-        )
-        VALUES
-            (1, 1, '/Media/Legacy.ass', NULL, '0:00:01.00', '0:00:03.00',
-             1000, 3000, '00:01 - 00:03', '日本語の字幕です\n日本語の下段です\n中文字幕', 3),
-            (2, 2, '/Media/Fallback.ass', NULL, '0:00:04.00', '0:00:05.00',
-             4000, 5000, '00:04 - 00:05', 'Upper fallback cue\nLower fallback cue', 2),
-            (3, 3, '/Media/Mixed.ass', NULL, '0:00:08.00', '0:00:09.00',
-             8000, 9000, '00:08 - 00:09', 'これは日本語です\n这是中文字幕', 2),
-            (4, 4, '/Media/MixedStyle.ass', NULL, '0:00:10.00', '0:00:11.00',
-             10000, 11000, '00:10 - 00:11', 'これは同じスタイルの日本語です\n这是同一样式的中文字幕', 2);
-
-        INSERT INTO subtitle_cue_lines(
-            id, cue_group_id, event_index, source_format, source_style, source_layer,
-            start_time, end_time, start_ms, end_ms, content, display_x, display_y, display_order
-        )
-        VALUES
-            (10, 1, 100, 'ass', 'ZH', 0, '0:00:01.20', '0:00:02.80',
-             1200, 2800, '中文字幕', NULL, 300, 2),
-            (11, 1, 101, 'ass', 'JP', 0, '0:00:01.10', '0:00:02.90',
-             1100, 2900, '日本語の字幕です', NULL, 100, 0),
-            (12, 1, 102, 'ass', 'JP', 0, '0:00:01.05', '0:00:02.95',
-             1050, 2950, '日本語の下段です', NULL, 200, 1),
-            (20, 2, 200, 'ass', NULL, 0, '0:00:04.10', '0:00:04.90',
-             4100, 4900, 'Upper fallback cue', NULL, 100, 0),
-            (21, 2, 201, 'ass', NULL, 0, '0:00:04.20', '0:00:04.80',
-             4200, 4800, 'Lower fallback cue', NULL, 200, 1),
-            (30, 3, 300, 'ass', NULL, 0, '0:00:08.00', '0:00:09.00',
-             8000, 9000, 'これは日本語です', NULL, 100, 0),
-            (31, 3, 301, 'ass', NULL, 0, '0:00:08.00', '0:00:09.00',
-             8000, 9000, '这是中文字幕', NULL, 200, 1),
-            (40, 4, 400, 'ass', 'MIXED', 0, '0:00:10.00', '0:00:11.00',
-             10000, 11000, 'これは同じスタイルの日本語です', NULL, 100, 0),
-            (41, 4, 401, 'ass', 'MIXED', 0, '0:00:10.00', '0:00:11.00',
-             10000, 11000, '这是同一样式的中文字幕', NULL, 200, 1);
-
-        INSERT INTO subtitle_language_detections(
-            id, subtitle_file_id, scope, scope_key, algorithm_version, confidence,
-            confidence_band, segment_count, effective_character_count, detected_at
-        )
-        VALUES
-            (1, 1, 'style', 'ZH', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z'),
-            (2, 1, 'style', 'JP', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z'),
-            (3, 3, 'file', '', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z'),
-            (4, 4, 'style', 'MIXED', 2, 0.99, 'high', 10, 100, '2026-07-10T00:00:00Z');
-
-        INSERT INTO subtitle_language_detection_codes(detection_id, language_code)
-        VALUES
-            (1, 'zh-Hans'),
-            (2, 'ja'),
-            (3, 'ja'),
-            (3, 'zh-Hans'),
-            (4, 'ja'),
-            (4, 'zh-Hans');
-
-        INSERT INTO shioris(
-            id, subtitle_path, subtitle_format, start_ms, end_ms,
-            video_path, video_name, content, is_valid, created_at
-        )
-        VALUES
-            (42, '/Media/Legacy.ass', 'ass', 1000, 3000,
-             '/Media/Legacy.mkv', 'Legacy.mkv', '日本語の字幕です\n日本語の下段です\n中文字幕', 0,
-             '2026-07-10T01:02:03Z'),
-            (43, '/Media/Missing.ass', 'ass', 6000, 7000,
-             '/Media/Missing.mkv', 'Missing.mkv', 'Unindexed Japanese and Chinese snapshot', 1,
-             '2026-07-10T02:03:04Z'),
-            (44, '/Media/Fallback.ass', 'ass', 4000, 5000,
-             '/Media/Fallback.mkv', 'Fallback.mkv', 'Upper fallback cue\nLower fallback cue', 1,
-             '2026-07-10T03:04:05Z'),
-            (45, '/Media/Mixed.ass', 'ass', 8000, 9000,
-             '/Media/Mixed.mkv', 'Mixed.mkv', 'これは日本語です\n这是中文字幕', 1,
-             '2026-07-10T04:05:06Z'),
-            (46, '/Media/MixedStyle.ass', 'ass', 10000, 11000,
-             '/Media/MixedStyle.mkv', 'MixedStyle.mkv',
-             'これは同じスタイルの日本語です\n这是同一样式的中文字幕', 1,
-             '2026-07-10T05:06:07Z');
-
-        INSERT INTO shiori_tags(id, name, normalized_name, created_at)
-        VALUES (7, 'Review', 'Review', '2026-07-10T00:00:00Z');
-
-        INSERT INTO shiori_tag_assignments(shiori_id, tag_id, created_at)
-        VALUES
-            (42, 7, '2026-07-10T01:02:04Z'),
-            (43, 7, '2026-07-10T02:03:05Z');
-
-        PRAGMA user_version = 27;
-        """
-    )
-}
-
-private func createVersionTwentySixDatabaseWithLibraryCover(at url: URL) throws {
-    var database: OpaquePointer?
-    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
-        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
-        sqlite3_close(database)
-        throw SQLiteFixtureError.openFailed(message)
-    }
-
-    defer {
-        sqlite3_close(database)
-    }
-
-    try executeSQLite(
-        database,
-        """
-        CREATE TABLE video_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            path TEXT NOT NULL UNIQUE,
-            video_name TEXT NOT NULL,
-            file_size INTEGER,
-            modified_at REAL,
-            duration REAL,
-            video_width INTEGER,
-            video_height INTEGER,
-            frame_rate REAL,
-            video_codec TEXT,
-            audio_codec TEXT,
-            native_video_candidate INTEGER,
-            native_audio_candidate INTEGER,
-            native_compatibility_reason TEXT,
-            native_failure_reason TEXT,
-            compatibility_evaluated_at TEXT
-        );
-
-        CREATE TABLE video_covers (
-            video_file_id INTEGER PRIMARY KEY,
-            cover_path TEXT NOT NULL,
-            source_time_ms INTEGER NOT NULL,
-            score REAL,
-            algorithm_version INTEGER NOT NULL,
-            generated_file_size INTEGER,
-            generated_duration REAL,
-            status TEXT NOT NULL,
-            error_message TEXT,
-            generated_at TEXT NOT NULL,
-            FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE folder_covers (
-            folder_path TEXT PRIMARY KEY,
-            cover_path TEXT NOT NULL,
-            source_video_file_id INTEGER NOT NULL,
-            generated_at TEXT NOT NULL,
-            FOREIGN KEY(source_video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
-        );
-
-        INSERT INTO video_files(id, path, video_name, file_size, duration)
-        VALUES (1, '/Media/Legacy Show/Episode 1.mkv', 'Episode 1.mkv', 2048, 1400.0);
-
-        INSERT INTO video_covers(
-            video_file_id,
-            cover_path,
-            source_time_ms,
-            score,
-            algorithm_version,
-            generated_file_size,
-            generated_duration,
-            status,
-            error_message,
-            generated_at
-        )
-        VALUES (
-            1,
-            '/Covers/Videos/legacy-master.jpg',
-            120000,
-            88.0,
-            1,
-            2048,
-            1400.0,
-            'generated',
-            NULL,
-            '2026-07-10T00:00:00Z'
-        );
-
-        INSERT INTO folder_covers(folder_path, cover_path, source_video_file_id, generated_at)
-        VALUES (
-            '/Media/Legacy Show',
-            '/Covers/Videos/legacy-master.jpg',
-            1,
-            '2026-07-10T00:00:00Z'
-        );
-
-        PRAGMA user_version = 26;
         """
     )
 }
@@ -8248,6 +7375,52 @@ private func executeSQLite(at url: URL, _ sql: String) throws {
     }
 
     try executeSQLite(database, sql)
+}
+
+private func expectUnsupportedSchemaVersion(_ version: Int) throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try executeSQLite(at: databaseURL, "PRAGMA user_version = \(version);")
+    let database = try SubtitleDatabase(path: databaseURL)
+    do {
+        try database.migrate()
+        Issue.record("Expected schema \(version) to be rejected")
+    } catch let error as SubtitleDatabaseError {
+        #expect(error == .unsupportedSchemaVersion(
+            found: version,
+            supported: SubtitleDatabase.currentSchemaVersion
+        ))
+    }
+    #expect(try database.schemaVersion() == version)
+}
+
+private func sqliteRowCount(in table: String, databaseURL: URL) throws -> Int {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(database, "SELECT COUNT(*) FROM \(table);", -1, &statement, nil) == SQLITE_OK,
+          let statement
+    else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer {
+        sqlite3_finalize(statement)
+    }
+    guard sqlite3_step(statement) == SQLITE_ROW else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    return Int(sqlite3_column_int64(statement, 0))
 }
 
 private func executeSQLite(_ database: OpaquePointer?, _ sql: String) throws {

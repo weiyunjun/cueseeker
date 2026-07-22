@@ -25,6 +25,16 @@ and remove the old God Object without a permanent forwarding facade.
   boundaries, and removal of the old facade.
 - Recorded the accepted direction in the Unreleased changelog.
 
+### 2. Schema 33 Compatibility Baseline
+
+- Replaced the historical incremental migration path with one atomic schema-33
+  creation transaction for empty databases.
+- Made schema 33 validation idempotent and non-mutating.
+- Added an explicit unsupported-version error for schema versions 1 through 32
+  and versions newer than 33; rejection leaves `user_version` unchanged.
+- Removed obsolete migration helpers, compatibility tests, and old-version test
+  fixtures now that pre-33 databases are intentionally unsupported.
+
 ## Verification
 
 ### Step 1
@@ -35,12 +45,23 @@ and remove the old God Object without a permanent forwarding facade.
 - Checked that this step changes documentation only and does not alter schema,
   source code, or runtime behavior.
 
+### Step 2
+
+- Ran the six focused schema-baseline tests covering fresh creation, current
+  schema idempotence, lower/higher version rejection, and Shiori schema/index
+  creation; all passed.
+- Ran the complete 829-test Swift suite. Database coverage passed; one unrelated
+  shared-preferences migration assertion failed in the combined run and passed
+  immediately when rerun in isolation.
+- Ran `git diff --check`; no whitespace errors were reported.
+
 ## Outcome
 
-Step 1 matches the requirement. Implementation may proceed from schema 33 using
-the staged boundaries in the accepted proposal.
+Steps 1 and 2 match the requirement. The runtime now treats schema 33 as its
+only supported existing database version, and the removed compatibility path
+reduces the database implementation and its tests before domain extraction.
 
 ## Follow-ups
 
-- Replace historical migration behavior with schema-33 creation and validation.
+- Extract connection/bootstrap ownership and focused domain persistence APIs.
 - Record each subsequent implementation and verification step in this file.

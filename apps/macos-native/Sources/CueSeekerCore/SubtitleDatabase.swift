@@ -1540,6 +1540,17 @@ public struct DatabaseStorageStats: Equatable, Sendable {
     }
 }
 
+public enum SubtitleDatabaseError: Error, Equatable, CustomStringConvertible {
+    case unsupportedSchemaVersion(found: Int, supported: Int)
+
+    public var description: String {
+        switch self {
+        case .unsupportedSchemaVersion(let found, let supported):
+            "Unsupported database schema version \(found); this build supports schema \(supported)."
+        }
+    }
+}
+
 public final class SubtitleDatabase: @unchecked Sendable {
     public static let currentSchemaVersion: Int = 33
     public static let configuredBusyTimeoutMilliseconds: Int = 5_000
@@ -1606,85 +1617,61 @@ public final class SubtitleDatabase: @unchecked Sendable {
     public func migrate() throws {
         let previousVersion = try schemaVersion()
 
-        try database.execute(
-            """
-            CREATE TABLE IF NOT EXISTS search_paths (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT NOT NULL DEFAULT 'local',
-                path TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-            """
-        )
-
-        if previousVersion < 3 {
-            try dropDerivedSubtitleIndexTables()
+        guard previousVersion == 0 || previousVersion == Self.currentSchemaVersion else {
+            throw SubtitleDatabaseError.unsupportedSchemaVersion(
+                found: previousVersion,
+                supported: Self.currentSchemaVersion
+            )
+        }
+        guard previousVersion == 0 else {
+            return
         }
 
-        let shioriSchemaSQL: String
-        if previousVersion >= 32 {
-            shioriSchemaSQL = """
-            CREATE TABLE IF NOT EXISTS shiori_lists (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
+        try database.execute("BEGIN IMMEDIATE TRANSACTION;")
+        do {
+            try database.execute(
+                """
+                CREATE TABLE IF NOT EXISTS search_paths (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT NOT NULL DEFAULT 'local',
+                    path TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """
+            )
 
-            INSERT OR IGNORE INTO shiori_lists(id, name, created_at)
-            VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
+            let shioriSchemaSQL = """
+                CREATE TABLE IF NOT EXISTS shiori_lists (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS shioris (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                list_id INTEGER NOT NULL,
-                cue_id INTEGER NOT NULL,
-                created_at TEXT NOT NULL,
-                UNIQUE(list_id, cue_id),
-                FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE,
-                FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
-            );
+                INSERT OR IGNORE INTO shiori_lists(id, name, created_at)
+                VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
 
-            CREATE INDEX IF NOT EXISTS idx_shioris_list_order
-                ON shioris(list_id, created_at DESC, id DESC);
+                CREATE TABLE IF NOT EXISTS shioris (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    list_id INTEGER NOT NULL,
+                    cue_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(list_id, cue_id),
+                    FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE,
+                    FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
+                );
 
-            CREATE INDEX IF NOT EXISTS idx_shioris_cue
-                ON shioris(cue_id);
+                CREATE INDEX IF NOT EXISTS idx_shioris_list_order
+                    ON shioris(list_id, created_at DESC, id DESC);
 
-            CREATE INDEX IF NOT EXISTS idx_shioris_created_order
-                ON shioris(created_at DESC, id DESC);
-            """
-        } else {
-            shioriSchemaSQL = """
-            CREATE TABLE IF NOT EXISTS shioris (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cue_id INTEGER,
-                subtitle_path TEXT NOT NULL,
-                subtitle_format TEXT NOT NULL,
-                start_ms INTEGER NOT NULL,
-                end_ms INTEGER NOT NULL,
-                cue_event_index INTEGER,
-                cue_display_order INTEGER,
-                video_path TEXT NOT NULL,
-                video_name TEXT NOT NULL,
-                content TEXT NOT NULL,
-                is_valid INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL,
-                UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms),
-                FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE SET NULL
-            );
+                CREATE INDEX IF NOT EXISTS idx_shioris_cue
+                    ON shioris(cue_id);
 
-            CREATE INDEX IF NOT EXISTS idx_shioris_subtitle_path
-                ON shioris(subtitle_path);
+                CREATE INDEX IF NOT EXISTS idx_shioris_created_order
+                    ON shioris(created_at DESC, id DESC);
+                """
 
-            CREATE INDEX IF NOT EXISTS idx_shioris_order
-                ON shioris(subtitle_path, start_ms, end_ms);
-
-            CREATE INDEX IF NOT EXISTS idx_shioris_created_order
-                ON shioris(created_at DESC, id DESC);
-            """
-        }
-
-        try database.execute(
+            try database.execute(
             """
             CREATE TABLE IF NOT EXISTS subtitle_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2072,714 +2059,14 @@ public final class SubtitleDatabase: @unchecked Sendable {
                 );
 
             """
-        )
-
-        if previousVersion >= 4 && previousVersion < 5 {
-            try database.execute(
-                """
-                ALTER TABLE ass_render_segments
-                ADD COLUMN algorithm_version INTEGER NOT NULL DEFAULT 0;
-                """
-            )
-        }
-
-        if previousVersion < 9 {
-            try rebuildLibraryPresentationSnapshot()
-        }
-
-        if previousVersion >= 3 && previousVersion < 11,
-           try !columnExists(table: "subtitle_cue_groups", column: "line_count") {
-            try database.execute(
-                """
-                ALTER TABLE subtitle_cue_groups
-                ADD COLUMN line_count INTEGER NOT NULL DEFAULT 1;
-                """
-            )
-            try database.execute(
-                """
-                UPDATE subtitle_cue_groups
-                SET line_count = MAX(1, (
-                    SELECT COUNT(*) FROM subtitle_cue_lines
-                    WHERE cue_group_id = subtitle_cue_groups.id
-                ));
-                """
-            )
-        }
-
-        if previousVersion < 12 {
-            try rebuildSearchOrderRows()
-        }
-
-        if previousVersion < 13 {
-            try rebuildFTSRows()
-        }
-
-        if previousVersion < 20 {
-            if try !columnExists(table: "library_playback_history", column: "started_at") {
-                try database.execute(
-                    """
-                    ALTER TABLE library_playback_history
-                    ADD COLUMN started_at TEXT;
-                    """
-                )
-            }
-            if try !columnExists(table: "library_playback_history", column: "completed_at") {
-                try database.execute(
-                    """
-                    ALTER TABLE library_playback_history
-                    ADD COLUMN completed_at TEXT;
-                    """
-                )
-            }
-            try database.execute(
-                """
-                UPDATE library_playback_history
-                SET started_at = updated_at
-                WHERE started_at IS NULL
-                  AND position_ms > 0;
-                """
-            )
-            try database.execute(
-                """
-                UPDATE library_playback_history
-                SET completed_at = updated_at
-                WHERE completed_at IS NULL
-                  AND duration IS NOT NULL
-                  AND duration > 0
-                  AND (
-                      (CAST(position_ms AS REAL) / 1000.0) >= duration * 0.95
-                      OR duration - (CAST(position_ms AS REAL) / 1000.0) <= 1
-                  );
-                """
-            )
-        }
-
-        if previousVersion < 25 {
-            try database.execute(
-                """
-                INSERT OR IGNORE INTO library_watch_states(video_path, state, updated_at)
-                SELECT video_path,
-                       CASE
-                           WHEN completed_at IS NOT NULL THEN 'finished'
-                           WHEN started_at IS NOT NULL OR position_ms > 0 THEN 'watching'
-                           ELSE 'unwatched'
-                       END,
-                       COALESCE(completed_at, started_at, updated_at)
-                FROM library_playback_history
-                WHERE completed_at IS NOT NULL
-                   OR started_at IS NOT NULL
-                   OR position_ms > 0;
-                """
-            )
-        }
-
-        if previousVersion < 21,
-           try !columnExists(table: "subtitle_files", column: "index_algorithm_version") {
-            try database.execute(
-                """
-                ALTER TABLE subtitle_files
-                ADD COLUMN index_algorithm_version INTEGER NOT NULL DEFAULT 0;
-                """
-            )
-        }
-
-        if previousVersion < 22,
-           try !columnExists(table: "subtitle_cue_groups", column: "time_range") {
-            try database.execute(
-                """
-                ALTER TABLE subtitle_cue_groups
-                ADD COLUMN time_range TEXT NOT NULL DEFAULT '';
-                """
-            )
-            try backfillCueGroupTimeRanges()
-        }
-
-        if previousVersion < 23 {
-            if try !columnExists(table: "video_files", column: "video_width") {
-                try database.execute(
-                    """
-                    ALTER TABLE video_files
-                    ADD COLUMN video_width INTEGER;
-                    """
-                )
-            }
-            if try !columnExists(table: "video_files", column: "video_height") {
-                try database.execute(
-                    """
-                    ALTER TABLE video_files
-                    ADD COLUMN video_height INTEGER;
-                    """
-                )
-            }
-            if try !columnExists(table: "video_files", column: "frame_rate") {
-                try database.execute(
-                    """
-                    ALTER TABLE video_files
-                    ADD COLUMN frame_rate REAL;
-                    """
-                )
-            }
-        }
-
-        if previousVersion < 27 {
-            if try !columnExists(table: "video_covers", column: "display_cover_path") {
-                try database.execute(
-                    """
-                    ALTER TABLE video_covers
-                    ADD COLUMN display_cover_path TEXT;
-                    """
-                )
-            }
-            if try !columnExists(table: "video_covers", column: "display_profile_version") {
-                try database.execute(
-                    """
-                    ALTER TABLE video_covers
-                    ADD COLUMN display_profile_version INTEGER;
-                    """
-                )
-            }
-        }
-
-        if previousVersion < 28,
-           try !columnExists(table: "shioris", column: "cue_event_index") {
-            try migrateLegacyShiorisToSingleCueIdentity()
-        }
-        if previousVersion < 28 {
-            try database.execute(
-                """
-                DROP INDEX IF EXISTS idx_shioris_order;
-                CREATE INDEX idx_shioris_order
-                    ON shioris(subtitle_path, start_ms, end_ms, cue_event_index);
-                """
-            )
-        }
-
-        if previousVersion < 29 {
-            try migratePermanentIdentityColumns()
-        }
-        if previousVersion < 30 {
-            try database.execute(
-                """
-                DROP INDEX IF EXISTS idx_shioris_cue;
-                CREATE UNIQUE INDEX idx_shioris_cue ON shioris(cue_id);
-                """
-            )
-        }
-        if previousVersion < 31 {
-            try database.execute(
-                """
-                DROP TABLE IF EXISTS playback_navigation_state;
-                DROP TABLE IF EXISTS playback_navigation_entries;
-                """
-            )
-        }
-        if previousVersion < 32 {
-            try migrateShiorisToRelationArchitecture()
-        }
-
-        try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
-    }
-
-    private func migrateShiorisToRelationArchitecture() throws {
-        let unresolvedCountStatement = try database.prepare(
-            "SELECT COUNT(*) FROM shioris WHERE cue_id IS NULL;"
-        )
-        guard try unresolvedCountStatement.step() else {
-            throw SQLiteDatabaseError.stepFailed(
-                "Could not validate Shiori CueID relationships"
-            )
-        }
-        let unresolvedCount = unresolvedCountStatement.intColumn(0)
-        try unresolvedCountStatement.reset()
-        guard unresolvedCount == 0 else {
-            throw SQLiteDatabaseError.stepFailed(
-                "Shiori relation migration requires every Shiori to have a CueID"
-            )
-        }
-
-        try database.execute("PRAGMA foreign_keys = OFF;")
-        do {
-            try database.execute("BEGIN IMMEDIATE TRANSACTION;")
-            try database.execute(
-                """
-                CREATE TABLE IF NOT EXISTS shiori_lists (
-                    id INTEGER PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-
-                INSERT OR IGNORE INTO shiori_lists(id, name, created_at)
-                VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
-
-                DROP TABLE IF EXISTS shioris_v32;
-                CREATE TABLE shioris_v32 (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    list_id INTEGER NOT NULL,
-                    cue_id INTEGER NOT NULL,
-                    created_at TEXT NOT NULL,
-                    UNIQUE(list_id, cue_id),
-                    FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE,
-                    FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
-                );
-
-                INSERT INTO shioris_v32(id, list_id, cue_id, created_at)
-                SELECT id, 1, cue_id, created_at
-                FROM shioris
-                ORDER BY id ASC;
-
-                DROP INDEX IF EXISTS idx_shioris_cue;
-                DROP INDEX IF EXISTS idx_shioris_subtitle_path;
-                DROP INDEX IF EXISTS idx_shioris_order;
-                DROP INDEX IF EXISTS idx_shioris_created_order;
-                DROP TABLE shioris;
-                ALTER TABLE shioris_v32 RENAME TO shioris;
-
-                CREATE INDEX idx_shioris_list_order
-                    ON shioris(list_id, created_at DESC, id DESC);
-                CREATE INDEX idx_shioris_cue
-                    ON shioris(cue_id);
-                CREATE INDEX idx_shioris_created_order
-                    ON shioris(created_at DESC, id DESC);
-                """
             )
 
-            let foreignKeyCheck = try database.prepare("PRAGMA foreign_key_check;")
-            guard try !foreignKeyCheck.step() else {
-                throw SQLiteDatabaseError.executeFailed(
-                    "Shiori relation migration left an invalid foreign-key reference"
-                )
-            }
+            try database.execute("PRAGMA user_version = \(Self.currentSchemaVersion);")
             try database.execute("COMMIT;")
-            try database.execute("PRAGMA foreign_keys = ON;")
         } catch {
             try? database.execute("ROLLBACK;")
-            try? database.execute("PRAGMA foreign_keys = ON;")
             throw error
         }
-    }
-
-    private func migratePermanentIdentityColumns() throws {
-        if try !columnExists(table: "subtitle_files", column: "library_id") {
-            try database.execute("ALTER TABLE subtitle_files ADD COLUMN library_id INTEGER REFERENCES search_paths(id);")
-        }
-        if try !columnExists(table: "subtitle_files", column: "relative_path") {
-            try database.execute("ALTER TABLE subtitle_files ADD COLUMN relative_path TEXT;")
-        }
-        if try !columnExists(table: "video_files", column: "library_id") {
-            try database.execute("ALTER TABLE video_files ADD COLUMN library_id INTEGER REFERENCES search_paths(id);")
-        }
-        if try !columnExists(table: "video_files", column: "relative_path") {
-            try database.execute("ALTER TABLE video_files ADD COLUMN relative_path TEXT;")
-        }
-        if try !columnExists(table: "subtitle_cue_lines", column: "subtitle_file_id") {
-            try database.execute("ALTER TABLE subtitle_cue_lines ADD COLUMN subtitle_file_id INTEGER REFERENCES subtitle_files(id);")
-        }
-        if try !columnExists(table: "library_playback_history", column: "video_file_id") {
-            try database.execute("ALTER TABLE library_playback_history ADD COLUMN video_file_id INTEGER REFERENCES video_files(id);")
-        }
-        if try !columnExists(table: "library_watch_states", column: "video_file_id") {
-            try database.execute("ALTER TABLE library_watch_states ADD COLUMN video_file_id INTEGER REFERENCES video_files(id);")
-        }
-        if try !columnExists(table: "library_video_rows", column: "video_file_id") {
-            try database.execute("ALTER TABLE library_video_rows ADD COLUMN video_file_id INTEGER REFERENCES video_files(id);")
-        }
-        if try !columnExists(table: "library_video_rows", column: "subtitle_file_id") {
-            try database.execute("ALTER TABLE library_video_rows ADD COLUMN subtitle_file_id INTEGER REFERENCES subtitle_files(id);")
-        }
-        if try !columnExists(table: "subtitle_search_order_rows", column: "subtitle_file_id") {
-            try database.execute("ALTER TABLE subtitle_search_order_rows ADD COLUMN subtitle_file_id INTEGER REFERENCES subtitle_files(id);")
-        }
-        if try !columnExists(table: "shioris", column: "cue_id") {
-            try database.execute("ALTER TABLE shioris ADD COLUMN cue_id INTEGER REFERENCES subtitle_cue_lines(id) ON DELETE SET NULL;")
-        }
-
-        try database.execute(
-            """
-            UPDATE subtitle_cue_lines
-            SET subtitle_file_id = (
-                SELECT g.subtitle_file_id
-                FROM subtitle_cue_groups g
-                WHERE g.id = subtitle_cue_lines.cue_group_id
-            )
-            WHERE subtitle_file_id IS NULL;
-
-            UPDATE library_playback_history
-            SET video_file_id = (
-                SELECT vf.id FROM video_files vf
-                WHERE vf.path = library_playback_history.video_path
-            )
-            WHERE video_file_id IS NULL;
-
-            UPDATE library_watch_states
-            SET video_file_id = (
-                SELECT vf.id FROM video_files vf
-                WHERE vf.path = library_watch_states.video_path
-            )
-            WHERE video_file_id IS NULL;
-
-            UPDATE library_video_rows
-            SET video_file_id = (
-                    SELECT vf.id FROM video_files vf
-                    WHERE vf.path = library_video_rows.video_path
-                ),
-                subtitle_file_id = (
-                    SELECT sf.id FROM subtitle_files sf
-                    WHERE sf.subtitle_path = library_video_rows.subtitle_path
-                )
-            WHERE video_file_id IS NULL OR subtitle_file_id IS NULL;
-
-            UPDATE subtitle_search_order_rows
-            SET subtitle_file_id = (
-                SELECT sf.id FROM subtitle_files sf
-                WHERE sf.subtitle_path = subtitle_search_order_rows.subtitle_path
-            )
-            WHERE subtitle_file_id IS NULL;
-
-            CREATE INDEX IF NOT EXISTS idx_subtitle_files_library_relative_path
-                ON subtitle_files(library_id, relative_path);
-            CREATE INDEX IF NOT EXISTS idx_video_files_library_relative_path
-                ON video_files(library_id, relative_path);
-            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_subtitle_file
-                ON subtitle_cue_lines(subtitle_file_id, id);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_library_playback_history_video_file
-                ON library_playback_history(video_file_id)
-                WHERE video_file_id IS NOT NULL;
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_library_watch_states_video_file
-                ON library_watch_states(video_file_id)
-                WHERE video_file_id IS NOT NULL;
-            CREATE INDEX IF NOT EXISTS idx_library_video_rows_video_file
-                ON library_video_rows(video_file_id);
-            CREATE INDEX IF NOT EXISTS idx_library_video_rows_subtitle_file
-                ON library_video_rows(subtitle_file_id);
-            CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_file
-                ON subtitle_search_order_rows(subtitle_file_id);
-            """
-        )
-    }
-
-    private func backfillCueGroupTimeRanges() throws {
-        let selectStatement = try database.prepare(
-            """
-            SELECT id, start_ms, end_ms
-            FROM subtitle_cue_groups
-            WHERE time_range = '';
-            """
-        )
-        var updates: [(cueGroupID: Int64, timeRange: String)] = []
-        while try selectStatement.step() {
-            updates.append(
-                (
-                    cueGroupID: selectStatement.int64Column(0),
-                    timeRange: Self.cueTimeRange(
-                        startMilliseconds: selectStatement.intColumn(1),
-                        endMilliseconds: selectStatement.intColumn(2)
-                    )
-                )
-            )
-        }
-
-        let updateStatement = try database.prepare(
-            """
-            UPDATE subtitle_cue_groups
-            SET time_range = ?
-            WHERE id = ?;
-            """
-        )
-        for update in updates {
-            try updateStatement.bind(update.timeRange, at: 1)
-            try updateStatement.bind(update.cueGroupID, at: 2)
-            try updateStatement.run()
-            try updateStatement.reset()
-            try updateStatement.clearBindings()
-        }
-    }
-
-    private struct LegacyShioriMigrationRow {
-        let id: Int64
-        let subtitlePath: String
-        let subtitleFormat: String
-        let startMilliseconds: Int
-        let endMilliseconds: Int
-        let videoPath: String
-        let videoName: String
-        let content: String
-        let isValid: Bool
-        let createdAt: String
-    }
-
-    private struct LegacyShioriCueCandidate {
-        let identity: SubtitleCueIdentity
-        let displayOrder: Int
-        let content: String
-        let isJapanese: Bool
-    }
-
-    private struct MigratedShioriIdentityKey: Hashable {
-        let subtitlePath: String
-        let identity: SubtitleCueIdentity
-    }
-
-    private func migrateLegacyShiorisToSingleCueIdentity() throws {
-        let legacyRows = try legacyShioriMigrationRows()
-        var migratedRows: [(legacy: LegacyShioriMigrationRow, cue: LegacyShioriCueCandidate?)] = []
-        migratedRows.reserveCapacity(legacyRows.count)
-        var usedIdentities = Set<MigratedShioriIdentityKey>()
-
-        for legacy in legacyRows {
-            var cue = try legacyShioriCueCandidate(for: legacy)
-            if let resolvedCue = cue {
-                let key = MigratedShioriIdentityKey(
-                    subtitlePath: legacy.subtitlePath,
-                    identity: resolvedCue.identity
-                )
-                if !usedIdentities.insert(key).inserted {
-                    cue = nil
-                }
-            }
-            migratedRows.append((legacy: legacy, cue: cue))
-        }
-
-        try database.execute("PRAGMA foreign_keys = OFF;")
-        do {
-            try database.execute("BEGIN IMMEDIATE TRANSACTION;")
-            try database.execute(
-                """
-                DROP TABLE IF EXISTS shioris_v28;
-
-                CREATE TABLE shioris_v28 (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    subtitle_path TEXT NOT NULL,
-                    subtitle_format TEXT NOT NULL,
-                    start_ms INTEGER NOT NULL,
-                    end_ms INTEGER NOT NULL,
-                    cue_event_index INTEGER,
-                    cue_display_order INTEGER,
-                    video_path TEXT NOT NULL,
-                    video_name TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    is_valid INTEGER NOT NULL DEFAULT 1,
-                    created_at TEXT NOT NULL,
-                    UNIQUE(subtitle_path, cue_event_index, start_ms, end_ms)
-                );
-                """
-            )
-
-            let insertStatement = try database.prepare(
-                """
-                INSERT INTO shioris_v28(
-                    id,
-                    subtitle_path,
-                    subtitle_format,
-                    start_ms,
-                    end_ms,
-                    cue_event_index,
-                    cue_display_order,
-                    video_path,
-                    video_name,
-                    content,
-                    is_valid,
-                    created_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """
-            )
-
-            for row in migratedRows {
-                let identity = row.cue?.identity
-                try insertStatement.bind(row.legacy.id, at: 1)
-                try insertStatement.bind(row.legacy.subtitlePath, at: 2)
-                try insertStatement.bind(row.legacy.subtitleFormat, at: 3)
-                try insertStatement.bind(identity?.startMilliseconds ?? row.legacy.startMilliseconds, at: 4)
-                try insertStatement.bind(identity?.endMilliseconds ?? row.legacy.endMilliseconds, at: 5)
-                if let eventIndex = identity?.eventIndex {
-                    try insertStatement.bind(eventIndex, at: 6)
-                } else {
-                    try insertStatement.bindNull(at: 6)
-                }
-                if let displayOrder = row.cue?.displayOrder {
-                    try insertStatement.bind(displayOrder, at: 7)
-                } else {
-                    try insertStatement.bindNull(at: 7)
-                }
-                try insertStatement.bind(row.legacy.videoPath, at: 8)
-                try insertStatement.bind(row.legacy.videoName, at: 9)
-                try insertStatement.bind(row.cue?.content ?? row.legacy.content, at: 10)
-                try insertStatement.bind(row.legacy.isValid ? 1 : 0, at: 11)
-                try insertStatement.bind(row.legacy.createdAt, at: 12)
-                try insertStatement.run()
-                try insertStatement.reset()
-                try insertStatement.clearBindings()
-            }
-
-            try database.execute(
-                """
-                DROP TABLE shioris;
-                ALTER TABLE shioris_v28 RENAME TO shioris;
-
-                CREATE INDEX idx_shioris_subtitle_path
-                    ON shioris(subtitle_path);
-
-                CREATE INDEX idx_shioris_order
-                    ON shioris(subtitle_path, start_ms, end_ms, cue_event_index);
-
-                CREATE INDEX idx_shioris_created_order
-                    ON shioris(created_at DESC, id DESC);
-                """
-            )
-
-            let foreignKeyCheck = try database.prepare(
-                "PRAGMA foreign_key_check(shiori_tag_assignments);"
-            )
-            guard try !foreignKeyCheck.step() else {
-                throw SQLiteDatabaseError.executeFailed(
-                    "Shiori Cue migration left an invalid foreign-key reference"
-                )
-            }
-
-            try database.execute("COMMIT;")
-            try database.execute("PRAGMA foreign_keys = ON;")
-        } catch {
-            try? database.execute("ROLLBACK;")
-            try? database.execute("PRAGMA foreign_keys = ON;")
-            throw error
-        }
-    }
-
-    private func legacyShioriMigrationRows() throws -> [LegacyShioriMigrationRow] {
-        let statement = try database.prepare(
-            """
-            SELECT id, subtitle_path, subtitle_format, start_ms, end_ms,
-                   video_path, video_name, content, is_valid, created_at
-            FROM shioris
-            ORDER BY id ASC;
-            """
-        )
-        var rows: [LegacyShioriMigrationRow] = []
-        while try statement.step() {
-            rows.append(
-                LegacyShioriMigrationRow(
-                    id: statement.int64Column(0),
-                    subtitlePath: statement.stringColumn(1),
-                    subtitleFormat: statement.stringColumn(2),
-                    startMilliseconds: statement.intColumn(3),
-                    endMilliseconds: statement.intColumn(4),
-                    videoPath: statement.stringColumn(5),
-                    videoName: statement.stringColumn(6),
-                    content: statement.stringColumn(7),
-                    isValid: statement.intColumn(8) != 0,
-                    createdAt: statement.stringColumn(9)
-                )
-            )
-        }
-        return rows
-    }
-
-    private func legacyShioriCueCandidate(
-        for shiori: LegacyShioriMigrationRow
-    ) throws -> LegacyShioriCueCandidate? {
-        let statement = try database.prepare(
-            """
-            SELECT l.event_index, l.display_order, l.start_ms, l.end_ms, l.content,
-                   EXISTS (
-                       SELECT 1
-                       FROM subtitle_language_detections d
-                       WHERE d.subtitle_file_id = sf.id
-                         AND d.scope = 'style'
-                         AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*')
-                   ) AS has_style_detection,
-                   EXISTS (
-                       SELECT 1
-                       FROM subtitle_language_detections d
-                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
-                       WHERE d.subtitle_file_id = sf.id
-                         AND dc.language_code = 'ja'
-                         AND d.scope = 'style'
-                         AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*')
-                   ) AS style_is_japanese,
-                   (
-                       SELECT COUNT(DISTINCT dc.language_code)
-                       FROM subtitle_language_detections d
-                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
-                       WHERE d.subtitle_file_id = sf.id
-                         AND d.scope = 'style'
-                         AND d.scope_key = ltrim(COALESCE(l.source_style, ''), '*')
-                   ) AS style_language_count,
-                   (
-                       SELECT COUNT(DISTINCT dc.language_code)
-                       FROM subtitle_language_detections d
-                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
-                       WHERE d.subtitle_file_id = sf.id
-                         AND d.scope = 'file'
-                         AND d.scope_key = ''
-                   ) AS file_language_count,
-                   EXISTS (
-                       SELECT 1
-                       FROM subtitle_language_detections d
-                       JOIN subtitle_language_detection_codes dc ON dc.detection_id = d.id
-                       WHERE d.subtitle_file_id = sf.id
-                         AND d.scope = 'file'
-                         AND d.scope_key = ''
-                         AND dc.language_code = 'ja'
-                   ) AS file_is_japanese
-            FROM subtitle_files sf
-            JOIN subtitle_cue_groups g ON g.subtitle_file_id = sf.id
-            JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
-            WHERE sf.subtitle_path = ?
-              AND g.start_ms = ?
-              AND g.end_ms = ?
-            ORDER BY g.id ASC, l.display_order ASC, l.event_index ASC, l.id ASC;
-            """
-        )
-        try statement.bind(shiori.subtitlePath, at: 1)
-        try statement.bind(shiori.startMilliseconds, at: 2)
-        try statement.bind(shiori.endMilliseconds, at: 3)
-
-        let recognizer = SubtitleLanguageRecognizer(minimumEffectiveCharacterCount: 4)
-        var candidates: [LegacyShioriCueCandidate] = []
-        while try statement.step() {
-            let content = statement.stringColumn(4)
-            let hasStyleDetection = statement.intColumn(5) != 0
-            let styleIsJapanese = statement.intColumn(6) != 0
-            let styleLanguageCount = statement.intColumn(7)
-            let fileLanguageCount = statement.intColumn(8)
-            let fileIsJapanese = statement.intColumn(9) != 0
-            let isJapanese: Bool
-            if hasStyleDetection, styleLanguageCount == 1 {
-                isJapanese = styleIsJapanese
-            } else if hasStyleDetection, styleLanguageCount > 1, styleIsJapanese {
-                isJapanese = recognizer.detectLanguages(
-                    in: SubtitleLanguageAnalyzer.languageSegments(from: content)
-                ).languages.contains(.japanese)
-            } else if hasStyleDetection {
-                isJapanese = false
-            } else if fileLanguageCount == 1 {
-                isJapanese = fileIsJapanese
-            } else if fileLanguageCount > 1, fileIsJapanese {
-                isJapanese = recognizer.detectLanguages(
-                    in: SubtitleLanguageAnalyzer.languageSegments(from: content)
-                ).languages.contains(.japanese)
-            } else if fileLanguageCount > 0 {
-                isJapanese = false
-            } else {
-                isJapanese = recognizer.detectLanguages(
-                    in: SubtitleLanguageAnalyzer.languageSegments(from: content)
-                ).languages.contains(.japanese)
-            }
-            candidates.append(
-                LegacyShioriCueCandidate(
-                    identity: SubtitleCueIdentity(
-                        eventIndex: statement.intColumn(0),
-                        startMilliseconds: statement.intColumn(2),
-                        endMilliseconds: statement.intColumn(3)
-                    ),
-                    displayOrder: statement.intColumn(1),
-                    content: content,
-                    isJapanese: isJapanese
-                )
-            )
-        }
-
-        return candidates.last(where: \.isJapanese) ?? candidates.last
     }
 
     private static func cueTimeRange(startMilliseconds: Int, endMilliseconds: Int) -> String {
@@ -2787,16 +2074,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds
         )
-    }
-
-    private func columnExists(table: String, column: String) throws -> Bool {
-        let statement = try database.prepare("PRAGMA table_info(\(table));")
-        while try statement.step() {
-            if statement.stringColumn(1) == column {
-                return true
-            }
-        }
-        return false
     }
 
     private func bindPathPrefixes(
@@ -10773,18 +10050,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
         return cueGroupSelection(from: statement)
     }
 
-    private func rebuildFTSRows() throws {
-        try database.execute("BEGIN IMMEDIATE TRANSACTION")
-        do {
-            try rebuildFTSRowsInProductOrder()
-            try database.execute("COMMIT")
-            clearSearchResultCache()
-        } catch {
-            try? database.execute("ROLLBACK")
-            throw error
-        }
-    }
-
     private func rebuildFTSRowsInProductOrder() throws {
         try requireCompleteSearchOrderRows(pathPrefixes: nil, subtitlePath: nil)
         try database.execute("DELETE FROM subtitle_cue_groups_fts;")
@@ -11302,32 +10567,6 @@ public final class SubtitleDatabase: @unchecked Sendable {
                   FROM library_watch_states
                   WHERE video_file_id IS NOT NULL
               );
-            """
-        )
-    }
-
-    private func dropDerivedSubtitleIndexTables() throws {
-        try database.execute(
-            """
-            DROP TABLE IF EXISTS subtitle_cue_groups_fts;
-            DROP TABLE IF EXISTS subtitle_cue_line_speakers;
-            DROP TABLE IF EXISTS subtitle_cue_group_languages;
-            DROP TABLE IF EXISTS subtitle_language_detection_distribution;
-            DROP TABLE IF EXISTS subtitle_language_detection_codes;
-            DROP TABLE IF EXISTS subtitle_language_detections;
-            DROP TABLE IF EXISTS subtitle_language_manifests;
-            DROP TABLE IF EXISTS subtitle_playback_finish_metadata;
-            DROP TABLE IF EXISTS subtitle_cue_lines;
-            DROP TABLE IF EXISTS subtitle_cue_groups;
-            DROP TABLE IF EXISTS ass_font_references;
-            DROP TABLE IF EXISTS ass_font_reference_manifests;
-            DROP TABLE IF EXISTS ass_render_segments;
-            DROP TABLE IF EXISTS subtitle_video_matches;
-            DROP TABLE IF EXISTS video_files;
-            DROP TABLE IF EXISTS subtitle_search_order_rows;
-            DROP TABLE IF EXISTS subtitle_entries_fts;
-            DROP TABLE IF EXISTS subtitle_entries;
-            DROP TABLE IF EXISTS subtitle_files;
             """
         )
     }
