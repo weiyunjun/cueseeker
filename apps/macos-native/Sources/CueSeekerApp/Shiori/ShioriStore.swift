@@ -8,6 +8,12 @@ final class ShioriStore: ObservableObject {
     private var cueContentChangesCancellable: AnyCancellable?
     private var isTableProjectionResponseActive = true
     private var pendingCueContentChange: CueContentStoreChange?
+    @Published private(set) var listOverview = ShioriListOverview(
+        lists: [],
+        uniqueCueCount: 0
+    )
+    @Published private(set) var hasLoadedListOverview = false
+    @Published private(set) var activeListID: Int64?
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
     @Published var tableSubmittedSearchText = ""
@@ -23,6 +29,7 @@ final class ShioriStore: ObservableObject {
     private(set) var residentRelations: [ShioriRelation] = []
     private(set) var residentTagsByShioriID: [Int64: [ShioriTag]] = [:]
     private(set) var residentDataRevision: Int?
+    private(set) var residentListID: Int64?
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []
@@ -50,6 +57,23 @@ final class ShioriStore: ObservableObject {
         }
         self.pendingCueContentChange = nil
         refreshReferencedCueContent(pendingCueContentChange)
+    }
+
+    func installListOverview(_ overview: ShioriListOverview) {
+        listOverview = overview
+        hasLoadedListOverview = true
+    }
+
+    func clearListOverviewForReload() {
+        hasLoadedListOverview = false
+    }
+
+    func setActiveListID(_ listID: Int64?) {
+        guard activeListID != listID else {
+            return
+        }
+        activeListID = listID
+        invalidateTableRows()
     }
 
     private func receiveCueContentChange(_ change: CueContentStoreChange) {
@@ -96,10 +120,12 @@ final class ShioriStore: ObservableObject {
 
     func installResidentSnapshot(
         _ snapshot: ShioriResidentSnapshot,
+        listID: Int64 = ShioriListIdentity.defaultListID,
         dataRevision: Int
     ) {
         residentRelations = snapshot.relations
         residentTagsByShioriID = snapshot.tagsByShioriID
+        residentListID = listID
         residentDataRevision = dataRevision
     }
 
@@ -118,6 +144,7 @@ final class ShioriStore: ObservableObject {
     func clearResidentSnapshot() {
         residentRelations = []
         residentTagsByShioriID = [:]
+        residentListID = nil
         residentDataRevision = nil
     }
 

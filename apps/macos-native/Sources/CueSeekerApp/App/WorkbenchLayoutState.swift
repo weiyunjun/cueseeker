@@ -68,6 +68,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var panelMode: WorkbenchPanelMode
     @Published fileprivate(set) var isSearchFocused = false
     @Published fileprivate(set) var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation?
+    @Published fileprivate(set) var selectedShioriListID: Int64?
 
     init(panelMode: WorkbenchPanelMode) {
         self.panelMode = panelMode
@@ -109,6 +110,10 @@ final class WorkbenchLayoutState: ObservableObject {
         set { route.selectedTestLibraryFolder = newValue }
     }
 
+    var selectedShioriListID: Int64? {
+        route.selectedShioriListID
+    }
+
     func selectPanelMode(_ mode: WorkbenchPanelMode) {
         guard route.panelMode != mode else {
             return
@@ -148,6 +153,14 @@ final class WorkbenchLayoutState: ObservableObject {
 
     func clearTestLibraryFolder() {
         route.selectedTestLibraryFolder = nil
+    }
+
+    func selectShioriList(id: Int64) {
+        route.selectedShioriListID = id
+    }
+
+    func clearShioriList() {
+        route.selectedShioriListID = nil
     }
 
     func beginVideoSizeTransition() -> Bool {

@@ -495,6 +495,7 @@ extension AppCoordinator {
     ) {
         if result == .saved {
             shiori.invalidateTableRows()
+            reloadShioriListOverview()
             loadShioriTableRowsIfNeeded()
         }
         guard playbackSubtitleFocusActionGeneration == taskGeneration,

@@ -71,8 +71,29 @@ the native macOS app.
   tests.
 - `git diff --check` passed.
 
+## Step 4 Changes
+
+- Added non-persisted Shiori overview/detail route state so a list selection is
+  scoped to the current app session.
+- Added Shiori overview state for the ordered list summaries and deduplicated
+  Cue count.
+- Changed the existing Shiori table hydration path to load only its active list
+  and reject stale responses after the active list changes.
+- Refreshes overview counts after Shiori saves, removals, and indexed-content
+  mutations.
+- Kept the existing Shiori table search, filters, summary, View controls,
+  columns, empty hint, and playback navigation behavior.
+
+## Step 4 Verification
+
+- Selected overview loading, detail routing, list-scoped table hydration,
+  route-state, and existing removal tests passed (3 tests).
+- The full native app and test targets compiled while running the selected
+  tests.
+- `git diff --check` passed.
+
 ## Outcome
 
-- Implementation is in progress. Steps 1 through 3 matched the accepted
-  persistence, list scope, transfer, form, confirmation, cover, and Toast
+- Implementation is in progress. Steps 1 through 4 matched the accepted
+  persistence, list scope, transfer, shared UI, and overview/detail state
   requirements.

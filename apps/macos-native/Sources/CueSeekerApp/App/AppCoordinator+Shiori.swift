@@ -15,6 +15,61 @@ struct ShioriTagDeletionOutcome: Equatable {
 
 @MainActor
 extension AppCoordinator {
+    func loadShioriListOverviewIfNeeded() {
+        guard !shiori.hasLoadedListOverview, shioriListOverviewTask == nil else {
+            return
+        }
+        reloadShioriListOverview()
+    }
+
+    func reloadShioriListOverview() {
+        shioriListOverviewTask?.cancel()
+        shiori.clearListOverviewForReload()
+        let databaseURL = databaseURL
+        shioriListOverviewTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            defer {
+                self.shioriListOverviewTask = nil
+            }
+            do {
+                let overview = try await Self.runCancellableDetached(
+                    priority: .userInitiated
+                ) {
+                    try ShioriDatabase(
+                        path: databaseURL,
+                        access: .readOnly
+                    ).shioriListOverview()
+                }
+                try Task.checkCancellation()
+                self.shiori.installListOverview(overview)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+                print("Failed to load Shiori list overview: \(error)")
+                self.shiori.installListOverview(
+                    ShioriListOverview(lists: [], uniqueCueCount: 0)
+                )
+            }
+        }
+    }
+
+    func openShioriList(id: Int64) {
+        workbenchLayout.selectShioriList(id: id)
+        shiori.setActiveListID(id)
+        reloadShioriTableRows()
+    }
+
+    func showShioriListOverview() {
+        workbenchLayout.clearShioriList()
+        shiori.setActiveListID(try? shioriDatabase?.firstShioriListID())
+        reloadShioriListOverview()
+    }
+
     func loadShioriTableRowsIfNeeded() {
         guard !indexing.indexingStatus.isIndexing,
               !indexing.folderRemovalStatus.isRemoving
@@ -39,18 +94,29 @@ extension AppCoordinator {
         else {
             return
         }
+        guard let listID = shiori.activeListID
+                ?? (try? shioriDatabase?.firstShioriListID())
+        else {
+            shiori.clearTableRowsForReload()
+            shiori.markTableRowsLoaded(totalSavedRowCount: 0)
+            return
+        }
+
         shioriTableRowsTask?.cancel()
+        shiori.setActiveListID(listID)
         shiori.clearTableRowsForReload()
 
         let resultSnapshotID = shiori.tableResultSnapshotID
         let searchText = shiori.tableSubmittedSearchText
         let filterSet = shiori.tableFilterRules.subtitleSearchFilterSet
         let dataRevision = shiori.tableDataRevision
-        if shiori.residentDataRevision == dataRevision {
+        if shiori.residentDataRevision == dataRevision,
+           shiori.residentListID == listID {
             applyResidentShioriTableProjection(
                 resultSnapshotID: resultSnapshotID,
                 searchText: searchText,
                 filterSet: filterSet,
+                listID: listID,
                 dataRevision: dataRevision
             )
             return
@@ -74,12 +140,13 @@ extension AppCoordinator {
                     try ShioriDatabase(
                         path: databaseURL,
                         access: .readOnly
-                    ).shioriResidentSnapshot()
+                    ).shioriResidentSnapshot(listID: listID)
                 }
                 guard self.shioriTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     filterSignature: filterSet.cacheSignature,
+                    listID: listID,
                     dataRevision: dataRevision
                 ) else {
                     return
@@ -87,12 +154,14 @@ extension AppCoordinator {
                 self.cueContent.install(residentSnapshot.cueContents)
                 self.shiori.installResidentSnapshot(
                     residentSnapshot,
+                    listID: listID,
                     dataRevision: dataRevision
                 )
                 self.applyResidentShioriTableProjection(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     filterSet: filterSet,
+                    listID: listID,
                     dataRevision: dataRevision
                 )
             } catch is CancellationError {
@@ -104,6 +173,7 @@ extension AppCoordinator {
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     filterSignature: filterSet.cacheSignature,
+                    listID: listID,
                     dataRevision: dataRevision
                 ) {
                     self.shiori.markTableRowsLoaded(totalSavedRowCount: 0)
@@ -126,6 +196,7 @@ extension AppCoordinator {
             }
         }
         shiori.invalidateTableRows()
+        shiori.clearListOverviewForReload()
         shioriPlaybackNavigationScopeIDs = nil
         shioriPlaybackNavigationSnapshot = nil
     }
@@ -137,6 +208,7 @@ extension AppCoordinator {
             return
         }
         shioriNeedsReloadAfterIndexedContentMutation = false
+        reloadShioriListOverview()
         reloadShioriTableRows()
     }
 
@@ -144,12 +216,14 @@ extension AppCoordinator {
         resultSnapshotID: UUID,
         searchText: String,
         filterSet: SubtitleSearchFilterSet,
+        listID: Int64,
         dataRevision: Int
     ) {
         guard shioriTableRequestMatches(
             resultSnapshotID: resultSnapshotID,
             searchText: searchText,
             filterSignature: filterSet.cacheSignature,
+            listID: listID,
             dataRevision: dataRevision
         ) else {
             return
@@ -200,6 +274,7 @@ extension AppCoordinator {
         resultSnapshotID: UUID,
         searchText: String,
         filterSignature: String,
+        listID: Int64,
         dataRevision: Int
     ) -> Bool {
         !Task.isCancelled
@@ -207,6 +282,7 @@ extension AppCoordinator {
             && shiori.tableSubmittedSearchText == searchText
             && shiori.tableFilterRules.subtitleSearchFilterSet.cacheSignature
                 == filterSignature
+            && shiori.activeListID == listID
             && shiori.tableDataRevision == dataRevision
     }
 
@@ -298,6 +374,7 @@ extension AppCoordinator {
             try database.removeShiori(id: item.id)
             _ = reloadPresentation
             shiori.invalidateTableRows()
+            reloadShioriListOverview()
             removeShioriFromPlaybackNavigationScope(item.id)
             if shiori.selectedShiori?.id == item.id {
                 shiori.selectedShiori = nil

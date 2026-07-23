@@ -118,6 +118,24 @@ func workbenchLayoutStateIgnoresNonPositiveCompactWindowWidth() {
 }
 
 @MainActor
+@Test
+func workbenchLayoutStateTracksShioriListDetailWithoutPersistingIt() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+
+        layoutState.selectShioriList(id: 42)
+        #expect(layoutState.selectedShioriListID == 42)
+        #expect(layoutState.route.selectedShioriListID == 42)
+
+        layoutState.clearShioriList()
+        #expect(layoutState.selectedShioriListID == nil)
+
+        let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+        #expect(reloadedLayoutState.selectedShioriListID == nil)
+    }
+}
+
+@MainActor
 private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> Void) {
     let suiteName = "CueSeekerWorkbenchLayoutStateTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!
