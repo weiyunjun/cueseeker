@@ -63,6 +63,10 @@ private struct ContentRootView: View {
                             .zIndex(3)
                     }
 
+                    ToastStackView(center: appState.toast)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .zIndex(100)
+
                     TitlebarCommandBridge()
                         .frame(width: 0, height: 0)
                 }

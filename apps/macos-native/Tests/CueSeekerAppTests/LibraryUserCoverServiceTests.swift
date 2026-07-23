@@ -232,6 +232,38 @@ func libraryUserCoverServiceRestoresOldCoverWhenOldFileCannotBeSafelyRemoved() a
     )
 }
 
+@Test
+func shioriListCoverStoragePublishesAndSafelyRemovesCroppedCovers() async throws {
+    let directory = libraryUserCoverTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let service = ShioriListCoverStorage(coverDirectory: directory)
+    let source = LibraryUserCoverSource(
+        image: try makeLibraryUserCoverTestImage(
+            width: 1_600,
+            height: 900,
+            red: 0.3,
+            green: 0.5,
+            blue: 0.7,
+            alpha: 1
+        )
+    )
+
+    let path = try await service.publish(
+        source: source,
+        cropRect: CGRect(x: 0, y: 0, width: 1_600, height: 900)
+    )
+    #expect(FileManager.default.fileExists(atPath: path))
+    #expect(path.contains("/Shiori/Display/v1/"))
+
+    try await service.remove(path: path)
+    #expect(!FileManager.default.fileExists(atPath: path))
+
+    let externalPath = directory.appendingPathComponent("external.jpg").path
+    await #expect(throws: LibraryUserCoverError.invalidStoredCoverPath(externalPath)) {
+        try await service.remove(path: externalPath)
+    }
+}
+
 private func libraryUserCoverTemporaryDirectory() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerLibraryUserCoverTests-\(UUID().uuidString)")

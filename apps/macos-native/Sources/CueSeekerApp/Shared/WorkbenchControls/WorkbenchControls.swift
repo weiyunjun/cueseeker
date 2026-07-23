@@ -17,6 +17,8 @@ enum WorkbenchControlMetrics {
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
+    /// --height-form-text-area: 96px
+    static let redesignFormTextAreaHeight: CGFloat = 96
     /// --height-filter-bar-control (Search box): 40px
     static let redesignSearchHeight: CGFloat = 40
     /// --radius-field: 8px
@@ -72,6 +74,10 @@ enum WorkbenchControlMetrics {
     static let redesignSpacing2: CGFloat = 8
     /// --spacing-3: 12px
     static let redesignSpacing3: CGFloat = 12
+    /// --spacing-4: 16px
+    static let redesignSpacing4: CGFloat = 16
+    /// --spacing-6: 24px
+    static let redesignSpacing6: CGFloat = 24
     /// --gap-app-topbar-title-after-toggle: 12px
     static let redesignAppTopbarTitleAfterToggleGap: CGFloat = 12
     /// --padding-header-trigger-x: 12px

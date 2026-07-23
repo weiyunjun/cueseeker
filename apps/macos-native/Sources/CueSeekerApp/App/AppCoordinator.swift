@@ -37,6 +37,7 @@ final class AppCoordinator: ObservableObject {
     let search: SearchStore
     let cueContent: CueContentStore
     let playback: PlaybackStore
+    let toast = ToastCenter()
     var settingsCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
@@ -49,6 +50,7 @@ final class AppCoordinator: ObservableObject {
     let libraryCoverDatabase: LibraryCoverDatabase?
     let shioriDatabase: ShioriDatabase?
     let libraryUserCoverService: LibraryUserCoverService?
+    let shioriListCoverStorage: ShioriListCoverStorage
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
@@ -496,6 +498,9 @@ final class AppCoordinator: ObservableObject {
             .appendingPathComponent("Covers", isDirectory: true)
         self.databaseURL = resolvedDatabaseURL
         self.libraryCoverDirectory = resolvedLibraryCoverDirectory
+        self.shioriListCoverStorage = ShioriListCoverStorage(
+            coverDirectory: resolvedLibraryCoverDirectory
+        )
         self.libraryFolderRemovalExecutor = libraryFolderRemovalExecutor
         playbackSubtitleFocusDatabaseReader = PlaybackSubtitleFocusDatabaseReader(
             databaseURL: resolvedDatabaseURL

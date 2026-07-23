@@ -46,7 +46,33 @@ the native macOS app.
   and existing Shiori persistence tests passed (4 tests).
 - `git diff --check` passed.
 
+## Step 3 Changes
+
+- Generalized the centered Confirmation Dialog to support any ordered
+  combination of neutral, primary, and destructive actions, including separate
+  default and Cancel keyboard semantics.
+- Added shared single-line and fixed-height multiline form controls with
+  persistent labels, validation messages, error borders, focus rings, native
+  selection, and vertical scrolling.
+- Added the App Center Toast component with 5-second default duration, natural
+  wrapping, documented enter/exit/reflow motion, four-visible FIFO stacking,
+  individual Hover pause, App-inactive pause, and accessibility announcements.
+- Added the six accepted Shiori Toast requests with their registry Scenario IDs
+  and exact text.
+- Reused the existing image validation, decoding, 16:9 crop editor, and JPEG
+  processor for Shiori list covers, with a separate safely bounded storage
+  directory.
+
+## Step 3 Verification
+
+- Selected Toast scenario, stack, queue, pause, and Shiori cover storage tests
+  passed (4 tests).
+- The full native app and test targets compiled while running the selected
+  tests.
+- `git diff --check` passed.
+
 ## Outcome
 
-- Implementation is in progress. Steps 1 and 2 matched the accepted persistence,
-  validation, list scope, and transfer requirements.
+- Implementation is in progress. Steps 1 through 3 matched the accepted
+  persistence, list scope, transfer, form, confirmation, cover, and Toast
+  requirements.
