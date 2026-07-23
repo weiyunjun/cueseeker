@@ -219,6 +219,7 @@
 - `--height-filter-bar-control`: `40px`
 - `--height-control`: `40px`
 - `--height-field`: `40px`
+- `--height-form-text-area`: `96px`
 - `--height-table-utility-bar`: `40px`
 - `--height-table-header`: `40px`
 - `--min-height-table-row`: `40px`
@@ -375,6 +376,11 @@
 - `--scale-library-cover-hover`: `1.02`
 - `--duration-library-cover-hover`: `0.12s`
 
+#### Toast Motion
+
+- `--duration-toast-motion`: `0.20s`
+- `--easing-toast-motion`: `cubic-bezier(0.22, 1, 0.36, 1)`
+
 #### Subtitle Focus Motion
 
 - `--duration-subtitle-focus-scroll`: `0.22s`
@@ -399,6 +405,11 @@
 - Copy: `copy`
 - Context: `doc.text`
 - Folder: `folder`
+- Edit: `square.and.pencil`
+- Delete: `trash`
+- Move: `arrow.right`
+- Duplicate: `copy`
+- Action Submenu: `chevron.right`
 - Hide Column: `eye-off`
 - Remove Shiori: `bookmark.slash`; fallback `bookmark`
 - Back: `chevron.left`
@@ -408,6 +419,7 @@
 #### Custom Assets
 
 - Recent、Library 和 Shiori Sidebar 图标沿用当前项目资源。
+- Shiori List 默认封面中央复用现有 Shiori 图形。
 - Component 和 Layout 的参考图片应在所属条目中直接引用，不建立重复的全局说明。
 
 ## 2. 全局交互规则
@@ -415,7 +427,7 @@
 ### 2.1 状态集合
 
 - 组件只定义实际存在差异的状态。
-- 常用状态包括 Default、Hover、Pressed、Focused、Selected、Checked、Indeterminate、Menu Open、Highlighted、Disabled。
+- 常用状态包括 Default、Hover、Pressed、Focused、Selected、Checked、Indeterminate、Menu Open、Highlighted、Error、Disabled。
 - Hover 和 Pressed 只作用于实际交互目标，不扩散到父容器或整行。
 - 普通文字、图标和装饰元素不能表现为没有对应动作的控件。
 - Selected 只表达持续生效的选择状态，不用于短暂 Hover。
@@ -434,7 +446,8 @@
 - 键盘焦点必须可见。
 - 有边框控件使用 `--color-border-focus` 和 `--color-focus-ring`。
 - 无边框控件使用 `--color-focus-ring`、`--focus-ring-width` 和 `--focus-ring-offset`。
-- Search Box 和 Value Input Field 通过点击或键盘获得焦点时都显示 Focused 状态。
+- Search Box、Value Input Field、Form Text Field 和 Form Text Area 通过点击或键盘获得焦点时都显示 Focused 状态。
+- Form Text Field 和 Form Text Area 处于 Error 时保留错误边框；获得焦点时同时显示 Focus Ring。
 - Playback Search Box 获得输入焦点时不显示额外 Focus Ring、边框色或背景变化，只显示 Caret。
 - Caret 只在可编辑输入区域获得焦点时出现。
 - Checkbox 的焦点只作用于 Checkbox 本体。
@@ -546,6 +559,32 @@
 - 只有 Focused 或 Typing 状态显示 caret。
 - Read-only 可以选择复制，但不能编辑。
 - Disabled 不响应输入。
+
+#### Form Text Field
+
+- 用途：输入名称等单行表单内容。
+- Token：`--height-field`、`--radius-field`、`--padding-field-x`、`--color-bg-surface`、`--color-bg-disabled`、`--color-border-control`、`--color-border-focus`、`--color-border-disabled`、`--color-focus-ring`。
+- 从上到下包括：
+  1. Label
+  2. 可选 Validation Message
+  3. 单行 Input
+- Label 持续显示，不使用 Placeholder 代替 Label。
+- Validation Message 使用 `--font-size-caption` 和 `--color-danger-text`。
+- Error 状态的边框使用 `--color-danger-text`。
+- 文字使用 `--font-family-base`、`--font-size-control`、`--color-text-primary`、`--color-text-placeholder`、`--color-text-disabled`。
+- 状态：Empty、Focused Empty、Typing、Filled、Error、Focused Error、Disabled。
+- Input 支持原生文字选择、`Cmd+A`、`Cmd+C` 和 `Cmd+V`。
+
+#### Form Text Area
+
+- 用途：输入描述等多行表单内容。
+- 结构、Label、Validation Message、文字和 Error 视觉与 Form Text Field 相同。
+- 高度使用 `--height-form-text-area`。
+- 使用多行输入，`Return` 插入换行。
+- 内容超过可视高度后启用纵向滚动。
+- 不提供用户拖拽缩放。
+- 状态：Empty、Focused Empty、Typing、Filled、Error、Focused Error、Disabled。
+- Text Area 支持原生文字选择、`Cmd+A`、`Cmd+C` 和 `Cmd+V`。
 
 #### Logic Connector
 
@@ -674,6 +713,25 @@
 - 不使用 Checked 或 Selected。
 - 状态：Default、Hover / Highlighted、Submenu、Disabled。
 
+#### Action Submenu
+
+- 用途：从 Action Menu Item 打开关联的二级命令列表。
+- Parent Item 使用 Action Menu Item，Trailing Slot 固定显示 `chevron.right`。
+- Submenu 复用所属 Menu 的背景、边框、圆角、阴影和 Action Menu Item。
+- Submenu 紧邻 Parent Menu 右侧显示，并限制在当前可见区域内。
+- 通过以下方式打开：
+  - Hover Parent Item，并经过 macOS 原生菜单延迟
+  - 点击 Parent Item
+  - Parent Item 处于 Highlighted 时按 Right Arrow
+- 从 Parent Item 移向 Submenu 的路径属于同一交互区域，不因跨越菜单边缘立即关闭。
+- Hover Parent Menu 的其他 Item 时关闭当前 Submenu，并正常更新 Parent Menu 的 Highlighted Item。
+- 点击 Parent Menu 的其他 Item 时关闭 Submenu，并执行被点击的命令。
+- 点击 Parent Menu 和 Submenu 以外区域时同时关闭两级 Menu。
+- Left Arrow 关闭 Submenu 并将键盘当前项返回 Parent Item。
+- Escape 关闭两级 Menu。
+- 点击 Submenu Item 后执行该命令并关闭两级 Menu。
+- Disabled Parent Item 不打开 Submenu。
+
 #### Column Header Menu
 
 - 用途：为 Sortable Header Cell 提供排序和列显示命令。
@@ -714,6 +772,20 @@
 - 菜单锚定右键位置并限制在可见区域内。
 - 点击菜单外关闭。
 - 不显示系统 Popover Arrow。
+
+#### Shiori List Card Context Menu
+
+- 用途：显示 Shiori List Card 的列表级操作。
+- Menu 视觉和定位规则复用 Library Card Context Menu。
+- 在完整 Shiori List Card 区域右键触发。
+- Action 顺序：
+  1. `Edit List`
+  2. `Delete List`
+- `Edit List` 使用 Edit Icon，打开 Shiori List Editor Dialog 的 Edit 模式。
+- `Delete List` 使用 Delete Icon，打开 Delete List Confirmation Dialog。
+- `Delete List` 不使用特殊的 Menu Item 样式。
+- 当前只有一个 Shiori List 时，`Delete List` 为 Disabled。
+- 打开 Menu 后锁定右键所在卡片为 Command Target，直到 Menu 关闭。
 
 #### Player Speed Menu
 
@@ -858,15 +930,51 @@
 - 透明背景、无边框。
 - 只读，不承担恢复或创建动作。
 
+#### Toast
+
+- 用途：显示不要求用户立即操作的短暂反馈。
+- 默认位置为 App Center。
+- 默认持续时间为 `5s`。
+- 文案、位置、持续时间和动画可以由 `Toast Usage Registry` 中的调用场景覆盖。
+- 内容只包括文字，不显示图标、关闭按钮、进度条或 Action。
+- 使用 `--font-family-base`、`--font-size-body`、`--color-text-primary`。
+- 背景、边框、圆角和阴影使用 `--color-bg-popover`、`--color-border-muted`、`--radius-control` 和 `--shadow-popover`。
+- 垂直内边距使用 `--spacing-3`，水平内边距使用 `--spacing-4`。
+- 宽度随内容变化，但不得超出 App 可见区域；左右至少保留 `--spacing-6`。
+- 文字自然换行，不限制行数。
+- Toast 不获取键盘焦点，不响应点击关闭。
+- Hover Toast 时只暂停该 Toast 的计时，移开后继续剩余时间。
+- App 失去激活状态时暂停全部 Toast 计时，重新激活后继续。
+- 每次调用产生独立 Toast，不根据相同文案或 Scenario ID 自动去重。
+- Toast 使用无障碍通知语义，但不移动当前键盘焦点。
+
+- Default Animation：
+  - Enter：Opacity 从 `0` 变为 `1`，同时从下方 `--spacing-2` 移动到最终位置
+  - Exit：Opacity 从 `1` 变为 `0`，同时向上移动 `--spacing-2`
+  - Stack Reflow：剩余 Toast 平滑移动到新位置
+  - Enter、Exit 和 Stack Reflow 使用 `--duration-toast-motion` 与 `--easing-toast-motion`
+
+- App Center Stack：
+  - 同一时间最多显示 `4` 个 Toast
+  - Toast 间距使用 `--spacing-4`
+  - 最新 Toast 位于 Stack 最下方，并占据 App Center 锚点
+  - 更早的 Toast 依次向上排列
+  - 新 Toast 不替换已有 Toast
+  - 超过 `4` 个时进入 FIFO Queue
+  - Queue 中的 Toast 在出现可用位置后按产生顺序显示
+  - Toast 的持续时间从进入可见 Stack 时开始计算
+  - Toast 消失后，剩余 Toast 使用 Default Animation 补位
+
 ### 3.6 Library Media
 
 #### Library Cover
 
-- 用途：显示视频或文件夹封面。
+- 用途：显示视频、文件夹或 Shiori List 封面。
 - Token：`--aspect-library-cover`、`--radius-library-cover`、`--color-library-cover-placeholder-bg`。
-- 状态：No Cover、Loaded。
+- 状态：No Cover、Shiori Default、Loaded。
 - 图片填满容器并保持比例裁切。
-- 本组件不定义点击动作，交互由所属卡片决定。
+- Shiori Default 使用 Library Cover Placeholder 背景，并在中央显示现有 Shiori 图形。
+- 本组件不定义点击动作，交互由所属卡片或编辑界面决定。
 
 #### Library Cover Crop Editor
 
@@ -1247,6 +1355,54 @@
 
 ### 4.3 Search、Shiori 与 Context
 
+#### Shiori List Overview Layout
+
+- App Topbar Title 为 `Shiori`。
+- 页面从上到下包括：
+  1. Summary Row
+  2. Shiori List Grid
+
+- Summary Row：
+  - 使用水平布局和 `space-between`
+  - 左侧显示 `N Lists · M Cues`
+  - `M Cues` 按 CueID 去重
+  - 右侧使用 Inline Add Button，Label 为 `New List`
+  - 点击 `New List` 打开 Shiori List Editor Dialog 的 New 模式
+
+- Shiori List Grid：
+  - 使用与 Recent Watching Card Layout 相同的 Card Width 范围
+  - Grid 间距使用 `--gap-library-recent-grid`
+  - Shiori List 按创建时间倒序排列
+  - 初始 Shiori List 名称为 `Default`
+  - 初始 Shiori List 使用 Shiori Default Cover
+
+#### Shiori List Card Layout
+
+- 卡片为纵向 Media Card。
+- 卡片宽度、Hover 外围、Hover 圆角、Hover 背景和 Pressed 动画复用 Recent Watching Card Layout。
+- 内容从上到下包括：
+  1. Library Cover
+  2. Library Cover Badge / Count
+  3. List Name
+  4. Description
+- Library Cover Badge 位于封面右下角，格式为 `{count} Cues`。
+- List Name 使用 `--font-size-library-title`、`--color-text-primary`，固定单行高度，溢出显示省略号。
+- Description 使用 `--font-size-library-meta`、`--color-text-muted`，固定单行高度，溢出显示省略号。
+- Description 为空时不显示文字，但保留 Description 行高度。
+- 左键点击卡片进入对应 Shiori List Detail。
+- 右键打开 Shiori List Card Context Menu，不进入 Shiori List Detail。
+
+#### Shiori List Detail Layout
+
+- App Topbar Title 保持为 `Shiori`。
+- 只显示当前 Shiori List 中的 Shiori。
+- 完整保留现有：
+  - Search Filter Bar Layout
+  - Search / Shiori Utility Bar Layout
+  - Search / Shiori / Context Table Layout
+- 本需求不增加当前列表身份 Header。
+- 当前列表没有 Shiori 时继续使用现有 Shiori Empty Hint。
+
 #### Search Filter Bar Layout
 
 - 使用水平 Toolbar。
@@ -1428,11 +1584,14 @@
   4. `Copy Cue Text`
   5. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
   6. `Copy Time Range`
-  7. `Remove Shiori`
+  7. `Move to ...`
+  8. `Duplicate to ...`
+  9. `Remove Shiori`
 
 - Divider：
   - `Context` 与 `Copy Cue Text` 之间显示 Divider。
-  - Shiori 的 `Copy Time Range` 与 `Remove Shiori` 之间显示 Divider。
+  - Shiori 的 `Copy Time Range` 与 `Move to ...` 之间显示 Divider。
+  - Shiori 的 `Duplicate to ...` 与 `Remove Shiori` 之间显示 Divider。
 
 - `Play`：
   - 从 Primary Cue 播放。
@@ -1457,6 +1616,27 @@
 - `Copy Time Range`：
   - 复制当前行 Primary Cue 显示的 Time Range。
   - 输出格式遵循本 Layout 的 Time Range 格式。
+
+- `Move to ...`：
+  - 仅用于 Shiori。
+  - 使用 Move Icon 和 Action Submenu。
+  - Submenu 按 Shiori List 默认顺序显示目标列表。
+  - Submenu 不显示当前 Shiori List。
+  - 没有可用目标列表时为 Disabled。
+  - 选择目标列表后，先向目标列表写入当前 Shiori。
+  - 只有目标写入成功后才从来源列表移除当前 Shiori。
+  - 移动后保留 Tags 和 Time Added。
+  - 操作结果按照 `Toast Usage Registry` 调用对应 Toast 场景。
+
+- `Duplicate to ...`：
+  - 仅用于 Shiori。
+  - 使用 Duplicate Icon 和 Action Submenu。
+  - Submenu 按 Shiori List 默认顺序显示目标列表。
+  - Submenu 不显示当前 Shiori List。
+  - 没有可用目标列表时为 Disabled。
+  - 选择目标列表后创建新的 ShioriID，其他 Shiori 数据保持一致。
+  - 复制后保留 Tags 和 Time Added。
+  - 操作结果按照 `Toast Usage Registry` 调用对应 Toast 场景。
 
 - `Remove Shiori`：
   - 仅用于 Shiori。
@@ -1495,6 +1675,67 @@
   - Neutral Button：`Cancel`
   - Primary Button：`Save`
 
+#### Shiori List Editor Dialog Layout
+
+- 使用 Modal Overlay。
+- Panel 居中显示。
+- Main Content 使用左右两列布局，间距使用 `--spacing-6`。
+- 左侧为 Cover Region，右侧为 Form Region。
+- 点击 Dialog 外部不关闭。
+
+- Title：
+  - New 模式：`New List`
+  - Edit 模式：`Edit List`
+
+- Cover Region：
+  - 使用 Library Cover 和 Library Cover Crop Editor
+  - 没有自定义封面时显示 Shiori Default Cover
+  - 没有自定义封面时显示 Neutral Button：`Choose Image`
+  - 已有自定义封面时显示 Neutral Button：`Change Image`
+  - 选择有效图片后在当前 Dialog 中显示 Library Cover Crop Editor
+  - 不打开嵌套的 Edit Cover Dialog
+  - Hint：`Support: JPG, JPEG, PNG, and GIF no more than 20 MB.`
+  - 本版本不提供恢复默认封面的命令
+
+- Form Region 从上到下包括：
+  1. List Name Form Text Field
+  2. Description Form Text Area
+
+- List Name：
+  - Label：`List Name`
+  - Placeholder：`Enter a list name`
+  - 最多 `30` 个字符
+  - 允许继续输入超过限制的内容
+  - 空值错误：`Enter a list name`
+  - 长度错误：`List name must be 30 characters or fewer. You entered {Current Count}.`
+  - 重复错误：`A list with this name already exists. Choose a different name.`
+
+- Description：
+  - Label：`Description (optional)`
+  - Placeholder：`Add a description (optional)`
+  - 最多 `100` 个字符
+  - 允许为空
+  - 允许继续输入超过限制的内容
+  - 长度错误：`Description must be 100 characters or fewer. You entered {Current Count}.`
+
+- Validation：
+  - 只在点击当前模式的 Primary Action 时首次执行
+  - 名称按 Empty、Length、Duplicate 的顺序检查
+  - 名称字符数合法后才检查重复
+  - 名称和描述同时不合法时，同时显示两个错误
+  - Validation Message 显示在对应 Input 上方
+  - 同时存在多个错误时聚焦第一个错误字段
+  - 错误已经显示后，继续编辑该字段时重新校验
+  - 字段恢复合法后立即清除对应错误
+
+- Actions：
+  - New 模式：Neutral Button `Cancel`、Primary Button `Create`
+  - Edit 模式：Neutral Button `Cancel`、Primary Button `Save`
+
+- Cancel：
+  - 没有未保存修改时直接关闭 Dialog
+  - 存在未保存修改时打开 Save Changes Confirmation Dialog
+
 #### Confirmation Dialog Layout
 
 - 使用 Modal Overlay。
@@ -1509,9 +1750,10 @@
 - Title 使用 `--color-text-primary`。
 - Message 使用 `--color-text-muted`。
 - Actions 水平排列并 Trailing 对齐。
-- Actions 使用 Neutral Button 和 Destructive Button。
-- 默认焦点为 Cancel。
-- Escape 等同于 Cancel。
+- Actions 可以组合 Neutral Button、Primary Button 和 Destructive Button。
+- Action 数量不固定为两个。
+- 每个具体 Dialog 定义自己的默认焦点动作。
+- Escape 等同于当前 Dialog 的 Cancel。
 - 点击 Dialog 外部不关闭。
 - Return 激活当前默认焦点动作。
 
@@ -1526,6 +1768,27 @@
   - Message：`Are you sure you want to delete this tag? This will remove the tag from all cues. This action cannot be undone.`
   - Cancel：Neutral Button，`Cancel`
   - Confirm：Destructive Button，`Delete`
+
+- Delete List：
+  - Title：`Delete List`
+  - Message：`The list “{List Name}” and its Shiori entries will be deleted. The original subtitle and video files will not be deleted.`
+  - Cancel：Neutral Button，`Cancel`
+  - Confirm：Destructive Button，`Delete`
+  - 默认焦点为 Cancel
+
+- Save Changes：
+  - Title：`Save Changes?`
+  - Message：`You have unsaved changes. Do you want to save them before closing?`
+  - Actions 从左到右：
+    1. Destructive Button：`Don’t Save`
+    2. Neutral Button：`Cancel`
+    3. Primary Button：`Save`
+  - 默认焦点为 Save
+  - Escape 等同于 Cancel
+  - `Don’t Save` 放弃未保存修改并关闭 Shiori List Editor Dialog
+  - `Cancel` 关闭当前 Confirmation Dialog，并返回 Shiori List Editor Dialog
+  - `Save` 执行 Shiori List Editor Dialog 当前模式的 Primary Action
+  - Validation 失败时关闭当前 Confirmation Dialog，保留 Shiori List Editor Dialog，并显示对应字段错误
 
 - Confirm 只执行当前明确的 Command Target。
 - Cancel 不产生数据变更。
@@ -2002,7 +2265,9 @@
 
 - `S`：
   - 保存 Selected Primary Cue
-  - 已保存时不删除、不重复创建
+  - 目标为 Shiori List 当前默认顺序中的第一个列表
+  - 已保存判断只针对当前目标列表
+  - 目标列表已经存在同一 CueID 时不删除、不重复创建
   - 新保存显示 `Shiori Saved`
   - 已存在显示 `Shiori Already Saved`
   - Overlay 保持显示
