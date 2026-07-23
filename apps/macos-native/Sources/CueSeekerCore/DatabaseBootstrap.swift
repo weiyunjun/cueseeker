@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 33
+    public static let currentSchemaVersion = 34
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -32,11 +32,18 @@ private extension DatabaseBootstrap {
     static func prepareSchema(on database: SQLiteDatabase) throws {
         let previousVersion = try schemaVersion(in: database)
 
-        guard previousVersion == 0 || previousVersion == DatabaseBootstrap.currentSchemaVersion else {
+        guard previousVersion == 0
+                || previousVersion == 33
+                || previousVersion == DatabaseBootstrap.currentSchemaVersion
+        else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
                 found: previousVersion,
                 supported: DatabaseBootstrap.currentSchemaVersion
             )
+        }
+        if previousVersion == 33 {
+            try migrateSchema33To34(on: database)
+            return
         }
         guard previousVersion == 0 else {
             return
@@ -59,11 +66,24 @@ private extension DatabaseBootstrap {
                 CREATE TABLE IF NOT EXISTS shiori_lists (
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,
+                    normalized_name TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    cover_path TEXT,
                     created_at TEXT NOT NULL
                 );
 
-                INSERT OR IGNORE INTO shiori_lists(id, name, created_at)
-                VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
+                INSERT OR IGNORE INTO shiori_lists(
+                    id,
+                    name,
+                    normalized_name,
+                    description,
+                    cover_path,
+                    created_at
+                )
+                VALUES (1, 'Default', 'default', '', NULL, '1970-01-01T00:00:00Z');
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_shiori_lists_normalized_name
+                    ON shiori_lists(normalized_name);
 
                 CREATE TABLE IF NOT EXISTS shioris (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -476,6 +496,33 @@ private extension DatabaseBootstrap {
             )
 
             try database.execute("PRAGMA user_version = \(DatabaseBootstrap.currentSchemaVersion);")
+        }
+    }
+
+    static func migrateSchema33To34(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                ALTER TABLE shiori_lists
+                    ADD COLUMN normalized_name TEXT NOT NULL DEFAULT '';
+                ALTER TABLE shiori_lists
+                    ADD COLUMN description TEXT NOT NULL DEFAULT '';
+                ALTER TABLE shiori_lists
+                    ADD COLUMN cover_path TEXT;
+
+                UPDATE shiori_lists
+                SET name = 'Default'
+                WHERE id = 1 AND name = 'Shiori';
+
+                UPDATE shiori_lists
+                SET normalized_name = lower(trim(name));
+
+                CREATE UNIQUE INDEX idx_shiori_lists_normalized_name
+                    ON shiori_lists(normalized_name);
+
+                PRAGMA user_version = 34;
+                """
+            )
         }
     }
 

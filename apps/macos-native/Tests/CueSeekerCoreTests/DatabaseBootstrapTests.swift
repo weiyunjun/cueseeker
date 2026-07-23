@@ -33,13 +33,51 @@ func currentSchemaValidationDoesNotMutateStoredData() throws {
 }
 
 @Test
+func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        CREATE TABLE shiori_lists (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        INSERT INTO shiori_lists(id, name, created_at)
+        VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
+        PRAGMA user_version = 33;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
+        "id", "name", "normalized_name", "description", "cover_path", "created_at"
+    ]))
+    #expect(try sqliteIndexExists(
+        "idx_shiori_lists_normalized_name",
+        databaseURL: databaseURL
+    ))
+    let list = try #require(try ShioriDatabase(path: databaseURL).shioriLists().first)
+    #expect(list.name == "Default")
+    #expect(list.description.isEmpty)
+    #expect(list.coverPath == nil)
+    #expect(list.createdAt == "1970-01-01T00:00:00Z")
+}
+
+@Test
 func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
     try expectUnsupportedSchemaVersion(32)
 }
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(34)
+    try expectUnsupportedSchemaVersion(35)
 }
 
 @Test
@@ -118,6 +156,9 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
         "id", "list_id", "cue_id", "created_at"
     ]))
     #expect(try sqliteTableExists("shiori_lists", databaseURL: databaseURL))
+    #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
+        "id", "name", "normalized_name", "description", "cover_path", "created_at"
+    ]))
 }
 
 @Test

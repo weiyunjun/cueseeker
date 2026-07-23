@@ -3,6 +3,121 @@ import Testing
 @testable import CueSeekerCore
 
 @Test
+func shioriListsSupportMetadataValidationSortingAndDeletion() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try ShioriDatabase(path: databaseURL)
+    let initial = try #require(try database.shioriLists().first)
+    #expect(initial.id == ShioriListIdentity.defaultListID)
+    #expect(initial.name == "Default")
+    #expect(initial.description.isEmpty)
+    #expect(initial.coverPath == nil)
+
+    let simultaneousErrors = try database.validateShioriList(
+        name: String(repeating: "N", count: 31),
+        description: String(repeating: "D", count: 101)
+    )
+    #expect(simultaneousErrors.nameError == .nameTooLong(
+        maximumCharacters: 30,
+        currentCharacters: 31
+    ))
+    #expect(simultaneousErrors.descriptionError == .descriptionTooLong(
+        maximumCharacters: 100,
+        currentCharacters: 101
+    ))
+
+    let older = try database.createShioriList(
+        name: "  Favorites  ",
+        description: "First line\nSecond line",
+        coverPath: "/tmp/favorites.jpg",
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
+    let newer = try database.createShioriList(
+        name: "Study",
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
+    #expect(older.name == "Favorites")
+    #expect(older.description == "First line\nSecond line")
+    #expect(older.coverPath == "/tmp/favorites.jpg")
+    #expect(try database.shioriLists().map(\.id) == [newer.id, older.id, initial.id])
+
+    let duplicate = try database.validateShioriList(
+        name: "favorites",
+        description: ""
+    )
+    #expect(duplicate.nameError == .duplicateName)
+    #expect(throws: ShioriListValidationError.duplicateName) {
+        _ = try database.createShioriList(name: "FAVORITES")
+    }
+
+    let updated = try database.updateShioriList(
+        id: older.id,
+        name: "Favorites Updated",
+        description: "",
+        coverPath: nil
+    )
+    #expect(updated.name == "Favorites Updated")
+    #expect(updated.description.isEmpty)
+    #expect(updated.coverPath == nil)
+    #expect(updated.createdAt == older.createdAt)
+
+    #expect(try database.deleteShioriList(id: newer.id) == newer)
+    #expect(try database.deleteShioriList(id: older.id).id == older.id)
+    #expect(throws: ShioriListMutationError.cannotDeleteOnlyList) {
+        _ = try database.deleteShioriList(id: initial.id)
+    }
+}
+
+@Test
+func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let shioriDatabase = try ShioriDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/List Overview.srt")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Show/List Overview.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Shared CueID"
+            )
+        ]
+    )
+    let selection = try #require(try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let cueID = try #require(selection.cueLineID)
+    _ = try shioriDatabase.upsertShiori(selection: selection)
+    let secondList = try shioriDatabase.createShioriList(name: "Second")
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        INSERT INTO shioris(list_id, cue_id, created_at)
+        VALUES (\(secondList.id), \(cueID), '2026-07-24T00:00:00Z');
+        """
+    )
+
+    let overview = try shioriDatabase.shioriListOverview()
+    #expect(overview.lists.map(\.cueCount) == [1, 1])
+    #expect(overview.uniqueCueCount == 1)
+}
+
+@Test
 func shioriPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

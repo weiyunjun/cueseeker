@@ -1,6 +1,9 @@
 import Foundation
 
 public final class ShioriDatabase: @unchecked Sendable {
+    public static let maximumListNameCharacters = 30
+    public static let maximumListDescriptionCharacters = 100
+
     private static let resolvedShioriSelectSQL = """
         SELECT s.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
                l.start_ms, l.end_ms, l.event_index, l.display_order,
@@ -90,20 +93,190 @@ public final class ShioriDatabase: @unchecked Sendable {
     public func shioriLists() throws -> [ShioriList] {
         let statement = try database.prepare(
             """
-            SELECT id, name, created_at
+            SELECT id, name, description, cover_path, created_at
             FROM shiori_lists
-            ORDER BY id ASC;
+            ORDER BY created_at DESC, id DESC;
             """
         )
         var lists: [ShioriList] = []
         while try statement.step() {
-            lists.append(ShioriList(
-                id: statement.int64Column(0),
-                name: statement.stringColumn(1),
-                createdAt: statement.stringColumn(2)
-            ))
+            lists.append(shioriList(from: statement))
         }
         return lists
+    }
+
+    public func shioriList(id: Int64) throws -> ShioriList? {
+        let statement = try database.prepare(
+            """
+            SELECT id, name, description, cover_path, created_at
+            FROM shiori_lists
+            WHERE id = ?;
+            """
+        )
+        try statement.bind(id, at: 1)
+        return try statement.step() ? shioriList(from: statement) : nil
+    }
+
+    public func shioriListOverview() throws -> ShioriListOverview {
+        let statement = try database.prepare(
+            """
+            SELECT l.id, l.name, l.description, l.cover_path, l.created_at,
+                   COUNT(s.id)
+            FROM shiori_lists l
+            LEFT JOIN shioris s ON s.list_id = l.id
+            GROUP BY l.id
+            ORDER BY l.created_at DESC, l.id DESC;
+            """
+        )
+        var lists: [ShioriListSummary] = []
+        while try statement.step() {
+            lists.append(ShioriListSummary(
+                list: shioriList(from: statement),
+                cueCount: statement.intColumn(5)
+            ))
+        }
+
+        let countStatement = try database.prepare(
+            "SELECT COUNT(DISTINCT cue_id) FROM shioris;"
+        )
+        let uniqueCueCount = try countStatement.step() ? countStatement.intColumn(0) : 0
+        return ShioriListOverview(lists: lists, uniqueCueCount: uniqueCueCount)
+    }
+
+    public func validateShioriList(
+        name rawName: String,
+        description: String,
+        excludingListID: Int64? = nil
+    ) throws -> ShioriListValidation {
+        let name = Self.trimmedListName(rawName)
+        let nameError: ShioriListValidationError?
+        if name.isEmpty {
+            nameError = .emptyName
+        } else if name.count > Self.maximumListNameCharacters {
+            nameError = .nameTooLong(
+                maximumCharacters: Self.maximumListNameCharacters,
+                currentCharacters: name.count
+            )
+        } else if try shioriListNameExists(
+            normalizedName: Self.normalizedListName(name),
+            excludingListID: excludingListID
+        ) {
+            nameError = .duplicateName
+        } else {
+            nameError = nil
+        }
+
+        let descriptionError: ShioriListValidationError? =
+            description.count > Self.maximumListDescriptionCharacters
+                ? .descriptionTooLong(
+                    maximumCharacters: Self.maximumListDescriptionCharacters,
+                    currentCharacters: description.count
+                )
+                : nil
+        return ShioriListValidation(
+            nameError: nameError,
+            descriptionError: descriptionError
+        )
+    }
+
+    @discardableResult
+    public func createShioriList(
+        name rawName: String,
+        description: String = "",
+        coverPath: String? = nil,
+        createdAt: Date = Date()
+    ) throws -> ShioriList {
+        try database.withImmediateTransaction {
+            let validation = try validateShioriList(
+                name: rawName,
+                description: description
+            )
+            try Self.throwFirstValidationError(in: validation)
+
+            let name = Self.trimmedListName(rawName)
+            let statement = try database.prepare(
+                """
+                INSERT INTO shiori_lists(
+                    name,
+                    normalized_name,
+                    description,
+                    cover_path,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?);
+                """
+            )
+            try statement.bind(name, at: 1)
+            try statement.bind(Self.normalizedListName(name), at: 2)
+            try statement.bind(description, at: 3)
+            try bind(coverPath, to: statement, at: 4)
+            try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 5)
+            try statement.run()
+
+            guard let list = try shioriList(id: database.lastInsertRowID()) else {
+                throw SQLiteDatabaseError.stepFailed("Created Shiori list could not be loaded")
+            }
+            return list
+        }
+    }
+
+    @discardableResult
+    public func updateShioriList(
+        id: Int64,
+        name rawName: String,
+        description: String,
+        coverPath: String?
+    ) throws -> ShioriList {
+        try database.withImmediateTransaction {
+            guard try shioriList(id: id) != nil else {
+                throw ShioriListMutationError.listNotFound
+            }
+            let validation = try validateShioriList(
+                name: rawName,
+                description: description,
+                excludingListID: id
+            )
+            try Self.throwFirstValidationError(in: validation)
+
+            let name = Self.trimmedListName(rawName)
+            let statement = try database.prepare(
+                """
+                UPDATE shiori_lists
+                SET name = ?, normalized_name = ?, description = ?, cover_path = ?
+                WHERE id = ?;
+                """
+            )
+            try statement.bind(name, at: 1)
+            try statement.bind(Self.normalizedListName(name), at: 2)
+            try statement.bind(description, at: 3)
+            try bind(coverPath, to: statement, at: 4)
+            try statement.bind(id, at: 5)
+            try statement.run()
+
+            guard let list = try shioriList(id: id) else {
+                throw SQLiteDatabaseError.stepFailed("Updated Shiori list could not be loaded")
+            }
+            return list
+        }
+    }
+
+    @discardableResult
+    public func deleteShioriList(id: Int64) throws -> ShioriList {
+        try database.withImmediateTransaction {
+            guard let list = try shioriList(id: id) else {
+                throw ShioriListMutationError.listNotFound
+            }
+            let countStatement = try database.prepare("SELECT COUNT(*) FROM shiori_lists;")
+            let listCount = try countStatement.step() ? countStatement.intColumn(0) : 0
+            guard listCount > 1 else {
+                throw ShioriListMutationError.cannotDeleteOnlyList
+            }
+
+            let statement = try database.prepare("DELETE FROM shiori_lists WHERE id = ?;")
+            try statement.bind(id, at: 1)
+            try statement.run()
+            return list
+        }
     }
 
     public func shioriRelations(
@@ -494,6 +667,79 @@ public final class ShioriDatabase: @unchecked Sendable {
             cueID: statement.int64Column(2),
             createdAt: statement.stringColumn(3)
         )
+    }
+
+    private func shioriList(from statement: SQLiteStatement) -> ShioriList {
+        ShioriList(
+            id: statement.int64Column(0),
+            name: statement.stringColumn(1),
+            description: statement.stringColumn(2),
+            coverPath: statement.nullableStringColumn(3),
+            createdAt: statement.stringColumn(4)
+        )
+    }
+
+    private func shioriListNameExists(
+        normalizedName: String,
+        excludingListID: Int64?
+    ) throws -> Bool {
+        let statement: SQLiteStatement
+        if let excludingListID {
+            statement = try database.prepare(
+                """
+                SELECT 1
+                FROM shiori_lists
+                WHERE normalized_name = ? AND id != ?
+                LIMIT 1;
+                """
+            )
+            try statement.bind(normalizedName, at: 1)
+            try statement.bind(excludingListID, at: 2)
+        } else {
+            statement = try database.prepare(
+                """
+                SELECT 1
+                FROM shiori_lists
+                WHERE normalized_name = ?
+                LIMIT 1;
+                """
+            )
+            try statement.bind(normalizedName, at: 1)
+        }
+        return try statement.step()
+    }
+
+    private func bind(
+        _ value: String?,
+        to statement: SQLiteStatement,
+        at index: Int32
+    ) throws {
+        if let value {
+            try statement.bind(value, at: index)
+        } else {
+            try statement.bindNull(at: index)
+        }
+    }
+
+    private static func trimmedListName(_ rawName: String) -> String {
+        rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalizedListName(_ name: String) -> String {
+        name
+            .precomposedStringWithCanonicalMapping
+            .lowercased(with: Locale(identifier: "en_US_POSIX"))
+    }
+
+    private static func throwFirstValidationError(
+        in validation: ShioriListValidation
+    ) throws {
+        if let nameError = validation.nameError {
+            throw nameError
+        }
+        if let descriptionError = validation.descriptionError {
+            throw descriptionError
+        }
     }
 
     private static func validatedTagName(_ rawName: String) throws -> String {
