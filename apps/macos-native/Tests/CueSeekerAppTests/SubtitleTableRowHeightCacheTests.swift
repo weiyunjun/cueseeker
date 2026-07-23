@@ -8,11 +8,11 @@ func subtitleTableRowHeightCacheReusesHeightForSameRowAndWidths() {
     let row = SubtitleTableRow(id: 1, displayTitle: "Episode 01", cues: "line one\nline two")
     var computeCount = 0
 
-    let first = cache.lookup(rowIndex: 0, row: row, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) {
+    let first = cache.lookup(rowIndex: 0, row: row, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) {
         computeCount += 1
         return testRowMeasurement(42)
     }
-    let second = cache.lookup(rowIndex: 0, row: row, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) {
+    let second = cache.lookup(rowIndex: 0, row: row, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) {
         computeCount += 1
         return testRowMeasurement(99)
     }
@@ -28,17 +28,17 @@ func subtitleTableRowHeightCacheReusesHeightForSameRowAndWidths() {
 func subtitleTableRowHeightCacheMissesWhenWidthOrContentChanges() {
     var cache = SubtitleTableRowHeightCache()
     let row = SubtitleTableRow(id: 1, displayTitle: "Episode 01", cues: "line one")
-    _ = cache.lookup(rowIndex: 0, row: row, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) { testRowMeasurement(42) }
+    _ = cache.lookup(rowIndex: 0, row: row, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) { testRowMeasurement(42) }
 
     var computeCount = 0
-    let differentWidth = cache.lookup(rowIndex: 0, row: row, effectiveCuesWidth: 641, showsCueGroup: false, styleRevision: 1) {
+    let differentWidth = cache.lookup(rowIndex: 0, row: row, layoutKey: testLayoutKey(cuesWidth: 641), showsCueGroup: false, styleRevision: 1) {
         computeCount += 1
         return testRowMeasurement(50)
     }
     let changedContent = cache.lookup(
         rowIndex: 0,
         row: SubtitleTableRow(id: 1, displayTitle: "Episode 01", cues: "line one\nline two"),
-        effectiveCuesWidth: 640,
+        layoutKey: testLayoutKey(cuesWidth: 640),
         showsCueGroup: false,
         styleRevision: 1
     ) {
@@ -54,18 +54,42 @@ func subtitleTableRowHeightCacheMissesWhenWidthOrContentChanges() {
 }
 
 @Test
+func subtitleTableRowHeightCacheMissesWhenNonCuesColumnWidthChanges() {
+    var cache = SubtitleTableRowHeightCache()
+    let row = SubtitleTableRow(id: 1, displayTitle: "A title that can wrap", cues: "same cue")
+    _ = cache.lookup(
+        rowIndex: 0,
+        row: row,
+        layoutKey: testLayoutKey(cuesWidth: 640, displayTitleWidth: 240),
+        showsCueGroup: false,
+        styleRevision: 1
+    ) { testRowMeasurement(42) }
+
+    let changedDisplayWidth = cache.lookup(
+        rowIndex: 0,
+        row: row,
+        layoutKey: testLayoutKey(cuesWidth: 640, displayTitleWidth: 180),
+        showsCueGroup: false,
+        styleRevision: 1
+    ) { testRowMeasurement(66) }
+
+    #expect(!changedDisplayWidth.isCacheHit)
+    #expect(changedDisplayWidth.height == 66)
+}
+
+@Test
 func subtitleTableRowHeightCachePrunesRowsNotInSnapshot() {
     var cache = SubtitleTableRowHeightCache()
     let kept = SubtitleTableRow(id: 1, displayTitle: "Episode 01", cues: "line one")
     let removed = SubtitleTableRow(id: 2, displayTitle: "Episode 02", cues: "line two")
-    _ = cache.lookup(rowIndex: 0, row: kept, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) { testRowMeasurement(42) }
-    _ = cache.lookup(rowIndex: 1, row: removed, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) { testRowMeasurement(50) }
+    _ = cache.lookup(rowIndex: 0, row: kept, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) { testRowMeasurement(42) }
+    _ = cache.lookup(rowIndex: 1, row: removed, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) { testRowMeasurement(50) }
 
     cache.prune(to: [kept])
 
     #expect(cache.count == 1)
-    #expect(cache.lookup(rowIndex: 0, row: kept, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) { testRowMeasurement(99) }.isCacheHit)
-    #expect(!cache.lookup(rowIndex: 1, row: removed, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) { testRowMeasurement(100) }.isCacheHit)
+    #expect(cache.lookup(rowIndex: 0, row: kept, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) { testRowMeasurement(99) }.isCacheHit)
+    #expect(!cache.lookup(rowIndex: 1, row: removed, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) { testRowMeasurement(100) }.isCacheHit)
 }
 
 @Test
@@ -80,7 +104,7 @@ func subtitleTableRowHeightCacheRetainsOnlyThePresentationRange() {
         _ = cache.lookup(
             rowIndex: index,
             row: row,
-            effectiveCuesWidth: 640,
+            layoutKey: testLayoutKey(cuesWidth: 640),
             showsCueGroup: false,
             styleRevision: 1
         ) { testRowMeasurement(42) }
@@ -97,11 +121,11 @@ func subtitleTableRowHeightCacheStoresSparseRowIndexes() {
     let row = SubtitleTableRow(id: 2_000_001, displayTitle: "Episode 2000001", cues: "line")
     var computeCount = 0
 
-    let first = cache.lookup(rowIndex: 2_000_000, row: row, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) {
+    let first = cache.lookup(rowIndex: 2_000_000, row: row, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) {
         computeCount += 1
         return testRowMeasurement(42)
     }
-    let second = cache.lookup(rowIndex: 2_000_000, row: row, effectiveCuesWidth: 640, showsCueGroup: false, styleRevision: 1) {
+    let second = cache.lookup(rowIndex: 2_000_000, row: row, layoutKey: testLayoutKey(cuesWidth: 640), showsCueGroup: false, styleRevision: 1) {
         computeCount += 1
         return testRowMeasurement(99)
     }
@@ -154,14 +178,14 @@ func subtitleTableRowHeightCacheInvalidatesEveryCueLayoutKey() {
         _ = cache.lookup(
             rowIndex: 0,
             row: base,
-            effectiveCuesWidth: 640,
+            layoutKey: testLayoutKey(cuesWidth: 640),
             showsCueGroup: false,
             styleRevision: 1
         ) { testRowMeasurement(40) }
         return !cache.lookup(
             rowIndex: 0,
             row: row,
-            effectiveCuesWidth: width,
+            layoutKey: testLayoutKey(cuesWidth: width),
             showsCueGroup: show,
             styleRevision: revision
         ) { testRowMeasurement(60) }.isCacheHit
@@ -198,7 +222,7 @@ func subtitleTableRowHeightCacheInvalidatesNonCueContentThatCanChangeHeight() {
     _ = cache.lookup(
         rowIndex: 0,
         row: base,
-        effectiveCuesWidth: 640,
+        layoutKey: testLayoutKey(cuesWidth: 640),
         showsCueGroup: false,
         styleRevision: 2
     ) { testRowMeasurement(40) }
@@ -206,14 +230,14 @@ func subtitleTableRowHeightCacheInvalidatesNonCueContentThatCanChangeHeight() {
     #expect(!cache.lookup(
         rowIndex: 0,
         row: changedTitle,
-        effectiveCuesWidth: 640,
+        layoutKey: testLayoutKey(cuesWidth: 640),
         showsCueGroup: false,
         styleRevision: 2
     ) { testRowMeasurement(64) }.isCacheHit)
     #expect(!cache.lookup(
         rowIndex: 0,
         row: changedTags,
-        effectiveCuesWidth: 640,
+        layoutKey: testLayoutKey(cuesWidth: 640),
         showsCueGroup: false,
         styleRevision: 2
     ) { testRowMeasurement(56) }.isCacheHit)
@@ -221,4 +245,13 @@ func subtitleTableRowHeightCacheInvalidatesNonCueContentThatCanChangeHeight() {
 
 private func testRowMeasurement(_ height: CGFloat) -> SubtitleTableRowMeasurement {
     SubtitleTableRowMeasurement(height: height, primaryLineCount: 1, extraCueLineCounts: [])
+}
+
+private func testLayoutKey(
+    cuesWidth: CGFloat,
+    displayTitleWidth: CGFloat? = nil
+) -> SubtitleTableRowMeasurementLayoutKey {
+    var columnWidths = ["cues": cuesWidth]
+    columnWidths["display"] = displayTitleWidth
+    return SubtitleTableRowMeasurementLayoutKey(columnWidths: columnWidths)
 }

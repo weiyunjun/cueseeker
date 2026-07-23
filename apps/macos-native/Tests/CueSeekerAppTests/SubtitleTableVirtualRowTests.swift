@@ -164,7 +164,7 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
 
 @MainActor
 @Test
-func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
+func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
     let oldLayout = SubtitleTableColumnLayout.resolve(
         contentWidth: 1_160,
         height: 64,
@@ -190,7 +190,15 @@ func subtitleTableColumnLayoutClassifiesViewportGrowthAsCuesWidthChange() {
         columnOrder: ["display", "cues", "tags", "time", "dateAdded"]
     )
 
-    #expect(newLayout.isCuesOnlyWidthChange(from: oldLayout))
+    #expect(oldLayout.rowMeasurementLayoutKey.columnWidths == [
+        "selection": 5_000,
+        "dateAdded": 16_000,
+        "display": 24_000,
+        "time": 19_000,
+        "cues": 52_000,
+        "tags": 18_000,
+    ])
+    #expect(newLayout.rowMeasurementLayoutKey != oldLayout.rowMeasurementLayoutKey)
     #expect(newLayout.nameRect.width == oldLayout.nameRect.width)
     #expect(newLayout.timeRect?.width == oldLayout.timeRect?.width)
     #expect(newLayout.dateAddedRect?.width == oldLayout.dateAddedRect?.width)

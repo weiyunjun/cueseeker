@@ -1,5 +1,17 @@
 import AppKit
 
+struct SubtitleTableRowMeasurementLayoutKey: Equatable {
+    let columnWidths: [String: Int]
+
+    init(columnWidths: [String: CGFloat]) {
+        self.columnWidths = columnWidths.mapValues(Self.widthKey)
+    }
+
+    private static func widthKey(_ width: CGFloat) -> Int {
+        Int((max(0, width) * 100).rounded())
+    }
+}
+
 struct SubtitleTableRowHeightCacheLookup {
     let measurement: SubtitleTableRowMeasurement
     let isCacheHit: Bool
@@ -19,7 +31,7 @@ struct SubtitleTableRowHeightCache {
     mutating func lookup(
         rowIndex: Int,
         row: SubtitleTableRow,
-        effectiveCuesWidth: CGFloat,
+        layoutKey: SubtitleTableRowMeasurementLayoutKey,
         showsCueGroup: Bool,
         styleRevision: Int,
         compute: () -> SubtitleTableRowMeasurement
@@ -28,12 +40,10 @@ struct SubtitleTableRowHeightCache {
             return SubtitleTableRowHeightCacheLookup(measurement: compute(), isCacheHit: false)
         }
 
-        let cuesWidthKey = Self.widthKey(effectiveCuesWidth)
-
         if let entry = entries[rowIndex],
            entry.matches(
                row: row,
-               cuesWidth: cuesWidthKey,
+               layoutKey: layoutKey,
                showsCueGroup: showsCueGroup,
                styleRevision: styleRevision
            ) {
@@ -43,7 +53,7 @@ struct SubtitleTableRowHeightCache {
         let measurement = compute()
         entries[rowIndex] = CacheEntry(
             row: row,
-            cuesWidth: cuesWidthKey,
+            layoutKey: layoutKey,
             showsCueGroup: showsCueGroup,
             styleRevision: styleRevision,
             measurement: measurement
@@ -54,15 +64,14 @@ struct SubtitleTableRowHeightCache {
     func cachedMeasurement(
         rowIndex: Int,
         row: SubtitleTableRow,
-        effectiveCuesWidth: CGFloat,
+        layoutKey: SubtitleTableRowMeasurementLayoutKey,
         showsCueGroup: Bool,
         styleRevision: Int
     ) -> SubtitleTableRowMeasurement? {
-        let cuesWidthKey = Self.widthKey(effectiveCuesWidth)
         guard let entry = entries[rowIndex],
               entry.matches(
                   row: row,
-                  cuesWidth: cuesWidthKey,
+                  layoutKey: layoutKey,
                   showsCueGroup: showsCueGroup,
                   styleRevision: styleRevision
               )
@@ -113,27 +122,23 @@ struct SubtitleTableRowHeightCache {
             return entry.matches(row: row)
         }
     }
-
-    static func widthKey(_ width: CGFloat) -> Int {
-        Int((max(0, width) * 100).rounded())
-    }
 }
 
 private struct CacheEntry {
     let row: SubtitleTableRow
-    let cuesWidth: Int
+    let layoutKey: SubtitleTableRowMeasurementLayoutKey
     let showsCueGroup: Bool
     let styleRevision: Int
     let measurement: SubtitleTableRowMeasurement
 
     func matches(
         row: SubtitleTableRow,
-        cuesWidth: Int,
+        layoutKey: SubtitleTableRowMeasurementLayoutKey,
         showsCueGroup: Bool,
         styleRevision: Int
     ) -> Bool {
         matches(row: row)
-            && self.cuesWidth == cuesWidth
+            && self.layoutKey == layoutKey
             && self.showsCueGroup == showsCueGroup
             && self.styleRevision == styleRevision
     }
