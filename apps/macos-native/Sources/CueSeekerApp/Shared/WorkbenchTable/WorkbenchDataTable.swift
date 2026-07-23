@@ -9,6 +9,65 @@ enum WorkbenchTableColumnKind: Equatable {
 enum WorkbenchTableColumnWidth: Equatable {
     case fixed(CGFloat)
     case flexible(min: CGFloat)
+    case weighted(weight: CGFloat, min: CGFloat)
+}
+
+struct WorkbenchWeightedColumnWidthSpec: Equatable {
+    let id: String
+    let weight: CGFloat
+    let minimumWidth: CGFloat
+}
+
+enum WorkbenchWeightedColumnWidthResolver {
+    static func resolve(
+        _ columns: [WorkbenchWeightedColumnWidthSpec],
+        availableWidth: CGFloat
+    ) -> [String: CGFloat] {
+        guard !columns.isEmpty else { return [:] }
+
+        var unresolved = columns
+        var widths: [String: CGFloat] = [:]
+        var remainingWidth = max(
+            availableWidth,
+            columns.reduce(CGFloat.zero) { $0 + max(0, $1.minimumWidth) }
+        )
+
+        while !unresolved.isEmpty {
+            let totalWeight = unresolved.reduce(CGFloat.zero) { $0 + max(0, $1.weight) }
+            guard totalWeight > 0 else {
+                for column in unresolved {
+                    widths[column.id] = max(0, column.minimumWidth)
+                }
+                break
+            }
+
+            let widthPerWeight = remainingWidth / totalWeight
+            let constrained = unresolved.filter {
+                widthPerWeight * max(0, $0.weight) < max(0, $0.minimumWidth)
+            }
+            guard !constrained.isEmpty else {
+                var assignedWidth: CGFloat = 0
+                for (index, column) in unresolved.enumerated() {
+                    let width = index == unresolved.indices.last
+                        ? remainingWidth - assignedWidth
+                        : widthPerWeight * max(0, column.weight)
+                    widths[column.id] = max(0, width)
+                    assignedWidth += width
+                }
+                break
+            }
+
+            let constrainedIDs = Set(constrained.map(\.id))
+            for column in constrained {
+                let width = max(0, column.minimumWidth)
+                widths[column.id] = width
+                remainingWidth -= width
+            }
+            unresolved.removeAll { constrainedIDs.contains($0.id) }
+        }
+
+        return widths
+    }
 }
 
 struct WorkbenchTableColumn: Identifiable, Equatable {
@@ -258,7 +317,7 @@ private struct WorkbenchResolvedTableLayout {
             switch column.width {
             case .fixed(let width):
                 return total + width
-            case .flexible:
+            case .flexible, .weighted:
                 return total
             }
         }
@@ -268,19 +327,54 @@ private struct WorkbenchResolvedTableLayout {
                 return total
             case .flexible(let minWidth):
                 return total + minWidth
+            case .weighted(_, let minWidth):
+                return total + minWidth
             }
         }
         let minimumContentWidth = fixedTotal + flexibleMinTotal
         let contentWidth = max(totalWidth, minimumContentWidth)
-        let flexibleCount = columns.reduce(CGFloat.zero) { total, column in
-            switch column.width {
-            case .fixed:
-                return total
-            case .flexible:
-                return total + 1
+        let usesExplicitWeights = columns.contains {
+            if case .weighted = $0.width {
+                return true
             }
+            return false
         }
-        let extraWidth = max(0, contentWidth - minimumContentWidth)
+        let weightedWidths: [String: CGFloat]
+        if usesExplicitWeights {
+            weightedWidths = WorkbenchWeightedColumnWidthResolver.resolve(
+                columns.compactMap { column in
+                    switch column.width {
+                    case .fixed:
+                        return nil
+                    case .flexible(let minWidth):
+                        return WorkbenchWeightedColumnWidthSpec(
+                            id: column.id,
+                            weight: 1,
+                            minimumWidth: minWidth
+                        )
+                    case .weighted(let weight, let minWidth):
+                        return WorkbenchWeightedColumnWidthSpec(
+                            id: column.id,
+                            weight: weight,
+                            minimumWidth: minWidth
+                        )
+                    }
+                },
+                availableWidth: contentWidth - fixedTotal
+            )
+        } else {
+            let flexibleCount = columns.reduce(CGFloat.zero) {
+                if case .flexible = $1.width {
+                    return $0 + 1
+                }
+                return $0
+            }
+            let extraWidth = max(0, contentWidth - minimumContentWidth)
+            weightedWidths = Dictionary(uniqueKeysWithValues: columns.compactMap { column in
+                guard case .flexible(let minWidth) = column.width else { return nil }
+                return (column.id, minWidth + extraWidth / max(1, flexibleCount))
+            })
+        }
 
         return WorkbenchResolvedTableLayout(
             columns: columns.map { column in
@@ -288,8 +382,7 @@ private struct WorkbenchResolvedTableLayout {
                     column: column,
                     width: resolvedWidth(
                         for: column,
-                        extraWidth: extraWidth,
-                        flexibleCount: flexibleCount
+                        weightedWidths: weightedWidths
                     )
                 )
             },
@@ -299,18 +392,13 @@ private struct WorkbenchResolvedTableLayout {
 
     private static func resolvedWidth(
         for column: WorkbenchTableColumn,
-        extraWidth: CGFloat,
-        flexibleCount: CGFloat
+        weightedWidths: [String: CGFloat]
     ) -> CGFloat {
         switch column.width {
         case .fixed(let width):
             return width
-        case .flexible(let minWidth):
-            guard flexibleCount > 0 else {
-                return minWidth
-            }
-
-            return minWidth + extraWidth / flexibleCount
+        case .flexible(let minWidth), .weighted(_, let minWidth):
+            return weightedWidths[column.id] ?? minWidth
         }
     }
 }

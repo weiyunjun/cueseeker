@@ -208,25 +208,25 @@ enum SchemaWorkbenchSearchDefaults {
             id: "rowNumber",
             title: "#",
             kind: .rowNumber,
-            width: .fixed(84)
+            width: .fixed(50)
         ),
         WorkbenchTableColumn(
             id: "display",
             title: "Display Title",
             kind: .text,
-            width: .fixed(300)
+            width: .weighted(weight: 3, min: 180)
         ),
         WorkbenchTableColumn(
             id: "cues",
             title: "Cues",
             kind: .text,
-            width: .flexible(min: 580)
+            width: .weighted(weight: 6, min: 240)
         ),
         WorkbenchTableColumn(
             id: "time",
             title: "Time Range",
             kind: .text,
-            width: .fixed(190)
+            width: .weighted(weight: 2, min: 140)
         ),
     ]
 
@@ -235,37 +235,37 @@ enum SchemaWorkbenchSearchDefaults {
             id: "rowNumber",
             title: "#",
             kind: .rowNumber,
-            width: .fixed(84)
+            width: .fixed(50)
         ),
         WorkbenchTableColumn(
             id: "display",
             title: "Display Title",
             kind: .text,
-            width: .fixed(300)
+            width: .weighted(weight: 3, min: 180)
         ),
         WorkbenchTableColumn(
             id: "cues",
             title: "Cues",
             kind: .text,
-            width: .flexible(min: 580)
+            width: .weighted(weight: 6, min: 240)
         ),
         WorkbenchTableColumn(
             id: "tags",
             title: "Tags",
             kind: .text,
-            width: .fixed(180)
+            width: .weighted(weight: 2, min: 140)
         ),
         WorkbenchTableColumn(
             id: "time",
             title: "Time Range",
             kind: .text,
-            width: .fixed(190)
+            width: .weighted(weight: 2, min: 140)
         ),
         WorkbenchTableColumn(
             id: "dateAdded",
             title: "Date Added",
             kind: .text,
-            width: .fixed(190)
+            width: .weighted(weight: 2, min: 120)
         ),
     ]
 

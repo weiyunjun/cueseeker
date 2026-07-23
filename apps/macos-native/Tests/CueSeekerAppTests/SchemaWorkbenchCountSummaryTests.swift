@@ -61,3 +61,21 @@ func schemaWorkbenchCountSummaryClampsNegativeCounts() {
 func subtitleTableCheckboxLeadingInsetMatchesSummaryAlignment() {
     #expect(SubtitleTableMetrics.checkboxLeadingInset == CGFloat(17))
 }
+
+@Test
+func schemaWorkbenchTablesUseDocumentedColumnWeightsAndMinimums() {
+    #expect(SchemaWorkbenchSearchDefaults.columns.map(\.width) == [
+        .fixed(50),
+        .weighted(weight: 3, min: 180),
+        .weighted(weight: 6, min: 240),
+        .weighted(weight: 2, min: 140),
+    ])
+    #expect(SchemaWorkbenchSearchDefaults.shioriColumns.map(\.width) == [
+        .fixed(50),
+        .weighted(weight: 3, min: 180),
+        .weighted(weight: 6, min: 240),
+        .weighted(weight: 2, min: 140),
+        .weighted(weight: 2, min: 140),
+        .weighted(weight: 2, min: 120),
+    ])
+}

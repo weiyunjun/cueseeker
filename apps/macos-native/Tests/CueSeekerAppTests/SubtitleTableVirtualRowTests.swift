@@ -164,6 +164,129 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
 
 @MainActor
 @Test
+func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
+    let searchMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
+    )
+    let shioriMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
+        showsDateAddedColumn: true,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        showsTagsColumn: true,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
+    )
+    let allOptionalColumnsMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
+        showsDateAddedColumn: true,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: true,
+        showsLanguageColumn: true,
+        showsTagsColumn: true,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
+    )
+
+    #expect(searchMinimumWidth == 610)
+    #expect(shioriMinimumWidth == 870)
+    #expect(allOptionalColumnsMinimumWidth == 1_130)
+}
+
+@MainActor
+@Test
+func subtitleTableColumnLayoutRedistributesWidthAfterMinimumConstraints() {
+    let layout = SubtitleTableColumnLayout.resolve(
+        contentWidth: 736,
+        height: 64,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
+        columnOrder: ["display", "cues", "time"]
+    )
+
+    #expect(layout.indexRect.width == 50)
+    #expect(layout.nameRect.width == 182)
+    #expect(layout.cuesRect.width == 364)
+    #expect(layout.timeRect?.width == 140)
+    #expect(layout.nameRect.minX == layout.indexRect.maxX)
+    #expect(layout.cuesRect.minX == layout.nameRect.maxX)
+    #expect(layout.timeRect?.minX == layout.cuesRect.maxX)
+    #expect(layout.contentWidth == 736)
+}
+
+@MainActor
+@Test
+func subtitleTableColumnLayoutExpandsNarrowDocumentsToAllVisibleMinimums() {
+    let layout = SubtitleTableColumnLayout.resolve(
+        contentWidth: 320,
+        height: 64,
+        showsDateAddedColumn: true,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        showsTagsColumn: true,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
+        columnOrder: ["display", "cues", "tags", "time", "dateAdded"]
+    )
+
+    #expect(layout.indexRect.width == 50)
+    #expect(layout.nameRect.width == 180)
+    #expect(layout.cuesRect.width == 240)
+    #expect(layout.tagsRect?.width == 140)
+    #expect(layout.timeRect?.width == 140)
+    #expect(layout.dateAddedRect?.width == 120)
+    #expect(layout.contentWidth == 870)
+}
+
+@MainActor
+@Test
+func subtitleTableColumnLayoutExcludesHiddenColumnsFromWeightedAllocation() {
+    let layout = SubtitleTableColumnLayout.resolve(
+        contentWidth: 500,
+        height: 64,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: false,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
+        columnOrder: ["display", "cues", "time"]
+    )
+
+    #expect(layout.nameRect.width == 180)
+    #expect(layout.cuesRect.width == 270)
+    #expect(layout.timeRect == nil)
+    #expect(layout.contentWidth == 500)
+}
+
+@MainActor
+@Test
+func subtitleTableColumnLayoutUsesUnconstrainedWeightsInWideDocuments() {
+    let layout = SubtitleTableColumnLayout.resolve(
+        contentWidth: 1_350,
+        height: 64,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsSpeakerColumn: false,
+        showsLanguageColumn: false,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
+        columnOrder: ["display", "cues", "time"]
+    )
+    let timeWidth = layout.timeRect?.width ?? 0
+
+    #expect(abs(layout.cuesRect.width / layout.nameRect.width - 2) < 0.001)
+    #expect(abs(timeWidth / layout.nameRect.width - CGFloat(2) / 3) < 0.001)
+    #expect(abs(layout.indexRect.width + layout.nameRect.width + layout.cuesRect.width + timeWidth - 1_350) < 0.001)
+}
+
+@MainActor
+@Test
 func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
     let oldLayout = SubtitleTableColumnLayout.resolve(
         contentWidth: 1_160,
@@ -192,18 +315,17 @@ func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
 
     #expect(oldLayout.rowMeasurementLayoutKey.columnWidths == [
         "selection": 5_000,
-        "dateAdded": 16_000,
-        "display": 24_000,
-        "time": 19_000,
-        "cues": 52_000,
-        "tags": 18_000,
+        "dateAdded": 14_800,
+        "display": 22_200,
+        "time": 14_800,
+        "cues": 44_400,
+        "tags": 14_800,
     ])
     #expect(newLayout.rowMeasurementLayoutKey != oldLayout.rowMeasurementLayoutKey)
-    #expect(newLayout.nameRect.width == oldLayout.nameRect.width)
-    #expect(newLayout.timeRect?.width == oldLayout.timeRect?.width)
-    #expect(newLayout.dateAddedRect?.width == oldLayout.dateAddedRect?.width)
-    #expect(newLayout.tagsRect?.width == 180)
-    #expect(newLayout.tagsRect?.width == oldLayout.tagsRect?.width)
+    #expect(newLayout.nameRect.width > oldLayout.nameRect.width)
+    #expect((newLayout.timeRect?.width ?? 0) > (oldLayout.timeRect?.width ?? 0))
+    #expect((newLayout.dateAddedRect?.width ?? 0) > (oldLayout.dateAddedRect?.width ?? 0))
+    #expect((newLayout.tagsRect?.width ?? 0) > (oldLayout.tagsRect?.width ?? 0))
     #expect(newLayout.tagsRect?.minX == newLayout.cuesRect.maxX)
     #expect(newLayout.timeRect?.minX == newLayout.tagsRect?.maxX)
     #expect(newLayout.cuesRect.width > oldLayout.cuesRect.width)

@@ -8,10 +8,23 @@ enum SubtitleTableMetrics {
     static let dateAddedColumnWidth: CGFloat = 160
     static let timeColumnWidth: CGFloat = 190
     static let nameColumnWidth: CGFloat = 240
-    static let cuesColumnMinimumWidth: CGFloat = 520
+    static let cuesColumnMinimumWidth: CGFloat = 240
     static let speakerColumnWidth: CGFloat = 180
     static let languageColumnWidth: CGFloat = 160
     static let tagsColumnWidth: CGFloat = 180
+    static let dateAddedColumnMinimumWidth: CGFloat = 120
+    static let timeColumnMinimumWidth: CGFloat = 140
+    static let displayTitleColumnMinimumWidth: CGFloat = 180
+    static let speakerColumnMinimumWidth: CGFloat = 140
+    static let languageColumnMinimumWidth: CGFloat = 120
+    static let tagsColumnMinimumWidth: CGFloat = 140
+    static let dateAddedColumnWeight: CGFloat = 2
+    static let timeColumnWeight: CGFloat = 2
+    static let displayTitleColumnWeight: CGFloat = 3
+    static let cuesColumnWeight: CGFloat = 6
+    static let speakerColumnWeight: CGFloat = 2
+    static let languageColumnWeight: CGFloat = 2
+    static let tagsColumnWeight: CGFloat = 2
     static let cellLeading: CGFloat = 12
     static let trailingInset: CGFloat = 14
     static let indexTrailingInset: CGFloat = 6
@@ -129,13 +142,20 @@ struct SubtitleTableColumnLayout: Equatable {
         cuesMinimumWidth: CGFloat
     ) -> CGFloat {
         let M = SubtitleTableMetrics.self
-        let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
-        let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
-        let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
-        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        let tagsWidth = showsTagsColumn ? M.tagsColumnWidth : 0
-        return M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth + cuesMinimumWidth + speakerWidth + languageWidth + tagsWidth
+        let columns = resolvedTextColumnOrder(
+            [],
+            showsDateAddedColumn: showsDateAddedColumn,
+            showsDisplayTitleColumn: showsDisplayTitleColumn,
+            showsTimeColumn: showsTimeColumn,
+            showsSpeakerColumn: showsSpeakerColumn,
+            showsLanguageColumn: showsLanguageColumn,
+            showsTagsColumn: showsTagsColumn
+        ).compactMap {
+            weightedWidthSpec(for: $0, cuesMinimumWidth: cuesMinimumWidth)
+        }
+        return M.indexColumnWidth + columns.reduce(CGFloat.zero) {
+            $0 + $1.minimumWidth
+        }
     }
 
     static func resolve(
@@ -148,8 +168,7 @@ struct SubtitleTableColumnLayout: Equatable {
         showsLanguageColumn: Bool,
         showsTagsColumn: Bool = false,
         cuesMinimumWidth: CGFloat,
-        columnOrder: [String] = [],
-        expandsToMinimumContentWidth: Bool = true
+        columnOrder: [String] = []
     ) -> SubtitleTableColumnLayout {
         let M = SubtitleTableMetrics.self
         let minimumWidth = minimumContentWidth(
@@ -161,18 +180,21 @@ struct SubtitleTableColumnLayout: Equatable {
             showsTagsColumn: showsTagsColumn,
             cuesMinimumWidth: cuesMinimumWidth
         )
-        let resolvedContentWidth = expandsToMinimumContentWidth
-            ? max(0, contentWidth, minimumWidth)
-            : max(0, contentWidth)
-        let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
-        let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
-        let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
-        let speakerWidth = showsSpeakerColumn ? M.speakerColumnWidth : 0
-        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        let tagsWidth = showsTagsColumn ? M.tagsColumnWidth : 0
-        let cuesWidth = max(
-            cuesMinimumWidth,
-            resolvedContentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - timeWidth - speakerWidth - languageWidth - tagsWidth
+        let resolvedContentWidth = max(0, contentWidth, minimumWidth)
+        let textColumnOrder = resolvedTextColumnOrder(
+            columnOrder,
+            showsDateAddedColumn: showsDateAddedColumn,
+            showsDisplayTitleColumn: showsDisplayTitleColumn,
+            showsTimeColumn: showsTimeColumn,
+            showsSpeakerColumn: showsSpeakerColumn,
+            showsLanguageColumn: showsLanguageColumn,
+            showsTagsColumn: showsTagsColumn
+        )
+        let weightedWidths = WorkbenchWeightedColumnWidthResolver.resolve(
+            textColumnOrder.compactMap {
+                weightedWidthSpec(for: $0, cuesMinimumWidth: cuesMinimumWidth)
+            },
+            availableWidth: max(0, resolvedContentWidth - M.indexColumnWidth)
         )
 
         var x: CGFloat = 0
@@ -181,42 +203,35 @@ struct SubtitleTableColumnLayout: Equatable {
         var dateAddedRect: CGRect?
         var nameRect = CGRect(x: x, y: 0, width: 0, height: height)
         var timeRect: CGRect?
-        var cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
+        var cuesRect = CGRect(x: x, y: 0, width: weightedWidths["cues"] ?? cuesMinimumWidth, height: height)
         var speakerRect: CGRect?
         var languageRect: CGRect?
         var tagsRect: CGRect?
 
-        for columnID in resolvedTextColumnOrder(
-            columnOrder,
-            showsDateAddedColumn: showsDateAddedColumn,
-            showsDisplayTitleColumn: showsDisplayTitleColumn,
-            showsTimeColumn: showsTimeColumn,
-            showsSpeakerColumn: showsSpeakerColumn,
-            showsLanguageColumn: showsLanguageColumn,
-            showsTagsColumn: showsTagsColumn
-        ) {
+        for columnID in textColumnOrder {
+            let width = weightedWidths[columnID] ?? 0
             switch columnID {
             case "dateAdded":
-                dateAddedRect = CGRect(x: x, y: 0, width: M.dateAddedColumnWidth, height: height)
-                x += M.dateAddedColumnWidth
+                dateAddedRect = CGRect(x: x, y: 0, width: width, height: height)
+                x += width
             case "display":
-                nameRect = CGRect(x: x, y: 0, width: displayTitleWidth, height: height)
-                x += displayTitleWidth
+                nameRect = CGRect(x: x, y: 0, width: width, height: height)
+                x += width
             case "time":
-                timeRect = CGRect(x: x, y: 0, width: M.timeColumnWidth, height: height)
-                x += M.timeColumnWidth
+                timeRect = CGRect(x: x, y: 0, width: width, height: height)
+                x += width
             case "cues":
-                cuesRect = CGRect(x: x, y: 0, width: cuesWidth, height: height)
-                x += cuesWidth
+                cuesRect = CGRect(x: x, y: 0, width: width, height: height)
+                x += width
             case "speaker":
-                speakerRect = CGRect(x: x, y: 0, width: M.speakerColumnWidth, height: height)
-                x += M.speakerColumnWidth
+                speakerRect = CGRect(x: x, y: 0, width: width, height: height)
+                x += width
             case "language":
-                languageRect = CGRect(x: x, y: 0, width: M.languageColumnWidth, height: height)
-                x += M.languageColumnWidth
+                languageRect = CGRect(x: x, y: 0, width: width, height: height)
+                x += width
             case "tags":
-                tagsRect = CGRect(x: x, y: 0, width: M.tagsColumnWidth, height: height)
-                x += M.tagsColumnWidth
+                tagsRect = CGRect(x: x, y: 0, width: width, height: height)
+                x += width
             default:
                 break
             }
@@ -233,6 +248,59 @@ struct SubtitleTableColumnLayout: Equatable {
             tagsRect: tagsRect,
             contentWidth: resolvedContentWidth
         )
+    }
+
+    private static func weightedWidthSpec(
+        for columnID: String,
+        cuesMinimumWidth: CGFloat
+    ) -> WorkbenchWeightedColumnWidthSpec? {
+        let M = SubtitleTableMetrics.self
+        switch columnID {
+        case "dateAdded":
+            return WorkbenchWeightedColumnWidthSpec(
+                id: columnID,
+                weight: M.dateAddedColumnWeight,
+                minimumWidth: M.dateAddedColumnMinimumWidth
+            )
+        case "display":
+            return WorkbenchWeightedColumnWidthSpec(
+                id: columnID,
+                weight: M.displayTitleColumnWeight,
+                minimumWidth: M.displayTitleColumnMinimumWidth
+            )
+        case "time":
+            return WorkbenchWeightedColumnWidthSpec(
+                id: columnID,
+                weight: M.timeColumnWeight,
+                minimumWidth: M.timeColumnMinimumWidth
+            )
+        case "cues":
+            return WorkbenchWeightedColumnWidthSpec(
+                id: columnID,
+                weight: M.cuesColumnWeight,
+                minimumWidth: cuesMinimumWidth
+            )
+        case "speaker":
+            return WorkbenchWeightedColumnWidthSpec(
+                id: columnID,
+                weight: M.speakerColumnWeight,
+                minimumWidth: M.speakerColumnMinimumWidth
+            )
+        case "language":
+            return WorkbenchWeightedColumnWidthSpec(
+                id: columnID,
+                weight: M.languageColumnWeight,
+                minimumWidth: M.languageColumnMinimumWidth
+            )
+        case "tags":
+            return WorkbenchWeightedColumnWidthSpec(
+                id: columnID,
+                weight: M.tagsColumnWeight,
+                minimumWidth: M.tagsColumnMinimumWidth
+            )
+        default:
+            return nil
+        }
     }
 
     static func resolvedTextColumnOrder(

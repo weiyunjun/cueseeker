@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Made Search, Shiori, and Search-hosted Context table columns responsive by
+  distributing non-checkbox width through documented per-column weights while
+  preserving every visible column's minimum width. Narrow tables now scroll
+  horizontally at the minimum-width total, Cues uses weight 6 with a 240-point
+  minimum, and rows remeasure complete wrapped content after any visible
+  column's resolved width changes.
 - Completed the database architecture decomposition and schema-33 compatibility
   baseline. The active native app now rejects unsupported schemas without
   silent deletion, separates bootstrap, Indexing, Search, Library, Shiori,
