@@ -23,6 +23,7 @@ private struct ContentRootView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var libraryStore: LibraryStore
+    @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var playback: PlaybackStore
 
     private let windowBackground = Color(
@@ -90,6 +91,22 @@ private struct ContentRootView: View {
                 )
                 .interactiveDismissDisabled(session.isSaving)
             }
+            .sheet(item: $shioriStore.listEditorSession) { session in
+                ShioriListEditorDialog(
+                    session: session,
+                    onChooseImage: {
+                        appState.beginChoosingShioriListCover(session)
+                    },
+                    onValidate: {
+                        appState.validateShioriListEditor(session)
+                    },
+                    onSave: {
+                        appState.saveShioriListEditor(session)
+                    },
+                    onClose: appState.closeShioriListEditor
+                )
+                .interactiveDismissDisabled(true)
+            }
             .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }
@@ -148,6 +165,19 @@ private struct AppTopBar: View {
                 )
             } else {
                 LibrarySectionTitle("Library")
+                    .allowsHitTesting(false)
+            }
+        case .shiori:
+            if routeState.selectedShioriListID != nil {
+                ShioriListDetailHeader(
+                    onBack: {
+                        appState.performUserInitiatedAppCommand {
+                            appState.showShioriListOverview()
+                        }
+                    }
+                )
+            } else {
+                LibrarySectionTitle("Shiori")
                     .allowsHitTesting(false)
             }
         default:

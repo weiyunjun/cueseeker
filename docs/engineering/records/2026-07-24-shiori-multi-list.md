@@ -92,8 +92,27 @@ the native macOS app.
   tests.
 - `git diff --check` passed.
 
+## Step 5 Changes
+
+- Added the Shiori overview summary, adaptive list-card grid, default and stored
+  covers, count badges, fixed-height truncated metadata, and video-card context
+  menu behavior.
+- Added New and Edit list dialogs with inline 16:9 cover cropping, shared form
+  controls, accepted validation messages, dirty-state handling, and the
+  three-action Save Changes confirmation.
+- Added list deletion confirmation, last-list disabled state, cover cleanup,
+  and overview/detail navigation while retaining the existing detail table.
+
+## Step 5 Verification
+
+- Selected editor validation, dirty-state, create, edit, delete, overview, and
+  cover-storage tests passed (5 tests across the Step 4 and Step 5 runs).
+- The full native app and test targets compiled while running the selected
+  tests.
+- `git diff --check` passed.
+
 ## Outcome
 
-- Implementation is in progress. Steps 1 through 4 matched the accepted
+- Implementation is in progress. Steps 1 through 5 matched the accepted
   persistence, list scope, transfer, shared UI, and overview/detail state
   requirements.

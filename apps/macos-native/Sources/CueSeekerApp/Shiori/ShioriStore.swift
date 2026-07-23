@@ -14,6 +14,7 @@ final class ShioriStore: ObservableObject {
     )
     @Published private(set) var hasLoadedListOverview = false
     @Published private(set) var activeListID: Int64?
+    @Published var listEditorSession: ShioriListEditorSession?
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
     @Published var tableSubmittedSearchText = ""

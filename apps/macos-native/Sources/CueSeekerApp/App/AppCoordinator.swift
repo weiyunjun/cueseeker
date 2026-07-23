@@ -440,6 +440,8 @@ final class AppCoordinator: ObservableObject {
     var libraryDisplayRenditionGeneration = 0
     var libraryCoverImportTask: Task<Void, Never>?
     var libraryCoverSaveTask: Task<Void, Never>?
+    var shioriListCoverImportTask: Task<Void, Never>?
+    var shioriListSaveTask: Task<Void, Never>?
     var shioriListOverviewTask: Task<Void, Never>?
     var shioriTableRowsTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?

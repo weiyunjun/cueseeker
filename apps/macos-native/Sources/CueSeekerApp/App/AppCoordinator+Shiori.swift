@@ -70,6 +70,234 @@ extension AppCoordinator {
         reloadShioriListOverview()
     }
 
+    func beginCreatingShioriList() {
+        guard shiori.listEditorSession == nil else {
+            return
+        }
+        shiori.listEditorSession = ShioriListEditorSession(mode: .newList)
+    }
+
+    func beginEditingShioriList(_ list: ShioriList) {
+        guard shiori.listEditorSession == nil else {
+            return
+        }
+        shiori.listEditorSession = ShioriListEditorSession(mode: .edit(list))
+    }
+
+    func closeShioriListEditor() {
+        guard shiori.listEditorSession?.isSaving != true else {
+            return
+        }
+        shioriListCoverImportTask?.cancel()
+        shioriListCoverImportTask = nil
+        shiori.listEditorSession = nil
+    }
+
+    func validateShioriListEditor(_ session: ShioriListEditorSession) {
+        guard shiori.listEditorSession?.id == session.id,
+              let database = shioriDatabase
+        else {
+            return
+        }
+        do {
+            session.apply(validation: try database.validateShioriList(
+                name: session.name,
+                description: session.listDescription,
+                excludingListID: session.mode.editedList?.id
+            ))
+        } catch {
+            print("Failed to validate Shiori list: \(error)")
+        }
+    }
+
+    func beginChoosingShioriListCover(_ session: ShioriListEditorSession) {
+        guard shiori.listEditorSession?.id == session.id,
+              !session.isSaving
+        else {
+            return
+        }
+
+        let panel = NSOpenPanel()
+        let delegate = LibraryCoverOpenPanelDelegate()
+        panel.delegate = delegate
+        panel.title = "Choose Cover Image"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.resolvesAliases = true
+        panel.allowedContentTypes = LibraryCoverOpenPanelPolicy.allowedContentTypes
+        panel.allowsOtherFileTypes = false
+
+        let completion: (NSApplication.ModalResponse) -> Void = {
+            [weak self, weak session, delegate] response in
+            _ = delegate
+            guard let self,
+                  let session,
+                  response == .OK,
+                  let sourceURL = panel.url,
+                  self.shiori.listEditorSession?.id == session.id
+            else {
+                return
+            }
+
+            self.shioriListCoverImportTask?.cancel()
+            self.shioriListCoverImportTask = Task { @MainActor [weak self, weak session] in
+                guard let self, let session else {
+                    return
+                }
+                do {
+                    let source = try await Task.detached(priority: .userInitiated) {
+                        try LibraryUserCoverProcessor.loadSource(at: sourceURL)
+                    }.value
+                    try Task.checkCancellation()
+                    guard self.shiori.listEditorSession?.id == session.id else {
+                        return
+                    }
+                    session.selectCoverSource(source)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    print("Failed to load Shiori list cover: \(error)")
+                }
+            }
+        }
+
+        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
+            panel.beginSheetModal(for: window, completionHandler: completion)
+        } else {
+            completion(panel.runModal())
+        }
+    }
+
+    func saveShioriListEditor(_ session: ShioriListEditorSession) {
+        guard shiori.listEditorSession?.id == session.id,
+              !session.isSaving,
+              let database = shioriDatabase
+        else {
+            return
+        }
+        validateShioriListEditor(session)
+        guard session.nameValidationMessage == nil,
+              session.descriptionValidationMessage == nil
+        else {
+            return
+        }
+
+        session.isSaving = true
+        let source = session.selectedCoverSource
+        let cropRect = session.cropRect
+        let oldCoverPath = session.originalCoverPath
+        let mode = session.mode
+        let name = session.name
+        let description = session.listDescription
+        shioriListSaveTask?.cancel()
+        shioriListSaveTask = Task { @MainActor [weak self, weak session] in
+            guard let self, let session else {
+                return
+            }
+            var publishedCoverPath: String?
+            do {
+                if let source {
+                    publishedCoverPath = try await self.shioriListCoverStorage.publish(
+                        source: source,
+                        cropRect: cropRect
+                    )
+                }
+                let coverPath = publishedCoverPath ?? oldCoverPath
+                switch mode {
+                case .newList:
+                    _ = try database.createShioriList(
+                        name: name,
+                        description: description,
+                        coverPath: coverPath
+                    )
+                case .edit(let list):
+                    _ = try database.updateShioriList(
+                        id: list.id,
+                        name: name,
+                        description: description,
+                        coverPath: coverPath
+                    )
+                }
+
+                if publishedCoverPath != nil, oldCoverPath != nil {
+                    do {
+                        try await self.shioriListCoverStorage.remove(path: oldCoverPath)
+                    } catch {
+                        print("Failed to remove replaced Shiori list cover: \(error)")
+                    }
+                }
+                guard self.shiori.listEditorSession?.id == session.id else {
+                    return
+                }
+                session.isSaving = false
+                self.shiori.listEditorSession = nil
+                self.reloadShioriListOverview()
+            } catch is CancellationError {
+                if let publishedCoverPath {
+                    try? await self.shioriListCoverStorage.remove(path: publishedCoverPath)
+                }
+                if self.shiori.listEditorSession?.id == session.id {
+                    session.isSaving = false
+                }
+            } catch {
+                if let publishedCoverPath {
+                    try? await self.shioriListCoverStorage.remove(path: publishedCoverPath)
+                }
+                guard self.shiori.listEditorSession?.id == session.id else {
+                    return
+                }
+                session.isSaving = false
+                if let validationError = error as? ShioriListValidationError {
+                    let validation = try? database.validateShioriList(
+                        name: session.name,
+                        description: session.listDescription,
+                        excludingListID: session.mode.editedList?.id
+                    )
+                    if let validation {
+                        session.apply(validation: validation)
+                    } else {
+                        print("Failed to revalidate Shiori list after \(validationError)")
+                    }
+                } else {
+                    print("Failed to save Shiori list: \(error)")
+                }
+            }
+            self.shioriListSaveTask = nil
+        }
+    }
+
+    @discardableResult
+    func deleteShioriList(id: Int64) -> Bool {
+        guard let database = shioriDatabase else {
+            return false
+        }
+        do {
+            let deleted = try database.deleteShioriList(id: id)
+            if workbenchLayout.selectedShioriListID == id {
+                workbenchLayout.clearShioriList()
+            }
+            if shiori.activeListID == id {
+                shiori.setActiveListID(try database.firstShioriListID())
+            }
+            reloadShioriListOverview()
+            if let coverPath = deleted.coverPath {
+                Task {
+                    do {
+                        try await shioriListCoverStorage.remove(path: coverPath)
+                    } catch {
+                        print("Failed to remove deleted Shiori list cover: \(error)")
+                    }
+                }
+            }
+            return true
+        } catch {
+            print("Failed to delete Shiori list: \(error)")
+            return false
+        }
+    }
+
     func loadShioriTableRowsIfNeeded() {
         guard !indexing.indexingStatus.isIndexing,
               !indexing.folderRemovalStatus.isRemoving

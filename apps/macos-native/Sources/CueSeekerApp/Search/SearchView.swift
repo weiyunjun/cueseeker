@@ -236,9 +236,13 @@ struct SearchView: View {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            WorkbenchShioriTableView(
-                isTableResponseActive: !appState.isPlaybackPageVisible
-            )
+            if routeState.selectedShioriListID != nil {
+                WorkbenchShioriTableView(
+                    isTableResponseActive: !appState.isPlaybackPageVisible
+                )
+            } else {
+                ShioriListOverviewView()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

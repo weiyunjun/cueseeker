@@ -982,9 +982,10 @@ private extension EnvironmentValues {
     }
 }
 
-private struct LibraryCardContextMenuItem: Identifiable {
+struct LibraryCardContextMenuItem: Identifiable {
     let title: String
     let systemImage: String
+    var isEnabled = true
     let action: () -> Void
 
     var id: String {
@@ -1003,7 +1004,7 @@ private struct LibraryCardContextMenuState: Identifiable {
     let items: [LibraryCardContextMenuItem]
 }
 
-private struct LibraryCardContextMenuHost<Content: View>: View {
+struct LibraryCardContextMenuHost<Content: View>: View {
     @State private var activeMenu: LibraryCardContextMenuState?
     @State private var menuSize: CGSize = .zero
     @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void) -> Content
@@ -1197,7 +1198,7 @@ private struct LibraryCardContextMenu: View {
                         systemImage: item.systemImage,
                         isRedesign: true,
                         showsCheckmarkSlot: false,
-                        isEnabled: true,
+                        isEnabled: item.isEnabled,
                         action: {
                             onDismiss()
                             item.action()
@@ -1362,7 +1363,7 @@ private struct LibraryCoverHoverEffectModifier: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func libraryCardCursor(isEnabled: Bool) -> some View {
         modifier(LibraryCardCursorModifier(isEnabled: isEnabled))
     }
