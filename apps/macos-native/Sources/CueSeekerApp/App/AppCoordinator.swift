@@ -587,6 +587,9 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
+        shiori.setActiveListID(
+            try? openedShioriDatabase?.firstShioriListID()
+        )
         setupSettingsObservers()
     }
 

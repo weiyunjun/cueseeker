@@ -432,14 +432,32 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     try executeDatabaseTestSQLite(
         at: databaseURL,
         """
-        INSERT INTO shiori_lists(id, name, created_at)
-        VALUES (2, 'Future List', '2026-07-21T00:00:00Z');
+        INSERT INTO shiori_lists(
+            id,
+            name,
+            normalized_name,
+            description,
+            cover_path,
+            created_at
+        )
+        VALUES (
+            2,
+            'Future List',
+            'future list',
+            '',
+            NULL,
+            '2026-07-21T00:00:00Z'
+        );
         INSERT INTO shioris(list_id, cue_id, created_at)
         VALUES (2, \(cueID), '2026-07-21T00:00:01Z');
         """
     )
 
-    #expect(try ShioriDatabase(path: database.path).shioriRelations().map(\.id) == [defaultShiori.id])
+    #expect(
+        try ShioriDatabase(path: database.path).shioriRelations(
+            listID: ShioriListIdentity.defaultListID
+        ).map(\.id) == [defaultShiori.id]
+    )
     let futureRelation = try #require(try ShioriDatabase(path: database.path).shioriRelations(listID: 2).first)
     #expect(futureRelation.cueID == cueID)
     #expect(futureRelation.listID == 2)

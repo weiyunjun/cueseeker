@@ -108,6 +108,9 @@ private struct WorkbenchShioriTableContent: View {
                     onPlay: openShiori,
                     onShowContext: showContext,
                     rowActionMenuStyle: .shiori,
+                    rowActionDestinations: rowActionDestinations,
+                    onMoveShiori: moveShiori,
+                    onDuplicateShiori: duplicateShiori,
                     onRemoveShiori: requestRemoveShiori,
                     makeTagsPopover: { row, dismiss, requestLayout in
                         AnyView(
@@ -404,6 +407,32 @@ private struct WorkbenchShioriTableContent: View {
 
     private func requestRemoveShiori(_ row: SubtitleTableRow) {
         pendingRemoval = rowStore.snapshot.shiori(entryID: row.id)
+    }
+
+    private var rowActionDestinations: [SubtitleTableRowActionDestination] {
+        shioriStore.listOverview.lists.compactMap { summary in
+            guard summary.id != shioriStore.activeListID else {
+                return nil
+            }
+            return SubtitleTableRowActionDestination(
+                id: summary.id,
+                title: summary.list.name
+            )
+        }
+    }
+
+    private func moveShiori(_ row: SubtitleTableRow, toListID listID: Int64) {
+        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+            return
+        }
+        appState.moveShiori(item, toListID: listID)
+    }
+
+    private func duplicateShiori(_ row: SubtitleTableRow, toListID listID: Int64) {
+        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+            return
+        }
+        appState.duplicateShiori(item, toListID: listID)
     }
 
     private func confirmRemoveShiori(_ item: Shiori) {

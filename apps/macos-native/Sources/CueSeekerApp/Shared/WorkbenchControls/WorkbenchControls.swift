@@ -1038,6 +1038,8 @@ struct WorkbenchPopoverRow: View {
     var showsCheckmarkSlot = true
     var isEnabled = true
     var action: (() -> Void)? = nil
+    var trailingSystemImage: String?
+    var onHoverChange: ((Bool) -> Void)?
     @State private var isHovered = false
     @State private var hasPushedCursor = false
 
@@ -1092,6 +1094,33 @@ struct WorkbenchPopoverRow: View {
                 .fixedSize(horizontal: true, vertical: false)
 
             Spacer(minLength: 0)
+
+            if let trailingSystemImage {
+                Image(systemName: trailingSystemImage)
+                    .font(.system(
+                        size: isRedesign
+                            ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
+                            : 14,
+                        weight: .medium
+                    ))
+                    .foregroundStyle(
+                        isRedesign
+                            ? (isEnabled
+                                ? WorkbenchRedesignColors.iconDefault
+                                : WorkbenchRedesignColors.iconDisabled)
+                            : (isEnabled
+                                ? WorkbenchControlColors.primaryText
+                                : WorkbenchControlColors.mutedText)
+                    )
+                    .frame(
+                        width: isRedesign
+                            ? WorkbenchControlMetrics.redesignControlIconSize
+                            : nil,
+                        height: isRedesign
+                            ? WorkbenchControlMetrics.redesignControlIconSize
+                            : nil
+                    )
+            }
         }
         .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
         .padding(.horizontal, isRedesign ? 16 : 12)
@@ -1102,6 +1131,7 @@ struct WorkbenchPopoverRow: View {
         )
         .contentShape(Rectangle())
         .onHover { inside in
+            onHoverChange?(inside)
             if isRedesign && isEnabled && action != nil {
                 isHovered = inside
                 if inside {

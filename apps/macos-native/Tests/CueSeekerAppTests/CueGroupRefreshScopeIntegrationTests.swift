@@ -111,6 +111,10 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
             try #require(didPreserveSelectedCueGroup)
 
+            app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
+            app.workbenchLayout.selectShioriList(
+                id: ShioriListIdentity.defaultListID
+            )
             app.activateWorkbenchPanelMode(.shiori)
             let didMountShiori = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()
@@ -173,6 +177,10 @@ struct CueGroupRefreshScopeIntegrationTests {
                 app.search.tableViewportAnchor
             )
 
+            app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
+            app.workbenchLayout.selectShioriList(
+                id: ShioriListIdentity.defaultListID
+            )
             app.activateWorkbenchPanelMode(.shiori)
             let didMountShiori = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()
@@ -942,6 +950,10 @@ private final class CueGroupRefreshScopeMountedHarness {
                 subtitlePath: subtitleURL.path,
                 videoPath: videoURL.path,
                 rowCount: 200
+            )
+            app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
+            app.workbenchLayout.selectShioriList(
+                id: ShioriListIdentity.defaultListID
             )
             app.shiori.tableRowStore.hydrateShioriRows(
                 sources,

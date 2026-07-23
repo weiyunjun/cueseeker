@@ -111,8 +111,38 @@ the native macOS app.
   tests.
 - `git diff --check` passed.
 
+## Step 6 Changes
+
+- Added Shiori row-menu Move and Duplicate parents with the accepted order,
+  icons, dividers, disabled state, destination ordering, current-list
+  exclusion, and right-chevron submenu indicator.
+- Added a connected two-panel Action Submenu with native-style delayed Hover,
+  immediate click, Right Arrow, Left Arrow, Escape, outside-click, pointer
+  corridor, and parent-highlight behavior.
+- Connected Move and Duplicate to the atomic database operations, refreshed
+  the affected list presentation, and mapped success, missing destination,
+  duplicate CueID, and generic failures to the registered Toast requests.
+- Initialized the transitional active Shiori list from the current
+  creation-time order and updated table-mount and raw-schema tests for the new
+  overview/detail and list-metadata contracts.
+
+## Step 6 Verification
+
+- `swift build` passed.
+- Selected row-menu ordering, submenu state, original-target stability,
+  transfer, Toast, list model, editor, overview, cover, and schema tests passed
+  (17 tests in the final core run).
+- The Cue Group mounted-surface integration suite passed (14 tests), including
+  the updated Shiori overview-to-detail route.
+- The Playback Subtitle Focus keyboard-action suite passed (17 tests) and the
+  native media timeline suite passed (5 tests) when rerun independently.
+- The full 852-test concurrent run completed with existing timing and disk-I/O
+  sensitive media tests failing only under whole-suite load; the affected
+  suites passed in the independent reruns above.
+- `git diff --check` passed.
+
 ## Outcome
 
-- Implementation is in progress. Steps 1 through 5 matched the accepted
-  persistence, list scope, transfer, shared UI, and overview/detail state
-  requirements.
+- Steps 1 through 6 implement the accepted Shiori multi-list persistence,
+  overview/detail routing, list editor, cover workflow, row transfers,
+  confirmations, and registered Toast behavior.

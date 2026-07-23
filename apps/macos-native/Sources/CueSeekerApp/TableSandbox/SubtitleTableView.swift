@@ -931,36 +931,194 @@ enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
     }
 }
 
+@MainActor
+final class SubtitleTableRowActionSubmenuState: ObservableObject {
+    static let nativeHoverDelayNanoseconds: UInt64 = 300_000_000
+
+    @Published private(set) var highlightedParent: SubtitleTableRowAction?
+    @Published private(set) var openParent: SubtitleTableRowAction?
+    private let hoverDelayNanoseconds: UInt64
+    private var hoverTask: Task<Void, Never>?
+
+    init(
+        hoverDelayNanoseconds: UInt64 = nativeHoverDelayNanoseconds
+    ) {
+        self.hoverDelayNanoseconds = hoverDelayNanoseconds
+    }
+
+    func setParentHovered(_ action: SubtitleTableRowAction, isHovered: Bool) {
+        guard action.opensDestinationSubmenu else {
+            return
+        }
+        guard isHovered else {
+            hoverTask?.cancel()
+            hoverTask = nil
+            if openParent != action, highlightedParent == action {
+                highlightedParent = nil
+            }
+            return
+        }
+        hoverTask?.cancel()
+        highlightedParent = action
+        if openParent != action {
+            openParent = nil
+        }
+        if hoverDelayNanoseconds == 0 {
+            openParent = action
+            return
+        }
+        hoverTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            try? await Task.sleep(nanoseconds: self.hoverDelayNanoseconds)
+            guard !Task.isCancelled,
+                  self.highlightedParent == action
+            else {
+                return
+            }
+            self.openParent = action
+        }
+    }
+
+    func setOtherItemHovered(_ isHovered: Bool) {
+        guard isHovered else {
+            return
+        }
+        hoverTask?.cancel()
+        highlightedParent = nil
+        openParent = nil
+    }
+
+    func open(_ action: SubtitleTableRowAction) {
+        guard action.opensDestinationSubmenu else {
+            return
+        }
+        hoverTask?.cancel()
+        highlightedParent = action
+        openParent = action
+    }
+
+    @discardableResult
+    func openHighlightedParent() -> Bool {
+        guard let highlightedParent else {
+            return false
+        }
+        open(highlightedParent)
+        return true
+    }
+
+    @discardableResult
+    func closeSubmenu() -> Bool {
+        guard openParent != nil else {
+            return false
+        }
+        hoverTask?.cancel()
+        openParent = nil
+        return true
+    }
+
+    func reset() {
+        hoverTask?.cancel()
+        hoverTask = nil
+        highlightedParent = nil
+        openParent = nil
+    }
+}
+
 private struct RowActionMenu: View {
     var style: SubtitleTableRowActionMenuStyle = .search
     var showsCueGroup = false
     var canOpenFolder = true
+    let destinations: [SubtitleTableRowActionDestination]
+    @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
     var onAction: (SubtitleTableRowAction) -> Void
+    var onDestinationAction: (
+        SubtitleTableRowAction,
+        SubtitleTableRowActionDestination
+    ) -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true) {
-            VStack(spacing: 0) {
-                ForEach(Array(model.elements.enumerated()), id: \.offset) { _, element in
-                    switch element {
-                    case .divider:
-                        Divider()
-                    case .action(let action):
-                        WorkbenchPopoverRow(
-                            title: action.title,
-                            systemImage: action.systemImage,
-                            isRedesign: true,
-                            showsCheckmarkSlot: false,
-                            isEnabled: action != .openSubtitleFolder || canOpenFolder,
-                            action: { onAction(action) }
-                        )
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+            WorkbenchPopoverPanel(isRedesign: true) {
+                VStack(spacing: 0) {
+                    ForEach(Array(model.elements.enumerated()), id: \.offset) { _, element in
+                        switch element {
+                        case .divider:
+                            Divider()
+                                .onHover(perform: submenuState.setOtherItemHovered)
+                        case .action(let action):
+                            actionRow(action)
+                        }
                     }
                 }
+            }
+
+            if let openParent = submenuState.openParent {
+                destinationSubmenu(for: openParent)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.10), value: submenuState.openParent)
+        .onHover { isHovered in
+            if !isHovered {
+                submenuState.reset()
             }
         }
     }
 
     private var model: SubtitleTableRowActionMenuModel {
         SubtitleTableRowActionMenuModel(style: style, showsCueGroup: showsCueGroup)
+    }
+
+    private func actionRow(_ action: SubtitleTableRowAction) -> some View {
+        let isSubmenuParent = action.opensDestinationSubmenu
+        let isEnabled = (action != .openSubtitleFolder || canOpenFolder)
+            && (!isSubmenuParent || !destinations.isEmpty)
+        return WorkbenchPopoverRow(
+            title: action.title,
+            isHighlighted: submenuState.openParent == action,
+            systemImage: action.systemImage,
+            isRedesign: true,
+            showsCheckmarkSlot: false,
+            isEnabled: isEnabled,
+            action: {
+                if isSubmenuParent {
+                    submenuState.open(action)
+                } else {
+                    submenuState.reset()
+                    onAction(action)
+                }
+            },
+            trailingSystemImage: isSubmenuParent ? "chevron.right" : nil,
+            onHoverChange: { isHovered in
+                if isSubmenuParent, isEnabled {
+                    submenuState.setParentHovered(action, isHovered: isHovered)
+                } else {
+                    submenuState.setOtherItemHovered(isHovered)
+                }
+            }
+        )
+    }
+
+    private func destinationSubmenu(
+        for action: SubtitleTableRowAction
+    ) -> some View {
+        WorkbenchPopoverPanel(isRedesign: true) {
+            VStack(spacing: 0) {
+                ForEach(destinations) { destination in
+                    WorkbenchPopoverRow(
+                        title: destination.title,
+                        isRedesign: true,
+                        showsCheckmarkSlot: false,
+                        action: {
+                            submenuState.reset()
+                            onDestinationAction(action, destination)
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -2111,6 +2269,9 @@ struct SubtitleTableView: NSViewRepresentable {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
     var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
+    var rowActionDestinations: [SubtitleTableRowActionDestination] = []
+    var onMoveShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
+    var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
     var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
     var isRedesign: Bool = false
@@ -2151,6 +2312,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
+            rowActionDestinations: rowActionDestinations,
+            onMoveShiori: onMoveShiori,
+            onDuplicateShiori: onDuplicateShiori,
             onRemoveShiori: onRemoveShiori,
             makeTagsPopover: makeTagsPopover
         )
@@ -2285,6 +2449,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
+            rowActionDestinations: rowActionDestinations,
+            onMoveShiori: onMoveShiori,
+            onDuplicateShiori: onDuplicateShiori,
             onRemoveShiori: onRemoveShiori,
             makeTagsPopover: makeTagsPopover
         )
@@ -2336,6 +2503,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onShowContext: (SubtitleTableRow) -> Void
         private var onOpenSubtitleFile: (String) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
+        private var rowActionDestinations: [SubtitleTableRowActionDestination]
+        private var onMoveShiori: (SubtitleTableRow, Int64) -> Void
+        private var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void
         private var onRemoveShiori: (SubtitleTableRow) -> Void
         private var makeTagsPopover: (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView?
 
@@ -2404,6 +2574,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var activeRowMenuRow: Int?
         private var activeRowMenuColumnID: String?
         private var activeRowMenuTarget: SubtitleTableRow?
+        private var rowActionSubmenuState: SubtitleTableRowActionSubmenuState?
         private var pendingMenuReposition = false
         nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
@@ -2556,6 +2727,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
+            rowActionDestinations: [SubtitleTableRowActionDestination] = [],
+            onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in },
             makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
         ) {
@@ -2593,6 +2767,9 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onShowContext = onShowContext
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
+            self.rowActionDestinations = rowActionDestinations
+            self.onMoveShiori = onMoveShiori
+            self.onDuplicateShiori = onDuplicateShiori
             self.onRemoveShiori = onRemoveShiori
             self.makeTagsPopover = makeTagsPopover
         }
@@ -2707,6 +2884,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
+            rowActionDestinations: [SubtitleTableRowActionDestination] = [],
+            onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in },
             makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil }
         ) {
@@ -2790,6 +2970,9 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onShowContext = onShowContext
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
+            self.rowActionDestinations = rowActionDestinations
+            self.onMoveShiori = onMoveShiori
+            self.onDuplicateShiori = onDuplicateShiori
             self.onRemoveShiori = onRemoveShiori
             self.makeTagsPopover = makeTagsPopover
 
@@ -3445,6 +3628,17 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func performActiveRowMenuActionForTesting(_ action: SubtitleTableRowAction) {
             performActiveRowMenuAction(action, recalculateHover: false)
+        }
+
+        func performActiveRowMenuDestinationActionForTesting(
+            _ action: SubtitleTableRowAction,
+            destinationID: Int64
+        ) {
+            performActiveRowMenuDestinationAction(
+                action,
+                destinationID: destinationID,
+                recalculateHover: false
+            )
         }
 
         func activeRowMenuTargetForTesting() -> SubtitleTableRow? {
@@ -6083,6 +6277,29 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func handleKeyboardFocusEvent(_ event: NSEvent) -> NSEvent? {
+            if let container,
+               event.window === container.window,
+               isMenuOpen,
+               activeRowMenuTarget != nil,
+               let rowActionSubmenuState
+            {
+                switch event.keyCode {
+                case 53:
+                    dismissMenu()
+                    return nil
+                case 124:
+                    return rowActionSubmenuState.openHighlightedParent()
+                        ? nil
+                        : event
+                case 123:
+                    return rowActionSubmenuState.closeSubmenu()
+                        ? nil
+                        : event
+                default:
+                    break
+                }
+            }
+
             guard event.keyCode == 48,
                   let container,
                   event.window === container.window,
@@ -6378,12 +6595,22 @@ struct SubtitleTableView: NSViewRepresentable {
             menuOverlayView?.frame = container.bounds
             menuOverlayView?.isHidden = false
 
+            let submenuState = SubtitleTableRowActionSubmenuState()
+            rowActionSubmenuState = submenuState
             let menuView = RowActionMenu(
                 style: rowActionMenuStyle,
                 showsCueGroup: showsCueGroup,
                 canOpenFolder: canOpenSubtitleFile(target: target),
+                destinations: rowActionDestinations,
+                submenuState: submenuState,
                 onAction: { [weak self] action in
                     self?.performActiveRowMenuAction(action)
+                },
+                onDestinationAction: { [weak self] action, destination in
+                    self?.performActiveRowMenuDestinationAction(
+                        action,
+                        destinationID: destination.id
+                    )
                 }
             )
 
@@ -6555,6 +6782,8 @@ struct SubtitleTableView: NSViewRepresentable {
             activeRowMenuRow = nil
             activeRowMenuColumnID = nil
             activeRowMenuTarget = nil
+            rowActionSubmenuState?.reset()
+            rowActionSubmenuState = nil
             activeMenuAnchor = nil
             updateHoveredColumnID(nil)
             updateHoveredCueTextRow(nil)
@@ -6687,6 +6916,25 @@ struct SubtitleTableView: NSViewRepresentable {
             performRowAction(action, target: target)
         }
 
+        private func performActiveRowMenuDestinationAction(
+            _ action: SubtitleTableRowAction,
+            destinationID: Int64,
+            recalculateHover: Bool = true
+        ) {
+            guard let target = activeRowMenuTarget else {
+                return
+            }
+            dismissMenu(recalculateHover: recalculateHover)
+            switch action {
+            case .moveToList:
+                onMoveShiori(target, destinationID)
+            case .duplicateToList:
+                onDuplicateShiori(target, destinationID)
+            default:
+                break
+            }
+        }
+
         private func performRowAction(_ action: SubtitleTableRowAction, row: Int) {
             guard let target = rowProvider(row) else { return }
             performRowAction(action, target: target)
@@ -6709,6 +6957,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 copyCueGroup(target: target)
             case .copyTimeRange:
                 copyCellText(target: target, columnID: "time")
+            case .moveToList, .duplicateToList:
+                break
             case .removeShiori:
                 onRemoveShiori(target)
             }

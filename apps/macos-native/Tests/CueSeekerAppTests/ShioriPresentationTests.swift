@@ -116,6 +116,74 @@ func shioriOverviewAndTableLoadingFollowTheSelectedList() async throws {
     #expect(app.shiori.activeListID == secondList.id)
 }
 
+@MainActor
+@Test
+func shioriTransfersRefreshPresentationAndPublishRegisteredToasts() async throws {
+    let suiteName = "CueSeekerShioriTransferPresentationTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "CueSeekerShioriTransferPresentationTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let indexingDatabase = try #require(app.indexingDatabase)
+    let shioriDatabase = try #require(app.shioriDatabase)
+    let destination = try shioriDatabase.createShioriList(name: "Destination")
+    let movedSource = try makeShiori(
+        in: indexingDatabase,
+        id: 30,
+        content: "Move this cue",
+        listID: ShioriListIdentity.defaultListID
+    )
+    let duplicatedSource = try makeShiori(
+        in: indexingDatabase,
+        id: 31,
+        content: "Duplicate this cue",
+        listID: ShioriListIdentity.defaultListID
+    )
+
+    #expect(app.moveShiori(movedSource, toListID: destination.id))
+    #expect(try shioriDatabase.shioriRelation(id: movedSource.id) == nil)
+    #expect(app.toast.visibleItems.last?.request == ShioriToastRequest.moveSucceeded(
+        listName: destination.name
+    ))
+    #expect(!app.shiori.tableHasLoadedInitialPage)
+
+    #expect(app.duplicateShiori(duplicatedSource, toListID: destination.id))
+    #expect(try shioriDatabase.shioriRelation(id: duplicatedSource.id) != nil)
+    #expect(app.toast.visibleItems.last?.request == ShioriToastRequest.duplicateSucceeded(
+        listName: destination.name
+    ))
+
+    #expect(!app.duplicateShiori(duplicatedSource, toListID: destination.id))
+    #expect(
+        app.toast.visibleItems.last?.request
+            == ShioriToastRequest.destinationAlreadyContainsCue(
+                listName: destination.name
+            )
+    )
+
+    _ = try shioriDatabase.deleteShioriList(id: destination.id)
+    #expect(!app.moveShiori(duplicatedSource, toListID: destination.id))
+    #expect(
+        app.toast.visibleItems.last?.request
+            == ShioriToastRequest.destinationUnavailable
+    )
+    try await waitForShioriTasksToFinish(app)
+}
+
 private func makeShiori(
     in database: IndexingDatabase,
     id: Int,

@@ -1029,6 +1029,8 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
     var playedRowIDs: [Int] = []
     var contextRowIDs: [Int] = []
     var openedPaths: [String] = []
+    var movedRows: [(rowID: Int, destinationID: Int64)] = []
+    var duplicatedRows: [(rowID: Int, destinationID: Int64)] = []
     var removedRowIDs: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(
         rowCount: 1,
@@ -1038,6 +1040,11 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
         onPlay: { playedRowIDs.append($0.id) },
         onShowContext: { contextRowIDs.append($0.id) },
         onOpenSubtitleFile: { openedPaths.append($0) },
+        rowActionDestinations: [
+            SubtitleTableRowActionDestination(id: 90, title: "Destination"),
+        ],
+        onMoveShiori: { movedRows.append(($0.id, $1)) },
+        onDuplicateShiori: { duplicatedRows.append(($0.id, $1)) },
         onRemoveShiori: { removedRowIDs.append($0.id) }
     )
     let anchorFrame = try #require(
@@ -1077,6 +1084,28 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
 
     performAfterReplacingRow(.removeShiori)
     #expect(removedRowIDs == [original.id])
+
+    currentRow = original
+    fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
+    currentRow = replacement
+    fixture.coordinator.performActiveRowMenuDestinationActionForTesting(
+        .moveToList,
+        destinationID: 90
+    )
+    #expect(movedRows.count == 1)
+    #expect(movedRows.first?.rowID == original.id)
+    #expect(movedRows.first?.destinationID == 90)
+
+    currentRow = original
+    fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
+    currentRow = replacement
+    fixture.coordinator.performActiveRowMenuDestinationActionForTesting(
+        .duplicateToList,
+        destinationID: 90
+    )
+    #expect(duplicatedRows.count == 1)
+    #expect(duplicatedRows.first?.rowID == original.id)
+    #expect(duplicatedRows.first?.destinationID == 90)
 
     currentRow = original
     fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
@@ -2500,7 +2529,8 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
     let onItems = onFixture.coordinator.rowMenuItemsForTesting()
     #expect(onItems.map(\.title) == [
         "Play", "Open Subtitle Folder", "Context", "Copy Cue Text",
-        "Copy Cue Group Text", "Copy Time Range", "Remove Shiori",
+        "Copy Cue Group Text", "Copy Time Range", "Move to ...",
+        "Duplicate to ...", "Remove Shiori",
     ])
     #expect(onItems[3].systemImage == onItems[4].systemImage)
 
@@ -2899,6 +2929,9 @@ private func makeAttachedVirtualTableCoordinator(
     onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
     onOpenSubtitleFile: @escaping (String) -> Void = { _ in },
+    rowActionDestinations: [SubtitleTableRowActionDestination] = [],
+    onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+    onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
     onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
 ) -> (
     coordinator: SubtitleTableView.Coordinator,
@@ -2942,6 +2975,9 @@ private func makeAttachedVirtualTableCoordinator(
         onShowContext: onShowContext,
         onOpenSubtitleFile: onOpenSubtitleFile,
         rowActionMenuStyle: rowActionMenuStyle,
+        rowActionDestinations: rowActionDestinations,
+        onMoveShiori: onMoveShiori,
+        onDuplicateShiori: onDuplicateShiori,
         onRemoveShiori: onRemoveShiori,
         makeTagsPopover: makeTagsPopover
     )

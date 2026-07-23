@@ -592,6 +592,101 @@ extension AppCoordinator {
     }
 
     @discardableResult
+    func moveShiori(_ item: Shiori, toListID destinationListID: Int64) -> Bool {
+        guard let database = shioriDatabase else {
+            toast.show(ShioriToastRequest.moveFailed)
+            return false
+        }
+        let destination: ShioriList
+        do {
+            guard let availableDestination = try database.shioriList(
+                id: destinationListID
+            ) else {
+                toast.show(ShioriToastRequest.destinationUnavailable)
+                return false
+            }
+            destination = availableDestination
+        } catch {
+            print("Failed to resolve Shiori move destination: \(error)")
+            toast.show(ShioriToastRequest.moveFailed)
+            return false
+        }
+
+        do {
+            _ = try database.moveShiori(
+                id: item.id,
+                toListID: destinationListID
+            )
+            handleShioriRemovedFromCurrentList(item)
+            toast.show(
+                ShioriToastRequest.moveSucceeded(listName: destination.name)
+            )
+            return true
+        } catch ShioriTransferError.destinationUnavailable {
+            toast.show(ShioriToastRequest.destinationUnavailable)
+        } catch ShioriTransferError.destinationAlreadyContainsCue {
+            toast.show(
+                ShioriToastRequest.destinationAlreadyContainsCue(
+                    listName: destination.name
+                )
+            )
+        } catch {
+            print("Failed to move Shiori: \(error)")
+            toast.show(ShioriToastRequest.moveFailed)
+        }
+        return false
+    }
+
+    @discardableResult
+    func duplicateShiori(
+        _ item: Shiori,
+        toListID destinationListID: Int64
+    ) -> Bool {
+        guard let database = shioriDatabase else {
+            toast.show(ShioriToastRequest.duplicateFailed)
+            return false
+        }
+        let destination: ShioriList
+        do {
+            guard let availableDestination = try database.shioriList(
+                id: destinationListID
+            ) else {
+                toast.show(ShioriToastRequest.destinationUnavailable)
+                return false
+            }
+            destination = availableDestination
+        } catch {
+            print("Failed to resolve Shiori duplicate destination: \(error)")
+            toast.show(ShioriToastRequest.duplicateFailed)
+            return false
+        }
+
+        do {
+            _ = try database.duplicateShiori(
+                id: item.id,
+                toListID: destinationListID
+            )
+            reloadShioriListOverview()
+            toast.show(
+                ShioriToastRequest.duplicateSucceeded(listName: destination.name)
+            )
+            return true
+        } catch ShioriTransferError.destinationUnavailable {
+            toast.show(ShioriToastRequest.destinationUnavailable)
+        } catch ShioriTransferError.destinationAlreadyContainsCue {
+            toast.show(
+                ShioriToastRequest.destinationAlreadyContainsCue(
+                    listName: destination.name
+                )
+            )
+        } catch {
+            print("Failed to duplicate Shiori: \(error)")
+            toast.show(ShioriToastRequest.duplicateFailed)
+        }
+        return false
+    }
+
+    @discardableResult
     func removeShiori(_ item: Shiori, reloadPresentation: Bool = true) -> Bool {
         guard let database = shioriDatabase else {
             playback.playbackViewModel?.showShioriFeedback(.unavailable)
@@ -601,27 +696,29 @@ extension AppCoordinator {
         do {
             try database.removeShiori(id: item.id)
             _ = reloadPresentation
-            shiori.invalidateTableRows()
-            reloadShioriListOverview()
-            removeShioriFromPlaybackNavigationScope(item.id)
-            if shiori.selectedShiori?.id == item.id {
-                shiori.selectedShiori = nil
-                shioriPlaybackNavigationSnapshot = nil
-                clearPlaybackChromeSnapshot()
-            } else {
-                if let selectedShiori = shiori.selectedShiori {
-                    _ = refreshShioriPlaybackNavigationSnapshot(for: selectedShiori)
-                    refreshPlaybackChromeSnapshot(
-                        displayTitle: playback.chromeSnapshot.displayTitle
-                    )
-                }
-            }
+            handleShioriRemovedFromCurrentList(item)
             playback.playbackViewModel?.showShioriFeedback(.removed)
             return true
         } catch {
             print("Failed to remove Shiori: \(error)")
             playback.playbackViewModel?.showShioriFeedback(.unavailable)
             return false
+        }
+    }
+
+    private func handleShioriRemovedFromCurrentList(_ item: Shiori) {
+        shiori.invalidateTableRows()
+        reloadShioriListOverview()
+        removeShioriFromPlaybackNavigationScope(item.id)
+        if shiori.selectedShiori?.id == item.id {
+            shiori.selectedShiori = nil
+            shioriPlaybackNavigationSnapshot = nil
+            clearPlaybackChromeSnapshot()
+        } else if let selectedShiori = shiori.selectedShiori {
+            _ = refreshShioriPlaybackNavigationSnapshot(for: selectedShiori)
+            refreshPlaybackChromeSnapshot(
+                displayTitle: playback.chromeSnapshot.displayTitle
+            )
         }
     }
 

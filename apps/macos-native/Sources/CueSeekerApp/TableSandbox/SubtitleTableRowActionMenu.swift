@@ -5,6 +5,8 @@ enum SubtitleTableRowAction: Equatable, Sendable {
     case copyCueText
     case copyCueGroupText
     case copyTimeRange
+    case moveToList
+    case duplicateToList
     case removeShiori
 
     var title: String {
@@ -21,6 +23,10 @@ enum SubtitleTableRowAction: Equatable, Sendable {
             return "Copy Cue Group Text"
         case .copyTimeRange:
             return "Copy Time Range"
+        case .moveToList:
+            return "Move to ..."
+        case .duplicateToList:
+            return "Duplicate to ..."
         case .removeShiori:
             return "Remove Shiori"
         }
@@ -36,10 +42,23 @@ enum SubtitleTableRowAction: Equatable, Sendable {
             return "doc.text"
         case .copyCueText, .copyCueGroupText, .copyTimeRange:
             return "copy"
+        case .moveToList:
+            return "arrow.right"
+        case .duplicateToList:
+            return "copy"
         case .removeShiori:
             return "bookmark.slash"
         }
     }
+
+    var opensDestinationSubmenu: Bool {
+        self == .moveToList || self == .duplicateToList
+    }
+}
+
+struct SubtitleTableRowActionDestination: Equatable, Sendable, Identifiable {
+    let id: Int64
+    let title: String
 }
 
 enum SubtitleTableRowActionMenuElement: Equatable, Sendable {
@@ -63,6 +82,9 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
         }
         elements.append(.action(.copyTimeRange))
         if style == .shiori {
+            elements.append(.divider)
+            elements.append(.action(.moveToList))
+            elements.append(.action(.duplicateToList))
             elements.append(.divider)
             elements.append(.action(.removeShiori))
         }
