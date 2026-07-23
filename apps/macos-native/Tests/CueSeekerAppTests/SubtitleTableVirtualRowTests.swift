@@ -1319,6 +1319,57 @@ func subtitleTableViewMapsCueAndTagFragmentsIntoSingleLogicalCells() throws {
 
 @MainActor
 @Test
+func subtitleTableViewDoesNotReplayReloadForTheSameRowsVersion() {
+    let row = dynamicTableRow(
+        id: 1,
+        primary: "primary",
+        group: ["context one", "context two", "primary"],
+        primaryIndex: 2
+    )
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: 1,
+        row: row,
+        showsCueGroup: true
+    )
+    let rowHeightBeforeUpdate = fixture.coordinator.rowHeightForTesting(0)
+
+    #expect(
+        fixture.coordinator.textFragmentInfoForTesting(
+            row: 0,
+            columnID: "cues"
+        ).count == 3
+    )
+
+    fixture.coordinator.update(
+        tableName: "test-search",
+        rowCount: 1,
+        rowProvider: { _ in row },
+        rowsVersion: 1,
+        rowsUpdate: .reload,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: true,
+        showsSpeakerColumn: true,
+        showsCueGroup: true,
+        scrollResetToken: 0,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in true },
+        selectionHeaderState: .indeterminate,
+        onToggleRowSelection: { _ in },
+        onToggleAllSelection: {},
+        onPlay: { _ in }
+    )
+
+    #expect(fixture.coordinator.rowHeightForTesting(0) == rowHeightBeforeUpdate)
+    #expect(
+        fixture.coordinator.textFragmentInfoForTesting(
+            row: 0,
+            columnID: "cues"
+        ).count == 3
+    )
+}
+
+@MainActor
+@Test
 func subtitleTableViewCueFallbackAlwaysKeepsPrimaryFragment() {
     let row = SubtitleTableRow(
         id: 1,

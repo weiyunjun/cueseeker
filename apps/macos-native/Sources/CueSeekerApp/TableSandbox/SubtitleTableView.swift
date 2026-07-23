@@ -2713,6 +2713,11 @@ struct SubtitleTableView: NSViewRepresentable {
             let tableChanged = tableName != self.tableName
             self.probeSurface = probeSurface
             self.probeScope = probeScope
+            let nextRowCount = max(0, rowCount)
+            let rowCountChanged = nextRowCount != self.rowCount
+            let rowsVersionChanged = rowsVersion != self.rowsVersion
+            let rowsChanged = rowCountChanged || rowsVersionChanged
+            let effectiveRowsUpdate = rowsChanged ? rowsUpdate : .none
             let cuePresentationInputChanged = showsCueGroup != self.showsCueGroup ||
                 columnOrder != self.columnOrder ||
                 showsDateAddedColumn != self.showsDateAddedColumn ||
@@ -2722,7 +2727,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsSpeakerColumn != self.showsSpeakerColumn ||
                 showsTagsColumn != self.showsTagsColumn
             let heightAffectingCellsWillChange: Bool
-            if case .cells(let cells) = rowsUpdate {
+            if case .cells(let cells) = effectiveRowsUpdate {
                 let heightAffectingColumnIDs: Set<String> = [
                     "dateAdded", "display", "time", "cues", "speaker", "language", "tags",
                 ]
@@ -2732,7 +2737,7 @@ struct SubtitleTableView: NSViewRepresentable {
             } else {
                 heightAffectingCellsWillChange = false
             }
-            let preservesReloadAnchor = !tableChanged && rowsUpdate == .reload
+            let preservesReloadAnchor = !tableChanged && effectiveRowsUpdate == .reload
             let presentationAnchor = (
                 cuePresentationInputChanged || preservesReloadAnchor || heightAffectingCellsWillChange
             )
@@ -2788,10 +2793,6 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onRemoveShiori = onRemoveShiori
             self.makeTagsPopover = makeTagsPopover
 
-            let nextRowCount = max(0, rowCount)
-            let rowCountChanged = nextRowCount != self.rowCount
-            let rowsVersionChanged = rowsVersion != self.rowsVersion
-            let rowsChanged = rowCountChanged || rowsVersionChanged
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
             if rowsChanged || shouldResetScroll {
@@ -2802,18 +2803,18 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             let isAppendUpdate: Bool
-            if case .append = rowsUpdate {
+            if case .append = effectiveRowsUpdate {
                 isAppendUpdate = true
             } else {
                 isAppendUpdate = false
             }
             let resetsMeasuredGeometry = tableChanged ||
-                rowsUpdate == .reload ||
+                effectiveRowsUpdate == .reload ||
                 (rowCountChanged && !isAppendUpdate)
             if resetsMeasuredGeometry || cuePresentationInputChanged {
                 rowMeasurementCache.removeAll()
                 rowHeightCache.removeAll()
-            } else if case .cells(let cells) = rowsUpdate {
+            } else if case .cells(let cells) = effectiveRowsUpdate {
                 let heightAffectingColumnIDs: Set<String> = [
                     "dateAdded", "display", "time", "cues", "speaker", "language", "tags",
                 ]
@@ -2828,7 +2829,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let headerTitleChanged = dateAddedChanged || displayTitleChanged || timeChanged || cuesHeaderChanged || speakerHeaderChanged || languageHeaderChanged || tagsHeaderChanged
             let needsDocumentResize = tableChanged || rowsChanged || columnVisibilityChanged
             let rowsUpdateInvalidatesTextSelection: Bool
-            switch rowsUpdate {
+            switch effectiveRowsUpdate {
             case .reload, .cells:
                 rowsUpdateInvalidatesTextSelection = true
             case .none, .append:
@@ -2880,7 +2881,7 @@ struct SubtitleTableView: NSViewRepresentable {
             if columnVisibilityChanged {
                 invalidateVisibleDocument()
             }
-            invalidateRows(for: rowsUpdate, rowsChanged: rowsChanged)
+            invalidateRows(for: effectiveRowsUpdate, rowsChanged: rowsChanged)
             if needsDocumentResize || columnVisibilityChanged || headerTitleChanged || shouldResetScroll {
                 invalidateDocumentCursorRects()
                 layoutHoverButtons()

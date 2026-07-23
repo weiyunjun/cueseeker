@@ -77,6 +77,71 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
+    func searchCueGroupSurvivesSelectionAndPanelRemountAfterReload() async throws {
+        let uiProbeScope = UUID().uuidString
+
+        try await withMountedCueTable(
+            surface: .search,
+            initialShowCueGroup: true,
+            uiProbeScope: uiProbeScope
+        ) { app, window, coordinator in
+            app.search.searchResults = Array(app.search.searchResults.reversed())
+            let didApplyReload = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return coordinator.rowsVersionForTesting()
+                        == app.search.tableRowStore.snapshot.version
+                    && app.search.tableRowStore.snapshot.update == .reload
+                    && coordinator.textFragmentInfoForTesting(
+                        row: 0,
+                        columnID: "cues"
+                    ).count == 3
+            }
+            try #require(didApplyReload)
+
+            let rowHeightBeforeSelection = coordinator.rowHeightForTesting(0)
+            #expect(coordinator.toggleRowCheckboxFromMouseForTesting(row: 0))
+            let didPreserveSelectedCueGroup = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return coordinator.rowSelectionStateForTesting(row: 0)
+                    && coordinator.rowHeightForTesting(0) == rowHeightBeforeSelection
+                    && coordinator.textFragmentInfoForTesting(
+                        row: 0,
+                        columnID: "cues"
+                    ).count == 3
+            }
+            try #require(didPreserveSelectedCueGroup)
+
+            app.activateWorkbenchPanelMode(.shiori)
+            let didMountShiori = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return findSubtitleTableCoordinator(
+                    in: window.contentView,
+                    surface: .shiori
+                ) != nil
+            }
+            try #require(didMountShiori)
+
+            app.activateWorkbenchPanelMode(.search)
+            var remountedCoordinator: SubtitleTableView.Coordinator?
+            let didRemountSearchCueGroup = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                remountedCoordinator = findSubtitleTableCoordinator(
+                    in: window.contentView,
+                    surface: .search
+                )
+                return remountedCoordinator?.showsCueGroupForTesting() == true
+                    && remountedCoordinator?.textFragmentInfoForTesting(
+                        row: 0,
+                        columnID: "cues"
+                    ).count == 3
+            }
+            try #require(didRemountSearchCueGroup)
+            #expect(remountedCoordinator?.rowSelectionStateForTesting(row: 0) == true)
+        }
+    }
+
+    @MainActor
+    @Test
     func filterOnlySearchRemountReusesResidentProjectionWithoutHydration() async throws {
         let uiProbeScope = UUID().uuidString
         let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
