@@ -736,14 +736,19 @@
 - 正文纵向间距统一使用 `--padding-table-row-y`。
 - 行顶部留白、Cues 内不同 Cue Item 之间的垂直间距、行底部留白相等。
 - `--padding-table-cell-hover-y` 与 `--padding-table-row-y` 使用相同值。
+- Table Row 必须在当前可见列的最终列宽确定后计算内容布局和行高。
+- Display Title、Cues、Time Range 和 Date Added 按各自最终列宽自动换行，并显示完整内容。
+- Tags 按最终列宽使用水平换行布局，并形成完整内容块。
 - 设本行显示的 Cue Item 数量为 `N`，每个 Cue Item 的自然高度为 `Hᵢ`：
 
   `Cue Block Height = ΣHᵢ + (N - 1) × --padding-table-row-y`
 
 - 最终行高：
 
-  `Row Height = max(--min-height-table-row, max(All Column Content Block Heights) + 2 × --padding-table-row-y)`
+  `Row Height = max(--min-height-table-row, max(All Visible Column Content Block Heights) + 2 × --padding-table-row-y)`
 
+- Table Viewport Width 或可见列发生变化时，按照新的最终列宽重新计算换行和行高。
+- 行高更新时保留当前滚动锚点，不改变当前行或 Primary Cue 身份，不产生可见位置跳动。
 - 所有列的完整内容块在行内垂直居中。
 - Metadata 不再对齐 Primary Cue 第一视觉行。
 - Primary Cue 使用 `--font-size-table`、`--line-height-table-cue-primary`、`--color-text-secondary`。
@@ -1309,12 +1314,21 @@
   6. Date Added
 
 - Column Width：
-  - Selection：`50pt`，固定
-  - Display Title：`240pt`，固定
-  - Cues：最小 `520pt`，填满剩余宽度
-  - Tags：`180pt`，固定，仅 Shiori
-  - Time Range：`190pt`，固定
-  - Date Added：`160pt`，固定，仅 Shiori
+  - Selection：`50pt`，固定，不参与权重分配
+  - Display Title：权重 `3`，最小 `180pt`
+  - Cues：权重 `6`，最小 `240pt`
+  - Tags：权重 `2`，最小 `140pt`，仅 Shiori
+  - Time Range：权重 `2`，最小 `140pt`
+  - Date Added：权重 `2`，最小 `120pt`，仅 Shiori
+
+- Column Width Resolution：
+  1. 只有当前可见的数据列参与宽度计算；隐藏列完全退出计算。
+  2. 可分配宽度为 Table Viewport Width 减去 Selection Column Width。
+  3. 数据列首先按照各自权重计算候选宽度。
+  4. 候选宽度小于最小宽度的列固定为最小宽度。
+  5. 使用剩余宽度和剩余列权重重新计算，直到所有可见数据列均满足最小宽度。
+  6. 当 Table Viewport Width 小于全部可见列的最小宽度总和，Table Content Width 使用最小宽度总和，并启用水平滚动。
+  7. Header 和正文使用相同的最终列宽及水平滚动偏移。
 
 - Cues / Primary Cue：
   - 主要内容
