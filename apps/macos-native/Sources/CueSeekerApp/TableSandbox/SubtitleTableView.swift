@@ -934,11 +934,17 @@ enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
 @MainActor
 final class SubtitleTableRowActionSubmenuState: ObservableObject {
     static let nativeHoverDelayNanoseconds: UInt64 = 300_000_000
+    static let pointerTransferGraceNanoseconds: UInt64 = 100_000_000
 
     @Published private(set) var highlightedParent: SubtitleTableRowAction?
     @Published private(set) var openParent: SubtitleTableRowAction?
+    var onOpenParentChange: ((SubtitleTableRowAction?) -> Void)?
     private let hoverDelayNanoseconds: UInt64
     private var hoverTask: Task<Void, Never>?
+    private var pointerExitTask: Task<Void, Never>?
+    private var parentItemFrames: [SubtitleTableRowAction: CGRect] = [:]
+    private var isParentMenuHovered = false
+    private var isSubmenuHovered = false
 
     init(
         hoverDelayNanoseconds: UInt64 = nativeHoverDelayNanoseconds
@@ -961,10 +967,10 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
         hoverTask?.cancel()
         highlightedParent = action
         if openParent != action {
-            openParent = nil
+            updateOpenParent(nil)
         }
         if hoverDelayNanoseconds == 0 {
-            openParent = action
+            updateOpenParent(action)
             return
         }
         hoverTask = Task { @MainActor [weak self] in
@@ -977,7 +983,7 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
             else {
                 return
             }
-            self.openParent = action
+            self.updateOpenParent(action)
         }
     }
 
@@ -986,8 +992,9 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
             return
         }
         hoverTask?.cancel()
+        pointerExitTask?.cancel()
         highlightedParent = nil
-        openParent = nil
+        updateOpenParent(nil)
     }
 
     func open(_ action: SubtitleTableRowAction) {
@@ -995,8 +1002,9 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
             return
         }
         hoverTask?.cancel()
+        pointerExitTask?.cancel()
         highlightedParent = action
-        openParent = action
+        updateOpenParent(action)
     }
 
     @discardableResult
@@ -1014,15 +1022,130 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
             return false
         }
         hoverTask?.cancel()
-        openParent = nil
+        pointerExitTask?.cancel()
+        updateOpenParent(nil)
         return true
+    }
+
+    func updateParentItemFrames(
+        _ frames: [SubtitleTableRowAction: CGRect]
+    ) {
+        guard parentItemFrames != frames else {
+            return
+        }
+        parentItemFrames = frames
+        if let openParent {
+            onOpenParentChange?(openParent)
+        }
+    }
+
+    func parentItemFrame(
+        for action: SubtitleTableRowAction
+    ) -> CGRect? {
+        parentItemFrames[action]
+    }
+
+    func setParentMenuHovered(_ isHovered: Bool) {
+        isParentMenuHovered = isHovered
+        updatePointerTransfer()
+    }
+
+    func setSubmenuHovered(_ isHovered: Bool) {
+        isSubmenuHovered = isHovered
+        updatePointerTransfer()
     }
 
     func reset() {
         hoverTask?.cancel()
         hoverTask = nil
+        pointerExitTask?.cancel()
+        pointerExitTask = nil
         highlightedParent = nil
-        openParent = nil
+        updateOpenParent(nil)
+    }
+
+    private func updatePointerTransfer() {
+        pointerExitTask?.cancel()
+        pointerExitTask = nil
+        guard !isParentMenuHovered,
+              !isSubmenuHovered,
+              openParent != nil
+        else {
+            return
+        }
+        pointerExitTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(
+                nanoseconds: Self.pointerTransferGraceNanoseconds
+            )
+            guard let self,
+                  !Task.isCancelled,
+                  !self.isParentMenuHovered,
+                  !self.isSubmenuHovered
+            else {
+                return
+            }
+            self.highlightedParent = nil
+            self.updateOpenParent(nil)
+        }
+    }
+
+    private func updateOpenParent(_ action: SubtitleTableRowAction?) {
+        guard openParent != action else {
+            return
+        }
+        openParent = action
+        onOpenParentChange?(action)
+    }
+}
+
+private enum RowActionMenuCoordinateSpace {
+    static let name = "SubtitleTableRowActionMenu"
+}
+
+private struct RowActionMenuItemFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [SubtitleTableRowAction: CGRect] = [:]
+
+    static func reduce(
+        value: inout [SubtitleTableRowAction: CGRect],
+        nextValue: () -> [SubtitleTableRowAction: CGRect]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, newValue in
+            newValue
+        })
+    }
+}
+
+enum SubtitleTableRowActionSubmenuGeometry {
+    static let horizontalGap: CGFloat = 0
+
+    static func frame(
+        parentMenuFrame: CGRect,
+        parentItemFrame: CGRect,
+        submenuSize: CGSize,
+        visibleRect: CGRect
+    ) -> CGRect {
+        let width = max(0, submenuSize.width)
+        let height = max(0, submenuSize.height)
+
+        var x = parentMenuFrame.maxX + horizontalGap
+        if x + width > visibleRect.maxX {
+            x = parentMenuFrame.minX - horizontalGap - width
+        }
+        x = max(
+            visibleRect.minX,
+            min(x, visibleRect.maxX - width)
+        )
+
+        let parentItemTop = parentMenuFrame.maxY - parentItemFrame.minY
+        var y = parentItemTop - height
+        if y < visibleRect.minY {
+            y = visibleRect.minY
+        }
+        if y + height > visibleRect.maxY {
+            y = max(visibleRect.minY, visibleRect.maxY - height)
+        }
+
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 }
 
@@ -1033,38 +1156,26 @@ private struct RowActionMenu: View {
     let destinations: [SubtitleTableRowActionDestination]
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
     var onAction: (SubtitleTableRowAction) -> Void
-    var onDestinationAction: (
-        SubtitleTableRowAction,
-        SubtitleTableRowActionDestination
-    ) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-            WorkbenchPopoverPanel(isRedesign: true) {
-                VStack(spacing: 0) {
-                    ForEach(Array(model.elements.enumerated()), id: \.offset) { _, element in
-                        switch element {
-                        case .divider:
-                            Divider()
-                                .onHover(perform: submenuState.setOtherItemHovered)
-                        case .action(let action):
-                            actionRow(action)
-                        }
+        WorkbenchPopoverPanel(isRedesign: true) {
+            VStack(spacing: 0) {
+                ForEach(Array(model.elements.enumerated()), id: \.offset) { _, element in
+                    switch element {
+                    case .divider:
+                        Divider()
+                            .onHover(perform: submenuState.setOtherItemHovered)
+                    case .action(let action):
+                        actionRow(action)
                     }
                 }
             }
-
-            if let openParent = submenuState.openParent {
-                destinationSubmenu(for: openParent)
-                    .transition(.opacity)
-            }
         }
-        .animation(.easeOut(duration: 0.10), value: submenuState.openParent)
-        .onHover { isHovered in
-            if !isHovered {
-                submenuState.reset()
-            }
+        .coordinateSpace(name: RowActionMenuCoordinateSpace.name)
+        .onPreferenceChange(RowActionMenuItemFramePreferenceKey.self) {
+            submenuState.updateParentItemFrames($0)
         }
+        .onHover(perform: submenuState.setParentMenuHovered)
     }
 
     private var model: SubtitleTableRowActionMenuModel {
@@ -1099,11 +1210,27 @@ private struct RowActionMenu: View {
                 }
             }
         )
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: RowActionMenuItemFramePreferenceKey.self,
+                    value: [
+                        action: proxy.frame(
+                            in: .named(RowActionMenuCoordinateSpace.name)
+                        ),
+                    ]
+                )
+            }
+        )
     }
+}
 
-    private func destinationSubmenu(
-        for action: SubtitleTableRowAction
-    ) -> some View {
+private struct RowActionDestinationSubmenu: View {
+    let destinations: [SubtitleTableRowActionDestination]
+    @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
+    var onDestinationAction: (SubtitleTableRowActionDestination) -> Void
+
+    var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
                 ForEach(destinations) { destination in
@@ -1112,13 +1239,13 @@ private struct RowActionMenu: View {
                         isRedesign: true,
                         showsCheckmarkSlot: false,
                         action: {
-                            submenuState.reset()
-                            onDestinationAction(action, destination)
+                            onDestinationAction(destination)
                         }
                     )
                 }
             }
         }
+        .onHover(perform: submenuState.setSubmenuHovered)
     }
 }
 
@@ -2569,6 +2696,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var buttonsHost: NSHostingView<CueHoverButtons>?
         fileprivate var isMenuOpen = false
         private var menuHost: SubtitleTableMenuHostingView?
+        private var submenuHost: SubtitleTableMenuHostingView?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
         private var activeMenuAnchor: ActiveMenuAnchor?
         private var activeRowMenuRow: Int?
@@ -3188,6 +3316,39 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func menuFrameForTesting() -> CGRect? {
             menuHost?.frame
+        }
+
+        func submenuFrameForTesting() -> CGRect? {
+            guard submenuHost?.isHidden == false else {
+                return nil
+            }
+            return submenuHost?.frame
+        }
+
+        func submenuReceivesHitForTesting(
+            containerPoint: CGPoint
+        ) -> Bool {
+            guard let container,
+                  let submenuHost,
+                  !submenuHost.isHidden,
+                  let hitView = container.hitTest(containerPoint)
+            else {
+                return false
+            }
+            return hitView === submenuHost
+                || hitView.isDescendant(of: submenuHost)
+        }
+
+        func rowActionParentItemFrameForTesting(
+            _ action: SubtitleTableRowAction
+        ) -> CGRect? {
+            rowActionSubmenuState?.parentItemFrame(for: action)
+        }
+
+        func openRowActionSubmenuForTesting(
+            _ action: SubtitleTableRowAction
+        ) {
+            rowActionSubmenuState?.open(action)
         }
 
         func menuContainsWindowPointForTesting(_ windowPoint: CGPoint) -> Bool {
@@ -6493,6 +6654,23 @@ struct SubtitleTableView: NSViewRepresentable {
             menuOverlayView?.passthroughView = menuHost
         }
 
+        private func setSubmenuHost<Content: View>(
+            _ content: Content,
+            in container: NSView
+        ) {
+            let wrapped = AnyView(content)
+            if let submenuHost {
+                submenuHost.rootView = wrapped
+                submenuHost.invalidateIntrinsicContentSize()
+            } else {
+                let host = SubtitleTableMenuHostingView(rootView: wrapped)
+                host.wantsLayer = true
+                host.layer?.masksToBounds = false
+                container.addSubview(host)
+                submenuHost = host
+            }
+        }
+
         private func requestOpenMenuReposition() {
             guard isMenuOpen, !pendingMenuReposition else { return }
             pendingMenuReposition = true
@@ -6597,6 +6775,16 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let submenuState = SubtitleTableRowActionSubmenuState()
             rowActionSubmenuState = submenuState
+            submenuState.onOpenParentChange = { [weak self] action in
+                guard let self else {
+                    return
+                }
+                if let action {
+                    self.showRowActionDestinationSubmenu(for: action)
+                } else {
+                    self.hideRowActionDestinationSubmenu()
+                }
+            }
             let menuView = RowActionMenu(
                 style: rowActionMenuStyle,
                 showsCueGroup: showsCueGroup,
@@ -6605,12 +6793,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 submenuState: submenuState,
                 onAction: { [weak self] action in
                     self?.performActiveRowMenuAction(action)
-                },
-                onDestinationAction: { [weak self] action, destination in
-                    self?.performActiveRowMenuDestinationAction(
-                        action,
-                        destinationID: destination.id
-                    )
                 }
             )
 
@@ -6645,6 +6827,51 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.isHidden = false
 
             installMenuDismissMonitor()
+        }
+
+        private func showRowActionDestinationSubmenu(
+            for action: SubtitleTableRowAction
+        ) {
+            guard isMenuOpen,
+                  let container,
+                  let submenuState = rowActionSubmenuState,
+                  let parentItemFrame = submenuState.parentItemFrame(
+                    for: action
+                  )
+            else {
+                return
+            }
+            let submenuView = RowActionDestinationSubmenu(
+                destinations: rowActionDestinations,
+                submenuState: submenuState,
+                onDestinationAction: { [weak self] destination in
+                    self?.performActiveRowMenuDestinationAction(
+                        action,
+                        destinationID: destination.id
+                    )
+                }
+            )
+            setSubmenuHost(submenuView, in: container)
+            guard let menuHost,
+                  let submenuHost
+            else {
+                return
+            }
+            container.addSubview(submenuHost)
+            submenuHost.layoutSubtreeIfNeeded()
+            submenuHost.frame = SubtitleTableRowActionSubmenuGeometry.frame(
+                parentMenuFrame: menuHost.frame,
+                parentItemFrame: parentItemFrame,
+                submenuSize: submenuHost.fittingSize,
+                visibleRect: container.bounds
+            )
+            submenuHost.isHidden = false
+        }
+
+        private func hideRowActionDestinationSubmenu() {
+            submenuHost?.rootView = AnyView(EmptyView())
+            submenuHost?.invalidateIntrinsicContentSize()
+            submenuHost?.isHidden = true
         }
 
         @discardableResult
@@ -6791,6 +7018,7 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.rootView = AnyView(EmptyView())
             menuHost?.invalidateIntrinsicContentSize()
             menuHost?.isHidden = true
+            hideRowActionDestinationSubmenu()
             menuOverlayView?.isHidden = true
             menuOverlayView?.passthroughView = nil
             invalidateDocumentCursorRects()
@@ -6837,11 +7065,19 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func isWindowPointInsideOpenMenu(_ windowPoint: CGPoint) -> Bool {
-            guard let menuHost, !menuHost.isHidden else {
-                return false
+            if let menuHost, !menuHost.isHidden {
+                let point = menuHost.convert(windowPoint, from: nil)
+                if menuHost.bounds.contains(point) {
+                    return true
+                }
             }
-            let point = menuHost.convert(windowPoint, from: nil)
-            return menuHost.bounds.contains(point)
+            if let submenuHost, !submenuHost.isHidden {
+                let point = submenuHost.convert(windowPoint, from: nil)
+                if submenuHost.bounds.contains(point) {
+                    return true
+                }
+            }
+            return false
         }
 
         private func repositionOpenMenu() {
@@ -6893,6 +7129,9 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             menuHost.frame = finalMenuFrame
+            if let openParent = rowActionSubmenuState?.openParent {
+                showRowActionDestinationSubmenu(for: openParent)
+            }
         }
 
         private func removeMenuDismissMonitor() {

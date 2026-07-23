@@ -1,4 +1,4 @@
-enum SubtitleTableRowAction: Equatable, Sendable {
+enum SubtitleTableRowAction: Hashable, Sendable {
     case play
     case openSubtitleFolder
     case context

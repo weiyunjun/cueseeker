@@ -2542,6 +2542,90 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
 
 @MainActor
 @Test
+func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws {
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_200,
+        showsCueGroup: true,
+        rowActionMenuStyle: .shiori,
+        rowActionDestinations: [
+            SubtitleTableRowActionDestination(id: 2, title: "Second List"),
+            SubtitleTableRowActionDestination(id: 3, title: "Third List"),
+        ]
+    )
+    fixture.container.frame.size.height = 800
+    fixture.coordinator.showMenu(
+        for: 0,
+        buttonFrame: .zero,
+        clickPointInContainer: CGPoint(x: 100, y: 700)
+    )
+    let parentFrameBefore = try #require(
+        fixture.coordinator.menuFrameForTesting()
+    )
+    for _ in 0..<10
+    where fixture.coordinator.rowActionParentItemFrameForTesting(
+        .moveToList
+    ) == nil {
+        await Task.yield()
+    }
+    let moveItemFrame = try #require(
+        fixture.coordinator.rowActionParentItemFrameForTesting(.moveToList)
+    )
+    #expect(moveItemFrame.minY > 200)
+    #expect(moveItemFrame.height == 40)
+
+    fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
+
+    let parentFrameAfter = try #require(
+        fixture.coordinator.menuFrameForTesting()
+    )
+    let submenuFrame = try #require(
+        fixture.coordinator.submenuFrameForTesting()
+    )
+
+    #expect(parentFrameAfter == parentFrameBefore)
+    #expect(abs(submenuFrame.minX - parentFrameAfter.maxX) < 0.5)
+    #expect(submenuFrame.maxY < parentFrameAfter.maxY - 200)
+    #expect(
+        abs(
+            submenuFrame.maxY
+                - (parentFrameAfter.maxY - moveItemFrame.minY)
+        ) < 0.5
+    )
+
+    let submenuCenterInWindow = fixture.container.convert(
+        CGPoint(x: submenuFrame.midX, y: submenuFrame.midY),
+        to: nil
+    )
+    #expect(
+        fixture.coordinator.menuContainsWindowPointForTesting(
+            submenuCenterInWindow
+        )
+    )
+    #expect(
+        fixture.coordinator.submenuReceivesHitForTesting(
+            containerPoint: CGPoint(
+                x: submenuFrame.minX + 1,
+                y: submenuFrame.midY
+            )
+        )
+    )
+
+    let outsideBothMenusInWindow = fixture.container.convert(
+        CGPoint(
+            x: submenuFrame.midX,
+            y: parentFrameAfter.maxY - 10
+        ),
+        to: nil
+    )
+    #expect(
+        fixture.coordinator.menuOutsideClickDismissesForTesting(
+            windowPoint: outsideBothMenusInWindow
+        )
+    )
+}
+
+@MainActor
+@Test
 func subtitleTableViewExtraCueLeftAndRightHitRegionsStillTargetPrimaryRow() throws {
     let row = dynamicTableRow(
         id: 41,

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import CueSeekerApp
 
@@ -102,6 +103,52 @@ func subtitleTableShioriSubmenuSupportsImmediateAndDelayedEntryRules() {
     immediateHoverState.reset()
     #expect(immediateHoverState.highlightedParent == nil)
     #expect(immediateHoverState.openParent == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableShioriSubmenuStaysOpenAcrossDirectPointerTransfer() async {
+    let state = SubtitleTableRowActionSubmenuState()
+    state.setParentMenuHovered(true)
+    state.open(.moveToList)
+
+    state.setParentMenuHovered(false)
+    state.setSubmenuHovered(true)
+    try? await Task.sleep(
+        nanoseconds:
+            SubtitleTableRowActionSubmenuState.pointerTransferGraceNanoseconds
+            + 50_000_000
+    )
+
+    #expect(state.openParent == .moveToList)
+
+    state.setSubmenuHovered(false)
+    try? await Task.sleep(
+        nanoseconds:
+            SubtitleTableRowActionSubmenuState.pointerTransferGraceNanoseconds
+            + 50_000_000
+    )
+
+    #expect(state.openParent == nil)
+}
+
+@Test
+func subtitleTableShioriSubmenuUsesTopDownItemFrameInAppKitCoordinates() {
+    let parentMenuFrame = CGRect(x: 100, y: 100, width: 240, height: 400)
+    let parentItemFrame = CGRect(x: 4, y: 246, width: 232, height: 40)
+    let submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
+        parentMenuFrame: parentMenuFrame,
+        parentItemFrame: parentItemFrame,
+        submenuSize: CGSize(width: 160, height: 100),
+        visibleRect: CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    )
+
+    #expect(SubtitleTableRowActionSubmenuGeometry.horizontalGap == 0)
+    #expect(submenuFrame.minX == parentMenuFrame.maxX)
+    #expect(
+        submenuFrame.maxY
+            == parentMenuFrame.maxY - parentItemFrame.minY
+    )
 }
 
 @Test

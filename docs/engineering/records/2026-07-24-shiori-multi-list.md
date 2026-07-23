@@ -118,7 +118,7 @@ the native macOS app.
   exclusion, and right-chevron submenu indicator.
 - Added a connected two-panel Action Submenu with native-style delayed Hover,
   immediate click, Right Arrow, Left Arrow, Escape, outside-click, pointer
-  corridor, and parent-highlight behavior.
+  transfer, and parent-highlight behavior.
 - Connected Move and Duplicate to the atomic database operations, refreshed
   the affected list presentation, and mapped success, missing destination,
   duplicate CueID, and generic failures to the registered Toast requests.
@@ -139,6 +139,27 @@ the native macOS app.
 - The full 852-test concurrent run completed with existing timing and disk-I/O
   sensitive media tests failing only under whole-suite load; the affected
   suites passed in the independent reruns above.
+- `git diff --check` passed.
+
+## Step 6 Follow-up Fix
+
+- Moved the destination submenu into an independent host so opening it does not
+  resize, reposition, or animate the parent menu.
+- Read the triggering Action Menu Item's rendered frame instead of inferring
+  its vertical position from row counts.
+- Converted the trigger's top-down SwiftUI frame into the table container's
+  bottom-up AppKit coordinates, aligned both top edges, and set the horizontal
+  panel gap to zero.
+- Kept the two real menu panels interactive during direct pointer transfer
+  without treating the rectangular area around them as part of either menu.
+
+## Step 6 Follow-up Verification
+
+- The native app and test targets compiled successfully.
+- Focused tests verify the rendered Move item is below the parent menu top,
+  both menu edges touch, both tops align after coordinate conversion, the
+  submenu receives pointer hits, the parent menu stays fixed, and direct
+  pointer transfer remains open.
 - `git diff --check` passed.
 
 ## Outcome
