@@ -28,7 +28,25 @@ the native macOS app.
   protection, and overview count tests passed (4 tests).
 - `git diff --check` passed.
 
+## Step 2 Changes
+
+- Changed transitional Save Shiori behavior to use the first list in the
+  documented creation-time order.
+- Added explicit list-scoped Shiori save, lookup, snapshot, count, and resolved
+  item queries.
+- Added atomic Move and Duplicate operations. Both preserve the Shiori creation
+  time and tag assignments; Move deletes the source only after the destination
+  relation and tags have been written.
+- Added stable errors for unavailable destinations and duplicate CueIDs in a
+  destination list.
+
+## Step 2 Verification
+
+- Selected list-scoped save, Move, Duplicate, metadata preservation, validation,
+  and existing Shiori persistence tests passed (4 tests).
+- `git diff --check` passed.
+
 ## Outcome
 
-- Implementation is in progress. Step 1 matched the accepted persistence and
-  validation requirements.
+- Implementation is in progress. Steps 1 and 2 matched the accepted persistence,
+  validation, list scope, and transfer requirements.

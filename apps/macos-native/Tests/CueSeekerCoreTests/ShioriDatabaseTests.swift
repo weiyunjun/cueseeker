@@ -118,6 +118,128 @@ func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
 }
 
 @Test
+func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try ShioriDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/List Transfer.srt")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Show/List Transfer.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Duplicate this Cue."
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Move this Cue."
+            ),
+        ]
+    )
+    let defaultList = try #require(try database.shioriList(
+        id: ShioriListIdentity.defaultListID
+    ))
+    let destinationList = try database.createShioriList(
+        name: "Destination",
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
+    let firstSelection = try #require(
+        try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: 1_500
+        )
+    )
+    let secondSelection = try #require(
+        try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: 3_500
+        )
+    )
+    let firstCueID = try #require(firstSelection.cueLineID)
+
+    let transitionalSave = try database.upsertShiori(selection: firstSelection)
+    #expect(try database.shioriRelation(id: transitionalSave.id)?.listID == destinationList.id)
+    #expect(try database.shiori(cueID: firstCueID)?.id == transitionalSave.id)
+    #expect(try database.shiori(
+        cueID: firstCueID,
+        listID: defaultList.id
+    ) == nil)
+    _ = try database.removeShiori(id: transitionalSave.id)
+
+    let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+    let sourceToDuplicate = try database.upsertShiori(
+        selection: firstSelection,
+        listID: defaultList.id,
+        createdAt: createdAt
+    )
+    let duplicateTag = try database.assignShioriTag(
+        named: "Duplicate tag",
+        toShioriID: sourceToDuplicate.id,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_100)
+    )
+    let duplicate = try database.duplicateShiori(
+        id: sourceToDuplicate.id,
+        toListID: destinationList.id
+    )
+    #expect(duplicate.id != sourceToDuplicate.id)
+    #expect(duplicate.listID == destinationList.id)
+    #expect(duplicate.createdAt == sourceToDuplicate.createdAt)
+    #expect(try database.shioriRelation(id: sourceToDuplicate.id) != nil)
+    #expect(try database.shioriTags(forShioriID: duplicate.id) == [duplicateTag])
+    #expect(throws: ShioriTransferError.destinationAlreadyContainsCue(
+        listID: destinationList.id
+    )) {
+        _ = try database.duplicateShiori(
+            id: sourceToDuplicate.id,
+            toListID: destinationList.id
+        )
+    }
+
+    let sourceToMove = try database.upsertShiori(
+        selection: secondSelection,
+        listID: defaultList.id,
+        createdAt: createdAt
+    )
+    let moveTag = try database.assignShioriTag(
+        named: "Move tag",
+        toShioriID: sourceToMove.id
+    )
+    #expect(throws: ShioriTransferError.destinationUnavailable) {
+        _ = try database.moveShiori(id: sourceToMove.id, toListID: 99_999)
+    }
+    #expect(try database.shioriRelation(id: sourceToMove.id) != nil)
+
+    let moved = try database.moveShiori(
+        id: sourceToMove.id,
+        toListID: destinationList.id
+    )
+    #expect(moved.id != sourceToMove.id)
+    #expect(moved.createdAt == sourceToMove.createdAt)
+    #expect(try database.shioriRelation(id: sourceToMove.id) == nil)
+    #expect(try database.shioriTags(forShioriID: moved.id) == [moveTag])
+    #expect(try database.shioriRelations(listID: defaultList.id).map(\.id) == [
+        sourceToDuplicate.id
+    ])
+    #expect(Set(try database.shioriRelations(listID: destinationList.id).map(\.id)) == Set([
+        duplicate.id, moved.id
+    ]))
+}
+
+@Test
 func shioriPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

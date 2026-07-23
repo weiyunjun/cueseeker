@@ -29,10 +29,14 @@ public final class ShioriDatabase: @unchecked Sendable {
 
     public func upsertShiori(
         selection: SubtitleCueTextSelection,
+        listID requestedListID: Int64? = nil,
         createdAt: Date = Date()
     ) throws -> Shiori {
         guard let cueID = selection.cueLineID else {
             throw SQLiteDatabaseError.stepFailed("Shiori requires a CueID")
+        }
+        guard let listID = try requestedListID ?? firstShioriListID() else {
+            throw SQLiteDatabaseError.stepFailed("Shiori requires a destination list")
         }
 
         let statement = try database.prepare(
@@ -42,12 +46,12 @@ public final class ShioriDatabase: @unchecked Sendable {
             ON CONFLICT(list_id, cue_id) DO NOTHING;
             """
         )
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(listID, at: 1)
         try statement.bind(cueID, at: 2)
         try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 3)
         try statement.run()
 
-        guard let savedShiori = try shiori(cueID: cueID) else {
+        guard let savedShiori = try shiori(cueID: cueID, listID: listID) else {
             throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
         }
         return savedShiori
@@ -55,8 +59,11 @@ public final class ShioriDatabase: @unchecked Sendable {
 
     public func shiori(
         cueID: Int64,
-        listID: Int64 = ShioriListIdentity.defaultListID
+        listID requestedListID: Int64? = nil
     ) throws -> Shiori? {
+        guard let listID = try requestedListID ?? firstShioriListID() else {
+            return nil
+        }
         let statement = try database.prepare(
             """
             \(Self.resolvedShioriSelectSQL)
@@ -90,6 +97,30 @@ public final class ShioriDatabase: @unchecked Sendable {
         return true
     }
 
+    @discardableResult
+    public func moveShiori(
+        id: Int64,
+        toListID destinationListID: Int64
+    ) throws -> ShioriRelation {
+        try transferShiori(
+            id: id,
+            toListID: destinationListID,
+            removesSource: true
+        )
+    }
+
+    @discardableResult
+    public func duplicateShiori(
+        id: Int64,
+        toListID destinationListID: Int64
+    ) throws -> ShioriRelation {
+        try transferShiori(
+            id: id,
+            toListID: destinationListID,
+            removesSource: false
+        )
+    }
+
     public func shioriLists() throws -> [ShioriList] {
         let statement = try database.prepare(
             """
@@ -115,6 +146,18 @@ public final class ShioriDatabase: @unchecked Sendable {
         )
         try statement.bind(id, at: 1)
         return try statement.step() ? shioriList(from: statement) : nil
+    }
+
+    public func firstShioriListID() throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT id
+            FROM shiori_lists
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1;
+            """
+        )
+        return try statement.step() ? statement.int64Column(0) : nil
     }
 
     public func shioriListOverview() throws -> ShioriListOverview {
@@ -280,8 +323,11 @@ public final class ShioriDatabase: @unchecked Sendable {
     }
 
     public func shioriRelations(
-        listID: Int64 = ShioriListIdentity.defaultListID
+        listID requestedListID: Int64? = nil
     ) throws -> [ShioriRelation] {
+        guard let listID = try requestedListID ?? firstShioriListID() else {
+            return []
+        }
         let statement = try database.prepare(
             """
             SELECT id, list_id, cue_id, created_at
@@ -299,7 +345,7 @@ public final class ShioriDatabase: @unchecked Sendable {
     }
 
     public func shioriResidentSnapshot(
-        listID: Int64 = ShioriListIdentity.defaultListID
+        listID: Int64? = nil
     ) throws -> ShioriResidentSnapshot {
         let relations = try shioriRelations(listID: listID)
         let cueContents = try CueContentDatabase(path: path).cueContents(
@@ -338,8 +384,12 @@ public final class ShioriDatabase: @unchecked Sendable {
     public func shiori(
         subtitleFile: URL,
         startMilliseconds: Int,
-        endMilliseconds: Int
+        endMilliseconds: Int,
+        listID requestedListID: Int64? = nil
     ) throws -> Shiori? {
+        guard let listID = try requestedListID ?? firstShioriListID() else {
+            return nil
+        }
         let statement = try database.prepare(
             """
             \(Self.resolvedShioriSelectSQL)
@@ -351,7 +401,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             LIMIT 1;
             """
         )
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(listID, at: 1)
         try statement.bind(subtitleFile.path, at: 2)
         try statement.bind(max(0, startMilliseconds), at: 3)
         try statement.bind(max(startMilliseconds, endMilliseconds), at: 4)
@@ -362,6 +412,9 @@ public final class ShioriDatabase: @unchecked Sendable {
         to item: Shiori,
         direction: ShioriNavigationDirection
     ) throws -> Shiori? {
+        guard let relation = try shioriRelation(id: item.id) else {
+            return nil
+        }
         let orderingPredicate: String
         let orderingClause: String
         switch direction {
@@ -381,14 +434,17 @@ public final class ShioriDatabase: @unchecked Sendable {
             LIMIT 1;
             """
         )
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(relation.listID, at: 1)
         try statement.bind(item.createdAt, at: 2)
         try statement.bind(item.createdAt, at: 3)
         try statement.bind(item.id, at: 4)
         return try statement.step() ? shiori(from: statement) : nil
     }
 
-    public func shioris() throws -> [Shiori] {
+    public func shioris(listID requestedListID: Int64? = nil) throws -> [Shiori] {
+        guard let listID = try requestedListID ?? firstShioriListID() else {
+            return []
+        }
         let statement = try database.prepare(
             """
             \(Self.resolvedShioriSelectSQL)
@@ -396,7 +452,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             ORDER BY sf.subtitle_path ASC, l.start_ms ASC, l.end_ms ASC, s.id ASC;
             """
         )
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(listID, at: 1)
         var shioris: [Shiori] = []
         while try statement.step() {
             shioris.append(shiori(from: statement))
@@ -404,11 +460,14 @@ public final class ShioriDatabase: @unchecked Sendable {
         return shioris
     }
 
-    public func shioriCount() throws -> Int {
+    public func shioriCount(listID requestedListID: Int64? = nil) throws -> Int {
+        guard let listID = try requestedListID ?? firstShioriListID() else {
+            return 0
+        }
         let statement = try database.prepare(
             "SELECT COUNT(*) FROM shioris WHERE list_id = ?;"
         )
-        try statement.bind(ShioriListIdentity.defaultListID, at: 1)
+        try statement.bind(listID, at: 1)
         return try statement.step() ? statement.intColumn(0) : 0
     }
 
@@ -601,6 +660,80 @@ public final class ShioriDatabase: @unchecked Sendable {
         )
         try statement.bind(normalizedName, at: 1)
         return try statement.step() ? shioriTag(from: statement) : nil
+    }
+
+    private func transferShiori(
+        id: Int64,
+        toListID destinationListID: Int64,
+        removesSource: Bool
+    ) throws -> ShioriRelation {
+        try database.withImmediateTransaction {
+            guard let source = try shioriRelation(id: id) else {
+                throw ShioriTransferError.sourceUnavailable
+            }
+            guard try shioriList(id: destinationListID) != nil else {
+                throw ShioriTransferError.destinationUnavailable
+            }
+            guard try !shioriRelationExists(
+                cueID: source.cueID,
+                listID: destinationListID
+            ) else {
+                throw ShioriTransferError.destinationAlreadyContainsCue(
+                    listID: destinationListID
+                )
+            }
+
+            let insert = try database.prepare(
+                """
+                INSERT INTO shioris(list_id, cue_id, created_at)
+                VALUES (?, ?, ?);
+                """
+            )
+            try insert.bind(destinationListID, at: 1)
+            try insert.bind(source.cueID, at: 2)
+            try insert.bind(source.createdAt, at: 3)
+            try insert.run()
+            let destinationShioriID = database.lastInsertRowID()
+
+            let copyTags = try database.prepare(
+                """
+                INSERT INTO shiori_tag_assignments(shiori_id, tag_id, created_at)
+                SELECT ?, tag_id, created_at
+                FROM shiori_tag_assignments
+                WHERE shiori_id = ?;
+                """
+            )
+            try copyTags.bind(destinationShioriID, at: 1)
+            try copyTags.bind(source.id, at: 2)
+            try copyTags.run()
+
+            if removesSource {
+                let delete = try database.prepare("DELETE FROM shioris WHERE id = ?;")
+                try delete.bind(source.id, at: 1)
+                try delete.run()
+            }
+
+            guard let destination = try shioriRelation(id: destinationShioriID) else {
+                throw SQLiteDatabaseError.stepFailed(
+                    "Transferred Shiori relation could not be loaded"
+                )
+            }
+            return destination
+        }
+    }
+
+    private func shioriRelationExists(cueID: Int64, listID: Int64) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            SELECT 1
+            FROM shioris
+            WHERE list_id = ? AND cue_id = ?
+            LIMIT 1;
+            """
+        )
+        try statement.bind(listID, at: 1)
+        try statement.bind(cueID, at: 2)
+        return try statement.step()
     }
 
     private func shioriTagAssignmentExists(tagID: Int64, shioriID: Int64) throws -> Bool {

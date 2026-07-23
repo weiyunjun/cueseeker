@@ -116,6 +116,12 @@ public struct ShioriResidentSnapshot: Equatable, Sendable {
     }
 }
 
+public enum ShioriTransferError: Error, Equatable, Sendable {
+    case sourceUnavailable
+    case destinationUnavailable
+    case destinationAlreadyContainsCue(listID: Int64)
+}
+
 /// A resolved Shiori value used by playback and legacy presentation call sites.
 /// Persisted Shiori state is represented by `ShioriRelation`; every other field
 /// here is resolved from the referenced current Cue.
