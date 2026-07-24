@@ -13,6 +13,7 @@ Data should be local-first and easy to migrate. Schema changes must be explicit 
 Initial entities:
 
 - Search path.
+- Library folder.
 - Video file.
 - Subtitle file.
 - Subtitle-to-video match.
@@ -21,6 +22,8 @@ Initial entities:
 - Index metadata.
 - ASS font resource manifest.
 - Shiori.
+- Cue tombstone and change notice.
+- Resource binding conflict.
 
 Shiori is not required for M1 but should be considered when designing identity stability.
 
@@ -33,6 +36,14 @@ Fields:
 - `id`
 - `type`
 - `path`
+- `last_known_path`
+- `resource_identity`
+- `binding_state`
+- `is_configured`
+- `last_seen_at`
+- `last_successful_index_at`
+- `latest_index_token`
+- `published_index_token`
 - `created_at`
 - `updated_at`
 
@@ -44,13 +55,32 @@ Remote path types are deferred.
 
 Notes:
 
-- Selected folder configuration is the source of truth for active local search
-  scope.
-- Database search-path rows and indexed subtitle rows are derived local index
-  state and must be reconciled with the selected folder configuration.
+- A search-path row is the permanent Library identity. `path` is its current
+  binding and `last_known_path` is diagnostic state, not identity.
+- Selected Library configuration is the source of truth for active local search
+  scope. Removing a Library marks it unconfigured instead of reusing its ID.
 - Removing a selected folder must remove or exclude derived index data under
   that folder while preserving the local files on disk and durable user state
   that may reference those files.
+- Index publication tokens ensure that only the newest run for one Library may
+  publish.
+
+## 3.1 Library Folder
+
+A Library folder represents a discovered directory under one Library.
+
+Fields:
+
+- `id`
+- `library_id`
+- `relative_path`
+- `last_known_path`
+- `resource_identity`
+- `binding_state`
+- `last_seen_at`
+
+Folder identity is independent from its relative path. Folder-cover and future
+folder-owned durable state must use this ID rather than a path.
 
 ## 4. Derived Index Decoupling
 
@@ -80,7 +110,15 @@ compatibility must not be keyed by subtitle file path or subtitle cue group iden
 Expected fields:
 
 - `id`
+- `library_id`
+- `folder_id`
+- `relative_path`
 - `path`
+- `last_known_path`
+- `resource_identity`
+- `content_fingerprint`
+- `binding_state`
+- `last_seen_at`
 - `file_size`
 - `modified_at`
 - `duration`
@@ -122,7 +160,15 @@ A subtitle file represents a source subtitle document discovered under a selecte
 Expected fields:
 
 - `id`
-- `path`
+- `library_id`
+- `folder_id`
+- `relative_path`
+- `subtitle_path`
+- `last_known_path`
+- `resource_identity`
+- `content_fingerprint`
+- `binding_state`
+- `last_seen_at`
 - `format`
 - `file_size`
 - `modified_at`
@@ -187,7 +233,8 @@ Notes:
 - Group timing supports indexed recall and group-context lookup. Cue actions use
   the selected cue line's own `start_ms` and `end_ms`.
 - `end_ms` is useful for future current-line highlighting and Shiori.
-- `subtitle_path` and timing fields are part of stable identity.
+- `subtitle_path` and timing fields are derived lookup data, not permanent
+  identity.
 - `search_content` is aggregate recall data. Final Search matching and result
   identity are resolved per cue line.
 - Cue Group context may be loaded for presentation and `Copy Cue Group Text`,
@@ -219,6 +266,7 @@ Fields:
 - `source_format`
 - `source_style`
 - `source_layer`
+- `source_identity_remainder`
 - `start_time`
 - `end_time`
 - `start_ms`
@@ -231,22 +279,28 @@ Fields:
 Notes:
 
 - `content` stores clean searchable/display text, not raw ASS override tags.
-- `event_index` preserves source order inside the subtitle file.
-- Durable Cue identity uses source subtitle path, source `event_index`, and the
-  Cue's own `start_ms` / `end_ms`; the database row ID is a refreshable indexed
-  binding and must not be the only durable identity.
+- `event_index` preserves source order inside the subtitle file, but never
+  participates in durable Cue identity or ambiguity resolution.
+- An ASS Cue compares timestamp (`T`), text (`X`), Style (`S`), and the
+  canonical remaining Dialogue fields (`R`). Exact matches are locked first.
+  Style is a hard boundary. With Style unchanged, a unique candidate may retain
+  CueID only when at most one of `T`, `X`, and `R` changed.
+- SRT sequence numbers never participate in identity. SRT uses exact
+  timestamp/text matching first and permits only a unique remaining one-to-one
+  edit. Ambiguous remaining candidates receive new CueIDs.
 - `source_style` stores ASS style names such as `Dial_JP`, `Dial_CH`,
   `Screen`, `Title`, `Staff`, `ED_JP`, or `ED_CH` when available.
 - `source_layer` stores the ASS `Layer` field when available. Layer is render
   stacking information, not vertical position.
+- `source_identity_remainder` stores the canonical ASS Dialogue fields outside
+  timestamp, text, and Style, including Layer, Name, margins, and Effect.
 - `display_x`, `display_y`, and `display_order` are derived layout fields for
   optional Cue Group presentation. They help order additional context to
   approximate the subtitle's on-video placement without replacing the primary
-  Cue result identity.
-- Cue lines must not be deduplicated during indexing. If an ASS file contains
-  several `Dialogue` events with the same text and timing, all of them should be
-  retained until a future explicit product rule defines a safe display-only
-  folding behavior.
+  Cue result identity. `display_order` never participates in identity.
+- Raw duplicate ASS events and SRT blocks remain in the rendering timeline.
+  The database, Search, Shiori, and Playback Overlay collapse completely
+  identical events into one logical CueID.
 - The database cue projection is not the playback render timeline. It may omit
   raw override tags and non-searchable visual-effect details from FTS-oriented
   fields, while source ASS playback rendering must preserve timed source events
@@ -371,13 +425,19 @@ The initial native table should be named `shioris`.
 
 `created_at` stores the real-world timestamp when the relation was created.
 ShioriID identifies the relation; CueID identifies the referenced content.
-Subtitle text, Cue Group, title, language, timing, subtitle path, and media
-information are always resolved from the current Cue data and are not copied
-into the Shiori relation.
+Current subtitle text and media information are resolved from the active Cue
+when available. A Shiori relation remains durable when that Cue becomes
+unavailable.
 
-Every Shiori relation must reference a valid CueID. The current data set has no
-unresolved Shiori rows, and the unified architecture does not provide a path,
-timing, historical-text, or missing-Cue fallback.
+Only Cues referenced by Shiori or other durable user data retain a long-lived
+Tombstone. The Tombstone stores the minimum last-known Cue, Cue Group, time,
+title, subtitle, video, and identity snapshot required for display, copy, and
+later identity recovery. Unreferenced deleted Cues do not receive an indefinite
+identity guarantee.
+
+A Cue whose identity was retained while text changed receives a one-generation
+change notice containing the previous and current text. A later successful
+unchanged index removes the notice.
 
 The first implementation creates one default Shiori list and does not add
 multi-list controls. The schema nevertheless permits a CueID to be referenced
@@ -429,7 +489,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Implemented schema version: `32`.
+- Implemented schema version: `35`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -476,6 +536,13 @@ Current native schema:
 - Version 31 removes obsolete persisted playback navigation tables.
 - Version 32 creates the default list and replaces the stored Shiori content
   snapshot with `(id, list_id, cue_id, created_at)`.
+- Version 33 adds durable user-selected video and folder cover overrides and is
+  the minimum supported native schema.
+- Version 34 adds multi-list Shiori metadata.
+- Version 35 adds stable resource-binding metadata, Library folder identities,
+  per-Library index publication tokens, ASS identity remainder storage,
+  Cue Tombstones and change notices, binding-conflict records, and removes the
+  destructive Cue foreign-key cascade from Shiori relations.
 
 ## 15. Flutter Data Compatibility
 

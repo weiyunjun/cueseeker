@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 34
+    public static let currentSchemaVersion = 35
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -34,6 +34,7 @@ private extension DatabaseBootstrap {
 
         guard previousVersion == 0
                 || previousVersion == 33
+                || previousVersion == 34
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -43,6 +44,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion == 33 {
             try migrateSchema33To34(on: database)
+        }
+        if previousVersion == 33 || previousVersion == 34 {
+            try migrateSchema34To35(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -56,9 +60,37 @@ private extension DatabaseBootstrap {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     type TEXT NOT NULL DEFAULT 'local',
                     path TEXT NOT NULL UNIQUE,
+                    last_known_path TEXT NOT NULL DEFAULT '',
+                    resource_identity TEXT,
+                    binding_state TEXT NOT NULL DEFAULT 'available',
+                    is_configured INTEGER NOT NULL DEFAULT 1,
+                    last_seen_at TEXT,
+                    last_successful_index_at TEXT,
+                    latest_index_token INTEGER NOT NULL DEFAULT 0,
+                    published_index_token INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_search_paths_resource_identity
+                    ON search_paths(resource_identity)
+                    WHERE resource_identity IS NOT NULL;
+
+                CREATE TABLE IF NOT EXISTS library_folders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    library_id INTEGER NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    last_known_path TEXT NOT NULL,
+                    resource_identity TEXT,
+                    binding_state TEXT NOT NULL DEFAULT 'available',
+                    last_seen_at TEXT,
+                    UNIQUE(library_id, relative_path),
+                    FOREIGN KEY(library_id) REFERENCES search_paths(id)
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_library_folders_resource_identity
+                    ON library_folders(library_id, resource_identity)
+                    WHERE resource_identity IS NOT NULL;
                 """
             )
 
@@ -91,8 +123,7 @@ private extension DatabaseBootstrap {
                     cue_id INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
                     UNIQUE(list_id, cue_id),
-                    FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE,
-                    FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
+                    FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_shioris_list_order
@@ -110,21 +141,34 @@ private extension DatabaseBootstrap {
             CREATE TABLE IF NOT EXISTS subtitle_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 library_id INTEGER,
+                folder_id INTEGER,
                 relative_path TEXT,
                 subtitle_path TEXT NOT NULL UNIQUE,
+                last_known_path TEXT NOT NULL DEFAULT '',
+                resource_identity TEXT,
+                content_fingerprint TEXT,
+                binding_state TEXT NOT NULL DEFAULT 'available',
+                last_seen_at TEXT,
                 format TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
                 indexed_at TEXT NOT NULL,
                 index_algorithm_version INTEGER NOT NULL DEFAULT 0,
-                FOREIGN KEY(library_id) REFERENCES search_paths(id)
+                FOREIGN KEY(library_id) REFERENCES search_paths(id),
+                FOREIGN KEY(folder_id) REFERENCES library_folders(id)
             );
 
             CREATE TABLE IF NOT EXISTS video_files (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 library_id INTEGER,
+                folder_id INTEGER,
                 relative_path TEXT,
                 path TEXT NOT NULL UNIQUE,
+                last_known_path TEXT NOT NULL DEFAULT '',
+                resource_identity TEXT,
+                content_fingerprint TEXT,
+                binding_state TEXT NOT NULL DEFAULT 'available',
+                last_seen_at TEXT,
                 video_name TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
@@ -139,8 +183,17 @@ private extension DatabaseBootstrap {
                 native_compatibility_reason TEXT,
                 native_failure_reason TEXT,
                 compatibility_evaluated_at TEXT,
-                FOREIGN KEY(library_id) REFERENCES search_paths(id)
+                FOREIGN KEY(library_id) REFERENCES search_paths(id),
+                FOREIGN KEY(folder_id) REFERENCES library_folders(id)
             );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_subtitle_files_resource_identity
+                ON subtitle_files(library_id, resource_identity)
+                WHERE resource_identity IS NOT NULL;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_video_files_resource_identity
+                ON video_files(library_id, resource_identity)
+                WHERE resource_identity IS NOT NULL;
 
             CREATE TABLE IF NOT EXISTS subtitle_video_matches (
                 subtitle_file_id INTEGER NOT NULL,
@@ -176,6 +229,7 @@ private extension DatabaseBootstrap {
                 source_format TEXT NOT NULL,
                 source_style TEXT,
                 source_layer INTEGER,
+                source_identity_remainder TEXT NOT NULL DEFAULT '',
                 start_time TEXT NOT NULL,
                 end_time TEXT NOT NULL,
                 start_ms INTEGER NOT NULL,
@@ -186,6 +240,36 @@ private extension DatabaseBootstrap {
                 display_order INTEGER NOT NULL,
                 FOREIGN KEY(subtitle_file_id) REFERENCES subtitle_files(id),
                 FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS cue_tombstones (
+                cue_id INTEGER PRIMARY KEY,
+                subtitle_file_id INTEGER NOT NULL,
+                source_format TEXT NOT NULL,
+                source_style TEXT,
+                source_identity_remainder TEXT NOT NULL DEFAULT '',
+                start_time TEXT NOT NULL,
+                end_time TEXT NOT NULL,
+                start_ms INTEGER NOT NULL,
+                end_ms INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                cue_group_content TEXT NOT NULL,
+                display_title TEXT NOT NULL,
+                subtitle_path TEXT,
+                video_path TEXT,
+                unavailable_reason TEXT NOT NULL,
+                tombstoned_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_cue_tombstones_subtitle
+                ON cue_tombstones(subtitle_file_id, cue_id);
+
+            CREATE TABLE IF NOT EXISTS cue_change_notices (
+                cue_id INTEGER PRIMARY KEY,
+                previous_content TEXT NOT NULL,
+                current_content TEXT NOT NULL,
+                changed_at TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS subtitle_playback_finish_metadata (
@@ -446,6 +530,21 @@ private extension DatabaseBootstrap {
             CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
                 ON subtitle_search_order_rows(folder_order, file_order, subtitle_path);
 
+            CREATE TABLE IF NOT EXISTS resource_binding_conflicts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                library_id INTEGER NOT NULL,
+                resource_kind TEXT NOT NULL,
+                existing_resource_id INTEGER,
+                candidate_path TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                resolved_at TEXT,
+                FOREIGN KEY(library_id) REFERENCES search_paths(id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_resource_binding_conflicts_unresolved
+                ON resource_binding_conflicts(library_id, resolved_at, id);
+
             \(shioriSchemaSQL)
 
             CREATE TABLE IF NOT EXISTS shiori_tags (
@@ -521,6 +620,189 @@ private extension DatabaseBootstrap {
                     ON shiori_lists(normalized_name);
 
                 PRAGMA user_version = 34;
+                """
+            )
+        }
+    }
+
+    static func migrateSchema34To35(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                ALTER TABLE search_paths
+                    ADD COLUMN last_known_path TEXT NOT NULL DEFAULT '';
+                ALTER TABLE search_paths
+                    ADD COLUMN resource_identity TEXT;
+                ALTER TABLE search_paths
+                    ADD COLUMN binding_state TEXT NOT NULL DEFAULT 'available';
+                ALTER TABLE search_paths
+                    ADD COLUMN is_configured INTEGER NOT NULL DEFAULT 1;
+                ALTER TABLE search_paths
+                    ADD COLUMN last_seen_at TEXT;
+                ALTER TABLE search_paths
+                    ADD COLUMN last_successful_index_at TEXT;
+                ALTER TABLE search_paths
+                    ADD COLUMN latest_index_token INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE search_paths
+                    ADD COLUMN published_index_token INTEGER NOT NULL DEFAULT 0;
+
+                UPDATE search_paths
+                SET last_known_path = path
+                WHERE last_known_path = '';
+
+                CREATE UNIQUE INDEX idx_search_paths_resource_identity
+                    ON search_paths(resource_identity)
+                    WHERE resource_identity IS NOT NULL;
+
+                CREATE TABLE library_folders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    library_id INTEGER NOT NULL,
+                    relative_path TEXT NOT NULL,
+                    last_known_path TEXT NOT NULL,
+                    resource_identity TEXT,
+                    binding_state TEXT NOT NULL DEFAULT 'available',
+                    last_seen_at TEXT,
+                    UNIQUE(library_id, relative_path),
+                    FOREIGN KEY(library_id) REFERENCES search_paths(id)
+                );
+
+                CREATE UNIQUE INDEX idx_library_folders_resource_identity
+                    ON library_folders(library_id, resource_identity)
+                    WHERE resource_identity IS NOT NULL;
+
+                ALTER TABLE subtitle_files
+                    ADD COLUMN folder_id INTEGER REFERENCES library_folders(id);
+                ALTER TABLE subtitle_files
+                    ADD COLUMN last_known_path TEXT NOT NULL DEFAULT '';
+                ALTER TABLE subtitle_files
+                    ADD COLUMN resource_identity TEXT;
+                ALTER TABLE subtitle_files
+                    ADD COLUMN content_fingerprint TEXT;
+                ALTER TABLE subtitle_files
+                    ADD COLUMN binding_state TEXT NOT NULL DEFAULT 'available';
+                ALTER TABLE subtitle_files
+                    ADD COLUMN last_seen_at TEXT;
+
+                UPDATE subtitle_files
+                SET last_known_path = subtitle_path
+                WHERE last_known_path = '';
+
+                CREATE UNIQUE INDEX idx_subtitle_files_resource_identity
+                    ON subtitle_files(library_id, resource_identity)
+                    WHERE resource_identity IS NOT NULL;
+
+                ALTER TABLE video_files
+                    ADD COLUMN folder_id INTEGER REFERENCES library_folders(id);
+                ALTER TABLE video_files
+                    ADD COLUMN last_known_path TEXT NOT NULL DEFAULT '';
+                ALTER TABLE video_files
+                    ADD COLUMN resource_identity TEXT;
+                ALTER TABLE video_files
+                    ADD COLUMN content_fingerprint TEXT;
+                ALTER TABLE video_files
+                    ADD COLUMN binding_state TEXT NOT NULL DEFAULT 'available';
+                ALTER TABLE video_files
+                    ADD COLUMN last_seen_at TEXT;
+
+                UPDATE video_files
+                SET last_known_path = path
+                WHERE last_known_path = '';
+
+                CREATE UNIQUE INDEX idx_video_files_resource_identity
+                    ON video_files(library_id, resource_identity)
+                    WHERE resource_identity IS NOT NULL;
+
+                ALTER TABLE subtitle_cue_lines
+                    ADD COLUMN source_identity_remainder TEXT NOT NULL DEFAULT '';
+
+                CREATE TABLE cue_tombstones (
+                    cue_id INTEGER PRIMARY KEY,
+                    subtitle_file_id INTEGER NOT NULL,
+                    source_format TEXT NOT NULL,
+                    source_style TEXT,
+                    source_identity_remainder TEXT NOT NULL DEFAULT '',
+                    start_time TEXT NOT NULL,
+                    end_time TEXT NOT NULL,
+                    start_ms INTEGER NOT NULL,
+                    end_ms INTEGER NOT NULL,
+                    content TEXT NOT NULL,
+                    cue_group_content TEXT NOT NULL,
+                    display_title TEXT NOT NULL,
+                    subtitle_path TEXT,
+                    video_path TEXT,
+                    unavailable_reason TEXT NOT NULL,
+                    tombstoned_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX idx_cue_tombstones_subtitle
+                    ON cue_tombstones(subtitle_file_id, cue_id);
+
+                CREATE TABLE cue_change_notices (
+                    cue_id INTEGER PRIMARY KEY,
+                    previous_content TEXT NOT NULL,
+                    current_content TEXT NOT NULL,
+                    changed_at TEXT NOT NULL
+                );
+
+                CREATE TABLE shioris_v35 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    list_id INTEGER NOT NULL,
+                    cue_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(list_id, cue_id),
+                    FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE
+                );
+
+                INSERT INTO shioris_v35(id, list_id, cue_id, created_at)
+                SELECT id, list_id, cue_id, created_at
+                FROM shioris;
+
+                CREATE TABLE shiori_tag_assignments_v35 (
+                    shiori_id INTEGER NOT NULL,
+                    tag_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(shiori_id, tag_id),
+                    FOREIGN KEY(shiori_id) REFERENCES shioris_v35(id) ON DELETE CASCADE,
+                    FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
+                );
+
+                INSERT INTO shiori_tag_assignments_v35(shiori_id, tag_id, created_at)
+                SELECT shiori_id, tag_id, created_at
+                FROM shiori_tag_assignments;
+
+                DROP TABLE shiori_tag_assignments;
+                DROP TABLE shioris;
+                ALTER TABLE shioris_v35 RENAME TO shioris;
+                ALTER TABLE shiori_tag_assignments_v35 RENAME TO shiori_tag_assignments;
+
+                CREATE INDEX idx_shioris_list_order
+                    ON shioris(list_id, created_at DESC, id DESC);
+                CREATE INDEX idx_shioris_cue
+                    ON shioris(cue_id);
+                CREATE INDEX idx_shioris_created_order
+                    ON shioris(created_at DESC, id DESC);
+                CREATE INDEX idx_shiori_tag_assignments_tag
+                    ON shiori_tag_assignments(tag_id, shiori_id);
+                CREATE INDEX idx_shiori_tag_assignments_shiori
+                    ON shiori_tag_assignments(shiori_id, created_at, tag_id);
+
+                CREATE TABLE resource_binding_conflicts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    library_id INTEGER NOT NULL,
+                    resource_kind TEXT NOT NULL,
+                    existing_resource_id INTEGER,
+                    candidate_path TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    resolved_at TEXT,
+                    FOREIGN KEY(library_id) REFERENCES search_paths(id)
+                );
+
+                CREATE INDEX idx_resource_binding_conflicts_unresolved
+                    ON resource_binding_conflicts(library_id, resolved_at, id);
+
+                PRAGMA user_version = 35;
                 """
             )
         }

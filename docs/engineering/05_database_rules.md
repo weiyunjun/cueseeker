@@ -115,16 +115,16 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version is `33`.
+- The implemented schema version is `35`.
 - Schema version `33` adds durable user-selected video and folder cover
   overrides.
 - Schema `33` is the minimum supported native database and the baseline for the
   database architecture decomposition. Native schemas `1...32` are no longer
   opened or migrated by the active app.
-- Version `0` creates the complete current schema. Version `33` opens without
-  historical migration work. Any unsupported lower version or version greater
-  than the current implementation must be rejected without changing its
-  `user_version`.
+- Version `0` creates the complete current schema. Versions `33` and `34`
+  migrate forward to the current schema. Any unsupported lower version or
+  version greater than the current implementation must be rejected without
+  changing its `user_version`.
 - Schema version `3` is the ASS cue model schema.
 - Schema version `6` rebuilds derived cue-group FTS rows using Han and
   Japanese kana segmentation so pure kana queries can match existing indexed
@@ -175,6 +175,13 @@ Current mechanism:
 - Schema version `32` creates a default Shiori list, reduces `shioris` to
   relation-owned fields, requires a valid CueID, and enforces uniqueness on
   `(list_id, cue_id)`. It is governed by ADR-0014.
+- Schema version `33` adds durable user-selected video and folder cover
+  overrides and remains the minimum supported native baseline.
+- Schema version `34` adds multi-list Shiori metadata.
+- Schema version `35` adds stable Library, folder, video, and subtitle binding
+  metadata; per-Library publication tokens; ASS identity-remainder storage;
+  Cue Tombstones and one-generation change notices; unresolved binding
+  conflicts; and a non-destructive Shiori-to-Cue reference.
 
 ## 5. Migration Rules
 

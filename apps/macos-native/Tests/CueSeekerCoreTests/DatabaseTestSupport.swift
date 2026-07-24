@@ -89,6 +89,42 @@ func sqliteColumnNames(in table: String, databaseURL: URL) throws -> Set<String>
     return names
 }
 
+func sqliteForeignKeyTables(in table: String, databaseURL: URL) throws -> Set<String> {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw DatabaseTestSQLiteError.openFailed(message)
+    }
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        "PRAGMA foreign_key_list(\(table));",
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+    let statement
+    else {
+        throw DatabaseTestSQLiteError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    var tables = Set<String>()
+    while sqlite3_step(statement) == SQLITE_ROW,
+          let bytes = sqlite3_column_text(statement, 2)
+    {
+        tables.insert(String(cString: bytes))
+    }
+    return tables
+}
+
 func sqliteMediaIdentity(
     table: String,
     pathColumn: String,
