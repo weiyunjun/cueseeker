@@ -92,12 +92,6 @@ public enum SubtitleScreenshotExporter {
         let subtitleBands: [SubtitleBand]
     }
 
-    // Drawing uses the unflipped bitmap context; crop bands use top-origin CGImage pixels.
-    private struct SubtitlePlacement: Equatable {
-        let drawingRect: CGRect
-        let pixelBand: SubtitleBand
-    }
-
     public static func defaultScreenshotFileName(for item: SubtitleScreenshotExportItem) -> String {
         "\(item.displayTitle)-\(timeString(milliseconds: item.startMilliseconds))-\(timeString(milliseconds: item.endMilliseconds)).png"
     }
@@ -299,19 +293,11 @@ public enum SubtitleScreenshotExporter {
         }
 
         let frameImage = try loadImage(at: frameURL)
-        switch item.subtitleFormat {
-        case .ass:
-            return try renderASSFrame(
-                item: item,
-                timestampMilliseconds: timestampMilliseconds,
-                frameImage: frameImage
-            )
-        case .srt:
-            return try renderSimpleSubtitleFrame(
-                item: item,
-                frameImage: frameImage
-            )
-        }
+        return try renderASSFrame(
+            item: item,
+            timestampMilliseconds: timestampMilliseconds,
+            frameImage: frameImage
+        )
     }
 
     private static func exportVideoFrame(
@@ -344,7 +330,7 @@ public enum SubtitleScreenshotExporter {
         let height = frameImage.height
         let source = item.subtitleSource ?? PlaybackSubtitleSource(
             url: URL(fileURLWithPath: item.subtitlePath),
-            format: .ass,
+            format: item.subtitleFormat == .ass ? .ass : .srt,
             matchedVideoURL: URL(fileURLWithPath: item.videoPath),
             preparationTimeWindow: PlaybackSubtitleTimeWindow(
                 startMilliseconds: item.startMilliseconds,
@@ -386,125 +372,25 @@ public enum SubtitleScreenshotExporter {
         return RenderedSubtitleFrame(image: composedImage, subtitleBands: bands)
     }
 
-    private static func renderSimpleSubtitleFrame(
-        item: SubtitleScreenshotExportItem,
-        frameImage: CGImage
-    ) throws -> RenderedSubtitleFrame {
-        let text = item.textLines
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-
-        guard !text.isEmpty else {
-            return RenderedSubtitleFrame(image: frameImage, subtitleBands: [])
-        }
-
-        let width = frameImage.width
-        let height = frameImage.height
-        guard let context = makeBitmapContext(width: width, height: height) else {
-            throw SubtitleScreenshotExportError.imageContextFailed
-        }
-
-        drawImage(frameImage, in: context, rect: CGRect(x: 0, y: 0, width: width, height: height))
-
-        let fontSize = min(42, max(24, CGFloat(height) * 0.032))
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        paragraph.lineBreakMode = .byTruncatingTail
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
-            .foregroundColor: NSColor.white,
-            .paragraphStyle: paragraph
-        ]
-
-        let maxTextWidth = min(CGFloat(width) - 64, CGFloat(width) * 0.82)
-        let measured = NSString(string: text).boundingRect(
-            with: CGSize(width: maxTextWidth, height: CGFloat(height) * 0.4),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes
-        )
-        let paddingX = max(14, fontSize * 0.66)
-        let paddingY = max(8, fontSize * 0.38)
-        let backgroundWidth = min(CGFloat(width) - 64, ceil(measured.width + paddingX * 2))
-        let backgroundHeight = ceil(measured.height + paddingY * 2)
-        let bottomPadding = max(28, CGFloat(height) * 0.026)
-        let placement = bottomAnchoredSubtitlePlacement(
-            frameWidth: width,
-            frameHeight: height,
-            width: backgroundWidth,
-            height: backgroundHeight,
-            bottomPadding: bottomPadding
-        )
-        let backgroundRect = placement.drawingRect
-        let textRect = backgroundRect.insetBy(dx: paddingX, dy: paddingY)
-
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
-        NSColor.black.withAlphaComponent(0.68).setFill()
-        NSBezierPath(roundedRect: backgroundRect, xRadius: 6, yRadius: 6).fill()
-        NSString(string: text).draw(in: textRect, withAttributes: attributes)
-        NSGraphicsContext.restoreGraphicsState()
-
-        guard let image = context.makeImage() else {
-            throw SubtitleScreenshotExportError.imageContextFailed
-        }
-
-        let band = paddedBand(
-            placement.pixelBand,
-            frameHeight: height
-        )
-        return RenderedSubtitleFrame(image: image, subtitleBands: [band])
-    }
-
-    static func _renderSimpleSubtitleFrameForTesting(
-        item: SubtitleScreenshotExportItem,
-        frameImage: CGImage
-    ) throws -> (image: CGImage, subtitleBands: [(y1: Int, y2: Int)]) {
-        let renderedFrame = try renderSimpleSubtitleFrame(item: item, frameImage: frameImage)
-        return (
-            image: renderedFrame.image,
-            subtitleBands: renderedFrame.subtitleBands.map { (y1: $0.y1, y2: $0.y2) }
-        )
-    }
-
-    private static func bottomAnchoredSubtitlePlacement(
-        frameWidth: Int,
-        frameHeight: Int,
-        width: CGFloat,
-        height: CGFloat,
-        bottomPadding: CGFloat
-    ) -> SubtitlePlacement {
-        let frameWidth = CGFloat(frameWidth)
-        let frameHeight = CGFloat(frameHeight)
-        let clampedWidth = min(max(0, width), frameWidth)
-        let clampedHeight = min(max(0, height), frameHeight)
-        let drawingMinY = min(max(0, bottomPadding), max(0, frameHeight - clampedHeight))
-        let drawingRect = CGRect(
-            x: (frameWidth - clampedWidth) / 2,
-            y: drawingMinY,
-            width: clampedWidth,
-            height: clampedHeight
-        )
-        let pixelMinY = frameHeight - drawingRect.maxY
-        let pixelBand = SubtitleBand(
-            y1: max(0, Int(pixelMinY.rounded(.down))),
-            y2: min(Int(frameHeight) - 1, Int((pixelMinY + drawingRect.height).rounded(.up)) - 1)
-        )
-        return SubtitlePlacement(drawingRect: drawingRect, pixelBand: pixelBand)
-    }
-
     private static func makeASSSession(
         source: PlaybackSubtitleSource,
         timestampMilliseconds: Int,
         frameWidth: Int,
         frameHeight: Int
     ) throws -> SFXASSRendererSession {
-        let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
-            sourcePath: source.url.path,
-            renderCacheDatabaseURL: source.renderCacheDatabaseURL
-        )
+        let requestedFontNames = source.format == .ass
+            ? try? ASSPlaybackFontIntentProvider.requestedFontNames(
+                sourcePath: source.url.path,
+                renderCacheDatabaseURL: source.renderCacheDatabaseURL
+            )
+            : nil
 
-        if let segment = try indexedRenderSegment(source: source, timestampMilliseconds: timestampMilliseconds) {
+        if source.format == .ass,
+           let segment = try indexedRenderSegment(
+                source: source,
+                timestampMilliseconds: timestampMilliseconds
+           )
+        {
             let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
                 script: segment.scriptText,
                 cues: source.speakerDisplayCues
@@ -516,6 +402,24 @@ public enum SubtitleScreenshotExporter {
             return try SFXASSRendererSession(
                 assScript: renderScript,
                 sourceIdentifier: "\(source.url.path)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
+                frameWidth: frameWidth,
+                frameHeight: frameHeight
+            )
+        }
+
+        if source.format == .srt {
+            let sourceScript = try String(contentsOf: source.url)
+            let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
+                script: SRTASSConverter.convert(sourceScript),
+                cues: source.speakerDisplayCues
+            )
+            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
+                speakerRewrittenScript,
+                requestedFontNames: nil
+            )
+            return try SFXASSRendererSession(
+                assScript: renderScript,
+                sourceIdentifier: source.url.path,
                 frameWidth: frameWidth,
                 frameHeight: frameHeight
             )

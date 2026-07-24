@@ -448,7 +448,6 @@ final class AppCoordinator: ObservableObject {
     var searchTask: Task<Void, Never>?
     var searchExactCompletionTask: Task<Void, Never>?
     var searchNavigationTask: Task<Void, Never>?
-    var playbackSubtitleCuesTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusActionTask: Task<Void, Never>?

@@ -95,6 +95,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var invalidated = false
     private var session: SFXASSRendererSession?
     private var sourcePath: String?
+    private var sourceFormat: PlaybackSubtitleSourceFormat?
     private var renderCacheDatabaseURL: URL?
     private var frameWidth = 0
     private var frameHeight = 0
@@ -113,6 +114,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
         queue.async { [
             sourcePath = source.url.path,
+            sourceFormat = source.format,
             renderCacheDatabaseURL = source.renderCacheDatabaseURL
         ] in
             guard !self.isInvalidated else {
@@ -122,6 +124,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
             do {
                 self.clearState()
                 self.sourcePath = sourcePath
+                self.sourceFormat = sourceFormat
                 self.renderCacheDatabaseURL = renderCacheDatabaseURL
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
@@ -138,10 +141,12 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                         "initialTimestampMilliseconds": "\(initialTimestampMilliseconds)"
                     ]
                 )
-                self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
-                    sourcePath: sourcePath,
-                    renderCacheDatabaseURL: renderCacheDatabaseURL
-                )
+                self.requestedFontNames = sourceFormat == .ass
+                    ? try? ASSPlaybackFontIntentProvider.requestedFontNames(
+                        sourcePath: sourcePath,
+                        renderCacheDatabaseURL: renderCacheDatabaseURL
+                    )
+                    : nil
 
                 let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
                 guard !self.isInvalidated else {
@@ -247,6 +252,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         session?.close()
         session = nil
         sourcePath = nil
+        sourceFormat = nil
         renderCacheDatabaseURL = nil
         frameWidth = 0
         frameHeight = 0
@@ -271,11 +277,17 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     }
 
     private func makeSession(containing timestampMilliseconds: Int) throws -> SFXASSRendererSession {
-        guard let sourcePath, frameWidth > 0, frameHeight > 0 else {
+        guard let sourcePath,
+              let sourceFormat,
+              frameWidth > 0,
+              frameHeight > 0
+        else {
             throw ASSRenderWorkerError(message: "ASS renderer source is not ready.")
         }
 
-        if let segment = try indexedRenderSegment(containing: timestampMilliseconds) {
+        if sourceFormat == .ass,
+           let segment = try indexedRenderSegment(containing: timestampMilliseconds)
+        {
             activeRenderSegmentWindow = PlaybackSubtitleTimeWindow(
                 startMilliseconds: segment.startMilliseconds,
                 endMilliseconds: segment.endMilliseconds
@@ -294,6 +306,20 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
 
         activeRenderSegmentWindow = nil
+        if sourceFormat == .srt {
+            let sourceScript = try String(
+                contentsOf: URL(fileURLWithPath: sourcePath)
+            )
+            return try SFXASSRendererSession(
+                assScript: rewriteRenderScript(
+                    SRTASSConverter.convert(sourceScript)
+                ),
+                sourceIdentifier: sourcePath,
+                frameWidth: frameWidth,
+                frameHeight: frameHeight
+            )
+        }
+
         if let sourceScript = try? String(contentsOf: URL(fileURLWithPath: sourcePath)) {
             let renderScript = rewriteRenderScript(sourceScript)
             if renderScript != sourceScript {
@@ -462,6 +488,14 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let previousSize = frame.size
+        super.setFrameSize(newSize)
+        if source?.format == .srt, previousSize != newSize {
+            reloadRendererIfPossible()
+        }
     }
 
     override func layout() {
@@ -697,11 +731,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             return
         }
 
-        let videoRect = SourceFaithfulASSSubtitleLayout.videoRect(
-            videoSize: videoSize,
-            in: bounds
-        )
-        guard videoRect.width > 1, videoRect.height > 1 else {
+        let presentationRect = source?.format == .srt
+            ? bounds
+            : SourceFaithfulASSSubtitleLayout.videoRect(
+                videoSize: videoSize,
+                in: bounds
+            )
+        guard presentationRect.width > 1, presentationRect.height > 1 else {
             return
         }
 
@@ -713,7 +749,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 height: surface.height,
                 frameWidth: frame.frameWidth,
                 frameHeight: frame.frameHeight,
-                videoRect: videoRect
+                videoRect: presentationRect
             ) ?? .zero
         }
     }
@@ -746,7 +782,9 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     private func renderFrameSize() -> (width: Int, height: Int)? {
-        let size = videoSize ?? bounds.size
+        let size = source?.format == .srt
+            ? bounds.size
+            : videoSize ?? bounds.size
         let width = Int(size.width.rounded())
         let height = Int(size.height.rounded())
         guard width > 1, height > 1 else {

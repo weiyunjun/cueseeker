@@ -7,7 +7,7 @@ import CueSeekerPlayback
 
 @MainActor
 @Test
-func initialPlaybackSRTCuePrefixesSpeakerWhenSettingIsEnabled() async throws {
+func playbackSRTSourceCarriesSpeakerDisplayCues() async throws {
     try await withTemporarySubtitleRefreshApp { app, database in
         let subtitleFile = URL(fileURLWithPath: "/Media/Speaker.srt")
         try database.replaceEntries(
@@ -43,9 +43,11 @@ func initialPlaybackSRTCuePrefixesSpeakerWhenSettingIsEnabled() async throws {
         )
         app.settings.playbackSpeakerDisplayEnabled = true
 
-        let cues = app.initialPlaybackSubtitleCues(for: result)
+        let source = try #require(app.playbackSubtitleSource(for: result))
 
-        #expect(cues.first?.text == "长崎素世,疑似高松灯: speaker first")
+        #expect(source.format == .srt)
+        #expect(source.speakerDisplayCues.first?.cleanText == "speaker first")
+        #expect(source.speakerDisplayCues.first?.speakers == ["疑似高松灯", "长崎素世"])
     }
 }
 

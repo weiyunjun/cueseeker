@@ -6,14 +6,29 @@ public enum SRTParsingError: Error, Equatable, Sendable {
 
 public enum SRTParser {
     public static func parse(_ contents: String) -> [SubtitleEntry] {
+        parseEntries(contents, deduplicates: true, minimumDurationMilliseconds: SubtitleCueIndexingRules.minimumDurationMilliseconds)
+    }
+
+    public static func parseForRendering(_ contents: String) -> [SubtitleEntry] {
+        parseEntries(contents, deduplicates: false, minimumDurationMilliseconds: 0)
+    }
+
+    private static func parseEntries(
+        _ contents: String,
+        deduplicates: Bool,
+        minimumDurationMilliseconds: Int
+    ) -> [SubtitleEntry] {
         var seenEntries = Set<SRTEntryDeduplicationKey>()
         return splitBlocks(contents).compactMap { block in
-            guard let entry = parseBlock(block) else {
+            guard let entry = parseBlock(
+                block,
+                minimumDurationMilliseconds: minimumDurationMilliseconds
+            ) else {
                 return nil
             }
 
             let key = SRTEntryDeduplicationKey(entry: entry)
-            guard seenEntries.insert(key).inserted else {
+            guard !deduplicates || seenEntries.insert(key).inserted else {
                 return nil
             }
 
@@ -68,7 +83,10 @@ public enum SRTParser {
         return (((hours * 60) + minutes) * 60 + seconds) * 1000 + milliseconds
     }
 
-    private static func parseBlock(_ lines: [String]) -> SubtitleEntry? {
+    private static func parseBlock(
+        _ lines: [String],
+        minimumDurationMilliseconds: Int = SubtitleCueIndexingRules.minimumDurationMilliseconds
+    ) -> SubtitleEntry? {
         guard !lines.isEmpty else {
             return nil
         }
@@ -94,7 +112,7 @@ public enum SRTParser {
         guard let startMilliseconds = milliseconds(from: startTimecode),
               let endMilliseconds = milliseconds(from: endTimecode),
               endMilliseconds >= startMilliseconds,
-              endMilliseconds - startMilliseconds >= SubtitleCueIndexingRules.minimumDurationMilliseconds
+              endMilliseconds - startMilliseconds >= minimumDurationMilliseconds
         else {
             return nil
         }

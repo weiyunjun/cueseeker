@@ -454,7 +454,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         subtitleLoadTask?.cancel()
         activeSubtitleSource = source
 
-        guard let source, source.format == .ass else {
+        guard let source else {
             assSubtitleRenderTimeGate = nil
             stopASSSubtitleRenderTicks()
             Task { @MainActor in
@@ -808,7 +808,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         activeSubtitleSource = source
         lastRenderedASSSubtitleMilliseconds = milliseconds
 
-        guard let source, source.format == .ass else {
+        guard let source else {
             assSubtitleRenderTimeGate = nil
             stopASSSubtitleRenderTicks()
             (renderView as? PlaybackRenderContainerView)?.clearSourceFaithfulASSSubtitleSource()

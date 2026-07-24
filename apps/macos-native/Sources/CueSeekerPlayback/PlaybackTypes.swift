@@ -43,6 +43,7 @@ public enum PlaybackDecodeMode: String, CaseIterable, Identifiable, Sendable, Eq
 }
 
 public enum PlaybackSubtitleSourceFormat: String, Sendable, Equatable {
+    case srt
     case ass
 }
 

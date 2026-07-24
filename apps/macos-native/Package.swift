@@ -215,7 +215,7 @@ let package = Package(
         ),
         .testTarget(
             name: "CASSRenderingTests",
-            dependencies: ["CASSRendering"],
+            dependencies: ["CASSRendering", "CueSeekerCore"],
             path: "Tests/CASSRenderingTests",
             resources: [
                 .process("Fixtures")

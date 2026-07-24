@@ -67,6 +67,19 @@ identity.
 - Advanced the Cue indexing algorithm version to 4 so existing subtitle files
   are reconciled through the new rules.
 
+### 5. SRT To ASS / libass Rendering
+
+- Added a rendering-only SRT parse path that preserves duplicate and short
+  subtitle blocks without changing database-level Cue deduplication.
+- Converted the complete SRT track into ASS Dialogues with the confirmed IINA
+  default Style before passing it to libass.
+- Routed SRT playback, subtitle refresh, and subtitle screenshot export through
+  the same libass pipeline while leaving native ASS Styles unchanged.
+- Submitted simultaneous SRT blocks together for libass collision handling and
+  removed the former one-Cue-at-a-time text renderer.
+- Rendered SRT against the full playback viewport so fullscreen letterbox
+  placement and window-size scaling follow the confirmed defaults.
+
 ## Verification
 
 - `swift test --filter DatabaseBootstrapTests`
@@ -91,7 +104,9 @@ identity.
   - Covered recursive supported-file discovery and rejection of an invalid
     Library root.
 - `swift test --filter SRTParserTests`
-  - 4 tests passed.
+  - 6 tests passed.
+  - Covered rendering preservation of duplicate and short blocks, exact IINA
+    Style defaults, and multiline Dialogue conversion.
 - `swift test --filter ASSParserTests`
   - 7 tests passed.
 - `swift test --filter CueIdentityReconcilerTests`
@@ -102,6 +117,17 @@ identity.
   - 13 tests passed.
   - Covered CueID, Shiori ID, tag, and metadata preservation after an accepted
     content edit.
+- `swift test --filter CASSRenderingProbeTests`
+  - 8 tests passed.
+  - Covered complete converted SRT tracks and simultaneous blocks rendering
+    through libass.
+- `swift test --filter PlaybackSubtitleRefreshLifecycleTests`
+  - 1 test passed.
+  - Covered SRT playback-source construction and speaker-display metadata.
+- `swift test --filter PlaybackRequestTests`
+  - 30 tests passed.
+- `swift test --filter SubtitleScreenshotExporterTests`
+  - 6 tests passed.
 
 ## Result
 
