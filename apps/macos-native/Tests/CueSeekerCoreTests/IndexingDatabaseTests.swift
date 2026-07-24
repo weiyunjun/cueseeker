@@ -82,6 +82,11 @@ func movingLibraryFolderPreservesFolderVideoAndSubtitleIDs() throws {
         path: originalVideo.path,
         databaseURL: databaseURL
     ))
+    let originalCueID = try #require(
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .cueLineRecords(forSubtitleFile: originalSubtitle)
+            .first?.id
+    )
 
     try FileManager.default.moveItem(at: originalFolder, to: movedFolder)
     let movedSubtitle = movedFolder.appendingPathComponent("Episode.srt")
@@ -110,6 +115,11 @@ func movingLibraryFolderPreservesFolderVideoAndSubtitleIDs() throws {
         path: movedVideo.path,
         databaseURL: databaseURL
     ) == originalVideoID)
+    #expect(
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .cueLineRecords(forSubtitleFile: movedSubtitle)
+            .first?.id == originalCueID
+    )
 }
 
 @Test

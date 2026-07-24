@@ -97,6 +97,7 @@ public enum ASSParser {
         var parsedLines: [ParsedCueLine] = []
         var seenCueLineKeys = Set<ParsedCueLineDeduplicationKey>()
         var malformedDialogueCount = 0
+        var nextDialogueEventIndex = 0
 
         mutating func parse() -> [SubtitleCueGroup] {
             let normalized = contents
@@ -192,7 +193,8 @@ public enum ASSParser {
                 return
             }
 
-            let eventIndex = parsedLines.count
+            let eventIndex = nextDialogueEventIndex
+            nextDialogueEventIndex += 1
             let fields = splitFields(String(line.dropFirst("dialogue:".count)), expectedCount: eventFormat.count)
             guard fields.count == eventFormat.count,
                   let startTimecode = value(named: "start", fields: fields, format: eventFormat),
@@ -218,6 +220,10 @@ public enum ASSParser {
 
             let sourceStyle = value(named: "style", fields: fields, format: eventFormat)
             let sourceLayer = value(named: "layer", fields: fields, format: eventFormat).flatMap(Int.init)
+            let sourceIdentityRemainder = identityRemainder(
+                fields: fields,
+                format: eventFormat
+            )
             let layout = layoutMetadata(
                 rawText: rawText,
                 styleName: sourceStyle,
@@ -231,6 +237,7 @@ public enum ASSParser {
                 eventIndex: eventIndex,
                 sourceStyle: sourceStyle?.isEmpty == true ? nil : sourceStyle,
                 sourceLayer: sourceLayer,
+                sourceIdentityRemainder: sourceIdentityRemainder,
                 startTimecode: startTimecode.trimmingCharacters(in: .whitespacesAndNewlines),
                 endTimecode: endTimecode.trimmingCharacters(in: .whitespacesAndNewlines),
                 startMilliseconds: startMilliseconds,
@@ -343,6 +350,7 @@ public enum ASSParser {
                             sourceFormat: .ass,
                             sourceStyle: line.sourceStyle,
                             sourceLayer: line.sourceLayer,
+                            sourceIdentityRemainder: line.sourceIdentityRemainder,
                             startTimecode: line.startTimecode,
                             endTimecode: line.endTimecode,
                             startMilliseconds: line.startMilliseconds,
@@ -381,6 +389,23 @@ public enum ASSParser {
             collisionPlacedLines(lines)
                 .sorted { comparePlacedCueLines($0, $1) }
                 .map(\.line)
+        }
+
+        func identityRemainder(fields: [String], format: [String]) -> String {
+            let excludedFields: Set<String> = ["start", "end", "style", "text"]
+            var components: [(name: String, index: Int, value: String)] = []
+            for (index, name) in format.enumerated()
+                where !excludedFields.contains(name)
+            {
+                components.append((name: name, index: index, value: fields[index]))
+            }
+            components.sort {
+                $0.name == $1.name ? $0.index < $1.index : $0.name < $1.name
+            }
+            return components.map { component in
+                "\(component.name.utf8.count):\(component.name)"
+                    + "\(component.value.utf8.count):\(component.value)"
+            }.joined()
         }
 
         func collisionPlacedLines(_ lines: [ParsedCueLine]) -> [CollisionPlacedLine] {
@@ -692,6 +717,7 @@ public enum ASSParser {
         let eventIndex: Int
         let sourceStyle: String?
         let sourceLayer: Int?
+        let sourceIdentityRemainder: String
         let startTimecode: String
         let endTimecode: String
         let startMilliseconds: Int
@@ -702,25 +728,17 @@ public enum ASSParser {
 
     private struct ParsedCueLineDeduplicationKey: Hashable {
         let sourceStyle: String?
-        let sourceLayer: Int?
-        let startTimecode: String
-        let endTimecode: String
+        let sourceIdentityRemainder: String
         let startMilliseconds: Int
         let endMilliseconds: Int
         let content: String
-        let displayX: Double?
-        let displayY: Double?
 
         init(line: ParsedCueLine) {
             sourceStyle = line.sourceStyle
-            sourceLayer = line.sourceLayer
-            startTimecode = line.startTimecode
-            endTimecode = line.endTimecode
+            sourceIdentityRemainder = line.sourceIdentityRemainder
             startMilliseconds = line.startMilliseconds
             endMilliseconds = line.endMilliseconds
             content = line.content
-            displayX = line.layout.displayX
-            displayY = line.layout.displayY
         }
     }
 

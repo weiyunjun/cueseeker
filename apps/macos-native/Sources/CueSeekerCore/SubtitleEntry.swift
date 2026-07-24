@@ -90,6 +90,7 @@ public struct SubtitleCueLine: Equatable, Sendable {
     public let sourceFormat: SubtitleFormat
     public let sourceStyle: String?
     public let sourceLayer: Int?
+    public let sourceIdentityRemainder: String
     public let startTimecode: String
     public let endTimecode: String
     public let startMilliseconds: Int
@@ -98,6 +99,36 @@ public struct SubtitleCueLine: Equatable, Sendable {
     public let displayX: Double?
     public let displayY: Double?
     public let displayOrder: Int
+
+    public init(
+        eventIndex: Int,
+        sourceFormat: SubtitleFormat,
+        sourceStyle: String?,
+        sourceLayer: Int?,
+        sourceIdentityRemainder: String,
+        startTimecode: String,
+        endTimecode: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        content: String,
+        displayX: Double?,
+        displayY: Double?,
+        displayOrder: Int
+    ) {
+        self.eventIndex = eventIndex
+        self.sourceFormat = sourceFormat
+        self.sourceStyle = sourceStyle
+        self.sourceLayer = sourceLayer
+        self.sourceIdentityRemainder = sourceIdentityRemainder
+        self.startTimecode = startTimecode
+        self.endTimecode = endTimecode
+        self.startMilliseconds = startMilliseconds
+        self.endMilliseconds = endMilliseconds
+        self.content = content
+        self.displayX = displayX
+        self.displayY = displayY
+        self.displayOrder = displayOrder
+    }
 
     public init(
         eventIndex: Int,
@@ -113,17 +144,20 @@ public struct SubtitleCueLine: Equatable, Sendable {
         displayY: Double?,
         displayOrder: Int
     ) {
-        self.eventIndex = eventIndex
-        self.sourceFormat = sourceFormat
-        self.sourceStyle = sourceStyle
-        self.sourceLayer = sourceLayer
-        self.startTimecode = startTimecode
-        self.endTimecode = endTimecode
-        self.startMilliseconds = startMilliseconds
-        self.endMilliseconds = endMilliseconds
-        self.content = content
-        self.displayX = displayX
-        self.displayY = displayY
-        self.displayOrder = displayOrder
+        self.init(
+            eventIndex: eventIndex,
+            sourceFormat: sourceFormat,
+            sourceStyle: sourceStyle,
+            sourceLayer: sourceLayer,
+            sourceIdentityRemainder: "",
+            startTimecode: startTimecode,
+            endTimecode: endTimecode,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            content: content,
+            displayX: displayX,
+            displayY: displayY,
+            displayOrder: displayOrder
+        )
     }
 }

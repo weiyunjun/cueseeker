@@ -50,6 +50,23 @@ identity.
   SRT blocks, and malformed ASS Dialogue records cancel publication while the
   previous successful Index remains active.
 
+### 4. Cue Identity Reconciliation
+
+- Added format-aware Cue reconciliation that locks exact matches before
+  considering local edits and never uses Event Index or Display Order.
+- Enforced ASS Style as a hard identity boundary and allowed inheritance only
+  for an unambiguous single-part change among timestamp, cleaned text, and the
+  canonical remaining Dialogue fields.
+- Added canonical ASS remainder persistence for Layer, Name, margins, Effect,
+  and any other non-time/non-text/non-Style Event fields.
+- Kept unique SRT one-to-one edits on the original CueID while assigning new
+  CueIDs to ambiguous same-time multi-edit results.
+- Preserved CueID, Shiori relations, tags, and speaker assignments across
+  accepted edits and file moves; added one-successful-index text-change
+  notices.
+- Advanced the Cue indexing algorithm version to 4 so existing subtitle files
+  are reconciled through the new rules.
+
 ## Verification
 
 - `swift test --filter DatabaseBootstrapTests`
@@ -64,10 +81,11 @@ identity.
 - `swift test --filter LibraryDatabaseTests`
   - 18 tests passed.
 - `swift test --filter SubtitleIndexerTests`
-  - 19 tests passed.
+  - 22 tests passed.
   - Covered whole-Library rollback after an injected mid-publication failure,
     malformed-subtitle rollback, stale-token rejection, unchanged-file
-    handling, and successful SRT/ASS publication.
+    handling, stable ASS identities after adding another Style, ambiguous SRT
+    replacements, one-index change notices, and successful SRT/ASS publication.
 - `swift test --filter SubtitleFileScannerTests`
   - 2 tests passed.
   - Covered recursive supported-file discovery and rejection of an invalid
@@ -75,7 +93,15 @@ identity.
 - `swift test --filter SRTParserTests`
   - 4 tests passed.
 - `swift test --filter ASSParserTests`
-  - 6 tests passed.
+  - 7 tests passed.
+- `swift test --filter CueIdentityReconcilerTests`
+  - 4 tests passed.
+  - Covered Event Index/Display Order exclusion, ASS Style and single-part
+    boundaries, exact-first SRT matching, and ambiguous SRT replacement.
+- `swift test --filter ShioriDatabaseTests`
+  - 13 tests passed.
+  - Covered CueID, Shiori ID, tag, and metadata preservation after an accepted
+    content edit.
 
 ## Result
 

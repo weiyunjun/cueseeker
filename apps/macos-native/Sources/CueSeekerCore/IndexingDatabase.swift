@@ -182,6 +182,10 @@ public final class IndexingDatabase: @unchecked Sendable {
                         "Unchanged subtitle disappeared before index publication."
                     )
                 }
+                try clearCueChangeNotices(
+                    cueIDs: try storedCueStates(subtitleFileID: subtitleFile.id)
+                        .map(\.identity.cueID)
+                )
                 let videoFileID = try upsertVideoFile(
                     file.videoFile,
                     libraryID: index.lease.libraryID
@@ -506,15 +510,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         libraryID: Int64?,
         rebuildSearchDerivedIndex: Bool
     ) throws {
-        let preservedCueLineSpeakers = try cueLineSpeakersByStableKey(forSubtitlePath: subtitleFile.path)
-        var preservedShioris = try shioriRelationsByCueSourceIdentity(
-            forSubtitlePath: subtitleFile.path
-        )
-        try deleteIndexedSubtitlePath(
-            subtitleFile.path,
-            preserveFileIdentity: true
-        )
-
         let subtitleFileID = try upsertSubtitleFile(
             subtitleFile: subtitleFile,
             format: format,
@@ -522,6 +517,18 @@ public final class IndexingDatabase: @unchecked Sendable {
             modifiedAt: modifiedAt,
             libraryID: libraryID
         )
+        let storedCueStates = try storedCueStates(subtitleFileID: subtitleFileID)
+        let newCueLines = cueGroups.flatMap(\.cueLines)
+        let identityAssignments = CueIdentityReconciler.reconcile(
+            storedCues: storedCueStates.map(\.identity),
+            newCues: newCueLines
+        )
+        try clearCueChangeNotices(cueIDs: storedCueStates.map(\.identity.cueID))
+        try deleteIndexedSubtitlePath(
+            subtitleFile.path,
+            preserveFileIdentity: true
+        )
+
         let videoFileID = try upsertVideoFile(videoFile, libraryID: libraryID)
         try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
         try insertPlaybackFinishMetadata(
@@ -571,6 +578,10 @@ public final class IndexingDatabase: @unchecked Sendable {
             }
         }
 
+        var newCueIndex = 0
+        let storedStateByCueID = Dictionary(
+            uniqueKeysWithValues: storedCueStates.map { ($0.identity.cueID, $0) }
+        )
         for (index, group) in cueGroups.enumerated() {
             let cueGroupID = try insertCueGroup(
                 subtitleFileID: subtitleFileID,
@@ -578,25 +589,30 @@ public final class IndexingDatabase: @unchecked Sendable {
                 group: group
             )
             for line in group.cueLines {
+                let assignment = identityAssignments[newCueIndex]
                 let cueLineID = try insertCueLine(
                     subtitleFileID: subtitleFileID,
                     cueGroupID: cueGroupID,
-                    line: line
+                    line: line,
+                    cueID: assignment?.cueID
                 )
-                let speakerKey = CueLineStableKey(line: line)
-                if let speakers = preservedCueLineSpeakers[speakerKey] {
+                if let speakers = storedStateByCueID[cueLineID]?.speakers {
                     try insertCueLineSpeakers(
                         cueLineID: cueLineID,
                         cueGroupID: cueGroupID,
                         speakers: speakers
                     )
                 }
-                let cueIdentity = CueLineSourceIdentity(line: line)
-                if let relations = preservedShioris.removeValue(
-                    forKey: cueIdentity
-                ) {
-                    try restoreShioriRelations(relations, cueID: cueLineID)
+                if let assignment,
+                   assignment.previousContent != line.content
+                {
+                    try insertCueChangeNotice(
+                        cueID: cueLineID,
+                        previousContent: assignment.previousContent,
+                        currentContent: line.content
+                    )
                 }
+                newCueIndex += 1
             }
             try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
             if let languages = languageAnalysis?.cueGroupLanguages[index] {
@@ -1108,76 +1124,9 @@ public final class IndexingDatabase: @unchecked Sendable {
         let endMilliseconds: Int
     }
 
-    private struct CueLineStableKey: Hashable {
-        let sourceFormat: SubtitleFormat
-        let sourceStyle: String?
-        let sourceLayer: Int?
-        let startTimecode: String
-        let endTimecode: String
-        let startMilliseconds: Int
-        let endMilliseconds: Int
-        let content: String
-        let displayX: Double?
-        let displayY: Double?
-
-        init(line: SubtitleCueLine) {
-            sourceFormat = line.sourceFormat
-            sourceStyle = line.sourceStyle
-            sourceLayer = line.sourceLayer
-            startTimecode = line.startTimecode
-            endTimecode = line.endTimecode
-            startMilliseconds = line.startMilliseconds
-            endMilliseconds = line.endMilliseconds
-            content = line.content
-            displayX = line.displayX
-            displayY = line.displayY
-        }
-
-        init(statement: SQLiteStatement) {
-            sourceFormat = SubtitleFormat(rawValue: statement.stringColumn(0)) ?? .srt
-            sourceStyle = statement.nullableStringColumn(1)
-            sourceLayer = statement.nullableIntColumn(2)
-            startTimecode = statement.stringColumn(3)
-            endTimecode = statement.stringColumn(4)
-            startMilliseconds = statement.intColumn(5)
-            endMilliseconds = statement.intColumn(6)
-            content = statement.stringColumn(7)
-            displayX = statement.nullableDoubleColumn(8)
-            displayY = statement.nullableDoubleColumn(9)
-        }
-    }
-
-    private struct CueLineSourceIdentity: Hashable {
-        let sourceFormat: SubtitleFormat
-        let eventIndex: Int
-        let displayOrder: Int
-
-        init(line: SubtitleCueLine) {
-            sourceFormat = line.sourceFormat
-            eventIndex = line.eventIndex
-            displayOrder = line.displayOrder
-        }
-
-        init(statement: SQLiteStatement, columnOffset: Int32 = 0) {
-            sourceFormat = SubtitleFormat(
-                rawValue: statement.stringColumn(columnOffset)
-            ) ?? .srt
-            eventIndex = statement.intColumn(columnOffset + 1)
-            displayOrder = statement.intColumn(columnOffset + 2)
-        }
-    }
-
-    private struct PreservedShioriTagAssignment {
-        let tagID: Int64
-        let createdAt: String
-    }
-
-    private struct PreservedShioriRelation {
-        let id: Int64
-        let listID: Int64
-        let createdAt: String
-        let cueIdentity: CueLineSourceIdentity
-        var tagAssignments: [PreservedShioriTagAssignment]
+    private struct StoredCueState {
+        let identity: StoredCueIdentity
+        var speakers: Set<String>
     }
 
 
@@ -1508,12 +1457,6 @@ public final class IndexingDatabase: @unchecked Sendable {
             if let matchingPath, matchingPath.id != matchingResource.id {
                 try retireSubtitleFile(matchingPath, state: .replaced)
             }
-            if matchingResource.path != subtitleFile.path {
-                try deleteIndexedSubtitlePath(
-                    matchingResource.path,
-                    preserveFileIdentity: true
-                )
-            }
             record = matchingResource
         } else if let matchingPath,
                   matchingPath.resourceIdentity == nil
@@ -1536,7 +1479,6 @@ public final class IndexingDatabase: @unchecked Sendable {
                 if let matchingPath {
                     try retireSubtitleFile(matchingPath, state: .replaced)
                 }
-                try deleteIndexedSubtitlePath(candidate.path, preserveFileIdentity: true)
                 record = candidate
             } else {
                 if let matchingPath {
@@ -2064,121 +2006,87 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func cueLineSpeakersByStableKey(forSubtitlePath subtitlePath: String) throws -> [CueLineStableKey: Set<String>] {
+    private func storedCueStates(subtitleFileID: Int64) throws -> [StoredCueState] {
         let statement = try database.prepare(
             """
-            SELECT l.source_format, l.source_style, l.source_layer,
-                   l.start_time, l.end_time, l.start_ms, l.end_ms,
-                   l.content, l.display_x, l.display_y, s.speaker
-            FROM subtitle_cue_line_speakers s
-            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
+            SELECT l.id, l.source_format, l.source_style,
+                   l.source_identity_remainder, l.start_ms, l.end_ms,
+                   l.content, s.speaker
+            FROM subtitle_cue_lines l
+            LEFT JOIN subtitle_cue_line_speakers s ON s.cue_line_id = l.id
+            WHERE l.subtitle_file_id = ?
             ORDER BY l.id ASC, s.speaker_key ASC;
             """
         )
-        try statement.bind(subtitlePath, at: 1)
+        try statement.bind(subtitleFileID, at: 1)
 
-        var speakersByKey: [CueLineStableKey: Set<String>] = [:]
+        var stateByCueID: [Int64: StoredCueState] = [:]
         while try statement.step() {
-            let key = CueLineStableKey(statement: statement)
-            speakersByKey[key, default: []].insert(statement.stringColumn(10))
-        }
-        return speakersByKey
-    }
-
-    private func shioriRelationsByCueSourceIdentity(
-        forSubtitlePath subtitlePath: String
-    ) throws -> [CueLineSourceIdentity: [PreservedShioriRelation]] {
-        let relationStatement = try database.prepare(
-            """
-            SELECT s.id, s.list_id, s.created_at,
-                   l.source_format, l.event_index, l.display_order
-            FROM shioris s
-            JOIN subtitle_cue_lines l ON l.id = s.cue_id
-            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY s.id ASC;
-            """
-        )
-        try relationStatement.bind(subtitlePath, at: 1)
-
-        var relationsByID: [Int64: PreservedShioriRelation] = [:]
-        while try relationStatement.step() {
-            let shioriID = relationStatement.int64Column(0)
-            relationsByID[shioriID] = PreservedShioriRelation(
-                id: shioriID,
-                listID: relationStatement.int64Column(1),
-                createdAt: relationStatement.stringColumn(2),
-                cueIdentity: CueLineSourceIdentity(
-                    statement: relationStatement,
-                    columnOffset: 3
+            let cueID = statement.int64Column(0)
+            var state = stateByCueID[cueID] ?? StoredCueState(
+                identity: StoredCueIdentity(
+                    cueID: cueID,
+                    sourceFormat: SubtitleFormat(
+                        rawValue: statement.stringColumn(1)
+                    ) ?? .srt,
+                    sourceStyle: statement.nullableStringColumn(2),
+                    sourceIdentityRemainder: statement.stringColumn(3),
+                    startMilliseconds: statement.intColumn(4),
+                    endMilliseconds: statement.intColumn(5),
+                    content: statement.stringColumn(6)
                 ),
-                tagAssignments: []
+                speakers: []
             )
+            if let speaker = statement.nullableStringColumn(7) {
+                state.speakers.insert(speaker)
+            }
+            stateByCueID[cueID] = state
         }
 
-        guard !relationsByID.isEmpty else { return [:] }
-
-        let tagStatement = try database.prepare(
-            """
-            SELECT a.shiori_id, a.tag_id, a.created_at
-            FROM shiori_tag_assignments a
-            JOIN shioris s ON s.id = a.shiori_id
-            JOIN subtitle_cue_lines l ON l.id = s.cue_id
-            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY a.shiori_id ASC, a.tag_id ASC;
-            """
-        )
-        try tagStatement.bind(subtitlePath, at: 1)
-        while try tagStatement.step() {
-            let shioriID = tagStatement.int64Column(0)
-            guard var relation = relationsByID[shioriID] else { continue }
-            relation.tagAssignments.append(PreservedShioriTagAssignment(
-                tagID: tagStatement.int64Column(1),
-                createdAt: tagStatement.stringColumn(2)
-            ))
-            relationsByID[shioriID] = relation
+        return stateByCueID.values.sorted {
+            $0.identity.cueID < $1.identity.cueID
         }
-
-        return Dictionary(grouping: relationsByID.values, by: \.cueIdentity)
     }
 
-    private func restoreShioriRelations(
-        _ relations: [PreservedShioriRelation],
-        cueID: Int64
-    ) throws {
-        let relationStatement = try database.prepare(
-            """
-            INSERT INTO shioris(id, list_id, cue_id, created_at)
-            VALUES (?, ?, ?, ?);
-            """
-        )
-        let tagStatement = try database.prepare(
-            """
-            INSERT INTO shiori_tag_assignments(shiori_id, tag_id, created_at)
-            VALUES (?, ?, ?);
-            """
-        )
-
-        for relation in relations.sorted(by: { $0.id < $1.id }) {
-            try relationStatement.bind(relation.id, at: 1)
-            try relationStatement.bind(relation.listID, at: 2)
-            try relationStatement.bind(cueID, at: 3)
-            try relationStatement.bind(relation.createdAt, at: 4)
-            try relationStatement.run()
-            try relationStatement.reset()
-
-            for assignment in relation.tagAssignments {
-                try tagStatement.bind(relation.id, at: 1)
-                try tagStatement.bind(assignment.tagID, at: 2)
-                try tagStatement.bind(assignment.createdAt, at: 3)
-                try tagStatement.run()
-                try tagStatement.reset()
-            }
+    private func clearCueChangeNotices(cueIDs: [Int64]) throws {
+        guard !cueIDs.isEmpty else {
+            return
         }
+        let placeholders = cueIDs.map { _ in "?" }.joined(separator: ", ")
+        let statement = try database.prepare(
+            "DELETE FROM cue_change_notices WHERE cue_id IN (\(placeholders));"
+        )
+        for (index, cueID) in cueIDs.enumerated() {
+            try statement.bind(cueID, at: Int32(index + 1))
+        }
+        try statement.run()
+    }
+
+    private func insertCueChangeNotice(
+        cueID: Int64,
+        previousContent: String,
+        currentContent: String
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO cue_change_notices(
+                cue_id,
+                previous_content,
+                current_content,
+                changed_at
+            )
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(cue_id) DO UPDATE SET
+                previous_content = excluded.previous_content,
+                current_content = excluded.current_content,
+                changed_at = excluded.changed_at;
+            """
+        )
+        try statement.bind(cueID, at: 1)
+        try statement.bind(previousContent, at: 2)
+        try statement.bind(currentContent, at: 3)
+        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 4)
+        try statement.run()
     }
 
     private func insertCueGroup(
@@ -2270,17 +2178,20 @@ public final class IndexingDatabase: @unchecked Sendable {
     private func insertCueLine(
         subtitleFileID: Int64,
         cueGroupID: Int64,
-        line: SubtitleCueLine
+        line: SubtitleCueLine,
+        cueID: Int64? = nil
     ) throws -> Int64 {
         let statement = try database.prepare(
             """
             INSERT INTO subtitle_cue_lines(
+                id,
                 subtitle_file_id,
                 cue_group_id,
                 event_index,
                 source_format,
                 source_style,
                 source_layer,
+                source_identity_remainder,
                 start_time,
                 end_time,
                 start_ms,
@@ -2290,42 +2201,48 @@ public final class IndexingDatabase: @unchecked Sendable {
                 display_y,
                 display_order
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
-        try statement.bind(subtitleFileID, at: 1)
-        try statement.bind(cueGroupID, at: 2)
-        try statement.bind(line.eventIndex, at: 3)
-        try statement.bind(line.sourceFormat.rawValue, at: 4)
-        if let sourceStyle = line.sourceStyle {
-            try statement.bind(sourceStyle, at: 5)
+        if let cueID {
+            try statement.bind(cueID, at: 1)
         } else {
-            try statement.bindNull(at: 5)
+            try statement.bindNull(at: 1)
         }
-        if let sourceLayer = line.sourceLayer {
-            try statement.bind(sourceLayer, at: 6)
+        try statement.bind(subtitleFileID, at: 2)
+        try statement.bind(cueGroupID, at: 3)
+        try statement.bind(line.eventIndex, at: 4)
+        try statement.bind(line.sourceFormat.rawValue, at: 5)
+        if let sourceStyle = line.sourceStyle {
+            try statement.bind(sourceStyle, at: 6)
         } else {
             try statement.bindNull(at: 6)
         }
-        try statement.bind(line.startTimecode, at: 7)
-        try statement.bind(line.endTimecode, at: 8)
-        try statement.bind(line.startMilliseconds, at: 9)
-        try statement.bind(line.endMilliseconds, at: 10)
-        try statement.bind(line.content, at: 11)
-        if let displayX = line.displayX {
-            try statement.bind(displayX, at: 12)
+        if let sourceLayer = line.sourceLayer {
+            try statement.bind(sourceLayer, at: 7)
         } else {
-            try statement.bindNull(at: 12)
+            try statement.bindNull(at: 7)
+        }
+        try statement.bind(line.sourceIdentityRemainder, at: 8)
+        try statement.bind(line.startTimecode, at: 9)
+        try statement.bind(line.endTimecode, at: 10)
+        try statement.bind(line.startMilliseconds, at: 11)
+        try statement.bind(line.endMilliseconds, at: 12)
+        try statement.bind(line.content, at: 13)
+        if let displayX = line.displayX {
+            try statement.bind(displayX, at: 14)
+        } else {
+            try statement.bindNull(at: 14)
         }
         if let displayY = line.displayY {
-            try statement.bind(displayY, at: 13)
+            try statement.bind(displayY, at: 15)
         } else {
-            try statement.bindNull(at: 13)
+            try statement.bindNull(at: 15)
         }
-        try statement.bind(line.displayOrder, at: 14)
+        try statement.bind(line.displayOrder, at: 16)
         try statement.run()
-        return database.lastInsertRowID()
+        return cueID ?? database.lastInsertRowID()
     }
 
     private func cueGroupIDsByCueLineID(forSubtitleFile subtitleFile: URL) throws -> [Int64: Int64] {
@@ -2761,7 +2678,8 @@ public final class IndexingDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT event_index, source_format, source_style, source_layer,
-                   start_time, end_time, start_ms, end_ms, content,
+                   source_identity_remainder, start_time, end_time,
+                   start_ms, end_ms, content,
                    display_x, display_y, display_order
             FROM subtitle_cue_lines
             WHERE cue_group_id = ?
@@ -2779,14 +2697,15 @@ public final class IndexingDatabase: @unchecked Sendable {
                     sourceFormat: SubtitleFormat(rawValue: statement.stringColumn(1)) ?? .srt,
                     sourceStyle: statement.nullableStringColumn(2),
                     sourceLayer: statement.nullableIntColumn(3),
-                    startTimecode: statement.stringColumn(4),
-                    endTimecode: statement.stringColumn(5),
-                    startMilliseconds: statement.intColumn(6),
-                    endMilliseconds: statement.intColumn(7),
-                    content: statement.stringColumn(8),
-                    displayX: statement.nullableDoubleColumn(9),
-                    displayY: statement.nullableDoubleColumn(10),
-                    displayOrder: statement.intColumn(11)
+                    sourceIdentityRemainder: statement.stringColumn(4),
+                    startTimecode: statement.stringColumn(5),
+                    endTimecode: statement.stringColumn(6),
+                    startMilliseconds: statement.intColumn(7),
+                    endMilliseconds: statement.intColumn(8),
+                    content: statement.stringColumn(9),
+                    displayX: statement.nullableDoubleColumn(10),
+                    displayY: statement.nullableDoubleColumn(11),
+                    displayOrder: statement.intColumn(12)
                 )
             )
         }
@@ -2804,7 +2723,8 @@ public final class IndexingDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT cue_group_id, event_index, source_format, source_style, source_layer,
-                   start_time, end_time, start_ms, end_ms, content,
+                   source_identity_remainder, start_time, end_time,
+                   start_ms, end_ms, content,
                    display_x, display_y, display_order
             FROM subtitle_cue_lines
             WHERE cue_group_id IN (\(placeholders))
@@ -2825,14 +2745,15 @@ public final class IndexingDatabase: @unchecked Sendable {
                 sourceFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
                 sourceStyle: statement.nullableStringColumn(3),
                 sourceLayer: statement.nullableIntColumn(4),
-                startTimecode: statement.stringColumn(5),
-                endTimecode: statement.stringColumn(6),
-                startMilliseconds: statement.intColumn(7),
-                endMilliseconds: statement.intColumn(8),
-                content: statement.stringColumn(9),
-                displayX: statement.nullableDoubleColumn(10),
-                displayY: statement.nullableDoubleColumn(11),
-                displayOrder: statement.intColumn(12)
+                sourceIdentityRemainder: statement.stringColumn(5),
+                startTimecode: statement.stringColumn(6),
+                endTimecode: statement.stringColumn(7),
+                startMilliseconds: statement.intColumn(8),
+                endMilliseconds: statement.intColumn(9),
+                content: statement.stringColumn(10),
+                displayX: statement.nullableDoubleColumn(11),
+                displayY: statement.nullableDoubleColumn(12),
+                displayOrder: statement.intColumn(13)
             )
             linesByCueGroupID[cueGroupID, default: []].append(line)
         }

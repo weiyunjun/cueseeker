@@ -651,6 +651,148 @@ func indexingASSStoresUsedStyleLanguageAnalysisOnly() throws {
 }
 
 @Test
+func addingASSStylesDoesNotChangeUnmodifiedJapaneseCueIDs() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let subtitleURL = try fixture.writeSubtitle(
+        name: "Bilingual.ass",
+        contents: """
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:01.00,0:00:03.00,JP,,0,0,0,,今日はライブの準備をします
+        Dialogue: 0,0:00:04.00,0:00:06.00,JP,,0,0,0,,明日はスタジオで練習します
+        """
+    )
+    _ = try fixture.writeVideo(name: "Bilingual.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let search = try SearchDatabase(path: fixture.databaseURL)
+    let firstCueID = try #require(try search.search("ライブ").first?.entryID)
+    let secondCueID = try #require(try search.search("スタジオ").first?.entryID)
+
+    try """
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,CN,,0,0,0,,今天准备演出
+    Dialogue: 0,0:00:01.00,0:00:03.00,JP,,0,0,0,,今日はライブの準備をします
+    Dialogue: 0,0:00:04.00,0:00:06.00,CN,,0,0,0,,明天去录音室练习
+    Dialogue: 0,0:00:04.00,0:00:06.00,JP,,0,0,0,,明日はスタジオで練習します
+    """.write(to: subtitleURL, atomically: false, encoding: .utf8)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(try search.search("ライブ").first?.entryID == firstCueID)
+    #expect(try search.search("スタジオ").first?.entryID == secondCueID)
+}
+
+@Test
+func ambiguousSameTimeSRTContentChangesReceiveNewCueIDs() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let subtitleURL = try fixture.writeSubtitle(
+        name: "Ambiguous.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        First original.
+
+        2
+        00:00:01,000 --> 00:00:03,000
+        Second original.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Ambiguous.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let search = try SearchDatabase(path: fixture.databaseURL)
+    let oldCueIDs = Set([
+        try #require(try search.search("First original").first?.entryID),
+        try #require(try search.search("Second original").first?.entryID)
+    ])
+
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    First replacement text.
+
+    2
+    00:00:01,000 --> 00:00:03,000
+    Second replacement text.
+
+    """.write(to: subtitleURL, atomically: false, encoding: .utf8)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    let newCueIDs = Set([
+        try #require(try search.search("First replacement").first?.entryID),
+        try #require(try search.search("Second replacement").first?.entryID)
+    ])
+    #expect(oldCueIDs.isDisjoint(with: newCueIDs))
+}
+
+@Test
+func inheritedTextChangeNoticeLastsForOneSuccessfulIndex() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let subtitleURL = try fixture.writeSubtitle(
+        name: "Changed.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Previous text.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Changed.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let search = try SearchDatabase(path: fixture.databaseURL)
+    let originalCueID = try #require(try search.search("Previous").first?.entryID)
+
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Current edited text.
+
+    """.write(to: subtitleURL, atomically: false, encoding: .utf8)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(try search.search("Current edited").first?.entryID == originalCueID)
+    #expect(
+        try queryString(
+            at: fixture.databaseURL,
+            sql: """
+            SELECT previous_content || '|' || current_content
+            FROM cue_change_notices
+            WHERE cue_id = \(originalCueID);
+            """
+        ) == "Previous text.|Current edited text."
+    )
+
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(
+        try queryInt(
+            at: fixture.databaseURL,
+            sql: "SELECT COUNT(*) FROM cue_change_notices WHERE cue_id = \(originalCueID);"
+        ) == 0
+    )
+}
+
+@Test
 func indexesASSFontReferencesAndSkipsUnchangedAfterManifest() throws {
     let fixture = try IndexingFixture()
     defer {
@@ -883,4 +1025,30 @@ private func queryInt(at url: URL, sql: String) throws -> Int64 {
         throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
     }
     return sqlite3_column_int64(statement, 0)
+}
+
+private func queryString(at url: URL, sql: String) throws -> String? {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer {
+        sqlite3_finalize(statement)
+    }
+    guard sqlite3_step(statement) == SQLITE_ROW,
+          let value = sqlite3_column_text(statement, 0)
+    else {
+        return nil
+    }
+    return String(cString: value)
 }

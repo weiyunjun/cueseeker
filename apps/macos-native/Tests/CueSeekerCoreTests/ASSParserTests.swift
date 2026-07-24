@@ -65,6 +65,22 @@ func filtersShortASSDialogueAndDeduplicatesCleanedRetainedFields() {
 }
 
 @Test
+func assLogicalDuplicatesIncludeRemainingDialogueFields() {
+    let contents = """
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:02.00,0:00:03.00,JP,Alice,0,0,0,,Same text
+    Dialogue: 0,0:00:02.00,0:00:03.00,JP,Alice,0,0,0,,Same text
+    Dialogue: 0,0:00:02.00,0:00:03.00,JP,Bob,0,0,0,,Same text
+    """
+
+    let lines = ASSParser.parseCueGroups(contents).flatMap(\.cueLines)
+
+    #expect(lines.count == 2)
+    #expect(Set(lines.map(\.sourceIdentityRemainder)).count == 2)
+}
+
+@Test
 func ordersSameTimestampBottomAlignedASSLinesByCollisionPositionAtIndexTime() {
     let contents = """
     [Script Info]

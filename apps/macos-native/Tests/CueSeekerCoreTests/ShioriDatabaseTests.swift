@@ -526,7 +526,7 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
 }
 
 @Test
-func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throws {
+func rebuildingSubtitlePreservesCueIDShioriAndTagsWhenContentChanges() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -587,7 +587,7 @@ func rebuildingSubtitleRemapsShioriAndPreservesTagsWhenCueContentChanges() throw
     )
     let rebuiltShiori = try #require(try ShioriDatabase(path: database.path).shiori(id: originalShiori.id))
 
-    #expect(rebuiltCue.id != originalCue.id)
+    #expect(rebuiltCue.id == originalCue.id)
     #expect(rebuiltRelation.id == originalShiori.id)
     #expect(rebuiltRelation.cueID == rebuiltCue.id)
     #expect(rebuiltShiori.content == "Updated saved cue.")
@@ -799,7 +799,7 @@ func shioriTagValidationRejectsInvalidNames() throws {
 }
 
 @Test
-func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
+func removingIndexedFolderPreservesCueBoundShioriRelation() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -829,7 +829,7 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    _ = try ShioriDatabase(path: database.path).upsertShiori(
+    let savedShiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection
     )
 
@@ -837,5 +837,8 @@ func removingIndexedFolderRemovesCueBoundShioriRelation() throws {
 
     #expect(try SearchDatabase(path: database.path).search("Shiori").isEmpty)
     #expect(try ShioriDatabase(path: database.path).shioris().isEmpty)
-    #expect(try ShioriDatabase(path: database.path).shioriRelations().isEmpty)
+    #expect(
+        try ShioriDatabase(path: database.path).shioriRelations()
+            .map(\.id) == [savedShiori.id]
+    )
 }
