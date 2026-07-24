@@ -103,8 +103,45 @@ identity.
 - Excluded unavailable Shiori rows from Playback result reels and navigation
   without removing them from table results, counts, or Library cover badges.
 
+### 7. Incremental Index Publication
+
+- Split subtitle-content changes from video-binding and video-metadata changes
+  so an unchanged subtitle never enters parsing or Cue reconciliation.
+- Batched video matching by directory and retained only lightweight file
+  metadata checks for change discovery.
+- Rebuilt Search Order and Library presentation rows only for affected folders;
+  changed subtitle files continue to replace only their own FTS rows.
+- Scoped video metadata inspection, generated covers, display renditions, and
+  folder-cover reference updates to affected videos and folders.
+- Deferred Search, Library, Playback, and Shiori invalidation until publication
+  reports an actual change. A no-op Index now preserves resident UI state.
+- Kept one-successful-index Cue change notices as a targeted lifecycle write;
+  their removal refreshes Shiori without triggering unrelated media or Search
+  work.
+- Retained full empty-derived-table cleanup only when all active Libraries have
+  been removed, where no unchanged indexed resources remain.
+
 ## Verification
 
+- `swift build`
+  - Passed.
+- `swift test --filter 'SubtitleIndexerTests|VideoMatcherTests|LibraryDatabaseTests'`
+  - 55 tests passed.
+  - Covered no-op publication without Cue, FTS, Search Order, or video writes;
+    one-folder mutation isolation; video-only metadata changes; scoped cover
+    queries; and batched video matching.
+- `swift test --filter 'SearchDatabaseTests|IndexingDatabaseTests|LibraryCoverDisplayRenditionTests|DatabaseMaintenanceTests'`
+  - 66 Search, Indexing Database, and display-rendition tests passed in the
+    concurrent run.
+  - The maintenance test was affected by concurrent database load and passed
+    when rerun independently.
+- `swift test --filter 'LibraryFolderRemovalTests|CueGroupRefreshScopeIntegrationTests'`
+  - 22 tests passed.
+  - Covered no-op Index preservation of loaded Search state and delayed
+    invalidation after a confirmed content removal.
+- `swift test --filter preservesCueLineSpeakersWhenReplacingCueGroups`
+  - 1 test passed after aligning its stale assertion with the human-owned rule
+    that an exact Cue match preserves CueID.
 - `swift test --filter DatabaseBootstrapTests`
   - 13 tests passed.
   - Covered fresh schema creation, schema 33 and 34 migration, Shiori/tag
@@ -182,13 +219,15 @@ identity.
 - `swift test --filter PlaybackShioriOverlayTests`
   - 6 tests passed.
 - `swift test`
-  - Ran 883 tests.
-  - The concurrent run reported 14 issues across 7 timing-sensitive tests:
-    five Native Playback timing/audio tests, one Subtitle Focus timeout, and
-    one Shiori submenu pointer-transfer assertion.
-  - All 7 reported tests passed when rerun individually. The changed database,
-    indexing, Shiori lifecycle, table-action, and SRT/libass suites listed
-    above also passed independently.
+  - Ran 887 tests.
+  - The concurrent run reported 18 issues across 11 tests under aggregate
+    media, AppKit, and database load.
+  - The Speaker test exposed one stale expectation and passed after it was
+    aligned with the accepted exact-Cue identity rule.
+  - The remaining 10 media/UI/database timing tests passed either in their
+    affected group or when rerun individually. The changed indexing, Search,
+    Library, Shiori lifecycle, and cover suites listed above passed
+    independently.
 
 ## Result
 

@@ -56,9 +56,35 @@ public struct LibraryCoverDisplayRenditionIndexer: Sendable {
         under folders: [URL],
         into database: any LibraryCoverPersistence
     ) async throws -> LibraryCoverDisplayBackfillResult {
+        let candidates = try database.libraryCoverDisplayCandidates(
+            under: folders
+        )
+        return try await backfillDisplayRenditions(
+            candidates: candidates,
+            into: database
+        )
+    }
+
+    @discardableResult
+    public func backfillDisplayRenditions(
+        videoPaths: Set<String>,
+        into database: any LibraryCoverPersistence
+    ) async throws -> LibraryCoverDisplayBackfillResult {
+        let candidates = try database.libraryCoverDisplayCandidates(
+            videoPaths: videoPaths
+        )
+        return try await backfillDisplayRenditions(
+            candidates: candidates,
+            into: database
+        )
+    }
+
+    private func backfillDisplayRenditions(
+        candidates: [LibraryCoverDisplayCandidate],
+        into database: any LibraryCoverPersistence
+    ) async throws -> LibraryCoverDisplayBackfillResult {
         let commitToken = configuration.commitToken
             ?? LibraryCoverDisplayRenditionCommitGate().beginGeneration()
-        let candidates = try database.libraryCoverDisplayCandidates(under: folders)
         let displayDirectory = configuration.coverDirectory
             .appendingPathComponent("Display", isDirectory: true)
             .appendingPathComponent(

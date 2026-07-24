@@ -23,6 +23,42 @@ func matchesSameDirectoryVideoByBaseName() throws {
 }
 
 @Test
+func batchMatchingPreservesPerSubtitleMatchingRules() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerVideoMatcherTests-\(UUID().uuidString)")
+    let nested = root.appendingPathComponent("Nested")
+
+    try FileManager.default.createDirectory(
+        at: nested,
+        withIntermediateDirectories: true
+    )
+    let firstSubtitle = root.appendingPathComponent("First.srt")
+    let firstVideo = root.appendingPathComponent("First.mkv")
+    let secondSubtitle = root.appendingPathComponent("Second.commentary.ass")
+    let secondVideo = root.appendingPathComponent("Second.mp4")
+    let nestedSubtitle = nested.appendingPathComponent("Third.ass")
+    let nestedVideo = nested.appendingPathComponent("Third.mov")
+    for subtitle in [firstSubtitle, secondSubtitle, nestedSubtitle] {
+        try "".write(to: subtitle, atomically: true, encoding: .utf8)
+    }
+    for video in [firstVideo, secondVideo, nestedVideo] {
+        try Data().write(to: video)
+    }
+
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let matches = VideoMatcher().matchingVideos(
+        for: [firstSubtitle, secondSubtitle, nestedSubtitle]
+    )
+
+    #expect(matches[firstSubtitle] == firstVideo)
+    #expect(matches[secondSubtitle] == secondVideo)
+    #expect(matches[nestedSubtitle] == nestedVideo)
+}
+
+@Test
 func matchesVideoAfterFinalBasenameSuffixRemoval() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerVideoMatcherTests-\(UUID().uuidString)")

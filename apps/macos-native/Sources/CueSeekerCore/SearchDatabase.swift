@@ -248,7 +248,8 @@ public final class SearchDatabase: @unchecked Sendable {
             WHERE sf.binding_state = 'available'
               AND vf.binding_state = 'available'
             \(scopeCondition)
-            ORDER BY sor.folder_order ASC, sor.file_order ASC,
+            ORDER BY sor.display_title COLLATE NOCASE ASC,
+                     sf.subtitle_path COLLATE NOCASE ASC,
                      g.start_ms ASC, g.end_ms ASC, g.id ASC,
                      l.display_order ASC, l.event_index ASC, l.id ASC
             """
@@ -880,7 +881,9 @@ public final class SearchDatabase: @unchecked Sendable {
                 \(subtitlePathCondition)
                 \(languageCondition)
                 \(watchStateCondition)
-                ORDER BY f.rowid ASC
+                ORDER BY sor.display_title COLLATE NOCASE ASC,
+                         sf.subtitle_path COLLATE NOCASE ASC,
+                         g.start_ms ASC, g.end_ms ASC, g.id ASC
                 LIMIT ? OFFSET ?;
                 """
             )

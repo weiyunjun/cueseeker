@@ -8,6 +8,19 @@ public struct SubtitleIndexingResult: Equatable, Sendable {
     public var skippedMissingVideo: Int = 0
     public var skippedUnreadableSubtitle: Int = 0
     public var failedFiles: [SubtitleIndexingFailure] = []
+    public var changedSubtitlePaths: [String] = []
+    public var affectedVideoPaths: [String] = []
+    public var affectedFolderPaths: [String] = []
+    public var clearedCueChangeNotices = false
+
+    public var hasIndexedContentChanges: Bool {
+        !changedSubtitlePaths.isEmpty || !affectedVideoPaths.isEmpty
+            || !affectedFolderPaths.isEmpty
+    }
+
+    public var requiresShioriRefresh: Bool {
+        hasIndexedContentChanges || clearedCueChangeNotices
+    }
 }
 
 public struct SubtitleIndexingFailure: Equatable, Sendable {
@@ -35,9 +48,10 @@ struct PreparedSubtitleIndexFile: Sendable {
     let fileSize: Int64?
     let modifiedAt: Date?
     let languageAnalysis: SubtitleLanguageAnalysis
+    let refreshVideoMetadata: Bool
 }
 
-struct UnchangedSubtitleIndexFile: Sendable {
+struct PreparedSubtitleBindingRefresh: Sendable {
     let subtitleFile: URL
     let videoFile: URL
 }
@@ -46,9 +60,16 @@ struct PreparedLibraryIndex: Sendable {
     let folder: URL
     let lease: LibraryIndexLease
     let changedFiles: [PreparedSubtitleIndexFile]
-    let unchangedFiles: [UnchangedSubtitleIndexFile]
+    let bindingRefreshes: [PreparedSubtitleBindingRefresh]
     let missingVideoSubtitleFiles: [URL]
     let keptSubtitlePaths: Set<String>
+}
+
+struct PublishedLibraryIndexMutation: Equatable, Sendable {
+    let changedSubtitlePaths: Set<String>
+    let affectedVideoPaths: Set<String>
+    let affectedFolderPaths: Set<String>
+    let clearedCueChangeNotices: Bool
 }
 
 public struct SubtitleIndexer {
@@ -82,17 +103,29 @@ public struct SubtitleIndexer {
             )
         }
         result.scannedSubtitleFiles = subtitleFiles.count
+        let matchingVideos = matcher.matchingVideos(for: subtitleFiles)
 
         let existingFiles = Dictionary(
             uniqueKeysWithValues: try database.subtitleFiles().map { ($0.subtitlePath, $0) }
         )
+        let existingVideoMetadataByPath: [String: SubtitleFileMetadata] = Dictionary(
+            existingFiles.values.compactMap { metadata -> (String, SubtitleFileMetadata)? in
+                guard metadata.videoBindingState == .available,
+                      let videoPath = metadata.videoPath
+                else {
+                    return nil
+                }
+                return (videoPath, metadata)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
         var keptSubtitlePaths = Set<String>()
         var changedFiles: [PreparedSubtitleIndexFile] = []
-        var unchangedFiles: [UnchangedSubtitleIndexFile] = []
+        var bindingRefreshes: [PreparedSubtitleBindingRefresh] = []
         var missingVideoSubtitleFiles: [URL] = []
 
         for subtitleFile in subtitleFiles {
-            guard let videoFile = matcher.matchingVideo(for: subtitleFile) else {
+            guard let videoFile = matchingVideos[subtitleFile] else {
                 keptSubtitlePaths.insert(subtitleFile.path)
                 missingVideoSubtitleFiles.append(subtitleFile)
                 result.skippedMissingVideo += 1
@@ -112,9 +145,8 @@ public struct SubtitleIndexer {
             let modifiedAt = attributes[.modificationDate] as? Date
 
             if let metadata = existingFiles[subtitleFile.path],
-               try isUnchanged(
+               try isSubtitleContentUnchanged(
                     metadata: metadata,
-                    videoFile: videoFile,
                     subtitleFile: subtitleFile,
                     database: database,
                     playbackDatabase: playbackDatabase,
@@ -123,12 +155,17 @@ public struct SubtitleIndexer {
                )
             {
                 keptSubtitlePaths.insert(subtitleFile.path)
-                unchangedFiles.append(
-                    UnchangedSubtitleIndexFile(
-                        subtitleFile: subtitleFile,
-                        videoFile: videoFile
+                if videoBindingNeedsRefresh(
+                    metadata: metadata,
+                    videoFile: videoFile
+                ) {
+                    bindingRefreshes.append(
+                        PreparedSubtitleBindingRefresh(
+                            subtitleFile: subtitleFile,
+                            videoFile: videoFile
+                        )
                     )
-                )
+                }
                 result.skippedUnchangedSubtitleFiles += 1
                 continue
             }
@@ -179,7 +216,15 @@ public struct SubtitleIndexer {
                     assFontReferences: assFontReferences,
                     fileSize: fileSize,
                     modifiedAt: modifiedAt,
-                    languageAnalysis: languageAnalysis
+                    languageAnalysis: languageAnalysis,
+                    refreshVideoMetadata: existingVideoMetadataByPath[
+                        videoFile.path
+                    ].map {
+                        videoBindingNeedsRefresh(
+                            metadata: $0,
+                            videoFile: videoFile
+                        )
+                    } ?? true
                 )
             )
 
@@ -188,31 +233,34 @@ public struct SubtitleIndexer {
             result.indexedSubtitleEntries += cueGroups.count
         }
 
-        try database.publishLibraryIndex(
+        let mutation = try database.publishLibraryIndex(
             PreparedLibraryIndex(
                 folder: folder,
                 lease: lease,
                 changedFiles: changedFiles,
-                unchangedFiles: unchangedFiles,
+                bindingRefreshes: bindingRefreshes,
                 missingVideoSubtitleFiles: missingVideoSubtitleFiles,
                 keptSubtitlePaths: keptSubtitlePaths
             )
         )
+        result.changedSubtitlePaths = mutation.changedSubtitlePaths.sorted()
+        result.affectedVideoPaths = mutation.affectedVideoPaths.sorted()
+        result.affectedFolderPaths = mutation.affectedFolderPaths.sorted()
+        result.clearedCueChangeNotices =
+            mutation.clearedCueChangeNotices
 
         return result
     }
 
-    private func isUnchanged(
+    private func isSubtitleContentUnchanged(
         metadata: SubtitleFileMetadata,
-        videoFile: URL,
         subtitleFile: URL,
         database: IndexingDatabase,
         playbackDatabase: PlaybackSubtitleDatabase,
         fileSize: Int64?,
         modifiedAt: Date?
     ) throws -> Bool {
-        guard metadata.videoPath == videoFile.path,
-              metadata.fileSize == fileSize,
+        guard metadata.fileSize == fileSize,
               metadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion,
               let existingModifiedAt = metadata.modifiedAt,
               let modifiedAt
@@ -242,6 +290,36 @@ public struct SubtitleIndexer {
         }
 
         return true
+    }
+
+    private func videoBindingNeedsRefresh(
+        metadata: SubtitleFileMetadata,
+        videoFile: URL
+    ) -> Bool {
+        guard metadata.videoBindingState == .available,
+              metadata.videoPath == videoFile.path
+        else {
+            return true
+        }
+
+        let attributes = try? FileManager.default.attributesOfItem(
+            atPath: videoFile.path
+        )
+        let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
+        let modifiedAt = attributes?[.modificationDate] as? Date
+        guard metadata.videoFileSize == fileSize,
+              let storedModifiedAt = metadata.videoModifiedAt,
+              let modifiedAt,
+              abs(
+                storedModifiedAt.timeIntervalSince1970
+                    - modifiedAt.timeIntervalSince1970
+              ) < 0.001
+        else {
+            return true
+        }
+
+        return metadata.videoResourceIdentity
+            != FileResourceIdentityResolver.resourceIdentifier(for: videoFile)
     }
 }
 

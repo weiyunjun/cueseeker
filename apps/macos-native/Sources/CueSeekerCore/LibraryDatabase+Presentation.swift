@@ -22,7 +22,9 @@ extension LibraryDatabase {
             WHERE (\(scopeCondition))
               AND sf.binding_state = 'available'
               AND vf.binding_state = 'available'
-            ORDER BY lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
+            ORDER BY lvr.folder_title COLLATE NOCASE ASC,
+                     lvr.folder_path COLLATE NOCASE ASC,
+                     lvr.video_order ASC, lvr.video_path ASC;
             """
         )
 
@@ -128,7 +130,9 @@ extension LibraryDatabase {
               AND sf.binding_state = 'available'
               AND vf.binding_state = 'available'
             ORDER BY julianday(h.updated_at) DESC, h.updated_at DESC,
-                     lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
+                     lvr.folder_title COLLATE NOCASE ASC,
+                     lvr.folder_path COLLATE NOCASE ASC,
+                     lvr.video_order ASC, lvr.video_path ASC;
             """
         )
 
@@ -229,7 +233,9 @@ extension LibraryDatabase {
             WHERE (\(scopeCondition))
               AND sf.binding_state = 'available'
               AND vf.binding_state = 'available'
-            ORDER BY lvr.folder_order ASC, lvr.video_order ASC, lvr.video_path ASC;
+            ORDER BY lvr.folder_title COLLATE NOCASE ASC,
+                     lvr.folder_path COLLATE NOCASE ASC,
+                     lvr.video_order ASC, lvr.video_path ASC;
             """
         )
 
@@ -406,7 +412,8 @@ extension LibraryDatabase {
             GROUP BY lvr.folder_path, lvr.folder_title,
                      ufc.display_cover_path, ufc.updated_at,
                      fvc.display_cover_path, fvc.generated_at
-            ORDER BY MIN(lvr.folder_order) ASC, lvr.folder_path ASC;
+            ORDER BY lvr.folder_title COLLATE NOCASE ASC,
+                     lvr.folder_path COLLATE NOCASE ASC;
             """
         )
 
@@ -567,70 +574,164 @@ extension LibraryDatabase {
 
         try database.withImmediateTransaction {
             try database.execute("DELETE FROM library_video_rows;")
+            try insertLibraryVideoRows(
+                videosByFolderPath: videosByFolderPath,
+                folderPaths: folderPaths
+            )
+        }
+    }
 
-            let updatedAt = ISO8601DateFormatter().string(from: Date())
-            let insert = try database.prepare(
-                """
-                INSERT INTO library_video_rows(
-                    video_path,
-                    video_file_id,
-                    subtitle_file_id,
-                    video_name,
-                    duration,
-                    subtitle_path,
-                    subtitle_format,
-                    folder_path,
-                    folder_title,
-                    display_title,
-                    file_extension,
-                    folder_order,
-                    video_order,
-                    updated_at
+    public func refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set<String>
+    ) throws {
+        guard !affectedFolderPaths.isEmpty else {
+            return
+        }
+        let scopedFolderPaths = Set(
+            Self.folderPathPrefixes(
+                for: affectedFolderPaths.map(
+                    URL.init(fileURLWithPath:)
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ).map {
+                $0.count > 1 && $0.hasSuffix("/")
+                    ? String($0.dropLast())
+                    : $0
+            }
+        )
+        let folderPaths = scopedFolderPaths.sorted { lhs, rhs in
+            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
+            if titleComparison != .orderedSame {
+                return titleComparison == .orderedAscending
+            }
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+        let videosByFolderPath = Dictionary(
+            grouping: try indexedLibraryVideos(
+                inFolderPaths: scopedFolderPaths
+            )
+        ) {
+            URL(fileURLWithPath: $0.videoPath)
+                .deletingLastPathComponent()
+                .standardizedFileURL
+                .path
+        }
+
+        try database.withImmediateTransaction {
+            let placeholders = folderPaths.map { _ in "?" }
+                .joined(separator: ", ")
+            let delete = try database.prepare(
+                """
+                DELETE FROM library_video_rows
+                WHERE folder_path IN (\(placeholders));
                 """
             )
-
-            for (folderOrder, folderPath) in folderPaths.enumerated() {
-                let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
-                let videos = (videosByFolderPath[folderPath] ?? []).sorted(by: Self.libraryVideoSort)
-                let rankWidth = max(2, String(videos.count).count)
-
-                for (videoOrder, video) in videos.enumerated() {
-                    let sequence = String(format: "%0*d", rankWidth, videoOrder + 1)
-                    let fileExtension = URL(fileURLWithPath: video.videoPath).pathExtension.lowercased()
-                    try insert.bind(video.videoPath, at: 1)
-                    if let videoFileID = video.videoFileID {
-                        try insert.bind(videoFileID, at: 2)
-                    } else {
-                        try insert.bindNull(at: 2)
-                    }
-                    if let subtitleFileID = video.subtitleFileID {
-                        try insert.bind(subtitleFileID, at: 3)
-                    } else {
-                        try insert.bindNull(at: 3)
-                    }
-                    try insert.bind(video.videoName, at: 4)
-                    if let duration = video.duration {
-                        try insert.bind(duration, at: 5)
-                    } else {
-                        try insert.bindNull(at: 5)
-                    }
-                    try insert.bind(video.subtitlePath, at: 6)
-                    try insert.bind(video.subtitleFormat.rawValue, at: 7)
-                    try insert.bind(folderPath, at: 8)
-                    try insert.bind(folderTitle, at: 9)
-                    try insert.bind("\(folderTitle) - \(sequence)", at: 10)
-                    try insert.bind(fileExtension, at: 11)
-                    try insert.bind(folderOrder, at: 12)
-                    try insert.bind(videoOrder, at: 13)
-                    try insert.bind(updatedAt, at: 14)
-                    try insert.run()
-                    try insert.reset()
-                    try insert.clearBindings()
-                }
+            for (offset, folderPath) in folderPaths.enumerated() {
+                try delete.bind(folderPath, at: Int32(offset + 1))
             }
+            try delete.run()
+            try insertLibraryVideoRows(
+                videosByFolderPath: videosByFolderPath,
+                folderPaths: folderPaths
+            )
+        }
+    }
 
+    private func insertLibraryVideoRows(
+        videosByFolderPath: [String: [LibraryVideo]],
+        folderPaths: [String]
+    ) throws {
+        let updatedAt = ISO8601DateFormatter().string(from: Date())
+        let insert = try database.prepare(
+            """
+            INSERT INTO library_video_rows(
+                video_path,
+                video_file_id,
+                subtitle_file_id,
+                video_name,
+                duration,
+                subtitle_path,
+                subtitle_format,
+                folder_path,
+                folder_title,
+                display_title,
+                file_extension,
+                folder_order,
+                video_order,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+        )
+
+        for (folderOrder, folderPath) in folderPaths.enumerated() {
+            let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
+            let videos = (videosByFolderPath[folderPath] ?? [])
+                .sorted(by: Self.libraryVideoSort)
+            let rankWidth = max(2, String(videos.count).count)
+
+            for (videoOrder, video) in videos.enumerated() {
+                let sequence = String(
+                    format: "%0*d",
+                    rankWidth,
+                    videoOrder + 1
+                )
+                let fileExtension = URL(fileURLWithPath: video.videoPath)
+                    .pathExtension.lowercased()
+                try insert.bind(video.videoPath, at: 1)
+                if let videoFileID = video.videoFileID {
+                    try insert.bind(videoFileID, at: 2)
+                } else {
+                    try insert.bindNull(at: 2)
+                }
+                if let subtitleFileID = video.subtitleFileID {
+                    try insert.bind(subtitleFileID, at: 3)
+                } else {
+                    try insert.bindNull(at: 3)
+                }
+                try insert.bind(video.videoName, at: 4)
+                if let duration = video.duration {
+                    try insert.bind(duration, at: 5)
+                } else {
+                    try insert.bindNull(at: 5)
+                }
+                try insert.bind(video.subtitlePath, at: 6)
+                try insert.bind(video.subtitleFormat.rawValue, at: 7)
+                try insert.bind(folderPath, at: 8)
+                try insert.bind(folderTitle, at: 9)
+                try insert.bind("\(folderTitle) - \(sequence)", at: 10)
+                try insert.bind(fileExtension, at: 11)
+                try insert.bind(folderOrder, at: 12)
+                try insert.bind(videoOrder, at: 13)
+                try insert.bind(updatedAt, at: 14)
+                try insert.run()
+                try insert.reset()
+                try insert.clearBindings()
+            }
+        }
+    }
+
+    private func indexedLibraryVideos(
+        inFolderPaths folderPaths: Set<String>
+    ) throws -> [LibraryVideo] {
+        guard !folderPaths.isEmpty else {
+            return []
+        }
+        let prefixes = Self.folderPathPrefixes(
+            for: folderPaths.map(URL.init(fileURLWithPath:))
+        )
+        let exactFolderPaths = Set(prefixes.map {
+            $0.count > 1 && $0.hasSuffix("/")
+                ? String($0.dropLast())
+                : $0
+        })
+        return try indexedLibraryVideos(scopedTo: prefixes).filter {
+            exactFolderPaths.contains(
+                URL(fileURLWithPath: $0.videoPath)
+                    .deletingLastPathComponent()
+                    .standardizedFileURL.path
+            )
         }
     }
 

@@ -837,6 +837,21 @@ final class AppCoordinator: ObservableObject {
         aggregateResult.skippedMissingVideo += result.skippedMissingVideo
         aggregateResult.skippedUnreadableSubtitle += result.skippedUnreadableSubtitle
         aggregateResult.failedFiles.append(contentsOf: result.failedFiles)
+        aggregateResult.changedSubtitlePaths = Array(
+            Set(aggregateResult.changedSubtitlePaths)
+                .union(result.changedSubtitlePaths)
+        ).sorted()
+        aggregateResult.affectedVideoPaths = Array(
+            Set(aggregateResult.affectedVideoPaths)
+                .union(result.affectedVideoPaths)
+        ).sorted()
+        aggregateResult.affectedFolderPaths = Array(
+            Set(aggregateResult.affectedFolderPaths)
+                .union(result.affectedFolderPaths)
+        ).sorted()
+        aggregateResult.clearedCueChangeNotices =
+            aggregateResult.clearedCueChangeNotices
+            || result.clearedCueChangeNotices
     }
 
     static func defaultDatabaseURL() -> URL {

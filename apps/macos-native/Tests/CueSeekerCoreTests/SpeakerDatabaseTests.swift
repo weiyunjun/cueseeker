@@ -125,7 +125,7 @@ func preservesCueLineSpeakersWhenReplacingCueGroups() throws {
 
     let rebuiltCueLines = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
     let rebuiltSecondCueLine = try #require(rebuiltCueLines.first { $0.line.content == "second cue" })
-    #expect(rebuiltSecondCueLine.id != initialSecondCueLine.id)
+    #expect(rebuiltSecondCueLine.id == initialSecondCueLine.id)
     #expect(try PlaybackSubtitleDatabase(path: database.path).speakersByCueLineID(forSubtitleFile: subtitleFile) == [
         rebuiltSecondCueLine.id: ["高松灯"]
     ])

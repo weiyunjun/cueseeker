@@ -21,6 +21,22 @@ public final class IndexingDatabase: @unchecked Sendable {
         let contentFingerprint: String?
     }
 
+    private struct UpsertedSubtitleFile {
+        let id: Int64
+        let previousPath: String?
+    }
+
+    private struct IndexedFileMutation {
+        let subtitlePath: String
+        let previousSubtitlePath: String?
+        let videoPath: String
+    }
+
+    private struct ReconciledVideoMutation {
+        var videoPaths = Set<String>()
+        var folderPaths = Set<String>()
+    }
+
     public init(
         path: URL,
         access: DatabaseConnectionAccess = .readWrite
@@ -128,7 +144,9 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
     }
 
-    func publishLibraryIndex(_ index: PreparedLibraryIndex) throws {
+    func publishLibraryIndex(
+        _ index: PreparedLibraryIndex
+    ) throws -> PublishedLibraryIndexMutation {
         for file in index.changedFiles {
             try validateLanguageAnalysis(
                 file.languageAnalysis,
@@ -137,7 +155,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             )
         }
 
-        try database.withImmediateTransaction {
+        return try database.withImmediateTransaction {
             let token = try database.prepare(
                 """
                 SELECT latest_index_token
@@ -156,8 +174,15 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
             }
 
+            let clearedCueChangeNotices = try clearPriorCueChangeNotices(
+                libraryID: index.lease.libraryID
+            )
+            var changedSubtitlePaths = Set<String>()
+            var affectedVideoPaths = Set<String>()
+            var affectedFolderPaths = Set<String>()
+
             for file in index.changedFiles {
-                try replaceCueGroupsInCurrentTransaction(
+                let mutation = try replaceCueGroupsInCurrentTransaction(
                     subtitleFile: file.subtitleFile,
                     videoFile: file.videoFile,
                     format: file.format,
@@ -174,18 +199,28 @@ public final class IndexingDatabase: @unchecked Sendable {
                     libraryID: index.lease.libraryID,
                     rebuildSearchDerivedIndex: false
                 )
-            }
-
-            for file in index.unchangedFiles {
-                guard let subtitleFile = try subtitleFileRecord(path: file.subtitleFile.path) else {
-                    throw SQLiteDatabaseError.stepFailed(
-                        "Unchanged subtitle disappeared before index publication."
+                changedSubtitlePaths.insert(mutation.subtitlePath)
+                if file.refreshVideoMetadata {
+                    affectedVideoPaths.insert(mutation.videoPath)
+                }
+                affectedFolderPaths.insert(
+                    Self.folderPath(forSubtitlePath: mutation.subtitlePath)
+                )
+                if let previousPath = mutation.previousSubtitlePath,
+                   !previousPath.hasPrefix("cueseeker-unbound://")
+                {
+                    affectedFolderPaths.insert(
+                        Self.folderPath(forSubtitlePath: previousPath)
                     )
                 }
-                try clearCueChangeNotices(
-                    cueIDs: try storedCueStates(subtitleFileID: subtitleFile.id)
-                        .map(\.identity.cueID)
-                )
+            }
+
+            for file in index.bindingRefreshes {
+                guard let subtitleFile = try subtitleFileRecord(path: file.subtitleFile.path) else {
+                    throw SQLiteDatabaseError.stepFailed(
+                        "Subtitle binding disappeared before index publication."
+                    )
+                }
                 let videoFileID = try upsertVideoFile(
                     file.videoFile,
                     libraryID: index.lease.libraryID
@@ -194,25 +229,40 @@ public final class IndexingDatabase: @unchecked Sendable {
                     subtitleFileID: subtitleFile.id,
                     videoFileID: videoFileID
                 )
+                affectedVideoPaths.insert(file.videoFile.path)
+                affectedFolderPaths.insert(
+                    file.subtitleFile.deletingLastPathComponent().path
+                )
             }
 
             for subtitleFile in index.missingVideoSubtitleFiles {
-                try markMatchedVideoMissing(forSubtitlePath: subtitleFile.path)
+                if try markMatchedVideoMissing(forSubtitlePath: subtitleFile.path) {
+                    affectedFolderPaths.insert(
+                        subtitleFile.deletingLastPathComponent().path
+                    )
+                }
             }
 
-            try removeIndexedDataInCurrentTransaction(
-                under: index.folder,
-                keeping: index.keptSubtitlePaths,
-                removeSearchPath: false,
-                rebuildSearchDerivedIndex: false,
-                bindingState: .missing,
-                unavailableReason: .subtitleMissing
+            affectedFolderPaths.formUnion(
+                try removeIndexedDataInCurrentTransaction(
+                    under: index.folder,
+                    keeping: index.keptSubtitlePaths,
+                    removeSearchPath: false,
+                    rebuildSearchDerivedIndex: false,
+                    bindingState: .missing,
+                    unavailableReason: .subtitleMissing
+                )
             )
-            try reconcileKnownVideoAvailability(libraryID: index.lease.libraryID)
-            try refreshSubtitleMissingTombstoneReasons(
+            let reconciledVideos = try reconcileVideoAvailability(
                 libraryID: index.lease.libraryID
             )
-            try rebuildSearchDerivedIndexInCurrentTransaction()
+            affectedVideoPaths.formUnion(reconciledVideos.videoPaths)
+            affectedFolderPaths.formUnion(reconciledVideos.folderPaths)
+            if !affectedFolderPaths.isEmpty {
+                try refreshSearchOrderRows(
+                    affectedFolderPaths: affectedFolderPaths
+                )
+            }
 
             let publish = try database.prepare(
                 """
@@ -237,6 +287,13 @@ public final class IndexingDatabase: @unchecked Sendable {
                     token: index.lease.token
                 )
             }
+
+            return PublishedLibraryIndexMutation(
+                changedSubtitlePaths: changedSubtitlePaths,
+                affectedVideoPaths: affectedVideoPaths,
+                affectedFolderPaths: affectedFolderPaths,
+                clearedCueChangeNotices: clearedCueChangeNotices
+            )
         }
     }
 
@@ -489,7 +546,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         try validateLanguageAnalysis(languageAnalysis, format: format, cueGroupCount: cueGroups.count)
         let playbackFinishMetadata = Self.playbackFinishMetadata(format: format, cueGroups: cueGroups)
         try database.withImmediateTransaction {
-            try replaceCueGroupsInCurrentTransaction(
+            _ = try replaceCueGroupsInCurrentTransaction(
                 subtitleFile: subtitleFile,
                 videoFile: videoFile,
                 format: format,
@@ -519,21 +576,26 @@ public final class IndexingDatabase: @unchecked Sendable {
         playbackFinishMetadata: SubtitlePlaybackFinishMetadata,
         libraryID: Int64?,
         rebuildSearchDerivedIndex: Bool
-    ) throws {
-        let subtitleFileID = try upsertSubtitleFile(
+    ) throws -> IndexedFileMutation {
+        let upsertedSubtitleFile = try upsertSubtitleFile(
             subtitleFile: subtitleFile,
             format: format,
             fileSize: fileSize,
             modifiedAt: modifiedAt,
             libraryID: libraryID
         )
+        let subtitleFileID = upsertedSubtitleFile.id
+        if libraryID == nil {
+            try clearPriorCueChangeNotices(
+                subtitleFileID: subtitleFileID
+            )
+        }
         let storedCueStates = try storedCueStates(subtitleFileID: subtitleFileID)
         let newCueLines = cueGroups.flatMap(\.cueLines)
         let identityAssignments = CueIdentityReconciler.reconcile(
             storedCues: storedCueStates.map(\.identity),
             newCues: newCueLines
         )
-        try clearCueChangeNotices(cueIDs: storedCueStates.map(\.identity.cueID))
         try snapshotReferencedCues(
             subtitleFileID: subtitleFileID,
             unavailableReason: .cueMissing
@@ -643,6 +705,11 @@ public final class IndexingDatabase: @unchecked Sendable {
             try rebuildSearchDerivedIndexInCurrentTransaction()
         }
         try deleteOrphanedVideoFiles()
+        return IndexedFileMutation(
+            subtitlePath: subtitleFile.path,
+            previousSubtitlePath: upsertedSubtitleFile.previousPath,
+            videoPath: videoFile.path
+        )
     }
 
     public func replaceCueLineSpeakers(
@@ -876,7 +943,9 @@ public final class IndexingDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   sf.file_size, sf.modified_at, sf.indexed_at, sf.index_algorithm_version
+                   vf.file_size, vf.modified_at, vf.resource_identity,
+                   vf.binding_state, sf.file_size, sf.modified_at,
+                   sf.indexed_at, sf.index_algorithm_version
             FROM subtitle_files sf
             LEFT JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             LEFT JOIN video_files vf ON vf.id = m.video_file_id
@@ -893,10 +962,17 @@ public final class IndexingDatabase: @unchecked Sendable {
                     subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(1)) ?? .srt,
                     videoPath: statement.nullableStringColumn(2),
                     videoName: statement.nullableStringColumn(3),
-                    fileSize: statement.nullableInt64Column(4),
-                    modifiedAt: statement.nullableDoubleColumn(5).map(Date.init(timeIntervalSince1970:)),
-                    indexedAt: statement.stringColumn(6),
-                    indexAlgorithmVersion: statement.intColumn(7)
+                    videoFileSize: statement.nullableInt64Column(4),
+                    videoModifiedAt: statement.nullableDoubleColumn(5)
+                        .map(Date.init(timeIntervalSince1970:)),
+                    videoResourceIdentity: statement.nullableStringColumn(6),
+                    videoBindingState: statement.nullableStringColumn(7)
+                        .flatMap(ResourceBindingState.init(rawValue:)),
+                    fileSize: statement.nullableInt64Column(8),
+                    modifiedAt: statement.nullableDoubleColumn(9)
+                        .map(Date.init(timeIntervalSince1970:)),
+                    indexedAt: statement.stringColumn(10),
+                    indexAlgorithmVersion: statement.intColumn(11)
                 )
             )
         }
@@ -910,7 +986,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             let inactiveSearchPaths = try searchPaths()
                 .filter { !Self.folderPath($0, matchesAny: folders) }
             for searchPath in inactiveSearchPaths {
-                try removeIndexedDataInCurrentTransaction(
+                _ = try removeIndexedDataInCurrentTransaction(
                     under: URL(fileURLWithPath: searchPath),
                     keeping: [],
                     removeSearchPath: true,
@@ -921,7 +997,9 @@ public final class IndexingDatabase: @unchecked Sendable {
             }
 
             try deleteOrphanedVideoFiles()
-            try rebuildSearchDerivedIndexInCurrentTransaction()
+            if folders.isEmpty {
+                try rebuildSearchDerivedIndexInCurrentTransaction()
+            }
         }
     }
 
@@ -933,6 +1011,84 @@ public final class IndexingDatabase: @unchecked Sendable {
     private func rebuildSearchDerivedIndexInCurrentTransaction() throws {
         try rebuildSearchOrderRows()
         try rebuildFTSRowsInProductOrder()
+    }
+
+    private func refreshSearchOrderRows(
+        affectedFolderPaths: Set<String>
+    ) throws {
+        guard !affectedFolderPaths.isEmpty else {
+            return
+        }
+        let folderPaths = Set(
+            affectedFolderPaths.flatMap {
+                Self.folderPathVariants(
+                    for: URL(fileURLWithPath: $0)
+                )
+            }
+        ).sorted()
+        let placeholders = folderPaths.map { _ in "?" }.joined(separator: ", ")
+        let delete = try database.prepare(
+            """
+            DELETE FROM subtitle_search_order_rows
+            WHERE folder_path IN (\(placeholders));
+            """
+        )
+        for (offset, folderPath) in folderPaths.enumerated() {
+            try delete.bind(folderPath, at: Int32(offset + 1))
+        }
+        try delete.run()
+
+        let pathRanges = folderPaths.map {
+            (
+                Self.subtitlePathPrefix(forFolderPath: $0),
+                Self.pathPrefixUpperBound(
+                    for: Self.subtitlePathPrefix(forFolderPath: $0)
+                )
+            )
+        }
+        let scopeCondition = pathRanges.map { _ in
+            "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)"
+        }.joined(separator: " OR ")
+        let select = try database.prepare(
+            """
+            SELECT sf.id, sf.subtitle_path
+            FROM subtitle_files sf
+            WHERE sf.binding_state = 'available'
+              AND (\(scopeCondition))
+            ORDER BY sf.subtitle_path ASC;
+            """
+        )
+        var bindIndex: Int32 = 1
+        for range in pathRanges {
+            try select.bind(range.0, at: bindIndex)
+            bindIndex += 1
+            try select.bind(range.1, at: bindIndex)
+            bindIndex += 1
+        }
+        var files: [SearchOrderFile] = []
+        while try select.step() {
+            let subtitlePath = select.stringColumn(1)
+            let folderPath = Self.folderPath(
+                forSubtitlePath: subtitlePath
+            )
+            guard folderPaths.contains(folderPath) else {
+                continue
+            }
+            files.append(
+                SearchOrderFile(
+                    subtitleFileID: select.int64Column(0),
+                    subtitlePath: subtitlePath,
+                    folderPath: folderPath,
+                    folderTitle: URL(
+                        fileURLWithPath: folderPath
+                    ).lastPathComponent,
+                    subtitleFileName: URL(
+                        fileURLWithPath: subtitlePath
+                    ).lastPathComponent
+                )
+            )
+        }
+        try insertSearchOrderRows(for: files)
     }
 
     private func requireCompleteSearchOrderRows(
@@ -1235,7 +1391,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         unavailableReason: ShioriUnavailableReason
     ) throws {
         try database.withImmediateTransaction {
-            try removeIndexedDataInCurrentTransaction(
+            _ = try removeIndexedDataInCurrentTransaction(
                 under: folder,
                 keeping: subtitleFiles,
                 removeSearchPath: removeSearchPath,
@@ -1253,7 +1409,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         rebuildSearchDerivedIndex: Bool,
         bindingState: ResourceBindingState,
         unavailableReason: ShioriUnavailableReason
-    ) throws {
+    ) throws -> Set<String> {
         let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
         let prefixCondition = folderPathPrefixes
             .map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
@@ -1275,6 +1431,19 @@ public final class IndexingDatabase: @unchecked Sendable {
             folderPathPrefixes: folderPathPrefixes,
             subtitleFiles: subtitleFiles
         )
+        let affectedFolderPaths = Set(
+            staleSubtitleFiles.map {
+                Self.folderPath(forSubtitlePath: $0.path)
+            }
+        )
+        guard !staleSubtitleFiles.isEmpty else {
+            if removeSearchPath {
+                for searchPath in Self.folderPathVariants(for: folder) {
+                    try deleteSearchPath(searchPath)
+                }
+            }
+            return affectedFolderPaths
+        }
         for subtitleFile in staleSubtitleFiles {
             try snapshotReferencedCues(
                 subtitleFileID: subtitleFile.id,
@@ -1518,8 +1687,11 @@ public final class IndexingDatabase: @unchecked Sendable {
             }
 
         if rebuildSearchDerivedIndex {
-            try rebuildSearchDerivedIndexInCurrentTransaction()
+            try refreshSearchOrderRows(
+                affectedFolderPaths: affectedFolderPaths
+            )
         }
+        return affectedFolderPaths
     }
 
     private func upsertSubtitleFile(
@@ -1528,7 +1700,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         fileSize: Int64?,
         modifiedAt: Date?,
         libraryID: Int64? = nil
-    ) throws -> Int64 {
+    ) throws -> UpsertedSubtitleFile {
         let pathIdentity = try mediaPathIdentity(for: subtitleFile, preferredLibraryID: libraryID)
         let fileIdentity = FileResourceIdentityResolver.resolve(
             subtitleFile,
@@ -1636,7 +1808,12 @@ public final class IndexingDatabase: @unchecked Sendable {
             try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 13)
             try statement.bind(record.id, at: 14)
             try statement.run()
-            return record.id
+            return UpsertedSubtitleFile(
+                id: record.id,
+                previousPath: record.path == subtitleFile.path
+                    ? nil
+                    : record.path
+            )
         }
 
         let statement = try database.prepare(
@@ -1674,11 +1851,10 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(now, at: 12)
         try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 13)
 
-        guard try statement.step() else {
-            return database.lastInsertRowID()
-        }
-
-        return statement.int64Column(0)
+        let id = try statement.step()
+            ? statement.int64Column(0)
+            : database.lastInsertRowID()
+        return UpsertedSubtitleFile(id: id, previousPath: nil)
     }
 
     private func upsertVideoFile(_ videoFile: URL, libraryID: Int64? = nil) throws -> Int64 {
@@ -1954,7 +2130,9 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func markMatchedVideoMissing(forSubtitlePath subtitlePath: String) throws {
+    private func markMatchedVideoMissing(
+        forSubtitlePath subtitlePath: String
+    ) throws -> Bool {
         let statement = try database.prepare(
             """
             SELECT vf.id, vf.path, vf.resource_identity, vf.content_fingerprint
@@ -1983,9 +2161,20 @@ public final class IndexingDatabase: @unchecked Sendable {
         for record in records {
             try retireVideoFile(record, state: .missing)
         }
+        if !records.isEmpty,
+           let subtitleFile = try subtitleFileRecord(path: subtitlePath)
+        {
+            try updateTombstoneUnavailableReason(
+                subtitleFileID: subtitleFile.id,
+                unavailableReason: .subtitleMissing
+            )
+        }
+        return !records.isEmpty
     }
 
-    private func reconcileKnownVideoAvailability(libraryID: Int64) throws {
+    private func reconcileVideoAvailability(
+        libraryID: Int64
+    ) throws -> ReconciledVideoMutation {
         let statement = try database.prepare(
             """
             SELECT id, path, last_known_path, resource_identity, binding_state
@@ -2019,13 +2208,24 @@ public final class IndexingDatabase: @unchecked Sendable {
             ))
         }
 
+        var mutation = ReconciledVideoMutation()
         for item in records {
             switch item.bindingState {
             case .available:
-                guard !FileManager.default.fileExists(atPath: item.record.path) else {
+                guard !FileManager.default.fileExists(
+                    atPath: item.record.path
+                ) else {
                     continue
                 }
+                let oldPath = item.record.path
                 try retireVideoFile(item.record, state: .missing)
+                try updateMatchedTombstoneUnavailableReasons(
+                    videoFileID: item.record.id
+                )
+                mutation.folderPaths.insert(
+                    URL(fileURLWithPath: oldPath)
+                        .deletingLastPathComponent().path
+                )
             case .missing:
                 guard let lastKnownPath = item.lastKnownPath,
                       !lastKnownPath.isEmpty,
@@ -2043,45 +2243,43 @@ public final class IndexingDatabase: @unchecked Sendable {
                     continue
                 }
                 _ = try upsertVideoFile(candidate, libraryID: libraryID)
+                try updateMatchedTombstoneUnavailableReasons(
+                    videoFileID: item.record.id
+                )
+                mutation.videoPaths.insert(candidate.path)
+                mutation.folderPaths.insert(
+                    candidate.deletingLastPathComponent().path
+                )
             case .removed, .replaced, .conflict:
                 continue
             }
         }
+        return mutation
     }
 
-    private func refreshSubtitleMissingTombstoneReasons(
-        libraryID: Int64
+    private func updateMatchedTombstoneUnavailableReasons(
+        videoFileID: Int64
     ) throws {
         let statement = try database.prepare(
             """
-            UPDATE cue_tombstones
-            SET unavailable_reason = CASE
-                  WHEN EXISTS (
-                    SELECT 1
-                    FROM subtitle_video_matches m
-                    JOIN video_files vf ON vf.id = m.video_file_id
-                    WHERE m.subtitle_file_id = cue_tombstones.subtitle_file_id
-                      AND m.is_active = 1
-                      AND vf.binding_state = 'available'
-                  )
-                  THEN 'subtitle_missing'
-                  ELSE 'video_and_subtitle_missing'
-                END,
-                updated_at = ?
-            WHERE subtitle_file_id IN (
-              SELECT id
-              FROM subtitle_files
-              WHERE library_id = ?
-            )
-              AND unavailable_reason IN (
-                'subtitle_missing',
-                'video_and_subtitle_missing'
-              );
+            SELECT subtitle_file_id
+            FROM subtitle_video_matches
+            WHERE video_file_id = ?
+              AND is_active = 1
+            ORDER BY subtitle_file_id ASC;
             """
         )
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 1)
-        try statement.bind(libraryID, at: 2)
-        try statement.run()
+        try statement.bind(videoFileID, at: 1)
+        var subtitleFileIDs: [Int64] = []
+        while try statement.step() {
+            subtitleFileIDs.append(statement.int64Column(0))
+        }
+        for subtitleFileID in subtitleFileIDs {
+            try updateTombstoneUnavailableReason(
+                subtitleFileID: subtitleFileID,
+                unavailableReason: .subtitleMissing
+            )
+        }
     }
 
     private func updateDurableVideoPaths(videoFileID: Int64, path: String) throws {
@@ -2471,18 +2669,59 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func clearCueChangeNotices(cueIDs: [Int64]) throws {
-        guard !cueIDs.isEmpty else {
-            return
-        }
-        let placeholders = cueIDs.map { _ in "?" }.joined(separator: ", ")
+    private func clearPriorCueChangeNotices(
+        subtitleFileID: Int64
+    ) throws {
         let statement = try database.prepare(
-            "DELETE FROM cue_change_notices WHERE cue_id IN (\(placeholders));"
+            """
+            DELETE FROM cue_change_notices
+            WHERE EXISTS (
+                SELECT 1
+                FROM subtitle_cue_lines l
+                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+                WHERE l.id = cue_change_notices.cue_id
+                  AND sf.id = ?
+            )
+               OR EXISTS (
+                SELECT 1
+                FROM cue_tombstones t
+                JOIN subtitle_files sf ON sf.id = t.subtitle_file_id
+                WHERE t.cue_id = cue_change_notices.cue_id
+                  AND sf.id = ?
+            );
+            """
         )
-        for (index, cueID) in cueIDs.enumerated() {
-            try statement.bind(cueID, at: Int32(index + 1))
-        }
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(subtitleFileID, at: 2)
         try statement.run()
+    }
+
+    private func clearPriorCueChangeNotices(
+        libraryID: Int64
+    ) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            DELETE FROM cue_change_notices
+            WHERE EXISTS (
+                SELECT 1
+                FROM subtitle_cue_lines l
+                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+                WHERE l.id = cue_change_notices.cue_id
+                  AND sf.library_id = ?
+            )
+               OR EXISTS (
+                SELECT 1
+                FROM cue_tombstones t
+                JOIN subtitle_files sf ON sf.id = t.subtitle_file_id
+                WHERE t.cue_id = cue_change_notices.cue_id
+                  AND sf.library_id = ?
+            );
+            """
+        )
+        try statement.bind(libraryID, at: 1)
+        try statement.bind(libraryID, at: 2)
+        try statement.run()
+        return database.changesCount() > 0
     }
 
     private func insertCueChangeNotice(

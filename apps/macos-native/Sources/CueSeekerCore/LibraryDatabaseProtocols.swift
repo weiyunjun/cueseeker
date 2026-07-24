@@ -15,7 +15,16 @@ public protocol PlaybackVideoMetadataPersistence: Sendable {
 
 public protocol LibraryCoverPersistence: Sendable {
     func libraryCoverEligibleVideos(under folders: [URL]) throws -> [LibraryCoverEligibleVideo]
+    func libraryCoverEligibleVideos(
+        videoPaths: Set<String>
+    ) throws -> [LibraryCoverEligibleVideo]
+    func libraryCoverEligibleVideos(
+        inFolderPaths folderPaths: Set<String>
+    ) throws -> [LibraryCoverEligibleVideo]
     func libraryCoverDisplayCandidates(under folders: [URL]) throws -> [LibraryCoverDisplayCandidate]
+    func libraryCoverDisplayCandidates(
+        videoPaths: Set<String>
+    ) throws -> [LibraryCoverDisplayCandidate]
     func libraryVideoCover(forVideoFileID videoFileID: Int64) throws -> LibraryVideoCover?
 
     func upsertLibraryVideoCover(
@@ -48,6 +57,46 @@ public protocol LibraryCoverPersistence: Sendable {
 }
 
 public extension LibraryCoverPersistence {
+    func libraryCoverEligibleVideos(
+        videoPaths: Set<String>
+    ) throws -> [LibraryCoverEligibleVideo] {
+        let folders = Set(
+            videoPaths.map {
+                URL(fileURLWithPath: $0).deletingLastPathComponent()
+            }
+        )
+        return try libraryCoverEligibleVideos(under: Array(folders))
+            .filter { videoPaths.contains($0.videoPath) }
+    }
+
+    func libraryCoverEligibleVideos(
+        inFolderPaths folderPaths: Set<String>
+    ) throws -> [LibraryCoverEligibleVideo] {
+        let resolvedFolderPaths = Set(folderPaths.map {
+            URL(fileURLWithPath: $0).resolvingSymlinksInPath().path
+        })
+        return try libraryCoverEligibleVideos(
+            under: folderPaths.map(URL.init(fileURLWithPath:))
+        ).filter {
+            resolvedFolderPaths.contains(
+                URL(fileURLWithPath: $0.folderPath)
+                    .resolvingSymlinksInPath().path
+            )
+        }
+    }
+
+    func libraryCoverDisplayCandidates(
+        videoPaths: Set<String>
+    ) throws -> [LibraryCoverDisplayCandidate] {
+        let folders = Set(
+            videoPaths.map {
+                URL(fileURLWithPath: $0).deletingLastPathComponent()
+            }
+        )
+        return try libraryCoverDisplayCandidates(under: Array(folders))
+            .filter { videoPaths.contains($0.videoPath) }
+    }
+
     func upsertLibraryVideoCover(
         videoFileID: Int64,
         masterCoverPath: String,

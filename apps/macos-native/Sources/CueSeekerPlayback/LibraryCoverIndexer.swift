@@ -91,8 +91,48 @@ public struct LibraryCoverIndexer: Sendable {
         under folder: URL,
         into database: any LibraryCoverPersistence
     ) async throws -> LibraryCoverIndexingResult {
-        let startedAt = Date()
         let videos = try database.libraryCoverEligibleVideos(under: [folder])
+        return try await indexCovers(
+            videos: videos,
+            folderReferenceVideos: videos,
+            affectedFolderPaths: Set(videos.map(\.folderPath)),
+            displayFolders: [folder],
+            displayVideoPaths: nil,
+            into: database
+        )
+    }
+
+    @discardableResult
+    public func indexCovers(
+        videoPaths: Set<String>,
+        affectedFolderPaths: Set<String>,
+        into database: any LibraryCoverPersistence
+    ) async throws -> LibraryCoverIndexingResult {
+        let videos = try database.libraryCoverEligibleVideos(
+            videoPaths: videoPaths
+        )
+        let folderReferenceVideos = try database.libraryCoverEligibleVideos(
+            inFolderPaths: affectedFolderPaths
+        )
+        return try await indexCovers(
+            videos: videos,
+            folderReferenceVideos: folderReferenceVideos,
+            affectedFolderPaths: affectedFolderPaths,
+            displayFolders: nil,
+            displayVideoPaths: videoPaths,
+            into: database
+        )
+    }
+
+    private func indexCovers(
+        videos: [LibraryCoverEligibleVideo],
+        folderReferenceVideos: [LibraryCoverEligibleVideo],
+        affectedFolderPaths: Set<String>,
+        displayFolders: [URL]?,
+        displayVideoPaths: Set<String>?,
+        into database: any LibraryCoverPersistence
+    ) async throws -> LibraryCoverIndexingResult {
+        let startedAt = Date()
         let videoCoverDirectory = configuration.coverDirectory
             .appendingPathComponent("Videos", isDirectory: true)
         try FileManager.default.createDirectory(
@@ -127,13 +167,31 @@ public struct LibraryCoverIndexer: Sendable {
             )
         }
 
-        let displayBackfillResult = try await LibraryCoverDisplayRenditionIndexer(
+        let displayIndexer = LibraryCoverDisplayRenditionIndexer(
             configuration: .init(
                 coverDirectory: configuration.coverDirectory,
                 commitToken: configuration.displayRenditionCommitToken
             )
-        ).backfillDisplayRenditions(under: [folder], into: database)
-        try refreshFolderCoverReferences(for: videos, in: database)
+        )
+        let displayBackfillResult: LibraryCoverDisplayBackfillResult
+        if let displayVideoPaths {
+            displayBackfillResult = try await displayIndexer
+                .backfillDisplayRenditions(
+                    videoPaths: displayVideoPaths,
+                    into: database
+                )
+        } else {
+            displayBackfillResult = try await displayIndexer
+                .backfillDisplayRenditions(
+                    under: displayFolders ?? [],
+                    into: database
+                )
+        }
+        try refreshFolderCoverReferences(
+            for: folderReferenceVideos,
+            affectedFolderPaths: affectedFolderPaths,
+            in: database
+        )
 
         let generatedCoverCount = results.filter { $0.status == .generated }.count
         let failedCoverCount = results.filter { $0.status == .failed }.count
@@ -463,9 +521,9 @@ public struct LibraryCoverIndexer: Sendable {
 
     private func refreshFolderCoverReferences(
         for videos: [LibraryCoverEligibleVideo],
+        affectedFolderPaths: Set<String>,
         in database: any LibraryCoverPersistence
     ) throws {
-        let folderPaths = Set(videos.map(\.folderPath))
         var firstGeneratedCoverByFolder: [String: (video: LibraryCoverEligibleVideo, cover: LibraryVideoCover)] = [:]
 
         for video in videos {
@@ -479,7 +537,7 @@ public struct LibraryCoverIndexer: Sendable {
             firstGeneratedCoverByFolder[video.folderPath] = (video, cover)
         }
 
-        for folderPath in folderPaths {
+        for folderPath in affectedFolderPaths {
             if let selected = firstGeneratedCoverByFolder[folderPath] {
                 try database.upsertLibraryFolderCover(
                     folderPath: folderPath,

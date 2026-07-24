@@ -303,6 +303,67 @@ func libraryFolderRemovalNoticeClearsWhenIndexingStarts() async throws {
     await app.indexingTask?.value
 }
 
+@MainActor
+@Test
+func unchangedFolderIndexPreservesLoadedSearchState() async throws {
+    _ = NSApplication.shared
+    let suiteName = "CueSeekerIncrementalIndexTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "CueSeekerIncrementalIndexTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    let databaseURL = root.appendingPathComponent("CueSeeker.sqlite")
+    let subtitleURL = root.appendingPathComponent("Episode.srt")
+    let videoURL = root.appendingPathComponent("Episode.mkv")
+    try FileManager.default.createDirectory(
+        at: root,
+        withIntermediateDirectories: true
+    )
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Stable incremental search text.
+
+    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
+    try Data([0]).write(to: videoURL)
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    _ = try SubtitleIndexer().index(
+        folder: root,
+        into: indexingDatabase
+    )
+    userDefaults.set([root.path], forKey: "selectedFolderPaths")
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
+    app.submitSearch("incremental")
+    await app.searchTask?.value
+    let cueIDsBefore = app.search.searchResultCueIDs
+    let revisionBefore = app.search.indexedCueDataRevision
+    try #require(!cueIDsBefore.isEmpty)
+
+    app.indexFolder(root)
+    await app.indexingTask?.value
+
+    guard case let .completed(_, result) = app.indexing.indexingStatus else {
+        Issue.record(
+            "Expected completed unchanged Index, got \(app.indexing.indexingStatus)"
+        )
+        return
+    }
+    #expect(!result.hasIndexedContentChanges)
+    #expect(app.search.indexedCueDataRevision == revisionBefore)
+    #expect(app.search.searchResultCueIDs == cueIDsBefore)
+}
+
 private struct LibraryFolderRemovalTestFixture {
     let suiteName: String
     let userDefaults: UserDefaults

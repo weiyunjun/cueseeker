@@ -157,7 +157,17 @@ func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
     )
     try LibraryDatabase(path: databaseURL).updateVideoDuration(videoFile: episode2Video, duration: 125.4)
 
-    let videos = try LibraryCoverDatabase(path: databaseURL).libraryCoverEligibleVideos(under: [URL(fileURLWithPath: "/Media")])
+    let coverDatabase = try LibraryCoverDatabase(path: databaseURL)
+    let videos = try coverDatabase.libraryCoverEligibleVideos(
+        under: [URL(fileURLWithPath: "/Media")]
+    )
+    let selectedVideos = try coverDatabase.libraryCoverEligibleVideos(
+        videoPaths: [episode11Video.path]
+    )
+    let selectedFolderVideos = try coverDatabase
+        .libraryCoverEligibleVideos(
+            inFolderPaths: ["/Media/Show 2"]
+        )
 
     #expect(videos.map(\.videoPath) == [
         episode2Video.path,
@@ -167,6 +177,11 @@ func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
     #expect(videos[0].duration == 125.4)
     #expect(videos[0].subtitlePath == "/Media/Show 2/Episode 2.en.srt")
     #expect(videos[0].folderPath == "/Media/Show 2")
+    #expect(selectedVideos.map(\.videoPath) == [episode11Video.path])
+    #expect(selectedFolderVideos.map(\.videoPath) == [
+        episode2Video.path,
+        episode11Video.path
+    ])
 }
 
 @Test
@@ -204,6 +219,9 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
     )
     let storedCover = try LibraryCoverDatabase(path: databaseURL).libraryVideoCover(forVideoFileID: video.videoFileID)
     let cover = try #require(storedCover)
+    let selectedDisplayCandidates = try LibraryCoverDatabase(
+        path: databaseURL
+    ).libraryCoverDisplayCandidates(videoPaths: [videoURL.path])
     #expect(cover.masterCoverPath == "/Library/Application Support/CueSeeker/Covers/Videos/example.jpg")
     #expect(cover.displayCoverPath == "/Library/Application Support/CueSeeker/Covers/Display/v1/example.jpg")
     #expect(cover.displayProfileVersion == 1)
@@ -215,6 +233,7 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
     #expect(cover.status == .generated)
     #expect(cover.errorMessage == nil)
     #expect(cover.generatedAt.contains("."))
+    #expect(selectedDisplayCandidates.map(\.videoPath) == [videoURL.path])
 
     try LibraryCoverDatabase(path: databaseURL).upsertLibraryFolderCover(
         folderPath: video.folderPath,

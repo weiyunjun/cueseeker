@@ -68,6 +68,18 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         }
     }
 
+    public func libraryCoverEligibleVideos(
+        videoPaths: Set<String>
+    ) throws -> [LibraryCoverEligibleVideo] {
+        guard !videoPaths.isEmpty else {
+            return []
+        }
+        return try libraryCoverEligibleVideos(
+            whereClause: "vf.path IN",
+            values: videoPaths
+        )
+    }
+
     public func libraryCoverDisplayCandidates(
         under folders: [URL]
     ) throws -> [LibraryCoverDisplayCandidate] {
@@ -121,6 +133,45 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         return candidatesByID.values.sorted {
             $0.videoPath.localizedStandardCompare($1.videoPath) == .orderedAscending
         }
+    }
+
+    public func libraryCoverDisplayCandidates(
+        videoPaths: Set<String>
+    ) throws -> [LibraryCoverDisplayCandidate] {
+        guard !videoPaths.isEmpty else {
+            return []
+        }
+        let paths = videoPaths.sorted()
+        let placeholders = paths.map { _ in "?" }.joined(separator: ", ")
+        let statement = try database.prepare(
+            """
+            SELECT vc.video_file_id, vf.path, vc.cover_path,
+                   vc.display_cover_path, vc.display_profile_version
+            FROM video_files vf
+            JOIN video_covers vc
+              ON vc.video_file_id = vf.id AND vc.status = ?
+            WHERE vf.binding_state = 'available'
+              AND vf.path IN (\(placeholders))
+            ORDER BY vf.path ASC;
+            """
+        )
+        try statement.bind(LibraryCoverStatus.generated.rawValue, at: 1)
+        for (offset, path) in paths.enumerated() {
+            try statement.bind(path, at: Int32(offset + 2))
+        }
+        var candidates: [LibraryCoverDisplayCandidate] = []
+        while try statement.step() {
+            candidates.append(
+                LibraryCoverDisplayCandidate(
+                    videoFileID: statement.int64Column(0),
+                    videoPath: statement.stringColumn(1),
+                    masterCoverPath: statement.stringColumn(2),
+                    displayCoverPath: statement.nullableStringColumn(3),
+                    displayProfileVersion: statement.nullableIntColumn(4)
+                )
+            )
+        }
+        return candidates
     }
 
     public func libraryVideoCover(forVideoFileID videoFileID: Int64) throws -> LibraryVideoCover? {
@@ -527,6 +578,62 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         let statement = try database.prepare("SELECT id FROM video_files WHERE path = ?;")
         try statement.bind(videoFile.path, at: 1)
         return try statement.step() ? statement.int64Column(0) : nil
+    }
+
+    private func libraryCoverEligibleVideos(
+        whereClause: String,
+        values: Set<String>
+    ) throws -> [LibraryCoverEligibleVideo] {
+        let sortedValues = values.sorted()
+        let placeholders = sortedValues.map { _ in "?" }
+            .joined(separator: ", ")
+        let statement = try database.prepare(
+            """
+            SELECT vf.id, vf.path, vf.video_name, vf.file_size, vf.duration,
+                   sf.subtitle_path, sf.format
+            FROM subtitle_files sf
+            JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            WHERE sf.binding_state = 'available'
+              AND vf.binding_state = 'available'
+              AND \(whereClause) (\(placeholders))
+            ORDER BY vf.path ASC, sf.subtitle_path ASC;
+            """
+        )
+        for (offset, value) in sortedValues.enumerated() {
+            try statement.bind(value, at: Int32(offset + 1))
+        }
+
+        var videosByID: [Int64: LibraryCoverEligibleVideo] = [:]
+        while try statement.step() {
+            let videoFileID = statement.int64Column(0)
+            let subtitlePath = statement.stringColumn(5)
+            let video = LibraryCoverEligibleVideo(
+                videoFileID: videoFileID,
+                videoPath: statement.stringColumn(1),
+                videoName: statement.stringColumn(2),
+                fileSize: statement.nullableInt64Column(3),
+                duration: statement.nullableDoubleColumn(4),
+                subtitlePath: subtitlePath,
+                subtitleFormat: SubtitleFormat(
+                    rawValue: statement.stringColumn(6)
+                ) ?? .srt,
+                folderPath: Self.folderPath(forSubtitlePath: subtitlePath)
+            )
+            if let existing = videosByID[videoFileID] {
+                if video.subtitlePath.localizedStandardCompare(
+                    existing.subtitlePath
+                ) == .orderedAscending {
+                    videosByID[videoFileID] = video
+                }
+            } else {
+                videosByID[videoFileID] = video
+            }
+        }
+        return videosByID.values.sorted {
+            Self.libraryVideoSort($0.libraryVideo, $1.libraryVideo)
+        }
     }
 
     private func bind(_ value: String?, to statement: SQLiteStatement, at index: Int32) throws {

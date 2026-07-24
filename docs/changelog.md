@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Made repeated Library Index operations incremental. Unchanged subtitles now
+  retain their Cue, FTS, Search-order, presentation, media-metadata, and cover
+  rows without reparsing or derived-data publication; additions, changes,
+  moves, removals, and video-binding updates refresh only their affected
+  resources and folders.
 - Made Search, Shiori, and Search-hosted Context table columns responsive by
   distributing non-checkbox width through documented per-column weights while
   preserving every visible column's minimum width. Narrow tables now scroll

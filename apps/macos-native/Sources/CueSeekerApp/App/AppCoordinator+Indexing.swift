@@ -119,7 +119,6 @@ extension AppCoordinator {
 
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
-        cancelDatabaseReadTasksBeforeIndexing()
         guard let database = indexingDatabase,
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
@@ -127,10 +126,7 @@ extension AppCoordinator {
             indexing.indexingStatus = .failed(folder, "Database is not initialized")
             return
         }
-        let searchMutationToken = search.beginIndexedCueDataMutation()
-        prepareShioriForIndexedContentMutation(under: [folder])
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
-        clearSearchAndPlaybackState(under: folder)
         indexing.indexingStatus = .indexing(folder)
 
         let coverDirectory = libraryCoverDirectory
@@ -139,18 +135,33 @@ extension AppCoordinator {
                 let result = try await Task.detached(priority: .userInitiated) {
                     let indexer = SubtitleIndexer()
                     let result = try indexer.index(folder: folder, into: database)
-                    _ = try PlaybackVideoMetadataIndexer().indexDurations(
-                        under: folder,
-                        into: libraryDatabase
-                    )
-                    let coverIndexer = LibraryCoverIndexer(
-                        configuration: .init(
-                            coverDirectory: coverDirectory,
-                            displayRenditionCommitToken: displayRenditionCommitToken
+                    if result.hasIndexedContentChanges {
+                        _ = try PlaybackVideoMetadataIndexer().indexDurations(
+                            videoFiles: result.affectedVideoPaths.map {
+                                URL(fileURLWithPath: $0)
+                            },
+                            into: libraryDatabase
                         )
-                    )
-                    _ = try await coverIndexer.indexCovers(under: folder, into: coverDatabase)
-                    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
+                        let coverIndexer = LibraryCoverIndexer(
+                            configuration: .init(
+                                coverDirectory: coverDirectory,
+                                displayRenditionCommitToken: displayRenditionCommitToken
+                            )
+                        )
+                        _ = try await coverIndexer.indexCovers(
+                            videoPaths: Set(result.affectedVideoPaths),
+                            affectedFolderPaths: Set(
+                                result.affectedFolderPaths
+                            ),
+                            into: coverDatabase
+                        )
+                        try libraryDatabase
+                            .refreshPresentationAfterIndexedContentChange(
+                                affectedFolderPaths: Set(
+                                    result.affectedFolderPaths
+                                )
+                            )
+                    }
                     return result
                 }.value
 
@@ -159,23 +170,16 @@ extension AppCoordinator {
                 }
 
                 indexing.indexingStatus = .completed(folder, result)
-                reloadShioriAfterIndexedContentMutation()
-                search.completeIndexedCueDataMutation(searchMutationToken)
-                refreshLibrary()
-                refreshRecentWatching()
-                refreshLoadedTestRecentWatching()
-                refreshCompleteLibrary()
-                refreshCurrentSearch()
-                refreshDatabaseStorageStats()
+                applyPublishedIndexMutation(
+                    result,
+                    shioriFallbackFolders: [folder]
+                )
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
                 indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
-                reloadShioriAfterIndexedContentMutation()
-                search.completeIndexedCueDataMutation(searchMutationToken)
-                restoreCurrentSearchAfterIndexedCueMutationFailure()
             }
         }
     }
@@ -198,7 +202,6 @@ extension AppCoordinator {
 
         indexing.removedFolderNotice = nil
         indexingTask?.cancel()
-        cancelDatabaseReadTasksBeforeIndexing()
         guard let database = indexingDatabase,
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
@@ -206,12 +209,7 @@ extension AppCoordinator {
             indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
             return
         }
-        let searchMutationToken = search.beginIndexedCueDataMutation()
-        prepareShioriForIndexedContentMutation(under: folders)
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
-        for folder in folders {
-            clearSearchAndPlaybackState(under: folder)
-        }
         indexing.indexingStatus = .indexingAll(
             currentFolder: firstFolder,
             completedFolders: 0,
@@ -237,17 +235,33 @@ extension AppCoordinator {
                     let result = try await Task.detached(priority: .userInitiated) {
                         let indexer = SubtitleIndexer()
                         let result = try indexer.index(folder: folder, into: database)
-                        _ = try PlaybackVideoMetadataIndexer().indexDurations(
-                            under: folder,
-                            into: libraryDatabase
-                        )
-                        let coverIndexer = LibraryCoverIndexer(
-                            configuration: .init(
-                                coverDirectory: coverDirectory,
-                                displayRenditionCommitToken: displayRenditionCommitToken
+                        if result.hasIndexedContentChanges {
+                            _ = try PlaybackVideoMetadataIndexer().indexDurations(
+                                videoFiles: result.affectedVideoPaths.map {
+                                    URL(fileURLWithPath: $0)
+                                },
+                                into: libraryDatabase
                             )
-                        )
-                        _ = try await coverIndexer.indexCovers(under: folder, into: coverDatabase)
+                            let coverIndexer = LibraryCoverIndexer(
+                                configuration: .init(
+                                    coverDirectory: coverDirectory,
+                                    displayRenditionCommitToken: displayRenditionCommitToken
+                                )
+                            )
+                            _ = try await coverIndexer.indexCovers(
+                                videoPaths: Set(result.affectedVideoPaths),
+                                affectedFolderPaths: Set(
+                                    result.affectedFolderPaths
+                                ),
+                                into: coverDatabase
+                            )
+                            try libraryDatabase
+                                .refreshPresentationAfterIndexedContentChange(
+                                    affectedFolderPaths: Set(
+                                        result.affectedFolderPaths
+                                    )
+                                )
+                        }
                         return result
                     }.value
 
@@ -263,9 +277,12 @@ extension AppCoordinator {
                     }
 
                     indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
-                    reloadShioriAfterIndexedContentMutation()
-                    search.completeIndexedCueDataMutation(searchMutationToken)
-                    restoreCurrentSearchAfterIndexedCueMutationFailure()
+                    if let aggregateResult {
+                        applyPublishedIndexMutation(
+                            aggregateResult,
+                            shioriFallbackFolders: folders
+                        )
+                    }
                     return
                 }
             }
@@ -278,35 +295,50 @@ extension AppCoordinator {
                 return
             }
 
-            do {
-                try await Task.detached(priority: .userInitiated) {
-                    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
-                }.value
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                indexing.indexingStatus = .failed(firstFolder, Self.errorMessage(for: error))
-                reloadShioriAfterIndexedContentMutation()
-                search.completeIndexedCueDataMutation(searchMutationToken)
-                restoreCurrentSearchAfterIndexedCueMutationFailure()
-                return
-            }
-
             indexing.indexingStatus = .completedAll(
                 folderCount: folders.count,
                 aggregateResult
             )
-            reloadShioriAfterIndexedContentMutation()
-            search.completeIndexedCueDataMutation(searchMutationToken)
-            refreshLibrary()
-            refreshRecentWatching()
-            refreshLoadedTestRecentWatching()
-            refreshCompleteLibrary()
-            refreshCurrentSearch()
-            refreshDatabaseStorageStats()
+            applyPublishedIndexMutation(
+                aggregateResult,
+                shioriFallbackFolders: folders
+            )
         }
+    }
+
+    private func applyPublishedIndexMutation(
+        _ result: SubtitleIndexingResult,
+        shioriFallbackFolders: [URL]
+    ) {
+        if result.requiresShioriRefresh {
+            let affectedFolders = result.affectedFolderPaths.isEmpty
+                ? shioriFallbackFolders
+                : result.affectedFolderPaths.map(
+                    URL.init(fileURLWithPath:)
+                )
+            prepareShioriForIndexedContentMutation(
+                under: affectedFolders
+            )
+            reloadShioriAfterIndexedContentMutation()
+        }
+
+        guard result.hasIndexedContentChanges else {
+            return
+        }
+        cancelDatabaseReadTasksBeforeIndexing()
+        let searchMutationToken = search.beginIndexedCueDataMutation()
+        for folderPath in result.affectedFolderPaths {
+            clearSearchAndPlaybackState(
+                under: URL(fileURLWithPath: folderPath)
+            )
+        }
+        search.completeIndexedCueDataMutation(searchMutationToken)
+        refreshLibrary()
+        refreshRecentWatching()
+        refreshLoadedTestRecentWatching()
+        refreshCompleteLibrary()
+        refreshCurrentSearch()
+        refreshDatabaseStorageStats()
     }
 
     func restoreCurrentSearchAfterIndexedCueMutationFailure(

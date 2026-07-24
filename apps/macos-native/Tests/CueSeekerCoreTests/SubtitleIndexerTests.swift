@@ -120,8 +120,8 @@ func reindexingSwitchesFromFallbackToCompleteBasenameMatch() throws {
     #expect(initialResult.indexedSubtitleFiles == 1)
     #expect(initialFiles.count == 1)
     #expect(initialVideo == fallbackVideo.resolvingSymlinksInPath())
-    #expect(rematchedResult.indexedSubtitleFiles == 1)
-    #expect(rematchedResult.skippedUnchangedSubtitleFiles == 0)
+    #expect(rematchedResult.indexedSubtitleFiles == 0)
+    #expect(rematchedResult.skippedUnchangedSubtitleFiles == 1)
     #expect(rematchedFiles.count == 1)
     #expect(rematchedVideo == exactVideo.resolvingSymlinksInPath())
 }
@@ -315,6 +315,224 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
 }
 
 @Test
+func unchangedIndexDoesNotWriteIndexedResourcesOrDerivedRows() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Stable incremental text.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Episode.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
+    let ftsRowsBefore = try queryString(
+        at: fixture.databaseURL,
+        sql: """
+        SELECT GROUP_CONCAT(rowid || ':' || cue_group_id, ',')
+        FROM subtitle_cue_groups_fts;
+        """
+    )
+
+    try executeSQLite(
+        at: fixture.databaseURL,
+        """
+        CREATE TRIGGER reject_unchanged_cue_line_insert
+        BEFORE INSERT ON subtitle_cue_lines
+        BEGIN SELECT RAISE(ABORT, 'unexpected cue line insert'); END;
+        CREATE TRIGGER reject_unchanged_cue_line_update
+        BEFORE UPDATE ON subtitle_cue_lines
+        BEGIN SELECT RAISE(ABORT, 'unexpected cue line update'); END;
+        CREATE TRIGGER reject_unchanged_cue_line_delete
+        BEFORE DELETE ON subtitle_cue_lines
+        BEGIN SELECT RAISE(ABORT, 'unexpected cue line delete'); END;
+        CREATE TRIGGER reject_unchanged_cue_group_insert
+        BEFORE INSERT ON subtitle_cue_groups
+        BEGIN SELECT RAISE(ABORT, 'unexpected cue group insert'); END;
+        CREATE TRIGGER reject_unchanged_cue_group_update
+        BEFORE UPDATE ON subtitle_cue_groups
+        BEGIN SELECT RAISE(ABORT, 'unexpected cue group update'); END;
+        CREATE TRIGGER reject_unchanged_cue_group_delete
+        BEFORE DELETE ON subtitle_cue_groups
+        BEGIN SELECT RAISE(ABORT, 'unexpected cue group delete'); END;
+        CREATE TRIGGER reject_unchanged_search_order_insert
+        BEFORE INSERT ON subtitle_search_order_rows
+        BEGIN SELECT RAISE(ABORT, 'unexpected search order insert'); END;
+        CREATE TRIGGER reject_unchanged_search_order_update
+        BEFORE UPDATE ON subtitle_search_order_rows
+        BEGIN SELECT RAISE(ABORT, 'unexpected search order update'); END;
+        CREATE TRIGGER reject_unchanged_search_order_delete
+        BEFORE DELETE ON subtitle_search_order_rows
+        BEGIN SELECT RAISE(ABORT, 'unexpected search order delete'); END;
+        CREATE TRIGGER reject_unchanged_video_update
+        BEFORE UPDATE ON video_files
+        BEGIN SELECT RAISE(ABORT, 'unexpected video update'); END;
+        """
+    )
+
+    let result = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(result.skippedUnchangedSubtitleFiles == 1)
+    #expect(!result.hasIndexedContentChanges)
+    #expect(
+        try queryString(
+            at: fixture.databaseURL,
+            sql: """
+            SELECT GROUP_CONCAT(rowid || ':' || cue_group_id, ',')
+            FROM subtitle_cue_groups_fts;
+            """
+        ) == ftsRowsBefore
+    )
+}
+
+@Test
+func changingOneSubtitleDoesNotRewriteUnrelatedFolderIndexRows() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let firstSubtitle = try fixture.writeSubtitle(
+        name: "First/Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        First original text.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "First/Episode.mkv")
+    _ = try fixture.writeSubtitle(
+        name: "Second/Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Second stable text.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Second/Episode.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
+    let secondSubtitleID = try queryInt(
+        at: fixture.databaseURL,
+        sql: """
+        SELECT id FROM subtitle_files
+        WHERE subtitle_path LIKE '%/Second/Episode.srt';
+        """
+    )
+    let secondCueID = try queryInt(
+        at: fixture.databaseURL,
+        sql: """
+        SELECT id FROM subtitle_cue_lines
+        WHERE subtitle_file_id = \(secondSubtitleID);
+        """
+    )
+    let secondFTSRowID = try queryInt(
+        at: fixture.databaseURL,
+        sql: """
+        SELECT f.rowid
+        FROM subtitle_cue_groups_fts f
+        JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+        WHERE g.subtitle_file_id = \(secondSubtitleID);
+        """
+    )
+    try executeSQLite(
+        at: fixture.databaseURL,
+        """
+        CREATE TRIGGER reject_unrelated_search_order_delete
+        BEFORE DELETE ON subtitle_search_order_rows
+        WHEN OLD.subtitle_file_id = \(secondSubtitleID)
+        BEGIN SELECT RAISE(ABORT, 'unrelated search order delete'); END;
+        CREATE TRIGGER reject_unrelated_search_order_update
+        BEFORE UPDATE ON subtitle_search_order_rows
+        WHEN OLD.subtitle_file_id = \(secondSubtitleID)
+          OR NEW.subtitle_file_id = \(secondSubtitleID)
+        BEGIN SELECT RAISE(ABORT, 'unrelated search order update'); END;
+        CREATE TRIGGER reject_unrelated_search_order_insert
+        BEFORE INSERT ON subtitle_search_order_rows
+        WHEN NEW.subtitle_file_id = \(secondSubtitleID)
+        BEGIN SELECT RAISE(ABORT, 'unrelated search order insert'); END;
+        CREATE TRIGGER reject_unrelated_library_row_delete
+        BEFORE DELETE ON library_video_rows
+        WHEN OLD.subtitle_file_id = \(secondSubtitleID)
+        BEGIN SELECT RAISE(ABORT, 'unrelated Library row delete'); END;
+        CREATE TRIGGER reject_unrelated_library_row_update
+        BEFORE UPDATE ON library_video_rows
+        WHEN OLD.subtitle_file_id = \(secondSubtitleID)
+          OR NEW.subtitle_file_id = \(secondSubtitleID)
+        BEGIN SELECT RAISE(ABORT, 'unrelated Library row update'); END;
+        CREATE TRIGGER reject_unrelated_library_row_insert
+        BEFORE INSERT ON library_video_rows
+        WHEN NEW.subtitle_file_id = \(secondSubtitleID)
+        BEGIN SELECT RAISE(ABORT, 'unrelated Library row insert'); END;
+        """
+    )
+
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    First changed text.
+
+    """.write(to: firstSubtitle, atomically: true, encoding: .utf8)
+    let result = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(result.affectedFolderPaths)
+    )
+
+    #expect(result.changedSubtitlePaths.count == 1)
+    #expect(
+        URL(fileURLWithPath: try #require(result.changedSubtitlePaths.first))
+            .resolvingSymlinksInPath()
+            == firstSubtitle.resolvingSymlinksInPath()
+    )
+    #expect(
+        result.affectedFolderPaths.count == 1
+    )
+    #expect(
+        URL(fileURLWithPath: try #require(result.affectedFolderPaths.first))
+            .resolvingSymlinksInPath()
+            == firstSubtitle.deletingLastPathComponent()
+                .resolvingSymlinksInPath()
+    )
+    #expect(
+        try queryInt(
+            at: fixture.databaseURL,
+            sql: """
+            SELECT id FROM subtitle_cue_lines
+            WHERE subtitle_file_id = \(secondSubtitleID);
+            """
+        ) == secondCueID
+    )
+    #expect(
+        try queryInt(
+            at: fixture.databaseURL,
+            sql: """
+            SELECT f.rowid
+            FROM subtitle_cue_groups_fts f
+            JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+            WHERE g.subtitle_file_id = \(secondSubtitleID);
+            """
+        ) == secondFTSRowID
+    )
+}
+
+@Test
 func failedMultiFilePublicationRollsBackTheWholeLibraryIndex() throws {
     let fixture = try IndexingFixture()
     defer {
@@ -450,19 +668,19 @@ func staleLibraryIndexTokenCannotPublish() throws {
                 folder: fixture.root,
                 lease: older,
                 changedFiles: [],
-                unchangedFiles: [],
+                bindingRefreshes: [],
                 missingVideoSubtitleFiles: [],
                 keptSubtitlePaths: []
             )
         )
     }
 
-    try database.publishLibraryIndex(
+    _ = try database.publishLibraryIndex(
         PreparedLibraryIndex(
             folder: fixture.root,
             lease: newer,
             changedFiles: [],
-            unchangedFiles: [],
+            bindingRefreshes: [],
             missingVideoSubtitleFiles: [],
             keptSubtitlePaths: []
         )
@@ -504,6 +722,21 @@ func reindexingUnchangedSubtitleFileRefreshesVideoFileMetadata() throws {
     let coverVideo = try #require(coverVideos.first)
 
     #expect(unchangedResult.skippedUnchangedSubtitleFiles == 1)
+    #expect(unchangedResult.changedSubtitlePaths.isEmpty)
+    let affectedVideoPath = try #require(
+        unchangedResult.affectedVideoPaths.first
+    )
+    #expect(unchangedResult.affectedVideoPaths.count == 1)
+    #expect(
+        URL(fileURLWithPath: affectedVideoPath).lastPathComponent
+            == videoURL.lastPathComponent
+    )
+    #expect(
+        URL(fileURLWithPath: affectedVideoPath)
+            .deletingLastPathComponent().lastPathComponent
+            == fixture.root.lastPathComponent
+    )
+    #expect(unchangedResult.hasIndexedContentChanges)
     #expect(coverVideo.fileSize == 16)
 }
 
@@ -1103,6 +1336,10 @@ private struct IndexingFixture {
     @discardableResult
     func writeSubtitle(name: String, contents: String) throws -> URL {
         let url = root.appendingPathComponent(name)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         try contents.write(to: url, atomically: true, encoding: .utf8)
         return url
     }
@@ -1110,6 +1347,10 @@ private struct IndexingFixture {
     @discardableResult
     func writeVideo(name: String) throws -> URL {
         let url = root.appendingPathComponent(name)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         try Data().write(to: url)
         return url
     }
@@ -1170,7 +1411,9 @@ private func queryInt(at url: URL, sql: String) throws -> Int64 {
         sqlite3_finalize(statement)
     }
     guard sqlite3_step(statement) == SQLITE_ROW else {
-        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+        throw SQLiteFixtureError.executeFailed(
+            "No row for query: \(sql)"
+        )
     }
     return sqlite3_column_int64(statement, 0)
 }

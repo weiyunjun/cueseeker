@@ -11,23 +11,37 @@ public struct PlaybackVideoMetadataIndexer {
         into database: any PlaybackVideoMetadataPersistence
     ) throws -> Int {
         let videos = try database.libraryVideos(under: [folder])
+        return try indexDurations(
+            videoFiles: videos.map {
+                URL(fileURLWithPath: $0.videoPath)
+            },
+            into: database
+        )
+    }
+
+    @discardableResult
+    public func indexDurations(
+        videoFiles: [URL],
+        into database: any PlaybackVideoMetadataPersistence
+    ) throws -> Int {
         var updatedVideoPaths = Set<String>()
 
-        for video in videos {
-            guard !updatedVideoPaths.contains(video.videoPath) else {
+        for videoFile in videoFiles {
+            guard updatedVideoPaths.insert(videoFile.path).inserted else {
                 continue
             }
 
-            let metadata = try? SFXMediaMetadataInspector.metadata(atMediaPath: video.videoPath)
+            let metadata = try? SFXMediaMetadataInspector.metadata(
+                atMediaPath: videoFile.path
+            )
             try database.updateVideoMetadata(
-                videoFile: URL(fileURLWithPath: video.videoPath),
+                videoFile: videoFile,
                 duration: metadata?.durationSeconds?.doubleValue,
                 videoWidth: metadata?.videoWidth?.intValue,
                 videoHeight: metadata?.videoHeight?.intValue,
                 frameRate: metadata?.frameRate?.doubleValue,
                 videoCodec: metadata?.videoCodec
             )
-            updatedVideoPaths.insert(video.videoPath)
         }
 
         return updatedVideoPaths.count

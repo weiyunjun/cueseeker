@@ -144,6 +144,10 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
     public let subtitleFormat: SubtitleFormat
     public let videoPath: String?
     public let videoName: String?
+    public let videoFileSize: Int64?
+    public let videoModifiedAt: Date?
+    public let videoResourceIdentity: String?
+    public let videoBindingState: ResourceBindingState?
     public let fileSize: Int64?
     public let modifiedAt: Date?
     public let indexedAt: String

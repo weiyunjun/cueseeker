@@ -23,14 +23,50 @@ public struct VideoMatcher {
 
     public func matchingVideo(for subtitleFile: URL) -> URL? {
         let directory = subtitleFile.deletingLastPathComponent()
+        return matchingVideo(
+            for: subtitleFile,
+            videoCandidates: videos(in: directory)
+        )
+    }
+
+    public func matchingVideos(
+        for subtitleFiles: [URL]
+    ) -> [URL: URL] {
+        let filesByDirectory = Dictionary(
+            grouping: subtitleFiles
+        ) {
+            $0.deletingLastPathComponent().standardizedFileURL.path
+        }
+        var matches: [URL: URL] = [:]
+        for files in filesByDirectory.values {
+            guard let first = files.first else {
+                continue
+            }
+            let candidates = videos(
+                in: first.deletingLastPathComponent()
+            )
+            for subtitleFile in files {
+                if let video = matchingVideo(
+                    for: subtitleFile,
+                    videoCandidates: candidates
+                ) {
+                    matches[subtitleFile] = video
+                }
+            }
+        }
+        return matches
+    }
+
+    private func matchingVideo(
+        for subtitleFile: URL,
+        videoCandidates: [VideoCandidate]
+    ) -> URL? {
         let subtitleBaseName = subtitleFile.deletingPathExtension().lastPathComponent
         let subtitleNames = candidateBaseNames(for: subtitleBaseName)
             .map(Self.normalizedName)
         guard let subtitleNameAfterRemovingOneExtension = subtitleNames.first else {
             return nil
         }
-
-        let videoCandidates = videos(in: directory)
 
         if let match = preferredVideo(
             from: videoCandidates.filter {

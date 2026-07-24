@@ -234,13 +234,17 @@ struct CueGroupRefreshScopeIntegrationTests {
         ) { app, window, _ in
             let oldEntryIDs = app.search.tableRowStore.snapshot.orderedEntryIDs
             let oldDataRevision = app.search.indexedCueDataRevision
+            let oldProjectionSource = app.search.tableProjectionSource
             let recordingBeforeReindex = session.recording()
             let folder = try #require(app.indexing.selectedFolders.first)
 
             app.indexFolder(folder)
 
-            #expect(app.search.tableProjectionSource == nil)
-            #expect(app.search.tableRowStore.snapshot.totalRowCount == 0)
+            #expect(app.search.tableProjectionSource == oldProjectionSource)
+            #expect(
+                app.search.tableRowStore.snapshot.orderedEntryIDs
+                    == oldEntryIDs
+            )
             await app.indexingTask?.value
             let didReloadStableProjection = await waitUntil(timeout: 3) {
                 window.contentView?.layoutSubtreeIfNeeded()
