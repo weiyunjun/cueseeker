@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Corrected Shiori Date Added display to parse stored ISO 8601 UTC timestamps
+  and format them in the system's local time zone instead of displaying the
+  UTC date and time fields directly. Stored timestamps and Move/Duplicate time
+  semantics remain unchanged.
 - Made repeated Library Index operations incremental. Unchanged subtitles now
   retain their Cue, FTS, Search-order, presentation, media-metadata, and cover
   rows without reparsing or derived-data publication; additions, changes,

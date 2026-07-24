@@ -1205,16 +1205,20 @@ private func tableSandboxCueGroupSnapshotTexts(_ content: String) -> [String] {
         .filter { !$0.isEmpty }
 }
 
-private func tableSandboxShioriDateAddedDisplayText(for value: String) -> String {
-    let characters = Array(value.prefix(16))
-    guard characters.count == 16,
-          characters[4] == "-",
-          characters[7] == "-",
-          characters[10] == "T"
-    else {
+func tableSandboxShioriDateAddedDisplayText(
+    for value: String,
+    timeZone: TimeZone = .current
+) -> String {
+    let isoFormatter = ISO8601DateFormatter()
+    guard let date = isoFormatter.date(from: value) else {
         return value
     }
-    return String(characters[2...9]) + " " + String(characters[11...15])
+
+    let displayFormatter = DateFormatter()
+    displayFormatter.locale = Locale(identifier: "en_US_POSIX")
+    displayFormatter.timeZone = timeZone
+    displayFormatter.dateFormat = "yy-MM-dd HH:mm"
+    return displayFormatter.string(from: date)
 }
 
 func tableSandboxCueTimeText(milliseconds: Int) -> String {
