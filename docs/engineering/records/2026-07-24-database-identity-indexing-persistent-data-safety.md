@@ -181,7 +181,17 @@ identity.
   - 6 tests passed.
 - `swift test --filter PlaybackShioriOverlayTests`
   - 6 tests passed.
+- `swift test`
+  - Ran 883 tests.
+  - The concurrent run reported 14 issues across 7 timing-sensitive tests:
+    five Native Playback timing/audio tests, one Subtitle Focus timeout, and
+    one Shiori submenu pointer-transfer assertion.
+  - All 7 reported tests passed when rerun individually. The changed database,
+    indexing, Shiori lifecycle, table-action, and SRT/libass suites listed
+    above also passed independently.
 
 ## Result
 
-- Implementation is in progress.
+- Implementation is complete.
+- No reproducible regression remains in the changed areas. The full concurrent
+  suite still exposes pre-existing timing sensitivity under aggregate load.
