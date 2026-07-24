@@ -154,6 +154,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     public let subtitleFormat: SubtitleFormat
     public let videoPath: String
     public let videoName: String
+    public let displayTitle: String
     public let timeRange: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
@@ -172,6 +173,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         subtitleFormat: SubtitleFormat,
         videoPath: String,
         videoName: String,
+        displayTitle: String? = nil,
         timeRange: String = "",
         startMilliseconds: Int,
         endMilliseconds: Int,
@@ -189,6 +191,11 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         self.subtitleFormat = subtitleFormat
         self.videoPath = videoPath
         self.videoName = videoName
+        self.displayTitle = if let displayTitle, !displayTitle.isEmpty {
+            displayTitle
+        } else {
+            videoName
+        }
         self.timeRange = timeRange.isEmpty
             ? SubtitleCueTimeRangeDisplay.text(
                 startMilliseconds: startMilliseconds,
@@ -214,6 +221,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
             subtitleFormat: cueContent.subtitleFormat,
             videoPath: cueContent.videoPath,
             videoName: cueContent.videoName,
+            displayTitle: cueContent.displayTitle,
             timeRange: cueContent.timeRange,
             startMilliseconds: cueContent.startMilliseconds,
             endMilliseconds: cueContent.endMilliseconds,

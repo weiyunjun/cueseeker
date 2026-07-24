@@ -475,7 +475,7 @@ extension AppCoordinator {
             guard let resolved = shiori.residentShiorisByID[relation.id] else {
                 return false
             }
-            let displayTitle = content?.displayTitle ?? resolved.videoName
+            let displayTitle = content?.displayTitle ?? resolved.displayTitle
             let cueText = content?.content ?? resolved.content
             let matchesSearch = trimmedSearchText.isEmpty
                 || displayTitle.range(

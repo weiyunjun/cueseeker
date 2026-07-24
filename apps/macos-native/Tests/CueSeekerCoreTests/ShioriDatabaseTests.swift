@@ -395,6 +395,100 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
 }
 
 @Test
+func shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    let availableFolder = URL(fileURLWithPath: "/Media/Available")
+    let availableSubtitle = availableFolder.appendingPathComponent("Episode 1.srt")
+    let availableVideo = availableFolder.appendingPathComponent("Episode 1.mkv")
+    try database.replaceEntries(
+        subtitleFile: availableSubtitle,
+        videoFile: availableVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Available Cue"
+            ),
+        ]
+    )
+
+    let unavailableFolder = URL(fileURLWithPath: "/Media/Unavailable")
+    let unavailableSubtitle = unavailableFolder.appendingPathComponent("Episode 2.srt")
+    let unavailableVideo = unavailableFolder.appendingPathComponent("Episode 2.mkv")
+    try database.replaceEntries(
+        subtitleFile: unavailableSubtitle,
+        videoFile: unavailableVideo,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Unavailable Cue"
+            ),
+        ]
+    )
+
+    let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
+    let availableSelection = try #require(
+        try playbackDatabase.cueTextSelection(
+            forSubtitleFile: availableSubtitle,
+            atMilliseconds: 1_500
+        )
+    )
+    let unavailableSelection = try #require(
+        try playbackDatabase.cueTextSelection(
+            forSubtitleFile: unavailableSubtitle,
+            atMilliseconds: 3_500
+        )
+    )
+    let availableCueID = try #require(availableSelection.cueLineID)
+    let shioriDatabase = try ShioriDatabase(path: database.path)
+    let availableShiori = try shioriDatabase.upsertShiori(
+        selection: availableSelection,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    let unavailableShiori = try shioriDatabase.upsertShiori(
+        selection: unavailableSelection,
+        createdAt: Date(timeIntervalSince1970: 1_700_000_100)
+    )
+
+    try database.replaceEntries(
+        subtitleFile: unavailableSubtitle,
+        videoFile: unavailableVideo,
+        entries: []
+    )
+
+    let snapshot = try shioriDatabase.shioriResidentSnapshot()
+    let resolvedByID = Dictionary(
+        uniqueKeysWithValues: snapshot.resolvedShioris.map { ($0.id, $0) }
+    )
+    let resolvedAvailable = try #require(resolvedByID[availableShiori.id])
+    let resolvedUnavailable = try #require(resolvedByID[unavailableShiori.id])
+
+    #expect(snapshot.relations.count == 2)
+    #expect(snapshot.cueContents.map(\.cueID) == [availableCueID])
+    #expect(snapshot.cueContents.map(\.content) == ["Available Cue"])
+    #expect(resolvedAvailable.isValid)
+    #expect(resolvedAvailable.displayTitle == "Episode 1.srt")
+    #expect(!resolvedUnavailable.isValid)
+    #expect(resolvedUnavailable.unavailableReason == .cueMissing)
+    #expect(resolvedUnavailable.displayTitle == "Episode 2.srt")
+    #expect(resolvedUnavailable.displayTitle != resolvedUnavailable.videoName)
+}
+
+@Test
 func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

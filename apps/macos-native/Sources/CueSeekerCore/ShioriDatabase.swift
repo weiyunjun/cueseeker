@@ -46,7 +46,19 @@ public final class ShioriDatabase: @unchecked Sendable {
                END,
                s.created_at,
                n.previous_content,
-               n.current_content
+               n.current_content,
+               COALESCE(
+                 (
+                   SELECT sor.display_title
+                   FROM subtitle_search_order_rows sor
+                   WHERE sor.subtitle_file_id = sf.id
+                   ORDER BY sor.updated_at DESC, sor.subtitle_path ASC
+                   LIMIT 1
+                 ),
+                 t.display_title,
+                 vf.video_name,
+                 ''
+               )
         FROM shioris s
         LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
         LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
@@ -412,12 +424,20 @@ public final class ShioriDatabase: @unchecked Sendable {
         listID: Int64? = nil
     ) throws -> ShioriResidentSnapshot {
         let relations = try shioriRelations(listID: listID)
+        let resolvedShioris = try shioris(listID: listID)
+        let availableShioriIDs = Set(
+            resolvedShioris.lazy.filter(\.isValid).map(\.id)
+        )
         let cueContents = try CueContentDatabase(path: path).cueContents(
-            forCueIDs: relations.map(\.cueID)
+            forCueIDs: relations.compactMap { relation in
+                availableShioriIDs.contains(relation.id)
+                    ? relation.cueID
+                    : nil
+            }
         )
         return ShioriResidentSnapshot(
             relations: relations,
-            resolvedShioris: try shioris(listID: listID),
+            resolvedShioris: resolvedShioris,
             cueContents: cueContents,
             tagsByShioriID: try shioriTagsByShioriID(forShioriIDs: relations.map(\.id))
         )
@@ -861,6 +881,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
             videoPath: statement.stringColumn(3),
             videoName: statement.stringColumn(4),
+            displayTitle: statement.stringColumn(15),
             timeRange: "",
             startMilliseconds: statement.intColumn(5),
             endMilliseconds: statement.intColumn(6),

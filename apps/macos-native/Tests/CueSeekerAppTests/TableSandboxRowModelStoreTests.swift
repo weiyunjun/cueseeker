@@ -941,7 +941,8 @@ func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
         subtitlePath: "/tmp/CueSeeker/Series/episode.ass",
         subtitleFormat: .ass,
         videoPath: "/tmp/CueSeeker/Series/episode.mkv",
-        videoName: "Episode",
+        videoName: "Episode.mkv",
+        displayTitle: "Series - 03",
         startMilliseconds: 1_000,
         endMilliseconds: 2_000,
         content: "Primary\nmultiline",
@@ -986,6 +987,7 @@ func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
     )
 
     let unavailableRow = store.snapshot.row(at: 0)
+    #expect(unavailableRow?.displayTitle == "Series - 03")
     #expect(unavailableRow?.primaryCueText == "Primary\nmultiline")
     #expect(unavailableRow?.cueGroupTexts == ["Primary\nmultiline", "Sibling"])
     #expect(unavailableRow?.cueState == .unavailable(.cueMissing))

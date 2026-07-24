@@ -1170,7 +1170,7 @@ private func tableSandboxUnavailableShioriRow(
         primaryCueID: relation.cueID,
         subtitlePath: shiori.subtitlePath,
         dateAdded: tableSandboxShioriDateAddedDisplayText(for: relation.createdAt),
-        displayTitle: shiori.videoName,
+        displayTitle: shiori.displayTitle,
         startTime: tableSandboxCueTimeText(milliseconds: shiori.startMilliseconds),
         endTime: tableSandboxCueTimeText(milliseconds: shiori.endMilliseconds),
         timeRange: shiori.timeRange,

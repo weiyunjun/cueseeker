@@ -121,8 +121,29 @@ identity.
 - Retained full empty-derived-table cleanup only when all active Libraries have
   been removed, where no unchanged indexed resources remain.
 
+### 8. Mixed-Availability Shiori Snapshot Isolation
+
+- Limited canonical Cue-content loading in a resident Shiori snapshot to
+  currently available relations, so one Tombstone Cue cannot discard the
+  canonical content or normalized titles of other rows in the same list.
+- Added a distinct resolved Shiori display title sourced from the current
+  Search Order presentation, then the Tombstone snapshot, and finally the video
+  filename only as a last fallback.
+- Updated unavailable table rows to use the resolved display title instead of
+  treating the raw video filename as presentation metadata, including Shiori
+  table search and filter projection.
+- Added regression coverage for one Shiori list containing both an available
+  Cue and a Cue that becomes unavailable while its subtitle and video remain
+  bound.
+
 ## Verification
 
+- `swift test --filter 'shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue|tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot'`
+  - 2 focused mixed-availability and title-projection tests passed.
+- `swift test --filter 'ShioriDatabaseTests|TableSandboxRowModelStoreTests'`
+  - 51 database and row-model tests passed.
+- `swift test --filter Shiori`
+  - 69 Shiori-related Core and App tests passed.
 - `swift build`
   - Passed.
 - `swift test --filter 'SubtitleIndexerTests|VideoMatcherTests|LibraryDatabaseTests'`
