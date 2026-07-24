@@ -411,6 +411,8 @@
 - Duplicate: `copy`
 - Action Submenu: `chevron.right`
 - Hide Column: `eye-off`
+- Cue Content Changed: `clock.arrow.circlepath`
+- Cue Unavailable: `questionmark.circle`
 - Remove Shiori: `bookmark.slash`; fallback `bookmark`
 - Back: `chevron.left`
 - Settings: `gearshape`
@@ -825,6 +827,9 @@
 - Metadata 不再对齐 Primary Cue 第一视觉行。
 - Primary Cue 使用 `--font-size-table`、`--line-height-table-cue-primary`、`--color-text-secondary`。
 - Extra Cues 使用 `--font-size-caption`、`--line-height-table-cue-secondary`、`--color-text-muted`。
+- Normal 和 Content Changed Shiori Row 保持各列原有文字颜色。
+- Unavailable Shiori Row 的 Display Title、Primary Cue、Extra Cues、Tag 文字、Time Range 和 Date Added 统一使用 `--color-text-muted`。
+- Unavailable 不属于 Disabled，不使用 `--color-bg-disabled`，不增加整行背景或透明度。
 - Primary Cue 和 Extra Cues 的文字字形分别在各自的 line-height 行框内垂直视觉居中。
 - 所有 Cue 保留源换行和自动换行，不裁剪、不截断、不显示省略号。
 - 行不显示 Full-row Hover 或 Full-row Selected 背景。
@@ -856,15 +861,19 @@
 
 #### Interactive Text Cell
 
-- 用途：为 Cue 文字提供文字选择和表格正文中唯一的普通文字左键动作。
+- 用途：为可播放 Cue 文字提供文字选择和表格正文中唯一的普通文字左键动作。
 - Token：`--color-bg-hover`、`--radius-table-cell-hover`、`--padding-table-cell-hover-x`、`--padding-table-cell-hover-y`。
 - 下划线使用 `--width-interactive-text-underline`、`--offset-interactive-text-underline` 和当前文字色。
-- Hover Region 覆盖当前完整显示的 Cue 内容。
+- Normal 和 Content Changed Cue 使用完整 Interactive Text Cell 交互。
+- Hover Region 覆盖当前完整显示的 Cue 内容，但不包含 Cue State Indicator。
 - Show Cue Group 开启时，所有显示的 Cue 共用一个 Hover Region。
 - Hover 使用一个圆角矩形，不为每一行文字分别绘制背景。
 - Hover 时所有显示的 Cue 文字显示下划线。
 - 无拖拽的普通单击从 Primary Cue 播放。
 - 从 Cue 文字开始拖拽时进入文字选择并抑制播放。
+- Unavailable Cue 不显示 Hover 背景或下划线，不响应普通左键播放，也不使用 `pointer` Cursor。
+- Unavailable Cue 文字仍然允许选择和复制。
+- Cue State Indicator 是独立 Hover Target，不属于 Interactive Text Cell。
 - Display Title、Tags 中的文字、Time Range 和 Date Added 不使用 Interactive Text Cell。
 - 右键交给所属行的 Row Action Menu。
 
@@ -889,6 +898,50 @@
 - 只读，不响应点击。
 
 ### 3.5 展示与状态
+
+#### Cue State Indicator
+
+- 用途：在 Workbench Shiori Table 中显示被持久引用 Cue 的当前状态。
+- 状态：Content Changed、Unavailable。
+- Content Changed 使用 Cue Content Changed Icon。
+- Unavailable 使用 Cue Unavailable Icon。
+- Normal 不显示 Cue State Indicator。
+- Icon 使用 `--size-control-icon` 和 `--color-icon-muted`。
+- Indicator 使用透明背景和无边框外观，不响应普通左键动作。
+- Indicator 不属于 Cue 文字选择和复制内容。
+- Pointer Hover Indicator 时显示 Cue State Tip。
+- Pointer 离开 Indicator 时关闭 Cue State Tip。
+- 右键 Indicator 时继续打开所属 Table Row 的 Row Action Menu。
+
+#### Cue State Tip
+
+- 用途：解释 Content Changed 或 Unavailable 的具体状态。
+- 背景、边框、圆角和阴影使用 `--color-bg-popover`、`--color-border-muted`、`--radius-control` 和 `--shadow-popover`。
+- Tip 固定锚定 Cue State Indicator。
+- 默认显示在 Indicator 右侧。
+- 右侧可见区域不足以完整显示 Tip 时，改为显示在 Indicator 左侧。
+- Tip 与 Indicator 垂直居中。
+- Tip 与 Indicator 的间距使用 `--spacing-2`。
+- Title 使用 `--color-text-primary` 和 semibold。
+- `Previous`、`Current` Label 使用 `--color-text-muted`。
+- Message、Previous Value、Current Value 和 Unavailable Reason 使用 `--color-text-secondary`。
+- Tip 内文字允许自然换行。
+
+- Content Changed：
+  - Title：`Content Changed`
+  - Message：`This cue changed after reindexing.`
+  - 按顺序显示 `Previous`、Previous Value、`Current`、Current Value
+  - Previous Value 显示上一次成功索引保存的文字
+  - Current Value 显示当前文字
+
+- Unavailable：
+  - Title：`Unavailable`
+  - 根据当前不可用层级显示一条明确的 Reason
+  - Library Source 暂时无法访问：`The library source is currently unavailable.`
+  - 视频缺失但字幕仍可访问：`The video file is missing. The subtitle file is still available.`
+  - 视频仍在但字幕缺失或无法重新关联：`The subtitle file is missing or could not be reconnected.`
+  - 视频和字幕均缺失：`The video and subtitle files are missing.`
+  - 文件仍在但 Cue 已删除或无法确认继承：`This cue could not be found in the current subtitle file.`
 
 #### Chip / Tag
 
@@ -1365,6 +1418,7 @@
 - Summary Row：
   - 使用水平布局和 `space-between`
   - 左侧显示 `N Lists · M Cues`
+  - `M Cues` 包含 Normal、Content Changed 和 Unavailable Shiori
   - `M Cues` 按 CueID 去重
   - 右侧使用 Inline Add Button，Label 为 `New List`
   - 点击 `New List` 打开 Shiori List Editor Dialog 的 New 模式
@@ -1386,6 +1440,7 @@
   3. List Name
   4. Description
 - Library Cover Badge 位于封面右下角，格式为 `{count} Cues`。
+- `{count}` 包含当前 Shiori List 中的 Normal、Content Changed 和 Unavailable Shiori。
 - List Name 使用 `--font-size-library-title`、`--color-text-primary`，固定单行高度，溢出显示省略号。
 - Description 使用 `--font-size-library-meta`、`--color-text-muted`，固定单行高度，溢出显示省略号。
 - Description 为空时不显示文字，但保留 Description 行高度。
@@ -1502,6 +1557,17 @@
   - `--line-height-table-cue-secondary`
   - Font Weight `400`
 
+- Cues / Cue State Indicator：
+  - 仅用于 Shiori
+  - Normal 不显示
+  - Content Changed 显示 Content Changed Indicator
+  - Unavailable 显示 Unavailable Indicator
+  - 同时满足 Content Changed 和 Unavailable 时，只显示 Unavailable Indicator
+  - Indicator 以内联方式位于 Primary Cue 最后一个可见字符之后
+  - Primary Cue 自动换行时，Indicator 跟随最后一条视觉行
+  - Indicator 与 Primary Cue 的间距使用 `--spacing-2`
+  - Indicator 不创建独立 Status Column
+
 - Display Title：
   - Secondary Context
   - `--color-text-secondary`
@@ -1549,21 +1615,26 @@
 - 文字选择遵循 `2.5 文字选择与复制`。
 
 - 正文左键：
-  - Cues 使用 Interactive Text Cell。
-  - Shiori Tags Cell 是显式控件，整个 Cell 均可点击，包括没有 Tag 的空白区域。
-  - 无拖拽单击 Shiori Tags Cell，打开 Shiori Tag Popover。
+  - Normal 和 Content Changed Cues 使用 Interactive Text Cell。
+  - Unavailable Cues 只允许文字选择和复制，不响应播放。
+  - Normal 和 Content Changed Shiori Tags Cell 是显式控件，整个 Cell 均可点击，包括没有 Tag 的空白区域。
+  - Unavailable Shiori Tags Cell 为 Read-only，不打开 Shiori Tag Popover。
+  - 无拖拽单击可用的 Shiori Tags Cell，打开 Shiori Tag Popover。
   - 从 Shiori Tags Cell 内的文字开始拖拽时只进行文字选择，不打开 Popover。
   - Display Title、Time Range 和 Date Added 文字只负责选择和复制。
   - Checkbox 只改变批量选择。
-  - 除 Shiori Tags Cell 外，其他普通空白区域无动作。
+  - Cue State Indicator 不响应普通左键动作。
+  - 除可用的 Shiori Tags Cell 外，其他普通空白区域无动作。
   - 文字拖选可以从非标题栏且非顶栏的任意非交互区域开始（非交互区域 = 点击没有效果的区域）。手势进入表格后才建立新选区。
   - 选区内容始终只有表格文字。
 
 - 正文 Hover：
   - 不显示 Full-row Hover 或 Full-row Selected。
-  - Cue Hover 使用 Interactive Text Cell。
+  - Normal 和 Content Changed Cue Hover 使用 Interactive Text Cell。
+  - Unavailable Cue 不显示 Interactive Text Cell Hover。
+  - Cue State Indicator Hover 显示 Cue State Tip。
   - Display Title、Time Range 和 Date Added 不显示可点击 Hover。
-  - Pointer Cursor 只出现在 Cue 的直接点击区域和 Shiori Tags Cell。
+  - Pointer Cursor 只出现在可播放 Cue 的直接点击区域和可编辑的 Shiori Tags Cell。
 
 - 行右键交互使用 Row Action Menu。
 
@@ -1587,6 +1658,19 @@
   7. `Move to ...`
   8. `Duplicate to ...`
   9. `Remove Shiori`
+
+- Normal 和 Content Changed Shiori Row 使用现有 Action 可用性。
+
+- Unavailable Shiori Row：
+  - `Play` 为 Disabled
+  - `Open Subtitle Folder` 仅在当前 Subtitle File 仍可访问时可用，否则为 Disabled
+  - `Context` 为 Disabled
+  - `Copy Cue Text` 可用，复制最后保存的 Cue Snapshot
+  - `Copy Cue Group Text` 在显示时可用，复制最后保存的 Cue Group Snapshot
+  - `Copy Time Range` 可用，复制当前行显示的 Time Range
+  - `Move to ...` 为 Disabled
+  - `Duplicate to ...` 为 Disabled
+  - `Remove Shiori` 可用
 
 - Divider：
   - `Context` 与 `Copy Cue Text` 之间显示 Divider。
@@ -2251,6 +2335,8 @@
 - Shiori：
   - 使用 Playback Cue Result Reel
   - 只显示字幕内容
+  - 只将 Normal 和 Content Changed Shiori 加入 Playback Cue Result Reel
+  - Unavailable Shiori 不进入 Playback Cue Result Reel，也不参与结果顺序和默认选择
   - 不显示 Search Box、Filter、Utility Bar、Table Header、Checkbox、Display Title、Tags、Time Range、Date Added 或其他 Metadata
   - Playback Shiori 不启用临时空 Filter，也不清空 Search Filter
   - 本次 Session 首次进入 Shiori 时默认选择第一条 Result
