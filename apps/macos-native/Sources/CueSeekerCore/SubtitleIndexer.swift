@@ -47,6 +47,7 @@ struct PreparedLibraryIndex: Sendable {
     let lease: LibraryIndexLease
     let changedFiles: [PreparedSubtitleIndexFile]
     let unchangedFiles: [UnchangedSubtitleIndexFile]
+    let missingVideoSubtitleFiles: [URL]
     let keptSubtitlePaths: Set<String>
 }
 
@@ -88,10 +89,12 @@ public struct SubtitleIndexer {
         var keptSubtitlePaths = Set<String>()
         var changedFiles: [PreparedSubtitleIndexFile] = []
         var unchangedFiles: [UnchangedSubtitleIndexFile] = []
+        var missingVideoSubtitleFiles: [URL] = []
 
         for subtitleFile in subtitleFiles {
             guard let videoFile = matcher.matchingVideo(for: subtitleFile) else {
                 keptSubtitlePaths.insert(subtitleFile.path)
+                missingVideoSubtitleFiles.append(subtitleFile)
                 result.skippedMissingVideo += 1
                 continue
             }
@@ -191,6 +194,7 @@ public struct SubtitleIndexer {
                 lease: lease,
                 changedFiles: changedFiles,
                 unchangedFiles: unchangedFiles,
+                missingVideoSubtitleFiles: missingVideoSubtitleFiles,
                 keptSubtitlePaths: keptSubtitlePaths
             )
         )

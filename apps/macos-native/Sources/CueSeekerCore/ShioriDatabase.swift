@@ -5,15 +5,58 @@ public final class ShioriDatabase: @unchecked Sendable {
     public static let maximumListDescriptionCharacters = 100
 
     private static let resolvedShioriSelectSQL = """
-        SELECT s.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-               l.start_ms, l.end_ms, l.event_index, l.display_order,
-               l.content, 1, s.created_at
+        SELECT s.id,
+               CASE
+                 WHEN sf.binding_state = 'available' THEN sf.subtitle_path
+                 ELSE COALESCE(NULLIF(sf.last_known_path, ''), t.subtitle_path, '')
+               END,
+               COALESCE(sf.format, t.source_format, 'srt'),
+               CASE
+                 WHEN vf.binding_state = 'available' THEN vf.path
+                 ELSE COALESCE(NULLIF(vf.last_known_path, ''), t.video_path, '')
+               END,
+               COALESCE(vf.video_name, t.display_title, ''),
+               COALESCE(l.start_ms, t.start_ms, 0),
+               COALESCE(l.end_ms, t.end_ms, 0),
+               l.event_index,
+               l.display_order,
+               COALESCE(l.content, t.content, ''),
+               COALESCE(
+                 (
+                   SELECT GROUP_CONCAT(ordered.content, char(31))
+                   FROM (
+                     SELECT group_cue.content
+                     FROM subtitle_cue_lines group_cue
+                     WHERE group_cue.cue_group_id = l.cue_group_id
+                     ORDER BY group_cue.display_order ASC,
+                              group_cue.event_index ASC,
+                              group_cue.id ASC
+                   ) ordered
+                 ),
+                 t.cue_group_content,
+                 l.content,
+                 t.content,
+                 ''
+               ),
+               CASE
+                 WHEN l.id IS NULL THEN COALESCE(t.unavailable_reason, 'cue_missing')
+                 WHEN sf.binding_state <> 'available' THEN 'subtitle_missing'
+                 WHEN vf.id IS NULL OR vf.binding_state <> 'available' THEN 'video_missing'
+                 ELSE NULL
+               END,
+               s.created_at,
+               n.previous_content,
+               n.current_content
         FROM shioris s
-        JOIN subtitle_cue_lines l ON l.id = s.cue_id
-        JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-        JOIN subtitle_video_matches m
+        LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
+        LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
+        LEFT JOIN subtitle_files sf
+          ON sf.id = COALESCE(l.subtitle_file_id, t.subtitle_file_id)
+        LEFT JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
+        LEFT JOIN subtitle_video_matches m
           ON m.subtitle_file_id = sf.id AND m.is_active = 1
-        JOIN video_files vf ON vf.id = m.video_file_id
+        LEFT JOIN video_files vf ON vf.id = m.video_file_id
+        LEFT JOIN cue_change_notices n ON n.cue_id = s.cue_id
         """
 
     private let path: URL
@@ -88,13 +131,16 @@ public final class ShioriDatabase: @unchecked Sendable {
 
     @discardableResult
     public func removeShiori(id: Int64) throws -> Bool {
-        guard try shiori(id: id) != nil else {
+        guard let relation = try shioriRelation(id: id) else {
             return false
         }
-        let statement = try database.prepare("DELETE FROM shioris WHERE id = ?;")
-        try statement.bind(id, at: 1)
-        try statement.run()
-        return true
+        return try database.withImmediateTransaction {
+            let statement = try database.prepare("DELETE FROM shioris WHERE id = ?;")
+            try statement.bind(id, at: 1)
+            try statement.run()
+            try deleteUnreferencedTombstone(cueID: relation.cueID)
+            return true
+        }
     }
 
     @discardableResult
@@ -321,9 +367,21 @@ public final class ShioriDatabase: @unchecked Sendable {
                 throw ShioriListMutationError.cannotDeleteOnlyList
             }
 
+            let cueStatement = try database.prepare(
+                "SELECT DISTINCT cue_id FROM shioris WHERE list_id = ?;"
+            )
+            try cueStatement.bind(id, at: 1)
+            var cueIDs: [Int64] = []
+            while try cueStatement.step() {
+                cueIDs.append(cueStatement.int64Column(0))
+            }
+
             let statement = try database.prepare("DELETE FROM shiori_lists WHERE id = ?;")
             try statement.bind(id, at: 1)
             try statement.run()
+            for cueID in cueIDs {
+                try deleteUnreferencedTombstone(cueID: cueID)
+            }
             return list
         }
     }
@@ -357,13 +415,9 @@ public final class ShioriDatabase: @unchecked Sendable {
         let cueContents = try CueContentDatabase(path: path).cueContents(
             forCueIDs: relations.map(\.cueID)
         )
-        guard cueContents.map(\.cueID) == relations.map(\.cueID) else {
-            throw SQLiteDatabaseError.stepFailed(
-                "Every Shiori relation must resolve its current Cue content"
-            )
-        }
         return ShioriResidentSnapshot(
             relations: relations,
+            resolvedShioris: try shioris(listID: listID),
             cueContents: cueContents,
             tagsByShioriID: try shioriTagsByShioriID(forShioriIDs: relations.map(\.id))
         )
@@ -435,7 +489,11 @@ public final class ShioriDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             \(Self.resolvedShioriSelectSQL)
-            WHERE s.list_id = ? AND \(orderingPredicate)
+            WHERE s.list_id = ?
+              AND \(orderingPredicate)
+              AND l.id IS NOT NULL
+              AND sf.binding_state = 'available'
+              AND vf.binding_state = 'available'
             \(orderingClause)
             LIMIT 1;
             """
@@ -677,6 +735,9 @@ public final class ShioriDatabase: @unchecked Sendable {
             guard let source = try shioriRelation(id: id) else {
                 throw ShioriTransferError.sourceUnavailable
             }
+            guard try shiori(id: id)?.isValid == true else {
+                throw ShioriTransferError.sourceUnavailable
+            }
             guard try shioriList(id: destinationListID) != nil else {
                 throw ShioriTransferError.destinationUnavailable
             }
@@ -782,7 +843,19 @@ public final class ShioriDatabase: @unchecked Sendable {
     }
 
     private func shiori(from statement: SQLiteStatement) -> Shiori {
-        Shiori(
+        let unavailableReason = statement.nullableStringColumn(11)
+            .flatMap(ShioriUnavailableReason.init(rawValue:))
+        let previousContent = statement.nullableStringColumn(13)
+        let currentContent = statement.nullableStringColumn(14)
+        let contentChange: ShioriCueContentChange? = if let previousContent, let currentContent {
+            ShioriCueContentChange(
+                previousContent: previousContent,
+                currentContent: currentContent
+            )
+        } else {
+            nil
+        }
+        return Shiori(
             id: statement.int64Column(0),
             subtitlePath: statement.stringColumn(1),
             subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
@@ -794,9 +867,27 @@ public final class ShioriDatabase: @unchecked Sendable {
             cueEventIndex: statement.nullableIntColumn(7),
             cueDisplayOrder: statement.nullableIntColumn(8),
             content: statement.stringColumn(9),
-            isValid: statement.intColumn(10) != 0,
-            createdAt: statement.stringColumn(11)
+            cueGroupContent: statement.stringColumn(10),
+            isValid: unavailableReason == nil,
+            unavailableReason: unavailableReason,
+            contentChange: contentChange,
+            createdAt: statement.stringColumn(12)
         )
+    }
+
+    private func deleteUnreferencedTombstone(cueID: Int64) throws {
+        let statement = try database.prepare(
+            """
+            DELETE FROM cue_tombstones
+            WHERE cue_id = ?
+              AND NOT EXISTS (
+                SELECT 1 FROM shioris WHERE cue_id = ?
+              );
+            """
+        )
+        try statement.bind(cueID, at: 1)
+        try statement.bind(cueID, at: 2)
+        try statement.run()
     }
 
     private func shioriRelation(from statement: SQLiteStatement) -> ShioriRelation {

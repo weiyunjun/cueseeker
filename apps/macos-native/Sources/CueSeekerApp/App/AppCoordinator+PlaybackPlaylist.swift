@@ -275,15 +275,12 @@ extension AppCoordinator {
             shioriIDs.count
         case .databaseOrder:
             if shiori.residentDataRevision != nil {
-                shiori.residentRelations.count
+                shiori.residentShiorisByID.values.filter(\.isValid).count
             } else {
-                (try? shioriDatabase?.shioriCount()) ?? 0
+                (try? shioriDatabase?.shioris().filter(\.isValid).count) ?? 0
             }
         case .table(let context):
-            min(
-                context.totalCount,
-                shiori.tableRowStore.snapshot.totalRowCount
-            )
+            min(context.totalCount, shiori.playbackTableResultShioriIDs?.count ?? 0)
         }
     }
 
@@ -293,24 +290,35 @@ extension AppCoordinator {
     ) -> PlaybackPlaylistItem? {
         switch scope {
         case .table:
-            return shioriTablePlaybackItem(ordinal: ordinal)
-        case .databaseOrder:
-            let relations: [ShioriRelation]
-            if shiori.residentDataRevision != nil {
-                relations = shiori.residentRelations
-            } else {
-                relations = (try? shioriDatabase?.shioriRelations()) ?? []
-            }
-            guard relations.indices.contains(ordinal),
-                  let item = shiori(withID: relations[ordinal].id)
+            guard let shioriIDs = shiori.playbackTableResultShioriIDs,
+                  shioriIDs.indices.contains(ordinal)
             else {
                 return nil
             }
+            return shioriTablePlaybackItem(
+                shioriID: shioriIDs[ordinal],
+                itemOrdinal: ordinal
+            )
+        case .databaseOrder:
+            let items: [Shiori]
+            if shiori.residentDataRevision != nil {
+                items = shiori.residentRelations.compactMap {
+                    shiori.residentShiorisByID[$0.id]
+                }.filter(\.isValid)
+            } else {
+                items = (try? shioriDatabase?.shioris())?.filter(\.isValid) ?? []
+            }
+            guard items.indices.contains(ordinal) else {
+                return nil
+            }
+            let item = items[ordinal]
+            let cueID = shiori.residentRelations.first {
+                $0.id == item.id
+            }?.cueID ?? (try? shioriDatabase?.cueID(forShioriID: item.id)) ?? nil
             return PlaybackPlaylistItem(
                 shiori: item,
-                cuePresentation: cueContent.content(
-                    for: relations[ordinal].cueID
-                ).map(ShioriCuePresentation.init(cueContent:)),
+                cuePresentation: cueID.flatMap(cueContent.content(for:))
+                    .map(ShioriCuePresentation.init(cueContent:)),
                 ordinal: ordinal
             )
         case .explicitIDs(let shioriIDs):
@@ -319,13 +327,13 @@ extension AppCoordinator {
             }
             let shioriID = shioriIDs[ordinal]
             let snapshot = shiori.tableRowStore.snapshot
-            if let rowOrdinal = snapshot.rowIndex(entryID: Int(shioriID)) {
+            if snapshot.rowIndex(entryID: Int(shioriID)) != nil {
                 return shioriTablePlaybackItem(
-                    ordinal: rowOrdinal,
+                    shioriID: shioriID,
                     itemOrdinal: ordinal
                 )
             }
-            guard let item = shiori(withID: shioriID) else {
+            guard let item = shiori(withID: shioriID), item.isValid else {
                 return nil
             }
             return PlaybackPlaylistItem(
@@ -340,19 +348,22 @@ extension AppCoordinator {
     }
 
     private func shioriTablePlaybackItem(
-        ordinal: Int,
+        shioriID: Int64,
         itemOrdinal: Int? = nil
     ) -> PlaybackPlaylistItem? {
         let snapshot = shiori.tableRowStore.snapshot
-        guard let row = snapshot.row(at: ordinal),
-              let item = snapshot.shiori(entryID: row.id)
+        guard let entryID = Int(exactly: shioriID),
+              let rowOrdinal = snapshot.rowIndex(entryID: entryID),
+              let row = snapshot.row(at: rowOrdinal),
+              let item = snapshot.shiori(entryID: row.id),
+              item.isValid
         else {
             return nil
         }
         return PlaybackPlaylistItem(
             shiori: item,
             cuePresentation: snapshot.shioriCuePresentation(entryID: row.id),
-            ordinal: itemOrdinal ?? ordinal
+            ordinal: itemOrdinal ?? rowOrdinal
         )
     }
 

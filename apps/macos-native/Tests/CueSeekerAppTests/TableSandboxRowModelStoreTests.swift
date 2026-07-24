@@ -922,6 +922,81 @@ func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingColl
 
 @MainActor
 @Test
+func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
+    let store = TableSandboxRowModelStore { _ in "unused" }
+    let unavailableRelation = ShioriRelation(
+        id: 7,
+        listID: ShioriListIdentity.defaultListID,
+        cueID: 42,
+        createdAt: "2026-07-21T12:00:00Z"
+    )
+    let changedRelation = ShioriRelation(
+        id: 8,
+        listID: ShioriListIdentity.defaultListID,
+        cueID: 43,
+        createdAt: "2026-07-21T12:01:00Z"
+    )
+    let unavailable = Shiori(
+        id: unavailableRelation.id,
+        subtitlePath: "/tmp/CueSeeker/Series/episode.ass",
+        subtitleFormat: .ass,
+        videoPath: "/tmp/CueSeeker/Series/episode.mkv",
+        videoName: "Episode",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        content: "Primary\nmultiline",
+        cueGroupContent: [
+            "Primary\nmultiline",
+            "Sibling",
+        ].joined(separator: Shiori.cueGroupContentSeparator),
+        isValid: false,
+        unavailableReason: .cueMissing,
+        createdAt: unavailableRelation.createdAt
+    )
+    let changed = Shiori(
+        id: changedRelation.id,
+        subtitlePath: "/tmp/CueSeeker/Series/episode.ass",
+        subtitleFormat: .ass,
+        videoPath: "/tmp/CueSeeker/Series/episode.mkv",
+        videoName: "Episode",
+        startMilliseconds: 3_000,
+        endMilliseconds: 4_000,
+        content: "Current",
+        isValid: true,
+        contentChange: ShioriCueContentChange(
+            previousContent: "Previous",
+            currentContent: "Current"
+        ),
+        createdAt: changedRelation.createdAt
+    )
+
+    store.updateResidentShioriRelations(
+        [unavailableRelation, changedRelation],
+        tagsByShioriID: [:],
+        resolvedShiorisByID: [
+            unavailable.id: unavailable,
+            changed.id: changed,
+        ],
+        cueContentProvider: { cueID in
+            cueID == changedRelation.cueID
+                ? residentCueContent(cueID: cueID, content: "Current")
+                : nil
+        },
+        tableName: "shiori"
+    )
+
+    let unavailableRow = store.snapshot.row(at: 0)
+    #expect(unavailableRow?.primaryCueText == "Primary\nmultiline")
+    #expect(unavailableRow?.cueGroupTexts == ["Primary\nmultiline", "Sibling"])
+    #expect(unavailableRow?.cueState == .unavailable(.cueMissing))
+    #expect(
+        store.snapshot.row(at: 1)?.cueState
+            == .contentChanged(previous: "Previous", current: "Current")
+    )
+}
+
+@MainActor
+@Test
 func tableSandboxRowModelStoreProjectsSearchCueIDsWithoutMaterializingRows() {
     let cueStore = CueContentStore()
     let results = (1...10_000).map { value in
@@ -1019,6 +1094,59 @@ func tableSandboxShioriProjectionReloadsWhenCanonicalCueContentChanges() {
     #expect(store.snapshot.version == originalVersion + 1)
     #expect(store.snapshot.update == .reload)
     #expect(store.snapshot.row(at: 0)?.primaryCueText == "Changed Shiori Cue")
+}
+
+@MainActor
+@Test
+func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
+    let store = ShioriStore()
+    let relations = [
+        ShioriRelation(
+            id: 1,
+            listID: ShioriListIdentity.defaultListID,
+            cueID: 101,
+            createdAt: "2026-07-21T12:00:00Z"
+        ),
+        ShioriRelation(
+            id: 2,
+            listID: ShioriListIdentity.defaultListID,
+            cueID: 102,
+            createdAt: "2026-07-21T12:01:00Z"
+        ),
+    ]
+    let available = shioriSource(
+        id: 1,
+        content: "Available",
+        languages: [.japanese]
+    ).shiori
+    let unavailable = Shiori(
+        id: 2,
+        subtitlePath: "/tmp/CueSeeker/Series/missing.ass",
+        subtitleFormat: .ass,
+        videoPath: "/tmp/CueSeeker/Series/missing.mkv",
+        videoName: "Missing",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        content: "Unavailable",
+        isValid: false,
+        unavailableReason: .videoMissing,
+        createdAt: relations[1].createdAt
+    )
+
+    store.installResidentSnapshot(
+        ShioriResidentSnapshot(
+            relations: relations,
+            resolvedShioris: [available, unavailable],
+            cueContents: [],
+            tagsByShioriID: [:]
+        ),
+        dataRevision: 1
+    )
+    store.installTableResultShioriIDs([1, 2])
+
+    #expect(store.tableResultRowCount == 2)
+    #expect(store.tableResultShioriIDs == [1, 2])
+    #expect(store.playbackTableResultShioriIDs == [1])
 }
 
 @MainActor

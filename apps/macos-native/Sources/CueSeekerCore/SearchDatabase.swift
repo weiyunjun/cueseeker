@@ -245,7 +245,8 @@ public final class SearchDatabase: @unchecked Sendable {
             JOIN video_files vf ON vf.id = m.video_file_id
             JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
             JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
-            WHERE 1 = 1
+            WHERE sf.binding_state = 'available'
+              AND vf.binding_state = 'available'
             \(scopeCondition)
             ORDER BY sor.folder_order ASC, sor.file_order ASC,
                      g.start_ms ASC, g.end_ms ASC, g.id ASC,
@@ -419,7 +420,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
                 JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
                 JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-                WHERE sf.subtitle_path = ?
+                WHERE sf.binding_state = 'available'
+                  AND sf.subtitle_path = ?
                 \(scopeCondition)
             ) ordered
             WHERE cue_id = ?;
@@ -457,7 +459,8 @@ public final class SearchDatabase: @unchecked Sendable {
             JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            WHERE sf.subtitle_path = ?
+            WHERE sf.binding_state = 'available'
+              AND sf.subtitle_path = ?
             \(scopeCondition)
             ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
                      l.display_order ASC, l.event_index ASC, l.id ASC
@@ -650,7 +653,8 @@ public final class SearchDatabase: @unchecked Sendable {
             FROM subtitle_cue_lines l
             JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
+            WHERE sf.binding_state = 'available'
+              AND sf.subtitle_path = ?
             ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
                      l.display_order ASC, l.event_index ASC, l.id ASC
             LIMIT 1;
@@ -869,7 +873,9 @@ public final class SearchDatabase: @unchecked Sendable {
                 JOIN video_files vf ON vf.id = m.video_file_id
                 \(watchStateJoin)
                 JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-                WHERE subtitle_cue_groups_fts MATCH ?
+                WHERE sf.binding_state = 'available'
+                  AND vf.binding_state = 'available'
+                  AND subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
                 \(languageCondition)
@@ -1406,7 +1412,8 @@ public final class SearchDatabase: @unchecked Sendable {
             SELECT sf.subtitle_path
             FROM subtitle_files sf
             LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-            WHERE sor.subtitle_file_id IS NULL
+            WHERE sf.binding_state = 'available'
+              AND sor.subtitle_file_id IS NULL
             \(scopeCondition)
             \(subtitlePathCondition)
             LIMIT 1;
@@ -2096,7 +2103,9 @@ public final class SearchDatabase: @unchecked Sendable {
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
             JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-            WHERE g.id IN (\(placeholders));
+            WHERE sf.binding_state = 'available'
+              AND vf.binding_state = 'available'
+              AND g.id IN (\(placeholders));
             """
         )
 

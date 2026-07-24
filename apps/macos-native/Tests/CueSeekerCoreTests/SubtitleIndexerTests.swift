@@ -451,6 +451,7 @@ func staleLibraryIndexTokenCannotPublish() throws {
                 lease: older,
                 changedFiles: [],
                 unchangedFiles: [],
+                missingVideoSubtitleFiles: [],
                 keptSubtitlePaths: []
             )
         )
@@ -462,6 +463,7 @@ func staleLibraryIndexTokenCannotPublish() throws {
             lease: newer,
             changedFiles: [],
             unchangedFiles: [],
+            missingVideoSubtitleFiles: [],
             keptSubtitlePaths: []
         )
     )
@@ -938,6 +940,152 @@ func assRenderSegmenterUsesComplexityBudgetForDenseEffects() throws {
     #expect(segments.contains { $0.startMilliseconds == 170_000 && $0.endMilliseconds == 175_000 })
     #expect(segments.first { $0.startMilliseconds == 85_000 }?.scriptText.contains("dense-0") == true)
     #expect(segments.last?.scriptText.contains("late") == true)
+}
+
+@Test
+func referencedCueTombstoneSurvivesMissingResourcesAndRestoresCueID() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let contents = """
+    [Script Info]
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default,Arial,48
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Persisted Shiori Cue.\\NSecond line.
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Sibling Cue.
+    Dialogue: 0,0:00:04.00,0:00:06.00,Default,,0,0,0,,Unreferenced Cue.
+    """
+    let subtitleFile = try fixture.writeSubtitle(
+        name: "Lifecycle.ass",
+        contents: contents
+    )
+    let videoFile = try fixture.writeVideo(name: "Lifecycle.mkv")
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    let initialResult = try indexer.index(folder: fixture.root, into: database)
+    #expect(initialResult.indexedSubtitleFiles == 1)
+    #expect(initialResult.skippedMissingVideo == 0)
+    let indexedMetadata = try #require(try database.subtitleFiles().first)
+    let indexedSubtitleFile = URL(fileURLWithPath: indexedMetadata.subtitlePath)
+    let indexedVideoFile = URL(
+        fileURLWithPath: try #require(indexedMetadata.videoPath)
+    )
+
+    let selection = shioriSelection(
+        try #require(
+            try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+                .cueLineRecords(forSubtitleFile: indexedSubtitleFile)
+                .first
+        )
+    )
+    let originalCueID = try #require(selection.cueLineID)
+    let shioriDatabase = try ShioriDatabase(path: fixture.databaseURL)
+    let saved = try shioriDatabase.upsertShiori(selection: selection)
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange()
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: indexedVideoFile,
+        positionMilliseconds: 1_500,
+        duration: 120
+    )
+    #expect(try libraryDatabase.libraryPresentation(under: [fixture.root]).count == 1)
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).count == 1)
+    let destination = try shioriDatabase.createShioriList(
+        name: "Destination",
+        description: "",
+        coverPath: nil
+    )
+
+    try FileManager.default.removeItem(at: videoFile)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    let videoUnavailable = try #require(try shioriDatabase.shiori(id: saved.id))
+    #expect(videoUnavailable.unavailableReason == .videoMissing)
+    #expect(
+        URL(fileURLWithPath: videoUnavailable.subtitlePath).resolvingSymlinksInPath()
+            == subtitleFile.resolvingSymlinksInPath()
+    )
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("Persisted").isEmpty)
+    #expect(try libraryDatabase.libraryPresentation(under: [fixture.root]).isEmpty)
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).isEmpty)
+    #expect(
+        try sqliteRowCount(
+            in: "library_playback_history",
+            databaseURL: fixture.databaseURL
+        ) == 1
+    )
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
+
+    _ = try fixture.writeVideo(name: "Lifecycle.mkv")
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(try shioriDatabase.shiori(id: saved.id)?.isValid == true)
+
+    try FileManager.default.removeItem(at: subtitleFile)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    let subtitleUnavailable = try #require(try shioriDatabase.shiori(id: saved.id))
+    #expect(subtitleUnavailable.unavailableReason == .subtitleMissing)
+    #expect(subtitleUnavailable.content == "Persisted Shiori Cue.\nSecond line.")
+    #expect(
+        subtitleUnavailable.cueGroupContent.components(
+            separatedBy: Shiori.cueGroupContentSeparator
+        ) == [
+            "Persisted Shiori Cue.\nSecond line.",
+            "Sibling Cue.",
+        ]
+    )
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
+
+    let detachedVideo = fixture.root
+        .appendingPathComponent(".offline", isDirectory: true)
+        .appendingPathComponent(videoFile.lastPathComponent)
+    try FileManager.default.createDirectory(
+        at: detachedVideo.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try FileManager.default.moveItem(at: videoFile, to: detachedVideo)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(
+        try shioriDatabase.shiori(id: saved.id)?.unavailableReason
+            == .videoAndSubtitleMissing
+    )
+
+    try FileManager.default.moveItem(at: detachedVideo, to: videoFile)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(
+        try shioriDatabase.shiori(id: saved.id)?.unavailableReason
+            == .subtitleMissing
+    )
+
+    #expect(throws: ShioriTransferError.sourceUnavailable) {
+        _ = try shioriDatabase.duplicateShiori(
+            id: saved.id,
+            toListID: destination.id
+        )
+    }
+
+    _ = try fixture.writeSubtitle(name: "Lifecycle.ass", contents: contents)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    let restored = try #require(try shioriDatabase.shiori(id: saved.id))
+    #expect(restored.isValid)
+    #expect(try shioriDatabase.cueID(forShioriID: saved.id) == originalCueID)
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
+
+    try FileManager.default.removeItem(at: subtitleFile)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
+    #expect(try shioriDatabase.removeShiori(id: saved.id))
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
 }
 
 private struct IndexingFixture {

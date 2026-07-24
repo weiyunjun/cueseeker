@@ -102,15 +102,18 @@ public struct ShioriRelation: Equatable, Sendable, Identifiable {
 
 public struct ShioriResidentSnapshot: Equatable, Sendable {
     public let relations: [ShioriRelation]
+    public let resolvedShioris: [Shiori]
     public let cueContents: [CueContent]
     public let tagsByShioriID: [Int64: [ShioriTag]]
 
     public init(
         relations: [ShioriRelation],
+        resolvedShioris: [Shiori] = [],
         cueContents: [CueContent],
         tagsByShioriID: [Int64: [ShioriTag]]
     ) {
         self.relations = relations
+        self.resolvedShioris = resolvedShioris
         self.cueContents = cueContents
         self.tagsByShioriID = tagsByShioriID
     }
@@ -122,10 +125,30 @@ public enum ShioriTransferError: Error, Equatable, Sendable {
     case destinationAlreadyContainsCue(listID: Int64)
 }
 
+public enum ShioriUnavailableReason: String, Equatable, Sendable {
+    case libraryUnavailable = "library_unavailable"
+    case videoMissing = "video_missing"
+    case subtitleMissing = "subtitle_missing"
+    case videoAndSubtitleMissing = "video_and_subtitle_missing"
+    case cueMissing = "cue_missing"
+}
+
+public struct ShioriCueContentChange: Equatable, Sendable {
+    public let previousContent: String
+    public let currentContent: String
+
+    public init(previousContent: String, currentContent: String) {
+        self.previousContent = previousContent
+        self.currentContent = currentContent
+    }
+}
+
 /// A resolved Shiori value used by playback and legacy presentation call sites.
 /// Persisted Shiori state is represented by `ShioriRelation`; every other field
 /// here is resolved from the referenced current Cue.
 public struct Shiori: Equatable, Sendable, Identifiable {
+    public static let cueGroupContentSeparator = "\u{001F}"
+
     public let id: Int64
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
@@ -137,7 +160,10 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     public let cueEventIndex: Int?
     public let cueDisplayOrder: Int?
     public let content: String
+    public let cueGroupContent: String
     public let isValid: Bool
+    public let unavailableReason: ShioriUnavailableReason?
+    public let contentChange: ShioriCueContentChange?
     public let createdAt: String
 
     public init(
@@ -152,7 +178,10 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         cueEventIndex: Int? = nil,
         cueDisplayOrder: Int? = nil,
         content: String,
+        cueGroupContent: String? = nil,
         isValid: Bool,
+        unavailableReason: ShioriUnavailableReason? = nil,
+        contentChange: ShioriCueContentChange? = nil,
         createdAt: String
     ) {
         self.id = id
@@ -171,7 +200,10 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         self.cueEventIndex = cueEventIndex
         self.cueDisplayOrder = cueDisplayOrder
         self.content = content
-        self.isValid = isValid
+        self.cueGroupContent = cueGroupContent ?? content
+        self.unavailableReason = unavailableReason
+        self.isValid = isValid && unavailableReason == nil
+        self.contentChange = contentChange
         self.createdAt = createdAt
     }
 
@@ -188,6 +220,9 @@ public struct Shiori: Equatable, Sendable, Identifiable {
             cueEventIndex: cueContent.cueEventIndex,
             cueDisplayOrder: cueContent.cueDisplayOrder,
             content: cueContent.content,
+            cueGroupContent: cueContent.cueGroupLines.joined(
+                separator: Self.cueGroupContentSeparator
+            ),
             isValid: true,
             createdAt: relation.createdAt
         )

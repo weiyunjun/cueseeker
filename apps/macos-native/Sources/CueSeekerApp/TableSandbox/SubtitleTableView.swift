@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import SwiftUI
 
 // MARK: - Metrics
@@ -1153,6 +1154,7 @@ private struct RowActionMenu: View {
     var style: SubtitleTableRowActionMenuStyle = .search
     var showsCueGroup = false
     var canOpenFolder = true
+    var disabledActions: Set<SubtitleTableRowAction> = []
     let destinations: [SubtitleTableRowActionDestination]
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
     var onAction: (SubtitleTableRowAction) -> Void
@@ -1184,7 +1186,8 @@ private struct RowActionMenu: View {
 
     private func actionRow(_ action: SubtitleTableRowAction) -> some View {
         let isSubmenuParent = action.opensDestinationSubmenu
-        let isEnabled = (action != .openSubtitleFolder || canOpenFolder)
+        let isEnabled = !disabledActions.contains(action)
+            && (action != .openSubtitleFolder || canOpenFolder)
             && (!isSubmenuParent || !destinations.isEmpty)
         return WorkbenchPopoverRow(
             title: action.title,
@@ -1246,6 +1249,93 @@ private struct RowActionDestinationSubmenu: View {
             }
         }
         .onHover(perform: submenuState.setSubmenuHovered)
+    }
+}
+
+private struct CueStateTip: View {
+    let state: SubtitleTableCueState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textPrimary))
+            switch state {
+            case .normal:
+                EmptyView()
+            case .contentChanged(let previous, let current):
+                Text("This cue changed after reindexing.")
+                    .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
+                value(label: "Previous", text: previous)
+                value(label: "Current", text: current)
+            case .unavailable:
+                Text(state.unavailableMessage ?? "")
+                    .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .font(.system(size: 12))
+        .padding(12)
+        .frame(width: 300, alignment: .leading)
+        .background(Color(nsColor: WorkbenchRedesignColors.NS.bgPopover))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(nsColor: WorkbenchRedesignColors.NS.borderMuted), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .shadow(color: .black.opacity(0.16), radius: 12, y: 4)
+    }
+
+    private var title: String {
+        switch state {
+        case .normal:
+            ""
+        case .contentChanged:
+            "Content Changed"
+        case .unavailable:
+            "Unavailable"
+        }
+    }
+
+    private func value(label: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textMuted))
+            Text(text)
+                .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+}
+
+enum CueStateTipGeometry {
+    static let gap: CGFloat = 8
+
+    static func frame(
+        anchor: CGRect,
+        size: CGSize,
+        visibleRect: CGRect
+    ) -> CGRect {
+        var x = anchor.maxX + gap
+        if x + size.width > visibleRect.maxX {
+            x = anchor.minX - gap - size.width
+        }
+        x = max(visibleRect.minX, min(x, visibleRect.maxX - size.width))
+        let y = max(
+            visibleRect.minY,
+            min(
+                anchor.midY - size.height / 2,
+                visibleRect.maxY - size.height
+            )
+        )
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
+    }
+}
+
+private final class CueStateTipHostingView: NSHostingView<AnyView> {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }
 
@@ -2655,6 +2745,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 notifyVisibleRowsChanged(force: true)
                 updateHoveredColumnID(nil)
                 updateHoveredCueTextRow(nil)
+                updateHoveredCueStateRow(nil)
                 invalidateDocumentCursorRects()
                 layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
@@ -2671,6 +2762,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     cancelPendingTextInteraction()
                     updateHoveredColumnID(nil)
                     updateHoveredCueTextRow(nil)
+                    updateHoveredCueStateRow(nil)
                 }
                 invalidateDocumentCursorRects()
                 layoutHoverButtons()
@@ -2741,12 +2833,15 @@ struct SubtitleTableView: NSViewRepresentable {
                     let invalidatedRows = [
                         hoveredRow,
                         hoveredCueTextRow,
+                        hoveredCueStateRow,
                         hoveredRowActionRow,
                     ]
                     hoveredRow = nil
                     hoveredColumnID = nil
                     hoveredCueTextRow = nil
+                    hoveredCueStateRow = nil
                     hoveredRowActionRow = nil
+                    hideCueStateTip()
                     activeRowMenuColumnID = nil
                     invalidateDocumentCursorRects()
                     buttonsHost?.isHidden = true
@@ -2778,8 +2873,10 @@ struct SubtitleTableView: NSViewRepresentable {
         private var hoveredRow: Int?
         private var hoveredColumnID: String?
         private var hoveredCueTextRow: Int?
+        private var hoveredCueStateRow: Int?
         private var hoveredRowActionRow: Int?
         private var focusedCheckboxRow: Int?
+        private var cueStateTipHost: CueStateTipHostingView?
         private var lastNotifiedVisibleRows: Range<Int>?
         private var lastHeaderHorizontalOffset: CGFloat?
         private var isScrollbarDragging = false
@@ -4085,6 +4182,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         @objc func scrollContentDidChange() {
+            updateHoveredCueStateRow(nil)
             notifyVisibleRowsChanged()
             scrollbarOverlayView?.scrollMetricsDidChange()
             refreshHeaderForHorizontalScrollIfNeeded()
@@ -4531,6 +4629,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func drawCellTexts(row: Int, rowRect: CGRect) {
             let model = rowProvider(row)
+            let isUnavailable = model?.cueState.isUnavailable == true
             let M = SubtitleTableMetrics.self
             let hasTextSelection = textSelection.hasSelection
             let layout = tableColumnLayout(contentWidth: rowRect.width, height: rowRect.height)
@@ -4559,6 +4658,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     in: cellRect,
                     trailing: M.trailingInset,
                     role: .metadata,
+                    foregroundColor: isUnavailable ? WorkbenchRedesignColors.NS.textMuted : nil,
                     selectedRange: hasTextSelection
                         ? selectedUTF16Range(row: row, columnID: "dateAdded", text: text)
                         : nil
@@ -4572,6 +4672,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     in: cellRect,
                     trailing: M.trailingInset,
                     role: .secondaryContext,
+                    foregroundColor: isUnavailable ? WorkbenchRedesignColors.NS.textMuted : nil,
                     selectedRange: hasTextSelection
                         ? selectedUTF16Range(row: row, columnID: "display", text: text)
                         : nil
@@ -4585,13 +4686,15 @@ struct SubtitleTableView: NSViewRepresentable {
                     in: cellRect,
                     trailing: M.trailingInset,
                     role: .metadata,
+                    foregroundColor: isUnavailable ? WorkbenchRedesignColors.NS.textMuted : nil,
                     selectedRange: hasTextSelection
                         ? selectedUTF16Range(row: row, columnID: "time", text: text)
                         : nil
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
-            let isCuesHovered = isCellHovered(row: row, columnID: "cues")
+            let isCuesHovered = !isUnavailable
+                && isCellHovered(row: row, columnID: "cues")
             drawCues(
                 model: model,
                 in: cuesRect,
@@ -4602,6 +4705,14 @@ struct SubtitleTableView: NSViewRepresentable {
                     return selectedUTF16Range(row: row, columnID: "cues", text: text)
                 } : nil
             )
+            if let model {
+                drawCueStateIndicator(
+                    row: row,
+                    model: model,
+                    cuesRect: cuesRect,
+                    measurement: measurement
+                )
+            }
             if let speakerRect = layout.speakerRect {
                 let cellRect = rowColumnRect(speakerRect, rowRect: rowRect)
                 let tags = model?.speakerTags ?? []
@@ -4609,6 +4720,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     tags,
                     in: cellRect,
                     trailing: M.trailingInset,
+                    isMuted: isUnavailable,
                     selectedRange: hasTextSelection ? selectedUTF16Range(
                         row: row,
                         columnID: "speaker",
@@ -4623,6 +4735,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     tags,
                     in: cellRect,
                     trailing: M.trailingInset,
+                    isMuted: isUnavailable,
                     selectedRange: hasTextSelection ? selectedUTF16Range(
                         row: row,
                         columnID: "language",
@@ -4638,6 +4751,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     in: cellRect,
                     trailing: M.trailingInset,
                     isHovered: isCellHovered(row: row, columnID: "tags"),
+                    isMuted: isUnavailable,
                     selectedRange: hasTextSelection ? selectedUTF16Range(
                         row: row,
                         columnID: "tags",
@@ -4726,6 +4840,7 @@ struct SubtitleTableView: NSViewRepresentable {
             in rect: CGRect,
             trailing: CGFloat,
             role: SubtitleTableTextRole = .primaryContent,
+            foregroundColor: NSColor? = nil,
             isHovered: Bool = false,
             underline: Bool = false,
             selectedRange: NSRange? = nil
@@ -4739,7 +4854,9 @@ struct SubtitleTableView: NSViewRepresentable {
                     text,
                     role: role,
                     isRedesign: isRedesign,
-                    foregroundColor: isHovered ? WorkbenchRedesignColors.NS.textPrimary : nil
+                    foregroundColor: isHovered
+                        ? WorkbenchRedesignColors.NS.textPrimary
+                        : foregroundColor
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
@@ -4771,9 +4888,11 @@ struct SubtitleTableView: NSViewRepresentable {
             selectedRange: NSRange?
         ) {
             guard let model else { return }
-            let primaryColor = isHovered
-                ? WorkbenchRedesignColors.NS.textPrimary
-                : WorkbenchRedesignColors.NS.textSecondary
+            let primaryColor = model.cueState.isUnavailable
+                ? WorkbenchRedesignColors.NS.textMuted
+                : isHovered
+                    ? WorkbenchRedesignColors.NS.textPrimary
+                    : WorkbenchRedesignColors.NS.textSecondary
             let extraColor = WorkbenchRedesignColors.NS.textMuted
             let fragments = cueTextFragments(
                 model: model,
@@ -4790,7 +4909,7 @@ struct SubtitleTableView: NSViewRepresentable {
             for fragment in fragments {
                 textLayout.update(
                     attributedString: fragment.attributed,
-                    width: cuesTextWidth(in: rect)
+                    width: cuesTextWidth(in: rect, model: model)
                 )
                 usedRects.append(contentsOf: textLayout.usedRects(at: fragment.origin))
             }
@@ -4802,7 +4921,7 @@ struct SubtitleTableView: NSViewRepresentable {
             for (index, fragment) in fragments.enumerated() {
                 textLayout.update(
                     attributedString: fragment.attributed,
-                    width: cuesTextWidth(in: rect)
+                    width: cuesTextWidth(in: rect, model: model)
                 )
                 drawSelectionBackground(
                     localSelectionRange(selectedRange, in: fragment.logicalUTF16Range),
@@ -4823,12 +4942,113 @@ struct SubtitleTableView: NSViewRepresentable {
             NSGraphicsContext.restoreGraphicsState()
         }
 
-        private func cuesTextWidth(in rect: CGRect) -> CGFloat {
-            max(
+        private func drawCueStateIndicator(
+            row: Int,
+            model: SubtitleTableRow,
+            cuesRect: CGRect,
+            measurement: SubtitleTableRowMeasurement
+        ) {
+            guard let systemImage = model.cueState.systemImage,
+                  let rect = cueStateIndicatorRect(
+                    model: model,
+                    cuesRect: cuesRect,
+                    measurement: measurement
+                  ),
+                  let image = NSImage(
+                    systemSymbolName: systemImage,
+                    accessibilityDescription: nil
+                  )?
+                    .withSymbolConfiguration(
+                        NSImage.SymbolConfiguration(
+                            hierarchicalColor: WorkbenchRedesignColors.NS.iconMuted
+                        )
+                    )
+            else {
+                return
+            }
+            image.draw(in: rect)
+            if hoveredCueStateRow == row {
+                WorkbenchRedesignColors.NS.iconMuted.withAlphaComponent(0.12).setFill()
+                NSBezierPath(
+                    roundedRect: rect.insetBy(dx: -3, dy: -3),
+                    xRadius: 5,
+                    yRadius: 5
+                ).fill()
+                image.draw(in: rect)
+            }
+        }
+
+        private func cueStateIndicatorRect(
+            model: SubtitleTableRow,
+            cuesRect: CGRect,
+            measurement: SubtitleTableRowMeasurement
+        ) -> CGRect? {
+            guard model.cueState.systemImage != nil,
+                  let primary = cueTextFragments(
+                    model: model,
+                    in: cuesRect,
+                    measurement: measurement
+                  ).last
+            else {
+                return nil
+            }
+            textLayout.update(
+                attributedString: primary.attributed,
+                width: primary.width
+            )
+            guard let lastLine = textLayout.usedRects(at: primary.origin).last else {
+                return nil
+            }
+            let size: CGFloat = 14
+            let proposedX = lastLine.maxX + 8
+            let x = min(proposedX, cuesRect.maxX - size - 4)
+            return CGRect(
+                x: max(cuesRect.minX, x),
+                y: lastLine.midY - size / 2,
+                width: size,
+                height: size
+            )
+        }
+
+        private func cueStateIndicatorRectInDocument(row: Int) -> CGRect? {
+            guard let documentView,
+                  let model = rowProvider(row)
+            else {
+                return nil
+            }
+            let rowRect = rectForRow(row, width: documentView.bounds.width)
+            let layout = tableColumnLayout(
+                contentWidth: rowRect.width,
+                height: rowRect.height
+            )
+            let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
+            let measurement = cachedMeasurement(
+                for: row,
+                documentWidth: documentView.bounds.width
+            ) ?? SubtitleTableRowMeasurement(
+                height: rowRect.height,
+                primaryLineCount: 1,
+                extraCueLineCounts: []
+            )
+            return cueStateIndicatorRect(
+                model: model,
+                cuesRect: cuesRect,
+                measurement: measurement
+            )
+        }
+
+        private func cuesTextWidth(
+            in rect: CGRect,
+            model: SubtitleTableRow
+        ) -> CGFloat {
+            let indicatorReservation: CGFloat =
+                model.cueState.systemImage == nil ? 0 : 22
+            return max(
                 1,
                 rect.width
                     - SubtitleTableCueGeometry.cellLeadingPadding
                     - SubtitleTableCueGeometry.cellTrailingPadding
+                    - indicatorReservation
             )
         }
 
@@ -4858,7 +5078,7 @@ struct SubtitleTableView: NSViewRepresentable {
                             x: textX,
                             y: rect.minY + measurement.extraCueOffsets[index]
                         ),
-                        width: cuesTextWidth(in: rect),
+                        width: cuesTextWidth(in: rect, model: model),
                         clipRect: rect,
                         logicalUTF16Range: NSRange(location: logicalOffset, length: length)
                     ))
@@ -4878,7 +5098,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 x: rect.minX + SubtitleTableCueGeometry.cellLeadingPadding,
                 y: rect.minY + measurement.primaryFirstLineOffset
                 ),
-                width: cuesTextWidth(in: rect),
+                width: cuesTextWidth(in: rect, model: model),
                 clipRect: rect,
                 logicalUTF16Range: NSRange(location: logicalOffset, length: primaryLength)
             ))
@@ -4932,12 +5152,7 @@ struct SubtitleTableView: NSViewRepresentable {
             in rect: CGRect,
             measurement: SubtitleTableRowMeasurement
         ) -> CGRect? {
-            let textWidth = max(
-                1,
-                rect.width
-                    - SubtitleTableCueGeometry.cellLeadingPadding
-                    - SubtitleTableCueGeometry.cellTrailingPadding
-            )
+            let textWidth = cuesTextWidth(in: rect, model: model)
             let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
             var usedRects = [CGRect]()
             for (extraText, offset) in zip(
@@ -4977,6 +5192,7 @@ struct SubtitleTableView: NSViewRepresentable {
             in rect: CGRect,
             trailing: CGFloat,
             isHovered: Bool = false,
+            isMuted: Bool = false,
             selectedRange: NSRange? = nil
         ) {
             guard !tags.isEmpty else { return }
@@ -5008,13 +5224,18 @@ struct SubtitleTableView: NSViewRepresentable {
 
             if selectedRange == nil {
                 for item in laidOutTags {
-                    item.attributed.draw(in: tagTextRect(for: item, tagStyle: tagStyle))
+                    attributedTagText(item.attributed, isMuted: isMuted)
+                        .draw(in: tagTextRect(for: item, tagStyle: tagStyle))
                 }
                 NSGraphicsContext.restoreGraphicsState()
                 return
             }
 
-            for fragment in tagTextFragments(laidOutTags, tagStyle: tagStyle) {
+            for fragment in tagTextFragments(
+                laidOutTags,
+                tagStyle: tagStyle,
+                isMuted: isMuted
+            ) {
                 NSGraphicsContext.saveGraphicsState()
                 NSBezierPath.clip(fragment.clipRect)
                 textLayout.update(attributedString: fragment.attributed, width: fragment.width)
@@ -5044,7 +5265,8 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func tagTextFragments(
             _ laidOutTags: [SubtitleTableLaidOutTag],
-            tagStyle: SubtitleTableTagStyle
+            tagStyle: SubtitleTableTagStyle,
+            isMuted: Bool = false
         ) -> [SubtitleTableTextFragmentLayout] {
             var logicalOffset = 0
             return laidOutTags.enumerated().map { index, item in
@@ -5052,13 +5274,29 @@ struct SubtitleTableView: NSViewRepresentable {
                 let textRect = tagTextRect(for: item, tagStyle: tagStyle)
                 defer { logicalOffset += length + (index == laidOutTags.indices.last ? 0 : 2) }
                 return SubtitleTableTextFragmentLayout(
-                    attributed: item.attributed,
+                    attributed: attributedTagText(item.attributed, isMuted: isMuted),
                     origin: textRect.origin,
                     width: textRect.width,
                     clipRect: textRect,
                     logicalUTF16Range: NSRange(location: logicalOffset, length: length)
                 )
             }
+        }
+
+        private func attributedTagText(
+            _ attributed: NSAttributedString,
+            isMuted: Bool
+        ) -> NSAttributedString {
+            guard isMuted else {
+                return attributed
+            }
+            let result = NSMutableAttributedString(attributedString: attributed)
+            result.addAttribute(
+                .foregroundColor,
+                value: WorkbenchRedesignColors.NS.textMuted,
+                range: NSRange(location: 0, length: result.length)
+            )
+            return result
         }
 
         private func tagContentHoverRect(
@@ -5217,9 +5455,14 @@ struct SubtitleTableView: NSViewRepresentable {
                 ))
             }
 
+            let measuredCuesWidth = max(
+                1,
+                effectiveCuesWidth
+                    - (model.cueState.systemImage == nil ? 0 : 22)
+            )
             return cueTextMeasurer.rowMeasurement(
                 row: model,
-                effectiveCuesWidth: effectiveCuesWidth,
+                effectiveCuesWidth: measuredCuesWidth,
                 showsCueGroup: showsCueGroup,
                 otherContentHeights: otherContentHeights
             )
@@ -5525,7 +5768,11 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             return range.flatMap { row -> [CGRect] in
-                guard rowProvider(row) != nil else { return [] }
+                guard let model = rowProvider(row),
+                      !model.cueState.isUnavailable
+                else {
+                    return []
+                }
                 let rowRect = rectForRow(row, width: documentWidth)
                 let candidateRects = [
                     cellContentHoverRectInDocument(row: row, columnID: "cues"),
@@ -6023,7 +6270,8 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return nil
             }
-            if let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "cues"),
+            if rowProvider(row)?.cueState.isUnavailable != true,
+               let hoverRect = cellContentHoverRectInDocument(row: row, columnID: "cues"),
                hoverRect.contains(point) {
                 return "cues"
             }
@@ -6054,7 +6302,8 @@ struct SubtitleTableView: NSViewRepresentable {
                   !isExternalPopupLayerOpen,
                   row >= 0,
                   row < rowCount,
-                  rowProvider(row) != nil,
+                  let model = rowProvider(row),
+                  !model.cueState.isUnavailable,
                   let documentView
             else {
                 return false
@@ -6075,6 +6324,15 @@ struct SubtitleTableView: NSViewRepresentable {
             return hoverRect.contains(point)
         }
 
+        private func isPointInCueStateIndicator(
+            row: Int,
+            point: CGPoint
+        ) -> Bool {
+            cueStateIndicatorRectInDocument(row: row)?
+                .insetBy(dx: -3, dy: -3)
+                .contains(point) == true
+        }
+
         func handleMouseHover(windowPoint: CGPoint) {
             if isMenuOpen || isExternalPopupLayerOpen {
                 return
@@ -6087,9 +6345,19 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let row = rowAtDocumentPoint(point)
             updateHoveredRow(row)
+            let cueStateRow = row.flatMap {
+                isPointInCueStateIndicator(row: $0, point: point) ? $0 : nil
+            }
+            updateHoveredCueStateRow(cueStateRow)
             let hoveredColumn = row.flatMap { hoveredDataColumnID(row: $0, point: point) }
             updateHoveredColumnID(hoveredColumn)
-            let cueTextRow = row.flatMap { hoveredColumn == "cues" && isPointInCueText(row: $0, point: point) ? $0 : nil }
+            let cueTextRow = row.flatMap {
+                hoveredColumn == "cues"
+                    && rowProvider($0)?.cueState.isUnavailable != true
+                    && isPointInCueText(row: $0, point: point)
+                    ? $0
+                    : nil
+            }
             updateHoveredRowActionRow(nil)
             updateHoveredCueTextRow(cueTextRow)
         }
@@ -6111,11 +6379,19 @@ struct SubtitleTableView: NSViewRepresentable {
             if let row, isPointInCheckbox(row: row, point: point) {
                 return toggleRowCheckboxFromMouse(row: row)
             }
+            if let row, isPointInCueStateIndicator(row: row, point: point) {
+                clearFocusedCheckbox()
+                cancelPendingTextInteraction()
+                return true
+            }
 
             let directAction: PendingDirectTextAction
             if let row, isPointInTagsCell(row: row, point: point) {
                 directAction = .tags(row: row, documentPoint: point)
-            } else if let row, isPointInCueText(row: row, point: point) {
+            } else if let row,
+                      rowProvider(row)?.cueState.isUnavailable != true,
+                      isPointInCueText(row: row, point: point)
+            {
                 directAction = .play(row: row)
             } else {
                 directAction = .none
@@ -6481,6 +6757,7 @@ struct SubtitleTableView: NSViewRepresentable {
             updateHoveredColumnID(nil)
             updateHoveredRow(nil)
             updateHoveredCueTextRow(nil)
+            updateHoveredCueStateRow(nil)
             updateHoveredRowActionRow(nil)
         }
 
@@ -6507,6 +6784,65 @@ struct SubtitleTableView: NSViewRepresentable {
             let oldRow = hoveredCueTextRow
             hoveredCueTextRow = newRow
             invalidateRows([oldRow, newRow])
+        }
+
+        private func updateHoveredCueStateRow(_ newRow: Int?) {
+            guard newRow != hoveredCueStateRow else {
+                if let newRow {
+                    showCueStateTip(for: newRow)
+                }
+                return
+            }
+            let oldRow = hoveredCueStateRow
+            hoveredCueStateRow = newRow
+            invalidateRows([oldRow, newRow])
+            if let newRow {
+                showCueStateTip(for: newRow)
+            } else {
+                hideCueStateTip()
+            }
+        }
+
+        private func showCueStateTip(for row: Int) {
+            guard let container,
+                  let documentView,
+                  let model = rowProvider(row),
+                  model.cueState.systemImage != nil,
+                  let documentRect = cueStateIndicatorRectInDocument(row: row)
+            else {
+                hideCueStateTip()
+                return
+            }
+            let host: CueStateTipHostingView
+            if let cueStateTipHost {
+                host = cueStateTipHost
+            } else {
+                host = CueStateTipHostingView(rootView: AnyView(EmptyView()))
+                cueStateTipHost = host
+            }
+            host.rootView = AnyView(CueStateTip(state: model.cueState))
+            host.invalidateIntrinsicContentSize()
+            if host.superview !== container {
+                container.addSubview(host)
+            }
+            host.layoutSubtreeIfNeeded()
+
+            let anchor = container.convert(documentRect, from: documentView)
+            let fittingSize = host.fittingSize
+            let size = CGSize(
+                width: max(300, fittingSize.width),
+                height: max(1, fittingSize.height)
+            )
+            host.frame = CueStateTipGeometry.frame(
+                anchor: anchor,
+                size: size,
+                visibleRect: container.bounds
+            )
+            host.isHidden = false
+        }
+
+        private func hideCueStateTip() {
+            cueStateTipHost?.isHidden = true
         }
 
         private func updateHoveredRowActionRow(_ newRow: Int?) {
@@ -6740,6 +7076,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
             cancelPendingTextInteraction()
+            updateHoveredCueStateRow(nil)
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
@@ -6789,6 +7126,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 style: rowActionMenuStyle,
                 showsCueGroup: showsCueGroup,
                 canOpenFolder: canOpenSubtitleFile(target: target),
+                disabledActions: disabledRowActions(for: target),
                 destinations: rowActionDestinations,
                 submenuState: submenuState,
                 onAction: { [weak self] action in
@@ -7142,7 +7480,11 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func playRow(_ row: Int) {
-            guard let model = rowProvider(row) else { return }
+            guard let model = rowProvider(row),
+                  !model.cueState.isUnavailable
+            else {
+                return
+            }
             onPlay(model)
         }
 
@@ -7161,6 +7503,9 @@ struct SubtitleTableView: NSViewRepresentable {
             recalculateHover: Bool = true
         ) {
             guard let target = activeRowMenuTarget else {
+                return
+            }
+            guard !disabledRowActions(for: target).contains(action) else {
                 return
             }
             dismissMenu(recalculateHover: recalculateHover)
@@ -7183,6 +7528,9 @@ struct SubtitleTableView: NSViewRepresentable {
             _ action: SubtitleTableRowAction,
             target: SubtitleTableRow
         ) {
+            guard !disabledRowActions(for: target).contains(action) else {
+                return
+            }
             switch action {
             case .play:
                 onPlay(target)
@@ -7201,6 +7549,12 @@ struct SubtitleTableView: NSViewRepresentable {
             case .removeShiori:
                 onRemoveShiori(target)
             }
+        }
+
+        private func disabledRowActions(
+            for target: SubtitleTableRow
+        ) -> Set<SubtitleTableRowAction> {
+            target.cueState.disabledRowActions
         }
 
         private func copyRow(_ row: Int) {

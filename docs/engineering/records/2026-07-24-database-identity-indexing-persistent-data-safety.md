@@ -80,6 +80,29 @@ identity.
 - Rendered SRT against the full playback viewport so fullscreen letterbox
   placement and window-size scaling follow the confirmed defaults.
 
+### 6. Referenced Cue And Shiori Lifecycle
+
+- Retained Tombstones only for Cues referenced by Shiori, removed the last
+  unreferenced Tombstone with its final Shiori, and restored the original CueID
+  when the same Cue returned.
+- Preserved exact multiline Primary Cue and Cue Group snapshots, time ranges,
+  display metadata, ASS identity fields, and current resource state without
+  accumulating one Tombstone per index revision.
+- Distinguished unavailable Library, video, subtitle, combined file, and Cue
+  states; restored missing-video bindings only when platform resource identity
+  proves that the original object returned.
+- Hid confirmed unavailable videos from current Library, Search, and Recent
+  projections while preserving playback history, watch state, covers, and
+  Shiori records.
+- Added Shiori Content Changed and Unavailable indicators, anchored hover tips,
+  muted unavailable rows, read-only tags, state-aware row actions, and exact
+  snapshot copy behavior.
+- Kept Copy Cue Text, Copy Cue Group Text, Copy Time Range, Remove Shiori, and
+  conditionally Open Subtitle Folder available while blocking Play, Context,
+  Move, and Duplicate for unavailable rows.
+- Excluded unavailable Shiori rows from Playback result reels and navigation
+  without removing them from table results, counts, or Library cover badges.
+
 ## Verification
 
 - `swift test --filter DatabaseBootstrapTests`
@@ -94,11 +117,13 @@ identity.
 - `swift test --filter LibraryDatabaseTests`
   - 18 tests passed.
 - `swift test --filter SubtitleIndexerTests`
-  - 22 tests passed.
+  - 23 tests passed.
   - Covered whole-Library rollback after an injected mid-publication failure,
     malformed-subtitle rollback, stale-token rejection, unchanged-file
     handling, stable ASS identities after adding another Style, ambiguous SRT
-    replacements, one-index change notices, and successful SRT/ASS publication.
+    replacements, one-index change notices, successful SRT/ASS publication,
+    referenced-Cue Tombstones, exact ASS Cue Group snapshots, missing-resource
+    state transitions, current-result hiding, and CueID restoration.
 - `swift test --filter SubtitleFileScannerTests`
   - 2 tests passed.
   - Covered recursive supported-file discovery and rejection of an invalid
@@ -127,6 +152,34 @@ identity.
 - `swift test --filter PlaybackRequestTests`
   - 30 tests passed.
 - `swift test --filter SubtitleScreenshotExporterTests`
+  - 6 tests passed.
+- `swift test --filter SearchDatabaseTests`
+  - 45 tests passed.
+- `swift test --filter DatabaseMaintenanceTests`
+  - 1 test passed.
+- `swift test --filter TableSandboxRowModelStoreTests`
+  - 37 tests passed.
+  - Covered exact unavailable snapshots, Content Changed and Unavailable row
+    state, and exclusion of unavailable rows only from Playback scope.
+- `swift test --filter SubtitleTableRowActionMenuTests`
+  - 10 tests passed.
+  - Covered state-specific action availability, status symbols, and
+    right-first/left-fallback Hover Tip placement.
+- `swift test --filter SubtitleTableVirtualRowTests`
+  - 91 tests passed.
+  - Covered unavailable Cue and Tag pointer behavior plus state-aware menu
+    dispatch without regressing the existing virtual table interaction suite.
+- `swift test --filter SubtitleTableClipboardTests`
+  - 12 tests passed.
+- `swift test --filter LibraryFolderRemovalTests`
+  - 7 tests passed.
+  - Covered preservation of an unavailable Shiori row while canonical live Cue
+    content is removed with the Library index.
+- `swift test --filter ShioriPresentationTests`
+  - 3 tests passed.
+- `swift test --filter PlaybackEntryAndShioriNavigationTests`
+  - 6 tests passed.
+- `swift test --filter PlaybackShioriOverlayTests`
   - 6 tests passed.
 
 ## Result

@@ -1,4 +1,72 @@
 import Foundation
+import CueSeekerCore
+
+enum SubtitleTableCueState: Equatable {
+    case normal
+    case contentChanged(previous: String, current: String)
+    case unavailable(ShioriUnavailableReason)
+
+    var isUnavailable: Bool {
+        if case .unavailable = self {
+            return true
+        }
+        return false
+    }
+
+    var systemImage: String? {
+        switch self {
+        case .normal:
+            nil
+        case .contentChanged:
+            "clock.arrow.circlepath"
+        case .unavailable:
+            "questionmark.circle"
+        }
+    }
+
+    var subtitleFileIsAvailable: Bool {
+        switch self {
+        case .normal, .contentChanged, .unavailable(.videoMissing), .unavailable(.cueMissing):
+            true
+        case .unavailable:
+            false
+        }
+    }
+
+    var unavailableMessage: String? {
+        guard case .unavailable(let reason) = self else {
+            return nil
+        }
+        switch reason {
+        case .libraryUnavailable:
+            return "The library source is currently unavailable."
+        case .videoMissing:
+            return "The video file is missing. The subtitle file is still available."
+        case .subtitleMissing:
+            return "The subtitle file is missing or could not be reconnected."
+        case .videoAndSubtitleMissing:
+            return "The video and subtitle files are missing."
+        case .cueMissing:
+            return "This cue could not be found in the current subtitle file."
+        }
+    }
+
+    var disabledRowActions: Set<SubtitleTableRowAction> {
+        guard isUnavailable else {
+            return []
+        }
+        var actions: Set<SubtitleTableRowAction> = [
+            .play,
+            .context,
+            .moveToList,
+            .duplicateToList,
+        ]
+        if !subtitleFileIsAvailable {
+            actions.insert(.openSubtitleFolder)
+        }
+        return actions
+    }
+}
 
 /// Row view-model shared by the Search, Shiori, and Context table surfaces.
 struct SubtitleTableRow: Identifiable, Equatable {
@@ -22,6 +90,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
     let tags: [WorkbenchTag]
     let speakerTags: [WorkbenchTag]
     let shioriTags: [WorkbenchTag]
+    let cueState: SubtitleTableCueState
 
     /// Compatibility alias used by existing table drawing and clipboard paths.
     /// It intentionally never expands when Show Cue Group is enabled.
@@ -66,7 +135,8 @@ struct SubtitleTableRow: Identifiable, Equatable {
         primaryGroupIndex: Int?,
         tags: [WorkbenchTag] = [],
         speakerTags: [WorkbenchTag] = [],
-        shioriTags: [WorkbenchTag] = []
+        shioriTags: [WorkbenchTag] = [],
+        cueState: SubtitleTableCueState = .normal
     ) {
         self.id = id
         self.primaryCueID = primaryCueID
@@ -92,6 +162,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.tags = tags
         self.speakerTags = speakerTags
         self.shioriTags = shioriTags
+        self.cueState = cueState
     }
 
     /// Compatibility initializer for fixtures and call sites that model only a
@@ -142,7 +213,8 @@ struct SubtitleTableRow: Identifiable, Equatable {
             primaryGroupIndex: primaryGroupIndex,
             tags: tags,
             speakerTags: speakerTags,
-            shioriTags: nextShioriTags
+            shioriTags: nextShioriTags,
+            cueState: cueState
         )
     }
 }

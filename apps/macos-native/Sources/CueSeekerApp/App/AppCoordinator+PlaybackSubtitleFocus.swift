@@ -620,11 +620,7 @@ extension AppCoordinator {
         guard case .shiori(let shiori) = item.target else {
             return false
         }
-        let resultIDs = self.shiori.tableResultShioriIDs.flatMap { shioriIDs in
-            shioriIDs.count == self.shiori.tableResultRowCount
-                ? shioriIDs
-                : nil
-        }
+        let resultIDs = self.shiori.playbackTableResultShioriIDs
         open(shiori, resultIDs)
         return true
     }

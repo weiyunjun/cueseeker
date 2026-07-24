@@ -2393,6 +2393,90 @@ func subtitleTableViewCueDragSuppressesPlayAfterThresholdAndClickStillPlays() th
 
 @MainActor
 @Test
+func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuActions() throws {
+    let row = SubtitleTableRow(
+        id: 7,
+        primaryCueID: 42,
+        subtitlePath: "/tmp/CueSeeker/Series/episode.ass",
+        displayTitle: "Episode",
+        startTime: "00:01",
+        endTime: "00:02",
+        primaryCueText: "Unavailable Cue",
+        cueGroupTexts: ["Unavailable Cue"],
+        primaryGroupIndex: 0,
+        shioriTags: [WorkbenchTag(key: "7", label: "Review", colorID: .gray)],
+        cueState: .unavailable(.videoMissing)
+    )
+    var playCount = 0
+    var contextCount = 0
+    var openFolderCount = 0
+    var removeCount = 0
+    var tagPopoverCount = 0
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_400,
+        rowCount: 1,
+        row: row,
+        showsTagsColumn: true,
+        rowActionMenuStyle: .shiori,
+        makeTagsPopover: { _, _, _ in
+            tagPopoverCount += 1
+            return AnyView(Text("Tags"))
+        },
+        onPlay: { _ in playCount += 1 },
+        onShowContext: { _ in contextCount += 1 },
+        onOpenSubtitleFile: { _ in openFolderCount += 1 },
+        onRemoveShiori: { _ in removeCount += 1 }
+    )
+
+    let cueFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(
+            row: 0,
+            columnID: "cues"
+        ).first
+    )
+    let cuePoint = CGPoint(
+        x: cueFragment.textBounds.midX,
+        y: cueFragment.textBounds.midY
+    )
+    let cueWindowPoint = fixture.documentView.convert(cuePoint, to: nil)
+    #expect(
+        !fixture.coordinator.isInteractiveCellCursorActiveForTesting(
+            documentPoint: cuePoint
+        )
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: cueWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: cueWindowPoint))
+    #expect(playCount == 0)
+
+    let tagFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(
+            row: 0,
+            columnID: "tags"
+        ).first
+    )
+    let tagWindowPoint = fixture.documentView.convert(
+        CGPoint(
+            x: tagFragment.textBounds.midX,
+            y: tagFragment.textBounds.midY
+        ),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: tagWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: tagWindowPoint))
+    #expect(tagPopoverCount == 0)
+
+    fixture.coordinator.performRowActionForTesting(.play, row: 0)
+    fixture.coordinator.performRowActionForTesting(.context, row: 0)
+    fixture.coordinator.performRowActionForTesting(.openSubtitleFolder, row: 0)
+    fixture.coordinator.performRowActionForTesting(.removeShiori, row: 0)
+    #expect(playCount == 0)
+    #expect(contextCount == 0)
+    #expect(openFolderCount == 1)
+    #expect(removeCount == 1)
+}
+
+@MainActor
+@Test
 func subtitleTableViewTagLabelDragSuppressesPopover() throws {
     var requestedRowID: Int?
     let fixture = makeAttachedVirtualTableCoordinator(

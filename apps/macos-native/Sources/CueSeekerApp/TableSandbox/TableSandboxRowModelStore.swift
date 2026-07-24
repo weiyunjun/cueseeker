@@ -99,12 +99,21 @@ struct TableSandboxRowsSnapshot {
         guard index >= 0 else { return nil }
         if shioriRelations.indices.contains(index) {
             let relation = shioriRelations[index]
-            guard let cueContent = cueContentProvider?(relation.cueID) else {
+            let resolvedShiori = shiorisByEntryID[Int(relation.id)]
+            if let cueContent = cueContentProvider?(relation.cueID) {
+                return tableSandboxShioriRow(
+                    relation: relation,
+                    cueContent: cueContent,
+                    resolvedShiori: resolvedShiori,
+                    shioriTags: shioriTagsByEntryID[Int(relation.id)] ?? []
+                )
+            }
+            guard let resolvedShiori else {
                 return nil
             }
-            return tableSandboxShioriRow(
+            return tableSandboxUnavailableShioriRow(
                 relation: relation,
-                cueContent: cueContent,
+                shiori: resolvedShiori,
                 shioriTags: shioriTagsByEntryID[Int(relation.id)] ?? []
             )
         }
@@ -155,6 +164,9 @@ struct TableSandboxRowsSnapshot {
             return nil
         }
         let relation = shioriRelations[index]
+        if let resolved = shiorisByEntryID[entryID] {
+            return resolved
+        }
         guard let cueContent = cueContentProvider(relation.cueID) else {
             return nil
         }
@@ -165,14 +177,25 @@ struct TableSandboxRowsSnapshot {
         if let presentation = shioriCuePresentationsByEntryID[entryID] {
             return presentation
         }
-        guard let index = shioriRelationIndexByEntryID[entryID],
-              let cueContent = cueContentProvider?(
-                shioriRelations[index].cueID
-              )
-        else {
+        guard let index = shioriRelationIndexByEntryID[entryID] else {
             return nil
         }
-        return ShioriCuePresentation(cueContent: cueContent)
+        let relation = shioriRelations[index]
+        if let cueContent = cueContentProvider?(relation.cueID) {
+            return ShioriCuePresentation(cueContent: cueContent)
+        }
+        guard let shiori = shiorisByEntryID[entryID] else {
+            return nil
+        }
+        let groupTexts = tableSandboxCueGroupSnapshotTexts(shiori.cueGroupContent)
+        return ShioriCuePresentation(
+            cueID: relation.cueID,
+            cueGroupID: nil,
+            primaryGroupIndex: groupTexts.firstIndex(of: shiori.content),
+            cueGroupTexts: groupTexts.isEmpty ? [shiori.content] : groupTexts,
+            languages: [.unknown],
+            speakers: []
+        )
     }
 }
 
@@ -626,6 +649,7 @@ final class TableSandboxRowModelStore: ObservableObject {
     func updateResidentShioriRelations(
         _ relations: [ShioriRelation],
         tagsByShioriID: [Int64: [ShioriTag]],
+        resolvedShiorisByID: [Int64: Shiori] = [:],
         cueContentProvider: @escaping (Int64) -> CueContent?,
         cueContentRevision: UInt64 = 0,
         tableName: String,
@@ -636,8 +660,14 @@ final class TableSandboxRowModelStore: ObservableObject {
         let normalizedTags = Dictionary(uniqueKeysWithValues: tagsByShioriID.map { key, value in
             (Int(key), value)
         })
+        let normalizedShioris = Dictionary(
+            uniqueKeysWithValues: resolvedShiorisByID.map { key, value in
+                (Int(key), value)
+            }
+        )
         let contentChanged = relations != snapshot.shioriRelations
             || normalizedTags != snapshot.shioriTagsByEntryID
+            || normalizedShioris != snapshot.shiorisByEntryID
             || !snapshot.materializedRows.isEmpty
             || snapshot.cueContentRevision != referencedCueContentRevision
         guard contentChanged || snapshot.totalRowCount != relations.count else {
@@ -651,6 +681,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             .reload
         }
         publishSnapshot(TableSandboxRowsSnapshot(
+            shiorisByEntryID: normalizedShioris,
             shioriRelations: relations,
             shioriTagsByEntryID: normalizedTags,
             cueContentProvider: cueContentProvider,
@@ -677,6 +708,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         var tags = snapshot.shioriTagsByEntryID
         tags[Int(id)] = nil
         publishSnapshot(TableSandboxRowsSnapshot(
+            shiorisByEntryID: snapshot.shiorisByEntryID.filter { $0.key != Int(id) },
             shioriRelations: relations,
             shioriTagsByEntryID: tags,
             cueContentProvider: snapshot.cueContentProvider,
@@ -1035,7 +1067,8 @@ final class TableSandboxRowModelStore: ObservableObject {
                 for: cuePresentation?.languages ?? item.languages
             ),
             speakerTags: tableSandboxSpeakerTags(for: cuePresentation?.speakers ?? []),
-            shioriTags: tableSandboxShioriTags(for: item.shioriTags)
+            shioriTags: tableSandboxShioriTags(for: item.shioriTags),
+            cueState: tableSandboxCueState(for: item.shiori)
         )
     }
 
@@ -1096,13 +1129,15 @@ func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTab
             for: cuePresentation?.languages ?? item.languages
         ),
         speakerTags: tableSandboxSpeakerTags(for: cuePresentation?.speakers ?? []),
-        shioriTags: tableSandboxShioriTags(for: item.shioriTags)
+        shioriTags: tableSandboxShioriTags(for: item.shioriTags),
+        cueState: tableSandboxCueState(for: item.shiori)
     )
 }
 
 private func tableSandboxShioriRow(
     relation: ShioriRelation,
     cueContent: CueContent,
+    resolvedShiori: Shiori?,
     shioriTags: [ShioriTag]
 ) -> SubtitleTableRow {
     SubtitleTableRow(
@@ -1119,8 +1154,55 @@ private func tableSandboxShioriRow(
         primaryGroupIndex: cueContent.primaryGroupIndex,
         tags: SubtitleLanguageWorkbenchTags.tags(for: cueContent.languages),
         speakerTags: tableSandboxSpeakerTags(for: cueContent.speakers),
-        shioriTags: tableSandboxShioriTags(for: shioriTags)
+        shioriTags: tableSandboxShioriTags(for: shioriTags),
+        cueState: resolvedShiori.map(tableSandboxCueState(for:)) ?? .normal
     )
+}
+
+private func tableSandboxUnavailableShioriRow(
+    relation: ShioriRelation,
+    shiori: Shiori,
+    shioriTags: [ShioriTag]
+) -> SubtitleTableRow {
+    let cueGroupTexts = tableSandboxCueGroupSnapshotTexts(shiori.cueGroupContent)
+    return SubtitleTableRow(
+        id: Int(relation.id),
+        primaryCueID: relation.cueID,
+        subtitlePath: shiori.subtitlePath,
+        dateAdded: tableSandboxShioriDateAddedDisplayText(for: relation.createdAt),
+        displayTitle: shiori.videoName,
+        startTime: tableSandboxCueTimeText(milliseconds: shiori.startMilliseconds),
+        endTime: tableSandboxCueTimeText(milliseconds: shiori.endMilliseconds),
+        timeRange: shiori.timeRange,
+        primaryCueText: shiori.content,
+        cueGroupTexts: cueGroupTexts.isEmpty ? [shiori.content] : cueGroupTexts,
+        primaryGroupIndex: cueGroupTexts.firstIndex(of: shiori.content) ?? 0,
+        shioriTags: tableSandboxShioriTags(for: shioriTags),
+        cueState: tableSandboxCueState(for: shiori)
+    )
+}
+
+private func tableSandboxCueState(for shiori: Shiori) -> SubtitleTableCueState {
+    if let unavailableReason = shiori.unavailableReason {
+        return .unavailable(unavailableReason)
+    }
+    if let change = shiori.contentChange {
+        return .contentChanged(
+            previous: change.previousContent,
+            current: change.currentContent
+        )
+    }
+    return .normal
+}
+
+private func tableSandboxCueGroupSnapshotTexts(_ content: String) -> [String] {
+    let separator = Shiori.cueGroupContentSeparator
+    guard content.contains(separator) else {
+        return content.isEmpty ? [] : [content]
+    }
+    return content
+        .components(separatedBy: separator)
+        .filter { !$0.isEmpty }
 }
 
 private func tableSandboxShioriDateAddedDisplayText(for value: String) -> String {

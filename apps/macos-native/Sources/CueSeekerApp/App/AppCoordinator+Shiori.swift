@@ -471,23 +471,26 @@ extension AppCoordinator {
             in: .whitespacesAndNewlines
         )
         let relations = shiori.residentRelations.filter { relation in
-            guard let content = cueContent.content(for: relation.cueID) else {
+            let content = cueContent.content(for: relation.cueID)
+            guard let resolved = shiori.residentShiorisByID[relation.id] else {
                 return false
             }
+            let displayTitle = content?.displayTitle ?? resolved.videoName
+            let cueText = content?.content ?? resolved.content
             let matchesSearch = trimmedSearchText.isEmpty
-                || content.displayTitle.range(
+                || displayTitle.range(
                     of: trimmedSearchText,
                     options: [.caseInsensitive, .diacriticInsensitive]
                 ) != nil
-                || content.content.range(
+                || cueText.range(
                     of: trimmedSearchText,
                     options: [.caseInsensitive, .diacriticInsensitive]
                 ) != nil
             return matchesSearch && filterSet.matches(
-                display: content.displayTitle,
-                cues: content.content,
-                languages: content.languages.map(\.rawValue).sorted(),
-                speakers: content.speakers.sorted()
+                display: displayTitle,
+                cues: cueText,
+                languages: content?.languages.map(\.rawValue).sorted() ?? [],
+                speakers: content?.speakers.sorted() ?? []
             )
         }
         shiori.installTableResultShioriIDs(relations.map(\.id))
@@ -497,6 +500,7 @@ extension AppCoordinator {
         shiori.tableRowStore.updateResidentShioriRelations(
             relations,
             tagsByShioriID: shiori.residentTagsByShioriID,
+            resolvedShiorisByID: shiori.residentShiorisByID,
             cueContentProvider: { [cueContent] cueID in
                 cueContent.content(for: cueID)
             },
@@ -764,6 +768,9 @@ extension AppCoordinator {
         displayTitle: String? = nil,
         playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil
     ) {
+        guard shiori.isValid else {
+            return
+        }
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
@@ -990,7 +997,7 @@ extension AppCoordinator {
         if let source = playback.playlistSource,
            case .shiori(.table) = source.origin {
             let scopeIDs = shioriPlaybackNavigationScopeIDs
-                ?? shiori.tableResultShioriIDs
+                ?? shiori.playbackTableResultShioriIDs
             guard let scopeIDs,
                   let index = validatedPreferredOrdinal
                     ?? scopeIDs.firstIndex(of: selectedID)
@@ -1023,11 +1030,13 @@ extension AppCoordinator {
             return index
         }
 
+        let residentRelations = shiori.residentRelations.filter {
+            shiori.residentShiorisByID[$0.id]?.isValid == true
+        }
         let residentOrdinal = validatedPreferredOrdinal
-            ?? shiori.residentRelations.firstIndex(where: { $0.id == selectedID })
+            ?? residentRelations.firstIndex(where: { $0.id == selectedID })
 
         if let index = residentOrdinal {
-            let residentRelations = shiori.residentRelations
             shioriPlaybackNavigationSnapshot = (
                 currentID: selectedID,
                 previousID: index > 0 ? residentRelations[index - 1].id : nil,

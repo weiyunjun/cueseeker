@@ -111,6 +111,9 @@ extension AppCoordinator {
     }
 
     func openShioriContext(_ item: Shiori, displayTitle: String) {
+        guard item.isValid else {
+            return
+        }
         let targetCueID = shiori.residentRelations
             .first { $0.id == item.id }?
             .cueID

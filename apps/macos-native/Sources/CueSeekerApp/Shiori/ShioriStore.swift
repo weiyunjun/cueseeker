@@ -28,6 +28,7 @@ final class ShioriStore: ObservableObject {
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultShioriIDs: [Int64]?
     private(set) var residentRelations: [ShioriRelation] = []
+    private(set) var residentShiorisByID: [Int64: Shiori] = [:]
     private(set) var residentTagsByShioriID: [Int64: [ShioriTag]] = [:]
     private(set) var residentDataRevision: Int?
     private(set) var residentListID: Int64?
@@ -35,6 +36,18 @@ final class ShioriStore: ObservableObject {
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []
+
+    var playbackTableResultShioriIDs: [Int64]? {
+        tableResultShioriIDs?.filter { shioriID in
+            if let resident = residentShiorisByID[shioriID] {
+                return resident.isValid
+            }
+            guard let entryID = Int(exactly: shioriID) else {
+                return false
+            }
+            return tableRowStore.snapshot.shiori(entryID: entryID)?.isValid == true
+        }
+    }
 
     let tableRowStore = TableSandboxRowModelStore()
 
@@ -207,6 +220,9 @@ final class ShioriStore: ObservableObject {
         dataRevision: Int
     ) {
         residentRelations = snapshot.relations
+        residentShiorisByID = Dictionary(
+            uniqueKeysWithValues: snapshot.resolvedShioris.map { ($0.id, $0) }
+        )
         residentTagsByShioriID = snapshot.tagsByShioriID
         residentListID = listID
         residentDataRevision = dataRevision
@@ -226,6 +242,7 @@ final class ShioriStore: ObservableObject {
 
     func clearResidentSnapshot() {
         residentRelations = []
+        residentShiorisByID = [:]
         residentTagsByShioriID = [:]
         residentListID = nil
         residentDataRevision = nil
@@ -239,6 +256,7 @@ final class ShioriStore: ObservableObject {
             return
         }
         residentRelations.removeAll { $0.id == id }
+        residentShiorisByID[id] = nil
         residentTagsByShioriID[id] = nil
         tableTotalSavedRowCount = residentRelations.count
         if let tableResultShioriIDs {

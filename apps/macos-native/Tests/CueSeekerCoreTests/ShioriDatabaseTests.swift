@@ -591,6 +591,12 @@ func rebuildingSubtitlePreservesCueIDShioriAndTagsWhenContentChanges() throws {
     #expect(rebuiltRelation.id == originalShiori.id)
     #expect(rebuiltRelation.cueID == rebuiltCue.id)
     #expect(rebuiltShiori.content == "Updated saved cue.")
+    #expect(
+        rebuiltShiori.contentChange == ShioriCueContentChange(
+            previousContent: "Original saved cue.",
+            currentContent: "Updated saved cue."
+        )
+    )
     #expect(rebuiltShiori.createdAt == originalShiori.createdAt)
     #expect(try shioriDatabase.shioriTags(forShioriID: originalShiori.id) == [tag])
 }
@@ -836,7 +842,14 @@ func removingIndexedFolderPreservesCueBoundShioriRelation() throws {
     try database.removeIndexedFolder(folder)
 
     #expect(try SearchDatabase(path: database.path).search("Shiori").isEmpty)
-    #expect(try ShioriDatabase(path: database.path).shioris().isEmpty)
+    let unavailableShiori = try #require(
+        try ShioriDatabase(path: database.path).shioris().first
+    )
+    #expect(unavailableShiori.id == savedShiori.id)
+    #expect(!unavailableShiori.isValid)
+    #expect(unavailableShiori.unavailableReason == .libraryUnavailable)
+    #expect(unavailableShiori.content == "Shiori should survive index removal.")
+    #expect(unavailableShiori.cueGroupContent == "Shiori should survive index removal.")
     #expect(
         try ShioriDatabase(path: database.path).shioriRelations()
             .map(\.id) == [savedShiori.id]

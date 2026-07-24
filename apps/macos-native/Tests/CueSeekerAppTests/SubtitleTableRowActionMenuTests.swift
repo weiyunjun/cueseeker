@@ -58,6 +58,69 @@ func subtitleTableShioriRowActionMenuAddsTransferSubmenusAndDividers() {
     ])
 }
 
+@Test
+func subtitleTableUnavailableShioriActionsFollowResourceAvailability() {
+    let videoMissing = SubtitleTableCueState.unavailable(.videoMissing)
+    #expect(videoMissing.systemImage == "questionmark.circle")
+    #expect(videoMissing.subtitleFileIsAvailable)
+    #expect(videoMissing.disabledRowActions == [
+        .play,
+        .context,
+        .moveToList,
+        .duplicateToList,
+    ])
+    #expect(
+        videoMissing.unavailableMessage
+            == "The video file is missing. The subtitle file is still available."
+    )
+
+    let cueMissing = SubtitleTableCueState.unavailable(.cueMissing)
+    #expect(cueMissing.subtitleFileIsAvailable)
+    #expect(!cueMissing.disabledRowActions.contains(.openSubtitleFolder))
+
+    let subtitleMissing = SubtitleTableCueState.unavailable(.subtitleMissing)
+    #expect(!subtitleMissing.subtitleFileIsAvailable)
+    #expect(subtitleMissing.disabledRowActions.contains(.openSubtitleFolder))
+    #expect(!subtitleMissing.disabledRowActions.contains(.copyCueText))
+    #expect(!subtitleMissing.disabledRowActions.contains(.copyCueGroupText))
+    #expect(!subtitleMissing.disabledRowActions.contains(.copyTimeRange))
+    #expect(!subtitleMissing.disabledRowActions.contains(.removeShiori))
+}
+
+@Test
+func subtitleTableChangedShioriRemainsAvailable() {
+    let state = SubtitleTableCueState.contentChanged(
+        previous: "Previous",
+        current: "Current"
+    )
+    #expect(state.systemImage == "clock.arrow.circlepath")
+    #expect(!state.isUnavailable)
+    #expect(state.disabledRowActions.isEmpty)
+}
+
+@Test
+func cueStateTipUsesRightSideThenFallsBackToLeft() {
+    let visibleRect = CGRect(x: 0, y: 0, width: 1_000, height: 600)
+    let size = CGSize(width: 300, height: 120)
+    let rightAnchor = CGRect(x: 100, y: 240, width: 16, height: 16)
+    let rightFrame = CueStateTipGeometry.frame(
+        anchor: rightAnchor,
+        size: size,
+        visibleRect: visibleRect
+    )
+    #expect(rightFrame.minX == rightAnchor.maxX + CueStateTipGeometry.gap)
+    #expect(rightFrame.midY == rightAnchor.midY)
+
+    let leftAnchor = CGRect(x: 850, y: 240, width: 16, height: 16)
+    let leftFrame = CueStateTipGeometry.frame(
+        anchor: leftAnchor,
+        size: size,
+        visibleRect: visibleRect
+    )
+    #expect(leftFrame.maxX == leftAnchor.minX - CueStateTipGeometry.gap)
+    #expect(leftFrame.midY == leftAnchor.midY)
+}
+
 @MainActor
 @Test
 func subtitleTableShioriSubmenuSupportsImmediateAndDelayedEntryRules() {

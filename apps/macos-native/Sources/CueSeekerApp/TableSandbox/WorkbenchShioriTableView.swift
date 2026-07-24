@@ -374,8 +374,8 @@ private struct WorkbenchShioriTableContent: View {
         guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
             return
         }
-        guard let navigationScopeIDs = shioriStore.tableResultShioriIDs,
-              navigationScopeIDs.count == shioriStore.tableResultRowCount
+        guard item.isValid,
+              let navigationScopeIDs = shioriStore.playbackTableResultShioriIDs
         else {
             return
         }

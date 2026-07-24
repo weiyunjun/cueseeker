@@ -116,7 +116,7 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
 
 @MainActor
 @Test
-func libraryFolderRemovalClearsResidentShioriAndCanonicalCueContent() async throws {
+func libraryFolderRemovalKeepsUnavailableShioriAndClearsCanonicalCueContent() async throws {
     let fixture = try LibraryFolderRemovalTestFixture()
     defer { fixture.cleanUp() }
 
@@ -135,7 +135,7 @@ func libraryFolderRemovalClearsResidentShioriAndCanonicalCueContent() async thro
                 endTimecode: "00:00:02,000",
                 startMilliseconds: 1_000,
                 endMilliseconds: 2_000,
-                text: "Resident Shiori must disappear"
+                text: "Resident Shiori must remain unavailable"
             ),
         ]
     )
@@ -163,8 +163,12 @@ func libraryFolderRemovalClearsResidentShioriAndCanonicalCueContent() async thro
     await app.folderRemovalTask?.value
     await app.shioriTableRowsTask?.value
 
-    #expect(app.shiori.residentRelations.isEmpty)
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 0)
+    #expect(app.shiori.residentRelations.map(\.cueID) == [cueID])
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(
+        app.shiori.tableRowStore.snapshot.row(at: 0)?.cueState
+            == .unavailable(.libraryUnavailable)
+    )
     #expect(app.cueContent.content(for: cueID) == nil)
 }
 
