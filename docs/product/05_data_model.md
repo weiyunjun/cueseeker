@@ -489,7 +489,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Implemented schema version: `35`.
+- Implemented schema version: `36`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -543,6 +543,8 @@ Current native schema:
   per-Library index publication tokens, ASS identity remainder storage,
   Cue Tombstones and change notices, binding-conflict records, and removes the
   destructive Cue foreign-key cascade from Shiori relations.
+- Version 36 binds generated and user-selected folder covers to permanent
+  FolderID while retaining the current folder path as mutable lookup data.
 
 ## 15. Flutter Data Compatibility
 

@@ -100,6 +100,17 @@ func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
             FOREIGN KEY(shiori_id) REFERENCES shioris(id) ON DELETE CASCADE,
             FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
         );
+        CREATE TABLE folder_covers (
+            folder_path TEXT PRIMARY KEY,
+            cover_path TEXT NOT NULL,
+            source_video_file_id INTEGER NOT NULL,
+            generated_at TEXT NOT NULL
+        );
+        CREATE TABLE user_folder_covers (
+            folder_path TEXT PRIMARY KEY,
+            display_cover_path TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         INSERT INTO shiori_lists(id, name, created_at)
         VALUES (1, 'Shiori', '1970-01-01T00:00:00Z');
         PRAGMA user_version = 33;
@@ -130,7 +141,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(36)
+    try expectUnsupportedSchemaVersion(37)
 }
 
 @Test
@@ -209,6 +220,10 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
     #expect(try sqliteTableExists("cue_tombstones", databaseURL: databaseURL))
     #expect(try sqliteTableExists("cue_change_notices", databaseURL: databaseURL))
     #expect(try sqliteTableExists("resource_binding_conflicts", databaseURL: databaseURL))
+    #expect(try sqliteColumnNames(in: "folder_covers", databaseURL: databaseURL)
+        .contains("folder_id"))
+    #expect(try sqliteColumnNames(in: "user_folder_covers", databaseURL: databaseURL)
+        .contains("folder_id"))
     #expect(try sqliteColumnNames(in: "library_playback_history", databaseURL: databaseURL).contains("video_file_id"))
     #expect(try sqliteColumnNames(in: "library_watch_states", databaseURL: databaseURL).contains("video_file_id"))
     #expect(try sqliteColumnNames(in: "library_video_rows", databaseURL: databaseURL).isSuperset(of: [
@@ -298,6 +313,17 @@ func migratesSchema34IdentityFoundationWithoutLosingShioriOrTags() throws {
             FOREIGN KEY(shiori_id) REFERENCES shioris(id) ON DELETE CASCADE,
             FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
         );
+        CREATE TABLE folder_covers (
+            folder_path TEXT PRIMARY KEY,
+            cover_path TEXT NOT NULL,
+            source_video_file_id INTEGER NOT NULL,
+            generated_at TEXT NOT NULL
+        );
+        CREATE TABLE user_folder_covers (
+            folder_path TEXT PRIMARY KEY,
+            display_cover_path TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         INSERT INTO search_paths(id, path, created_at, updated_at)
         VALUES (9, '/Media', 'created', 'updated');
         INSERT INTO subtitle_files(
@@ -323,7 +349,7 @@ func migratesSchema34IdentityFoundationWithoutLosingShioriOrTags() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 35)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 36)
     #expect(try sqliteRowCount(in: "shioris", databaseURL: databaseURL) == 1)
     #expect(try sqliteRowCount(in: "shiori_tag_assignments", databaseURL: databaseURL) == 1)
     #expect(try sqliteForeignKeyTables(in: "shioris", databaseURL: databaseURL) == [

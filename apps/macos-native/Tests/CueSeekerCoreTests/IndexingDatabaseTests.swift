@@ -3,6 +3,493 @@ import Testing
 @testable import CueSeekerCore
 
 @Test
+func movingLibraryRootPreservesLibraryIDButReplacementAtOldPathGetsNewID() throws {
+    let container = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerLibraryBinding-\(UUID().uuidString)")
+    let originalRoot = container.appendingPathComponent("Library")
+    let movedRoot = container.appendingPathComponent("Moved Library")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: container)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(
+        at: originalRoot,
+        withIntermediateDirectories: true
+    )
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    let originalID = try database.addSearchPath(originalRoot)
+
+    try FileManager.default.moveItem(at: originalRoot, to: movedRoot)
+    let movedID = try database.addSearchPath(movedRoot)
+    try FileManager.default.createDirectory(
+        at: originalRoot,
+        withIntermediateDirectories: true
+    )
+    let replacementID = try database.addSearchPath(originalRoot)
+
+    #expect(movedID == originalID)
+    #expect(replacementID != originalID)
+}
+
+@Test
+func movingLibraryFolderPreservesFolderVideoAndSubtitleIDs() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerBindingMove-\(UUID().uuidString)")
+    let originalFolder = root.appendingPathComponent("Season")
+    let movedFolder = root.appendingPathComponent("Renamed Season")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(
+        at: originalFolder,
+        withIntermediateDirectories: true
+    )
+    let originalSubtitle = originalFolder.appendingPathComponent("Episode.srt")
+    let originalVideo = originalFolder.appendingPathComponent("Episode.mkv")
+    try "stable subtitle".write(to: originalSubtitle, atomically: true, encoding: .utf8)
+    try Data([0x01, 0x02]).write(to: originalVideo)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    _ = try database.addSearchPath(root)
+    try database.replaceEntries(
+        subtitleFile: originalSubtitle,
+        videoFile: originalVideo,
+        entries: [simpleTestEntry(text: "stable subtitle")]
+    )
+
+    let originalFolderID = try #require(try sqliteRowID(
+        table: "library_folders",
+        pathColumn: "relative_path",
+        path: "Season",
+        databaseURL: databaseURL
+    ))
+    let originalSubtitleID = try #require(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: originalSubtitle.path,
+        databaseURL: databaseURL
+    ))
+    let originalVideoID = try #require(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: originalVideo.path,
+        databaseURL: databaseURL
+    ))
+
+    try FileManager.default.moveItem(at: originalFolder, to: movedFolder)
+    let movedSubtitle = movedFolder.appendingPathComponent("Episode.srt")
+    let movedVideo = movedFolder.appendingPathComponent("Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: movedSubtitle,
+        videoFile: movedVideo,
+        entries: [simpleTestEntry(text: "stable subtitle")]
+    )
+
+    #expect(try sqliteRowID(
+        table: "library_folders",
+        pathColumn: "relative_path",
+        path: "Renamed Season",
+        databaseURL: databaseURL
+    ) == originalFolderID)
+    #expect(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: movedSubtitle.path,
+        databaseURL: databaseURL
+    ) == originalSubtitleID)
+    #expect(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: movedVideo.path,
+        databaseURL: databaseURL
+    ) == originalVideoID)
+}
+
+@Test
+func userFolderCoverFollowsFolderIDAndDoesNotLeakToReplacementPath() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerFolderCoverBinding-\(UUID().uuidString)")
+    let originalFolder = root.appendingPathComponent("Season")
+    let movedFolder = root.appendingPathComponent("Archive")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(
+        at: originalFolder,
+        withIntermediateDirectories: true
+    )
+    let originalSubtitle = originalFolder.appendingPathComponent("Episode.srt")
+    let originalVideo = originalFolder.appendingPathComponent("Episode.mkv")
+    try "original".write(to: originalSubtitle, atomically: true, encoding: .utf8)
+    try Data([0x01]).write(to: originalVideo)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    _ = try database.addSearchPath(root)
+    try database.replaceEntries(
+        subtitleFile: originalSubtitle,
+        videoFile: originalVideo,
+        entries: [simpleTestEntry(text: "original")]
+    )
+    let covers = try LibraryCoverDatabase(path: databaseURL)
+    try covers.upsertLibraryUserFolderCover(
+        folderPath: originalFolder.path,
+        displayCoverPath: "/Covers/original.jpg"
+    )
+
+    try FileManager.default.moveItem(at: originalFolder, to: movedFolder)
+    let movedSubtitle = movedFolder.appendingPathComponent("Episode.srt")
+    let movedVideo = movedFolder.appendingPathComponent("Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: movedSubtitle,
+        videoFile: movedVideo,
+        entries: [simpleTestEntry(text: "original")]
+    )
+
+    #expect(try covers.libraryUserFolderCover(
+        folderPath: movedFolder.path
+    )?.displayCoverPath == "/Covers/original.jpg")
+    #expect(try covers.libraryUserFolderCover(folderPath: originalFolder.path) == nil)
+
+    try FileManager.default.createDirectory(
+        at: originalFolder,
+        withIntermediateDirectories: true
+    )
+    let replacementSubtitle = originalFolder.appendingPathComponent("Episode.srt")
+    let replacementVideo = originalFolder.appendingPathComponent("Episode.mkv")
+    try "replacement".write(
+        to: replacementSubtitle,
+        atomically: true,
+        encoding: .utf8
+    )
+    try Data([0x09]).write(to: replacementVideo)
+    try database.replaceEntries(
+        subtitleFile: replacementSubtitle,
+        videoFile: replacementVideo,
+        entries: [simpleTestEntry(text: "replacement")]
+    )
+
+    #expect(try covers.libraryUserFolderCover(folderPath: originalFolder.path) == nil)
+    try covers.upsertLibraryUserFolderCover(
+        folderPath: originalFolder.path,
+        displayCoverPath: "/Covers/replacement.jpg"
+    )
+    #expect(try covers.libraryUserFolderCover(
+        folderPath: originalFolder.path
+    )?.displayCoverPath == "/Covers/replacement.jpg")
+    #expect(try covers.libraryUserFolderCover(
+        folderPath: movedFolder.path
+    )?.displayCoverPath == "/Covers/original.jpg")
+}
+
+@Test
+func newFolderAtPreviousPathDoesNotInheritMovedResourceIDs() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerBindingReplacement-\(UUID().uuidString)")
+    let originalFolder = root.appendingPathComponent("Season")
+    let movedFolder = root.appendingPathComponent("Archive")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(
+        at: originalFolder,
+        withIntermediateDirectories: true
+    )
+    let originalSubtitle = originalFolder.appendingPathComponent("Episode.srt")
+    let originalVideo = originalFolder.appendingPathComponent("Episode.mkv")
+    try "original".write(to: originalSubtitle, atomically: true, encoding: .utf8)
+    try Data([0x01]).write(to: originalVideo)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    _ = try database.addSearchPath(root)
+    try database.replaceEntries(
+        subtitleFile: originalSubtitle,
+        videoFile: originalVideo,
+        entries: [simpleTestEntry(text: "original")]
+    )
+    let originalSubtitleID = try #require(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: originalSubtitle.path,
+        databaseURL: databaseURL
+    ))
+    let originalVideoID = try #require(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: originalVideo.path,
+        databaseURL: databaseURL
+    ))
+
+    try FileManager.default.moveItem(at: originalFolder, to: movedFolder)
+    try FileManager.default.createDirectory(
+        at: originalFolder,
+        withIntermediateDirectories: true
+    )
+    let movedSubtitle = movedFolder.appendingPathComponent("Episode.srt")
+    let movedVideo = movedFolder.appendingPathComponent("Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: movedSubtitle,
+        videoFile: movedVideo,
+        entries: [simpleTestEntry(text: "original")]
+    )
+
+    let replacementSubtitle = originalFolder.appendingPathComponent("Episode.srt")
+    let replacementVideo = originalFolder.appendingPathComponent("Episode.mkv")
+    try "replacement".write(
+        to: replacementSubtitle,
+        atomically: true,
+        encoding: .utf8
+    )
+    try Data([0x09]).write(to: replacementVideo)
+    try database.replaceEntries(
+        subtitleFile: replacementSubtitle,
+        videoFile: replacementVideo,
+        entries: [simpleTestEntry(text: "replacement")]
+    )
+
+    #expect(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: movedSubtitle.path,
+        databaseURL: databaseURL
+    ) == originalSubtitleID)
+    #expect(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: movedVideo.path,
+        databaseURL: databaseURL
+    ) == originalVideoID)
+    #expect(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: replacementSubtitle.path,
+        databaseURL: databaseURL
+    ) != originalSubtitleID)
+    #expect(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: replacementVideo.path,
+        databaseURL: databaseURL
+    ) != originalVideoID)
+}
+
+@Test
+func videoReplacementAtSamePathDoesNotInheritPlaybackHistory() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerVideoHistoryBinding-\(UUID().uuidString)")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let subtitle = root.appendingPathComponent("Episode.srt")
+    let video = root.appendingPathComponent("Episode.mkv")
+    let archivedSubtitle = root.appendingPathComponent("Archived.srt")
+    let archivedVideo = root.appendingPathComponent("Archived.mkv")
+    try "old subtitle".write(to: subtitle, atomically: true, encoding: .utf8)
+    try Data([0x01]).write(to: video)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    _ = try database.addSearchPath(root)
+    try database.replaceEntries(
+        subtitleFile: subtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "old subtitle")]
+    )
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
+        videoFile: video,
+        positionMilliseconds: 42_000,
+        duration: 1_200
+    )
+
+    try FileManager.default.moveItem(at: subtitle, to: archivedSubtitle)
+    try FileManager.default.moveItem(at: video, to: archivedVideo)
+    try database.replaceEntries(
+        subtitleFile: archivedSubtitle,
+        videoFile: archivedVideo,
+        entries: [simpleTestEntry(text: "old subtitle")]
+    )
+    try "new subtitle".write(to: subtitle, atomically: true, encoding: .utf8)
+    try Data([0x09]).write(to: video)
+    try database.replaceEntries(
+        subtitleFile: subtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "new subtitle")]
+    )
+
+    #expect(try LibraryDatabase(path: databaseURL)
+        .libraryPlaybackHistory(forVideoFile: video) == nil)
+    #expect(try LibraryDatabase(path: databaseURL)
+        .libraryPlaybackHistory(forVideoFile: archivedVideo)?
+        .positionMilliseconds == 42_000)
+}
+
+@Test
+func uniqueCompleteSubtitleCopyCanRebindOriginalSubtitleID() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerBindingCopy-\(UUID().uuidString)")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let originalSubtitle = root.appendingPathComponent("Original.srt")
+    let copiedSubtitle = root.appendingPathComponent("Copied.srt")
+    let video = root.appendingPathComponent("Episode.mkv")
+    try "identical complete content".write(
+        to: originalSubtitle,
+        atomically: true,
+        encoding: .utf8
+    )
+    try Data([0x01]).write(to: video)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    _ = try database.addSearchPath(root)
+    try database.replaceEntries(
+        subtitleFile: originalSubtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "identical complete content")]
+    )
+    let originalID = try #require(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: originalSubtitle.path,
+        databaseURL: databaseURL
+    ))
+
+    try FileManager.default.copyItem(at: originalSubtitle, to: copiedSubtitle)
+    try FileManager.default.removeItem(at: originalSubtitle)
+    try database.replaceEntries(
+        subtitleFile: copiedSubtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "identical complete content")]
+    )
+
+    #expect(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: copiedSubtitle.path,
+        databaseURL: databaseURL
+    ) == originalID)
+}
+
+@Test
+func ambiguousCompleteSubtitleCopiesCreateNewIDAndBindingConflicts() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerBindingConflict-\(UUID().uuidString)")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let firstSubtitle = root.appendingPathComponent("First.srt")
+    let secondSubtitle = root.appendingPathComponent("Second.srt")
+    let candidateSubtitle = root.appendingPathComponent("Candidate.srt")
+    let video = root.appendingPathComponent("Episode.mkv")
+    for subtitle in [firstSubtitle, secondSubtitle] {
+        try "duplicate complete content".write(
+            to: subtitle,
+            atomically: true,
+            encoding: .utf8
+        )
+    }
+    try Data([0x01]).write(to: video)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    _ = try database.addSearchPath(root)
+    try database.replaceEntries(
+        subtitleFile: firstSubtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "duplicate complete content")]
+    )
+    try database.replaceEntries(
+        subtitleFile: secondSubtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "duplicate complete content")]
+    )
+    let oldIDs = Set([
+        try #require(try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: firstSubtitle.path,
+            databaseURL: databaseURL
+        )),
+        try #require(try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: secondSubtitle.path,
+            databaseURL: databaseURL
+        ))
+    ])
+
+    try FileManager.default.removeItem(at: firstSubtitle)
+    try FileManager.default.removeItem(at: secondSubtitle)
+    try "duplicate complete content".write(
+        to: candidateSubtitle,
+        atomically: true,
+        encoding: .utf8
+    )
+    try database.replaceEntries(
+        subtitleFile: candidateSubtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "duplicate complete content")]
+    )
+
+    let candidateID = try #require(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: candidateSubtitle.path,
+        databaseURL: databaseURL
+    ))
+    #expect(!oldIDs.contains(candidateID))
+    #expect(try sqliteRowCount(
+        in: "resource_binding_conflicts",
+        databaseURL: databaseURL
+    ) == 2)
+
+    let conflictID = try #require(try sqliteRowID(
+        table: "resource_binding_conflicts",
+        pathColumn: "candidate_path",
+        path: candidateSubtitle.path,
+        databaseURL: databaseURL
+    ))
+    let selectedOldID = try #require(oldIDs.min())
+    #expect(try database.confirmSubtitleBindingConflict(
+        conflictID: conflictID,
+        existingSubtitleID: selectedOldID
+    ) == selectedOldID)
+    #expect(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: candidateSubtitle.path,
+        databaseURL: databaseURL
+    ) == selectedOldID)
+}
+
+@Test
 func indexedMediaStoresLibraryIDAndRelativePaths() throws {
     let databaseURL = temporaryDatabaseURL()
     let libraryFolder = FileManager.default.temporaryDirectory

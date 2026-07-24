@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 35
+    public static let currentSchemaVersion = 36
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -35,6 +35,7 @@ private extension DatabaseBootstrap {
         guard previousVersion == 0
                 || previousVersion == 33
                 || previousVersion == 34
+                || previousVersion == 35
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -47,6 +48,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion == 33 || previousVersion == 34 {
             try migrateSchema34To35(on: database)
+        }
+        if previousVersion == 33 || previousVersion == 34 || previousVersion == 35 {
+            try migrateSchema35To36(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -492,14 +496,20 @@ private extension DatabaseBootstrap {
 
             CREATE TABLE IF NOT EXISTS folder_covers (
                 folder_path TEXT PRIMARY KEY,
+                folder_id INTEGER,
                 cover_path TEXT NOT NULL,
                 source_video_file_id INTEGER NOT NULL,
                 generated_at TEXT NOT NULL,
+                FOREIGN KEY(folder_id) REFERENCES library_folders(id),
                 FOREIGN KEY(source_video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
             );
 
             CREATE INDEX IF NOT EXISTS idx_folder_covers_source_video
                 ON folder_covers(source_video_file_id);
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_folder_covers_folder_id
+                ON folder_covers(folder_id)
+                WHERE folder_id IS NOT NULL;
 
             CREATE TABLE IF NOT EXISTS user_video_covers (
                 video_file_id INTEGER PRIMARY KEY,
@@ -510,9 +520,15 @@ private extension DatabaseBootstrap {
 
             CREATE TABLE IF NOT EXISTS user_folder_covers (
                 folder_path TEXT PRIMARY KEY,
+                folder_id INTEGER,
                 display_cover_path TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(folder_id) REFERENCES library_folders(id)
             );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_folder_covers_folder_id
+                ON user_folder_covers(folder_id)
+                WHERE folder_id IS NOT NULL;
 
             CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
                 subtitle_path TEXT PRIMARY KEY,
@@ -803,6 +819,28 @@ private extension DatabaseBootstrap {
                     ON resource_binding_conflicts(library_id, resolved_at, id);
 
                 PRAGMA user_version = 35;
+                """
+            )
+        }
+    }
+
+    static func migrateSchema35To36(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                ALTER TABLE folder_covers
+                    ADD COLUMN folder_id INTEGER REFERENCES library_folders(id);
+                CREATE UNIQUE INDEX idx_folder_covers_folder_id
+                    ON folder_covers(folder_id)
+                    WHERE folder_id IS NOT NULL;
+
+                ALTER TABLE user_folder_covers
+                    ADD COLUMN folder_id INTEGER REFERENCES library_folders(id);
+                CREATE UNIQUE INDEX idx_user_folder_covers_folder_id
+                    ON user_folder_covers(folder_id)
+                    WHERE folder_id IS NOT NULL;
+
+                PRAGMA user_version = 36;
                 """
             )
         }

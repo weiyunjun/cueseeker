@@ -96,6 +96,12 @@ final class SQLiteDatabase: @unchecked Sendable {
         }
     }
 
+    func changesCount() -> Int {
+        withConnectionLock {
+            Int(sqlite3_changes(handle))
+        }
+    }
+
     func withImmediateTransaction<T>(_ body: () throws -> T) throws -> T {
         try withConnectionLock {
             try execute("BEGIN IMMEDIATE TRANSACTION")

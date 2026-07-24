@@ -234,14 +234,19 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     }
 
     public func libraryFolderCover(folderPath: String) throws -> LibraryFolderCover? {
+        let folderID = try libraryFolderID(forPath: folderPath)
         let statement = try database.prepare(
             """
             SELECT folder_path, cover_path, source_video_file_id, generated_at
             FROM folder_covers
-            WHERE folder_path = ?;
+            WHERE folder_id = ?
+               OR (folder_id IS NULL AND folder_path = ?)
+            ORDER BY CASE WHEN folder_id IS NULL THEN 1 ELSE 0 END
+            LIMIT 1;
             """
         )
-        try statement.bind(folderPath, at: 1)
+        try bind(folderID, to: statement, at: 1)
+        try statement.bind(folderPath, at: 2)
         guard try statement.step() else {
             return nil
         }
@@ -258,26 +263,71 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         masterCoverPath: String,
         sourceVideoFileID: Int64
     ) throws {
-        let statement = try database.prepare(
-            """
-            INSERT INTO folder_covers(folder_path, cover_path, source_video_file_id, generated_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(folder_path) DO UPDATE SET
-                cover_path = excluded.cover_path,
-                source_video_file_id = excluded.source_video_file_id,
-                generated_at = excluded.generated_at;
-            """
-        )
-        try statement.bind(folderPath, at: 1)
-        try statement.bind(masterCoverPath, at: 2)
-        try statement.bind(sourceVideoFileID, at: 3)
-        try statement.bind(Self.revisionTimestamp(), at: 4)
-        try statement.run()
+        let folderID = try libraryFolderID(forPath: folderPath)
+        try database.withImmediateTransaction {
+            if let folderID {
+                try releaseGeneratedFolderCoverPath(
+                    folderPath,
+                    exceptFolderID: folderID
+                )
+                let update = try database.prepare(
+                    """
+                    UPDATE folder_covers
+                    SET folder_path = ?,
+                        cover_path = ?,
+                        source_video_file_id = ?,
+                        generated_at = ?
+                    WHERE folder_id = ?;
+                    """
+                )
+                try update.bind(folderPath, at: 1)
+                try update.bind(masterCoverPath, at: 2)
+                try update.bind(sourceVideoFileID, at: 3)
+                try update.bind(Self.revisionTimestamp(), at: 4)
+                try update.bind(folderID, at: 5)
+                try update.run()
+                if database.changesCount() > 0 {
+                    return
+                }
+            }
+
+            let statement = try database.prepare(
+                """
+                INSERT INTO folder_covers(
+                    folder_path,
+                    folder_id,
+                    cover_path,
+                    source_video_file_id,
+                    generated_at
+                )
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(folder_path) DO UPDATE SET
+                    folder_id = excluded.folder_id,
+                    cover_path = excluded.cover_path,
+                    source_video_file_id = excluded.source_video_file_id,
+                    generated_at = excluded.generated_at;
+                """
+            )
+            try statement.bind(folderPath, at: 1)
+            try bind(folderID, to: statement, at: 2)
+            try statement.bind(masterCoverPath, at: 3)
+            try statement.bind(sourceVideoFileID, at: 4)
+            try statement.bind(Self.revisionTimestamp(), at: 5)
+            try statement.run()
+        }
     }
 
     public func deleteLibraryFolderCover(folderPath: String) throws {
-        let statement = try database.prepare("DELETE FROM folder_covers WHERE folder_path = ?;")
-        try statement.bind(folderPath, at: 1)
+        let folderID = try libraryFolderID(forPath: folderPath)
+        let statement = try database.prepare(
+            """
+            DELETE FROM folder_covers
+            WHERE folder_id = ?
+               OR (folder_id IS NULL AND folder_path = ?);
+            """
+        )
+        try bind(folderID, to: statement, at: 1)
+        try statement.bind(folderPath, at: 2)
         try statement.run()
     }
 
@@ -338,14 +388,19 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     }
 
     public func libraryUserFolderCover(folderPath: String) throws -> LibraryUserCover? {
+        let folderID = try libraryFolderID(forPath: folderPath)
         let statement = try database.prepare(
             """
             SELECT display_cover_path, updated_at
             FROM user_folder_covers
-            WHERE folder_path = ?;
+            WHERE folder_id = ?
+               OR (folder_id IS NULL AND folder_path = ?)
+            ORDER BY CASE WHEN folder_id IS NULL THEN 1 ELSE 0 END
+            LIMIT 1;
             """
         )
-        try statement.bind(folderPath, at: 1)
+        try bind(folderID, to: statement, at: 1)
+        try statement.bind(folderPath, at: 2)
         guard try statement.step() else {
             return nil
         }
@@ -359,24 +414,112 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         folderPath: String,
         displayCoverPath: String
     ) throws {
-        let statement = try database.prepare(
-            """
-            INSERT INTO user_folder_covers(folder_path, display_cover_path, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(folder_path) DO UPDATE SET
-                display_cover_path = excluded.display_cover_path,
-                updated_at = excluded.updated_at;
-            """
-        )
-        try statement.bind(folderPath, at: 1)
-        try statement.bind(displayCoverPath, at: 2)
-        try statement.bind(Self.revisionTimestamp(), at: 3)
-        try statement.run()
+        let folderID = try libraryFolderID(forPath: folderPath)
+        try database.withImmediateTransaction {
+            if let folderID {
+                try releaseUserFolderCoverPath(folderPath, exceptFolderID: folderID)
+                let update = try database.prepare(
+                    """
+                    UPDATE user_folder_covers
+                    SET folder_path = ?,
+                        display_cover_path = ?,
+                        updated_at = ?
+                    WHERE folder_id = ?;
+                    """
+                )
+                try update.bind(folderPath, at: 1)
+                try update.bind(displayCoverPath, at: 2)
+                try update.bind(Self.revisionTimestamp(), at: 3)
+                try update.bind(folderID, at: 4)
+                try update.run()
+                if database.changesCount() > 0 {
+                    return
+                }
+            }
+
+            let statement = try database.prepare(
+                """
+                INSERT INTO user_folder_covers(
+                    folder_path,
+                    folder_id,
+                    display_cover_path,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(folder_path) DO UPDATE SET
+                    folder_id = excluded.folder_id,
+                    display_cover_path = excluded.display_cover_path,
+                    updated_at = excluded.updated_at;
+                """
+            )
+            try statement.bind(folderPath, at: 1)
+            try bind(folderID, to: statement, at: 2)
+            try statement.bind(displayCoverPath, at: 3)
+            try statement.bind(Self.revisionTimestamp(), at: 4)
+            try statement.run()
+        }
     }
 
     public func deleteLibraryUserFolderCover(folderPath: String) throws {
-        let statement = try database.prepare("DELETE FROM user_folder_covers WHERE folder_path = ?;")
+        let folderID = try libraryFolderID(forPath: folderPath)
+        let statement = try database.prepare(
+            """
+            DELETE FROM user_folder_covers
+            WHERE folder_id = ?
+               OR (folder_id IS NULL AND folder_path = ?);
+            """
+        )
+        try bind(folderID, to: statement, at: 1)
+        try statement.bind(folderPath, at: 2)
+        try statement.run()
+    }
+
+    private func libraryFolderID(forPath folderPath: String) throws -> Int64? {
+        let statement = try database.prepare(
+            """
+            SELECT id
+            FROM library_folders
+            WHERE last_known_path = ?
+              AND binding_state = 'available'
+            ORDER BY id DESC
+            LIMIT 1;
+            """
+        )
         try statement.bind(folderPath, at: 1)
+        return try statement.step() ? statement.int64Column(0) : nil
+    }
+
+    private func releaseGeneratedFolderCoverPath(
+        _ folderPath: String,
+        exceptFolderID: Int64
+    ) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE folder_covers
+            SET folder_path = 'cueseeker-unbound://folder-cover/' || rowid
+            WHERE folder_path = ?
+              AND (folder_id IS NULL OR folder_id <> ?);
+            """
+        )
+        try statement.bind(folderPath, at: 1)
+        try statement.bind(exceptFolderID, at: 2)
+        try statement.run()
+    }
+
+    private func releaseUserFolderCoverPath(
+        _ folderPath: String,
+        exceptFolderID: Int64
+    ) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE user_folder_covers
+            SET folder_path = 'cueseeker-unbound://user-folder-cover/' || rowid
+            WHERE folder_path = ?
+              AND (folder_id IS NULL OR folder_id <> ?);
+            """
+        )
+        try statement.bind(folderPath, at: 1)
+        try statement.bind(exceptFolderID, at: 2)
         try statement.run()
     }
 
@@ -387,6 +530,14 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     }
 
     private func bind(_ value: String?, to statement: SQLiteStatement, at index: Int32) throws {
+        if let value {
+            try statement.bind(value, at: index)
+        } else {
+            try statement.bindNull(at: index)
+        }
+    }
+
+    private func bind(_ value: Int64?, to statement: SQLiteStatement, at index: Int32) throws {
         if let value {
             try statement.bind(value, at: index)
         } else {

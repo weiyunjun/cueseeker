@@ -115,13 +115,13 @@ Recommended mechanism:
 Current mechanism:
 
 - The native app uses SQLite `PRAGMA user_version`.
-- The implemented schema version is `35`.
+- The implemented schema version is `36`.
 - Schema version `33` adds durable user-selected video and folder cover
   overrides.
 - Schema `33` is the minimum supported native database and the baseline for the
   database architecture decomposition. Native schemas `1...32` are no longer
   opened or migrated by the active app.
-- Version `0` creates the complete current schema. Versions `33` and `34`
+- Version `0` creates the complete current schema. Versions `33` through `35`
   migrate forward to the current schema. Any unsupported lower version or
   version greater than the current implementation must be rejected without
   changing its `user_version`.
@@ -182,6 +182,8 @@ Current mechanism:
   metadata; per-Library publication tokens; ASS identity-remainder storage;
   Cue Tombstones and one-generation change notices; unresolved binding
   conflicts; and a non-destructive Shiori-to-Cue reference.
+- Schema version `36` binds generated and user-selected folder covers to
+  permanent FolderID so path reuse cannot transfer cover state.
 
 ## 5. Migration Rules
 
