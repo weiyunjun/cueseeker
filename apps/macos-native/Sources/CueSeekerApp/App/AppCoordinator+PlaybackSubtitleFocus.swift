@@ -493,10 +493,17 @@ extension AppCoordinator {
         session: PlaybackSubtitleFocusSessionStore,
         taskGeneration: Int
     ) {
-        if result == .saved {
-            shiori.invalidateTableRows()
-            reloadShioriListOverview()
-            loadShioriTableRowsIfNeeded()
+        let feedback: ShioriFeedbackState
+        switch result {
+        case .saved(let listID, let uniqueCueCount):
+            shiori.markTableRowsStale()
+            _ = shiori.adjustListCueCounts(
+                [listID: 1],
+                uniqueCueCount: uniqueCueCount
+            )
+            feedback = .saved
+        case .alreadySaved:
+            feedback = .alreadySaved
         }
         guard playbackSubtitleFocusActionGeneration == taskGeneration,
               playback.subtitleFocusSession === session,
@@ -505,9 +512,7 @@ extension AppCoordinator {
             return
         }
         playbackSubtitleFocusActionTask = nil
-        playback.playbackViewModel?.showShioriFeedback(
-            result == .saved ? .saved : .alreadySaved
-        )
+        playback.playbackViewModel?.showShioriFeedback(feedback)
         _ = session.finishKeyboardAction(execution)
     }
 

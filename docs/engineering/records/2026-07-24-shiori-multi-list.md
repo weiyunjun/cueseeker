@@ -3,6 +3,7 @@
 ## Human-Owned Source
 
 - `docs/human/requirements/20260723-Feature-Shiori Multi-List.md`
+- `docs/human/requirements/20260708-Bug-UI Refresh Scope Contract.md`
 - `docs/human/design/UI.md`
 - `docs/human/design/Toast Usage Registry.md`
 
@@ -160,6 +161,30 @@ the native macOS app.
   both menu edges touch, both tops align after coordinate conversion, the
   submenu receives pointer hits, the parent menu stays fixed, and direct
   pointer transfer remains open.
+- `git diff --check` passed.
+
+## Refresh Scope Follow-up
+
+- Kept the loaded Shiori overview visible while a required full query is in
+  flight and preserved the last valid snapshot if that query fails.
+- Applied list create, edit, delete, Move, Duplicate, and Remove results to the
+  affected list summaries instead of clearing and reloading the overview.
+- Removed the redundant overview query and active-list change when returning
+  from list detail.
+- Removed Move and Remove results from the resident current-list projection
+  without clearing the complete table.
+- Marked the hidden Shiori table stale after a Playback Shiori save without
+  clearing or reloading it behind the Playback surface.
+
+## Refresh Scope Follow-up Verification
+
+- Selected Shiori list editor, overview, transfer, database, and Playback
+  Subtitle Focus tests passed (35 tests).
+- The complete Cue Group refresh-scope integration suite passed (14 tests).
+- Regression coverage verifies that list mutations do not return the loaded
+  overview to its loading state, returning to the overview preserves the
+  current list snapshot, and Move keeps the current table loaded while updating
+  only the affected relation and count badges.
 - `git diff --check` passed.
 
 ## Outcome

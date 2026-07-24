@@ -2,7 +2,7 @@ import CueSeekerCore
 import Foundation
 
 enum PlaybackSubtitleFocusShioriWriteResult: Equatable, Sendable {
-    case saved
+    case saved(listID: Int64, uniqueCueCount: Int)
     case alreadySaved
 }
 
@@ -48,7 +48,12 @@ actor PlaybackSubtitleFocusDatabaseReader {
     ) throws -> PlaybackSubtitleFocusShioriWriteResult {
         try Task.checkCancellation()
         let database = try resolvedShioriDatabase()
-        if try database.shiori(cueID: context.cue.id) != nil {
+        guard let listID = try database.firstShioriListID() else {
+            throw SQLiteDatabaseError.stepFailed(
+                "Shiori requires a destination list"
+            )
+        }
+        if try database.shiori(cueID: context.cue.id, listID: listID) != nil {
             try Task.checkCancellation()
             return .alreadySaved
         }
@@ -56,14 +61,21 @@ actor PlaybackSubtitleFocusDatabaseReader {
         try Task.checkCancellation()
         do {
             _ = try database.upsertShiori(
-                selection: context.cueTextSelection
+                selection: context.cueTextSelection,
+                listID: listID
             )
         } catch {
-            guard try database.shiori(cueID: context.cue.id) != nil else {
+            guard try database.shiori(
+                cueID: context.cue.id,
+                listID: listID
+            ) != nil else {
                 throw error
             }
         }
-        return .saved
+        return .saved(
+            listID: listID,
+            uniqueCueCount: try database.uniqueShioriCueCount()
+        )
     }
 
     private func resolvedPlaybackDatabase() throws -> PlaybackSubtitleDatabase {

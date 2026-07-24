@@ -664,6 +664,32 @@ final class TableSandboxRowModelStore: ObservableObject {
            reason: "shiori_resident_projection")
     }
 
+    func removeResidentShiori(
+        id: Int64,
+        tableName: String,
+        probeSurface: SubtitleTableProbeSurface? = nil,
+        probeScope: String? = nil
+    ) {
+        guard snapshot.shioriRelations.contains(where: { $0.id == id }) else {
+            return
+        }
+        let relations = snapshot.shioriRelations.filter { $0.id != id }
+        var tags = snapshot.shioriTagsByEntryID
+        tags[Int(id)] = nil
+        publishSnapshot(TableSandboxRowsSnapshot(
+            shioriRelations: relations,
+            shioriTagsByEntryID: tags,
+            cueContentProvider: snapshot.cueContentProvider,
+            cueContentRevision: snapshot.cueContentRevision,
+            version: snapshot.version + 1,
+            update: .reload,
+            totalRowCount: relations.count
+        ), tableName: tableName,
+           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
+           probeScope: probeScope,
+           reason: "shiori_remove")
+    }
+
     private func acknowledgeCueContentRevision(_ revision: UInt64) {
         guard revision > observedCueContentRevision else {
             return

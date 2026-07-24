@@ -179,11 +179,17 @@ public final class ShioriDatabase: @unchecked Sendable {
             ))
         }
 
-        let countStatement = try database.prepare(
+        return ShioriListOverview(
+            lists: lists,
+            uniqueCueCount: try uniqueShioriCueCount()
+        )
+    }
+
+    public func uniqueShioriCueCount() throws -> Int {
+        let statement = try database.prepare(
             "SELECT COUNT(DISTINCT cue_id) FROM shioris;"
         )
-        let uniqueCueCount = try countStatement.step() ? countStatement.intColumn(0) : 0
-        return ShioriListOverview(lists: lists, uniqueCueCount: uniqueCueCount)
+        return try statement.step() ? statement.intColumn(0) : 0
     }
 
     public func validateShioriList(

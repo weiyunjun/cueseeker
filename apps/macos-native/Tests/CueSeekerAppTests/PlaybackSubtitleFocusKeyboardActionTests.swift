@@ -621,15 +621,22 @@ func subtitleFocusCommittedShioriInvalidatesRowsAfterActionIsSuperseded() async 
             return
         }
         let tableRevisionBefore = app.shiori.tableDataRevision
+        app.shiori.markTableRowsLoaded(totalSavedRowCount: 7)
 
         app.finishPlaybackSubtitleFocusShioriSave(
-            .saved,
+            .saved(
+                listID: ShioriListIdentity.defaultListID,
+                uniqueCueCount: 1
+            ),
             execution,
             session: session,
             taskGeneration: .min
         )
 
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
+        #expect(app.shiori.tableRowsNeedReload)
+        #expect(app.shiori.tableHasLoadedInitialPage)
+        #expect(app.shiori.tableTotalSavedRowCount == 7)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.activeKeyboardAction == execution)
         #expect(app.playback.playbackViewModel?.feedback == nil)

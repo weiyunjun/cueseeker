@@ -104,6 +104,12 @@ func shioriOverviewAndTableLoadingFollowTheSelectedList() async throws {
     #expect(app.shiori.activeListID == defaultList.id)
     #expect(app.shiori.residentRelations.map(\.id) == [defaultItem.id])
 
+    app.showShioriListOverview()
+    #expect(app.workbenchLayout.selectedShioriListID == nil)
+    #expect(app.shiori.activeListID == defaultList.id)
+    #expect(app.shiori.residentRelations.map(\.id) == [defaultItem.id])
+    #expect(app.shioriListOverviewTask == nil)
+
     app.openShioriList(id: secondList.id)
     try await waitForShioriTasksToFinish(app)
     #expect(app.workbenchLayout.selectedShioriListID == secondList.id)
@@ -153,19 +159,36 @@ func shioriTransfersRefreshPresentationAndPublishRegisteredToasts() async throws
         content: "Duplicate this cue",
         listID: ShioriListIdentity.defaultListID
     )
+    app.reloadShioriListOverview()
+    try await waitForShioriTasksToFinish(app)
+    app.openShioriList(id: ShioriListIdentity.defaultListID)
+    try await waitForShioriTasksToFinish(app)
+    #expect(app.shiori.tableHasLoadedInitialPage)
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 2)
 
     #expect(app.moveShiori(movedSource, toListID: destination.id))
     #expect(try shioriDatabase.shioriRelation(id: movedSource.id) == nil)
     #expect(app.toast.visibleItems.last?.request == ShioriToastRequest.moveSucceeded(
         listName: destination.name
     ))
-    #expect(!app.shiori.tableHasLoadedInitialPage)
+    #expect(app.shiori.tableHasLoadedInitialPage)
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.shiori.listOverview.lists.first {
+        $0.id == ShioriListIdentity.defaultListID
+    }?.cueCount == 1)
+    #expect(app.shiori.listOverview.lists.first {
+        $0.id == destination.id
+    }?.cueCount == 1)
 
     #expect(app.duplicateShiori(duplicatedSource, toListID: destination.id))
     #expect(try shioriDatabase.shioriRelation(id: duplicatedSource.id) != nil)
     #expect(app.toast.visibleItems.last?.request == ShioriToastRequest.duplicateSucceeded(
         listName: destination.name
     ))
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.shiori.listOverview.lists.first {
+        $0.id == destination.id
+    }?.cueCount == 2)
 
     #expect(!app.duplicateShiori(duplicatedSource, toListID: destination.id))
     #expect(

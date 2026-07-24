@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import Testing
 import CueSeekerCore
@@ -69,6 +70,15 @@ func appCoordinatorCreatesEditsAndDeletesShioriListsFromEditorSessions() async t
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let database = try #require(app.shioriDatabase)
+    app.reloadShioriListOverview()
+    try await waitForShioriListEditorTasks(app)
+    #expect(app.shiori.hasLoadedListOverview)
+
+    var loadedStates: [Bool] = []
+    let loadedStateCancellable = app.shiori.$hasLoadedListOverview
+        .dropFirst()
+        .sink { loadedStates.append($0) }
+    defer { loadedStateCancellable.cancel() }
 
     app.beginCreatingShioriList()
     let newSession = try #require(app.shiori.listEditorSession)
@@ -82,6 +92,8 @@ func appCoordinatorCreatesEditsAndDeletesShioriListsFromEditorSessions() async t
     })
     #expect(created.description == "Review later")
     #expect(app.shiori.listEditorSession == nil)
+    #expect(app.shiori.listOverview.lists.first?.id == created.id)
+    #expect(!loadedStates.contains(false))
 
     app.beginEditingShioriList(created)
     let editSession = try #require(app.shiori.listEditorSession)
@@ -94,9 +106,13 @@ func appCoordinatorCreatesEditsAndDeletesShioriListsFromEditorSessions() async t
     let updated = try #require(try database.shioriList(id: created.id))
     #expect(updated.name == "Study Queue")
     #expect(updated.description.isEmpty)
+    #expect(app.shiori.listOverview.lists.first?.list == updated)
+    #expect(!loadedStates.contains(false))
     #expect(app.deleteShioriList(id: ShioriListIdentity.defaultListID))
     try await waitForShioriListEditorTasks(app)
     #expect(try database.shioriLists().map(\.id) == [updated.id])
+    #expect(app.shiori.listOverview.lists.map(\.id) == [updated.id])
+    #expect(!loadedStates.contains(false))
 }
 
 @MainActor

@@ -24,7 +24,6 @@ extension AppCoordinator {
 
     func reloadShioriListOverview() {
         shioriListOverviewTask?.cancel()
-        shiori.clearListOverviewForReload()
         let databaseURL = databaseURL
         shioriListOverviewTask = Task { @MainActor [weak self] in
             guard let self else {
@@ -51,9 +50,11 @@ extension AppCoordinator {
                     return
                 }
                 print("Failed to load Shiori list overview: \(error)")
-                self.shiori.installListOverview(
-                    ShioriListOverview(lists: [], uniqueCueCount: 0)
-                )
+                if !self.shiori.hasLoadedListOverview {
+                    self.shiori.installListOverview(
+                        ShioriListOverview(lists: [], uniqueCueCount: 0)
+                    )
+                }
             }
         }
     }
@@ -66,8 +67,7 @@ extension AppCoordinator {
 
     func showShioriListOverview() {
         workbenchLayout.clearShioriList()
-        shiori.setActiveListID(try? shioriDatabase?.firstShioriListID())
-        reloadShioriListOverview()
+        loadShioriListOverviewIfNeeded()
     }
 
     func beginCreatingShioriList() {
@@ -205,15 +205,16 @@ extension AppCoordinator {
                     )
                 }
                 let coverPath = publishedCoverPath ?? oldCoverPath
+                let savedList: ShioriList
                 switch mode {
                 case .newList:
-                    _ = try database.createShioriList(
+                    savedList = try database.createShioriList(
                         name: name,
                         description: description,
                         coverPath: coverPath
                     )
                 case .edit(let list):
-                    _ = try database.updateShioriList(
+                    savedList = try database.updateShioriList(
                         id: list.id,
                         name: name,
                         description: description,
@@ -233,7 +234,9 @@ extension AppCoordinator {
                 }
                 session.isSaving = false
                 self.shiori.listEditorSession = nil
-                self.reloadShioriListOverview()
+                if !self.shiori.upsertListSummary(savedList) {
+                    self.reloadShioriListOverview()
+                }
             } catch is CancellationError {
                 if let publishedCoverPath {
                     try? await self.shioriListCoverStorage.remove(path: publishedCoverPath)
@@ -281,7 +284,13 @@ extension AppCoordinator {
             if shiori.activeListID == id {
                 shiori.setActiveListID(try database.firstShioriListID())
             }
-            reloadShioriListOverview()
+            let didUpdateOverview = (try? database.uniqueShioriCueCount())
+                .map {
+                    shiori.removeListSummary(id: id, uniqueCueCount: $0)
+                } ?? false
+            if !didUpdateOverview {
+                reloadShioriListOverview()
+            }
             if let coverPath = deleted.coverPath {
                 Task {
                     do {
@@ -310,6 +319,7 @@ extension AppCoordinator {
         let snapshot = shiori.tableRowStore.snapshot
         guard !shiori.tableHasLoadedInitialPage
                 || snapshot.totalRowCount != shiori.tableResultRowCount
+                || shiori.tableRowsNeedReload
         else {
             return
         }
@@ -617,7 +627,17 @@ extension AppCoordinator {
                 id: item.id,
                 toListID: destinationListID
             )
+            let sourceListID = shiori.activeListID
             handleShioriRemovedFromCurrentList(item)
+            let didUpdateOverview = sourceListID.map {
+                shiori.adjustListCueCounts([
+                    $0: -1,
+                    destinationListID: 1,
+                ])
+            } ?? false
+            if !didUpdateOverview {
+                reloadShioriListOverview()
+            }
             toast.show(
                 ShioriToastRequest.moveSucceeded(listName: destination.name)
             )
@@ -666,7 +686,9 @@ extension AppCoordinator {
                 id: item.id,
                 toListID: destinationListID
             )
-            reloadShioriListOverview()
+            if !shiori.adjustListCueCounts([destinationListID: 1]) {
+                reloadShioriListOverview()
+            }
             toast.show(
                 ShioriToastRequest.duplicateSucceeded(listName: destination.name)
             )
@@ -696,7 +718,20 @@ extension AppCoordinator {
         do {
             try database.removeShiori(id: item.id)
             _ = reloadPresentation
+            let sourceListID = shiori.activeListID
             handleShioriRemovedFromCurrentList(item)
+            let uniqueCueCount = try? database.uniqueShioriCueCount()
+            let didUpdateOverview = sourceListID.flatMap { sourceListID in
+                uniqueCueCount.map {
+                    shiori.adjustListCueCounts(
+                        [sourceListID: -1],
+                        uniqueCueCount: $0
+                    )
+                }
+            } ?? false
+            if !didUpdateOverview {
+                reloadShioriListOverview()
+            }
             playback.playbackViewModel?.showShioriFeedback(.removed)
             return true
         } catch {
@@ -707,8 +742,7 @@ extension AppCoordinator {
     }
 
     private func handleShioriRemovedFromCurrentList(_ item: Shiori) {
-        shiori.invalidateTableRows()
-        reloadShioriListOverview()
+        shiori.removeShioriFromCurrentProjection(id: item.id)
         removeShioriFromPlaybackNavigationScope(item.id)
         if shiori.selectedShiori?.id == item.id {
             shiori.selectedShiori = nil
