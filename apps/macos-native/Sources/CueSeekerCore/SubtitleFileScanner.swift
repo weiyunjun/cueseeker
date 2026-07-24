@@ -1,5 +1,11 @@
 import Foundation
 
+public enum SubtitleFileScanningError: Error, Equatable, Sendable {
+    case rootIsNotReadableDirectory(String)
+    case enumerationFailed(String)
+    case metadataReadFailed(String)
+}
+
 public struct SubtitleFileScanner {
     public static let supportedSubtitleExtensions: Set<String> = ["srt", "ass"]
 
@@ -14,26 +20,50 @@ public struct SubtitleFileScanner {
     }
 
     public func scanSubtitleFiles(in folder: URL) -> [URL] {
+        (try? scanSubtitleFilesSafely(in: folder)) ?? []
+    }
+
+    public func validateReadableDirectory(_ folder: URL) throws {
+        let standardizedFolder = folder.standardizedFileURL
+        guard let values = try? standardizedFolder.resourceValues(forKeys: [.isDirectoryKey]),
+              values.isDirectory == true,
+              fileManager.isReadableFile(atPath: standardizedFolder.path)
+        else {
+            throw SubtitleFileScanningError.rootIsNotReadableDirectory(
+                standardizedFolder.path
+            )
+        }
+    }
+
+    public func scanSubtitleFilesSafely(in folder: URL) throws -> [URL] {
+        try validateReadableDirectory(folder)
         let resourceKeys: [URLResourceKey] = [
             .isRegularFileKey,
             .isDirectoryKey,
             .isSymbolicLinkKey
         ]
 
+        var enumerationError: SubtitleFileScanningError?
         guard let enumerator = fileManager.enumerator(
             at: folder,
             includingPropertiesForKeys: resourceKeys,
             options: [.skipsHiddenFiles],
-            errorHandler: { _, _ in true }
+            errorHandler: { url, _ in
+                enumerationError = .enumerationFailed(url.path)
+                return false
+            }
         ) else {
-            return []
+            throw SubtitleFileScanningError.enumerationFailed(folder.path)
         }
 
         var subtitleFiles: [URL] = []
 
         for case let fileURL as URL in enumerator {
-            guard let values = try? fileURL.resourceValues(forKeys: Set(resourceKeys)) else {
-                continue
+            let values: URLResourceValues
+            do {
+                values = try fileURL.resourceValues(forKeys: Set(resourceKeys))
+            } catch {
+                throw SubtitleFileScanningError.metadataReadFailed(fileURL.path)
             }
 
             if values.isSymbolicLink == true {
@@ -50,6 +80,10 @@ public struct SubtitleFileScanner {
             }
 
             subtitleFiles.append(fileURL)
+        }
+
+        if let enumerationError {
+            throw enumerationError
         }
 
         return subtitleFiles.sorted { $0.path < $1.path }

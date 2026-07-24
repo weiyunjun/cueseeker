@@ -37,6 +37,19 @@ identity.
 - Advanced the schema to 36 so generated and user-selected folder covers follow
   FolderID and cannot leak to a replacement folder at the old path.
 
+### 3. Atomic Library Index Publication
+
+- Separated filesystem scanning, subtitle reading, parsing, render preparation,
+  and language analysis from database publication.
+- Published all changed, unchanged, and stale-file decisions for one Library in
+  one immediate transaction, rebuilding derived Search data only after the
+  complete batch succeeds.
+- Added monotonically increasing per-Library publication tokens so a stale scan
+  cannot overwrite a newer result.
+- Made unreadable roots, incomplete enumeration, unreadable files, malformed
+  SRT blocks, and malformed ASS Dialogue records cancel publication while the
+  previous successful Index remains active.
+
 ## Verification
 
 - `swift test --filter DatabaseBootstrapTests`
@@ -51,7 +64,18 @@ identity.
 - `swift test --filter LibraryDatabaseTests`
   - 18 tests passed.
 - `swift test --filter SubtitleIndexerTests`
-  - 16 tests passed.
+  - 19 tests passed.
+  - Covered whole-Library rollback after an injected mid-publication failure,
+    malformed-subtitle rollback, stale-token rejection, unchanged-file
+    handling, and successful SRT/ASS publication.
+- `swift test --filter SubtitleFileScannerTests`
+  - 2 tests passed.
+  - Covered recursive supported-file discovery and rejection of an invalid
+    Library root.
+- `swift test --filter SRTParserTests`
+  - 4 tests passed.
+- `swift test --filter ASSParserTests`
+  - 6 tests passed.
 
 ## Result
 

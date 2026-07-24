@@ -91,6 +91,141 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
     }
 
+    func beginLibraryIndex(_ folder: URL) throws -> LibraryIndexLease {
+        let libraryID = try addSearchPath(folder)
+        return try database.withImmediateTransaction {
+            let update = try database.prepare(
+                """
+                UPDATE search_paths
+                SET latest_index_token = latest_index_token + 1,
+                    updated_at = ?
+                WHERE id = ?
+                  AND binding_state = 'available';
+                """
+            )
+            try update.bind(ISO8601DateFormatter().string(from: Date()), at: 1)
+            try update.bind(libraryID, at: 2)
+            try update.run()
+            guard database.changesCount() == 1 else {
+                throw SQLiteDatabaseError.stepFailed(
+                    "Library became unavailable before indexing started."
+                )
+            }
+
+            let select = try database.prepare(
+                "SELECT latest_index_token FROM search_paths WHERE id = ?;"
+            )
+            try select.bind(libraryID, at: 1)
+            guard try select.step() else {
+                throw SQLiteDatabaseError.stepFailed(
+                    "Library index token could not be read."
+                )
+            }
+            return LibraryIndexLease(
+                libraryID: libraryID,
+                token: select.int64Column(0)
+            )
+        }
+    }
+
+    func publishLibraryIndex(_ index: PreparedLibraryIndex) throws {
+        for file in index.changedFiles {
+            try validateLanguageAnalysis(
+                file.languageAnalysis,
+                format: file.format,
+                cueGroupCount: file.cueGroups.count
+            )
+        }
+
+        try database.withImmediateTransaction {
+            let token = try database.prepare(
+                """
+                SELECT latest_index_token
+                FROM search_paths
+                WHERE id = ?
+                  AND binding_state = 'available';
+                """
+            )
+            try token.bind(index.lease.libraryID, at: 1)
+            guard try token.step(),
+                  token.int64Column(0) == index.lease.token
+            else {
+                throw SubtitleIndexingError.stalePublication(
+                    libraryID: index.lease.libraryID,
+                    token: index.lease.token
+                )
+            }
+
+            for file in index.changedFiles {
+                try replaceCueGroupsInCurrentTransaction(
+                    subtitleFile: file.subtitleFile,
+                    videoFile: file.videoFile,
+                    format: file.format,
+                    cueGroups: file.cueGroups,
+                    assRenderSegments: file.assRenderSegments,
+                    assFontReferences: file.assFontReferences,
+                    fileSize: file.fileSize,
+                    modifiedAt: file.modifiedAt,
+                    languageAnalysis: file.languageAnalysis,
+                    playbackFinishMetadata: Self.playbackFinishMetadata(
+                        format: file.format,
+                        cueGroups: file.cueGroups
+                    ),
+                    libraryID: index.lease.libraryID,
+                    rebuildSearchDerivedIndex: false
+                )
+            }
+
+            for file in index.unchangedFiles {
+                guard let subtitleFile = try subtitleFileRecord(path: file.subtitleFile.path) else {
+                    throw SQLiteDatabaseError.stepFailed(
+                        "Unchanged subtitle disappeared before index publication."
+                    )
+                }
+                let videoFileID = try upsertVideoFile(
+                    file.videoFile,
+                    libraryID: index.lease.libraryID
+                )
+                try upsertSubtitleVideoMatch(
+                    subtitleFileID: subtitleFile.id,
+                    videoFileID: videoFileID
+                )
+            }
+
+            try removeIndexedDataInCurrentTransaction(
+                under: index.folder,
+                keeping: index.keptSubtitlePaths,
+                removeSearchPath: false,
+                rebuildSearchDerivedIndex: false
+            )
+            try rebuildSearchDerivedIndexInCurrentTransaction()
+
+            let publish = try database.prepare(
+                """
+                UPDATE search_paths
+                SET published_index_token = ?,
+                    last_successful_index_at = ?,
+                    updated_at = ?
+                WHERE id = ?
+                  AND latest_index_token = ?;
+                """
+            )
+            let publishedAt = ISO8601DateFormatter().string(from: Date())
+            try publish.bind(index.lease.token, at: 1)
+            try publish.bind(publishedAt, at: 2)
+            try publish.bind(publishedAt, at: 3)
+            try publish.bind(index.lease.libraryID, at: 4)
+            try publish.bind(index.lease.token, at: 5)
+            try publish.run()
+            guard database.changesCount() == 1 else {
+                throw SubtitleIndexingError.stalePublication(
+                    libraryID: index.lease.libraryID,
+                    token: index.lease.token
+                )
+            }
+        }
+    }
+
     public func replaceEntries(
         subtitleFile: URL,
         videoFile: URL,
@@ -340,108 +475,139 @@ public final class IndexingDatabase: @unchecked Sendable {
         try validateLanguageAnalysis(languageAnalysis, format: format, cueGroupCount: cueGroups.count)
         let playbackFinishMetadata = Self.playbackFinishMetadata(format: format, cueGroups: cueGroups)
         try database.withImmediateTransaction {
-            let preservedCueLineSpeakers = try cueLineSpeakersByStableKey(forSubtitlePath: subtitleFile.path)
-            var preservedShioris = try shioriRelationsByCueSourceIdentity(
-                forSubtitlePath: subtitleFile.path
-            )
-            try deleteIndexedSubtitlePath(
-                subtitleFile.path,
-                preserveFileIdentity: true
-            )
-
-            let subtitleFileID = try upsertSubtitleFile(
+            try replaceCueGroupsInCurrentTransaction(
                 subtitleFile: subtitleFile,
+                videoFile: videoFile,
                 format: format,
+                cueGroups: cueGroups,
+                assRenderSegments: assRenderSegments,
+                assFontReferences: assFontReferences,
                 fileSize: fileSize,
-                modifiedAt: modifiedAt
+                modifiedAt: modifiedAt,
+                languageAnalysis: languageAnalysis,
+                playbackFinishMetadata: playbackFinishMetadata,
+                libraryID: nil,
+                rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
             )
-            let videoFileID = try upsertVideoFile(videoFile)
-            try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
-            try insertPlaybackFinishMetadata(
+        }
+    }
+
+    private func replaceCueGroupsInCurrentTransaction(
+        subtitleFile: URL,
+        videoFile: URL,
+        format: SubtitleFormat,
+        cueGroups: [SubtitleCueGroup],
+        assRenderSegments: [ASSRenderSegmentPayload],
+        assFontReferences: [ASSFontReferenceIntent],
+        fileSize: Int64?,
+        modifiedAt: Date?,
+        languageAnalysis: SubtitleLanguageAnalysis?,
+        playbackFinishMetadata: SubtitlePlaybackFinishMetadata,
+        libraryID: Int64?,
+        rebuildSearchDerivedIndex: Bool
+    ) throws {
+        let preservedCueLineSpeakers = try cueLineSpeakersByStableKey(forSubtitlePath: subtitleFile.path)
+        var preservedShioris = try shioriRelationsByCueSourceIdentity(
+            forSubtitlePath: subtitleFile.path
+        )
+        try deleteIndexedSubtitlePath(
+            subtitleFile.path,
+            preserveFileIdentity: true
+        )
+
+        let subtitleFileID = try upsertSubtitleFile(
+            subtitleFile: subtitleFile,
+            format: format,
+            fileSize: fileSize,
+            modifiedAt: modifiedAt,
+            libraryID: libraryID
+        )
+        let videoFileID = try upsertVideoFile(videoFile, libraryID: libraryID)
+        try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
+        try insertPlaybackFinishMetadata(
+            subtitleFileID: subtitleFileID,
+            subtitleFile: subtitleFile,
+            metadata: playbackFinishMetadata
+        )
+
+        if format == .ass {
+            try insertASSFontReferenceManifest(
+                subtitleFileID: subtitleFileID,
+                referencedFontCount: assFontReferences.count
+            )
+            for reference in assFontReferences {
+                try insertASSFontReference(subtitleFileID: subtitleFileID, reference: reference)
+            }
+        }
+
+        for segment in assRenderSegments {
+            try insertASSRenderSegment(subtitleFileID: subtitleFileID, segment: segment)
+        }
+
+        if let languageAnalysis {
+            try insertSubtitleLanguageManifest(
+                subtitleFileID: subtitleFileID,
+                detectionCount: languageAnalysis.styleDetections.count + (languageAnalysis.fileDetection == nil ? 0 : 1),
+                cueGroupCount: languageAnalysis.cueGroupLanguages.count
+            )
+            if let fileDetection = languageAnalysis.fileDetection {
+                try insertSubtitleLanguageDetection(
+                    subtitleFileID: subtitleFileID,
+                    scope: .file,
+                    scopeKey: nil,
+                    detection: fileDetection
+                )
+            }
+            for styleName in languageAnalysis.styleDetections.keys.sorted() {
+                guard let detection = languageAnalysis.styleDetections[styleName] else {
+                    continue
+                }
+                try insertSubtitleLanguageDetection(
+                    subtitleFileID: subtitleFileID,
+                    scope: .style,
+                    scopeKey: styleName,
+                    detection: detection
+                )
+            }
+        }
+
+        for (index, group) in cueGroups.enumerated() {
+            let cueGroupID = try insertCueGroup(
                 subtitleFileID: subtitleFileID,
                 subtitleFile: subtitleFile,
-                metadata: playbackFinishMetadata
+                group: group
             )
-
-            if format == .ass {
-                try insertASSFontReferenceManifest(
+            for line in group.cueLines {
+                let cueLineID = try insertCueLine(
                     subtitleFileID: subtitleFileID,
-                    referencedFontCount: assFontReferences.count
+                    cueGroupID: cueGroupID,
+                    line: line
                 )
-                for reference in assFontReferences {
-                    try insertASSFontReference(subtitleFileID: subtitleFileID, reference: reference)
-                }
-            }
-
-            for segment in assRenderSegments {
-                try insertASSRenderSegment(subtitleFileID: subtitleFileID, segment: segment)
-            }
-
-            if let languageAnalysis {
-                try insertSubtitleLanguageManifest(
-                    subtitleFileID: subtitleFileID,
-                    detectionCount: languageAnalysis.styleDetections.count + (languageAnalysis.fileDetection == nil ? 0 : 1),
-                    cueGroupCount: languageAnalysis.cueGroupLanguages.count
-                )
-                if let fileDetection = languageAnalysis.fileDetection {
-                    try insertSubtitleLanguageDetection(
-                        subtitleFileID: subtitleFileID,
-                        scope: .file,
-                        scopeKey: nil,
-                        detection: fileDetection
-                    )
-                }
-                for styleName in languageAnalysis.styleDetections.keys.sorted() {
-                    guard let detection = languageAnalysis.styleDetections[styleName] else {
-                        continue
-                    }
-                    try insertSubtitleLanguageDetection(
-                        subtitleFileID: subtitleFileID,
-                        scope: .style,
-                        scopeKey: styleName,
-                        detection: detection
-                    )
-                }
-            }
-
-            for (index, group) in cueGroups.enumerated() {
-                let cueGroupID = try insertCueGroup(
-                    subtitleFileID: subtitleFileID,
-                    subtitleFile: subtitleFile,
-                    group: group
-                )
-                for line in group.cueLines {
-                    let cueLineID = try insertCueLine(
-                        subtitleFileID: subtitleFileID,
+                let speakerKey = CueLineStableKey(line: line)
+                if let speakers = preservedCueLineSpeakers[speakerKey] {
+                    try insertCueLineSpeakers(
+                        cueLineID: cueLineID,
                         cueGroupID: cueGroupID,
-                        line: line
+                        speakers: speakers
                     )
-                    let speakerKey = CueLineStableKey(line: line)
-                    if let speakers = preservedCueLineSpeakers[speakerKey] {
-                        try insertCueLineSpeakers(
-                            cueLineID: cueLineID,
-                            cueGroupID: cueGroupID,
-                            speakers: speakers
-                        )
-                    }
-                    let cueIdentity = CueLineSourceIdentity(line: line)
-                    if let relations = preservedShioris.removeValue(
-                        forKey: cueIdentity
-                    ) {
-                        try restoreShioriRelations(relations, cueID: cueLineID)
-                    }
                 }
-                try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
-                if let languages = languageAnalysis?.cueGroupLanguages[index] {
-                    try insertCueGroupLanguages(cueGroupID: cueGroupID, languages: languages)
+                let cueIdentity = CueLineSourceIdentity(line: line)
+                if let relations = preservedShioris.removeValue(
+                    forKey: cueIdentity
+                ) {
+                    try restoreShioriRelations(relations, cueID: cueLineID)
                 }
             }
-
-            if rebuildSearchDerivedIndex {
-                try rebuildSearchDerivedIndexInCurrentTransaction()
+            try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
+            if let languages = languageAnalysis?.cueGroupLanguages[index] {
+                try insertCueGroupLanguages(cueGroupID: cueGroupID, languages: languages)
             }
-            try deleteOrphanedVideoFiles()
         }
+
+        if rebuildSearchDerivedIndex {
+            try rebuildSearchDerivedIndexInCurrentTransaction()
+        }
+        try deleteOrphanedVideoFiles()
     }
 
     public func replaceCueLineSpeakers(
@@ -1110,6 +1276,22 @@ public final class IndexingDatabase: @unchecked Sendable {
         removeSearchPath: Bool,
         rebuildSearchDerivedIndex: Bool
     ) throws {
+        try database.withImmediateTransaction {
+            try removeIndexedDataInCurrentTransaction(
+                under: folder,
+                keeping: subtitleFiles,
+                removeSearchPath: removeSearchPath,
+                rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
+            )
+        }
+    }
+
+    private func removeIndexedDataInCurrentTransaction(
+        under folder: URL,
+        keeping subtitleFiles: Set<String>,
+        removeSearchPath: Bool,
+        rebuildSearchDerivedIndex: Bool
+    ) throws {
         let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
         let prefixCondition = folderPathPrefixes
             .map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
@@ -1125,8 +1307,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             keepCondition = "AND sf.subtitle_path NOT IN (\(keepPlaceholders))"
         }
 
-        try database.withImmediateTransaction {
-            let deleteASSFontReferences = try database.prepare(
+        let deleteASSFontReferences = try database.prepare(
                 """
                 DELETE FROM ass_font_references
                 WHERE subtitle_file_id IN (
@@ -1288,9 +1469,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                 }
             }
 
-            if rebuildSearchDerivedIndex {
-                try rebuildSearchDerivedIndexInCurrentTransaction()
-            }
+        if rebuildSearchDerivedIndex {
+            try rebuildSearchDerivedIndexInCurrentTransaction()
         }
     }
 

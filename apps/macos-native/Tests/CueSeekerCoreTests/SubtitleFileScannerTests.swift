@@ -24,3 +24,17 @@ func scansSupportedSubtitleFilesRecursivelyAndIgnoresOtherFiles() throws {
     #expect(results.map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT", "Episode.ass"])
     #expect(scanner.scanSRTFiles(in: root).map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT"])
 }
+
+@Test
+func safeScanRejectsAFileAsLibraryRoot() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerScannerFile-\(UUID().uuidString)")
+    try "not a directory".write(to: root, atomically: true, encoding: .utf8)
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    #expect(throws: SubtitleFileScanningError.rootIsNotReadableDirectory(root.path)) {
+        try SubtitleFileScanner().scanSubtitleFilesSafely(in: root)
+    }
+}

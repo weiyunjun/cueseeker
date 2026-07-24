@@ -1,5 +1,9 @@
 import Foundation
 
+public enum SRTParsingError: Error, Equatable, Sendable {
+    case malformedBlock(Int)
+}
+
 public enum SRTParser {
     public static func parse(_ contents: String) -> [SubtitleEntry] {
         var seenEntries = Set<SRTEntryDeduplicationKey>()
@@ -21,6 +25,15 @@ public enum SRTParser {
         parse(contents).enumerated().map { index, entry in
             entry.cueGroup(eventIndex: index)
         }
+    }
+
+    public static func parseCueGroupsForIndexing(_ contents: String) throws -> [SubtitleCueGroup] {
+        for (index, block) in splitBlocks(contents).enumerated() {
+            guard isStructurallyValid(block) else {
+                throw SRTParsingError.malformedBlock(index + 1)
+            }
+        }
+        return parseCueGroups(contents)
     }
 
     public static func milliseconds(from timecode: String) -> Int? {
@@ -104,6 +117,34 @@ public enum SRTParser {
             endMilliseconds: endMilliseconds,
             text: text
         )
+    }
+
+    private static func isStructurallyValid(_ lines: [String]) -> Bool {
+        guard !lines.isEmpty else {
+            return false
+        }
+
+        let firstLine = lines[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let timeLineIndex = Int(firstLine) == nil ? 0 : 1
+        guard lines.indices.contains(timeLineIndex) else {
+            return false
+        }
+
+        let timeLine = lines[timeLineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let range = timeLine.range(of: "-->") else {
+            return false
+        }
+        let startTimecode = String(timeLine[..<range.lowerBound])
+        let endTimecode = String(timeLine[range.upperBound...])
+        guard milliseconds(from: startTimecode) != nil,
+              milliseconds(from: endTimecode) != nil
+        else {
+            return false
+        }
+
+        return lines.dropFirst(timeLineIndex + 1).contains {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     private static func splitBlocks(_ contents: String) -> [[String]] {

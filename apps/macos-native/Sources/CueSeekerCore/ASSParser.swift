@@ -1,9 +1,22 @@
 import Foundation
 
+public enum ASSParsingError: Error, Equatable, Sendable {
+    case malformedDialogue
+}
+
 public enum ASSParser {
     public static func parseCueGroups(_ contents: String) -> [SubtitleCueGroup] {
         var parser = Parser(contents: contents)
         return parser.parse()
+    }
+
+    public static func parseCueGroupsForIndexing(_ contents: String) throws -> [SubtitleCueGroup] {
+        var parser = Parser(contents: contents)
+        let groups = parser.parse()
+        guard parser.malformedDialogueCount == 0 else {
+            throw ASSParsingError.malformedDialogue
+        }
+        return groups
     }
 
     public static func milliseconds(from timecode: String) -> Int? {
@@ -83,6 +96,7 @@ public enum ASSParser {
         var eventFormat: [String] = []
         var parsedLines: [ParsedCueLine] = []
         var seenCueLineKeys = Set<ParsedCueLineDeduplicationKey>()
+        var malformedDialogueCount = 0
 
         mutating func parse() -> [SubtitleCueGroup] {
             let normalized = contents
@@ -170,9 +184,11 @@ public enum ASSParser {
                 return
             }
 
-            guard line.lowercased().hasPrefix("dialogue:"),
-                  !eventFormat.isEmpty
-            else {
+            guard line.lowercased().hasPrefix("dialogue:") else {
+                return
+            }
+            guard !eventFormat.isEmpty else {
+                malformedDialogueCount += 1
                 return
             }
 
@@ -183,9 +199,14 @@ public enum ASSParser {
                   let endTimecode = value(named: "end", fields: fields, format: eventFormat),
                   let startMilliseconds = ASSParser.milliseconds(from: startTimecode),
                   let endMilliseconds = ASSParser.milliseconds(from: endTimecode),
-                  endMilliseconds >= startMilliseconds,
-                  endMilliseconds - startMilliseconds >= SubtitleCueIndexingRules.minimumDurationMilliseconds,
                   let rawText = value(named: "text", fields: fields, format: eventFormat)
+            else {
+                malformedDialogueCount += 1
+                return
+            }
+
+            guard endMilliseconds >= startMilliseconds,
+                  endMilliseconds - startMilliseconds >= SubtitleCueIndexingRules.minimumDurationMilliseconds
             else {
                 return
             }

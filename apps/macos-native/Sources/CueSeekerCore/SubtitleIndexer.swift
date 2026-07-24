@@ -15,6 +15,41 @@ public struct SubtitleIndexingFailure: Equatable, Sendable {
     public let reason: String
 }
 
+public enum SubtitleIndexingError: Error, Equatable, Sendable {
+    case incomplete(path: String, reason: String)
+    case stalePublication(libraryID: Int64, token: Int64)
+}
+
+struct LibraryIndexLease: Equatable, Sendable {
+    let libraryID: Int64
+    let token: Int64
+}
+
+struct PreparedSubtitleIndexFile: Sendable {
+    let subtitleFile: URL
+    let videoFile: URL
+    let format: SubtitleFormat
+    let cueGroups: [SubtitleCueGroup]
+    let assRenderSegments: [ASSRenderSegmentPayload]
+    let assFontReferences: [ASSFontReferenceIntent]
+    let fileSize: Int64?
+    let modifiedAt: Date?
+    let languageAnalysis: SubtitleLanguageAnalysis
+}
+
+struct UnchangedSubtitleIndexFile: Sendable {
+    let subtitleFile: URL
+    let videoFile: URL
+}
+
+struct PreparedLibraryIndex: Sendable {
+    let folder: URL
+    let lease: LibraryIndexLease
+    let changedFiles: [PreparedSubtitleIndexFile]
+    let unchangedFiles: [UnchangedSubtitleIndexFile]
+    let keptSubtitlePaths: Set<String>
+}
+
 public struct SubtitleIndexer {
     private let scanner: SubtitleFileScanner
     private let matcher: VideoMatcher
@@ -31,29 +66,47 @@ public struct SubtitleIndexer {
     }
 
     public func index(folder: URL, into database: IndexingDatabase) throws -> SubtitleIndexingResult {
-        _ = try database.addSearchPath(folder)
+        try scanner.validateReadableDirectory(folder)
+        let lease = try database.beginLibraryIndex(folder)
         let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
-        let libraryDatabase = try LibraryDatabase(path: database.path)
 
         var result = SubtitleIndexingResult()
-        let subtitleFiles = scanner.scanSubtitleFiles(in: folder)
+        let subtitleFiles: [URL]
+        do {
+            subtitleFiles = try scanner.scanSubtitleFilesSafely(in: folder)
+        } catch {
+            throw SubtitleIndexingError.incomplete(
+                path: folder.path,
+                reason: "Library scan did not complete: \(error)"
+            )
+        }
         result.scannedSubtitleFiles = subtitleFiles.count
 
         let existingFiles = Dictionary(
             uniqueKeysWithValues: try database.subtitleFiles().map { ($0.subtitlePath, $0) }
         )
         var keptSubtitlePaths = Set<String>()
+        var changedFiles: [PreparedSubtitleIndexFile] = []
+        var unchangedFiles: [UnchangedSubtitleIndexFile] = []
 
         for subtitleFile in subtitleFiles {
             guard let videoFile = matcher.matchingVideo(for: subtitleFile) else {
+                keptSubtitlePaths.insert(subtitleFile.path)
                 result.skippedMissingVideo += 1
                 continue
             }
-            try libraryDatabase.refreshVideoFileMetadata(videoFile)
 
-            let attributes = try? FileManager.default.attributesOfItem(atPath: subtitleFile.path)
-            let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
-            let modifiedAt = attributes?[.modificationDate] as? Date
+            let attributes: [FileAttributeKey: Any]
+            do {
+                attributes = try FileManager.default.attributesOfItem(atPath: subtitleFile.path)
+            } catch {
+                throw SubtitleIndexingError.incomplete(
+                    path: subtitleFile.path,
+                    reason: "Subtitle metadata could not be read."
+                )
+            }
+            let fileSize = (attributes[.size] as? NSNumber)?.int64Value
+            let modifiedAt = attributes[.modificationDate] as? Date
 
             if let metadata = existingFiles[subtitleFile.path],
                try isUnchanged(
@@ -67,6 +120,12 @@ public struct SubtitleIndexer {
                )
             {
                 keptSubtitlePaths.insert(subtitleFile.path)
+                unchangedFiles.append(
+                    UnchangedSubtitleIndexFile(
+                        subtitleFile: subtitleFile,
+                        videoFile: videoFile
+                    )
+                )
                 result.skippedUnchangedSubtitleFiles += 1
                 continue
             }
@@ -75,14 +134,10 @@ public struct SubtitleIndexer {
             do {
                 contents = try String(contentsOf: subtitleFile)
             } catch {
-                result.skippedUnreadableSubtitle += 1
-                result.failedFiles.append(
-                    SubtitleIndexingFailure(
-                        path: subtitleFile.path,
-                        reason: "Subtitle file could not be read."
-                    )
+                throw SubtitleIndexingError.incomplete(
+                    path: subtitleFile.path,
+                    reason: "Subtitle file could not be read."
                 )
-                continue
             }
 
             guard let format = SubtitleFormat(fileExtension: subtitleFile.pathExtension) else {
@@ -92,28 +147,37 @@ public struct SubtitleIndexer {
             let cueGroups: [SubtitleCueGroup]
             var assRenderSegments: [ASSRenderSegmentPayload] = []
             var assFontReferences: [ASSFontReferenceIntent] = []
-            switch format {
-            case .srt:
-                cueGroups = SRTParser.parseCueGroups(contents)
-            case .ass:
-                cueGroups = ASSParser.parseCueGroups(contents)
-                assFontReferences = ASSFontIntentExtractor.references(from: contents)
-                if ASSRenderSegmenter.shouldSegment(format: format, fileSize: fileSize) {
-                    assRenderSegments = ASSRenderSegmenter.renderSegments(from: contents)
+            do {
+                switch format {
+                case .srt:
+                    cueGroups = try SRTParser.parseCueGroupsForIndexing(contents)
+                case .ass:
+                    cueGroups = try ASSParser.parseCueGroupsForIndexing(contents)
+                    assFontReferences = ASSFontIntentExtractor.references(from: contents)
+                    if ASSRenderSegmenter.shouldSegment(format: format, fileSize: fileSize) {
+                        assRenderSegments = ASSRenderSegmenter.renderSegments(from: contents)
+                    }
                 }
+            } catch {
+                throw SubtitleIndexingError.incomplete(
+                    path: subtitleFile.path,
+                    reason: "Subtitle parsing did not complete: \(error)"
+                )
             }
 
             let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
-            try database.replaceCueGroupsForIndexingBatch(
-                subtitleFile: subtitleFile,
-                videoFile: videoFile,
-                format: format,
-                cueGroups: cueGroups,
-                assRenderSegments: assRenderSegments,
-                assFontReferences: assFontReferences,
-                fileSize: fileSize,
-                modifiedAt: modifiedAt,
-                languageAnalysis: languageAnalysis
+            changedFiles.append(
+                PreparedSubtitleIndexFile(
+                    subtitleFile: subtitleFile,
+                    videoFile: videoFile,
+                    format: format,
+                    cueGroups: cueGroups,
+                    assRenderSegments: assRenderSegments,
+                    assFontReferences: assFontReferences,
+                    fileSize: fileSize,
+                    modifiedAt: modifiedAt,
+                    languageAnalysis: languageAnalysis
+                )
             )
 
             keptSubtitlePaths.insert(subtitleFile.path)
@@ -121,7 +185,15 @@ public struct SubtitleIndexer {
             result.indexedSubtitleEntries += cueGroups.count
         }
 
-        try database.removeStaleEntries(under: folder, keeping: keptSubtitlePaths)
+        try database.publishLibraryIndex(
+            PreparedLibraryIndex(
+                folder: folder,
+                lease: lease,
+                changedFiles: changedFiles,
+                unchangedFiles: unchangedFiles,
+                keptSubtitlePaths: keptSubtitlePaths
+            )
+        )
 
         return result
     }
@@ -166,6 +238,17 @@ public struct SubtitleIndexer {
         }
 
         return true
+    }
+}
+
+extension SubtitleIndexingError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case let .incomplete(path, reason):
+            return "\(reason) Index publication was cancelled for \(path)."
+        case let .stalePublication(libraryID, token):
+            return "Index token \(token) no longer has publication rights for Library \(libraryID)."
+        }
     }
 }
 

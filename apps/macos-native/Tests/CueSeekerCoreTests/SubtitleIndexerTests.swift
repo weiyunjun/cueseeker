@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 import Testing
-import CueSeekerCore
+@testable import CueSeekerCore
 
 @Test
 func indexesFolderIntoSQLiteSearchDatabase() throws {
@@ -312,6 +312,165 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
     let searchResults = try SearchDatabase(path: fixture.databaseURL).search("Stable")
     #expect(searchResults.count == 1)
     #expect(searchResults[0].content == "Stable searchable text.")
+}
+
+@Test
+func failedMultiFilePublicationRollsBackTheWholeLibraryIndex() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "First.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Original first.
+
+        """
+    )
+    _ = try fixture.writeSubtitle(
+        name: "Second.srt",
+        contents: """
+        1
+        00:00:04,000 --> 00:00:06,000
+        Original second.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "First.mkv")
+    _ = try fixture.writeVideo(name: "Second.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    _ = try fixture.writeSubtitle(
+        name: "First.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Updated first.
+
+        """
+    )
+    _ = try fixture.writeSubtitle(
+        name: "Second.srt",
+        contents: """
+        1
+        00:00:04,000 --> 00:00:06,000
+        Updated second.
+
+        """
+    )
+    try executeSQLite(
+        at: fixture.databaseURL,
+        """
+        CREATE TRIGGER reject_second_index_write
+        BEFORE INSERT ON subtitle_cue_lines
+        WHEN NEW.content = 'Updated second.'
+        BEGIN
+            SELECT RAISE(ABORT, 'injected publication failure');
+        END;
+        """
+    )
+
+    #expect(throws: (any Error).self) {
+        try indexer.index(folder: fixture.root, into: database)
+    }
+
+    let search = try SearchDatabase(path: fixture.databaseURL)
+    #expect(try search.search("Original first").count == 1)
+    #expect(try search.search("Original second").count == 1)
+    #expect(try search.search("Updated first").isEmpty)
+    #expect(try search.search("Updated second").isEmpty)
+}
+
+@Test
+func malformedSubtitleDoesNotReplaceTheLastSuccessfulIndex() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Last successful text.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Episode.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    _ = try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        this is not a time range
+        Broken replacement.
+
+        """
+    )
+
+    #expect(throws: SubtitleIndexingError.self) {
+        try indexer.index(folder: fixture.root, into: database)
+    }
+    #expect(
+        try SearchDatabase(path: fixture.databaseURL)
+            .search("Last successful")
+            .count == 1
+    )
+}
+
+@Test
+func staleLibraryIndexTokenCannotPublish() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let older = try database.beginLibraryIndex(fixture.root)
+    let newer = try database.beginLibraryIndex(fixture.root)
+
+    #expect(
+        throws: SubtitleIndexingError.stalePublication(
+            libraryID: older.libraryID,
+            token: older.token
+        )
+    ) {
+        try database.publishLibraryIndex(
+            PreparedLibraryIndex(
+                folder: fixture.root,
+                lease: older,
+                changedFiles: [],
+                unchangedFiles: [],
+                keptSubtitlePaths: []
+            )
+        )
+    }
+
+    try database.publishLibraryIndex(
+        PreparedLibraryIndex(
+            folder: fixture.root,
+            lease: newer,
+            changedFiles: [],
+            unchangedFiles: [],
+            keptSubtitlePaths: []
+        )
+    )
+    #expect(
+        try queryInt(
+            at: fixture.databaseURL,
+            sql: "SELECT published_index_token FROM search_paths WHERE id = \(newer.libraryID);"
+        ) == newer.token
+    )
 }
 
 @Test
@@ -700,4 +859,28 @@ private func executeSQLite(at url: URL, _ sql: String) throws {
         sqlite3_free(errorMessage)
         throw SQLiteFixtureError.executeFailed(message)
     }
+}
+
+private func queryInt(at url: URL, sql: String) throws -> Int64 {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+        let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw SQLiteFixtureError.openFailed(message)
+    }
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    defer {
+        sqlite3_finalize(statement)
+    }
+    guard sqlite3_step(statement) == SQLITE_ROW else {
+        throw SQLiteFixtureError.executeFailed(String(cString: sqlite3_errmsg(database)))
+    }
+    return sqlite3_column_int64(statement, 0)
 }
