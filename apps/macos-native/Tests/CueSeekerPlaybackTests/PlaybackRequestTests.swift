@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 import CueSeekerCore
@@ -46,6 +47,25 @@ func playbackRenderContainerUsesSourceFaithfulOverlayForASSSource() async throws
     #expect(view.subviews.contains { String(describing: type(of: $0)).contains("SourceFaithfulASSSubtitleOverlayView") })
     #expect(!view.subviews.contains { String(describing: type(of: $0)).contains("NativeASSSubtitleOverlayView") })
     try await Task.sleep(nanoseconds: 100_000_000)
+}
+
+@Test
+@MainActor
+func playbackRenderContainerUsesDirectOverlayForSRTSource() {
+    let view = PlaybackRenderContainerView()
+    let source = PlaybackSubtitleSource(
+        url: URL(fileURLWithPath: "/tmp/direct-rendering.srt"),
+        format: .srt
+    )
+
+    view.setSubtitleSource(source)
+
+    #expect(view.subviews.contains {
+        String(describing: type(of: $0)).contains("SRTSubtitleOverlayView")
+    })
+    #expect(!view.subviews.contains {
+        String(describing: type(of: $0)).contains("SourceFaithfulASSSubtitleOverlayView")
+    })
 }
 
 @Test
@@ -799,6 +819,70 @@ func playbackSubtitleTrackJoinsOverlappingCues() {
 }
 
 @Test
+func playbackSubtitleTrackReturnsPhysicalCuesInStableOrder() {
+    let track = PlaybackSubtitleTrack(cues: [
+        PlaybackSubtitleCue(
+            sourceOrdinal: 1,
+            startMilliseconds: 1_000,
+            endMilliseconds: 3_000,
+            text: "Second physical block"
+        ),
+        PlaybackSubtitleCue(
+            sourceOrdinal: 0,
+            startMilliseconds: 1_000,
+            endMilliseconds: 3_000,
+            text: "First physical block"
+        )
+    ])
+
+    #expect(track.activeCues(atMilliseconds: 1_000).map(\.sourceOrdinal) == [0, 1])
+    #expect(track.activeCues(atMilliseconds: 3_000).isEmpty)
+}
+
+@Test
+func srtRendererScalesAndStacksWithoutExtraCueGap() throws {
+    let cues = [
+        PlaybackSubtitleCue(
+            sourceOrdinal: 0,
+            startMilliseconds: 0,
+            endMilliseconds: 5_000,
+            text: "（ミコト）はい"
+        ),
+        PlaybackSubtitleCue(
+            sourceOrdinal: 1,
+            startMilliseconds: 2_000,
+            endMilliseconds: 7_000,
+            text: "ごちそうさまでした"
+        )
+    ]
+    let layout720 = try #require(
+        SRTSubtitleRenderer.makeLayout(
+            cues: cues,
+            canvasSize: CGSize(width: 1_280, height: 720)
+        )
+    )
+    let layout1080 = try #require(
+        SRTSubtitleRenderer.makeLayout(
+            cues: cues,
+            canvasSize: CGSize(width: 1_920, height: 1_080)
+        )
+    )
+    let first720 = try #require(layout720.placements[0])
+    let second720 = try #require(layout720.placements[1])
+    let first1080 = try #require(layout1080.placements[0])
+
+    #expect(abs(second720.maxY - first720.minY) < 0.001)
+    #expect(abs((first1080.height / first720.height) - 1.5) < 0.03)
+    #expect(SRTSubtitleRenderer.image(layout: layout720, atMilliseconds: 2_500) != nil)
+
+    if let outputPath = ProcessInfo.processInfo.environment["CUESEEKER_SRT_VISUAL_OUTPUT"],
+       let image = SRTSubtitleRenderer.image(layout: layout1080, atMilliseconds: 2_500),
+       let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) {
+        try png.write(to: URL(fileURLWithPath: outputPath))
+    }
+}
+
+@Test
 func playbackSubtitleTrackFindsLateCueInLargeTrack() {
     let cues = (0..<10_000).map { index in
         PlaybackSubtitleCue(
@@ -811,6 +895,29 @@ func playbackSubtitleTrackFindsLateCueInLargeTrack() {
 
     #expect(track.activeText(at: 9_876.2) == "Cue 9876")
     #expect(track.activeText(at: 9_876.6) == nil)
+}
+
+@Test
+func playbackSubtitleTrackFindsEarlyLongCuePastExpiredIntervals() {
+    var cues = [
+        PlaybackSubtitleCue(
+            sourceOrdinal: 0,
+            startMilliseconds: 0,
+            endMilliseconds: 20_000_000,
+            text: "Long cue"
+        )
+    ]
+    cues += (1..<10_000).map { index in
+        PlaybackSubtitleCue(
+            sourceOrdinal: index,
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 1,
+            text: "Expired \(index)"
+        )
+    }
+    let track = PlaybackSubtitleTrack(cues: cues)
+
+    #expect(track.activeCues(atMilliseconds: 15_000_000).map(\.sourceOrdinal) == [0])
 }
 
 @Test

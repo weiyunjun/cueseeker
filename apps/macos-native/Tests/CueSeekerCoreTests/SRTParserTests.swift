@@ -120,6 +120,29 @@ func srtRenderingConversionUsesConfirmedIINADefaultStyle() {
 }
 
 @Test
+func playbackParsingDecodesUTF16AndIgnoresPositionParameters() throws {
+    let contents = """
+    1
+    00:00:01,000 --> 00:00:02,000 X1:10 X2:20 Y1:30 Y2:40
+    First
+
+    2
+    00:00:03,000 --> 00:00:03,000
+    Zero length
+
+    """
+    var data = Data([0xFF, 0xFE])
+    data.append(try #require(contents.data(using: .utf16LittleEndian)))
+
+    let entries = try SRTParser.parseForRendering(data)
+
+    #expect(entries.count == 1)
+    #expect(entries[0].startMilliseconds == 1_000)
+    #expect(entries[0].endMilliseconds == 2_000)
+    #expect(entries[0].text == "First")
+}
+
+@Test
 func parsesTimecodesToMilliseconds() {
     #expect(SRTParser.milliseconds(from: "00:00:00,000") == 0)
     #expect(SRTParser.milliseconds(from: "00:00:01,001") == 1_001)

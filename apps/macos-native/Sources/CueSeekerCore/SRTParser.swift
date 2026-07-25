@@ -2,27 +2,59 @@ import Foundation
 
 public enum SRTParsingError: Error, Equatable, Sendable {
     case malformedBlock(Int)
+    case undecodableData
 }
 
 public enum SRTParser {
     public static func parse(_ contents: String) -> [SubtitleEntry] {
-        parseEntries(contents, deduplicates: true, minimumDurationMilliseconds: SubtitleCueIndexingRules.minimumDurationMilliseconds)
+        parseEntries(
+            contents,
+            deduplicates: true,
+            minimumDurationMilliseconds: SubtitleCueIndexingRules.minimumDurationMilliseconds,
+            allowsTrailingEndParameters: false
+        )
     }
 
     public static func parseForRendering(_ contents: String) -> [SubtitleEntry] {
-        parseEntries(contents, deduplicates: false, minimumDurationMilliseconds: 0)
+        parseEntries(
+            contents,
+            deduplicates: false,
+            minimumDurationMilliseconds: 1,
+            allowsTrailingEndParameters: true
+        )
+    }
+
+    public static func parseForRendering(_ data: Data) throws -> [SubtitleEntry] {
+        let contents: String?
+        if data.starts(with: [0xFF, 0xFE]) {
+            contents = String(data: data.dropFirst(2), encoding: .utf16LittleEndian)
+        } else if data.starts(with: [0xFE, 0xFF]) {
+            contents = String(data: data.dropFirst(2), encoding: .utf16BigEndian)
+        } else {
+            let utf8Data = data.starts(with: [0xEF, 0xBB, 0xBF])
+                ? data.dropFirst(3)
+                : data[...]
+            contents = String(data: utf8Data, encoding: .utf8)
+        }
+
+        guard let contents else {
+            throw SRTParsingError.undecodableData
+        }
+        return parseForRendering(contents)
     }
 
     private static func parseEntries(
         _ contents: String,
         deduplicates: Bool,
-        minimumDurationMilliseconds: Int
+        minimumDurationMilliseconds: Int,
+        allowsTrailingEndParameters: Bool
     ) -> [SubtitleEntry] {
         var seenEntries = Set<SRTEntryDeduplicationKey>()
         return splitBlocks(contents).compactMap { block in
             guard let entry = parseBlock(
                 block,
-                minimumDurationMilliseconds: minimumDurationMilliseconds
+                minimumDurationMilliseconds: minimumDurationMilliseconds,
+                allowsTrailingEndParameters: allowsTrailingEndParameters
             ) else {
                 return nil
             }
@@ -85,7 +117,8 @@ public enum SRTParser {
 
     private static func parseBlock(
         _ lines: [String],
-        minimumDurationMilliseconds: Int = SubtitleCueIndexingRules.minimumDurationMilliseconds
+        minimumDurationMilliseconds: Int = SubtitleCueIndexingRules.minimumDurationMilliseconds,
+        allowsTrailingEndParameters: Bool = false
     ) -> SubtitleEntry? {
         guard !lines.isEmpty else {
             return nil
@@ -106,8 +139,11 @@ public enum SRTParser {
 
         let startTimecode = String(timeLine[..<range.lowerBound])
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let endTimecode = String(timeLine[range.upperBound...])
+        let endRemainder = String(timeLine[range.upperBound...])
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let endTimecode = allowsTrailingEndParameters
+            ? endRemainder.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+            : endRemainder
 
         guard let startMilliseconds = milliseconds(from: startTimecode),
               let endMilliseconds = milliseconds(from: endTimecode),
