@@ -249,6 +249,8 @@ struct WorkbenchSearchField: View {
     let placeholder: String
     @Binding var text: String
     var isRedesign: Bool
+    var showsFocusRing: Bool
+    var autofocus: Bool
     var onSubmit: (() -> Void)?
 
     @FocusState private var isFocused: Bool
@@ -258,11 +260,15 @@ struct WorkbenchSearchField: View {
         placeholder: String,
         text: Binding<String>,
         isRedesign: Bool = false,
+        showsFocusRing: Bool = true,
+        autofocus: Bool = false,
         onSubmit: (() -> Void)? = nil
     ) {
         self.placeholder = placeholder
         _text = text
         self.isRedesign = isRedesign
+        self.showsFocusRing = showsFocusRing
+        self.autofocus = autofocus
         self.onSubmit = onSubmit
     }
 
@@ -307,7 +313,7 @@ struct WorkbenchSearchField: View {
         )
         .overlay(
             Group {
-                if isRedesign && isFocused {
+                if isRedesign && showsFocusRing && isFocused {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
                         .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
@@ -315,6 +321,16 @@ struct WorkbenchSearchField: View {
             }
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
+        .task {
+            guard autofocus else {
+                return
+            }
+            await Task.yield()
+            guard !Task.isCancelled else {
+                return
+            }
+            isFocused = true
+        }
     }
 }
 

@@ -13,7 +13,10 @@ struct PlaybackPageView: View {
         )
         GeometryReader { geometry in
             let subtitleFocusSession = playback.subtitleFocusSession
-            let isSubtitleFocusActive = subtitleFocusSession != nil
+            let isCommandPanelActive =
+                playback.commandPanelPresentation != nil
+            let isPlaybackModalActive =
+                subtitleFocusSession != nil || isCommandPanelActive
 
             // The video stage fills the whole window so playback geometry is
             // independent from auxiliary overlays.
@@ -25,26 +28,34 @@ struct PlaybackPageView: View {
                     onClose: onClose
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
-                .allowsHitTesting(!isSubtitleFocusActive)
-                .accessibilityHidden(isSubtitleFocusActive)
+                .allowsHitTesting(!isPlaybackModalActive)
+                .accessibilityHidden(isPlaybackModalActive)
 
                 if let subtitleFocusSession {
                     PlaybackSubtitleFocusLayer(
                         session: subtitleFocusSession,
                         uiProbeScope: appState.uiProbeScope,
-                        onActivateSearch:
-                            appState.activatePlaybackSearchHost,
-                        onUpdateSearchQuery:
-                            appState.updatePlaybackSearchQuery,
                         onExecuteAction:
-                            appState.executePlaybackSubtitleFocusAction,
-                        onOpenRecentItem:
-                            appState.openPlaybackRecentItemFromOverlay,
-                        onOpenLibraryEpisode:
-                            appState.openPlaybackLibraryEpisodeFromOverlay
+                            appState.executePlaybackSubtitleFocusAction
                     )
                         .id(subtitleFocusSession.token.sessionGeneration)
                         .frame(width: geometry.size.width, height: geometry.size.height)
+                        .allowsHitTesting(!isCommandPanelActive)
+                        .accessibilityHidden(isCommandPanelActive)
+                }
+
+                if isCommandPanelActive {
+                    PlaybackCommandPanel(
+                        appState: appState,
+                        playback: playback,
+                        searchStore: appState.search,
+                        libraryStore: appState.library,
+                        shioriStore: appState.shiori
+                    )
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height
+                    )
                 }
 
                 // Keep command feedback above every playback-local overlay so

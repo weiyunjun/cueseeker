@@ -1,5 +1,23 @@
 import Combine
+import CueSeekerCore
 import Foundation
+
+enum PlaybackCommandPanelPage: Equatable {
+    case root
+    case searchResults
+    case recentVideos
+    case recentShioris
+}
+
+struct PlaybackCommandPanelPresentation: Equatable {
+    static let previewLimit = 50
+
+    var page: PlaybackCommandPanelPage
+    var query: String
+    var selectedOrdinal: Int?
+    var selectedVideoPresentation: CompleteLibraryVideoPresentation?
+    let resumesPlaybackOnDismiss: Bool
+}
 
 struct PlaybackChromeSnapshot: Equatable {
     let displayTitle: String
@@ -51,6 +69,8 @@ final class PlaybackStore: ObservableObject {
     let pointerHideRequests = PassthroughSubject<Void, Never>()
 
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
+    @Published private(set) var commandPanelPresentation:
+        PlaybackCommandPanelPresentation?
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
     private(set) var playbackSearchPlaylistOrdinal: Int?
     private(set) var playlistPosition: PlaybackPlaylistPosition?
@@ -114,6 +134,18 @@ final class PlaybackStore: ObservableObject {
 
         session.invalidateForSourceReplacement()
         subtitleFocusSession = nil
+    }
+
+    func presentCommandPanel(_ presentation: PlaybackCommandPanelPresentation) {
+        commandPanelPresentation = presentation
+    }
+
+    @discardableResult
+    func dismissCommandPanel() -> PlaybackCommandPanelPresentation? {
+        defer {
+            commandPanelPresentation = nil
+        }
+        return commandPanelPresentation
     }
 
     func setPlaylistSource(

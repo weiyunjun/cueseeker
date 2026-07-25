@@ -162,7 +162,8 @@ func playbackOverlayConsumesPWithoutTakingScreenshot() async throws {
 func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
-            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
+            availableModules: [.current, .playlist]
         ))
         #expect(session.publishInitialSnapshot(
             keyboardActionSnapshot(),
@@ -170,22 +171,181 @@ func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
         ))
 
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
-        #expect(session.selectedModule == .search)
+        #expect(session.selectedModule == .playlist)
         #expect(app.handlePlaybackKeyDown(
             keyCode: 48,
             modifierFlagsRawValue: 0,
             isRepeat: true
         ))
-        #expect(session.selectedModule == .search)
+        #expect(session.selectedModule == .playlist)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
-        #expect(session.selectedModule == .recent)
-        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
-        #expect(session.selectedModule == .library)
-        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
-        #expect(session.selectedModule == .shiori)
-        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
         #expect(session.selectedModule == .current)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelCommandEnterOpensRootAndEscapeCloses() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let commandModifier = NSEvent.ModifierFlags.command.rawValue
+        app.playback.isPlaybackSurfaceExpanded = true
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: commandModifier
+        ))
+        let presentation = try #require(
+            app.playback.commandPanelPresentation
+        )
+        #expect(presentation.page == .root)
+        #expect(presentation.query.isEmpty)
+        #expect(app.playback.subtitleFocusSession == nil)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 53,
+            modifierFlagsRawValue: 0
+        ))
+        #expect(app.playback.commandPanelPresentation == nil)
+
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: commandModifier,
+            textInputState: PlaybackKeyboardTextInputState(
+                isEditableFocused: true,
+                hasMarkedText: false
+            )
+        ))
+        #expect(app.playback.commandPanelPresentation == nil)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelPreservesUnderlyingOverlay() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue:
+                NSEvent.ModifierFlags.command.rawValue
+        ))
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+        #expect(app.playback.subtitleFocusSession === session)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 53,
+            modifierFlagsRawValue: 0
+        ))
+        #expect(app.playback.commandPanelPresentation == nil)
+        #expect(app.playback.subtitleFocusSession === session)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelRootNavigatesAndOpensRecentPages() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
+
+        let editableInput = PlaybackKeyboardTextInputState(
+            isEditableFocused: true,
+            hasMarkedText: false
+        )
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 125,
+            modifierFlagsRawValue: 0,
+            textInputState: editableInput
+        ))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: 0,
+            textInputState: editableInput
+        ))
+        #expect(app.playback.commandPanelPresentation?.page == .recentShioris)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 53,
+            modifierFlagsRawValue: 0
+        ))
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+
+        app.updatePlaybackCommandPanelQuery("大丈夫")
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 125,
+            modifierFlagsRawValue: 0,
+            textInputState: editableInput
+        ))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: 0,
+            textInputState: editableInput
+        ))
+        #expect(app.playback.commandPanelPresentation?.page == .recentVideos)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let source = keyboardActionSource()
+        let results = [
+            keyboardActionPlaylistSearchResult(
+                id: 11,
+                videoPath: source.videoPath,
+                subtitlePath: source.subtitlePath,
+                startMilliseconds: 1_000,
+                content: "first command result"
+            ),
+            keyboardActionPlaylistSearchResult(
+                id: 12,
+                videoPath: source.videoPath,
+                subtitlePath: source.subtitlePath,
+                startMilliseconds: 2_000,
+                content: "second command result"
+            ),
+        ]
+        app.search.replaceLoadedSearchResults(results)
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanelSearch(
+            query: "command",
+            startsSearch: false
+        ))
+        NSPasteboard.general.clearContents()
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 8, modifierFlagsRawValue: 0))
+        #expect(
+            NSPasteboard.general.string(forType: .string)
+                == "first command result"
+        )
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+        #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
+        #expect(
+            NSPasteboard.general.string(forType: .string)
+                == "[second command result](cueseeker://cue?id=12)"
+        )
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation == nil)
+        #expect(app.search.selectedSearchResult?.entryID == 12)
+        #expect(app.playback.playlistSource?.boundary.totalCount == 2)
+        #expect(app.playback.playbackSearchPlaylistOrdinal == 1)
     }
 }
 
@@ -438,29 +598,6 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
         session.noteCueReelMotion(true)
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(session.pendingKeyboardAction == .playFromThisCue)
-    }
-}
-
-@MainActor
-@Test
-func playbackOverlaySearchDoesNotCopyMarkdownCueLink() async throws {
-    try await withKeyboardActionApp { app, _ in
-        let session = try #require(app.playback.beginSubtitleFocusSession(
-            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
-            searchStore: app.search
-        ))
-        #expect(session.publishInitialSnapshot(
-            keyboardActionSnapshot(),
-            token: session.token
-        ))
-        #expect(session.selectModule(.search))
-        NSPasteboard.general.clearContents()
-        #expect(NSPasteboard.general.setString("unchanged", forType: .string))
-
-        #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
-        #expect(NSPasteboard.general.string(forType: .string) == "unchanged")
-        #expect(session.activeKeyboardAction == nil)
-        #expect(app.playback.playbackViewModel?.feedback == nil)
     }
 }
 

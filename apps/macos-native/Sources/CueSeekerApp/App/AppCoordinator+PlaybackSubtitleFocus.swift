@@ -15,14 +15,9 @@ typealias PlaybackSubtitleFocusCompleteCueBatchLoader = @MainActor @Sendable (
 @MainActor
 extension AppCoordinator {
     @discardableResult
-    func openPlaybackSubtitleFocusFromUser(
-        presenting requestedModule: PlaybackOverlayModule? = nil
-    ) -> Bool {
-        if let session = playback.subtitleFocusSession {
-            guard let requestedModule else {
-                return true
-            }
-            return session.presentModule(requestedModule)
+    func openPlaybackSubtitleFocusFromUser() -> Bool {
+        if playback.subtitleFocusSession != nil {
+            return true
         }
         if playbackRecentOpenTask != nil {
             return true
@@ -50,26 +45,19 @@ extension AppCoordinator {
             timestampMilliseconds: Int(
                 max(0, playbackViewModel.currentTime * 1_000).rounded(.down)
             ),
-            wasPlaying: playbackViewModel.isPlaying
+            wasPlaying: playbackViewModel.isPlaying,
+            videoPresentation: try? libraryDatabase?
+                .completeLibraryFolderDetail(
+                    folderPath: URL(fileURLWithPath: videoPath)
+                        .deletingLastPathComponent()
+                        .standardizedFileURL.path
+                )?
+                .videos
+                .first { $0.videoPath == source.videoPath }
         )
-        let recentStore = makePlaybackRecentSessionStore()
-        let libraryStore = makePlaybackLibrarySessionStore()
-        loadShioriTableRowsIfNeeded()
         guard let session = playback.beginSubtitleFocusSession(
-            openSnapshot: openSnapshot,
-            searchStore: search,
-            recentStore: recentStore,
-            libraryStore: libraryStore,
-            shioriStore: shiori
+            openSnapshot: openSnapshot
         ) else {
-            recentStore.invalidate()
-            libraryStore.invalidate()
-            return false
-        }
-
-        if let requestedModule,
-           !session.presentModule(requestedModule) {
-            playback.releaseSubtitleFocusSession(session)
             return false
         }
 
@@ -625,7 +613,7 @@ extension AppCoordinator {
         return true
     }
 
-    private func cancelPlaybackSubtitleFocusActionTask() {
+    func cancelPlaybackSubtitleFocusActionTask() {
         playbackSubtitleFocusActionGeneration += 1
         playbackSubtitleFocusActionTask?.cancel()
         playbackSubtitleFocusActionTask = nil

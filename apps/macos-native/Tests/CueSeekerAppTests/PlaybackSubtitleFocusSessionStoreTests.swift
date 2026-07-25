@@ -29,13 +29,7 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
     )
-    #expect(withoutPlaylist.availableModules == [
-        .current,
-        .search,
-        .recent,
-        .library,
-        .shiori,
-    ])
+    #expect(withoutPlaylist.availableModules == [.current])
     #expect(withoutPlaylist.selectedModule == .current)
 
     let withPlaylist = PlaybackSubtitleFocusSessionStore(
@@ -43,7 +37,9 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
         sessionGeneration: 2,
         availableModules: PlaybackOverlayModule.modules(hasPlaylist: true)
     )
-    #expect(withPlaylist.availableModules == PlaybackOverlayModule.allCases)
+    #expect(withPlaylist.availableModules == [.current, .playlist])
+    #expect(withPlaylist.selectedModule == .current)
+    #expect(!withPlaylist.presentModule(.search))
     #expect(withPlaylist.selectedModule == .current)
 
     let reorderedAndDuplicated = PlaybackSubtitleFocusSessionStore(

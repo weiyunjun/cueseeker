@@ -57,6 +57,7 @@ func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData()
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackLibraryOpenSnapshot(),
         sessionGeneration: 1,
+        availableModules: PlaybackOverlayModule.allCases,
         libraryStore: store
     )
 
@@ -125,6 +126,7 @@ func playbackLibraryKeyboardRoutesBothSharedLevels() async throws {
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackLibraryOpenSnapshot(),
+            availableModules: PlaybackOverlayModule.allCases,
             libraryStore: store
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
@@ -170,6 +172,7 @@ func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackLibraryOpenSnapshot(),
+            availableModules: PlaybackOverlayModule.allCases,
             libraryStore: store
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))

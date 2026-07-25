@@ -714,8 +714,99 @@ extension AppCoordinator {
             return false
         }
 
+        let modifierFlags = NSEvent.ModifierFlags(
+            rawValue: modifierFlagsRawValue
+        )
+        let commandPanelModifiers: NSEvent.ModifierFlags = [
+            .command,
+            .control,
+            .option,
+            .shift,
+        ]
+        if (keyCode == 36 || keyCode == 76),
+           modifierFlags.intersection(commandPanelModifiers) == .command,
+           !textInputState.isEditableFocused {
+            if !isRepeat {
+                _ = presentPlaybackCommandPanel()
+            }
+            return true
+        }
+
+        if let commandPanel = playback.commandPanelPresentation {
+            let disallowedModifiers: NSEvent.ModifierFlags = [
+                .command,
+                .control,
+                .option,
+            ]
+            if keyCode == 53,
+               modifierFlags.intersection(disallowedModifiers).isEmpty {
+                guard !isRepeat else {
+                    return true
+                }
+                if commandPanel.page == .root {
+                    return dismissPlaybackCommandPanelFromUser()
+                }
+                return returnPlaybackCommandPanelToRoot()
+            }
+
+            if commandPanel.page == .root,
+               textInputState.isEditableFocused {
+                guard !textInputState.hasMarkedText else {
+                    return false
+                }
+                guard modifierFlags.intersection(disallowedModifiers).isEmpty
+                else {
+                    return false
+                }
+                switch keyCode {
+                case 126:
+                    _ = movePlaybackCommandPanelSelection(-1)
+                    return true
+                case 125:
+                    _ = movePlaybackCommandPanelSelection(1)
+                    return true
+                case 36, 76:
+                    if !isRepeat {
+                        _ = openSelectedPlaybackCommandPanelItem()
+                    }
+                    return true
+                default:
+                    return false
+                }
+            }
+            guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
+                return true
+            }
+            switch keyCode {
+            case 126:
+                _ = movePlaybackCommandPanelSelection(-1)
+            case 125:
+                _ = movePlaybackCommandPanelSelection(1)
+            case 1:
+                if commandPanel.page == .searchResults, !isRepeat {
+                    _ = requestPlaybackCommandPanelSearchAction(.shiori)
+                }
+            case 8:
+                if commandPanel.page == .searchResults, !isRepeat {
+                    _ = requestPlaybackCommandPanelSearchAction(.copyCueText)
+                }
+            case 7:
+                if commandPanel.page == .searchResults, !isRepeat {
+                    _ = requestPlaybackCommandPanelSearchAction(
+                        .copyCueMarkdownLink
+                    )
+                }
+            case 36, 76:
+                if !isRepeat {
+                    _ = openSelectedPlaybackCommandPanelItem()
+                }
+            default:
+                break
+            }
+            return true
+        }
+
         if let subtitleFocusSession = playback.subtitleFocusSession {
-            let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
             let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
             let moduleSwitchModifiers: NSEvent.ModifierFlags = [
                 .command,
@@ -884,7 +975,6 @@ extension AppCoordinator {
             return false
         }
 
-        let modifierFlags = NSEvent.ModifierFlags(rawValue: modifierFlagsRawValue)
         let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
 
         guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
@@ -958,6 +1048,7 @@ extension AppCoordinator {
     }
 
     func stopPlayback() {
+        _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.clearPlaylistSource()
         clearCueAutoStopPlayback()

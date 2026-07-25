@@ -316,31 +316,20 @@ enum PlaybackSubtitleFocusMetrics {
     }
 }
 
-enum PlaybackMultiModuleOverlayMetrics {
-    /// --width-app-sidebar
-    static let sidebarWidth = WorkbenchControlMetrics.redesignAppSidebarWidth
-    /// --padding-app-sidebar-x
-    static let sidebarHorizontalPadding = WorkbenchControlMetrics
-        .redesignAppSidebarHorizontalPadding
-    /// --padding-app-sidebar-y
-    static let sidebarVerticalPadding = WorkbenchControlMetrics
-        .redesignAppSidebarVerticalPadding
-    /// --height-app-sidebar-item
-    static let sidebarItemHeight = WorkbenchControlMetrics
-        .redesignAppSidebarItemHeight
-    /// --padding-app-sidebar-item-x
-    static let sidebarItemHorizontalPadding = WorkbenchControlMetrics
-        .redesignAppSidebarItemHorizontalPadding
-    /// --size-app-sidebar-item-icon
-    static let sidebarItemIconSize = WorkbenchControlMetrics
-        .redesignAppSidebarItemIconSize
-    /// --font-size-app-sidebar-item
-    static let sidebarItemFontSize = WorkbenchControlMetrics
-        .redesignFontSizeAppSidebarItem
-    /// --spacing-1
-    static let sidebarItemGap = WorkbenchControlMetrics.redesignSpacing1
-    /// --spacing-3
-    static let sidebarLabelGap = WorkbenchControlMetrics.redesignSpacing3
+enum PlaybackOverlayMetrics {
+    static let tabBarHeight: CGFloat = 54
+    static let tabGap = WorkbenchControlMetrics.redesignSpacing4
+    static let tabHorizontalPadding = WorkbenchControlMetrics.redesignSpacing2
+    static let tabIndicatorGap = WorkbenchControlMetrics.redesignSpacing1
+    static let tabFontSize = WorkbenchControlMetrics.redesignFontSizeBody
+    static let tabIndicatorWidth: CGFloat = 24
+    static let tabIndicatorHeight: CGFloat = 2
+    static let currentContextWidthFraction: CGFloat = 0.2
+    static let currentContextHorizontalPadding =
+        WorkbenchControlMetrics.redesignSpacing4
+    static let currentCoverMaxWidth =
+        WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth
+    static let currentInfoTopGap = WorkbenchControlMetrics.redesignSpacing3
 }
 
 enum PlaybackChromeMetrics {

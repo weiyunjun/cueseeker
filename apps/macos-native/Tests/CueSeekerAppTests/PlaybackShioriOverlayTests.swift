@@ -13,6 +13,7 @@ func playbackShioriUsesWorkbenchRowsWithoutRetainingAnotherDataset() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackSharedShioriOpenSnapshot(),
         sessionGeneration: 1,
+        availableModules: PlaybackOverlayModule.allCases,
         shioriStore: store
     )
     let window = try #require(session.shioriWindow)
@@ -37,6 +38,7 @@ func playbackShioriEmptyWorkbenchCollectionKeepsAnEmptyModuleWindow() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackSharedShioriOpenSnapshot(),
         sessionGeneration: 1,
+        availableModules: PlaybackOverlayModule.allCases,
         shioriStore: store
     )
     let window = try #require(session.shioriWindow)
@@ -54,6 +56,7 @@ func playbackShioriUsesWorkbenchCuePresentationForActions() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackSharedShioriOpenSnapshot(),
         sessionGeneration: 1,
+        availableModules: PlaybackOverlayModule.allCases,
         shioriStore: store
     )
     #expect(session.publishInitialSnapshot(
@@ -104,6 +107,7 @@ func playbackShioriCopiesSettledPrimaryCueAsMarkdownLink() throws {
     let store = playbackSharedShioriStore([playbackSharedShioriFixture(0)])
     let session = try #require(app.playback.beginSubtitleFocusSession(
         openSnapshot: playbackSharedShioriOpenSnapshot(),
+        availableModules: PlaybackOverlayModule.allCases,
         shioriStore: store
     ))
     #expect(session.publishInitialSnapshot(

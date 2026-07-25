@@ -654,7 +654,7 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
-    func urlSchemeEmptyFallbackUsesOverlayWithoutRevealingWorkbenchTable() async throws {
+    func urlSchemeEmptyFallbackUsesCommandPanelWithoutRevealingWorkbenchTable() async throws {
         let uiProbeScope = UUID().uuidString
         let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
             scope: uiProbeScope
@@ -700,7 +700,12 @@ struct CueGroupRefreshScopeIntegrationTests {
             #expect(app.search.searchResults.isEmpty)
             #expect(app.search.selectedSearchResult == playingResult)
             #expect(app.isPlaybackPageVisible)
-            #expect(overlaySession.selectedModule == .search)
+            #expect(overlaySession.selectedModule == .current)
+            #expect(app.playback.commandPanelPresentation?.page == .searchResults)
+            #expect(
+                app.playback.commandPanelPresentation?.query
+                    == "missing URL result"
+            )
             #expect(session.recording()
                 .delta(since: recordingBefore)
                 .count("table.search.snapshot_rebuild") == 0)

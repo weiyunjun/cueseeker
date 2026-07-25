@@ -21,6 +21,7 @@ func playbackRecentUsesWorkbenchStoreWithoutRetainingAnotherDataset() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackRecentOpenSnapshot(),
         sessionGeneration: 1,
+        availableModules: PlaybackOverlayModule.allCases,
         recentStore: store
     )
 
@@ -77,6 +78,7 @@ func playbackRecentKeyboardRoutesSharedGridAndDestroysOnlySession() async throws
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackRecentOpenSnapshot(),
+            availableModules: PlaybackOverlayModule.allCases,
             recentStore: store
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
@@ -122,6 +124,7 @@ func playbackRecentPointerDispatcherUsesSharedWorkbenchItem() async throws {
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackRecentOpenSnapshot(),
+            availableModules: PlaybackOverlayModule.allCases,
             recentStore: store
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))

@@ -76,3 +76,44 @@ speculative abstractions.
   Recent refresh to entry and playback return instead of every Cue change.
 - The result matched the accepted navigation, Recent layout, data reuse, and
   original-list recovery scope.
+
+## Step 3: Playback Overlay And Command Panel
+
+- Reduced the production Playback Overlay to the existing Current and
+  Playlist session views, replaced the module Sidebar with centered tabs, and
+  kept the old feature modules available only to their explicit compatibility
+  tests.
+- Reused the existing Subtitle Focus Reel for Current and the existing
+  Playlist Reel for subtitle playlists.
+- Added the fixed Current video context from the existing Library
+  presentation: the context occupies 20 percent of the content width, keeps
+  one cover without playback progress, and does not change with Cue
+  navigation.
+- Added Command Panel presentation state to the existing `PlaybackStore`
+  instead of creating another observable store.
+- Reused the existing `SearchStore`, search task, Recent Videos projection,
+  Recent Shiori summaries, cover loader, video-card visual elements, Shiori
+  row, clipboard behavior, and playback entry points.
+- Limited only the Command Panel Search Result projection to the first 50
+  resident results. Opening a result promotes the existing complete Search
+  playlist source rather than copying the 50-item projection.
+- Implemented root Search/Recent navigation, Search Result, Recent Videos,
+  Recent Shioris, full-row selection, Footer counts, and S/X/C/Enter search
+  actions without a table, virtualized result store, cache, or second search
+  lifecycle.
+- Routed playback-active URL Scheme searches to the same Command Panel Search
+  Result path while retaining the existing direct-play and Workbench fallback
+  rules.
+- Preserved an underlying Playback Overlay while Command Panel is open and
+  resumed playback only after the last playback modal closes.
+
+## Step 3 Verification
+
+- `swift build` passed.
+- All four focused Command Panel keyboard and modal-layer tests passed.
+- All 15 focused legacy Library, Recent, Shiori, and URL fallback compatibility
+  tests passed.
+- The Playback/URLScheme selection ran 310 tests; all 309 functional and
+  feature tests passed. The one parallel native-audio timing failure passed
+  immediately when rerun alone.
+- `git diff --check` passed.

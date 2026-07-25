@@ -48,7 +48,7 @@ func urlSchemeSearchClearsFiltersAndForcesSearchRoute() throws {
 
 @MainActor
 @Test
-func urlSchemeSearchOpensOverlaySearchForActivePlaybackWithoutExistingSession() throws {
+func urlSchemeSearchOpensCommandPanelResultsForActivePlayback() throws {
     let fixture = try makeURLSchemeRoutingFixture("OpenOverlaySearch")
     defer { fixture.cleanup() }
     let playingResult = makeURLSchemeSearchResult(
@@ -63,8 +63,12 @@ func urlSchemeSearchOpensOverlaySearchForActivePlaybackWithoutExistingSession() 
 
     fixture.app.handleURLSchemeCommand(.search(keyword: "replacement"))
 
-    let session = try #require(fixture.app.playback.subtitleFocusSession)
-    #expect(session.selectedModule == .search)
+    let commandPanel = try #require(
+        fixture.app.playback.commandPanelPresentation
+    )
+    #expect(commandPanel.page == .searchResults)
+    #expect(commandPanel.query == "replacement")
+    #expect(fixture.app.playback.subtitleFocusSession == nil)
     #expect(fixture.app.isPlaybackPageVisible)
     #expect(fixture.app.search.selectedSearchResult == playingResult)
     #expect(fixture.app.search.searchQuery == "replacement")
@@ -73,7 +77,7 @@ func urlSchemeSearchOpensOverlaySearchForActivePlaybackWithoutExistingSession() 
 
 @MainActor
 @Test
-func urlSchemeDirectPlayFallsBackToOverlaySearchWhenPlaybackIsActive() throws {
+func urlSchemeDirectPlayFallsBackToCommandPanelWhenPlaybackIsActive() throws {
     let fixture = try makeURLSchemeRoutingFixture("DirectPlayFallback")
     defer { fixture.cleanup() }
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
@@ -94,12 +98,18 @@ func urlSchemeDirectPlayFallsBackToOverlaySearchWhenPlaybackIsActive() throws {
     var presentedFallbackSearch = false
     fixture.app.handleURLSchemeCommand(.search(keyword: "missing")) {
         presentationReadyCount += 1
-        presentedFallbackSearch = session.selectedModule == .search
+        presentedFallbackSearch =
+            fixture.app.playback.commandPanelPresentation?.page
+                == .searchResults
             && fixture.app.isPlaybackPageVisible
     }
 
     #expect(presentationReadyCount == 1)
     #expect(presentedFallbackSearch)
+    #expect(
+        fixture.app.playback.commandPanelPresentation?.query == "missing"
+    )
+    #expect(session.selectedModule == .current)
     #expect(fixture.app.workbenchLayout.panelMode == .shiori)
     #expect(fixture.app.search.searchQuery == "missing")
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
@@ -273,7 +283,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
 
 @MainActor
 @Test
-func newURLSchemeCommandCancelsOldIntentAndPreservesPlaybackInOverlaySearch() throws {
+func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
     let fixture = try makeURLSchemeRoutingFixture("CommandCancellation")
     defer { fixture.cleanup() }
     let playbackIntentID = UUID()
@@ -315,7 +325,15 @@ func newURLSchemeCommandCancelsOldIntentAndPreservesPlaybackInOverlaySearch() th
     #expect(fixture.app.search.selectedSearchResult == playbackResult)
     #expect(fixture.app.search.searchQuery == "replacement")
     #expect(fixture.app.workbenchLayout.panelMode == .shiori)
-    #expect(session.selectedModule == .search)
+    #expect(session.selectedModule == .current)
+    #expect(
+        fixture.app.playback.commandPanelPresentation?.page
+            == .searchResults
+    )
+    #expect(
+        fixture.app.playback.commandPanelPresentation?.query
+            == "replacement"
+    )
     #expect(fixture.app.search.isPlaybackTemporaryFilterActive)
 }
 

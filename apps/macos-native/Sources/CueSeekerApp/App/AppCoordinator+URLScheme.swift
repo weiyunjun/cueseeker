@@ -187,17 +187,10 @@ extension AppCoordinator {
         let hadActivePlayback = isPlaybackPageVisible
 
         if hadActivePlayback,
-           openPlaybackSubtitleFocusFromUser(presenting: .search) {
-            search.isPlaybackTemporaryFilterActive = true
-            if startsSearch {
-                startSearch(
-                    query: keyword,
-                    cursor: .start,
-                    appending: false,
-                    debounce: false,
-                    filterSetOverride: SubtitleSearchFilterSet()
-                )
-            }
+           presentPlaybackCommandPanelSearch(
+               query: keyword,
+               startsSearch: startsSearch
+           ) {
             onPresentationReady()
             return
         }

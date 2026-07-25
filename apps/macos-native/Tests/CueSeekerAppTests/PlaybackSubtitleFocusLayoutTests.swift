@@ -28,32 +28,16 @@ func subtitleFocusMetricsMatchDocumentedDynamicGeometry() {
 }
 
 @Test
-func playbackOverlaySidebarMatchesDocumentedTokensAndAssets() {
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarWidth == 240)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarHorizontalPadding == 12)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarVerticalPadding == 12)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarItemHeight == 32)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarItemHorizontalPadding == 10)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarItemIconSize == 18)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarItemFontSize == 13)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarItemGap == 4)
-    #expect(PlaybackMultiModuleOverlayMetrics.sidebarLabelGap == 12)
-    #expect(PlaybackOverlayModule.allCases.map(\.label) == [
-        "Current",
-        "Playlist",
-        "Search",
-        "Recent",
-        "Library",
-        "Shiori",
-    ])
-    #expect(PlaybackOverlayModule.allCases.map(\.systemImage) == [
-        "clock",
-        "list.bullet",
-        "magnifyingglass",
-        "clock",
-        "folder",
-        "bookmark",
-    ])
+func playbackOverlayCurrentAndPlaylistLayoutMatchesDocumentedGeometry() {
+    #expect(PlaybackOverlayMetrics.tabBarHeight == 54)
+    #expect(PlaybackOverlayMetrics.tabIndicatorHeight == 2)
+    #expect(PlaybackOverlayMetrics.currentContextWidthFraction == 0.2)
+    #expect(PlaybackOverlayMetrics.currentCoverMaxWidth == 220)
+    #expect(PlaybackOverlayModule.standardModules == [.current])
+    #expect(
+        PlaybackOverlayModule.modules(hasPlaylist: true)
+            == [.current, .playlist]
+    )
 }
 
 @MainActor

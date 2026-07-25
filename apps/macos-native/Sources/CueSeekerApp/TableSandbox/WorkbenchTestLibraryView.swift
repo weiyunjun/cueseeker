@@ -171,6 +171,7 @@ private struct RecentSectionHeader: View {
 
 struct RecentShioriResumeRow: View {
     let summary: ShioriListSummary
+    var isSelected = false
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -247,7 +248,7 @@ struct RecentShioriResumeRow: View {
                     style: .continuous
                 )
                 .fill(
-                    isHovered
+                    isHovered || isSelected
                         ? WorkbenchRedesignColors.libraryMediaCardHoverBg
                         : Color.clear
                 )
@@ -1604,7 +1605,7 @@ extension View {
     }
 }
 
-private struct LibraryCoverWithProgress: View {
+struct LibraryCoverWithProgress: View {
     let coverPath: String?
     let coverRevision: String?
     let positionMilliseconds: Int
@@ -1764,7 +1765,7 @@ private struct LibraryCoverWithBadge: View {
     }
 }
 
-private struct LibraryCachedCoverImage: View {
+struct LibraryCachedCoverImage: View {
     let coverPath: String?
     let coverRevision: String?
 
@@ -1835,7 +1836,7 @@ private struct LibraryCachedCoverImage: View {
     }
 }
 
-private enum LibraryWatchStatus: Equatable {
+enum LibraryWatchStatus: Equatable {
     case unwatched
     case watching
     case finished
@@ -1894,7 +1895,7 @@ private enum LibraryWatchStatus: Equatable {
     }
 }
 
-private struct WatchStatusBadge: View {
+struct WatchStatusBadge: View {
     let status: LibraryWatchStatus
 
     var body: some View {

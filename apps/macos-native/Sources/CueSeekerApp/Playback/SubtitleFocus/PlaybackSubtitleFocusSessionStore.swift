@@ -6,15 +6,18 @@ struct PlaybackSubtitleFocusOpenSnapshot: Equatable, Sendable {
     let source: SubtitleFocusSourceIdentity
     let timestampMilliseconds: Int
     let wasPlaying: Bool
+    let videoPresentation: CompleteLibraryVideoPresentation?
 
     init(
         source: SubtitleFocusSourceIdentity,
         timestampMilliseconds: Int,
-        wasPlaying: Bool
+        wasPlaying: Bool,
+        videoPresentation: CompleteLibraryVideoPresentation? = nil
     ) {
         self.source = source
         self.timestampMilliseconds = max(0, timestampMilliseconds)
         self.wasPlaying = wasPlaying
+        self.videoPresentation = videoPresentation
     }
 }
 
@@ -39,14 +42,10 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
 
     static let standardModules: [Self] = [
         .current,
-        .search,
-        .recent,
-        .library,
-        .shiori,
     ]
 
     static func modules(hasPlaylist: Bool) -> [Self] {
-        hasPlaylist ? allCases : standardModules
+        hasPlaylist ? [.current, .playlist] : standardModules
     }
 
     var label: String {

@@ -1,33 +1,22 @@
 import CueSeekerCore
+import Foundation
 import SwiftUI
 
 struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let uiProbeScope: String?
-    let onActivateSearch: () -> Void
-    let onUpdateSearchQuery: (String) -> Void
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
-    let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
-    let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
-        onActivateSearch: (() -> Void)? = nil,
-        onUpdateSearchQuery: ((String) -> Void)? = nil,
-        onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
-        onOpenRecentItem: ((RecentLibraryWatchingPresentation) -> Bool)? = nil,
-        onOpenLibraryEpisode: ((CompleteLibraryVideoPresentation) -> Bool)? = nil
+        onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil
     ) {
         self.session = session
         self.uiProbeScope = uiProbeScope
-        self.onActivateSearch = onActivateSearch ?? {}
-        self.onUpdateSearchQuery = onUpdateSearchQuery ?? { _ in }
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
-        self.onOpenRecentItem = onOpenRecentItem ?? { _ in false }
-        self.onOpenLibraryEpisode = onOpenLibraryEpisode ?? { _ in false }
     }
 
     var body: some View {
@@ -35,32 +24,23 @@ struct PlaybackSubtitleFocusLayer: View {
         case .closed, .opening:
             EmptyView()
         case .cueSelection(let snapshot):
-            PlaybackMultiModuleOverlay(
+            PlaybackOverlay(
                 session: session,
                 snapshot: snapshot,
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
-                onActivateSearch: onActivateSearch,
-                onUpdateSearchQuery: onUpdateSearchQuery,
-                onExecuteAction: onExecuteAction,
-                onOpenRecentItem: onOpenRecentItem,
-                onOpenLibraryEpisode: onOpenLibraryEpisode
+                onExecuteAction: onExecuteAction
             )
         }
     }
 }
 
-struct PlaybackMultiModuleOverlay: View {
+struct PlaybackOverlay: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
-    @EnvironmentObject private var playback: PlaybackStore
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
-    let onActivateSearch: () -> Void
-    let onUpdateSearchQuery: (String) -> Void
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
-    let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
-    let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     var body: some View {
         ZStack {
@@ -68,14 +48,15 @@ struct PlaybackMultiModuleOverlay: View {
 
             PlaybackSubtitleFocusPointerShield()
 
-            HStack(spacing: 0) {
-                PlaybackModuleSidebar(
-                    modules: session.availableModules,
+            VStack(spacing: 0) {
+                PlaybackViewTabs(
+                    modules: session.availableModules.filter {
+                        $0 == .current || $0 == .playlist
+                    },
                     selectedModule: session.selectedModule,
                     onSelect: session.selectModule
                 )
-                .frame(width: PlaybackMultiModuleOverlayMetrics.sidebarWidth)
-                .frame(maxHeight: .infinity)
+                .frame(height: PlaybackOverlayMetrics.tabBarHeight)
 
                 moduleContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -86,31 +67,45 @@ struct PlaybackMultiModuleOverlay: View {
     @ViewBuilder
     private var moduleContent: some View {
         if session.selectedModule == .current {
-            PlaybackSubtitleFocusOverlay(
-                snapshot: snapshot,
-                cues: cues,
-                contentGeneration: session.token.sessionGeneration,
-                uiProbeScope: uiProbeScope,
-                keyboardNavigationRequest: session.keyboardNavigationRequest,
-                blocksNewNavigation: session.pendingKeyboardAction != nil
-                    || session.activeKeyboardAction != nil,
-                onCommitKeyboardNavigation: session.commitKeyboardNavigation,
-                onCommitNativeReelSelection: session.commitNativeReelSelection,
-                allowsNativeWheelInput: session.allowsNativeWheelInput,
-                allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
-                consumeDeferredAction: {
-                    session.consumeDeferredKeyboardActionIfReady(
-                        module: .current
+            GeometryReader { geometry in
+                HStack(spacing: 0) {
+                    PlaybackCurrentVideoContext(
+                        openSnapshot: session.openSnapshot
                     )
-                },
-                onScrollbarDraggingChanged: {
-                    session.noteScrollbarDragging($0, module: .current)
-                },
-                onCueReelMotionChanged: {
-                    session.noteCueReelMotion($0, module: .current)
-                },
-                onExecuteAction: onExecuteAction
-            )
+                    .frame(
+                        width: geometry.size.width
+                            * PlaybackOverlayMetrics.currentContextWidthFraction
+                    )
+                    .frame(maxHeight: .infinity)
+
+                    PlaybackSubtitleFocusOverlay(
+                        snapshot: snapshot,
+                        cues: cues,
+                        contentGeneration: session.token.sessionGeneration,
+                        uiProbeScope: uiProbeScope,
+                        keyboardNavigationRequest: session.keyboardNavigationRequest,
+                        blocksNewNavigation: session.pendingKeyboardAction != nil
+                            || session.activeKeyboardAction != nil,
+                        onCommitKeyboardNavigation: session.commitKeyboardNavigation,
+                        onCommitNativeReelSelection: session.commitNativeReelSelection,
+                        allowsNativeWheelInput: session.allowsNativeWheelInput,
+                        allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
+                        consumeDeferredAction: {
+                            session.consumeDeferredKeyboardActionIfReady(
+                                module: .current
+                            )
+                        },
+                        onScrollbarDraggingChanged: {
+                            session.noteScrollbarDragging($0, module: .current)
+                        },
+                        onCueReelMotionChanged: {
+                            session.noteCueReelMotion($0, module: .current)
+                        },
+                        onExecuteAction: onExecuteAction
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
         } else if session.selectedModule == .playlist,
                   let playlistWindow = session.playlistWindow {
             PlaybackCueResultOverlay(
@@ -121,40 +116,6 @@ struct PlaybackMultiModuleOverlay: View {
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction
             )
-        } else if session.selectedModule == .search,
-                  let searchStore = session.searchStore {
-            PlaybackSearchOverlay(
-                session: session,
-                searchStore: searchStore,
-                uiProbeScope: uiProbeScope,
-                onActivateSearch: onActivateSearch,
-                onUpdateSearchQuery: onUpdateSearchQuery,
-                onExecuteAction: onExecuteAction
-            )
-        } else if session.selectedModule == .recent,
-                  let recentStore = session.recentStore {
-            PlaybackRecentOverlay(
-                store: recentStore,
-                onOpenItem: onOpenRecentItem
-            )
-            .environmentObject(playback.pointerVisibility)
-        } else if session.selectedModule == .library,
-                  let libraryStore = session.libraryStore {
-            PlaybackLibraryOverlay(
-                store: libraryStore,
-                onOpenEpisode: onOpenLibraryEpisode
-            )
-            .environmentObject(playback.pointerVisibility)
-        } else if session.selectedModule == .shiori,
-                  let shioriWindow = session.shioriWindow {
-            PlaybackCueResultOverlay(
-                session: session,
-                windowStore: shioriWindow,
-                module: .shiori,
-                showsSequenceNumber: false,
-                uiProbeScope: uiProbeScope,
-                onExecuteAction: onExecuteAction
-            )
         } else {
             PlaybackTheme.subtitleFocusOverlayBackground
                 .contentShape(Rectangle())
@@ -162,75 +123,133 @@ struct PlaybackMultiModuleOverlay: View {
     }
 }
 
-struct PlaybackModuleSidebar: View {
+private struct PlaybackViewTabs: View {
     let modules: [PlaybackOverlayModule]
     let selectedModule: PlaybackOverlayModule?
     let onSelect: (PlaybackOverlayModule) -> Bool
 
     var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: PlaybackMultiModuleOverlayMetrics.sidebarItemGap
-        ) {
+        HStack(spacing: PlaybackOverlayMetrics.tabGap) {
             ForEach(modules, id: \.self) { module in
                 Button {
                     _ = onSelect(module)
                 } label: {
-                    HStack(spacing: PlaybackMultiModuleOverlayMetrics.sidebarLabelGap) {
-                        Image(systemName: module.systemImage)
-                            .font(.system(
-                                size: PlaybackMultiModuleOverlayMetrics.sidebarItemIconSize,
-                                weight: .medium
-                            ))
-                            .frame(
-                                width: PlaybackMultiModuleOverlayMetrics.sidebarItemIconSize,
-                                height: PlaybackMultiModuleOverlayMetrics.sidebarItemIconSize
-                            )
-
+                    VStack(spacing: PlaybackOverlayMetrics.tabIndicatorGap) {
                         Text(module.label)
                             .font(.system(
-                                size: PlaybackMultiModuleOverlayMetrics.sidebarItemFontSize,
-                                weight: .regular
+                                size: PlaybackOverlayMetrics.tabFontSize,
+                                weight: selectedModule == module
+                                    ? .semibold
+                                    : .regular
                             ))
                             .lineLimit(1)
 
-                        Spacer(minLength: 0)
+                        Capsule()
+                            .fill(PlaybackTheme.playbackModuleSidebarSelected)
+                            .frame(
+                                width: PlaybackOverlayMetrics.tabIndicatorWidth,
+                                height: PlaybackOverlayMetrics.tabIndicatorHeight
+                            )
+                            .opacity(selectedModule == module ? 1 : 0)
                     }
                     .foregroundStyle(
                         selectedModule == module
                             ? PlaybackTheme.playbackModuleSidebarSelected
                             : PlaybackTheme.playbackModuleSidebarUnselected
                     )
-                    .padding(
-                        .horizontal,
-                        PlaybackMultiModuleOverlayMetrics.sidebarItemHorizontalPadding
-                    )
-                    .frame(
-                        maxWidth: .infinity,
-                        minHeight: PlaybackMultiModuleOverlayMetrics.sidebarItemHeight,
-                        maxHeight: PlaybackMultiModuleOverlayMetrics.sidebarItemHeight
-                    )
+                    .padding(.horizontal, PlaybackOverlayMetrics.tabHorizontalPadding)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
                 .pointerOnHover(isEnabled: true)
                 .accessibilityLabel(module.label)
-                .accessibilityIdentifier("playback-module-\(module.rawValue)")
+                .accessibilityIdentifier("playback-view-\(module.rawValue)")
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(
-            .horizontal,
-            PlaybackMultiModuleOverlayMetrics.sidebarHorizontalPadding
-        )
-        .padding(
-            .vertical,
-            PlaybackMultiModuleOverlayMetrics.sidebarVerticalPadding
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
+    }
+}
+
+private struct PlaybackCurrentVideoContext: View {
+    let openSnapshot: PlaybackSubtitleFocusOpenSnapshot
+
+    var body: some View {
+        GeometryReader { geometry in
+            let coverWidth = max(
+                0,
+                min(
+                    PlaybackOverlayMetrics.currentCoverMaxWidth,
+                    geometry.size.width
+                        - PlaybackOverlayMetrics.currentContextHorizontalPadding * 2
+                )
+            )
+            let coverHeight = coverWidth
+                / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+
+            ZStack(alignment: .top) {
+                LibraryCachedCoverImage(
+                    coverPath: openSnapshot.videoPresentation?.coverPath,
+                    coverRevision: openSnapshot.videoPresentation?.coverRevision
+                )
+                .frame(width: coverWidth, height: coverHeight)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
+                        style: .continuous
+                    )
+                )
+                .offset(y: max(0, geometry.size.height / 2 - coverHeight / 2))
+
+                VStack(
+                    alignment: .center,
+                    spacing: WorkbenchControlMetrics.redesignSpacing2
+                ) {
+                    Text(videoTitle)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
+                            weight: .medium
+                        ))
+                        .foregroundStyle(PlaybackTheme.playbackModuleSidebarUnselected)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+
+                    if let episodeLabel {
+                        Text(episodeLabel)
+                            .font(.system(
+                                size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
+                                weight: .regular
+                            ))
+                            .foregroundStyle(PlaybackTheme.playbackModuleSidebarUnselected)
+                            .monospacedDigit()
+                    }
+                }
+                .frame(width: coverWidth)
+                .offset(
+                    y: max(
+                        0,
+                        geometry.size.height / 2
+                            + coverHeight / 2
+                            + PlaybackOverlayMetrics.currentInfoTopGap
+                    )
+                )
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+    }
+
+    private var videoTitle: String {
+        openSnapshot.videoPresentation?.displayTitle
+            ?? URL(fileURLWithPath: openSnapshot.source.videoPath)
+                .deletingPathExtension()
+                .lastPathComponent
+    }
+
+    private var episodeLabel: String? {
+        openSnapshot.videoPresentation.map {
+            String(format: "EP%02d", $0.episodeNumber)
+        }
     }
 }
 
