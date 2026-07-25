@@ -303,22 +303,23 @@ func playbackCommandPanelRootNavigatesAndOpensRecentPages() async throws {
 func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throws {
     try await withKeyboardActionApp { app, _ in
         let source = keyboardActionSource()
-        let results = [
-            keyboardActionPlaylistSearchResult(
-                id: 11,
+        let results = (0..<60).map { ordinal in
+            let content: String
+            if ordinal == 0 {
+                content = "first command result"
+            } else if ordinal == 1 {
+                content = "second command result"
+            } else {
+                content = "command result \(ordinal)"
+            }
+            return keyboardActionPlaylistSearchResult(
+                id: Int64(11 + ordinal),
                 videoPath: source.videoPath,
                 subtitlePath: source.subtitlePath,
-                startMilliseconds: 1_000,
-                content: "first command result"
-            ),
-            keyboardActionPlaylistSearchResult(
-                id: 12,
-                videoPath: source.videoPath,
-                subtitlePath: source.subtitlePath,
-                startMilliseconds: 2_000,
-                content: "second command result"
-            ),
-        ]
+                startMilliseconds: (ordinal + 1) * 1_000,
+                content: content
+            )
+        }
         app.search.replaceLoadedSearchResults(results)
         app.playback.isPlaybackSurfaceExpanded = true
         #expect(app.presentPlaybackCommandPanelSearch(
@@ -344,8 +345,40 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
         #expect(app.search.selectedSearchResult?.entryID == 12)
-        #expect(app.playback.playlistSource?.boundary.totalCount == 2)
+        #expect(app.playback.playlistSource?.boundary.totalCount == 60)
         #expect(app.playback.playbackSearchPlaylistOrdinal == 1)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelSearchSavesSelectedCue() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let source = keyboardActionSource()
+        app.search.replaceLoadedSearchResults([
+            keyboardActionPlaylistSearchResult(
+                id: 1,
+                videoPath: source.videoPath,
+                subtitlePath: source.subtitlePath,
+                startMilliseconds: 0,
+                content: "keyboard action cue 0"
+            )
+        ])
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanelSearch(
+            query: "keyboard",
+            startsSearch: false
+        ))
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
+        await app.playbackSubtitleFocusActionTask?.value
+
+        let savedShiori = try? app.shioriDatabase?.shiori(
+            cueID: 1,
+            listID: ShioriListIdentity.defaultListID
+        )
+        #expect(savedShiori != nil)
+        #expect(app.playback.commandPanelPresentation?.page == .searchResults)
     }
 }
 

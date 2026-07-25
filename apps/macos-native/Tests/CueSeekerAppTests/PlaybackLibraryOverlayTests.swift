@@ -116,6 +116,35 @@ func playbackLibrarySharedDetailRefreshPreservesEpisodeSelection() throws {
 
 @MainActor
 @Test
+func playbackLibrarySourceOpensAsTheMediaPlaylist() async throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
+    try await withPlaybackLibraryApp { app in
+        app.library.completeLibraryFolderSummaries = fixture.folders
+        app.library.completeLibraryFolderDetailsByPath =
+            fixture.detailsByFolderPath
+        let folder = fixture.folders[0]
+        let video = try #require(
+            fixture.detailsByFolderPath[folder.folderPath]?.videos[0]
+        )
+        app.library.selectedLibraryVideo = video.libraryVideo
+        app.search.selectedSearchResult = nil
+        app.activePlaybackSource = .library(videoPath: video.videoPath)
+        app.playbackReturnContext = .libraryFolderDetail(
+            folderPath: folder.folderPath
+        )
+        app.ensurePlayerInitialized()
+
+        #expect(app.openPlaybackSubtitleFocusFromUser())
+        let session = try #require(app.playback.subtitleFocusSession)
+        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.libraryStore?.libraryStore === app.library)
+        #expect(session.recentStore == nil)
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
+    }
+}
+
+@MainActor
+@Test
 func playbackLibraryKeyboardRoutesBothSharedLevels() async throws {
     let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
     try await withPlaybackLibraryApp { app in
@@ -126,11 +155,10 @@ func playbackLibraryKeyboardRoutesBothSharedLevels() async throws {
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackLibraryOpenSnapshot(),
-            availableModules: PlaybackOverlayModule.allCases,
             libraryStore: store
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-        #expect(session.selectModule(.library))
+        #expect(session.selectModule(.playlist))
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 36,

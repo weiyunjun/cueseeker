@@ -113,7 +113,9 @@ final class PlaybackStore: ObservableObject {
             availableModules: availableModules
                 ?? PlaybackOverlayModule.modules(
                     hasPlaylist: playlistSource?.hasItems == true
-            ),
+                        || recentStore != nil
+                        || libraryStore != nil
+                ),
             playlistSource: playlistSource,
             playlistPosition: playlistPosition,
             searchStore: searchStore,

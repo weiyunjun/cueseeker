@@ -117,3 +117,33 @@ speculative abstractions.
   feature tests passed. The one parallel native-audio timing failure passed
   immediately when rerun alone.
 - `git diff --check` passed.
+
+## Step 4: Source-Specific Playlist Reuse
+
+- Reused the existing Recent Videos and Library Overlay session stores as the
+  Playlist content for Library playback; no second media list, repository, or
+  selection state was introduced.
+- Reused the existing complete Search and Shiori playlist window for subtitle
+  playback. The 50-result Command Panel projection remains presentation-only
+  and does not limit the opened Playlist.
+- Reused the existing Library presentation lookup for the selected Playlist
+  item's cover and metadata. The lookup runs only after the selected item
+  changes, and the cover view releases its decoded image when it disappears.
+- Kept Current bound to its immutable open snapshot, so Cue movement does not
+  resolve or rerender its video presentation.
+- Added a defaulted title-visibility option to the existing Library detail
+  header and disabled only its title in the Playback Playlist.
+- Reused the existing session invalidation path to release Recent, Library, and
+  subtitle Playlist windows when playback source changes or the Overlay closes.
+- Kept S, X, C, and Enter on Command Panel Search Result through the existing
+  playback action paths.
+
+## Step 4 Verification
+
+- The focused Command Panel S action test passed.
+- The focused media Playlist opening and keyboard-routing tests passed.
+- The focused Playlist, Command Panel, Recent, and Library selection ran 19
+  tests successfully.
+- The Playback/URLScheme selection ran 314 tests. Its three parallel timing or
+  temporary-database failures each passed when rerun alone; all feature tests
+  introduced or changed by this step passed in the combined run.

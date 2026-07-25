@@ -67,6 +67,28 @@ func playbackRecentSharedRefreshPreservesSessionSelectionAndScroll() {
 
 @MainActor
 @Test
+func playbackRecentSourceOpensAsTheMediaPlaylist() async throws {
+    let items = playbackRecentPresentations(count: 3)
+    try await withPlaybackRecentApp { app in
+        app.library.testRecentWatchingItems = items
+        app.library.testRecentWatchingStatus = .completed
+        app.library.selectedLibraryVideo = items[0].libraryVideo
+        app.search.selectedSearchResult = nil
+        app.activePlaybackSource = .library(videoPath: items[0].videoPath)
+        app.playbackReturnContext = .recent
+        app.ensurePlayerInitialized()
+
+        #expect(app.openPlaybackSubtitleFocusFromUser())
+        let session = try #require(app.playback.subtitleFocusSession)
+        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.recentStore?.libraryStore === app.library)
+        #expect(session.libraryStore == nil)
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
+    }
+}
+
+@MainActor
+@Test
 func playbackRecentKeyboardRoutesSharedGridAndDestroysOnlySession() async throws {
     let items = playbackRecentPresentations(count: 6)
     try await withPlaybackRecentApp { app in
@@ -78,11 +100,10 @@ func playbackRecentKeyboardRoutesSharedGridAndDestroysOnlySession() async throws
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackRecentOpenSnapshot(),
-            availableModules: PlaybackOverlayModule.allCases,
             recentStore: store
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-        #expect(session.selectModule(.recent))
+        #expect(session.selectModule(.playlist))
         store.selection.updateColumnCount(3)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))

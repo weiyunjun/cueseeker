@@ -868,8 +868,15 @@ extension AppCoordinator {
                 return !textInputState.isEditableFocused
             }
 
+            let usesMediaPlaylist =
+                subtitleFocusSession.selectedModule == .playlist
+                && (
+                    subtitleFocusSession.recentStore != nil
+                        || subtitleFocusSession.libraryStore != nil
+                )
             if subtitleFocusSession.selectedModule == .recent
-                || subtitleFocusSession.selectedModule == .library {
+                || subtitleFocusSession.selectedModule == .library
+                || usesMediaPlaylist {
                 guard !textInputState.isEditableFocused else {
                     return false
                 }
@@ -895,7 +902,7 @@ extension AppCoordinator {
                     _ = subtitleFocusSession.requestMediaSelectionNavigation(.down)
                 case 36, 76:
                     if !isRepeat {
-                        if subtitleFocusSession.selectedModule == .recent {
+                        if subtitleFocusSession.recentStore != nil {
                             _ = requestPlaybackRecentOpenAction()
                         } else {
                             _ = requestPlaybackLibraryPrimaryAction()

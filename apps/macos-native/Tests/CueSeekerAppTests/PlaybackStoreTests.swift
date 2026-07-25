@@ -95,6 +95,51 @@ func playbackStoreOpensPlaylistOverlayAtLogicalPlayingItem() throws {
     store.releaseSubtitleFocusSession(session)
 }
 
+@MainActor
+@Test
+func playbackStoreUsesExistingMediaSessionStoresAsPlaylistSources() throws {
+    let suiteName = "CueSeekerMediaPlaylistTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    let store = PlaybackStore(userDefaults: userDefaults)
+    let library = LibraryStore()
+    let recentStore = PlaybackRecentSessionStore(
+        libraryStore: library,
+        isVideoAvailable: { _ in true }
+    )
+    let openSnapshot = PlaybackSubtitleFocusOpenSnapshot(
+        source: SubtitleFocusSourceIdentity(
+            videoPath: "/video/current.mkv",
+            subtitlePath: "/subtitle/current.srt",
+            subtitleFormat: .srt
+        ),
+        timestampMilliseconds: 1_000,
+        wasPlaying: false
+    )
+
+    let recentSession = try #require(store.beginSubtitleFocusSession(
+        openSnapshot: openSnapshot,
+        recentStore: recentStore
+    ))
+    #expect(recentSession.availableModules == [.current, .playlist])
+    #expect(recentSession.recentStore === recentStore)
+    store.releaseSubtitleFocusSession(recentSession)
+
+    let libraryStore = PlaybackLibrarySessionStore(
+        libraryStore: library,
+        isVideoAvailable: { _ in true }
+    )
+    let librarySession = try #require(store.beginSubtitleFocusSession(
+        openSnapshot: openSnapshot,
+        libraryStore: libraryStore
+    ))
+    #expect(librarySession.availableModules == [.current, .playlist])
+    #expect(librarySession.libraryStore === libraryStore)
+    store.releaseSubtitleFocusSession(librarySession)
+}
+
 @Test
 func aiChunkingUsageEstimatesCNYCost() {
     let usage = AIChunkingUsage(

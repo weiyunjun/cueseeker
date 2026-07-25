@@ -88,6 +88,24 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
     let target: PlaybackPlaylistItemTarget
     let actionContext: PlaybackSubtitleFocusActionContext?
 
+    var videoPath: String {
+        switch target {
+        case .search(let result):
+            result.videoPath
+        case .shiori(let shiori):
+            shiori.videoPath
+        }
+    }
+
+    var displayTitle: String {
+        switch target {
+        case .search(let result):
+            result.displayTitle
+        case .shiori(let shiori):
+            shiori.displayTitle
+        }
+    }
+
     init(searchResult: SubtitleSearchResult, ordinal: Int) {
         let resolvedOrdinal = max(0, ordinal)
         identity = .search(searchResult.entryID)

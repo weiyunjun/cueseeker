@@ -143,7 +143,7 @@ extension AppCoordinator {
         presentation.selectedOrdinal = target
         if presentation.page == .searchResults {
             presentation.selectedVideoPresentation =
-                playbackCommandPanelVideoPresentation(
+                playbackVideoPresentation(
                     videoPath: search.searchResults[target].videoPath
                 )
         }
@@ -162,7 +162,7 @@ extension AppCoordinator {
         if presentation.page == .searchResults {
             presentation.selectedVideoPresentation =
                 presentation.selectedOrdinal.flatMap {
-                    playbackCommandPanelVideoPresentation(
+                    playbackVideoPresentation(
                         videoPath: search.searchResults[$0].videoPath
                     )
                 }
@@ -241,7 +241,7 @@ extension AppCoordinator {
         var updated = presentation
         updated.selectedOrdinal = selectedOrdinal
         updated.selectedVideoPresentation = selectedResult.flatMap {
-            playbackCommandPanelVideoPresentation(videoPath: $0.videoPath)
+            playbackVideoPresentation(videoPath: $0.videoPath)
         }
         playback.presentCommandPanel(updated)
     }
@@ -479,7 +479,7 @@ extension AppCoordinator {
         return true
     }
 
-    private func playbackCommandPanelVideoPresentation(
+    func playbackVideoPresentation(
         videoPath: String
     ) -> CompleteLibraryVideoPresentation? {
         let standardizedVideoPath = URL(fileURLWithPath: videoPath)

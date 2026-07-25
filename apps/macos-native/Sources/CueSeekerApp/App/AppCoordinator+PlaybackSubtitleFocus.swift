@@ -55,9 +55,27 @@ extension AppCoordinator {
                 .videos
                 .first { $0.videoPath == source.videoPath }
         )
+        let recentStore: PlaybackRecentSessionStore?
+        let libraryStore: PlaybackLibrarySessionStore?
+        if case .library = activePlaybackSource {
+            if playbackReturnContext == .recent {
+                recentStore = makePlaybackRecentSessionStore()
+                libraryStore = nil
+            } else {
+                recentStore = nil
+                libraryStore = makePlaybackLibrarySessionStore()
+            }
+        } else {
+            recentStore = nil
+            libraryStore = nil
+        }
         guard let session = playback.beginSubtitleFocusSession(
-            openSnapshot: openSnapshot
+            openSnapshot: openSnapshot,
+            recentStore: recentStore,
+            libraryStore: libraryStore
         ) else {
+            recentStore?.invalidate()
+            libraryStore?.invalidate()
             return false
         }
 
@@ -129,7 +147,11 @@ extension AppCoordinator {
         _ requestedItem: RecentLibraryWatchingPresentation
     ) -> Bool {
         guard let session = playback.subtitleFocusSession,
-              session.selectedModule == .recent,
+              (
+                  session.selectedModule == .recent
+                      || session.selectedModule == .playlist
+                          && session.recentStore != nil
+              ),
               let recentStore = session.recentStore,
               let item = recentStore.primaryActionItem(itemID: requestedItem.id),
               item == requestedItem
@@ -188,7 +210,11 @@ extension AppCoordinator {
     @discardableResult
     func requestPlaybackLibraryPrimaryAction() -> Bool {
         guard let session = playback.subtitleFocusSession,
-              session.selectedModule == .library,
+              (
+                  session.selectedModule == .library
+                      || session.selectedModule == .playlist
+                          && session.libraryStore != nil
+              ),
               let libraryStore = session.libraryStore
         else {
             return false
@@ -209,7 +235,11 @@ extension AppCoordinator {
         _ requestedVideo: CompleteLibraryVideoPresentation
     ) -> Bool {
         guard let session = playback.subtitleFocusSession,
-              session.selectedModule == .library,
+              (
+                  session.selectedModule == .library
+                      || session.selectedModule == .playlist
+                          && session.libraryStore != nil
+              ),
               let libraryStore = session.libraryStore,
               let video = libraryStore.primaryActionVideo(
                   itemID: requestedVideo.id

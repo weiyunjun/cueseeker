@@ -325,6 +325,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             recentStore?.activate(refreshesExistingSnapshot: true)
         } else if module == .library {
             libraryStore?.activate(refreshesExistingSnapshot: true)
+        } else if module == .playlist {
+            recentStore?.activate(refreshesExistingSnapshot: true)
+            libraryStore?.activate(refreshesExistingSnapshot: true)
         }
         return true
     }
@@ -359,6 +362,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return recentStore?.selection.move(direction) == true
         case .library:
             return libraryStore?.moveSelection(direction) == true
+        case .playlist:
+            if let recentStore {
+                return recentStore.selection.move(direction)
+            }
+            return libraryStore?.moveSelection(direction) == true
         default:
             return false
         }
@@ -366,7 +374,12 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     func selectedRecentPrimaryActionItem()
         -> RecentLibraryWatchingPresentation? {
-        guard isSessionActive, selectedModule == .recent else {
+        guard isSessionActive,
+              (
+                  selectedModule == .recent
+                      || selectedModule == .playlist && recentStore != nil
+              )
+        else {
             return nil
         }
         return recentStore?.primaryActionItem()
@@ -374,7 +387,12 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func enterSelectedLibraryFolder() -> Bool {
-        guard isSessionActive, selectedModule == .library else {
+        guard isSessionActive,
+              (
+                  selectedModule == .library
+                      || selectedModule == .playlist && libraryStore != nil
+              )
+        else {
             return false
         }
         return libraryStore?.enterFolder() == true
@@ -382,7 +400,12 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     func selectedLibraryPrimaryActionVideo()
         -> CompleteLibraryVideoPresentation? {
-        guard isSessionActive, selectedModule == .library else {
+        guard isSessionActive,
+              (
+                  selectedModule == .library
+                      || selectedModule == .playlist && libraryStore != nil
+              )
+        else {
             return nil
         }
         return libraryStore?.primaryActionVideo()

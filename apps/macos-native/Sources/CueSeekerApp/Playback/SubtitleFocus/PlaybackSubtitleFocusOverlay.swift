@@ -6,17 +6,35 @@ struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let resolveVideoPresentation: (String) -> CompleteLibraryVideoPresentation?
+    let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
+    let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
-        onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil
+        onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
+        resolveVideoPresentation:
+            @escaping (String) -> CompleteLibraryVideoPresentation? = {
+                _ in nil
+            },
+        onOpenRecentItem:
+            @escaping (RecentLibraryWatchingPresentation) -> Bool = {
+                _ in false
+            },
+        onOpenLibraryEpisode:
+            @escaping (CompleteLibraryVideoPresentation) -> Bool = {
+                _ in false
+            }
     ) {
         self.session = session
         self.uiProbeScope = uiProbeScope
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
+        self.resolveVideoPresentation = resolveVideoPresentation
+        self.onOpenRecentItem = onOpenRecentItem
+        self.onOpenLibraryEpisode = onOpenLibraryEpisode
     }
 
     var body: some View {
@@ -29,7 +47,10 @@ struct PlaybackSubtitleFocusLayer: View {
                 snapshot: snapshot,
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
-                onExecuteAction: onExecuteAction
+                onExecuteAction: onExecuteAction,
+                resolveVideoPresentation: resolveVideoPresentation,
+                onOpenRecentItem: onOpenRecentItem,
+                onOpenLibraryEpisode: onOpenLibraryEpisode
             )
         }
     }
@@ -41,6 +62,9 @@ struct PlaybackOverlay: View {
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let resolveVideoPresentation: (String) -> CompleteLibraryVideoPresentation?
+    let onOpenRecentItem: (RecentLibraryWatchingPresentation) -> Bool
+    let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     var body: some View {
         ZStack {
@@ -106,16 +130,30 @@ struct PlaybackOverlay: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-        } else if session.selectedModule == .playlist,
-                  let playlistWindow = session.playlistWindow {
-            PlaybackCueResultOverlay(
-                session: session,
-                windowStore: playlistWindow,
-                module: .playlist,
-                showsSequenceNumber: true,
-                uiProbeScope: uiProbeScope,
-                onExecuteAction: onExecuteAction
-            )
+        } else if session.selectedModule == .playlist {
+            if let recentStore = session.recentStore {
+                PlaybackRecentOverlay(
+                    store: recentStore,
+                    onOpenItem: onOpenRecentItem
+                )
+            } else if let libraryStore = session.libraryStore {
+                PlaybackLibraryOverlay(
+                    store: libraryStore,
+                    showsFolderDetailTitle: false,
+                    onOpenEpisode: onOpenLibraryEpisode
+                )
+            } else if let playlistWindow = session.playlistWindow {
+                PlaybackSubtitlePlaylist(
+                    session: session,
+                    windowStore: playlistWindow,
+                    resolveVideoPresentation: resolveVideoPresentation,
+                    uiProbeScope: uiProbeScope,
+                    onExecuteAction: onExecuteAction
+                )
+            } else {
+                PlaybackTheme.subtitleFocusOverlayBackground
+                    .contentShape(Rectangle())
+            }
         } else {
             PlaybackTheme.subtitleFocusOverlayBackground
                 .contentShape(Rectangle())
@@ -176,6 +214,85 @@ private struct PlaybackCurrentVideoContext: View {
     let openSnapshot: PlaybackSubtitleFocusOpenSnapshot
 
     var body: some View {
+        PlaybackVideoContext(
+            videoPresentation: openSnapshot.videoPresentation,
+            fallbackTitle: URL(fileURLWithPath: openSnapshot.source.videoPath)
+                .deletingPathExtension()
+                .lastPathComponent
+        )
+    }
+}
+
+private struct PlaybackSubtitlePlaylist: View {
+    @ObservedObject var session: PlaybackSubtitleFocusSessionStore
+    @ObservedObject var windowStore: PlaybackPlaylistSessionWindowStore
+    let resolveVideoPresentation: (String) -> CompleteLibraryVideoPresentation?
+    let uiProbeScope: String?
+    let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+
+    @State private var videoPresentation:
+        CompleteLibraryVideoPresentation?
+
+    private var selectedItem: PlaybackPlaylistItem? {
+        guard let selectedOrdinal = windowStore.selectedOrdinal else {
+            return nil
+        }
+        return windowStore.item(at: selectedOrdinal)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                PlaybackVideoContext(
+                    videoPresentation: videoPresentation,
+                    fallbackTitle: selectedItem?.displayTitle ?? ""
+                )
+                .frame(
+                    width: geometry.size.width
+                        * PlaybackOverlayMetrics.currentContextWidthFraction
+                )
+                .frame(maxHeight: .infinity)
+
+                PlaybackCueResultOverlay(
+                    session: session,
+                    windowStore: windowStore,
+                    module: .playlist,
+                    showsSequenceNumber: true,
+                    uiProbeScope: uiProbeScope,
+                    onExecuteAction: onExecuteAction
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .onAppear(perform: updateVideoPresentation)
+        .onChange(of: windowStore.selectedOrdinal) { _ in
+            updateVideoPresentation()
+        }
+        .onChange(of: windowStore.snapshot) { _ in
+            updateVideoPresentation()
+        }
+        .onDisappear {
+            videoPresentation = nil
+        }
+    }
+
+    private func updateVideoPresentation() {
+        guard let selectedItem else {
+            videoPresentation = nil
+            return
+        }
+        guard videoPresentation?.videoPath != selectedItem.videoPath else {
+            return
+        }
+        videoPresentation = resolveVideoPresentation(selectedItem.videoPath)
+    }
+}
+
+private struct PlaybackVideoContext: View {
+    let videoPresentation: CompleteLibraryVideoPresentation?
+    let fallbackTitle: String
+
+    var body: some View {
         GeometryReader { geometry in
             let coverWidth = max(
                 0,
@@ -190,8 +307,8 @@ private struct PlaybackCurrentVideoContext: View {
 
             ZStack(alignment: .top) {
                 LibraryCachedCoverImage(
-                    coverPath: openSnapshot.videoPresentation?.coverPath,
-                    coverRevision: openSnapshot.videoPresentation?.coverRevision
+                    coverPath: videoPresentation?.coverPath,
+                    coverRevision: videoPresentation?.coverRevision
                 )
                 .frame(width: coverWidth, height: coverHeight)
                 .clipShape(
@@ -206,7 +323,7 @@ private struct PlaybackCurrentVideoContext: View {
                     alignment: .center,
                     spacing: WorkbenchControlMetrics.redesignSpacing2
                 ) {
-                    Text(videoTitle)
+                    Text(videoPresentation?.displayTitle ?? fallbackTitle)
                         .font(.system(
                             size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
                             weight: .medium
@@ -215,8 +332,11 @@ private struct PlaybackCurrentVideoContext: View {
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
 
-                    if let episodeLabel {
-                        Text(episodeLabel)
+                    if let videoPresentation {
+                        Text(String(
+                            format: "EP%02d",
+                            videoPresentation.episodeNumber
+                        ))
                             .font(.system(
                                 size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
                                 weight: .regular
@@ -236,19 +356,6 @@ private struct PlaybackCurrentVideoContext: View {
                 )
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-    }
-
-    private var videoTitle: String {
-        openSnapshot.videoPresentation?.displayTitle
-            ?? URL(fileURLWithPath: openSnapshot.source.videoPath)
-                .deletingPathExtension()
-                .lastPathComponent
-    }
-
-    private var episodeLabel: String? {
-        openSnapshot.videoPresentation.map {
-            String(format: "EP%02d", $0.episodeNumber)
         }
     }
 }

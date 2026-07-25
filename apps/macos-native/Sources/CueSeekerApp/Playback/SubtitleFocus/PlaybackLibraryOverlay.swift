@@ -4,14 +4,17 @@ import SwiftUI
 struct PlaybackLibraryOverlay: View {
     @ObservedObject var store: PlaybackLibrarySessionStore
     @ObservedObject private var library: LibraryStore
+    let showsFolderDetailTitle: Bool
     let onOpenEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     init(
         store: PlaybackLibrarySessionStore,
+        showsFolderDetailTitle: Bool = true,
         onOpenEpisode: @escaping (CompleteLibraryVideoPresentation) -> Bool
     ) {
         self.store = store
         _library = ObservedObject(wrappedValue: store.libraryStore)
+        self.showsFolderDetailTitle = showsFolderDetailTitle
         self.onOpenEpisode = onOpenEpisode
     }
 
@@ -28,6 +31,7 @@ struct PlaybackLibraryOverlay: View {
                     VStack(spacing: 0) {
                         LibraryFolderDetailHeader(
                             folderTitle: folderTitle,
+                            showsTitle: showsFolderDetailTitle,
                             onBack: {
                                 _ = store.returnToFolders()
                             }

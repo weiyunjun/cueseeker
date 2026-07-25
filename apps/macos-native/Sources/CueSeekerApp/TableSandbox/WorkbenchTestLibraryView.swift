@@ -878,6 +878,7 @@ private struct LibraryFolderCard: View {
 
 struct LibraryFolderDetailHeader: View {
     let folderTitle: String
+    var showsTitle = true
     let onBack: () -> Void
 
     var body: some View {
@@ -888,12 +889,16 @@ struct LibraryFolderDetailHeader: View {
                 action: onBack
             )
 
-            Text(folderTitle)
-                .font(.system(size: WorkbenchTestLibraryMetrics.sectionTitleSize, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .allowsHitTesting(false)
+            if showsTitle {
+                Text(folderTitle)
+                    .font(.system(size: WorkbenchTestLibraryMetrics.sectionTitleSize, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .allowsHitTesting(false)
+            } else {
+                Spacer(minLength: 0)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
