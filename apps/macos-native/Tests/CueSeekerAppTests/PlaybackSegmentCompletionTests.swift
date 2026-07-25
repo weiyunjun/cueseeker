@@ -201,6 +201,45 @@ func enteringOverlayCancelsPendingAutoSwitchWithoutClearingAutoPause() async thr
 
 @MainActor
 @Test
+func enteringCommandPanelCancelsPendingAutoSwitchDuringGap() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        app.ensurePlayerInitialized()
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
+        let result = segmentCompletionSearchResult(entryID: 1)
+        app.activePlaybackSource = .search
+        app.search.selectedSearchResult = result
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.playback.playbackStatus = .playing
+        app.beginCueAutoStopPlayback()
+        app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
+            startMilliseconds: result.startMilliseconds,
+            endMilliseconds: result.endMilliseconds
+        ))
+        app.handleCueAutoStopBoundaryReached(
+            endMilliseconds: result.endMilliseconds
+        )
+        #expect(app.autoSwitchCueSequenceTask != nil)
+        #expect(app.playback.playbackStatus == .paused)
+
+        let presented = app.presentPlaybackCommandPanel()
+
+        #expect(presented)
+        #expect(app.playback.commandPanelPresentation != nil)
+        #expect(app.autoSwitchCueSequenceTask == nil)
+        #expect(app.currentCueAutoStopReached)
+        #expect(
+            app.activeCueAutoPauseBoundary?.endMilliseconds
+                == result.endMilliseconds
+        )
+        #expect(app.activePlaylistCueSettings?.autoSwitchEnabled == true)
+        #expect(app.dismissPlaybackCommandPanelFromUser())
+        #expect(app.playback.playbackStatus == .paused)
+    }
+}
+
+@MainActor
+@Test
 func newPlaylistIndexReinitializesBehaviorsAfterSeekInterruption() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         let first = segmentCompletionSearchResult(entryID: 1)

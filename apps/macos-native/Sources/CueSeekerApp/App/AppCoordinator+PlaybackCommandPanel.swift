@@ -469,7 +469,9 @@ extension AppCoordinator {
             return true
         }
         let wasPlaying = playback.playbackViewModel?.isPlaying == true
-        if wasPlaying, !pausePlayback() {
+        guard suspendPlaybackForModalPresentation(
+            wasPlaying: wasPlaying
+        ) else {
             return false
         }
         playback.presentCommandPanel(

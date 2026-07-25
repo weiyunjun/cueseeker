@@ -176,3 +176,25 @@ speculative abstractions.
 - Per owner direction, no further desktop automation or screenshot-based
   end-to-end validation was performed; visual acceptance remains with the
   owner.
+
+## Step 6: Command Panel Auto-Switch Suspension
+
+- Reused one playback-modal suspension path for Playback Overlay and Command
+  Panel entry. It cancels a pending Cue auto-switch even when playback is
+  already paused during the configured switch gap.
+- Added Command Panel presence to both auto-switch eligibility checks so a
+  delayed task cannot advance playback while the panel is open.
+- Preserved the existing resume rule: closing a Command Panel opened during an
+  auto-pause gap leaves playback paused.
+
+## Step 6 Verification
+
+- Added coverage for opening and closing Command Panel during a pending
+  auto-switch gap.
+- The focused Segment Completion and Command Panel selection ran 32 tests
+  successfully.
+- `swift build` passed.
+- The Playback/URLScheme selection ran 317 tests. Four parallel native-media
+  or temporary-database timing failures all passed together when rerun
+  serially.
+- `git diff --check` passed.

@@ -469,6 +469,14 @@ extension AppCoordinator {
         }
     }
 
+    func suspendPlaybackForModalPresentation(wasPlaying: Bool) -> Bool {
+        guard wasPlaying else {
+            cancelAutoSwitchCueSequenceTask()
+            return true
+        }
+        return pausePlayback()
+    }
+
     func resumePlayback() {
         do {
             cancelAutoSwitchCueSequenceTask()
@@ -605,6 +613,7 @@ extension AppCoordinator {
               effectiveSettings.autoSwitchEnabled,
               playback.playlistPosition == playlistPosition,
               playback.subtitleFocusSession == nil,
+              playback.commandPanelPresentation == nil,
               source == .search || source == .shiori
         else {
             return
@@ -629,6 +638,7 @@ extension AppCoordinator {
                       self.playback.playbackStatus == .paused,
                       self.playback.playlistPosition == playlistPosition,
                       self.playback.subtitleFocusSession == nil,
+                      self.playback.commandPanelPresentation == nil,
                       self.activePlaybackSource == source,
                       self.activePlaylistCueSettings == effectiveSettings,
                       effectiveSettings.autoPauseEnabled,

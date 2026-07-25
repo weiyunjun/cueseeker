@@ -79,14 +79,12 @@ extension AppCoordinator {
             return false
         }
 
-        cancelAutoSwitchCueSequenceTask()
-
-        if playbackViewModel.isPlaying {
-            guard pausePlayback() else {
-                _ = session.failOpening(token: session.token)
-                playback.releaseSubtitleFocusSession(session)
-                return false
-            }
+        guard suspendPlaybackForModalPresentation(
+            wasPlaying: openSnapshot.wasPlaying
+        ) else {
+            _ = session.failOpening(token: session.token)
+            playback.releaseSubtitleFocusSession(session)
+            return false
         }
 
         flushPendingLibraryPlaybackHistoryPresentations()
