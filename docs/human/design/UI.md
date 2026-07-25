@@ -450,7 +450,7 @@
 - 无边框控件使用 `--color-focus-ring`、`--focus-ring-width` 和 `--focus-ring-offset`。
 - Search Box、Value Input Field、Form Text Field 和 Form Text Area 通过点击或键盘获得焦点时都显示 Focused 状态。
 - Form Text Field 和 Form Text Area 处于 Error 时保留错误边框；获得焦点时同时显示 Focus Ring。
-- Playback Search Box 获得输入焦点时不显示额外 Focus Ring、边框色或背景变化，只显示 Caret。
+- Command Panel Search Box 获得输入焦点时不显示额外 Focus Ring、边框色或背景变化，只显示 Caret。
 - Caret 只在可编辑输入区域获得焦点时出现。
 - Checkbox 的焦点只作用于 Checkbox 本体。
 - Sortable Header Cell 的焦点只作用于 Trigger Surface。
@@ -519,19 +519,21 @@
 - 有内容时显示 Inline Clear Button。
 - 输入区支持原生文字选择、`Cmd+A`、`Cmd+C`。
 
-#### Playback Search Box
+#### Command Panel Search Box
 
-- 用途：在 Playback Multi-Module Overlay 的 Search 中输入查询词。
+- 用途：在 Playback Command Panel 一级界面中输入查询词。
 - 复用 Search Box 的高度、圆角、水平内边距、文字、Placeholder、Search 图标和 Inline Clear Button。
 - 跟随 CueSeeker 当前有效 Appearance。
 - Light Appearance 使用 Light Token；Dark Appearance 使用 Dark Token。
 - 状态：Empty、Typing、Filled、Clear Button Hover。
+- Command Panel 打开后默认获得输入焦点并显示 Caret。
 - Empty、Typing 和 Filled 的容器外观保持一致。
-- 获得输入焦点时不增加 Focus Ring、焦点边框或焦点背景。
-- 获得输入焦点时显示 Caret。
+- 获得输入焦点时不增加额外 Focus Ring、焦点边框或焦点背景。
 - 有内容时显示 Inline Clear Button。
-- 点击 Inline Clear Button 清除查询词并更新 Search 结果。
+- 点击 Inline Clear Button 清除查询词并更新一级选项。
 - 输入区支持原生文字选择、`Cmd+A`、`Cmd+C`。
+- 输入焦点存在时，无修饰字母键优先作为查询输入。
+- 进入任一二级界面后隐藏 Command Panel Search Box。
 
 #### Select Trigger Button
 
@@ -582,7 +584,7 @@
 - 用途：输入描述等多行表单内容。
 - 结构、Label、Validation Message、文字和 Error 视觉与 Form Text Field 相同。
 - 高度使用 `--height-form-text-area`。
-- 使用多行输入，`Return` 插入换行。
+- 使用多行输入，`Enter` 插入换行。
 - 内容超过可视高度后启用纵向滚动。
 - 不提供用户拖拽缩放。
 - 状态：Empty、Focused Empty、Typing、Filled、Error、Focused Error、Disabled。
@@ -1071,12 +1073,25 @@
 
 #### App Sidebar Navigation Item
 
-- 用途：在 Search、Recent、Library 和 Shiori 之间导航。
+- 用途：承载 Search、Recent、Library 和 Shiori 一级导航。
 - Token：`--height-app-sidebar-item`、`--radius-app-sidebar-item`、`--padding-app-sidebar-item-x`、`--color-app-sidebar-item-selected-bg`、`--spacing-3`。
 - 文字使用 `--font-family-base`、`--font-size-app-sidebar-item`、`--color-text-primary`、`--color-text-disabled`。
 - 图标使用 `--size-app-sidebar-item-icon`、`--color-icon-default`、`--color-icon-disabled`。
+- Recent 和 Shiori 显示 Disclosure Indicator。
+- Search 和 Library 不显示 Disclosure Indicator。
+- 状态：Default、Selected、Expanded、Collapsed、Disabled。
+- 点击 Label 或 Leading Icon 进入对应一级页面。
+- 点击 Disclosure Indicator 只展开或收起二级导航，不执行页面导航。
+- 点击当前 Selected Item 不重复导航。
+
+#### App Sidebar Child Item
+
+- 用途：承载 Recent Videos、Recent Shioris 和具体 Shiori List。
+- 文字和高度复用 App Sidebar Navigation Item。
+- 不显示 Leading Icon。
+- 使用缩进表达与所属一级 Item 的层级关系。
 - 状态：Default、Selected、Disabled。
-- 同一时刻只有当前页面处于 Selected。
+- 同一时刻只有当前页面入口处于 Selected。
 - 点击当前 Selected Item 不重复导航。
 
 #### App Sidebar Settings Item
@@ -1088,20 +1103,19 @@
 - 状态：Default、Disabled。
 - 它是独立命令，不参与主要导航项的 Selected 状态。
 
-#### Playback Module Sidebar Item
+#### Playback View Tab
 
-- 用途：在 Playback Multi-Module Overlay 的 Current、Playlist、Search、Recent、Library 和 Shiori 之间导航。
-- 尺寸复用 `--height-app-sidebar-item`、`--padding-app-sidebar-item-x`、`--size-app-sidebar-item-icon` 和 `--spacing-3`。
+- 用途：在 Playback Overlay 的 Current 和 Playlist 之间切换。
+- Label 固定为 `Current` 或 `Playlist`。
 - 文字使用 `--font-family-base` 和 `--font-size-app-sidebar-item`。
-- Selected 的文字和图标使用 `--color-playback-module-sidebar-selected`。
-- Unselected 的文字和图标使用 `--color-playback-module-sidebar-unselected`。
-- 背景始终透明。
-- 不显示选中背景、边框、Focus Ring 或其他颜色。
 - 状态仅包括 Unselected 和 Selected。
-- 同一时刻只有当前模块处于 Selected。
-- 点击 Unselected Item 切换到对应模块。
-- 点击当前 Selected Item 不重复导航。
-- Playlist 不存在时不显示对应 Item，不显示 Disabled 状态。
+- Selected 使用 Primary 文字颜色，并在文字下方显示短 Accent 下划线。
+- Unselected 使用 Muted 文字颜色。
+- 背景始终透明。
+- 不显示选中背景、边框或 Focus Ring。
+- 同一时刻只有一个 Playback View Tab 处于 Selected。
+- 点击 Unselected Tab 切换对应视图。
+- 点击当前 Selected Tab 不重复切换。
 
 ### 3.8 Player Controls
 
@@ -1169,7 +1183,7 @@
 - 状态：Default、Truncated。
 - 只读，不承担播放或导航动作。
 
-### 3.9 Playback Multi-Module Overlay
+### 3.9 Playback Overlay
 
 #### Subtitle Focus Cue
 
@@ -1192,14 +1206,14 @@
 - Resolved Height 不超过 Cue Reel Viewport Height。
 - Oversized Cue 从第一视觉行开始显示，只裁掉底部超出内容。
 - 不显示省略号。
-- 完整 Cue 原文继续作为 S、C 和 Enter 的动作值。
+- 完整 Cue 原文继续作为 S、X、C 和 Enter 的动作值。
 - Cue 本身没有 Hover 或点击动作。
 - 点击不得改变选择，也不得穿透到底层 Video。
 - Wheel Event 交给所属 Cue Reel。
 
 #### Playback Cue Result
 
-- 用途：在 Playlist、Search 和 Shiori 中显示一个 Primary Cue，以及可选的 Cue Group。
+- 用途：在字幕型 Playlist 和 Command Panel Search Result 中显示一个 Primary Cue，以及可选的 Cue Group。
 - Result 使用 `--padding-subtitle-focus-cue-y`。
 - Primary Cue 使用 `--font-size-subtitle-focus-cue`、`--line-height-subtitle-focus-cue` 和 `--font-weight-subtitle-focus-cue`。
 - Cue Group 使用 `--font-size-subtitle-focus-cue-group`、`--line-height-subtitle-focus-cue-group` 和 `--font-weight-subtitle-focus-cue-group`。
@@ -1269,11 +1283,20 @@
   4. Settings Region
 - Top Safe Area 为 macOS Window Controls 和 Sidebar Toggle 预留空间。
 - Navigation Region 纵向排列 App Sidebar Navigation Item，间距使用 `--spacing-1`。
-- Navigation Item：
-  - Search
-  - Recent
-  - Library
-  - Shiori
+- Navigation Region 从上到下包括：
+  1. Search
+  2. Recent
+     - Recent Videos
+     - Recent Shioris
+  3. Library
+  4. Shiori
+     - 当前存在的 Shiori List
+- Recent 和 Shiori 支持展开与收起。
+- Recent 展开后固定显示 Recent Videos 和 Recent Shioris。
+- Shiori 展开后按当前 Shiori List 默认顺序显示 App Sidebar Child Item。
+- Shiori List 超出可用高度时，Shiori 二级区域独立纵向滚动。
+- Search 和 Library 不显示二级导航。
+- 二级导航只显示名称，不显示封面、字幕、Resume 位置或其他富信息。
 - Settings Region 包含 App Sidebar Settings Item。
 - Expanded 为默认状态，显示图标和 Label。
 - Collapsed 隐藏 Sidebar 内容，并从主内容区移除 Sidebar 宽度。
@@ -1315,15 +1338,19 @@
 - Hover 外围使用 `--padding-library-media-card-hover`。
 - Hover 圆角使用 `--radius-library-media-card-hover`。
 - Hover 背景使用 `--color-library-media-card-hover-bg`。
-- 内容包括：
+- 内容从上到下包括：
+  1. Cover Region
+  2. Folder Name
+  3. Meta Row
+- Cover Region 包括：
   - Library Cover
   - Library Cover Progress Overlay
   - Library Cover Badge / Time
-  - Folder Name
-  - Episode Label
-  - Watch Status Badge
 - Folder Name 使用 `--font-size-library-title`、`--color-text-primary`，单行显示。
+- Meta Row 使用水平布局，包括 Episode Label 和 Watch Status Badge。
+- Episode Label 与 Watch Status Badge 位于同一行并紧邻排列。
 - Episode Label 使用 `--font-size-library-meta`、`--color-text-muted`。
+- Watch Status 必须使用 Watch Status Badge，不得降级为普通彩色文字或使用圆点分隔。
 - 左键从保存的播放位置打开视频。
 - 右键打开 Library Card Context Menu，不触发播放。
 - Context Menu 可以包含：
@@ -1333,6 +1360,51 @@
   - Mark as Watching
   - Context
 - 文件缺失或 Disabled 时降低透明度并禁用点击。
+
+#### Recent Overview Layout
+
+- App Topbar Title 为 `Recent`。
+- 页面从上到下包括：
+  1. Recent Videos Section
+  2. Recent Shioris Section
+- 每个 Section Header 包括：
+  - Section Title
+  - 完整二级页总数
+  - 进入完整二级页的箭头
+- Section Title 使用 Primary 文字颜色。
+- 总数使用 Secondary 文字颜色。
+- 总数表示完整二级页的总数，不表示一级页当前预览数量。
+- Section Header 箭头用于进入完整二级页，不承担 Sidebar 展开或收起动作。
+
+#### Recent Videos Section Layout
+
+- 一级页预览复用 Recent Watching Card Layout。
+- 保留 Library Cover Progress Overlay、Library Cover Badge / Time、Episode Label 和 Watch Status Badge。
+- Recent Videos 完整二级页继续复用 Recent Watching Card Layout。
+- 完整二级页显示全部 Recent Videos，不增加 Search、Filter、Sort 或批量操作。
+
+#### Recent Shiori Resume Row Layout
+
+- Row 使用水平布局并占满可用内容宽度。
+- 左侧显示 Shiori List 的 Library Cover。
+- 右侧从上到下显示：
+  1. List Name
+  2. Description
+  3. `Resume {Current Position} / {Total Count}`
+  4. 最近播放的字幕文本
+- Library Cover 保持 `--aspect-library-cover`，不得拉伸或变形。
+- List Name 使用 Primary 文字样式。
+- Description 使用 Muted 文字样式。
+- Resume 位置使用 Secondary 文字样式。
+- 最近播放字幕文本使用 Primary 文字样式。
+- Description 为空时保留整体对齐，不增加替代文案。
+- Row 之间使用间距或轻量 Divider，不使用独立 Card Border 或 Shadow。
+
+#### Recent Shioris Section Layout
+
+- 一级页每行显示一个 Recent Shiori Resume Row。
+- 完整二级页复用相同的 Recent Shiori Resume Row 并显示全部 Recent Shioris。
+- 首版不显示 Search、Filter、Sort、管理按钮或批量操作。
 
 #### Library Folder Card Layout
 
@@ -1479,7 +1551,7 @@
   - Neutral Button
 - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果。
 - Query 后续发生变化时，以最新输入内容更新结果。
-- Return 不用于提交 Search。
+- Enter 不用于提交 Search。
 - Filter Trigger 负责打开、关闭和清除筛选。
 
 #### Search / Shiori Utility Bar Layout
@@ -1603,14 +1675,14 @@
   - Default：Off
   - 跨 App 启动保留
   - 适用于 Workbench Search、Workbench Shiori 和 Context
-  - 同一设置同时适用于 Playback Multi-Module Overlay 的 Playlist、Search 和 Shiori
+  - 同一设置同时适用于字幕型 Playlist 和 Command Panel Search Result
   - Off：只显示 Primary Cue
   - On：在 Primary Cue 上方显示全部 Additional Cues
   - Primary Cue Identity 不变
   - 所有默认动作继续以 Primary Cue 为目标
   - Workbench Table 中所有显示的 Cue 共用一个 Hover 和点击区域
   - Workbench Table 中 Primary Cue 与 Extra Cues 只通过字体和颜色区分
-  - Playback Multi-Module Overlay 中的显示规则使用 Playback Cue Result
+  - Playback Overlay 和 Command Panel Search Result 中的显示规则使用 Playback Cue Result
 
 - 文字选择遵循 `2.5 文字选择与复制`。
 
@@ -1839,7 +1911,7 @@
 - 每个具体 Dialog 定义自己的默认焦点动作。
 - Escape 等同于当前 Dialog 的 Cancel。
 - 点击 Dialog 外部不关闭。
-- Return 激活当前默认焦点动作。
+- Enter 激活当前默认焦点动作。
 
 - Remove Shiori：
   - Title：`Remove Shiori`
@@ -1953,7 +2025,7 @@
 - Title 最大宽度使用 `--width-player-topbar-title-max`。
 - Empty Titlebar Area 支持窗口拖动和双击。
 - Window Control Cluster Hover 时显示全部 Glyph。
-- Close 关闭 Playback Page，并按 Playback Return Context 返回对应 Workbench Feature。
+- Close 关闭 Playback Page，并按 Playback Enter Context 返回对应 Workbench Feature。
 - Minimize 最小化窗口。
 - Zoom 进入 Fullscreen。
 
@@ -2070,7 +2142,7 @@
 - Pointer 恢复显示后，各组件定义的 Hover 和 Cursor 规则继续生效。
 - Pointer 显示时，内容滚动导致 Pointer 命中的卡片变化，属于有效的 Hover 目标变化。
 
-#### Playback Multi-Module Overlay Layout
+#### Playback Overlay Layout
 
 - 覆盖完整 Playback Stage。
 - 不是独立原生窗口。
@@ -2080,96 +2152,86 @@
 - 跟随 CueSeeker 当前有效 Appearance。
 - Appearance Mode 为 Auto 时，跟随当前 macOS 系统 Appearance。
 - Appearance Mode 为 Light 或 Dark 时，使用对应的强制 Appearance。
-- Overlay 显示期间 Appearance 发生变化时，更新当前可见 Module、Native Reel 和 Scrollbar 的颜色。
-- Appearance 更新不重建 Overlay Session，不改变当前 Module、选择位置或滚动位置。
+- Overlay 显示期间 Appearance 发生变化时，更新当前可见 View、Native Reel 和 Scrollbar 的颜色。
+- Appearance 更新不重建 Overlay Session，不改变当前 View、选择位置或滚动位置。
 - Overlay 显示时隐藏 Player Topbar、Bottom Chrome 和 Progress Bar。
 - Playback Feedback Overlay 继续显示在最上层且不参与 Hit Testing。
 - Overlay 显示期间 Playback 保持暂停，直到执行播放动作或退出 Overlay。
 
-- Feature Host：
-  - Playback 中的 Search、Recent、Library 和 Shiori 是对应 Workbench Feature 的能力受限宿主
-  - Workbench 与 Playback 共享对应 Feature 的可见状态和操作结果
-  - 任一端完成的正式 Feature 状态变化在另一端可见
+- Playlist Source Host：
+  - Playlist 可以来源于 Search Result、Shiori、Recent Videos 或 Library
+  - Playlist 复用对应 Workbench Feature 的数据顺序和正式操作结果
   - Playback 不提供 Checkbox 批量操作、导出、添加文件夹、Context、Filter 控件或复制表格入口
-  - Playback 只提供各 Module 在本 Layout 中明确列出的操作
+  - Playback 只提供 Current 和当前 Playlist Source 在本 Layout 中明确列出的操作
+  - Current 不属于 Workbench Feature Host，只显示当前视频及其完整 Cue 集合
 
-- Playback Return Context：
+- Playback Enter Context：
   - 生命周期覆盖整个 Playback Page，并跨越同一 Playback Page 内的多次 Overlay Session
   - 只有 Search、Shiori、Recent 和 Library 四种返回目标
   - 打开 Playback Page 时，以进入 Playback 前的 Workbench Feature 初始化
-  - 从 Playback Search 成功播放 Result 时更新为 Search
-  - 从 Playback Shiori 成功播放 Result 时更新为 Shiori
-  - 从 Playback Recent 成功播放视频时更新为 Recent
-  - 从 Playback Library Folder Detail 成功播放视频时更新为对应的 Library Folder Detail
-  - 后一次成功播放更新并替换前一次 Playback Return Context
-  - 只切换 Module、编辑 Search Query、浏览结果或通过 Escape 关闭 Overlay，不更新 Playback Return Context
-  - 关闭 Playback Page 时，根据当前 Playback Return Context 返回 Workbench
-  - Playback Return Context 只决定返回目标，不保存、删除或回滚其他 Feature 状态
-  - 返回 Search 时显示 Search Feature 当前 Query，而不是 Playback Return Context 创建时的 Query 快照
-  - 完成返回后销毁 Playback Return Context
+  - 从 Search Result Playlist 成功播放 Result 时更新为 Search
+  - 从 Shiori Playlist 成功播放 Result 时更新为 Shiori
+  - 从 Recent Videos Playlist 成功播放视频时更新为 Recent
+  - 从 Library Playlist 成功播放视频时更新为对应的 Library Folder Detail
+  - 后一次成功播放更新并替换前一次 Playback Enter Context
+  - 只切换 Current 与 Playlist、浏览 Playlist、打开或关闭 Command Panel，不更新 Playback Enter Context
+  - 关闭 Playback Page 时，根据当前 Playback Enter Context 返回 Workbench
+  - Playback Enter Context 只决定返回目标，不保存、删除或回滚其他 Feature 状态
+  - 返回 Search 时显示 Search Feature 当前 Query，而不是 Playback Enter Context 创建时的 Query 快照
+  - 完成返回后销毁 Playback Enter Context
 
 - 基本结构：
-  1. Playback Module Sidebar
-  2. Module Content Region
+  1. Playback View Switcher
+  2. View Content Region
 
-- Playback Module Sidebar：
-  - 固定在 Overlay 左侧
-  - 宽度使用 `--width-app-sidebar`
-  - 高度占满 Overlay
-  - 背景使用 `--color-subtitle-focus-overlay-bg`
-  - 与 Module Content Region 之间不显示独立背景、边框或 Divider
-  - 水平内边距使用 `--padding-app-sidebar-x`
-  - 垂直内边距使用 `--padding-app-sidebar-y`
-  - Item 间距使用 `--spacing-1`
-  - 使用 Playback Module Sidebar Item
-  - 从上到下依次包括：
-    1. Current / `clock`
-    2. Playlist / `list.bullet`，仅存在 Playlist 时显示
-    3. Search / `magnifyingglass`
-    4. Recent / 当前项目资源
-    5. Library / 当前项目资源
-    6. Shiori / 当前项目资源
-  - Sidebar 始终显示，不允许折叠
-  - 当前模块使用 Selected 状态
-  - 点击 Item 切换对应模块
-  - Overlay 在任何 Module 和输入焦点状态下消费无修饰 Tab
-  - 无修饰 Tab 只切换到下一个当前可用模块，不执行原生焦点遍历
-  - Shiori 后再次按 Tab 返回 Current
-  - Playlist 不存在时 Tab 顺序跳过 Playlist
-  - 不提供其他模块切换按钮或模块切换快捷键
+- Playback View Switcher：
+  - 固定在 Overlay 顶部并横跨完整内容宽度
+  - 居中排列 Current 和 Playlist 两个 Playback View Tab
+  - 当前 View 使用 Selected 状态
+  - 不显示独立背景、边框或 Divider
+  - 无修饰 `Tab` 在 Current 和 Playlist 之间循环切换
+  - 无修饰 `Tab` 不执行原生焦点遍历
+  - 不提供其他 View 切换按钮或快捷键
 
-- Module Content Region：
-  - 占据 Sidebar 以外的剩余区域
+- View Content Region：
+  - 占据 Playback View Switcher 下方的全部可用区域
   - 内容内边距使用 `--spacing-8`
-  - Current、Playlist、Search、Recent、Library 和 Shiori 共享同一 Content Region
-  - 模块切换只替换 Content Region 内容
-  - 模块切换不关闭 Overlay
+  - Current 和 Playlist 共享同一 View Content Region
+  - View 切换只替换 View Content Region 内容
+  - View 切换不关闭 Overlay
+  - 左右内容区域之间不显示独立背景、边框或 Divider
 
 - 打开：
-  - Playback Page 活跃时按 Enter
+  - Playback Page 活跃时按 `Enter`
   - 每次打开创建一个新的临时 Overlay Session
   - 立即暂停 Playback
-  - 默认模块为 Current
+  - 默认 View 为 Current
   - 初始 Cue 准备期间保留暂停的视频画面
   - 不显示 Loading Spinner 或 Progress Bar
   - 初始 Cue 准备完成后显示 Overlay
 
 - Session：
-  - 每次打开综合菜单界面创建一个新的 Overlay Session
-  - Current、Playlist、Search、Recent、Library 和 Shiori 的切换属于同一次 Overlay Session
-  - 模块切换期间保留本次 Session 内的模块、层级、选择和滚动状态
+  - 每次打开 Playback Overlay 创建一个新的 Overlay Session
+  - Current 和 Playlist 的切换属于同一次 Overlay Session
+  - View 切换期间保留 Current 和 Playlist 各自的选择与滚动位置
   - Escape、播放动作、关闭 Playback Page 或其他关闭 Overlay 的路径结束并销毁当前 Overlay Session
-  - Session 结束后不保留当前模块、搜索结果、选择位置、滚动位置、Library 层级或临时显示内容
-  - Search Query 属于 Search Feature 状态，不属于 Overlay Session；Session 销毁不清空 Search Query
-  - 再次打开综合菜单时创建新的 Overlay Session，默认进入 Current，并重新初始化各 Module 的局部状态
-  - 再次进入 Search 时显示 Search Feature 当前 Query
-  - Session 销毁不删除 Search Query、Shiori、Recent、Library、Playlist、Playback History 或持久设置
-  - Session 生命周期以综合菜单界面的打开和关闭为边界，不以单个 Module View 的出现或消失为边界
+  - Session 结束后不保留当前 View、选择位置、滚动位置或临时显示内容
+  - 再次打开 Playback Overlay 时默认进入 Current，并重新初始化两个 View 的局部状态
+  - Session 销毁不删除 Playlist、Playback History、Search Query、Shiori、Recent、Library 或其他持久 Feature 状态
+  - Session 生命周期以 Playback Overlay 的打开和关闭为边界，不以单个 View 的出现或消失为边界
 
 - Current：
-  - 内容维持现有 Subtitle Focus Cue Reel
-  - Cue Reel 在 Module Content Region 内居中
-  - 最大宽度使用 `--width-subtitle-focus-content-max`
+  - 使用水平布局，包括 Context Region 和 Subtitle Region
+  - Context Region 约占 View Content Region 宽度的 `20%`
+  - Subtitle Region 使用其余可用宽度
+  - Context Region 显示当前视频的一张固定 Library Cover
+  - Library Cover 不显示 Progress Overlay 或 Time Badge
+  - Library Cover 下方显示弱化的视频名称、Episode Label 和必要识别信息
+  - Library Cover 不随 Cue Navigation 或滚动变化
+  - Library Cover 的视觉中心与 Subtitle Region 的 Focus Anchor 位于同一水平线上
+  - 视频识别信息排列在 Library Cover 下方，不参与中心对齐
+  - Subtitle Region 维持现有 Subtitle Focus Cue Reel
+  - Cue Reel 最大宽度使用 `--width-subtitle-focus-content-max`
   - 纵向排列 Subtitle Focus Cue
   - Cue Gap 使用 `--gap-subtitle-focus-cue`
   - 允许顶部和底部出现部分可见的相邻 Cue
@@ -2206,7 +2268,7 @@
   - Oversized Cue 不保留内部阅读 Offset
 
 - Current / Scrollbar：
-  - 位于 Module Content Region Trailing Edge
+  - 位于 Subtitle Region Trailing Edge
   - 使用纵向 Table Scrollbar
   - 存在 Cue 时持续可见
   - 完整 Cue 集合可用前可以显示为不可交互状态
@@ -2240,22 +2302,22 @@
   - Cursor 使用 `default`
 
 - Playback Cue Result Reel：
-  - 适用于 Playlist、Search 和 Shiori
+  - 适用于字幕型 Playlist 和 Command Panel Search Result
   - 使用 Playback Cue Result 作为纵向排列单元
   - Focus Anchor、Scrollbar、Up、Down、Wheel、Trackpad、Scrollbar Drag 和 Settle 语义复用 Current Cue Reel
   - Result Natural Height 代替 Current Cue Natural Height 参与 Placement 计算
-  - Playlist 和 Shiori 在本次 Session 首次初始化时默认选择第一条 Result
-  - Search 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
+  - 字幕型 Playlist 在本次 Session 首次初始化时默认选择第一条 Result
+  - Command Panel Search Result 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
   - 到达列表边界时继续导航无动作
-  - Result 不显示 Hover
-  - Result 不响应左键动作
-  - 点击不改变选择，也不执行播放
+  - 字幕型 Playlist 中，Result 不显示 Hover，不响应左键动作
+  - Command Panel Search Result 的 Selected 和 Pointer 行为遵循 Playback Command Panel Layout
+  - Command Panel Search Result 中点击 Result，执行与 Enter 相同的主操作，并进入包含完整搜索结果的 Playlist
   - 没有 Result 时不存在 Selected Result
   - 不存在 Selected Result 时，所有字幕动作均无动作
-  - 切换 Module 后再次返回时，恢复本次 Session 内的选择和滚动位置
+  - 从 Current 切换回字幕型 Playlist 后，恢复本次 Session 内的选择和滚动位置
 
 - Playback Media Selection：
-  - 适用于 Recent、Library 一级界面和 Library 二级界面
+  - 适用于来源为 Recent Videos 或 Library 的视频型 Playlist
   - Workbench 中这些卡片只使用所属 Layout 定义的 Hover，不建立持久 Selected Item
   - Playback 的 Selected Item 完整复用所属 Workbench Card Layout 的 Hover Region 和 Hover 视觉
   - Selected Item 不显示额外 Focus Ring、边框或独立 Selected 背景
@@ -2271,83 +2333,41 @@
   - Enter 执行 Selected Item 在原 Layout 中定义的左键主操作
   - 鼠标左键和右键动作继续由所属 Card Layout 定义
   - 没有可用 Item 时不存在 Selected Item，Enter 无动作
-  - Module 切换后再次返回时，恢复本次 Session 内的层级、选择和滚动位置
+  - 从 Current 切换回视频型 Playlist 后，恢复本次 Session 内的层级、选择和滚动位置
 
 - Playlist：
-  - 使用 Playback Cue Result Reel
-  - 按 Playlist 内部顺序显示
-  - 每个 Result 左侧显示 Playlist Sequence Number
-  - 本次 Session 首次进入 Playlist 时默认选择第一条 Result
+  - Playlist 的视觉布局由当前 Playlist Source 决定
+  - Playlist 始终保留完整数据集合，不受 Command Panel 首屏显示数量限制
+  - 本次 Session 首次进入 Playlist 时默认选择第一条可用 Item
+  - 再次返回 Playlist 时恢复本次 Session 内的选择和滚动位置
+
+- 字幕型 Playlist：
+  - 适用于 Search Result 和 Shiori
+  - 复用 Current 的 Context Region 与 Subtitle Region 结构
+  - 整体信息密度可以高于 Current
+  - Context Region 同时只显示与当前 Settled Result 对应的一张封面
+  - Context Region 可以显示 Display Title、所属 Shiori List、当前位置和总数
+  - Subtitle Region 使用 Playback Cue Result Reel
   - Show Cue Group 为 Off 时只显示 Primary Cue
   - Show Cue Group 为 On 时显示 Primary Cue 所属 Cue Group
-  - S、C 和 Enter 的动作目标均为 Selected Result 的 Primary Cue
+  - Result 选择稳定后更新 Context Region
+  - S、X、C 和 Enter 的动作目标均为 Selected Result 的 Primary Cue
 
-- Search：
-  - 顶部显示 Playback Search Box
-  - Search Box 下方显示纵向 Playback Cue Result 列表
-  - 不显示 Filter、Utility Bar、Table Header、Checkbox、Display Title、Tags、Time Range 或其他 Metadata
-  - Playback Search Box 显示 Search Feature 当前 Query
-  - 在 Playback Search Box 中编辑或清空 Query，会更新 Search Feature 当前 Query
-  - Search Query 在 Overlay Session 结束后继续保留，也不因最终 Playback Return Context 指向其他 Feature 而清空
-  - Playback Search 始终使用临时空 Filter 显示结果，不继承 Workbench 当前 Filter
-  - 进入 Playback Search、编辑 Query、查看结果、切换 Module 或未播放 Result 就关闭 Overlay，均不正式改变 Search Filter
-  - 打开 Search 时自动聚焦 Search Box
-  - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果
-  - Search 不要求 Return 提交
-  - Query 为空时不显示 Cue Result
-  - 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
-  - Search Box 保持输入焦点
-  - Search Box 保持输入焦点时，Up 和 Down 由 Playback Cue Result Reel 响应，不用于移动 Caret
-  - Result 选择变化不移除 Search Box 的输入焦点
-  - 有输入内容时显示 Inline Clear Button
-  - Show Cue Group 为 Off 时只显示 Primary Cue
-  - Show Cue Group 为 On 时显示 Primary Cue 所属 Cue Group
-  - Search 输入优先于字母快捷键
-  - S 和 C 作为普通查询输入
-  - Search 的模块级字幕动作只响应 Enter
-  - 存在已经 Settled 的 Selected Result 时，Enter 从其 Primary Cue Start Time 播放，正式清空 Search Filter，并将 Playback Return Context 更新为 Search
-  - 不存在 Selected Result 时，Enter 无动作
+- 视频型 Playlist：
+  - 适用于 Library 和 Recent Videos
+  - 复用现有 Playback Library 列表、条目和选择视觉
+  - 不显示页面顶部 Title
+  - Library Source 使用现有 Library Folder 或 Episode 条目
+  - Recent Videos Source 复用 Recent Watching Card 的视觉元素
+  - Selected 视觉复用对应现有条目的选择区域和视觉规则
+  - 方向键选择 Previous Item 或 Next Item
+  - Enter 执行当前 Selected Item 的主操作
 
-- Recent：
-  - 复用 Recent Watching Card Layout
-  - 不显示 Workbench App Sidebar 或 App Topbar
-  - 本次 Session 首次进入 Recent 时默认选择第一个可用 Item
-  - 使用 Playback Media Selection
-  - Enter 和鼠标左键播放动作沿用 Recent Watching Card Layout
-  - 右键复用 Library Card Context Menu，但不显示 `Context` Menu Item
-  - 成功播放视频后，将 Playback Return Context 更新为 Recent
-
-- Library：
-  - Library 一级界面复用 Library Folder Card Layout
-  - Library 二级界面复用 Library Episode Grid and Card Layout
-  - 不显示 Workbench App Sidebar 或 App Topbar
-  - 本次 Session 首次进入 Library 一级界面时默认选择第一个可用 Item
-  - 每次进入 Library 二级界面时默认选择第一个可用 Item
-  - 使用 Playback Media Selection
-  - Library 一级界面的 Enter 进入 Selected Library Folder
-  - Library 二级界面的 Enter 播放 Selected Episode
-  - Library Folder Detail 的 Back Button 只返回 Library 一级界面，不切换 Overlay Module
-  - 返回 Library 一级界面时恢复此前的选择和滚动位置
-  - 鼠标动作沿用对应 Library Layout
-  - 右键复用 Library Card Context Menu，但不显示 `Context` Menu Item
-  - 从 Library Folder Detail 成功播放 Episode 后，将 Playback Return Context 更新为对应的 Library Folder Detail
-
-- Shiori：
-  - 使用 Playback Cue Result Reel
-  - 只显示字幕内容
-  - 只将 Normal 和 Content Changed Shiori 加入 Playback Cue Result Reel
-  - Unavailable Shiori 不进入 Playback Cue Result Reel，也不参与结果顺序和默认选择
-  - 不显示 Search Box、Filter、Utility Bar、Table Header、Checkbox、Display Title、Tags、Time Range、Date Added 或其他 Metadata
-  - Playback Shiori 不启用临时空 Filter，也不清空 Search Filter
-  - 本次 Session 首次进入 Shiori 时默认选择第一条 Result
-  - Show Cue Group 为 Off 时只显示 Primary Cue
-  - Show Cue Group 为 On 时显示 Primary Cue 所属 Cue Group
-  - S、C 和 Enter 的动作目标均为 Selected Result 的 Primary Cue
-  - 成功播放 Result 后，将 Playback Return Context 更新为 Shiori
-
-- Current、Playlist 和 Shiori Keyboard Actions：
+- Playback Overlay Cue Keyboard Actions：
+  - 适用于 Current 和字幕型 Playlist
   - 所有动作以已经 Settled 的 Selected Primary Cue 为目标
   - Cue 正在移动时接受的动作，在当前目标 Settled 后执行一次
+  - 不存在 Selected Primary Cue 时，S、X、C 和 Enter 均无动作
 
 - `S`：
   - 保存 Selected Primary Cue
@@ -2356,6 +2376,15 @@
   - 目标列表已经存在同一 CueID 时不删除、不重复创建
   - 新保存显示 `Shiori Saved`
   - 已存在显示 `Shiori Already Saved`
+  - Overlay 保持显示
+  - Playback 保持暂停
+  - 当前选择和位置不变
+
+- `X`：
+  - 复制 Selected Primary Cue 的 Markdown Cue Link
+  - 格式为 `[Cue text](cueseeker://cue?id={CueID})`
+  - 只发布 Plain Text，不发布 HTML 或 RTF
+  - 显示 `Subtitle(markdown format) Copied`
   - Overlay 保持显示
   - Playback 保持暂停
   - 当前选择和位置不变
@@ -2388,3 +2417,98 @@
   - 动画距离由当前 Cue 和目标 Cue 的 Resolved Height 决定
   - Reduce Motion 下立即到达最终 Placement
   - Reduce Motion 不改变选择、Oversized Cue Placement 或 Scrollbar Drag 语义
+
+#### Playback Command Panel Layout
+
+- Command Panel 是 Playback 中的快速搜索、跳转和恢复界面。
+- Command Panel 位于 Playback Overlay 和 Playback Content 之上。
+- Command Panel 打开后取得唯一键盘焦点。
+- 下层 Playback Overlay 或 Playback Content 保持可见，但降低对比、变暗或轻微模糊，并且不可交互。
+- Command Panel 不显示 macOS Traffic Light Buttons。
+- Panel 内不显示不承担操作的顶部或左右 Divider。
+- Panel 使用内容排列、留白和 Selected Row 自然划分区域。
+
+- 打开：
+  - Playback Page 活跃时按 `Cmd+Enter`
+  - Playback Overlay 活跃时也可以打开
+  - 文本输入状态下不响应 `Cmd+Enter`
+  - 打开后暂停 Playback
+  - 每次打开默认进入一级界面
+  - Command Panel Search Box 默认获得输入焦点
+
+- 一级界面 / Empty Query：
+  - 第一项为 Recent Videos，并默认处于 Selected
+  - 第二项为 Recent Shioris
+  - 每项包括 Leading Icon 和 Label
+
+- 一级界面 / Filled Query：
+  - 第一项变为 Search Action，并默认处于 Selected
+  - Search Action 包括 Search Icon、`Search` 和当前 Query
+  - Recent Videos 和 Recent Shioris 继续显示在 Search Action 下方
+
+- 一级界面 Footer：
+  - 不显示左下角 App Icon
+  - 右侧依次显示：
+    - `↑`、`↓`、`Navigate`
+    - `Open`
+    - `Enter`
+  - 不显示 Actions 或对应快捷键提示
+
+- 二级界面 Header：
+  - 左上角显示 Back Button
+  - 标题在 Header 中水平居中
+  - Recent Videos 标题为 `Recent Videos`
+  - Recent Shioris 标题为 `Recent Shioris`
+  - Search Result 标题为当前 Query
+  - 二级界面隐藏 Command Panel Search Box
+
+- Search Result：
+  - 使用比 Current 更紧凑的 Context Region 与 Subtitle Region 布局
+  - 不显示 Playback View Switcher
+  - 默认选择第一条 Result
+  - Selected 视觉作用于完整 Result Row
+  - Command Panel 最多显示前 `50` 条 Result
+  - 完整结果数小于等于 `50` 时，Footer 左侧显示 `{N} results`
+  - 完整结果数大于 `50` 时，Footer 左侧显示 `Showing first 50 results`
+  - 打开任意 Result 后，进入包含完整结果集合的 Playlist
+  - `50` 条限制只作用于 Command Panel 当前结果预览
+  - Search Result 二级界面没有可编辑输入焦点
+  - Search Result 支持 Playback Overlay 当前全部 Cue 快捷键，包括 `S`、`X`、`C` 和 `Enter`
+  - Cue 快捷键以已经 Settled 的 Selected Primary Cue 为目标
+
+- Recent Videos：
+  - 使用纵向单列 Row
+  - Row 左侧显示紧凑的 `16:9` Library Cover
+  - Library Cover 保持现有 Workbench 视频卡片的视觉比例，不得拉伸或放大为主视觉
+  - Library Cover 底部显示 Library Cover Progress Overlay
+  - Library Cover 右下角显示 Library Cover Badge / Time
+  - Row 右侧第一行显示 Folder Name
+  - Row 右侧第二行同时显示 Episode Label 和 Watch Status Badge
+  - Episode Label 与 Watch Status Badge 紧邻排列
+  - Watch Status 必须使用圆角 Badge，不得显示为普通彩色文字
+  - Selected 视觉作用于完整 Row
+  - Footer 左侧显示 `{N} videos`
+  - 二级界面显示完整 Recent Videos 列表
+
+- Recent Shioris：
+  - 复用 Recent Shiori Resume Row Layout
+  - Selected 视觉作用于完整 Row
+  - Footer 左侧显示 `{N} shioris`
+  - 二级界面显示完整 Recent Shioris 列表
+
+- 二级界面 Footer：
+  - 右侧依次显示：
+    - `↑`、`↓`、`Navigate`
+    - `Open`
+    - `Enter`
+  - 不显示 Actions 或对应快捷键提示
+
+- 导航与关闭：
+  - `Up` 选择 Previous Item
+  - `Down` 选择 Next Item
+  - `Enter` 执行 Selected Item 的主操作
+  - 二级界面按 `Escape` 返回一级界面
+  - 一级界面按 `Escape` 关闭 Command Panel
+  - 从 Playback Overlay 打开的 Command Panel 关闭后返回原 Overlay
+  - 下层仍存在 Playback Overlay 时继续保持暂停
+  - 下层不存在其他模态界面时，根据打开第一层模态界面前的 Playback State 决定是否恢复播放
