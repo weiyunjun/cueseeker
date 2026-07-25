@@ -182,7 +182,8 @@ public final class ShioriDatabase: @unchecked Sendable {
     public func shioriLists() throws -> [ShioriList] {
         let statement = try database.prepare(
             """
-            SELECT id, name, description, cover_path, created_at
+            SELECT id, name, description, cover_path, created_at,
+                   recent_cue_id, recent_sort_order, recent_played_at
             FROM shiori_lists
             ORDER BY created_at DESC, id DESC;
             """
@@ -197,7 +198,8 @@ public final class ShioriDatabase: @unchecked Sendable {
     public func shioriList(id: Int64) throws -> ShioriList? {
         let statement = try database.prepare(
             """
-            SELECT id, name, description, cover_path, created_at
+            SELECT id, name, description, cover_path, created_at,
+                   recent_cue_id, recent_sort_order, recent_played_at
             FROM shiori_lists
             WHERE id = ?;
             """
@@ -222,6 +224,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT l.id, l.name, l.description, l.cover_path, l.created_at,
+                   l.recent_cue_id, l.recent_sort_order, l.recent_played_at,
                    COUNT(s.id)
             FROM shiori_lists l
             LEFT JOIN shioris s ON s.list_id = l.id
@@ -233,7 +236,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         while try statement.step() {
             lists.append(ShioriListSummary(
                 list: shioriList(from: statement),
-                cueCount: statement.intColumn(5)
+                cueCount: statement.intColumn(8)
             ))
         }
 
@@ -241,6 +244,77 @@ public final class ShioriDatabase: @unchecked Sendable {
             lists: lists,
             uniqueCueCount: try uniqueShioriCueCount()
         )
+    }
+
+    public func recordRecentShioriPlayback(
+        shioriID: Int64,
+        playedAt: Date = Date()
+    ) throws {
+        guard let relation = try shioriRelation(id: shioriID) else {
+            return
+        }
+        let statement = try database.prepare(
+            """
+            UPDATE shiori_lists
+            SET recent_cue_id = ?,
+                recent_sort_order = 'created_at_desc',
+                recent_played_at = ?
+            WHERE id = ?;
+            """
+        )
+        try statement.bind(relation.cueID, at: 1)
+        try statement.bind(ISO8601DateFormatter().string(from: playedAt), at: 2)
+        try statement.bind(relation.listID, at: 3)
+        try statement.run()
+    }
+
+    public func recentShioriListSummaries() throws -> [ShioriListSummary] {
+        let statement = try database.prepare(
+            """
+            SELECT id, name, description, cover_path, created_at,
+                   recent_cue_id, recent_sort_order, recent_played_at
+            FROM shiori_lists
+            WHERE recent_played_at IS NOT NULL
+            ORDER BY recent_played_at DESC, id DESC;
+            """
+        )
+        var recentLists: [ShioriList] = []
+        while try statement.step() {
+            recentLists.append(shioriList(from: statement))
+        }
+
+        var summaries: [ShioriListSummary] = []
+        for list in recentLists {
+            let relations = try shioriRelations(listID: list.id)
+            let resolvedByID = Dictionary(
+                uniqueKeysWithValues: try shioris(listID: list.id).map { ($0.id, $0) }
+            )
+            let playable = relations.compactMap { relation -> Shiori? in
+                guard let shiori = resolvedByID[relation.id], shiori.isValid else {
+                    return nil
+                }
+                return shiori
+            }
+            guard !playable.isEmpty else {
+                try clearRecentShioriPlayback(listID: list.id)
+                continue
+            }
+
+            let anchoredID = relations.first { relation in
+                relation.cueID == list.recentCueID
+                    && resolvedByID[relation.id]?.isValid == true
+            }?.id
+            let position = anchoredID.flatMap { id in
+                playable.firstIndex { $0.id == id }
+            } ?? 0
+            summaries.append(ShioriListSummary(
+                list: list,
+                cueCount: playable.count,
+                resumeShiori: playable[position],
+                resumePosition: position + 1
+            ))
+        }
+        return summaries
     }
 
     public func uniqueShioriCueCount() throws -> Int {
@@ -926,8 +1000,25 @@ public final class ShioriDatabase: @unchecked Sendable {
             name: statement.stringColumn(1),
             description: statement.stringColumn(2),
             coverPath: statement.nullableStringColumn(3),
-            createdAt: statement.stringColumn(4)
+            createdAt: statement.stringColumn(4),
+            recentCueID: statement.nullableInt64Column(5),
+            recentSortOrder: statement.nullableStringColumn(6),
+            recentPlayedAt: statement.nullableStringColumn(7)
         )
+    }
+
+    private func clearRecentShioriPlayback(listID: Int64) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE shiori_lists
+            SET recent_cue_id = NULL,
+                recent_sort_order = NULL,
+                recent_played_at = NULL
+            WHERE id = ?;
+            """
+        )
+        try statement.bind(listID, at: 1)
+        try statement.run()
     }
 
     private func shioriListNameExists(

@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 37
+    public static let currentSchemaVersion = 38
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -37,6 +37,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 34
                 || previousVersion == 35
                 || previousVersion == 36
+                || previousVersion == 37
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -59,6 +60,14 @@ private extension DatabaseBootstrap {
             || previousVersion == 36
         {
             try migrateSchema36To37(on: database)
+        }
+        if previousVersion == 33
+            || previousVersion == 34
+            || previousVersion == 35
+            || previousVersion == 36
+            || previousVersion == 37
+        {
+            try migrateSchema37To38(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -114,7 +123,10 @@ private extension DatabaseBootstrap {
                     normalized_name TEXT NOT NULL,
                     description TEXT NOT NULL DEFAULT '',
                     cover_path TEXT,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    recent_cue_id INTEGER,
+                    recent_sort_order TEXT,
+                    recent_played_at TEXT
                 );
 
                 INSERT OR IGNORE INTO shiori_lists(
@@ -887,6 +899,23 @@ private extension DatabaseBootstrap {
                 END;
 
                 PRAGMA user_version = 37;
+                """
+            )
+        }
+    }
+
+    static func migrateSchema37To38(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                ALTER TABLE shiori_lists
+                    ADD COLUMN recent_cue_id INTEGER;
+                ALTER TABLE shiori_lists
+                    ADD COLUMN recent_sort_order TEXT;
+                ALTER TABLE shiori_lists
+                    ADD COLUMN recent_played_at TEXT;
+
+                PRAGMA user_version = 38;
                 """
             )
         }

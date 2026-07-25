@@ -882,6 +882,11 @@ extension AppCoordinator {
             }
 
             playback.playbackViewModel?.bindPendingPresentation(to: generation)
+            do {
+                try shioriDatabase?.recordRecentShioriPlayback(shioriID: shiori.id)
+            } catch {
+                print("Failed to record recent Shiori playback: \(error)")
+            }
             return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()

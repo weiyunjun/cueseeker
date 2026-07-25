@@ -46,33 +46,51 @@ public struct ShioriList: Equatable, Sendable, Identifiable {
     public let description: String
     public let coverPath: String?
     public let createdAt: String
+    public let recentCueID: Int64?
+    public let recentSortOrder: String?
+    public let recentPlayedAt: String?
 
     public init(
         id: Int64,
         name: String,
         description: String,
         coverPath: String?,
-        createdAt: String
+        createdAt: String,
+        recentCueID: Int64? = nil,
+        recentSortOrder: String? = nil,
+        recentPlayedAt: String? = nil
     ) {
         self.id = id
         self.name = name
         self.description = description
         self.coverPath = coverPath
         self.createdAt = createdAt
+        self.recentCueID = recentCueID
+        self.recentSortOrder = recentSortOrder
+        self.recentPlayedAt = recentPlayedAt
     }
 }
 
 public struct ShioriListSummary: Equatable, Sendable, Identifiable {
     public let list: ShioriList
     public let cueCount: Int
+    public let resumeShiori: Shiori?
+    public let resumePosition: Int?
 
     public var id: Int64 {
         list.id
     }
 
-    public init(list: ShioriList, cueCount: Int) {
+    public init(
+        list: ShioriList,
+        cueCount: Int,
+        resumeShiori: Shiori? = nil,
+        resumePosition: Int? = nil
+    ) {
         self.list = list
         self.cueCount = cueCount
+        self.resumeShiori = resumeShiori
+        self.resumePosition = resumePosition
     }
 }
 

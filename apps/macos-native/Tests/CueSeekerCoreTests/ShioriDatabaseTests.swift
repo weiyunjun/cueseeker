@@ -118,6 +118,85 @@ func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
 }
 
 @Test
+func recentShioriPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try ShioriDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Recent Shiori.srt")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Show/Recent Shiori.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Older cue"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Newer cue"
+            ),
+        ]
+    )
+    let playbackDatabase = try PlaybackSubtitleDatabase(path: databaseURL)
+    let olderSelection = try #require(try playbackDatabase.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let newerSelection = try #require(try playbackDatabase.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 3_500
+    ))
+    let older = try database.upsertShiori(
+        selection: olderSelection,
+        listID: ShioriListIdentity.defaultListID,
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
+    let newer = try database.upsertShiori(
+        selection: newerSelection,
+        listID: ShioriListIdentity.defaultListID,
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
+
+    try database.recordRecentShioriPlayback(
+        shioriID: older.id,
+        playedAt: Date(timeIntervalSince1970: 300)
+    )
+
+    var summary = try #require(try database.recentShioriListSummaries().first)
+    #expect(summary.list.id == ShioriListIdentity.defaultListID)
+    #expect(summary.list.recentSortOrder == "created_at_desc")
+    #expect(summary.cueCount == 2)
+    #expect(summary.resumeShiori?.id == older.id)
+    #expect(summary.resumePosition == 2)
+
+    _ = try database.removeShiori(id: older.id)
+    summary = try #require(try database.recentShioriListSummaries().first)
+    #expect(summary.cueCount == 1)
+    #expect(summary.resumeShiori?.id == newer.id)
+    #expect(summary.resumePosition == 1)
+
+    _ = try database.removeShiori(id: newer.id)
+    #expect(try database.recentShioriListSummaries().isEmpty)
+    let list = try #require(try database.shioriList(id: ShioriListIdentity.defaultListID))
+    #expect(list.recentCueID == nil)
+    #expect(list.recentSortOrder == nil)
+    #expect(list.recentPlayedAt == nil)
+}
+
+@Test
 func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

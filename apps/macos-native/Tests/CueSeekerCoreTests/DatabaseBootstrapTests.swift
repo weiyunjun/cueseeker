@@ -121,7 +121,8 @@ func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
-        "id", "name", "normalized_name", "description", "cover_path", "created_at"
+        "id", "name", "normalized_name", "description", "cover_path", "created_at",
+        "recent_cue_id", "recent_sort_order", "recent_played_at"
     ]))
     #expect(try sqliteIndexExists(
         "idx_shiori_lists_normalized_name",
@@ -141,7 +142,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(38)
+    try expectUnsupportedSchemaVersion(39)
 }
 
 @Test
@@ -240,8 +241,48 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
     ])
     #expect(try sqliteTableExists("shiori_lists", databaseURL: databaseURL))
     #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
-        "id", "name", "normalized_name", "description", "cover_path", "created_at"
+        "id", "name", "normalized_name", "description", "cover_path", "created_at",
+        "recent_cue_id", "recent_sort_order", "recent_played_at"
     ]))
+}
+
+@Test
+func migratesSchema37RecentShioriStateWithoutDroppingLists() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        CREATE TABLE shiori_lists (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            cover_path TEXT,
+            created_at TEXT NOT NULL
+        );
+        INSERT INTO shiori_lists(
+            id, name, normalized_name, description, cover_path, created_at
+        )
+        VALUES (1, 'Default', 'default', '', NULL, 'created');
+        PRAGMA user_version = 37;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
+        "id", "name", "normalized_name", "description", "cover_path", "created_at",
+        "recent_cue_id", "recent_sort_order", "recent_played_at"
+    ]))
+    let list = try #require(try ShioriDatabase(path: databaseURL).shioriList(id: 1))
+    #expect(list.name == "Default")
+    #expect(list.recentCueID == nil)
+    #expect(list.recentSortOrder == nil)
+    #expect(list.recentPlayedAt == nil)
 }
 
 @Test
