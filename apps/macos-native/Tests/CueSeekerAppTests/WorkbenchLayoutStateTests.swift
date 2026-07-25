@@ -136,6 +136,27 @@ func workbenchLayoutStateTracksShioriListDetailWithoutPersistingIt() {
 }
 
 @MainActor
+@Test
+func workbenchLayoutStateTracksRecentSectionWithoutPersistingIt() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+
+        layoutState.selectRecentSection(.videos)
+        #expect(layoutState.selectedRecentSection == .videos)
+        #expect(layoutState.route.selectedRecentSection == .videos)
+
+        layoutState.selectRecentSection(.shioris)
+        #expect(layoutState.selectedRecentSection == .shioris)
+
+        layoutState.clearRecentSection()
+        #expect(layoutState.selectedRecentSection == nil)
+
+        let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+        #expect(reloadedLayoutState.selectedRecentSection == nil)
+    }
+}
+
+@MainActor
 private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> Void) {
     let suiteName = "CueSeekerWorkbenchLayoutStateTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!

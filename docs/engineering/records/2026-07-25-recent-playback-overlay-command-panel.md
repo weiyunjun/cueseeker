@@ -49,3 +49,30 @@ speculative abstractions.
   focused test run.
 - The result matched the accepted recovery behavior and the estimated file
   scope.
+
+## Step 2: Workbench Sidebar And Recent
+
+- Added Recent and Shiori child navigation inside the existing Workbench route
+  and Sidebar views; disclosure state remains local to the Sidebar and no
+  second navigation store was introduced.
+- Reused the existing five-item Recent Videos source for the overview and the
+  existing complete Recent Videos source for the detail page.
+- Loaded Recent Shiori summaries through the existing Shiori overview task and
+  retained them in the existing `ShioriStore`; no additional task lifecycle or
+  store was added.
+- Added the Recent overview, complete Recent Videos, and complete Recent
+  Shioris layouts while reusing the existing video grid, list cover, and
+  playback entry points.
+- Opened Recent Shiori playback with the original list's current valid item
+  order through the existing explicit Shiori playlist scope.
+
+## Step 2 Verification
+
+- The native application and test targets compiled successfully.
+- Workbench Recent section routing coverage passed.
+- Shiori overview loading coverage passed with Recent Shiori installation.
+- All 104 tests selected by the `Workbench|Shiori` filter passed.
+- The two focused route and combined-loading tests passed again after limiting
+  Recent refresh to entry and playback return instead of every Cue change.
+- The result matched the accepted navigation, Recent layout, data reuse, and
+  original-list recovery scope.

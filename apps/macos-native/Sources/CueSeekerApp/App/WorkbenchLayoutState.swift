@@ -10,13 +10,6 @@ enum WorkbenchPanelMode: String, CaseIterable {
     case testLibrary
     case search
 
-    static let sidebarCases: [WorkbenchPanelMode] = [
-        .search,
-        .recentWatching,
-        .testLibrary,
-        .shiori,
-    ]
-
     var sidebarLabel: String {
         switch self {
         case .library:
@@ -63,12 +56,18 @@ enum WorkbenchPanelMode: String, CaseIterable {
     }
 }
 
+enum WorkbenchRecentSection: Equatable {
+    case videos
+    case shioris
+}
+
 @MainActor
 final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var panelMode: WorkbenchPanelMode
     @Published fileprivate(set) var isSearchFocused = false
     @Published fileprivate(set) var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation?
     @Published fileprivate(set) var selectedShioriListID: Int64?
+    @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection?
 
     init(panelMode: WorkbenchPanelMode) {
         self.panelMode = panelMode
@@ -112,6 +111,10 @@ final class WorkbenchLayoutState: ObservableObject {
 
     var selectedShioriListID: Int64? {
         route.selectedShioriListID
+    }
+
+    var selectedRecentSection: WorkbenchRecentSection? {
+        route.selectedRecentSection
     }
 
     func selectPanelMode(_ mode: WorkbenchPanelMode) {
@@ -161,6 +164,14 @@ final class WorkbenchLayoutState: ObservableObject {
 
     func clearShioriList() {
         route.selectedShioriListID = nil
+    }
+
+    func selectRecentSection(_ section: WorkbenchRecentSection) {
+        route.selectedRecentSection = section
+    }
+
+    func clearRecentSection() {
+        route.selectedRecentSection = nil
     }
 
     func beginVideoSizeTransition() -> Bool {

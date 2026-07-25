@@ -3,14 +3,26 @@ import CoreGraphics
 import CueSeekerCore
 import SwiftUI
 
-struct WorkbenchTestRecentWatchingView: View {
+struct WorkbenchRecentView: View {
     @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var shiori: ShioriStore
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                recentWatchingContent
+                switch routeState.selectedRecentSection {
+                case .videos:
+                    recentVideosContent(
+                        status: library.testRecentWatchingStatus,
+                        items: library.testRecentWatchingItems
+                    )
+                case .shioris:
+                    recentShiorisContent(shiori.recentListSummaries)
+                case nil:
+                    overview
+                }
             }
             .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
             .padding(.vertical, WorkbenchTestLibraryMetrics.pageVerticalPadding)
@@ -18,24 +30,72 @@ struct WorkbenchTestRecentWatchingView: View {
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .task {
+            appState.hydrateRecentWatchingAsync()
             appState.hydrateTestRecentWatchingAsync()
+            appState.reloadShioriListOverview()
+        }
+        .onChange(of: appState.isPlaybackPageVisible) { isVisible in
+            if !isVisible {
+                appState.reloadShioriListOverview()
+            }
+        }
+    }
+
+    private var overview: some View {
+        VStack(
+            alignment: .leading,
+            spacing: WorkbenchTestLibraryMetrics.sectionSpacing
+        ) {
+            VStack(
+                alignment: .leading,
+                spacing: WorkbenchControlMetrics.redesignSpacing3
+            ) {
+                RecentSectionHeader(
+                    title: "Recent Videos",
+                    count: library.testRecentWatchingItems.count
+                ) {
+                    appState.workbenchLayout.selectRecentSection(.videos)
+                }
+                recentVideosContent(
+                    status: library.recentWatchingStatus,
+                    items: library.recentWatchingItems
+                )
+            }
+
+            VStack(
+                alignment: .leading,
+                spacing: WorkbenchControlMetrics.redesignSpacing3
+            ) {
+                RecentSectionHeader(
+                    title: "Recent Shioris",
+                    count: shiori.recentListSummaries.count
+                ) {
+                    appState.workbenchLayout.selectRecentSection(.shioris)
+                }
+                recentShiorisContent(
+                    Array(shiori.recentListSummaries.prefix(5))
+                )
+            }
         }
     }
 
     @ViewBuilder
-    private var recentWatchingContent: some View {
-        if case .loading = library.testRecentWatchingStatus, library.testRecentWatchingItems.isEmpty {
+    private func recentVideosContent(
+        status: LibraryStatus,
+        items: [RecentLibraryWatchingPresentation]
+    ) -> some View {
+        if case .loading = status, items.isEmpty {
             LibraryEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
-        } else if case .failed(let message) = library.testRecentWatchingStatus {
+        } else if case .failed(let message) = status {
             LibraryEmptyHint(message)
-        } else if library.testRecentWatchingItems.isEmpty {
+        } else if items.isEmpty {
             LibraryEmptyHint("No recent watching yet.")
         } else {
             RecentWatchingGrid(
-                items: library.testRecentWatchingItems,
+                items: items,
                 onOpen: { item in
                     Task {
                         await appState.openRecentLibraryWatching(item)
@@ -43,6 +103,161 @@ struct WorkbenchTestRecentWatchingView: View {
                 }
             )
         }
+    }
+
+    @ViewBuilder
+    private func recentShiorisContent(
+        _ summaries: [ShioriListSummary]
+    ) -> some View {
+        if !shiori.hasLoadedListOverview, summaries.isEmpty {
+            LibraryEmptyHint {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        } else if summaries.isEmpty {
+            LibraryEmptyHint("No recent Shioris yet.")
+        } else {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(summaries) { summary in
+                    RecentShioriResumeRow(summary: summary) {
+                        appState.openRecentShiori(summary)
+                    }
+                    if summary.id != summaries.last?.id {
+                        Divider()
+                            .foregroundStyle(WorkbenchRedesignColors.borderMuted)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct RecentSectionHeader: View {
+    let title: String
+    let count: Int
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                Text(title)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+
+                Text("\(count)")
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    .monospacedDigit()
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .accessibilityLabel("\(title), \(count)")
+    }
+}
+
+struct RecentShioriResumeRow: View {
+    let summary: ShioriListSummary
+    let onOpen: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(
+                alignment: .center,
+                spacing: WorkbenchControlMetrics.redesignSpacing4
+            ) {
+                ShioriListCoverView(coverPath: summary.list.coverPath)
+                    .aspectRatio(
+                        WorkbenchControlMetrics.redesignLibraryCoverAspectRatio,
+                        contentMode: .fill
+                    )
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignLibraryListCoverWidth,
+                        height: WorkbenchControlMetrics.redesignLibraryListCoverHeight
+                    )
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
+                            style: .continuous
+                        )
+                    )
+
+                VStack(
+                    alignment: .leading,
+                    spacing: WorkbenchControlMetrics.redesignSpacing2
+                ) {
+                    Text(summary.list.name)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeLibraryTitle,
+                            weight: .semibold
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                        .lineLimit(1)
+
+                    Text(summary.list.description)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                        .lineLimit(1)
+                        .frame(minHeight: 15)
+
+                    Text(
+                        "Resume \(summary.resumePosition ?? 1) / \(summary.cueCount)"
+                    )
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    .monospacedDigit()
+
+                    Text(summary.resumeShiori?.content ?? "")
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing3)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius,
+                    style: .continuous
+                )
+                .fill(
+                    isHovered
+                        ? WorkbenchRedesignColors.libraryMediaCardHoverBg
+                        : Color.clear
+                )
+            )
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { isHovered = $0 }
+        .pointerOnHover(isEnabled: true)
+        .accessibilityLabel(summary.list.name)
     }
 }
 

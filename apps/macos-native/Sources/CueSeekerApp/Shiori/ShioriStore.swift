@@ -12,6 +12,7 @@ final class ShioriStore: ObservableObject {
         lists: [],
         uniqueCueCount: 0
     )
+    @Published private(set) var recentListSummaries: [ShioriListSummary] = []
     @Published private(set) var hasLoadedListOverview = false
     @Published private(set) var activeListID: Int64?
     @Published var listEditorSession: ShioriListEditorSession?
@@ -88,6 +89,13 @@ final class ShioriStore: ObservableObject {
         hasLoadedListOverview = false
     }
 
+    func installRecentListSummaries(_ summaries: [ShioriListSummary]) {
+        guard recentListSummaries != summaries else {
+            return
+        }
+        recentListSummaries = summaries
+    }
+
     @discardableResult
     func upsertListSummary(_ list: ShioriList) -> Bool {
         guard hasLoadedListOverview else {
@@ -104,6 +112,19 @@ final class ShioriStore: ObservableObject {
                 return true
             }
             lists[index] = replacement
+            if let recentIndex = recentListSummaries.firstIndex(
+                where: { $0.id == list.id }
+            ) {
+                let recent = recentListSummaries[recentIndex]
+                var updatedRecent = recentListSummaries
+                updatedRecent[recentIndex] = ShioriListSummary(
+                    list: list,
+                    cueCount: recent.cueCount,
+                    resumeShiori: recent.resumeShiori,
+                    resumePosition: recent.resumePosition
+                )
+                installRecentListSummaries(updatedRecent)
+            }
         } else {
             lists.append(ShioriListSummary(list: list, cueCount: 0))
             lists.sort {
@@ -131,6 +152,9 @@ final class ShioriStore: ObservableObject {
             lists: listOverview.lists.filter { $0.id != id },
             uniqueCueCount: uniqueCueCount
         ))
+        installRecentListSummaries(
+            recentListSummaries.filter { $0.id != id }
+        )
         return true
     }
 

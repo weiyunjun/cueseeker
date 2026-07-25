@@ -72,7 +72,7 @@ struct SearchView: View {
                 case .shiori:
                     workbenchShioriSurface
                 case .recentWatching:
-                    WorkbenchTestRecentWatchingView()
+                    WorkbenchRecentView()
                 case .testLibrary:
                     WorkbenchTestLibraryView()
                 case .search:

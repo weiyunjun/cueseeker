@@ -180,6 +180,9 @@ private struct AppTopBar: View {
                 LibrarySectionTitle("Shiori")
                     .allowsHitTesting(false)
             }
+        case .recentWatching:
+            LibrarySectionTitle(recentTitle)
+            .allowsHitTesting(false)
         default:
             LibrarySectionTitle(routeState.panelMode.title)
                 .allowsHitTesting(false)
@@ -210,6 +213,17 @@ private struct AppTopBar: View {
         .help(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
         .accessibilityLabel(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
     }
+
+    private var recentTitle: String {
+        switch routeState.selectedRecentSection {
+        case .videos:
+            "Recent Videos"
+        case .shioris:
+            "Recent Shioris"
+        case nil:
+            "Recent"
+        }
+    }
 }
 
 private struct TitlebarCommandBridge: View {
@@ -231,6 +245,9 @@ private struct AppSidebar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
+    @EnvironmentObject private var shioriStore: ShioriStore
+    @State private var isRecentExpanded = true
+    @State private var isShioriExpanded = true
 
     var body: some View {
         UIInvalidationProbe.count(
@@ -240,22 +257,101 @@ private struct AppSidebar: View {
         )
 
         return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                ForEach(WorkbenchPanelMode.sidebarCases, id: \.rawValue) { mode in
-                    AppSidebarNavigationItem(
-                        mode: mode,
-                        isSelected: routeState.panelMode == mode,
-                        isEnabled: !layoutState.isVideoSizeTransitionInProgress,
-                        onSelect: {
-                            guard routeState.panelMode != mode else {
-                                return
-                            }
+            AppSidebarNavigationItem(
+                mode: .search,
+                isSelected: routeState.panelMode == .search,
+                isEnabled: !layoutState.isVideoSizeTransitionInProgress
+            ) {
+                appState.performUserInitiatedAppCommand {
+                    appState.activateWorkbenchPanelMode(.search)
+                }
+            }
 
-                            appState.performUserInitiatedAppCommand {
-                                appState.activateWorkbenchPanelMode(mode)
+            AppSidebarNavigationItem(
+                mode: .recentWatching,
+                isSelected: routeState.panelMode == .recentWatching,
+                isEnabled: !layoutState.isVideoSizeTransitionInProgress,
+                isExpanded: isRecentExpanded,
+                onToggleExpansion: {
+                    isRecentExpanded.toggle()
+                }
+            ) {
+                appState.performUserInitiatedAppCommand {
+                    layoutState.clearRecentSection()
+                    appState.activateWorkbenchPanelMode(.recentWatching)
+                }
+            }
+
+            if isRecentExpanded {
+                AppSidebarChildItem(
+                    label: "Recent Videos",
+                    isSelected: routeState.panelMode == .recentWatching
+                        && routeState.selectedRecentSection == .videos,
+                    isEnabled: !layoutState.isVideoSizeTransitionInProgress
+                ) {
+                    appState.performUserInitiatedAppCommand {
+                        appState.activateWorkbenchPanelMode(.recentWatching)
+                        layoutState.selectRecentSection(.videos)
+                    }
+                }
+                AppSidebarChildItem(
+                    label: "Recent Shioris",
+                    isSelected: routeState.panelMode == .recentWatching
+                        && routeState.selectedRecentSection == .shioris,
+                    isEnabled: !layoutState.isVideoSizeTransitionInProgress
+                ) {
+                    appState.performUserInitiatedAppCommand {
+                        appState.activateWorkbenchPanelMode(.recentWatching)
+                        layoutState.selectRecentSection(.shioris)
+                    }
+                }
+            }
+
+            AppSidebarNavigationItem(
+                mode: .testLibrary,
+                isSelected: routeState.panelMode == .testLibrary,
+                isEnabled: !layoutState.isVideoSizeTransitionInProgress
+            ) {
+                appState.performUserInitiatedAppCommand {
+                    appState.activateWorkbenchPanelMode(.testLibrary)
+                }
+            }
+
+            AppSidebarNavigationItem(
+                mode: .shiori,
+                isSelected: routeState.panelMode == .shiori,
+                isEnabled: !layoutState.isVideoSizeTransitionInProgress,
+                isExpanded: isShioriExpanded,
+                onToggleExpansion: {
+                    isShioriExpanded.toggle()
+                }
+            ) {
+                appState.performUserInitiatedAppCommand {
+                    appState.activateWorkbenchPanelMode(.shiori)
+                    appState.showShioriListOverview()
+                }
+            }
+
+            if isShioriExpanded {
+                ScrollView {
+                    LazyVStack(
+                        alignment: .leading,
+                        spacing: WorkbenchControlMetrics.redesignSpacing1
+                    ) {
+                        ForEach(shioriStore.listOverview.lists) { summary in
+                            AppSidebarChildItem(
+                                label: summary.list.name,
+                                isSelected: routeState.panelMode == .shiori
+                                    && routeState.selectedShioriListID == summary.id,
+                                isEnabled: !layoutState.isVideoSizeTransitionInProgress
+                            ) {
+                                appState.performUserInitiatedAppCommand {
+                                    appState.activateWorkbenchPanelMode(.shiori)
+                                    appState.openShioriList(id: summary.id)
+                                }
                             }
                         }
-                    )
+                    }
                 }
             }
 
@@ -273,6 +369,9 @@ private struct AppSidebar: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.appSidebarBg)
         .background(LayoutPerformanceProbe(name: "AppSidebar.layout"))
+        .task {
+            appState.loadShioriListOverviewIfNeeded()
+        }
     }
 }
 
@@ -280,23 +379,103 @@ private struct AppSidebarNavigationItem: View {
     let mode: WorkbenchPanelMode
     let isSelected: Bool
     let isEnabled: Bool
+    var isExpanded: Bool? = nil
+    var onToggleExpansion: (() -> Void)? = nil
     let onSelect: () -> Void
 
     var body: some View {
-        Button(action: onSelect) {
-            AppSidebarItemLabel(
-                systemImage: mode.systemImage,
-                label: mode.sidebarLabel,
-                isSelected: isSelected,
-                isEnabled: isEnabled
-            )
+        HStack(spacing: 0) {
+            Button(action: onSelect) {
+                AppSidebarItemLabel(
+                    systemImage: mode.systemImage,
+                    label: mode.sidebarLabel,
+                    isSelected: isSelected,
+                    isEnabled: isEnabled
+                )
+            }
+            .buttonStyle(.plain)
+
+            if let isExpanded, let onToggleExpansion {
+                Button(action: onToggleExpansion) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                        .frame(
+                            width: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
+                            height: WorkbenchControlMetrics.redesignAppSidebarItemHeight
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .accessibilityLabel(isExpanded ? "Collapse" : "Expand")
+            }
         }
-        .buttonStyle(AppSidebarItemButtonStyle(isSelected: isSelected))
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignAppSidebarItemRadius,
+                style: .continuous
+            )
+            .fill(
+                isSelected
+                    ? WorkbenchRedesignColors.appSidebarItemSelectedBg
+                    : Color.clear
+            )
+        )
+        .opacity(isEnabled ? 1 : 0.62)
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .help(mode.sidebarLabel)
         .accessibilityLabel(mode.sidebarLabel)
+    }
+}
+
+private struct AppSidebarChildItem: View {
+    let label: String
+    let isSelected: Bool
+    let isEnabled: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            Text(label)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeAppSidebarItem,
+                    weight: .regular
+                ))
+                .foregroundStyle(
+                    isEnabled
+                        ? WorkbenchRedesignColors.textPrimary
+                        : WorkbenchRedesignColors.textDisabled
+                )
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.leading, childLeadingPadding)
+                .padding(
+                    .trailing,
+                    WorkbenchControlMetrics.redesignAppSidebarItemHorizontalPadding
+                )
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
+                    maxHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
+                    alignment: .leading
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(AppSidebarItemButtonStyle(isSelected: isSelected))
+        .disabled(!isEnabled)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
+        .focusable(false)
+        .help(label)
+        .accessibilityLabel(label)
+    }
+
+    private var childLeadingPadding: CGFloat {
+        WorkbenchControlMetrics.redesignAppSidebarItemHorizontalPadding
+            + WorkbenchControlMetrics.redesignAppSidebarItemIconSize
+            + WorkbenchControlMetrics.redesignSpacing3
     }
 }
 

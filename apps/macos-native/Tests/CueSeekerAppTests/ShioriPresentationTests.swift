@@ -91,12 +91,18 @@ func shioriOverviewAndTableLoadingFollowTheSelectedList() async throws {
         content: "Second list cue",
         listID: secondList.id
     )
+    try shioriDatabase.recordRecentShioriPlayback(
+        shioriID: secondItem.id,
+        playedAt: Date(timeIntervalSince1970: 300)
+    )
 
     app.reloadShioriListOverview()
     try await waitForShioriTasksToFinish(app)
     #expect(app.shiori.listOverview.lists.map(\.id) == [secondList.id, defaultList.id])
     #expect(app.shiori.listOverview.lists.map(\.cueCount) == [1, 1])
     #expect(app.shiori.listOverview.uniqueCueCount == 2)
+    #expect(app.shiori.recentListSummaries.map(\.id) == [secondList.id])
+    #expect(app.shiori.recentListSummaries.first?.resumeShiori?.id == secondItem.id)
 
     app.openShioriList(id: defaultList.id)
     try await waitForShioriTasksToFinish(app)

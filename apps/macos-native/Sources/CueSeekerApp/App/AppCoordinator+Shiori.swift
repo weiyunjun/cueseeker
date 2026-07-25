@@ -33,16 +33,18 @@ extension AppCoordinator {
                 self.shioriListOverviewTask = nil
             }
             do {
-                let overview = try await Self.runCancellableDetached(
+                let snapshot = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    try ShioriDatabase(
-                        path: databaseURL,
-                        access: .readOnly
-                    ).shioriListOverview()
+                    let database = try ShioriDatabase(path: databaseURL)
+                    return (
+                        try database.shioriListOverview(),
+                        try database.recentShioriListSummaries()
+                    )
                 }
                 try Task.checkCancellation()
-                self.shiori.installListOverview(overview)
+                self.shiori.installListOverview(snapshot.0)
+                self.shiori.installRecentListSummaries(snapshot.1)
             } catch is CancellationError {
                 return
             } catch {
@@ -54,6 +56,7 @@ extension AppCoordinator {
                     self.shiori.installListOverview(
                         ShioriListOverview(lists: [], uniqueCueCount: 0)
                     )
+                    self.shiori.installRecentListSummaries([])
                 }
             }
         }
@@ -68,6 +71,47 @@ extension AppCoordinator {
     func showShioriListOverview() {
         workbenchLayout.clearShioriList()
         loadShioriListOverviewIfNeeded()
+    }
+
+    func openRecentShiori(_ summary: ShioriListSummary) {
+        guard let database = shioriDatabase,
+              let item = summary.resumeShiori
+        else {
+            return
+        }
+        do {
+            let resolvedByID = Dictionary(
+                uniqueKeysWithValues: try database.shioris(
+                    listID: summary.list.id
+                ).map { ($0.id, $0) }
+            )
+            let navigationScopeIDs = try database.shioriRelations(
+                listID: summary.list.id
+            ).compactMap { relation -> Int64? in
+                guard resolvedByID[relation.id]?.isValid == true else {
+                    return nil
+                }
+                return relation.id
+            }
+            guard let targetID = navigationScopeIDs.contains(item.id)
+                    ? item.id
+                    : navigationScopeIDs.first,
+                  let target = resolvedByID[targetID],
+                  let ordinal = navigationScopeIDs.firstIndex(of: targetID)
+            else {
+                reloadShioriListOverview()
+                return
+            }
+            openShiori(
+                target,
+                navigationScopeIDs: navigationScopeIDs,
+                playlistScope: .explicitIDs(navigationScopeIDs),
+                playlistSelectedOrdinal: ordinal,
+                displayTitle: target.displayTitle
+            )
+        } catch {
+            print("Failed to open recent Shiori: \(error)")
+        }
     }
 
     func beginCreatingShioriList() {
