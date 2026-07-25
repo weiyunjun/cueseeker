@@ -385,19 +385,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         return recentStore?.primaryActionItem()
     }
 
-    @discardableResult
-    func enterSelectedLibraryFolder() -> Bool {
-        guard isSessionActive,
-              (
-                  selectedModule == .library
-                      || selectedModule == .playlist && libraryStore != nil
-              )
-        else {
-            return false
-        }
-        return libraryStore?.enterFolder() == true
-    }
-
     func selectedLibraryPrimaryActionVideo()
         -> CompleteLibraryVideoPresentation? {
         guard isSessionActive,

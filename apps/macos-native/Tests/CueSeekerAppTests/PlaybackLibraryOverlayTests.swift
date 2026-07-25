@@ -8,42 +8,25 @@ import Testing
 
 @MainActor
 @Test
-func playbackLibraryUsesWorkbenchStoreAndKeepsHierarchySessionLocal() throws {
+func playbackLibraryUsesOnlyTheCurrentFolderEpisodes() throws {
     let fixture = playbackLibraryFixture(folderEpisodeCounts: [2, 3])
     let library = playbackLibraryStore(fixture)
+    let folder = fixture.folders[1]
+    let detail = try #require(
+        fixture.detailsByFolderPath[folder.folderPath]
+    )
     let store = PlaybackLibrarySessionStore(
         libraryStore: library,
+        folderPath: folder.folderPath,
         isVideoAvailable: { _ in true }
     )
 
     store.activate()
     #expect(store.libraryStore === library)
-    #expect(store.folders == library.completeLibraryFolderSummaries)
-    #expect(store.folderSelection.selectedItemID == fixture.folders[0].id)
-
-    store.folderSelection.updateColumnCount(2)
-    #expect(store.folderSelection.move(.right))
-    let selectedFolderID = try #require(store.folderSelection.selectedItemID)
-    store.folderSelection.recordScrollOffsetY(123.5)
-
-    #expect(store.enterFolder())
-    let firstEpisodeSelection = try #require(store.episodeSelection)
-    let detail = try #require(store.detail)
-    #expect(firstEpisodeSelection.selectedItemID == detail.videos[0].id)
-    #expect(firstEpisodeSelection.move(.down))
-    firstEpisodeSelection.recordScrollOffsetY(76.25)
-
-    #expect(store.returnToFolders())
-    #expect(store.level == .folders)
-    #expect(store.folderSelection.selectedItemID == selectedFolderID)
-    #expect(store.folderSelection.scrollOffsetY == 123.5)
-    #expect(store.episodeSelection == nil)
-
-    #expect(store.enterFolder())
-    let secondEpisodeSelection = try #require(store.episodeSelection)
-    #expect(secondEpisodeSelection !== firstEpisodeSelection)
-    #expect(secondEpisodeSelection.selectedItemID == detail.videos[0].id)
-    #expect(secondEpisodeSelection.scrollOffsetY == 0)
+    #expect(store.folderPath == folder.folderPath)
+    #expect(store.detail == detail)
+    #expect(store.selection.orderedItemIDs == detail.videos.map(\.id))
+    #expect(store.selection.selectedItemID == detail.videos[0].id)
 }
 
 @MainActor
@@ -51,8 +34,10 @@ func playbackLibraryUsesWorkbenchStoreAndKeepsHierarchySessionLocal() throws {
 func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData() throws {
     let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
     let library = playbackLibraryStore(fixture)
+    let folderPath = fixture.folders[0].folderPath
     let store = PlaybackLibrarySessionStore(
         libraryStore: library,
+        folderPath: folderPath,
         isVideoAvailable: { _ in true }
     )
     let session = PlaybackSubtitleFocusSessionStore(
@@ -64,25 +49,18 @@ func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData()
 
     #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     #expect(session.selectModule(.library))
-    store.folderSelection.recordScrollOffsetY(44.5)
-    #expect(store.enterFolder())
-    let episodeSelection = try #require(store.episodeSelection)
-    #expect(episodeSelection.move(.down))
-    episodeSelection.recordScrollOffsetY(88.75)
-    let selectedEpisodeID = episodeSelection.selectedItemID
+    #expect(store.selection.move(.down))
+    store.selection.recordScrollOffsetY(88.75)
+    let selectedEpisodeID = store.selection.selectedItemID
 
     #expect(session.selectModule(.search))
     #expect(session.selectModule(.library))
-    #expect(store.level != .folders)
-    #expect(store.folderSelection.scrollOffsetY == 44.5)
-    #expect(store.episodeSelection?.selectedItemID == selectedEpisodeID)
-    #expect(store.episodeSelection?.scrollOffsetY == 88.75)
+    #expect(store.selection.selectedItemID == selectedEpisodeID)
+    #expect(store.selection.scrollOffsetY == 88.75)
 
     #expect(session.dismissByUser() == false)
     #expect(session.libraryStore == nil)
-    #expect(store.level == .folders)
-    #expect(store.folderSelection.selectedItemID == nil)
-    #expect(store.episodeSelection == nil)
+    #expect(store.selection.selectedItemID == nil)
     #expect(library.completeLibraryFolderSummaries == fixture.folders)
     #expect(library.completeLibraryFolderDetailsByPath == fixture.detailsByFolderPath)
 }
@@ -92,17 +70,16 @@ func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData()
 func playbackLibrarySharedDetailRefreshPreservesEpisodeSelection() throws {
     let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
     let library = playbackLibraryStore(fixture)
+    let folderPath = fixture.folders[0].folderPath
     let store = PlaybackLibrarySessionStore(
         libraryStore: library,
+        folderPath: folderPath,
         isVideoAvailable: { _ in true }
     )
     store.activate()
-    #expect(store.enterFolder())
-    let selection = try #require(store.episodeSelection)
-    #expect(selection.move(.down))
-    let selectedID = selection.selectedItemID
-    selection.recordScrollOffsetY(88.75)
-    let folderPath = fixture.folders[0].folderPath
+    #expect(store.selection.move(.down))
+    let selectedID = store.selection.selectedItemID
+    store.selection.recordScrollOffsetY(88.75)
     let detail = try #require(fixture.detailsByFolderPath[folderPath])
 
     library.completeLibraryFolderDetailsByPath = [:]
@@ -111,8 +88,8 @@ func playbackLibrarySharedDetailRefreshPreservesEpisodeSelection() throws {
     library.completeLibraryFolderDetailStatusesByPath[folderPath] = .completed
 
     #expect(store.detail == library.completeLibraryFolderDetailsByPath[folderPath])
-    #expect(store.episodeSelection?.selectedItemID == selectedID)
-    #expect(store.episodeSelection?.scrollOffsetY == 88.75)
+    #expect(store.selection.selectedItemID == selectedID)
+    #expect(store.selection.scrollOffsetY == 88.75)
 }
 
 @MainActor
@@ -134,11 +111,15 @@ func playbackLibrarySourceOpensAsTheMediaPlaylist() async throws {
             folderPath: folder.folderPath
         )
         app.ensurePlayerInitialized()
+        let expectedVideos = fixture
+            .detailsByFolderPath[folder.folderPath]?.videos
 
         #expect(app.openPlaybackSubtitleFocusFromUser())
         let session = try #require(app.playback.subtitleFocusSession)
         #expect(session.availableModules == [.current, .playlist])
         #expect(session.libraryStore?.libraryStore === app.library)
+        #expect(session.libraryStore?.folderPath == folder.folderPath)
+        #expect(session.libraryStore?.detail?.videos == expectedVideos)
         #expect(session.recentStore == nil)
         app.invalidatePlaybackSubtitleFocusForSourceReplacement()
     }
@@ -154,6 +135,7 @@ func playbackPageProvidesPointerVisibilityToLibraryPlaylist() async throws {
             fixture.detailsByFolderPath
         let store = PlaybackLibrarySessionStore(
             libraryStore: app.library,
+            folderPath: fixture.folders[0].folderPath,
             isVideoAvailable: { _ in true }
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
@@ -196,12 +178,14 @@ func playbackPageProvidesPointerVisibilityToLibraryPlaylist() async throws {
 
 @MainActor
 @Test
-func playbackLibraryKeyboardRoutesBothSharedLevels() async throws {
+func playbackLibraryKeyboardRoutesTheCurrentFolderEpisodes() async throws {
     let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
     try await withPlaybackLibraryApp { app in
         let library = playbackLibraryStore(fixture)
+        let folderPath = fixture.folders[0].folderPath
         let store = PlaybackLibrarySessionStore(
             libraryStore: library,
+            folderPath: folderPath,
             isVideoAvailable: { _ in true }
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
@@ -216,19 +200,16 @@ func playbackLibraryKeyboardRoutesBothSharedLevels() async throws {
             modifierFlagsRawValue: 0,
             isRepeat: true
         ))
-        #expect(store.level == .folders)
-        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
-        #expect(store.level != .folders)
+        #expect(store.selection.selectedItemID == store.detail?.videos[0].id)
 
-        let episodeSelection = try #require(store.episodeSelection)
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
-        #expect(episodeSelection.selectedItemID == store.detail?.videos[1].id)
-        let selectedEpisodeID = episodeSelection.selectedItemID
+        #expect(store.selection.selectedItemID == store.detail?.videos[1].id)
+        let selectedEpisodeID = store.selection.selectedItemID
         #expect(!app.handlePlaybackKeyDown(
             keyCode: 125,
             modifierFlagsRawValue: NSEvent.ModifierFlags.command.rawValue
         ))
-        #expect(episodeSelection.selectedItemID == selectedEpisodeID)
+        #expect(store.selection.selectedItemID == selectedEpisodeID)
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 36,
@@ -245,8 +226,10 @@ func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
     let fixture = playbackLibraryFixture(folderEpisodeCounts: [3, 2])
     try await withPlaybackLibraryApp { app in
         let library = playbackLibraryStore(fixture)
+        let folder = fixture.folders[0]
         let store = PlaybackLibrarySessionStore(
             libraryStore: library,
+            folderPath: folder.folderPath,
             isVideoAvailable: { _ in true }
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
@@ -256,8 +239,6 @@ func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
         #expect(session.selectModule(.library))
-        let folder = fixture.folders[0]
-        #expect(store.enterFolder(itemID: folder.id))
         let detail = try #require(store.detail)
         let clickedVideo = detail.videos[1]
 

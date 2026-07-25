@@ -18,6 +18,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     )
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
+        folderPath: fixture.detail.folderPath,
         isVideoAvailable: { _ in true }
     )
     let playlistItems = fixture.searchResults.enumerated().map {
@@ -56,12 +57,9 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     let recentSelection = recentStore.selection.selectedItemID
 
     #expect(session.selectModule(.library))
-    libraryStore.folderSelection.recordScrollOffsetY(23.25)
-    #expect(libraryStore.enterFolder())
-    let episodeSelection = try #require(libraryStore.episodeSelection)
-    #expect(episodeSelection.move(.down))
-    episodeSelection.recordScrollOffsetY(82.75)
-    let selectedEpisodeID = episodeSelection.selectedItemID
+    #expect(libraryStore.selection.move(.down))
+    libraryStore.selection.recordScrollOffsetY(82.75)
+    let selectedEpisodeID = libraryStore.selection.selectedItemID
 
     #expect(session.selectModule(.shiori))
     let shioriWindow = try #require(session.shioriWindow)
@@ -86,18 +84,15 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     #expect(searchWindow.selectedOrdinal == 1)
     #expect(recentStore.selection.selectedItemID == recentSelection)
     #expect(recentStore.selection.scrollOffsetY == 41.5)
-    #expect(libraryStore.level != .folders)
-    #expect(libraryStore.folderSelection.scrollOffsetY == 23.25)
-    #expect(libraryStore.episodeSelection?.selectedItemID == selectedEpisodeID)
-    #expect(libraryStore.episodeSelection?.scrollOffsetY == 82.75)
+    #expect(libraryStore.selection.selectedItemID == selectedEpisodeID)
+    #expect(libraryStore.selection.scrollOffsetY == 82.75)
     #expect(shioriWindow.selectedOrdinal == 0)
 
     #expect(session.dismissByUser() == false)
     #expect(!session.isActive)
     #expect(session.selectedModule == nil)
     #expect(recentStore.selection.selectedItemID == nil)
-    #expect(libraryStore.level == .folders)
-    #expect(libraryStore.folderSelection.selectedItemID == nil)
+    #expect(libraryStore.selection.selectedItemID == nil)
     #expect(searchStore.searchQuery == "overlay")
     #expect(searchStore.searchResults == fixture.searchResults)
     #expect(featureLibrary.testRecentWatchingItems == fixture.recentItems)
@@ -110,6 +105,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     )
     let freshLibraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
+        folderPath: fixture.detail.folderPath,
         isVideoAvailable: { _ in true }
     )
     let freshSession = PlaybackSubtitleFocusSessionStore(
@@ -126,8 +122,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     #expect(freshSession.selectedModule == .current)
     #expect(freshSession.searchWindow?.snapshot.totalCount == 3)
     #expect(freshRecentStore.selection.selectedItemID == nil)
-    #expect(freshLibraryStore.level == .folders)
-    #expect(freshLibraryStore.folderSelection.selectedItemID == nil)
+    #expect(freshLibraryStore.selection.selectedItemID == nil)
     #expect(freshSession.dismissByUser() == false)
 }
 
@@ -177,6 +172,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     )
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
+        folderPath: fixture.detail.folderPath,
         isVideoAvailable: { _ in true }
     )
     app.playback.setPlaylistSource(playlistSource)
@@ -215,7 +211,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     #expect(!session.isActive)
     #expect(playlistSource.boundary.totalCount == 0)
     #expect(recentStore.selection.selectedItemID == nil)
-    #expect(libraryStore.folderSelection.selectedItemID == nil)
+    #expect(libraryStore.selection.selectedItemID == nil)
     #expect(app.search.searchResults == fixture.searchResults)
     #expect(featureLibrary.testRecentWatchingItems == fixture.recentItems)
     #expect(featureLibrary.completeLibraryFolderSummaries == fixture.folders)

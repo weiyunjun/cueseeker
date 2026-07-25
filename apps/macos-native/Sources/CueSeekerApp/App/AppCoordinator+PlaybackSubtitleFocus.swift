@@ -63,7 +63,11 @@ extension AppCoordinator {
                 libraryStore = nil
             } else {
                 recentStore = nil
-                libraryStore = makePlaybackLibrarySessionStore()
+                libraryStore = makePlaybackLibrarySessionStore(
+                    folderPath: URL(fileURLWithPath: source.videoPath)
+                        .deletingLastPathComponent()
+                        .standardizedFileURL.path
+                )
             }
         } else {
             recentStore = nil
@@ -213,19 +217,11 @@ extension AppCoordinator {
                       || session.selectedModule == .playlist
                           && session.libraryStore != nil
               ),
-              let libraryStore = session.libraryStore
+              let video = session.selectedLibraryPrimaryActionVideo()
         else {
             return false
         }
-        switch libraryStore.level {
-        case .folders:
-            return session.enterSelectedLibraryFolder()
-        case .folderDetail:
-            guard let video = session.selectedLibraryPrimaryActionVideo() else {
-                return false
-            }
-            return openPlaybackLibraryEpisodeFromOverlay(video)
-        }
+        return openPlaybackLibraryEpisodeFromOverlay(video)
     }
 
     @discardableResult

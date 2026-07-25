@@ -139,7 +139,6 @@ struct PlaybackOverlay: View {
             } else if let libraryStore = session.libraryStore {
                 PlaybackLibraryOverlay(
                     store: libraryStore,
-                    showsFolderDetailTitle: false,
                     onOpenEpisode: onOpenLibraryEpisode
                 )
             } else if let playlistWindow = session.playlistWindow {

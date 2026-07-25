@@ -198,3 +198,23 @@ speculative abstractions.
   or temporary-database timing failures all passed together when rerun
   serially.
 - `git diff --check` passed.
+
+## Step 7: Library Playlist Scope Repair
+
+- Scoped the Library Playlist directly to the current video's folder detail.
+- Removed the Playback-only Library folder level, folder-card selection, back
+  navigation, and title-header option instead of retaining unreachable
+  hierarchy state.
+- Reused the existing Library Episode list and its selection state as the only
+  Library Playlist surface.
+- Kept episode opening on the existing folder-detail order, which is also
+  installed as the previous/next playback navigation order.
+
+## Step 7 Verification
+
+- All seven focused Playback Library tests passed.
+- Both focused multi-module session tests passed.
+- The focused media-session source test passed.
+- `git diff --check` passed.
+- Per owner direction, no desktop automation or screenshot-based end-to-end
+  validation was performed.
