@@ -129,8 +129,11 @@ Playlist 始终使用当前播放来源的完整数据，不受 Command Panel �
 视频型 Playlist：
 
 - 适用于 Library 和 Recent Videos。
-- 复用现有 Playback Library 的列表、条目和选择视觉。
-- 不显示原页面顶部标题。
+- Recent Videos Source 复用现有 Recent Watching Card 的视觉元素和完整数据。
+- Library Source 直接显示当前视频所在文件夹的完整视频列表。
+- Library Source 复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉。
+- Library Source 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部标题。
+- Library Source 的 Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序。
 - 选择效果复用对应现有条目的选择区域和视觉规则。
 - 不增加新的 Library 详情界面或独立视频列表组件。
 
@@ -598,12 +601,13 @@ View Content Region：
 
 - 适用于来源为 Recent Videos 或 Library 的视频型 Playlist。
 - 继续复用所属 Workbench Card Layout 的 Hover Region 和 Hover 视觉。
-- Recent Watching Card 和 Library Folder Card 的 Selected 视觉作用于完整卡片。
+- Recent Watching Card 的 Selected 视觉作用于完整卡片。
 - Library Episode 的 Selected 视觉只作用于 Cover Region。
+- Library Source 不存在 Library Folder Card 或 Library 层级导航。
 - 不可用 Item 不允许成为 Selected Item。
 - `Enter` 执行 Selected Item 在原 Layout 中定义的左键主操作。
 - 鼠标左键和右键动作继续由所属 Card Layout 定义。
-- 从 Current 切换回视频型 Playlist 后，恢复本次 Session 内的层级、选择和滚动位置。
+- 从 Current 切换回视频型 Playlist 后，恢复本次 Session 内的选择和滚动位置。
 
 ## 14. Playlist 视觉分型
 
@@ -633,10 +637,11 @@ View Content Region：
 视频型 Playlist：
 
 - 适用于 Library 和 Recent Videos。
-- 复用现有 Playback Library 列表、条目和选择视觉。
-- 不显示页面顶部 Title。
-- Library Source 使用现有 Library Folder 或 Episode 条目。
-- Recent Videos Source 复用 Recent Watching Card 的视觉元素。
+- Recent Videos Source 复用现有 Recent Watching Card 的视觉元素和完整数据。
+- Library Source 直接显示当前视频所在文件夹的完整视频列表。
+- Library Source 复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉。
+- Library Source 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部 Title。
+- Library Source 的 Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序。
 - Selected 视觉复用对应现有条目的选择区域和视觉规则。
 - 方向键选择 Previous Item 或 Next Item。
 - `Enter` 执行当前 Selected Item 的主操作。
