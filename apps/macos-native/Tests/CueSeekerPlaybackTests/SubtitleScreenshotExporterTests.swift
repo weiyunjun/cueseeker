@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 import CueSeekerCore
@@ -177,6 +178,27 @@ func subtitleScreenshotCollageSortUsesCueMetadataThenInputOrdinal() {
     ])
 }
 
+@Test
+func subtitleScreenshotExporterUsesSharedSRTDrawingCore() throws {
+    let baseImage = try #require(makeBlackExportTestImage(width: 640, height: 360))
+    let rendered = try SubtitleScreenshotExporter._renderSRTFrameForTesting(
+        cues: [
+            PlaybackSubtitleCue(
+                sourceOrdinal: 0,
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000,
+                text: "ごちそうさまでした"
+            )
+        ],
+        timestampMilliseconds: 2_000,
+        frameImage: baseImage
+    )
+
+    #expect(rendered.width == 640)
+    #expect(rendered.height == 360)
+    #expect(exportTestImageContainsBrightPixel(rendered))
+}
+
 private func subtitleScreenshotTestItem(
     displayTitle: String,
     startMilliseconds: Int = 1_000,
@@ -195,4 +217,47 @@ private func subtitleScreenshotTestItem(
         cueEventIndex: cueEventIndex,
         textLines: [displayTitle]
     )
+}
+
+private func makeBlackExportTestImage(width: Int, height: Int) -> CGImage? {
+    guard let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+    ) else {
+        return nil
+    }
+    context.setFillColor(CGColor(gray: 0, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    return context.makeImage()
+}
+
+private func exportTestImageContainsBrightPixel(_ image: CGImage) -> Bool {
+    let bytesPerRow = image.width * 4
+    var bytes = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+    guard let context = CGContext(
+        data: &bytes,
+        width: image.width,
+        height: image.height,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(
+            rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ).rawValue
+    ) else {
+        return false
+    }
+    context.draw(
+        image,
+        in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+    )
+    return stride(from: 0, to: bytes.count, by: 4).contains {
+        bytes[$0] > 240 && bytes[$0 + 1] > 240 && bytes[$0 + 2] > 240
+    }
 }

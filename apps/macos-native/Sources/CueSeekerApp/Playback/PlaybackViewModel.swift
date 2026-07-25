@@ -49,7 +49,6 @@ struct PlaybackFeedback: Identifiable, Equatable {
 
 private struct PlaybackScreenshotRenderWorkItem: @unchecked Sendable {
     let presentation: PlaybackScreenshotPresentation
-    let simpleSubtitleViewportOverlay: CGImage?
 }
 
 @MainActor
@@ -539,15 +538,8 @@ public final class PlaybackViewModel: ObservableObject {
             return
         }
 
-        let simpleSubtitleViewportOverlay = activeSubtitleText.flatMap {
-            PlaybackCurrentFrameScreenshotComposer.renderSimpleSubtitleViewportOverlay(
-                text: $0,
-                viewportSize: presentation.viewportSize
-            )
-        }
         let workItem = PlaybackScreenshotRenderWorkItem(
-            presentation: presentation,
-            simpleSubtitleViewportOverlay: simpleSubtitleViewportOverlay
+            presentation: presentation
         )
         screenshotRequestGeneration &+= 1
         let requestGeneration = screenshotRequestGeneration
@@ -555,9 +547,7 @@ public final class PlaybackViewModel: ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let image = try PlaybackCurrentFrameScreenshotRenderer.render(
-                    workItem.presentation,
-                    simpleSubtitleViewportOverlay:
-                        workItem.simpleSubtitleViewportOverlay
+                    workItem.presentation
                 )
                 let pngData = try PlaybackScreenshotPasteboardWriter.pngData(
                     for: image

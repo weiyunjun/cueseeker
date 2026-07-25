@@ -74,52 +74,6 @@ func indexingSkipsOneReversedTimeRangeAndKeepsValidBlocks()
 }
 
 @Test
-func srtRenderingConversionPreservesDuplicateAndShortBlocks() {
-    let contents = """
-    2
-    00:00:07,173 --> 00:00:08,108
-    （ミコト）名前？
-
-    1
-    00:00:08,174 --> 00:00:08,274
-    （東海林）そう 問題は名前
-
-    9
-    00:00:07,173 --> 00:00:08,108
-    （ミコト）名前？
-
-    """
-
-    let script = SRTASSConverter.convert(contents)
-    let dialogues = script.components(separatedBy: .newlines)
-        .filter { $0.hasPrefix("Dialogue:") }
-
-    #expect(dialogues.count == 3)
-    #expect(dialogues[0].contains("0:00:07.17,0:00:08.11"))
-    #expect(dialogues[1].contains("0:00:08.17,0:00:08.28"))
-    #expect(dialogues[2].contains("0:00:07.17,0:00:08.11"))
-}
-
-@Test
-func srtRenderingConversionUsesConfirmedIINADefaultStyle() {
-    let script = SRTASSConverter.convert(
-        """
-        1
-        00:00:01,000 --> 00:00:02,000
-        First line
-        Second line
-        """
-    )
-
-    #expect(
-        script.contains(
-            "Style: Default,sans-serif,55,&H00FFFFFF,&H00FFFFFF,&H00000000,&HFF000000,0,0,0,0,100,100,0,0,1,3,0,2,25,25,22,1"
-        )
-    )
-    #expect(script.contains("First line\\NSecond line"))
-}
-
-@Test
 func playbackParsingDecodesUTF16AndIgnoresPositionParameters() throws {
     let contents = """
     1

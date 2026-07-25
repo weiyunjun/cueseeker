@@ -525,25 +525,18 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return nil
         }
 
-        let fallbackSize = CGSize(
-            width: nativeSnapshot.width,
-            height: nativeSnapshot.height
-        )
         guard let container = renderView as? PlaybackRenderContainerView else {
             return PlaybackScreenshotPresentation(
                 nativeSnapshot: nativeSnapshot,
-                geometry: PlaybackScreenshotGeometry(
-                    viewportSize: fallbackSize,
-                    videoRect: CGRect(origin: .zero, size: fallbackSize)
-                ),
-                assSubtitleFrame: nil
+                assSubtitleFrame: nil,
+                srtSubtitleImage: nil
             )
         }
 
         return PlaybackScreenshotPresentation(
             nativeSnapshot: nativeSnapshot,
-            geometry: container.screenshotGeometry(fallbackSize: fallbackSize),
-            assSubtitleFrame: container.currentASSSubtitleFrame()
+            assSubtitleFrame: container.currentASSSubtitleFrame(),
+            srtSubtitleImage: container.currentSRTSubtitleImage()
         )
     }
 
@@ -1059,17 +1052,11 @@ public final class PlaybackRenderContainerView: NSView {
         return sourceFaithfulASSOverlayView?.currentPresentationFrame()
     }
 
-    func screenshotGeometry(fallbackSize: CGSize) -> PlaybackScreenshotGeometry {
-        let viewportSize = bounds.size.width > 0 && bounds.size.height > 0
-            ? bounds.size
-            : fallbackSize
-        return PlaybackScreenshotGeometry(
-            viewportSize: viewportSize,
-            videoRect: SourceFaithfulASSSubtitleLayout.videoRect(
-                videoSize: currentVideoSize,
-                in: CGRect(origin: .zero, size: viewportSize)
-            )
-        )
+    func currentSRTSubtitleImage() -> CGImage? {
+        guard currentSubtitlesVisible else {
+            return nil
+        }
+        return srtSubtitleOverlayView?.currentPresentationImage()
     }
 
     private func ensureSourceFaithfulASSOverlayView() {

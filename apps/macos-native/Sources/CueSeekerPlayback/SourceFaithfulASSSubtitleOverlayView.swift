@@ -141,12 +141,10 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                         "initialTimestampMilliseconds": "\(initialTimestampMilliseconds)"
                     ]
                 )
-                self.requestedFontNames = sourceFormat == .ass
-                    ? try? ASSPlaybackFontIntentProvider.requestedFontNames(
-                        sourcePath: sourcePath,
-                        renderCacheDatabaseURL: renderCacheDatabaseURL
-                    )
-                    : nil
+                self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
+                    sourcePath: sourcePath,
+                    renderCacheDatabaseURL: renderCacheDatabaseURL
+                )
 
                 let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
                 guard !self.isInvalidated else {
@@ -284,9 +282,13 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         else {
             throw ASSRenderWorkerError(message: "ASS renderer source is not ready.")
         }
+        guard sourceFormat == .ass else {
+            throw ASSRenderWorkerError(
+                message: "ASS renderer received a non-ASS source."
+            )
+        }
 
-        if sourceFormat == .ass,
-           let segment = try indexedRenderSegment(containing: timestampMilliseconds)
+        if let segment = try indexedRenderSegment(containing: timestampMilliseconds)
         {
             activeRenderSegmentWindow = PlaybackSubtitleTimeWindow(
                 startMilliseconds: segment.startMilliseconds,
@@ -306,20 +308,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
 
         activeRenderSegmentWindow = nil
-        if sourceFormat == .srt {
-            let sourceScript = try String(
-                contentsOf: URL(fileURLWithPath: sourcePath)
-            )
-            return try SFXASSRendererSession(
-                assScript: rewriteRenderScript(
-                    SRTASSConverter.convert(sourceScript)
-                ),
-                sourceIdentifier: sourcePath,
-                frameWidth: frameWidth,
-                frameHeight: frameHeight
-            )
-        }
-
         if let sourceScript = try? String(contentsOf: URL(fileURLWithPath: sourcePath)) {
             let renderScript = rewriteRenderScript(sourceScript)
             if renderScript != sourceScript {

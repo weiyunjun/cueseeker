@@ -25,6 +25,15 @@ final class SRTSubtitleLayout: @unchecked Sendable {
     var placements: [Int: CGRect] {
         items.mapValues(\.visualBounds)
     }
+
+    func activePlacements(atMilliseconds milliseconds: Int) -> [CGRect] {
+        track.activeCues(atMilliseconds: milliseconds).compactMap {
+            guard let item = items[$0.sourceOrdinal], item.isDrawable else {
+                return nil
+            }
+            return item.visualBounds
+        }
+    }
 }
 
 private struct SRTSubtitleItem {
@@ -33,6 +42,10 @@ private struct SRTSubtitleItem {
     let outlinePath: CGPath
     let visualBounds: CGRect
     let isDrawable: Bool
+}
+
+private struct SRTSubtitleRenderingError: Error, LocalizedError {
+    let errorDescription: String?
 }
 
 enum SRTSubtitleRenderer {
@@ -96,6 +109,54 @@ enum SRTSubtitleRenderer {
             track: track,
             items: items
         )
+    }
+
+    static func loadPlaybackCues(
+        from source: PlaybackSubtitleSource
+    ) throws -> [PlaybackSubtitleCue] {
+        guard source.format == .srt else {
+            throw SRTSubtitleRenderingError(
+                errorDescription: "SRT renderer received a non-SRT source."
+            )
+        }
+        let data = try Data(contentsOf: source.url, options: .mappedIfSafe)
+        let entries = try SRTParser.parseForRendering(data)
+        guard !entries.isEmpty else {
+            throw SRTSubtitleRenderingError(
+                errorDescription: "SRT renderer found no valid playback Cues."
+            )
+        }
+        let speakers = Dictionary(
+            source.speakerDisplayCues.map {
+                (
+                    speakerKey(
+                        $0.startMilliseconds,
+                        $0.endMilliseconds,
+                        $0.cleanText
+                    ),
+                    $0.speakers
+                )
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return entries.enumerated().map { ordinal, entry in
+            let speakerSet = speakers[
+                speakerKey(
+                    entry.startMilliseconds,
+                    entry.endMilliseconds,
+                    entry.text
+                )
+            ] ?? []
+            return PlaybackSubtitleCue(
+                sourceOrdinal: ordinal,
+                startMilliseconds: entry.startMilliseconds,
+                endMilliseconds: entry.endMilliseconds,
+                text: SubtitleSpeakerDisplayFormatter.prefixedText(
+                    entry.text,
+                    speakers: speakerSet
+                )
+            )
+        }
     }
 
     static func image(
@@ -248,6 +309,14 @@ enum SRTSubtitleRenderer {
                     | CGBitmapInfo.byteOrder32Big.rawValue
             ).rawValue
         )
+    }
+
+    private static func speakerKey(
+        _ start: Int,
+        _ end: Int,
+        _ text: String
+    ) -> String {
+        "\(start):\(end):\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
 }
 
@@ -454,6 +523,7 @@ final class SRTSubtitleOverlayView: NSView {
     private var cues: [PlaybackSubtitleCue] = []
     private var preparedLayout: SRTSubtitleLayout?
     private var activeOrdinals: [Int] = []
+    private var renderedImage: CGImage?
     private let imageLayer = CALayer()
 
     override var isFlipped: Bool { true }
@@ -493,52 +563,13 @@ final class SRTSubtitleOverlayView: NSView {
         cues = []
         preparedLayout = nil
         activeOrdinals = []
+        renderedImage = nil
         imageLayer.contents = nil
         guard let source, source.format == .srt else { return }
 
         loadTask = Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let data = try Data(contentsOf: source.url, options: .mappedIfSafe)
-                let entries = try SRTParser.parseForRendering(data)
-                guard !entries.isEmpty else {
-                    await self?.finishLoading(
-                        nil,
-                        source: source,
-                        errorMessage: "SRT renderer found no valid playback Cues."
-                    )
-                    return
-                }
-                let speakers = Dictionary(
-                    source.speakerDisplayCues.map {
-                        (
-                            Self.speakerKey(
-                                $0.startMilliseconds,
-                                $0.endMilliseconds,
-                                $0.cleanText
-                            ),
-                            $0.speakers
-                        )
-                    },
-                    uniquingKeysWith: { first, _ in first }
-                )
-                let cues = entries.enumerated().map { ordinal, entry in
-                    let speakerSet = speakers[
-                        Self.speakerKey(
-                            entry.startMilliseconds,
-                            entry.endMilliseconds,
-                            entry.text
-                        )
-                    ] ?? []
-                    return PlaybackSubtitleCue(
-                        sourceOrdinal: ordinal,
-                        startMilliseconds: entry.startMilliseconds,
-                        endMilliseconds: entry.endMilliseconds,
-                        text: SubtitleSpeakerDisplayFormatter.prefixedText(
-                            entry.text,
-                            speakers: speakerSet
-                        )
-                    )
-                }
+                let cues = try SRTSubtitleRenderer.loadPlaybackCues(from: source)
                 guard !Task.isCancelled else { return }
                 await self?.finishLoading(cues, source: source)
             } catch {
@@ -570,9 +601,14 @@ final class SRTSubtitleOverlayView: NSView {
         layoutTask?.cancel()
         guard let source, let videoSize else {
             preparedLayout = nil
+            renderedImage = nil
             imageLayer.contents = nil
             return
         }
+        preparedLayout = nil
+        renderedImage = nil
+        activeOrdinals = []
+        imageLayer.contents = nil
         let cues = self.cues
         layoutTask = Task.detached(priority: .userInitiated) { [weak self] in
             let layout = SRTSubtitleRenderer.makeLayout(
@@ -600,6 +636,7 @@ final class SRTSubtitleOverlayView: NSView {
 
     private func updateImage(force: Bool = false) {
         guard areSubtitlesVisible, let preparedLayout else {
+            renderedImage = nil
             imageLayer.contents = nil
             return
         }
@@ -608,10 +645,15 @@ final class SRTSubtitleOverlayView: NSView {
             .map(\.sourceOrdinal)
         guard force || ordinals != activeOrdinals else { return }
         activeOrdinals = ordinals
-        imageLayer.contents = SRTSubtitleRenderer.image(
+        renderedImage = SRTSubtitleRenderer.image(
             layout: preparedLayout,
             atMilliseconds: currentTimeMilliseconds
         )
+        imageLayer.contents = renderedImage
+    }
+
+    func currentPresentationImage() -> CGImage? {
+        areSubtitlesVisible ? renderedImage : nil
     }
 
     private func videoRect() -> CGRect {
@@ -628,11 +670,4 @@ final class SRTSubtitleOverlayView: NSView {
         )
     }
 
-    nonisolated private static func speakerKey(
-        _ start: Int,
-        _ end: Int,
-        _ text: String
-    ) -> String {
-        "\(start):\(end):\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
-    }
 }

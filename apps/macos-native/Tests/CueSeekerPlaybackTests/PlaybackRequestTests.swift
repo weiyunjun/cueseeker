@@ -51,13 +51,26 @@ func playbackRenderContainerUsesSourceFaithfulOverlayForASSSource() async throws
 
 @Test
 @MainActor
-func playbackRenderContainerUsesDirectOverlayForSRTSource() {
+func playbackRenderContainerUsesDirectOverlayForSRTSource() async throws {
     let view = PlaybackRenderContainerView()
+    let subtitleURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSRTOverlay-\(UUID().uuidString)")
+        .appendingPathExtension("srt")
+    defer {
+        try? FileManager.default.removeItem(at: subtitleURL)
+    }
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    （ミコト）はい
+    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
     let source = PlaybackSubtitleSource(
-        url: URL(fileURLWithPath: "/tmp/direct-rendering.srt"),
+        url: subtitleURL,
         format: .srt
     )
 
+    view.setVideoSize(CGSize(width: 640, height: 360))
+    view.setSubtitleTime(milliseconds: 2_000)
     view.setSubtitleSource(source)
 
     #expect(view.subviews.contains {
@@ -66,6 +79,12 @@ func playbackRenderContainerUsesDirectOverlayForSRTSource() {
     #expect(!view.subviews.contains {
         String(describing: type(of: $0)).contains("SourceFaithfulASSSubtitleOverlayView")
     })
+    for _ in 0..<50 where view.currentSRTSubtitleImage() == nil {
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    let image = try #require(view.currentSRTSubtitleImage())
+    #expect(image.width == 640)
+    #expect(image.height == 360)
 }
 
 @Test

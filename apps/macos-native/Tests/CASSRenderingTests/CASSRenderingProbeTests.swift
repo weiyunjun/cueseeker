@@ -1,5 +1,4 @@
 import CASSRendering
-import CueSeekerCore
 import Foundation
 import XCTest
 
@@ -135,34 +134,6 @@ final class CASSRenderingProbeTests: XCTestCase {
         )
 
         let output = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
-
-        XCTAssertGreaterThan(output.imageCount, 0)
-        XCTAssertGreaterThan(output.width, 0)
-        XCTAssertGreaterThan(nonTransparentPixelCount(in: output.rgbaData), 0)
-    }
-
-    func testConvertedSRTTrackRendersThroughLibass() throws {
-        let script = SRTASSConverter.convert(
-            """
-            1
-            00:00:01,000 --> 00:00:03,000
-            First simultaneous line
-
-            2
-            00:00:01,000 --> 00:00:03,000
-            Second simultaneous line
-            """
-        )
-        let session = try SFXASSRendererSession(
-            assScript: script,
-            sourceIdentifier: "converted-srt",
-            frameWidth: 640,
-            frameHeight: 360
-        )
-
-        let output = try session.renderCroppedImage(
-            atTimestampMilliseconds: 1_500
-        )
 
         XCTAssertGreaterThan(output.imageCount, 0)
         XCTAssertGreaterThan(output.width, 0)

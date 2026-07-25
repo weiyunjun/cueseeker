@@ -4,19 +4,10 @@ import CoreImage
 import CoreVideo
 import Foundation
 
-struct PlaybackScreenshotGeometry: Equatable, Sendable {
-    let viewportSize: CGSize
-    let videoRect: CGRect
-}
-
 public struct PlaybackScreenshotPresentation: @unchecked Sendable {
     let nativeSnapshot: SFXNativePlaybackFrameSnapshot
-    let geometry: PlaybackScreenshotGeometry
     let assSubtitleFrame: ASSSparseFrame?
-
-    public var viewportSize: CGSize {
-        geometry.viewportSize
-    }
+    let srtSubtitleImage: CGImage?
 }
 
 enum PlaybackCurrentFrameScreenshotError: Error, CustomStringConvertible {
@@ -63,15 +54,13 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
         ?? CGColorSpaceCreateDeviceRGB()
 
     public static func render(
-        _ presentation: PlaybackScreenshotPresentation,
-        simpleSubtitleViewportOverlay: CGImage? = nil
+        _ presentation: PlaybackScreenshotPresentation
     ) throws -> CGImage {
         let base = try render(pixelBuffer: presentation.nativeSnapshot.pixelBuffer)
         return try compose(
             baseImage: base,
             assSubtitleFrame: presentation.assSubtitleFrame,
-            simpleSubtitleViewportOverlay: simpleSubtitleViewportOverlay,
-            geometry: presentation.geometry
+            srtSubtitleImage: presentation.srtSubtitleImage
         )
     }
 
@@ -103,11 +92,10 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
     static func compose(
         baseImage: CGImage,
         assSubtitleFrame: ASSSparseFrame?,
-        simpleSubtitleViewportOverlay: CGImage?,
-        geometry: PlaybackScreenshotGeometry
+        srtSubtitleImage: CGImage?
     ) throws -> CGImage {
         guard assSubtitleFrame?.surface != nil
-                || simpleSubtitleViewportOverlay != nil
+                || srtSubtitleImage != nil
         else {
             return baseImage
         }
@@ -145,13 +133,9 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
             context.draw(surfaceImage, in: destinationRect)
         }
 
-        if let simpleSubtitleViewportOverlay,
-           let croppedOverlay = cropToVideoRect(
-               simpleSubtitleViewportOverlay,
-               geometry: geometry
-           ) {
+        if let srtSubtitleImage {
             context.interpolationQuality = .high
-            context.draw(croppedOverlay, in: fullRect)
+            context.draw(srtSubtitleImage, in: fullRect)
         }
 
         guard let image = context.makeImage() else {
@@ -188,31 +172,6 @@ public enum PlaybackCurrentFrameScreenshotRenderer {
             shouldInterpolate: true,
             intent: .defaultIntent
         )
-    }
-
-    private static func cropToVideoRect(
-        _ overlay: CGImage,
-        geometry: PlaybackScreenshotGeometry
-    ) -> CGImage? {
-        let viewportSize = geometry.viewportSize
-        guard viewportSize.width > 0, viewportSize.height > 0 else {
-            return nil
-        }
-
-        let imageScaleX = CGFloat(overlay.width) / viewportSize.width
-        let imageScaleY = CGFloat(overlay.height) / viewportSize.height
-        let cropRect = CGRect(
-            x: geometry.videoRect.minX * imageScaleX,
-            y: (viewportSize.height - geometry.videoRect.maxY) * imageScaleY,
-            width: geometry.videoRect.width * imageScaleX,
-            height: geometry.videoRect.height * imageScaleY
-        ).integral.intersection(
-            CGRect(x: 0, y: 0, width: overlay.width, height: overlay.height)
-        )
-        guard !cropRect.isEmpty else {
-            return nil
-        }
-        return overlay.cropping(to: cropRect)
     }
 
     private static func makeBitmapContext(width: Int, height: Int) -> CGContext? {

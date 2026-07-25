@@ -92,6 +92,11 @@ public enum SubtitleScreenshotExporter {
         let subtitleBands: [SubtitleBand]
     }
 
+    private struct PreparedSRTSource: Sendable {
+        let source: PlaybackSubtitleSource
+        let cues: [PlaybackSubtitleCue]
+    }
+
     public static func defaultScreenshotFileName(for item: SubtitleScreenshotExportItem) -> String {
         "\(item.displayTitle)-\(timeString(milliseconds: item.startMilliseconds))-\(timeString(milliseconds: item.endMilliseconds)).png"
     }
@@ -207,12 +212,14 @@ public enum SubtitleScreenshotExporter {
 
         var strips: [CGImage] = []
         let sortedItems = sortedByTimeline(items)
+        let preparedSRTSources = try await prepareSRTSources(for: sortedItems)
 
         for (index, item) in sortedItems.enumerated() {
             let renderedFrame = try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
-                workspaceURL: workspaceURL
+                workspaceURL: workspaceURL,
+                preparedSRTSources: preparedSRTSources
             )
 
             if index == 0 {
@@ -260,11 +267,13 @@ public enum SubtitleScreenshotExporter {
         }
 
         let defaultFileNames = defaultScreenshotFileNames(for: items)
+        let preparedSRTSources = try await prepareSRTSources(for: items)
         for (index, item) in items.enumerated() {
             let renderedFrame = try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
-                workspaceURL: workspaceURL
+                workspaceURL: workspaceURL,
+                preparedSRTSources: preparedSRTSources
             )
             let destinationURL = explicitSingleDestinationURL
                 ?? directoryURL.appendingPathComponent(defaultFileNames[index])
@@ -272,10 +281,33 @@ public enum SubtitleScreenshotExporter {
         }
     }
 
+    private static func prepareSRTSources(
+        for items: [SubtitleScreenshotExportItem]
+    ) async throws -> [PreparedSRTSource] {
+        var sources: [PlaybackSubtitleSource] = []
+        for item in items {
+            let source = subtitleSource(for: item)
+            guard source.format == .srt else { continue }
+            let normalized = normalizedSRTSource(source)
+            if !sources.contains(normalized) {
+                sources.append(normalized)
+            }
+        }
+        return try await Task.detached(priority: .userInitiated) {
+            try sources.map {
+                PreparedSRTSource(
+                    source: $0,
+                    cues: try SRTSubtitleRenderer.loadPlaybackCues(from: $0)
+                )
+            }
+        }.value
+    }
+
     private static func renderedSubtitleFrame(
         item: SubtitleScreenshotExportItem,
         ffmpegURL: URL,
-        workspaceURL: URL
+        workspaceURL: URL,
+        preparedSRTSources: [PreparedSRTSource]
     ) async throws -> RenderedSubtitleFrame {
         let frameURL = workspaceURL
             .appendingPathComponent("frame-\(UUID().uuidString)")
@@ -293,10 +325,37 @@ public enum SubtitleScreenshotExporter {
         }
 
         let frameImage = try loadImage(at: frameURL)
-        return try renderASSFrame(
+        return try renderSubtitleFrame(
             item: item,
             timestampMilliseconds: timestampMilliseconds,
-            frameImage: frameImage
+            frameImage: frameImage,
+            preparedSRTSources: preparedSRTSources
+        )
+    }
+
+    private static func subtitleSource(
+        for item: SubtitleScreenshotExportItem
+    ) -> PlaybackSubtitleSource {
+        item.subtitleSource ?? PlaybackSubtitleSource(
+            url: URL(fileURLWithPath: item.subtitlePath),
+            format: item.subtitleFormat == .ass ? .ass : .srt,
+            matchedVideoURL: URL(fileURLWithPath: item.videoPath),
+            preparationTimeWindow: PlaybackSubtitleTimeWindow(
+                startMilliseconds: item.startMilliseconds,
+                endMilliseconds: item.endMilliseconds
+            )
+        )
+    }
+
+    private static func normalizedSRTSource(
+        _ source: PlaybackSubtitleSource
+    ) -> PlaybackSubtitleSource {
+        PlaybackSubtitleSource(
+            url: source.url.standardizedFileURL,
+            format: .srt,
+            matchedVideoURL: source.matchedVideoURL,
+            renderCacheDatabaseURL: source.renderCacheDatabaseURL,
+            speakerDisplayCues: source.speakerDisplayCues
         )
     }
 
@@ -321,22 +380,29 @@ public enum SubtitleScreenshotExporter {
         )
     }
 
-    private static func renderASSFrame(
+    private static func renderSubtitleFrame(
         item: SubtitleScreenshotExportItem,
         timestampMilliseconds: Int,
-        frameImage: CGImage
+        frameImage: CGImage,
+        preparedSRTSources: [PreparedSRTSource]
     ) throws -> RenderedSubtitleFrame {
         let width = frameImage.width
         let height = frameImage.height
-        let source = item.subtitleSource ?? PlaybackSubtitleSource(
-            url: URL(fileURLWithPath: item.subtitlePath),
-            format: item.subtitleFormat == .ass ? .ass : .srt,
-            matchedVideoURL: URL(fileURLWithPath: item.videoPath),
-            preparationTimeWindow: PlaybackSubtitleTimeWindow(
-                startMilliseconds: item.startMilliseconds,
-                endMilliseconds: item.endMilliseconds
+        let source = subtitleSource(for: item)
+
+        if source.format == .srt {
+            let normalizedSource = normalizedSRTSource(source)
+            guard let preparedSource = preparedSRTSources.first(where: {
+                $0.source == normalizedSource
+            }) else {
+                throw SubtitleScreenshotExportError.imageContextFailed
+            }
+            return try renderSRTFrame(
+                cues: preparedSource.cues,
+                timestampMilliseconds: timestampMilliseconds,
+                frameImage: frameImage
             )
-        )
+        }
 
         let session = try makeASSSession(
             source: source,
@@ -372,21 +438,80 @@ public enum SubtitleScreenshotExporter {
         return RenderedSubtitleFrame(image: composedImage, subtitleBands: bands)
     }
 
+    private static func renderSRTFrame(
+        cues: [PlaybackSubtitleCue],
+        timestampMilliseconds: Int,
+        frameImage: CGImage
+    ) throws -> RenderedSubtitleFrame {
+        let width = frameImage.width
+        let height = frameImage.height
+        guard let layout = SRTSubtitleRenderer.makeLayout(
+            cues: cues,
+            canvasSize: CGSize(width: width, height: height)
+        ) else {
+            throw SubtitleScreenshotExportError.imageContextFailed
+        }
+        guard let overlayImage = SRTSubtitleRenderer.image(
+            layout: layout,
+            atMilliseconds: timestampMilliseconds
+        ) else {
+            return RenderedSubtitleFrame(
+                image: frameImage,
+                subtitleBands: []
+            )
+        }
+        guard let composedImage = compose(
+            baseImage: frameImage,
+            overlayImage: overlayImage
+        ) else {
+            throw SubtitleScreenshotExportError.imageContextFailed
+        }
+        let bands = layout.activePlacements(
+            atMilliseconds: timestampMilliseconds
+        ).map {
+            paddedBand(
+                SubtitleBand(
+                    y1: max(0, Int(floor($0.minY))),
+                    y2: min(height - 1, Int(ceil($0.maxY)) - 1)
+                ),
+                frameHeight: height
+            )
+        }
+        return RenderedSubtitleFrame(
+            image: composedImage,
+            subtitleBands: mergeBands(bands)
+        )
+    }
+
+    static func _renderSRTFrameForTesting(
+        cues: [PlaybackSubtitleCue],
+        timestampMilliseconds: Int,
+        frameImage: CGImage
+    ) throws -> CGImage {
+        try renderSRTFrame(
+            cues: cues,
+            timestampMilliseconds: timestampMilliseconds,
+            frameImage: frameImage
+        ).image
+    }
+
     private static func makeASSSession(
         source: PlaybackSubtitleSource,
         timestampMilliseconds: Int,
         frameWidth: Int,
         frameHeight: Int
     ) throws -> SFXASSRendererSession {
-        let requestedFontNames = source.format == .ass
-            ? try? ASSPlaybackFontIntentProvider.requestedFontNames(
-                sourcePath: source.url.path,
-                renderCacheDatabaseURL: source.renderCacheDatabaseURL
+        guard source.format == .ass else {
+            throw SubtitleScreenshotExportError.unsupportedSubtitleFormat(
+                source.format.rawValue
             )
-            : nil
+        }
+        let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
+            sourcePath: source.url.path,
+            renderCacheDatabaseURL: source.renderCacheDatabaseURL
+        )
 
-        if source.format == .ass,
-           let segment = try indexedRenderSegment(
+        if let segment = try indexedRenderSegment(
                 source: source,
                 timestampMilliseconds: timestampMilliseconds
            )
@@ -402,24 +527,6 @@ public enum SubtitleScreenshotExporter {
             return try SFXASSRendererSession(
                 assScript: renderScript,
                 sourceIdentifier: "\(source.url.path)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
-                frameWidth: frameWidth,
-                frameHeight: frameHeight
-            )
-        }
-
-        if source.format == .srt {
-            let sourceScript = try String(contentsOf: source.url)
-            let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
-                script: SRTASSConverter.convert(sourceScript),
-                cues: source.speakerDisplayCues
-            )
-            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-                speakerRewrittenScript,
-                requestedFontNames: nil
-            )
-            return try SFXASSRendererSession(
-                assScript: renderScript,
-                sourceIdentifier: source.url.path,
                 frameWidth: frameWidth,
                 frameHeight: frameHeight
             )

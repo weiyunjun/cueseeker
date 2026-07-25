@@ -54,16 +54,61 @@ func currentFrameScreenshotRendererComposesCurrentASSSurface() throws {
     let composedImage = try PlaybackCurrentFrameScreenshotRenderer.compose(
         baseImage: baseImage,
         assSubtitleFrame: frame,
-        simpleSubtitleViewportOverlay: nil,
-        geometry: PlaybackScreenshotGeometry(
-            viewportSize: CGSize(width: 6, height: 4),
-            videoRect: CGRect(x: 0, y: 0, width: 6, height: 4)
-        )
+        srtSubtitleImage: nil
     )
 
     #expect(composedImage.width == 6)
     #expect(composedImage.height == 4)
     #expect(containsOpaqueRedPixel(composedImage))
+}
+
+@Test
+func currentFrameScreenshotRendererComposesSharedSRTImage() throws {
+    let pixelBuffer = try makeScreenshotPixelBuffer(width: 640, height: 360)
+    let baseImage = try PlaybackCurrentFrameScreenshotRenderer.render(
+        pixelBuffer: pixelBuffer
+    )
+    let layout = try #require(
+        SRTSubtitleRenderer.makeLayout(
+            cues: [
+                PlaybackSubtitleCue(
+                    sourceOrdinal: 0,
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 3_000,
+                    text: "（ミコト）はい"
+                )
+            ],
+            canvasSize: CGSize(width: 640, height: 360)
+        )
+    )
+    let subtitleImage = try #require(
+        SRTSubtitleRenderer.image(
+            layout: layout,
+            atMilliseconds: 2_000
+        )
+    )
+
+    let composedImage = try PlaybackCurrentFrameScreenshotRenderer.compose(
+        baseImage: baseImage,
+        assSubtitleFrame: nil,
+        srtSubtitleImage: subtitleImage
+    )
+
+    #expect(composedImage.width == 640)
+    #expect(composedImage.height == 360)
+    #expect(containsBrightPixel(composedImage))
+    let topHalf = try #require(
+        composedImage.cropping(
+            to: CGRect(x: 0, y: 0, width: 640, height: 180)
+        )
+    )
+    let bottomHalf = try #require(
+        composedImage.cropping(
+            to: CGRect(x: 0, y: 180, width: 640, height: 180)
+        )
+    )
+    #expect(!containsBrightPixel(topHalf))
+    #expect(containsBrightPixel(bottomHalf))
 }
 
 private func makeScreenshotPixelBuffer(width: Int, height: Int) throws -> CVPixelBuffer {
@@ -164,5 +209,31 @@ private func containsOpaqueRedPixel(_ image: CGImage) -> Bool {
             && bytes[index + 1] < 16
             && bytes[index + 2] < 16
             && bytes[index + 3] > 240
+    }
+}
+
+private func containsBrightPixel(_ image: CGImage) -> Bool {
+    let bytesPerRow = image.width * 4
+    var bytes = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+    guard let context = CGContext(
+        data: &bytes,
+        width: image.width,
+        height: image.height,
+        bitsPerComponent: 8,
+        bytesPerRow: bytesPerRow,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(
+            rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
+        ).rawValue
+    ) else {
+        return false
+    }
+    context.draw(
+        image,
+        in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+    )
+    return stride(from: 0, to: bytes.count, by: 4).contains {
+        bytes[$0] > 240 && bytes[$0 + 1] > 240 && bytes[$0 + 2] > 240
     }
 }
