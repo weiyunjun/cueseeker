@@ -82,49 +82,55 @@ Vertical Position：`100%`
 Display Subtitles in Letterboxes While in Full Screen：On（仅记录 IINA 参考值）
 Scale Subtitles with Window Size：On（仅记录 IINA 参考值）
 CueSeeker Effective Letterbox Behavior：Off
-除 Letterbox 画布规则外，其余样式值直接用于 SRT Renderer，不生成 ASS Style。
+除 Letterbox 画布规则外，其余样式值作为 SRT Renderer 的视觉参考，不生成 ASS Style。
+IINA/mpv 的 `Size 55` 是高度为 720 的逻辑字幕画布中的 scaled pixel 参考值，不等同于 CoreText 的 `55 pt`。
+CueSeeker 必须通过高度为 720 的真实画面与 IINA 默认样式对齐，确定并固定一个 CoreText Base Font Size。
 CueSeeker 的字幕尺寸始终根据视频实际画布高度缩放，不根据包含黑边的播放器窗口高度缩放。
 `sans-serif` 是逻辑字体族，由 macOS 字体系统解析。
-当前字体缺少字符时必须进行逐字符字体回退，不得显示缺失字形方框。
+当前字体缺少字符时必须进行字体回退，不得显示缺失字形方框。
 默认字体不加粗、不倾斜。
 允许的 SRT 行内标签可以对局部文字覆盖粗体、斜体、下划线或颜色。
 文字使用自然字体行高，不增加额外行距。
-`55` 是高度为 720 的逻辑视频画布中的默认字体大小。
-同一 Cue 内多行文字的基线距离由字体自然排版指标决定，不得在行与行之间额外添加 55 个逻辑单位。
-描边必须依据实际字形路径绘制，不得使用多个偏移文本副本模拟描边。
+同一 Cue 内多行文字的基线距离由字体自然排版指标决定，不得增加额外逻辑行距。
+描边必须使用 CoreGraphics 对实际字形执行 Stroke 后再执行 Fill，不得使用 `kCTStrokeWidth` 的字体百分比语义，不得使用多个偏移文本副本模拟描边。
 
 ## 6. 样式缩放规则
-IINA/mpv 的字体、描边和 Margin 数值按高度为 720 的逻辑字幕画布解释，不是固定 AppKit Point。
+IINA/mpv 的字体参考值按高度为 720 的逻辑字幕画布解释，不直接对应 CoreText Point。
 CueSeeker 使用视频实际画布高度计算缩放系数：
 `Scale = Video Canvas Height / 720`
 实际字体大小定义为：
-`Font Size = 55 × Scale`
+`Font Size = CoreText Base Font Size × Scale`
 实际描边大小定义为：
 `Border Size = 3 × Scale`
+CoreGraphics 文字描边线宽定义为：
+`Stroke Line Width = 2 × Border Size`
 实际水平边距定义为：
 `Margin X = 25 × Scale`
 实际垂直边距定义为：
 `Margin Y = 22 × Scale`
-不同重叠 Cue 的额外间距定义为：
-`Cue Gap = 22 × Scale`
+不同重叠 Cue 不增加额外空白：
+`Cue Gap = 0`
 例如视频画布高度为 360 时：
-`Font Size = 27.5`
+`Font Size = CoreText Base Font Size × 0.5`
 `Border Size = 1.5`
+`Stroke Line Width = 3`
 `Margin X = 12.5`
 `Margin Y = 11`
-`Cue Gap = 11`
+`Cue Gap = 0`
 例如视频画布高度为 720 时：
-`Font Size = 55`
+`Font Size = CoreText Base Font Size`
 `Border Size = 3`
+`Stroke Line Width = 6`
 `Margin X = 25`
 `Margin Y = 22`
-`Cue Gap = 22`
+`Cue Gap = 0`
 例如视频画布高度为 1080 时：
-`Font Size = 82.5`
+`Font Size = CoreText Base Font Size × 1.5`
 `Border Size = 4.5`
+`Stroke Line Width = 9`
 `Margin X = 37.5`
 `Margin Y = 33`
-`Cue Gap = 33`
+`Cue Gap = 0`
 Retina Backing Scale 只影响栅格精度，不得再次放大字幕的视觉尺寸。
 播放器窗口尺寸变化时允许重新计算布局。
 同一视频画布尺寸下不得因显示刷新、播放控制栏状态或窗口外部尺寸变化产生尺寸漂移。
@@ -182,11 +188,11 @@ SRT 序号不参与播放排序、碰撞排序或 Cue 身份判断。
 开始时间相同时，Source Ordinal 较小的 Cue 优先靠近底部。
 碰撞检测必须使用排版后的完整视觉边界。
 完整视觉边界包括显式换行、自动换行、字体回退、填充、描边、行内样式和 Speaker 前缀。
-两个不同重叠 Cue 的完整视觉边界之间必须额外保留：
-`Cue Gap = 22 × Scale`
-Cue Gap 只用于不同重叠 Cue 之间。
+两个不同重叠 Cue 不增加额外间距：
+`Cue Gap = 0`
+两个不同 Cue 的完整视觉边界允许相接，但不得相交。
+Margin Y 只用于字幕与视频画布底边之间的距离，不得用于不同 Cue 之间。
 Cue Gap 不应用于同一 Cue 内部的多行文字。
-两个 Cue 的完整视觉边界及其 Cue Gap 不得相交。
 即使两个 Cue 的时间、文本和样式完全相同，只要它们是不同源物理块，也必须形成两个独立布局结果。
 不得通过修改时间戳、合并不同文本、合并物理 Cue、减小字体或隐藏旧 Cue 来解决正常碰撞。
 空间不足时的处理遵守本需求“空间不足”章节。
@@ -199,7 +205,7 @@ Cue B：
 `00:00:02,000 --> 00:00:07,000`
 00:00:00 至 00:00:02 期间，只显示 Cue A，位于底部默认位置。
 00:00:02 至 00:00:05 期间，Cue A 保持原位置。
-Cue B 放在 Cue A 上方，并与 Cue A 的完整视觉边界保持 Cue Gap。
+Cue B 放在 Cue A 上方，两个 Cue 的完整视觉边界允许相接但不得相交。
 00:00:05 至 00:00:07 期间，Cue B 保持其原有位置，不因 Cue A 消失而突然下跳。
 同一个 Cue 在其有效期间不得改变位置。
 只有视频画布尺寸、字幕样式或播放源发生变化时，才允许重新计算该 Cue 的位置。
@@ -334,10 +340,10 @@ Subtitle Screenshot Exporter 在 SRT 分支直接调用共享 SRT Renderer。
 时间测试必须覆盖半开区间、End 等于下一条 Start、完全同时、部分交叉、多层交叉和零长度 Cue。
 物理 Cue 测试必须证明两个时间、文本和样式完全相同的源字幕块会产生两个独立 Playback Cue 和两个布局结果。
 布局测试必须覆盖单行、多行、自动换行、超长单词、CJK、Emoji、RTL、字体回退、Speaker 前缀和空间不足。
-Cue Gap 测试必须证明视频画布高度为 360、720、1080 时，不同重叠 Cue 的完整视觉边界间距分别为 11、22、33。
+Cue Gap 测试必须证明视频画布高度为 360、720、1080 时，不同重叠 Cue 的额外间距均为 0，完整视觉边界允许相接但不得相交。
 稳定性测试必须证明同一时间点通过连续播放、向前 Seek、向后 Seek和截图导出得到相同 Placement。
 交叉时间戳测试必须证明仍处于有效期内的 Cue 不会在另一条 Cue 结束后下跳。
-缩放测试必须验证视频画布高度为 360、720 和 1080 时字体、描边、Margin 和 Cue Gap 的数值。
+缩放测试必须验证视频画布高度为 360、720 和 1080 时，字体大小分别为 CoreText Base Font Size 的 0.5、1 和 1.5 倍，并验证描边和 Margin 数值。
 画布测试必须证明普通窗口、全屏、窗口缩放及 Letterbox 下，字幕完整视觉边界始终包含在视频实际 Presentation Rect 内。
 控制栏测试必须证明播放控制栏出现、隐藏或改变透明度不会改变字幕 Placement。
 控制栏测试允许控制栏暂时覆盖字幕，不得将该覆盖识别为字幕碰撞或空间不足。
@@ -350,44 +356,13 @@ ASS 回归测试必须证明 ASS 渲染、字体、Style、截图和分段加载
 
 ## 23. 视觉验收
 使用相同视频、相同 SRT、相同视频画布尺寸，与 IINA 默认 Text Subtitles 设置进行并排比较。
+视觉验收必须包含真实日语视频和真实日语 SRT。
+合成黑色背景只能用于验证绘制、透明度和坐标，不得单独作为最终视觉验收。
 IINA 的字体、字号、颜色、描边、水平边距、垂直边距和缩放规则作为视觉参考。
 CueSeeker 不采用 IINA 的全屏 Letterbox 字幕画布行为。
-高度为 720 时，字体大小、描边、水平边距、底部边距和整体位置必须符合本需求中的数值。
-高度为 1080 时，所有样式尺寸必须按 1.5 倍缩放。
+高度为 720 时，CoreText Base Font Size、描边、水平边距、底部边距和整体位置必须与 IINA 默认样式完成视觉对齐，不得把 IINA `Size 55` 直接解释为 CoreText `55 pt`。
+高度为 1080 时，字体、描边、水平边距和底部边距必须在 720 校准结果上按 1.5 倍缩放。
 普通窗口、全屏、窗口缩放、退出全屏及 Letterbox 下，字幕不得出现明显位置跳变、尺寸错误或裁剪方向错误。
 字幕的文字、描边和完整视觉边界不得进入视频实际 Presentation Rect 以外的黑边区域。
 视频实际 Presentation Rect 相同时，不同播放器窗口尺寸必须得到相同的字幕尺寸和 Placement。
-两条完全同时字幕必须同时显示并向上堆叠。
-两条时间、文本和样式完全相同但属于不同源物理块的 Cue，也必须分别显示并向上堆叠。
-不同重叠 Cue 的完整视觉边界之间必须保持 22 个基于高度 720 视频画布缩放的逻辑单位。
-部分交叉字幕在交叉期间不得覆盖。
-持续显示的 Cue 不得在另一条 Cue 结束时突然下跳。
-播放控制栏出现或隐藏时字幕不得移动。
-播放控制栏显示期间允许暂时覆盖字幕。
-播放画面、Current Frame Screenshot、Subtitle Screenshot 和 Collage 的字幕方向、样式、相对位置和重叠顺序必须一致。
-
-## 24. 完成条件
-代码中不存在 SRT→ASS 的运行时路径。
-`SRTASSConverter` 被移除。
-SRT 播放和截图不会创建 `SFXASSRendererSession`。
-SRT 播放和截图不会调用 libass。
-SRT 与 ASS 使用相互独立的渲染入口。
-播放渲染保留源 SRT 的全部物理 Cue，不受数据库和索引去重结果影响。
-字幕画布始终限制在视频实际 Presentation Rect 内，不进入 Letterbox 黑边。
-不同重叠 Cue 使用 22 个基于高度 720 视频画布缩放的逻辑单位作为额外间距。
-播放控制栏状态不影响字幕 Placement。
-播放、Current Frame Screenshot、Subtitle Screenshot 和 Collage 共用同一 SRT Layout 与 Drawing Core。
-所有新增和更新测试通过。
-实现记录必须说明移除的旧路径、新渲染架构、播放解析与索引解析的边界、验证样例、性能结果和与 IINA 的视觉比较结果。
-若无法满足播放和截图共用同一 Renderer，不得将本需求标记为完成。
-若 SRT 运行时路径仍会生成 ASS Script、创建 ASS Renderer Session 或调用 libass，不得将本需求标记为完成。
-
-## 25. 参考资料
-IINA 默认字幕设置：
-https://github.com/iina/iina/blob/develop/iina/Preference.swift
-mpv 文本字幕样式、缩放、Margin 和 Position 语义：
-https://mpv.io/manual/master/#subtitles
-WebVTT 多 Cue 布局与碰撞处理参考：
-https://www.w3.org/TR/webvtt1/#rendering
-美国国会图书馆 SRT 格式兼容说明：
-https://www.loc.gov/preservation/digital/formats/fdd/fdd000569.shtml
+两条完全同时字幕必须同时显示并向上堆叠，完整视觉边界允许相接但不得相交。
