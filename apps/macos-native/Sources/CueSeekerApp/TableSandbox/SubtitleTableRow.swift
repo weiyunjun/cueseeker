@@ -44,8 +44,6 @@ enum SubtitleTableCueState: Equatable {
             return "The video file is missing. The subtitle file is still available."
         case .subtitleMissing:
             return "The subtitle file is missing or could not be reconnected."
-        case .videoAndSubtitleMissing:
-            return "The video and subtitle files are missing."
         case .cueMissing:
             return "This cue could not be found in the current subtitle file."
         }

@@ -53,6 +53,27 @@ func filtersShortSRTCuesAndDeduplicatesCleanedEntries() {
 }
 
 @Test
+func indexingSkipsOneReversedTimeRangeAndKeepsValidBlocks()
+    throws
+{
+    let groups = try SRTParser.parseCueGroupsForIndexing(
+        """
+        1
+        00:00:01,000 --> 00:00:03,000
+        First Cue
+
+        2
+        00:00:06,000 --> 00:00:04,000
+        Reversed Cue
+
+        """
+    )
+
+    #expect(groups.count == 1)
+    #expect(groups.first?.cueLines.first?.content == "First Cue")
+}
+
+@Test
 func srtRenderingConversionPreservesDuplicateAndShortBlocks() {
     let contents = """
     2

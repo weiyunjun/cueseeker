@@ -21,6 +21,17 @@ enum IndexingStatus: Equatable {
     }
 }
 
+struct IndexingAuxiliaryFailure: Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        case videoMetadata
+        case automaticCover
+        case libraryPresentation
+    }
+
+    let kind: Kind
+    let message: String
+}
+
 enum LibraryFolderRemovalStatus: Equatable {
     case idle
     case removing(URL)

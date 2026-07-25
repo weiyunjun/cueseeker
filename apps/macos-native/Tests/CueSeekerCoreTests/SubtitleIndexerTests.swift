@@ -315,6 +315,288 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
 }
 
 @Test
+func replacementSubtitleWithSameSizeAndModificationDateReindexes() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let subtitleURL = try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        AAAA
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Episode.mkv")
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let indexedSubtitlePath = try #require(
+        try database.subtitleFiles().first?.subtitlePath
+    )
+    let originalSubtitleID = try #require(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: indexedSubtitlePath,
+            databaseURL: fixture.databaseURL
+        )
+    )
+    let originalModificationDate = try #require(
+        try FileManager.default.attributesOfItem(
+            atPath: subtitleURL.path
+        )[.modificationDate] as? Date
+    )
+    let originalIdentity = try #require(
+        FileResourceIdentityResolver.resourceIdentifier(
+            for: subtitleURL
+        )
+    )
+    let archivedURL = fixture.root.appendingPathComponent(
+        "Episode-original.bak"
+    )
+    try FileManager.default.moveItem(
+        at: subtitleURL,
+        to: archivedURL
+    )
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    BBBB
+
+    """.write(
+        to: subtitleURL,
+        atomically: false,
+        encoding: .utf8
+    )
+    try FileManager.default.setAttributes(
+        [.modificationDate: originalModificationDate],
+        ofItemAtPath: subtitleURL.path
+    )
+    let replacementIdentity = try #require(
+        FileResourceIdentityResolver.resourceIdentifier(
+            for: subtitleURL
+        )
+    )
+    #expect(replacementIdentity != originalIdentity)
+
+    let result = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+
+    #expect(result.indexedSubtitleFiles == 1)
+    #expect(result.skippedUnchangedSubtitleFiles == 0)
+    #expect(
+        try SearchDatabase(path: fixture.databaseURL)
+            .search("AAAA").isEmpty
+    )
+    #expect(
+        try SearchDatabase(path: fixture.databaseURL)
+            .search("BBBB").count == 1
+    )
+    #expect(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: indexedSubtitlePath,
+            databaseURL: fixture.databaseURL
+        ) != originalSubtitleID
+    )
+}
+
+@Test
+func pendingAuxiliaryIndexWorkRetriesAfterUnchangedScan() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    _ = try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Retry metadata and presentation.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Episode.mkv")
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initial = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    let libraryID = try #require(initial.libraryID)
+    #expect(initial.pendingVideoMetadataPaths.count == 1)
+    let indexedVideoPath = try #require(
+        initial.pendingVideoMetadataPaths.first
+    )
+    guard case .affectedFolders =
+        initial.presentationRefreshRequest
+    else {
+        Issue.record("Expected an affected-folder presentation refresh")
+        return
+    }
+
+    let retry = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    #expect(!retry.hasIndexedContentChanges)
+    #expect(retry.pendingVideoMetadataPaths == [indexedVideoPath])
+    #expect(retry.presentationRefreshRequest == .fullLibrary)
+
+    let libraryDatabase = try LibraryDatabase(
+        path: fixture.databaseURL
+    )
+    try libraryDatabase.updateVideoMetadata(
+        videoFile: URL(fileURLWithPath: indexedVideoPath),
+        duration: 120,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24,
+        videoCodec: "h264"
+    )
+    try libraryDatabase
+        .refreshPresentationAfterIndexedContentChange(
+            libraryID: libraryID
+        )
+
+    let completed = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    #expect(completed.pendingVideoMetadataPaths.isEmpty)
+    #expect(completed.presentationRefreshRequest == .none)
+}
+
+@Test
+func presentationFailureKeepsPublishedSearchAndRetriesUnchangedIndex()
+    throws
+{
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+    _ = try fixture.writeSubtitle(
+        name: "Episode 1.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Existing presentation cue.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Episode 1.mkv")
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    let initial = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    let libraryID = try #require(initial.libraryID)
+    let libraryDatabase = try LibraryDatabase(
+        path: fixture.databaseURL
+    )
+    try libraryDatabase
+        .refreshPresentationAfterIndexedContentChange(
+            libraryID: libraryID
+        )
+    #expect(
+        try libraryDatabase.libraryPresentation(
+            under: [fixture.root]
+        ).first?.videos.count == 1
+    )
+
+    try executeDatabaseTestSQLite(
+        at: fixture.databaseURL,
+        """
+        CREATE TRIGGER reject_library_presentation_insert
+        BEFORE INSERT ON library_video_rows
+        BEGIN
+            SELECT RAISE(ABORT, 'injected presentation failure');
+        END;
+        """
+    )
+    _ = try fixture.writeSubtitle(
+        name: "Episode 2.srt",
+        contents: """
+        1
+        00:00:04,000 --> 00:00:06,000
+        Newly published searchable cue.
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Episode 2.mkv")
+
+    let published = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    #expect(
+        try SearchDatabase(path: fixture.databaseURL)
+            .search("Newly published searchable cue").count == 1
+    )
+    var presentationFailed = false
+    do {
+        guard case .affectedFolders(let folderPaths) =
+            published.presentationRefreshRequest
+        else {
+            Issue.record(
+                "Expected a scoped presentation refresh request"
+            )
+            return
+        }
+        try libraryDatabase
+            .refreshPresentationAfterIndexedContentChange(
+                affectedFolderPaths: Set(folderPaths),
+                clearingRetryForLibraryID: libraryID
+            )
+    } catch {
+        presentationFailed = true
+    }
+    #expect(presentationFailed)
+    #expect(
+        try libraryDatabase.libraryPresentation(
+            under: [fixture.root]
+        ).first?.videos.count == 1
+    )
+
+    let retry = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    #expect(!retry.hasIndexedContentChanges)
+    #expect(retry.presentationRefreshRequest == .fullLibrary)
+
+    try executeDatabaseTestSQLite(
+        at: fixture.databaseURL,
+        "DROP TRIGGER reject_library_presentation_insert;"
+    )
+    try libraryDatabase
+        .refreshPresentationAfterIndexedContentChange(
+            libraryID: libraryID
+        )
+    #expect(
+        try libraryDatabase.libraryPresentation(
+            under: [fixture.root]
+        ).first?.videos.count == 2
+    )
+    #expect(
+        try indexer.index(
+            folder: fixture.root,
+            into: database
+        ).presentationRefreshRequest == .none
+    )
+}
+
+@Test
 func unchangedIndexDoesNotWriteIndexedResourcesOrDerivedRows() throws {
     let fixture = try IndexingFixture()
     defer {
@@ -644,6 +926,68 @@ func malformedSubtitleDoesNotReplaceTheLastSuccessfulIndex() throws {
             .search("Last successful")
             .count == 1
     )
+}
+
+@Test
+func reversedSRTBlockIsSkippedWhileValidBlocksPublish() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let subtitleURL = try fixture.writeSubtitle(
+        name: "Episode.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        First Cue
+
+        2
+        00:00:04,000 --> 00:00:06,000
+        Second Cue
+
+        """
+    )
+    _ = try fixture.writeVideo(name: "Episode.mkv")
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let originalModificationDate = try #require(
+        try FileManager.default.attributesOfItem(
+            atPath: subtitleURL.path
+        )[.modificationDate] as? Date
+    )
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    First Cue
+
+    2
+    00:00:06,000 --> 00:00:04,000
+    Second Cue
+
+    """.write(
+        to: subtitleURL,
+        atomically: false,
+        encoding: .utf8
+    )
+    try FileManager.default.setAttributes(
+        [
+            .modificationDate:
+                originalModificationDate.addingTimeInterval(1)
+        ],
+        ofItemAtPath: subtitleURL.path
+    )
+
+    let result = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    let search = try SearchDatabase(path: fixture.databaseURL)
+
+    #expect(result.indexedSubtitleFiles == 1)
+    #expect(try search.search("First Cue").count == 1)
+    #expect(try search.search("Second Cue").isEmpty)
 }
 
 @Test
@@ -1289,7 +1633,7 @@ func referencedCueTombstoneSurvivesMissingResourcesAndRestoresCueID() throws {
     _ = try indexer.index(folder: fixture.root, into: database)
     #expect(
         try shioriDatabase.shiori(id: saved.id)?.unavailableReason
-            == .videoAndSubtitleMissing
+            == .subtitleMissing
     )
 
     try FileManager.default.moveItem(at: detachedVideo, to: videoFile)
@@ -1319,6 +1663,89 @@ func referencedCueTombstoneSurvivesMissingResourcesAndRestoresCueID() throws {
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
     #expect(try shioriDatabase.removeShiori(id: saved.id))
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
+}
+
+@Test
+func missingCueRemainsThePriorityWhenVideoLaterDisappears()
+    throws
+{
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+    let subtitleURL = try fixture.writeSubtitle(
+        name: "Priority.srt",
+        contents: """
+        1
+        00:00:01,000 --> 00:00:03,000
+        First Cue
+
+        2
+        00:00:04,000 --> 00:00:06,000
+        Second Cue
+
+        """
+    )
+    let videoURL = try fixture.writeVideo(name: "Priority.mkv")
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let playback = try PlaybackSubtitleDatabase(
+        path: fixture.databaseURL
+    )
+    let indexedSubtitleURL = URL(
+        fileURLWithPath: try #require(
+            try database.subtitleFiles().first?.subtitlePath
+        )
+    )
+    let cueLineRecords = try playback.cueLineRecords(
+        forSubtitleFile: indexedSubtitleURL
+    )
+    let secondCue = try #require(
+        cueLineRecords.filter {
+            $0.line.content == "Second Cue"
+        }.first
+    )
+    let saved = try ShioriDatabase(path: fixture.databaseURL)
+        .upsertShiori(selection: shioriSelection(secondCue))
+    let originalModificationDate = try #require(
+        try FileManager.default.attributesOfItem(
+            atPath: subtitleURL.path
+        )[.modificationDate] as? Date
+    )
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    First Cue
+
+    """.write(
+        to: subtitleURL,
+        atomically: false,
+        encoding: .utf8
+    )
+    try FileManager.default.setAttributes(
+        [
+            .modificationDate:
+                originalModificationDate.addingTimeInterval(1)
+        ],
+        ofItemAtPath: subtitleURL.path
+    )
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let shioriDatabase = try ShioriDatabase(
+        path: fixture.databaseURL
+    )
+    #expect(
+        try shioriDatabase.shiori(id: saved.id)?
+            .unavailableReason == .cueMissing
+    )
+
+    try FileManager.default.removeItem(at: videoURL)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(
+        try shioriDatabase.shiori(id: saved.id)?
+            .unavailableReason == .cueMissing
+    )
 }
 
 private struct IndexingFixture {

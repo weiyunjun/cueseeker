@@ -44,6 +44,7 @@ Fields:
 - `last_successful_index_at`
 - `latest_index_token`
 - `published_index_token`
+- `presentation_retry_pending`
 - `created_at`
 - `updated_at`
 
@@ -64,6 +65,9 @@ Notes:
   that may reference those files.
 - Index publication tokens ensure that only the newest run for one Library may
   publish.
+- `presentation_retry_pending` is rebuildable recovery state. It remains set
+  when Library presentation refresh fails after a successful main-index
+  publication and is cleared only by a successful refresh.
 
 ## 3.1 Library Folder
 
@@ -122,6 +126,7 @@ Expected fields:
 - `file_size`
 - `modified_at`
 - `duration`
+- `duration_retry_pending`
 - `video_width`
 - `video_height`
 - `frame_rate`
@@ -142,6 +147,10 @@ Notes:
 - Library rows should use video file identity and duration from indexed video
   metadata. Reindexing is the expected refresh path when older indexed rows do
   not have duration metadata.
+- `duration_retry_pending` records that media inspection must run again on the
+  next Index even when the video and subtitle metadata are unchanged. A failed
+  inspection preserves the previous valid duration and clears this flag only
+  after a successful metadata update.
 - The indexed video metadata needed to render the Library list is persistent
   local derived-index state. The app should hydrate the Library list from this
   metadata during startup before the first visible main-window render, rather
@@ -489,7 +498,7 @@ docs/engineering/05_database_rules.md
 
 Current native schema:
 
-- Implemented schema version: `36`.
+- Implemented schema version: `37`.
 - Uses SQLite `PRAGMA user_version`.
 - Version 3 introduces the ASS cue model with `subtitle_files`,
   `video_files`, `subtitle_video_matches`, `subtitle_cue_groups`,
@@ -545,6 +554,10 @@ Current native schema:
   destructive Cue foreign-key cascade from Shiori relations.
 - Version 36 binds generated and user-selected folder covers to permanent
   FolderID while retaining the current folder path as mutable lookup data.
+- Version 37 adds durable retry markers for video metadata and Library
+  presentation refresh. It also normalizes persisted Shiori Tombstone reasons
+  to the single-reason priority model without changing permanent IDs or user
+  data.
 
 ## 15. Flutter Data Compatibility
 

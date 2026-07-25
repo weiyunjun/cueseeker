@@ -222,6 +222,18 @@ struct SettingsLibraryCategory: View {
                     }
                 }
             }
+            ForEach(
+                Array(indexing.auxiliaryFailures.enumerated()),
+                id: \.offset
+            ) { _, failure in
+                Label(
+                    failure.message,
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .lineLimit(2)
+            }
         }
     }
 

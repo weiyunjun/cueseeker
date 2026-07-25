@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 36
+    public static let currentSchemaVersion = 37
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -36,6 +36,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 33
                 || previousVersion == 34
                 || previousVersion == 35
+                || previousVersion == 36
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -51,6 +52,13 @@ private extension DatabaseBootstrap {
         }
         if previousVersion == 33 || previousVersion == 34 || previousVersion == 35 {
             try migrateSchema35To36(on: database)
+        }
+        if previousVersion == 33
+            || previousVersion == 34
+            || previousVersion == 35
+            || previousVersion == 36
+        {
+            try migrateSchema36To37(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -72,6 +80,7 @@ private extension DatabaseBootstrap {
                     last_successful_index_at TEXT,
                     latest_index_token INTEGER NOT NULL DEFAULT 0,
                     published_index_token INTEGER NOT NULL DEFAULT 0,
+                    presentation_retry_pending INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -177,6 +186,7 @@ private extension DatabaseBootstrap {
                 file_size INTEGER,
                 modified_at REAL,
                 duration REAL,
+                duration_retry_pending INTEGER NOT NULL DEFAULT 0,
                 video_width INTEGER,
                 video_height INTEGER,
                 frame_rate REAL,
@@ -841,6 +851,42 @@ private extension DatabaseBootstrap {
                     WHERE folder_id IS NOT NULL;
 
                 PRAGMA user_version = 36;
+                """
+            )
+        }
+    }
+
+    static func migrateSchema36To37(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                ALTER TABLE search_paths
+                    ADD COLUMN presentation_retry_pending INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE video_files
+                    ADD COLUMN duration_retry_pending INTEGER NOT NULL DEFAULT 0;
+
+                UPDATE cue_tombstones
+                SET unavailable_reason = CASE
+                    WHEN unavailable_reason = 'cue_missing'
+                    THEN 'cue_missing'
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM subtitle_files sf
+                        WHERE sf.id = cue_tombstones.subtitle_file_id
+                          AND sf.binding_state = 'removed'
+                    )
+                    THEN 'library_unavailable'
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM subtitle_files sf
+                        WHERE sf.id = cue_tombstones.subtitle_file_id
+                          AND sf.binding_state <> 'available'
+                    )
+                    THEN 'subtitle_missing'
+                    ELSE 'cue_missing'
+                END;
+
+                PRAGMA user_version = 37;
                 """
             )
         }

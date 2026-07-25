@@ -35,6 +35,67 @@ func movingLibraryRootPreservesLibraryIDButReplacementAtOldPathGetsNewID() throw
 }
 
 @Test
+func unavailablePlatformIdentityUsesSamePathAsFallbackBinding() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    let subtitle = URL(
+        fileURLWithPath: "/Unavailable NAS/Episode.srt"
+    )
+    let video = URL(
+        fileURLWithPath: "/Unavailable NAS/Episode.mkv"
+    )
+
+    try database.replaceEntries(
+        subtitleFile: subtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "Original NAS text")]
+    )
+    let originalSubtitleID = try #require(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: subtitle.path,
+            databaseURL: databaseURL
+        )
+    )
+    let originalVideoID = try #require(
+        try sqliteRowID(
+            table: "video_files",
+            pathColumn: "path",
+            path: video.path,
+            databaseURL: databaseURL
+        )
+    )
+
+    try database.replaceEntries(
+        subtitleFile: subtitle,
+        videoFile: video,
+        entries: [simpleTestEntry(text: "Edited NAS text")]
+    )
+
+    #expect(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: subtitle.path,
+            databaseURL: databaseURL
+        ) == originalSubtitleID
+    )
+    #expect(
+        try sqliteRowID(
+            table: "video_files",
+            pathColumn: "path",
+            path: video.path,
+            databaseURL: databaseURL
+        ) == originalVideoID
+    )
+}
+
+@Test
 func movingLibraryFolderPreservesFolderVideoAndSubtitleIDs() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerBindingMove-\(UUID().uuidString)")

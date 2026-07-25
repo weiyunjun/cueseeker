@@ -8,6 +8,7 @@ final class IndexingStore: ObservableObject {
 
     @Published var selectedFolders: [URL]
     @Published var indexingStatus: IndexingStatus = .idle
+    @Published var auxiliaryFailures: [IndexingAuxiliaryFailure] = []
     @Published var folderRemovalStatus: LibraryFolderRemovalStatus = .idle
     @Published var removedFolderNotice: URL?
     @Published var databaseStorageStats: DatabaseStorageStats?

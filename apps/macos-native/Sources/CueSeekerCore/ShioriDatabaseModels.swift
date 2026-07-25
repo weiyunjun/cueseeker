@@ -129,7 +129,6 @@ public enum ShioriUnavailableReason: String, Equatable, Sendable {
     case libraryUnavailable = "library_unavailable"
     case videoMissing = "video_missing"
     case subtitleMissing = "subtitle_missing"
-    case videoAndSubtitleMissing = "video_and_subtitle_missing"
     case cueMissing = "cue_missing"
 }
 

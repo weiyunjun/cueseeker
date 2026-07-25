@@ -1,5 +1,11 @@
 import Foundation
 
+public enum LibraryPresentationRefreshRequest: Equatable, Sendable {
+    case none
+    case affectedFolders([String])
+    case fullLibrary
+}
+
 public struct SubtitleIndexingResult: Equatable, Sendable {
     public var scannedSubtitleFiles: Int = 0
     public var indexedSubtitleFiles: Int = 0
@@ -12,6 +18,10 @@ public struct SubtitleIndexingResult: Equatable, Sendable {
     public var affectedVideoPaths: [String] = []
     public var affectedFolderPaths: [String] = []
     public var clearedCueChangeNotices = false
+    public var libraryID: Int64?
+    public var pendingVideoMetadataPaths: [String] = []
+    public var presentationRefreshRequest:
+        LibraryPresentationRefreshRequest = .none
 
     public var hasIndexedContentChanges: Bool {
         !changedSubtitlePaths.isEmpty || !affectedVideoPaths.isEmpty
@@ -54,6 +64,8 @@ struct PreparedSubtitleIndexFile: Sendable {
 struct PreparedSubtitleBindingRefresh: Sendable {
     let subtitleFile: URL
     let videoFile: URL
+    let subtitleResourceIdentity: String?
+    let refreshesSubtitleIdentity: Bool
 }
 
 struct PreparedLibraryIndex: Sendable {
@@ -66,10 +78,13 @@ struct PreparedLibraryIndex: Sendable {
 }
 
 struct PublishedLibraryIndexMutation: Equatable, Sendable {
+    let libraryID: Int64
     let changedSubtitlePaths: Set<String>
     let affectedVideoPaths: Set<String>
     let affectedFolderPaths: Set<String>
     let clearedCueChangeNotices: Bool
+    let pendingVideoMetadataPaths: Set<String>
+    let presentationRefreshRequest: LibraryPresentationRefreshRequest
 }
 
 public struct SubtitleIndexer {
@@ -143,6 +158,10 @@ public struct SubtitleIndexer {
             }
             let fileSize = (attributes[.size] as? NSNumber)?.int64Value
             let modifiedAt = attributes[.modificationDate] as? Date
+            let subtitleResourceIdentity =
+                FileResourceIdentityResolver.resourceIdentifier(
+                    for: subtitleFile
+                )
 
             if let metadata = existingFiles[subtitleFile.path],
                try isSubtitleContentUnchanged(
@@ -151,18 +170,28 @@ public struct SubtitleIndexer {
                     database: database,
                     playbackDatabase: playbackDatabase,
                     fileSize: fileSize,
-                    modifiedAt: modifiedAt
+                    modifiedAt: modifiedAt,
+                    resourceIdentity: subtitleResourceIdentity
                )
             {
                 keptSubtitlePaths.insert(subtitleFile.path)
-                if videoBindingNeedsRefresh(
+                let refreshesSubtitleIdentity =
+                    metadata.subtitleResourceIdentity
+                        != subtitleResourceIdentity
+                if refreshesSubtitleIdentity
+                    || videoBindingNeedsRefresh(
                     metadata: metadata,
                     videoFile: videoFile
-                ) {
+                    )
+                {
                     bindingRefreshes.append(
                         PreparedSubtitleBindingRefresh(
                             subtitleFile: subtitleFile,
-                            videoFile: videoFile
+                            videoFile: videoFile,
+                            subtitleResourceIdentity:
+                                subtitleResourceIdentity,
+                            refreshesSubtitleIdentity:
+                                refreshesSubtitleIdentity
                         )
                     )
                 }
@@ -248,6 +277,11 @@ public struct SubtitleIndexer {
         result.affectedFolderPaths = mutation.affectedFolderPaths.sorted()
         result.clearedCueChangeNotices =
             mutation.clearedCueChangeNotices
+        result.libraryID = mutation.libraryID
+        result.pendingVideoMetadataPaths =
+            mutation.pendingVideoMetadataPaths.sorted()
+        result.presentationRefreshRequest =
+            mutation.presentationRefreshRequest
 
         return result
     }
@@ -258,7 +292,8 @@ public struct SubtitleIndexer {
         database: IndexingDatabase,
         playbackDatabase: PlaybackSubtitleDatabase,
         fileSize: Int64?,
-        modifiedAt: Date?
+        modifiedAt: Date?,
+        resourceIdentity: String?
     ) throws -> Bool {
         guard metadata.fileSize == fileSize,
               metadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion,
@@ -269,6 +304,13 @@ public struct SubtitleIndexer {
         }
 
         guard abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001 else {
+            return false
+        }
+
+        if let storedResourceIdentity = metadata.subtitleResourceIdentity,
+           let resourceIdentity,
+           storedResourceIdentity != resourceIdentity
+        {
             return false
         }
 

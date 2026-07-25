@@ -88,9 +88,10 @@ identity.
 - Preserved exact multiline Primary Cue and Cue Group snapshots, time ranges,
   display metadata, ASS identity fields, and current resource state without
   accumulating one Tombstone per index revision.
-- Distinguished unavailable Library, video, subtitle, combined file, and Cue
-  states; restored missing-video bindings only when platform resource identity
-  proves that the original object returned.
+- Distinguished unavailable Library, video, subtitle, and Cue states with one
+  displayed reason in `Cue > Subtitle > Video` priority; restored
+  missing-video bindings only when platform resource identity proves that the
+  original object returned.
 - Hid confirmed unavailable videos from current Library, Search, and Recent
   projections while preserving playback history, watch state, covers, and
   Shiori records.
@@ -136,8 +137,45 @@ identity.
   Cue and a Cue that becomes unavailable while its subtitle and video remain
   bound.
 
+### 9. Audit Follow-Up: Identity And Auxiliary Recovery
+
+- Added subtitle resource identity to unchanged-file detection. When both
+  stored and current platform identities exist and differ, the same path,
+  size, and modification date no longer suppress reindexing or allow the new
+  resource to inherit the old SubtitleID.
+- Kept the accepted standard-path fallback when either platform identity is
+  unavailable, including replacing or clearing the stored identity with the
+  current observation without reparsing unchanged subtitle content.
+- Separated video metadata, generated covers, and Library presentation refresh
+  from main-index success. Their failures are surfaced independently and do
+  not turn an already published Search Index into a failed Index result.
+- Advanced the schema to 37 with persistent retry markers for failed duration
+  inspection and Library presentation refresh. Successful metadata and
+  presentation writes clear their marker transactionally; unchanged later
+  Index runs retry outstanding work. Generated-cover failures remain
+  non-retrying.
+- Kept reversed SRT time ranges as block-local invalid data: the invalid block
+  is skipped and other valid blocks publish.
+- Removed the combined video/subtitle unavailable reason and recompute Shiori
+  state from the current Cue, subtitle, and video bindings. A missing Cue
+  remains the highest-priority reason if the video later disappears.
+
 ## Verification
 
+- `swift test --filter CueSeekerCoreTests`
+  - 245 Core tests passed.
+  - Covered same-size/same-date resource replacement, unavailable-identity path
+    fallback, schema-36-to-37 migration, reversed SRT block handling,
+    durable auxiliary retries, injected Presentation failure with published
+    Search data, and Shiori unavailable-reason priority.
+- `swift test --filter CueSeekerPlaybackTests`
+  - 52 Playback tests passed.
+  - Covered failed media inspection without overwriting stored video metadata.
+- `swift test --filter 'SubtitleTableRowActionMenuTests|LibraryFolderRemovalTests'`
+  - 18 App tests passed.
+  - Covered unavailable Shiori actions and unchanged Index/UI preservation.
+- `swift build`
+  - Passed after the audit follow-up changes.
 - `swift test --filter 'shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue|tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot'`
   - 2 focused mixed-availability and title-projection tests passed.
 - `swift test --filter 'ShioriDatabaseTests|TableSandboxRowModelStoreTests'`

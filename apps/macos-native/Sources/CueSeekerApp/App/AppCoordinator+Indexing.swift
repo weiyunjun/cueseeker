@@ -2,6 +2,142 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
+private struct CompletedFolderIndex: Sendable {
+    let result: SubtitleIndexingResult
+    let auxiliaryFailures: [IndexingAuxiliaryFailure]
+    let refreshedAuxiliaryData: Bool
+}
+
+private func performFolderIndex(
+    folder: URL,
+    database: IndexingDatabase,
+    libraryDatabase: LibraryDatabase,
+    coverDatabase: LibraryCoverDatabase,
+    coverDirectory: URL,
+    displayRenditionCommitToken:
+        LibraryCoverDisplayRenditionCommitToken
+) async throws -> CompletedFolderIndex {
+    let result = try SubtitleIndexer().index(
+        folder: folder,
+        into: database
+    )
+    var failures: [IndexingAuxiliaryFailure] = []
+    var refreshedAuxiliaryData = false
+
+    if !result.pendingVideoMetadataPaths.isEmpty {
+        do {
+            let metadataResult =
+                try PlaybackVideoMetadataIndexer().indexDurations(
+                    videoFiles: result.pendingVideoMetadataPaths.map {
+                        URL(fileURLWithPath: $0)
+                    },
+                    into: libraryDatabase
+                )
+            refreshedAuxiliaryData =
+                !metadataResult.updatedVideoPaths.isEmpty
+            if let firstFailure = metadataResult.failures.first {
+                failures.append(
+                    IndexingAuxiliaryFailure(
+                        kind: .videoMetadata,
+                        message:
+                            "Video metadata failed for "
+                            + "\(metadataResult.failures.count) file(s). "
+                            + "First: \(firstFailure.reason)"
+                    )
+                )
+            }
+        } catch {
+            failures.append(
+                IndexingAuxiliaryFailure(
+                    kind: .videoMetadata,
+                    message:
+                        "Video metadata refresh failed: "
+                        + error.localizedDescription
+                )
+            )
+        }
+    }
+
+    if result.hasIndexedContentChanges {
+        do {
+            let coverResult = try await LibraryCoverIndexer(
+                configuration: .init(
+                    coverDirectory: coverDirectory,
+                    displayRenditionCommitToken:
+                        displayRenditionCommitToken
+                )
+            ).indexCovers(
+                videoPaths: Set(result.affectedVideoPaths),
+                affectedFolderPaths: Set(
+                    result.affectedFolderPaths
+                ),
+                into: coverDatabase
+            )
+            if coverResult.failedCoverCount > 0
+                || coverResult.failedDisplayCoverCount > 0
+            {
+                failures.append(
+                    IndexingAuxiliaryFailure(
+                        kind: .automaticCover,
+                        message:
+                            "Automatic cover generation failed for "
+                            + "\(coverResult.failedCoverCount) cover(s) "
+                            + "and "
+                            + "\(coverResult.failedDisplayCoverCount) "
+                            + "display rendition(s)."
+                    )
+                )
+            }
+        } catch {
+            failures.append(
+                IndexingAuxiliaryFailure(
+                    kind: .automaticCover,
+                    message:
+                        "Automatic cover generation failed: "
+                        + error.localizedDescription
+                )
+            )
+        }
+    }
+
+    if let libraryID = result.libraryID {
+        do {
+            switch result.presentationRefreshRequest {
+            case .none:
+                break
+            case .affectedFolders(let folderPaths):
+                try libraryDatabase
+                    .refreshPresentationAfterIndexedContentChange(
+                        affectedFolderPaths: Set(folderPaths),
+                        clearingRetryForLibraryID: libraryID
+                    )
+                refreshedAuxiliaryData = true
+            case .fullLibrary:
+                try libraryDatabase
+                    .refreshPresentationAfterIndexedContentChange(
+                        libraryID: libraryID
+                    )
+                refreshedAuxiliaryData = true
+            }
+        } catch {
+            failures.append(
+                IndexingAuxiliaryFailure(
+                    kind: .libraryPresentation,
+                    message:
+                        "Library presentation refresh failed: "
+                        + error.localizedDescription
+                )
+            )
+        }
+    }
+
+    return CompletedFolderIndex(
+        result: result,
+        auxiliaryFailures: failures,
+        refreshedAuxiliaryData: refreshedAuxiliaryData
+    )
+}
+
 @MainActor
 extension AppCoordinator {
     func addFolder(_ folder: URL) {
@@ -128,51 +264,43 @@ extension AppCoordinator {
         }
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
         indexing.indexingStatus = .indexing(folder)
+        indexing.auxiliaryFailures = []
 
         let coverDirectory = libraryCoverDirectory
         indexingTask = Task {
             do {
-                let result = try await Task.detached(priority: .userInitiated) {
-                    let indexer = SubtitleIndexer()
-                    let result = try indexer.index(folder: folder, into: database)
-                    if result.hasIndexedContentChanges {
-                        _ = try PlaybackVideoMetadataIndexer().indexDurations(
-                            videoFiles: result.affectedVideoPaths.map {
-                                URL(fileURLWithPath: $0)
-                            },
-                            into: libraryDatabase
-                        )
-                        let coverIndexer = LibraryCoverIndexer(
-                            configuration: .init(
-                                coverDirectory: coverDirectory,
-                                displayRenditionCommitToken: displayRenditionCommitToken
-                            )
-                        )
-                        _ = try await coverIndexer.indexCovers(
-                            videoPaths: Set(result.affectedVideoPaths),
-                            affectedFolderPaths: Set(
-                                result.affectedFolderPaths
-                            ),
-                            into: coverDatabase
-                        )
-                        try libraryDatabase
-                            .refreshPresentationAfterIndexedContentChange(
-                                affectedFolderPaths: Set(
-                                    result.affectedFolderPaths
-                                )
-                            )
-                    }
-                    return result
+                let completed = try await Task.detached(
+                    priority: .userInitiated
+                ) {
+                    try await performFolderIndex(
+                        folder: folder,
+                        database: database,
+                        libraryDatabase: libraryDatabase,
+                        coverDatabase: coverDatabase,
+                        coverDirectory: coverDirectory,
+                        displayRenditionCommitToken:
+                            displayRenditionCommitToken
+                    )
                 }.value
 
                 guard !Task.isCancelled else {
                     return
                 }
 
-                indexing.indexingStatus = .completed(folder, result)
+                indexing.indexingStatus = .completed(
+                    folder,
+                    completed.result
+                )
+                indexing.auxiliaryFailures =
+                    completed.auxiliaryFailures
                 applyPublishedIndexMutation(
-                    result,
+                    completed.result,
                     shioriFallbackFolders: [folder]
+                )
+                applyAuxiliaryDataRefreshIfNeeded(
+                    completed,
+                    mainIndexRefreshedUI:
+                        completed.result.hasIndexedContentChanges
                 )
             } catch {
                 guard !Task.isCancelled else {
@@ -215,10 +343,13 @@ extension AppCoordinator {
             completedFolders: 0,
             totalFolders: folders.count
         )
+        indexing.auxiliaryFailures = []
 
         let coverDirectory = libraryCoverDirectory
         indexingTask = Task {
             var aggregateResult: SubtitleIndexingResult?
+            var auxiliaryFailures: [IndexingAuxiliaryFailure] = []
+            var refreshedAuxiliaryData = false
 
             for (index, folder) in folders.enumerated() {
                 guard !Task.isCancelled else {
@@ -232,44 +363,34 @@ extension AppCoordinator {
                 )
 
                 do {
-                    let result = try await Task.detached(priority: .userInitiated) {
-                        let indexer = SubtitleIndexer()
-                        let result = try indexer.index(folder: folder, into: database)
-                        if result.hasIndexedContentChanges {
-                            _ = try PlaybackVideoMetadataIndexer().indexDurations(
-                                videoFiles: result.affectedVideoPaths.map {
-                                    URL(fileURLWithPath: $0)
-                                },
-                                into: libraryDatabase
-                            )
-                            let coverIndexer = LibraryCoverIndexer(
-                                configuration: .init(
-                                    coverDirectory: coverDirectory,
-                                    displayRenditionCommitToken: displayRenditionCommitToken
-                                )
-                            )
-                            _ = try await coverIndexer.indexCovers(
-                                videoPaths: Set(result.affectedVideoPaths),
-                                affectedFolderPaths: Set(
-                                    result.affectedFolderPaths
-                                ),
-                                into: coverDatabase
-                            )
-                            try libraryDatabase
-                                .refreshPresentationAfterIndexedContentChange(
-                                    affectedFolderPaths: Set(
-                                        result.affectedFolderPaths
-                                    )
-                                )
-                        }
-                        return result
+                    let completed = try await Task.detached(
+                        priority: .userInitiated
+                    ) {
+                        try await performFolderIndex(
+                            folder: folder,
+                            database: database,
+                            libraryDatabase: libraryDatabase,
+                            coverDatabase: coverDatabase,
+                            coverDirectory: coverDirectory,
+                            displayRenditionCommitToken:
+                                displayRenditionCommitToken
+                        )
                     }.value
+                    auxiliaryFailures.append(
+                        contentsOf: completed.auxiliaryFailures
+                    )
+                    refreshedAuxiliaryData =
+                        refreshedAuxiliaryData
+                        || completed.refreshedAuxiliaryData
 
                     if var currentResult = aggregateResult {
-                        aggregate(result, into: &currentResult)
+                        aggregate(
+                            completed.result,
+                            into: &currentResult
+                        )
                         aggregateResult = currentResult
                     } else {
-                        aggregateResult = result
+                        aggregateResult = completed.result
                     }
                 } catch {
                     guard !Task.isCancelled else {
@@ -277,11 +398,19 @@ extension AppCoordinator {
                     }
 
                     indexing.indexingStatus = .failed(folder, Self.errorMessage(for: error))
+                    indexing.auxiliaryFailures =
+                        auxiliaryFailures
                     if let aggregateResult {
                         applyPublishedIndexMutation(
                             aggregateResult,
                             shioriFallbackFolders: folders
                         )
+                        if refreshedAuxiliaryData
+                            && !aggregateResult
+                                .hasIndexedContentChanges
+                        {
+                            refreshLibraryAfterAuxiliaryDataMutation()
+                        }
                     }
                     return
                 }
@@ -299,10 +428,16 @@ extension AppCoordinator {
                 folderCount: folders.count,
                 aggregateResult
             )
+            indexing.auxiliaryFailures = auxiliaryFailures
             applyPublishedIndexMutation(
                 aggregateResult,
                 shioriFallbackFolders: folders
             )
+            if refreshedAuxiliaryData
+                && !aggregateResult.hasIndexedContentChanges
+            {
+                refreshLibraryAfterAuxiliaryDataMutation()
+            }
         }
     }
 
@@ -339,6 +474,25 @@ extension AppCoordinator {
         refreshCompleteLibrary()
         refreshCurrentSearch()
         refreshDatabaseStorageStats()
+    }
+
+    private func applyAuxiliaryDataRefreshIfNeeded(
+        _ completed: CompletedFolderIndex,
+        mainIndexRefreshedUI: Bool
+    ) {
+        guard completed.refreshedAuxiliaryData,
+              !mainIndexRefreshedUI
+        else {
+            return
+        }
+        refreshLibraryAfterAuxiliaryDataMutation()
+    }
+
+    private func refreshLibraryAfterAuxiliaryDataMutation() {
+        refreshLibrary()
+        refreshRecentWatching()
+        refreshLoadedTestRecentWatching()
+        refreshCompleteLibrary()
     }
 
     func restoreCurrentSearchAfterIndexedCueMutationFailure(

@@ -141,7 +141,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(37)
+    try expectUnsupportedSchemaVersion(38)
 }
 
 @Test
@@ -207,14 +207,16 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
     ]))
     #expect(try sqliteColumnNames(in: "video_files", databaseURL: databaseURL).isSuperset(of: [
         "id", "library_id", "folder_id", "relative_path", "last_known_path",
-        "resource_identity", "content_fingerprint", "binding_state", "last_seen_at"
+        "resource_identity", "content_fingerprint", "binding_state", "last_seen_at",
+        "duration_retry_pending"
     ]))
     #expect(try sqliteColumnNames(in: "subtitle_cue_lines", databaseURL: databaseURL).isSuperset(of: [
         "id", "subtitle_file_id", "source_identity_remainder"
     ]))
     #expect(try sqliteColumnNames(in: "search_paths", databaseURL: databaseURL).isSuperset(of: [
         "id", "last_known_path", "resource_identity", "binding_state", "is_configured",
-        "latest_index_token", "published_index_token"
+        "latest_index_token", "published_index_token",
+        "presentation_retry_pending"
     ]))
     #expect(try sqliteTableExists("library_folders", databaseURL: databaseURL))
     #expect(try sqliteTableExists("cue_tombstones", databaseURL: databaseURL))
@@ -240,6 +242,82 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
     #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
         "id", "name", "normalized_name", "description", "cover_path", "created_at"
     ]))
+}
+
+@Test
+func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
+    throws
+{
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        CREATE TABLE search_paths (
+            id INTEGER PRIMARY KEY
+        );
+        CREATE TABLE video_files (
+            id INTEGER PRIMARY KEY
+        );
+        CREATE TABLE subtitle_files (
+            id INTEGER PRIMARY KEY,
+            binding_state TEXT NOT NULL
+        );
+        CREATE TABLE cue_tombstones (
+            cue_id INTEGER PRIMARY KEY,
+            subtitle_file_id INTEGER NOT NULL,
+            unavailable_reason TEXT NOT NULL
+        );
+        INSERT INTO subtitle_files(id, binding_state)
+        VALUES (10, 'available'), (20, 'missing');
+        INSERT INTO cue_tombstones(
+            cue_id,
+            subtitle_file_id,
+            unavailable_reason
+        )
+        VALUES
+            (1, 10, 'video_and_subtitle_missing'),
+            (2, 20, 'video_and_subtitle_missing');
+        PRAGMA user_version = 36;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(
+        try sqliteSchemaVersion(at: databaseURL)
+            == DatabaseBootstrap.currentSchemaVersion
+    )
+    #expect(
+        try sqliteColumnNames(
+            in: "search_paths",
+            databaseURL: databaseURL
+        ).contains("presentation_retry_pending")
+    )
+    #expect(
+        try sqliteColumnNames(
+            in: "video_files",
+            databaseURL: databaseURL
+        ).contains("duration_retry_pending")
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql:
+                "SELECT unavailable_reason "
+                + "FROM cue_tombstones WHERE cue_id = 1;"
+        ) == "cue_missing"
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql:
+                "SELECT unavailable_reason "
+                + "FROM cue_tombstones WHERE cue_id = 2;"
+        ) == "subtitle_missing"
+    )
 }
 
 @Test
@@ -349,7 +427,10 @@ func migratesSchema34IdentityFoundationWithoutLosingShioriOrTags() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 36)
+    #expect(
+        try sqliteSchemaVersion(at: databaseURL)
+            == DatabaseBootstrap.currentSchemaVersion
+    )
     #expect(try sqliteRowCount(in: "shioris", databaseURL: databaseURL) == 1)
     #expect(try sqliteRowCount(in: "shiori_tag_assignments", databaseURL: databaseURL) == 1)
     #expect(try sqliteForeignKeyTables(in: "shioris", databaseURL: databaseURL) == [

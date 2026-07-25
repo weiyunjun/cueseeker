@@ -2,6 +2,19 @@ import Foundation
 import CNativePlayback
 import CueSeekerCore
 
+public struct PlaybackVideoMetadataIndexFailure:
+    Equatable,
+    Sendable
+{
+    public let videoPath: String
+    public let reason: String
+}
+
+public struct PlaybackVideoMetadataIndexResult: Equatable, Sendable {
+    public let updatedVideoPaths: [String]
+    public let failures: [PlaybackVideoMetadataIndexFailure]
+}
+
 public struct PlaybackVideoMetadataIndexer {
     public init() {}
 
@@ -9,7 +22,7 @@ public struct PlaybackVideoMetadataIndexer {
     public func indexDurations(
         under folder: URL,
         into database: any PlaybackVideoMetadataPersistence
-    ) throws -> Int {
+    ) throws -> PlaybackVideoMetadataIndexResult {
         let videos = try database.libraryVideos(under: [folder])
         return try indexDurations(
             videoFiles: videos.map {
@@ -23,27 +36,62 @@ public struct PlaybackVideoMetadataIndexer {
     public func indexDurations(
         videoFiles: [URL],
         into database: any PlaybackVideoMetadataPersistence
-    ) throws -> Int {
+    ) throws -> PlaybackVideoMetadataIndexResult {
         var updatedVideoPaths = Set<String>()
+        var failures: [PlaybackVideoMetadataIndexFailure] = []
 
         for videoFile in videoFiles {
-            guard updatedVideoPaths.insert(videoFile.path).inserted else {
+            guard !updatedVideoPaths.contains(videoFile.path),
+                  !failures.contains(where: {
+                      $0.videoPath == videoFile.path
+                  })
+            else {
                 continue
             }
 
-            let metadata = try? SFXMediaMetadataInspector.metadata(
-                atMediaPath: videoFile.path
-            )
-            try database.updateVideoMetadata(
-                videoFile: videoFile,
-                duration: metadata?.durationSeconds?.doubleValue,
-                videoWidth: metadata?.videoWidth?.intValue,
-                videoHeight: metadata?.videoHeight?.intValue,
-                frameRate: metadata?.frameRate?.doubleValue,
-                videoCodec: metadata?.videoCodec
-            )
+            do {
+                let metadata =
+                    try SFXMediaMetadataInspector.metadata(
+                        atMediaPath: videoFile.path
+                    )
+                guard let duration = metadata.durationSeconds?
+                        .doubleValue,
+                    duration.isFinite,
+                    duration >= 0
+                else {
+                    throw PlaybackVideoMetadataIndexingError
+                        .durationUnavailable
+                }
+                try database.updateVideoMetadata(
+                    videoFile: videoFile,
+                    duration: duration,
+                    videoWidth: metadata.videoWidth?.intValue,
+                    videoHeight: metadata.videoHeight?.intValue,
+                    frameRate: metadata.frameRate?.doubleValue,
+                    videoCodec: metadata.videoCodec
+                )
+                updatedVideoPaths.insert(videoFile.path)
+            } catch {
+                failures.append(
+                    PlaybackVideoMetadataIndexFailure(
+                        videoPath: videoFile.path,
+                        reason: error.localizedDescription
+                    )
+                )
+            }
         }
 
-        return updatedVideoPaths.count
+        return PlaybackVideoMetadataIndexResult(
+            updatedVideoPaths: updatedVideoPaths.sorted(),
+            failures: failures
+        )
+    }
+}
+
+private enum PlaybackVideoMetadataIndexingError: LocalizedError {
+    case durationUnavailable
+
+    var errorDescription: String? {
+        "Video duration is unavailable."
     }
 }

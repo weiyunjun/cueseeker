@@ -513,6 +513,52 @@ func sqliteSchemaVersion(at databaseURL: URL) throws -> Int {
     return Int(sqlite3_column_int64(statement, 0))
 }
 
+func sqliteStringValue(at databaseURL: URL, sql: String) throws -> String? {
+    var database: OpaquePointer?
+    guard sqlite3_open_v2(
+        databaseURL.path,
+        &database,
+        SQLITE_OPEN_READONLY,
+        nil
+    ) == SQLITE_OK
+    else {
+        let message = database.map {
+            String(cString: sqlite3_errmsg($0))
+        } ?? "Unknown SQLite error"
+        sqlite3_close(database)
+        throw DatabaseTestSQLiteError.openFailed(message)
+    }
+    defer {
+        sqlite3_close(database)
+    }
+
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(
+        database,
+        sql,
+        -1,
+        &statement,
+        nil
+    ) == SQLITE_OK,
+    let statement
+    else {
+        throw DatabaseTestSQLiteError.executeFailed(
+            String(cString: sqlite3_errmsg(database))
+        )
+    }
+    defer {
+        sqlite3_finalize(statement)
+    }
+
+    guard sqlite3_step(statement) == SQLITE_ROW,
+          sqlite3_column_type(statement, 0) != SQLITE_NULL,
+          let value = sqlite3_column_text(statement, 0)
+    else {
+        return nil
+    }
+    return String(cString: value)
+}
+
 func sqliteRowCount(in table: String, databaseURL: URL) throws -> Int {
     var database: OpaquePointer?
     guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {

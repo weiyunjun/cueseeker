@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Hardened Library Index recovery and persistent identity handling. Replacing a
+  subtitle with a different disk resource can no longer be hidden by identical
+  size and modification time, unavailable platform identities follow the
+  accepted same-path fallback, and failed video-metadata or Library
+  presentation work retries on the next Index without rolling back published
+  Search data. Reversed SRT blocks remain block-local omissions, while Shiori
+  now reports one current unavailable reason in Cue, subtitle, then video
+  priority without the obsolete combined file-missing state.
 - Corrected Shiori Date Added display to parse stored ISO 8601 UTC timestamps
   and format them in the system's local time zone instead of displaying the
   UTC date and time fields directly. Stored timestamps and Move/Duplicate time

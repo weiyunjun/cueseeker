@@ -72,18 +72,24 @@ public final class LibraryDatabase: @unchecked Sendable {
 
     public func updateVideoDuration(videoFile: URL, duration: Double?) throws {
         let normalizedDuration = Self.normalizedDuration(duration)
-        let statement = try database.prepare(
-            """
-            UPDATE video_files
-            SET duration = ?
-            WHERE path = ?;
-            """
-        )
-        try bind(normalizedDuration, to: statement, at: 1)
-        try statement.bind(videoFile.path, at: 2)
-        try statement.run()
+        try database.withImmediateTransaction {
+            let statement = try database.prepare(
+                """
+                UPDATE video_files
+                SET duration = ?,
+                    duration_retry_pending = 0
+                WHERE path = ?;
+                """
+            )
+            try bind(normalizedDuration, to: statement, at: 1)
+            try statement.bind(videoFile.path, at: 2)
+            try statement.run()
 
-        try updatePresentationDuration(videoFile: videoFile, duration: normalizedDuration)
+            try updatePresentationDuration(
+                videoFile: videoFile,
+                duration: normalizedDuration
+            )
+        }
     }
 
     public func updateVideoMetadata(
@@ -95,36 +101,54 @@ public final class LibraryDatabase: @unchecked Sendable {
         videoCodec: String?
     ) throws {
         let normalizedDuration = Self.normalizedDuration(duration)
-        let statement = try database.prepare(
-            """
-            UPDATE video_files
-            SET duration = ?,
-                video_width = ?,
-                video_height = ?,
-                frame_rate = ?,
-                video_codec = ?
-            WHERE path = ?;
-            """
-        )
-        try bind(normalizedDuration, to: statement, at: 1)
-        try bind(videoWidth.flatMap { $0 > 0 ? $0 : nil }, to: statement, at: 2)
-        try bind(videoHeight.flatMap { $0 > 0 ? $0 : nil }, to: statement, at: 3)
-        try bind(
-            frameRate.flatMap { $0.isFinite && $0 > 0 ? $0 : nil },
-            to: statement,
-            at: 4
-        )
-        let normalizedVideoCodec = videoCodec?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        try bind(
-            normalizedVideoCodec?.isEmpty == false ? normalizedVideoCodec : nil,
-            to: statement,
-            at: 5
-        )
-        try statement.bind(videoFile.path, at: 6)
-        try statement.run()
+        try database.withImmediateTransaction {
+            let statement = try database.prepare(
+                """
+                UPDATE video_files
+                SET duration = ?,
+                    video_width = ?,
+                    video_height = ?,
+                    frame_rate = ?,
+                    video_codec = ?,
+                    duration_retry_pending = 0
+                WHERE path = ?;
+                """
+            )
+            try bind(normalizedDuration, to: statement, at: 1)
+            try bind(
+                videoWidth.flatMap { $0 > 0 ? $0 : nil },
+                to: statement,
+                at: 2
+            )
+            try bind(
+                videoHeight.flatMap { $0 > 0 ? $0 : nil },
+                to: statement,
+                at: 3
+            )
+            try bind(
+                frameRate.flatMap {
+                    $0.isFinite && $0 > 0 ? $0 : nil
+                },
+                to: statement,
+                at: 4
+            )
+            let normalizedVideoCodec = videoCodec?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            try bind(
+                normalizedVideoCodec?.isEmpty == false
+                    ? normalizedVideoCodec
+                    : nil,
+                to: statement,
+                at: 5
+            )
+            try statement.bind(videoFile.path, at: 6)
+            try statement.run()
 
-        try updatePresentationDuration(videoFile: videoFile, duration: normalizedDuration)
+            try updatePresentationDuration(
+                videoFile: videoFile,
+                duration: normalizedDuration
+            )
+        }
     }
 
     private func updatePresentationDuration(videoFile: URL, duration: Double?) throws {

@@ -582,7 +582,8 @@ extension LibraryDatabase {
     }
 
     public func refreshPresentationAfterIndexedContentChange(
-        affectedFolderPaths: Set<String>
+        affectedFolderPaths: Set<String>,
+        clearingRetryForLibraryID libraryID: Int64? = nil
     ) throws {
         guard !affectedFolderPaths.isEmpty else {
             return
@@ -635,7 +636,84 @@ extension LibraryDatabase {
                 videosByFolderPath: videosByFolderPath,
                 folderPaths: folderPaths
             )
+            if let libraryID {
+                try clearPresentationRetry(libraryID: libraryID)
+            }
         }
+    }
+
+    public func refreshPresentationAfterIndexedContentChange(
+        libraryID: Int64
+    ) throws {
+        let videos = try indexedLibraryVideos(libraryID: libraryID)
+        let videosByFolderPath = Dictionary(grouping: videos) {
+            URL(fileURLWithPath: $0.videoPath)
+                .deletingLastPathComponent()
+                .standardizedFileURL.path
+        }
+        var folderPaths = Set(videosByFolderPath.keys)
+        let existingFolders = try database.prepare(
+            """
+            SELECT DISTINCT lvr.folder_path
+            FROM library_video_rows lvr
+            JOIN subtitle_files sf ON sf.id = lvr.subtitle_file_id
+            WHERE sf.library_id = ?;
+            """
+        )
+        try existingFolders.bind(libraryID, at: 1)
+        while try existingFolders.step() {
+            folderPaths.insert(existingFolders.stringColumn(0))
+        }
+        let sortedFolderPaths = folderPaths.sorted { lhs, rhs in
+            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
+            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let titleComparison =
+                lhsTitle.localizedStandardCompare(rhsTitle)
+            if titleComparison != .orderedSame {
+                return titleComparison == .orderedAscending
+            }
+            return lhs.localizedStandardCompare(rhs)
+                == .orderedAscending
+        }
+
+        try database.withImmediateTransaction {
+            if !sortedFolderPaths.isEmpty {
+                let placeholders = sortedFolderPaths.map { _ in "?" }
+                    .joined(separator: ", ")
+                let delete = try database.prepare(
+                    """
+                    DELETE FROM library_video_rows
+                    WHERE folder_path IN (\(placeholders));
+                    """
+                )
+                for (offset, folderPath) in
+                    sortedFolderPaths.enumerated()
+                {
+                    try delete.bind(
+                        folderPath,
+                        at: Int32(offset + 1)
+                    )
+                }
+                try delete.run()
+            }
+            try insertLibraryVideoRows(
+                videosByFolderPath: videosByFolderPath,
+                folderPaths: sortedFolderPaths
+            )
+            try clearPresentationRetry(libraryID: libraryID)
+        }
+    }
+
+    private func clearPresentationRetry(libraryID: Int64) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE search_paths
+            SET presentation_retry_pending = 0
+            WHERE id = ?;
+            """
+        )
+        try statement.bind(libraryID, at: 1)
+        try statement.run()
     }
 
     private func insertLibraryVideoRows(
@@ -789,6 +867,50 @@ extension LibraryDatabase {
         return videosByPath.values.sorted { lhs, rhs in
             Self.libraryVideoSort(lhs, rhs)
         }
+    }
+
+    private func indexedLibraryVideos(
+        libraryID: Int64
+    ) throws -> [LibraryVideo] {
+        let statement = try database.prepare(
+            """
+            SELECT vf.id, sf.id, vf.path, vf.video_name, vf.duration,
+                   sf.subtitle_path, sf.format
+            FROM subtitle_files sf
+            JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            WHERE sf.library_id = ?
+              AND sf.binding_state = 'available'
+              AND vf.binding_state = 'available'
+            ORDER BY vf.path ASC, sf.subtitle_path ASC;
+            """
+        )
+        try statement.bind(libraryID, at: 1)
+        var videosByPath: [String: LibraryVideo] = [:]
+        while try statement.step() {
+            let video = LibraryVideo(
+                videoFileID: statement.int64Column(0),
+                subtitleFileID: statement.int64Column(1),
+                videoPath: statement.stringColumn(2),
+                videoName: statement.stringColumn(3),
+                duration: statement.nullableDoubleColumn(4),
+                subtitlePath: statement.stringColumn(5),
+                subtitleFormat: SubtitleFormat(
+                    rawValue: statement.stringColumn(6)
+                ) ?? .srt
+            )
+            if let existing = videosByPath[video.videoPath] {
+                if video.subtitlePath.localizedStandardCompare(
+                    existing.subtitlePath
+                ) == .orderedAscending {
+                    videosByPath[video.videoPath] = video
+                }
+            } else {
+                videosByPath[video.videoPath] = video
+            }
+        }
+        return videosByPath.values.sorted(by: Self.libraryVideoSort)
     }
 
 }
