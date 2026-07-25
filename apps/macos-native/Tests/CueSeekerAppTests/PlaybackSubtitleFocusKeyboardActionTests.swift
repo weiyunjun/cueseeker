@@ -344,6 +344,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
 
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
+        #expect(app.search.isPlaybackTemporaryFilterActive)
         #expect(app.search.selectedSearchResult?.entryID == 12)
         #expect(app.playback.playlistSource?.boundary.totalCount == 60)
         #expect(app.playback.playbackSearchPlaylistOrdinal == 1)

@@ -286,7 +286,9 @@ extension AppCoordinator {
             playback.playbackViewModel?
                 .showSubtitleMarkdownLinkCopyFeedback(copied: copied)
         case .playFromThisCue:
-            guard dismissPlaybackCommandPanelForAction() else {
+            guard dismissPlaybackCommandPanelForAction(
+                finishesPlaybackSearchHost: false
+            ) else {
                 return false
             }
             openSearchResult(
@@ -372,11 +374,15 @@ extension AppCoordinator {
         return true
     }
 
-    private func dismissPlaybackCommandPanelForAction() -> Bool {
+    private func dismissPlaybackCommandPanelForAction(
+        finishesPlaybackSearchHost: Bool = true
+    ) -> Bool {
         guard playback.dismissCommandPanel() != nil else {
             return false
         }
-        finishPlaybackSearchHost(committingEmptyFilter: false)
+        if finishesPlaybackSearchHost {
+            finishPlaybackSearchHost(committingEmptyFilter: false)
+        }
         return true
     }
 

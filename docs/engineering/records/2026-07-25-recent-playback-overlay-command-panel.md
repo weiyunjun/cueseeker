@@ -95,8 +95,8 @@ speculative abstractions.
   Recent Shiori summaries, cover loader, video-card visual elements, Shiori
   row, clipboard behavior, and playback entry points.
 - Limited only the Command Panel Search Result projection to the first 50
-  resident results. Opening a result promotes the existing complete Search
-  playlist source rather than copying the 50-item projection.
+  resident results. Opening a result promotes the existing Search playlist
+  source rather than copying the 50-item projection.
 - Implemented root Search/Recent navigation, Search Result, Recent Videos,
   Recent Shioris, full-row selection, Footer counts, and S/X/C/Enter search
   actions without a table, virtualized result store, cache, or second search
@@ -123,9 +123,9 @@ speculative abstractions.
 - Reused the existing Recent Videos and Library Overlay session stores as the
   Playlist content for Library playback; no second media list, repository, or
   selection state was introduced.
-- Reused the existing complete Search and Shiori playlist window for subtitle
-  playback. The 50-result Command Panel projection remains presentation-only
-  and does not limit the opened Playlist.
+- Reused the existing Search and Shiori playlist window for subtitle playback.
+  The 50-result Command Panel projection remains presentation-only and does
+  not truncate the source's resident items.
 - Reused the existing Library presentation lookup for the selected Playlist
   item's cover and metadata. The lookup runs only after the selected item
   changes, and the cover view releases its decoded image when it disappears.
@@ -147,3 +147,32 @@ speculative abstractions.
 - The Playback/URLScheme selection ran 314 tests. Its three parallel timing or
   temporary-database failures each passed when rerun alone; all feature tests
   introduced or changed by this step passed in the combined run.
+
+## Step 5: Blocking Runtime Repairs
+
+- Corrected the shared Current and subtitle Playlist context placement by
+  positioning the cover from the content area's center anchor instead of
+  applying a second relative offset inside an already centered container.
+- Supplied the existing `PlaybackPointerVisibilityStore` to the Playback
+  Overlay hierarchy. This fixes the Library and Recent Playlist
+  `EnvironmentObject` crash without adding another store or state source.
+- Kept the Command Panel Search projection at 50 rows while removing the
+  premature temporary-search teardown when a result is opened. The existing
+  exact search task now continues after the panel closes, publishes its
+  complete Cue ID index, and keeps refreshing the promoted Search playlist
+  source's resident items.
+- Added real `PlaybackPageView` mounting coverage for both Recent and Library
+  Playlist sources so the missing environment dependency fails in tests
+  instead of only at runtime.
+
+## Step 5 Verification
+
+- `swift build` passed.
+- The focused layout, Command Panel, Search, Recent, Library, and mounted-page
+  selection ran 23 tests successfully.
+- The Playback/URLScheme selection ran 316 tests. Six parallel native-media or
+  temporary-database timing failures all passed together when rerun serially.
+- `git diff --check` passed.
+- Per owner direction, no further desktop automation or screenshot-based
+  end-to-end validation was performed; visual acceptance remains with the
+  owner.

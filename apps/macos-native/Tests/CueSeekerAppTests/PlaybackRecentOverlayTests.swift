@@ -2,6 +2,7 @@ import AppKit
 @testable import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -83,6 +84,55 @@ func playbackRecentSourceOpensAsTheMediaPlaylist() async throws {
         #expect(session.availableModules == [.current, .playlist])
         #expect(session.recentStore?.libraryStore === app.library)
         #expect(session.libraryStore == nil)
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
+    }
+}
+
+@MainActor
+@Test
+func playbackPageProvidesPointerVisibilityToMediaPlaylist() async throws {
+    let items = playbackRecentPresentations(count: 3)
+    try await withPlaybackRecentApp { app in
+        app.library.testRecentWatchingItems = items
+        app.library.testRecentWatchingStatus = .completed
+        let store = PlaybackRecentSessionStore(
+            libraryStore: app.library,
+            isVideoAvailable: { _ in true }
+        )
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: playbackRecentOpenSnapshot(),
+            recentStore: store
+        ))
+        #expect(publishPlaybackOverlayInitialTestSnapshot(session))
+        #expect(session.selectModule(.playlist))
+
+        let hostingView = NSHostingView(
+            rootView: PlaybackPageView(
+                playbackSurface: AnyView(Color.black),
+                appState: app,
+                onClose: {}
+            )
+            .environmentObject(app)
+            .environmentObject(app.playback)
+            .environmentObject(app.workbenchLayout)
+            .frame(width: 1_280, height: 720)
+        )
+        hostingView.frame = CGRect(x: 0, y: 0, width: 1_280, height: 720)
+        let window = NSWindow(
+            contentRect: hostingView.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.layoutIfNeeded()
+        hostingView.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(100))
+        window.layoutIfNeeded()
+        hostingView.layoutSubtreeIfNeeded()
+
+        #expect(app.playback.subtitleFocusSession === session)
+        withExtendedLifetime((hostingView, window)) {}
         app.invalidatePlaybackSubtitleFocusForSourceReplacement()
     }
 }

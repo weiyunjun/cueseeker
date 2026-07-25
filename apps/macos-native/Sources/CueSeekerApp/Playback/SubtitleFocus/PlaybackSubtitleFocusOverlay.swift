@@ -304,8 +304,12 @@ private struct PlaybackVideoContext: View {
             )
             let coverHeight = coverWidth
                 / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+            let coverCenterY = geometry.size.height / 2
+            let infoTop = coverCenterY
+                + coverHeight / 2
+                + PlaybackOverlayMetrics.currentInfoTopGap
 
-            ZStack(alignment: .top) {
+            ZStack(alignment: .topLeading) {
                 LibraryCachedCoverImage(
                     coverPath: videoPresentation?.coverPath,
                     coverRevision: videoPresentation?.coverRevision
@@ -317,7 +321,10 @@ private struct PlaybackVideoContext: View {
                         style: .continuous
                     )
                 )
-                .offset(y: max(0, geometry.size.height / 2 - coverHeight / 2))
+                .position(
+                    x: geometry.size.width / 2,
+                    y: coverCenterY
+                )
 
                 VStack(
                     alignment: .center,
@@ -346,14 +353,12 @@ private struct PlaybackVideoContext: View {
                     }
                 }
                 .frame(width: coverWidth)
-                .offset(
-                    y: max(
-                        0,
-                        geometry.size.height / 2
-                            + coverHeight / 2
-                            + PlaybackOverlayMetrics.currentInfoTopGap
-                    )
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .top
                 )
+                .offset(y: max(0, infoTop))
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }

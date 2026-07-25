@@ -45,6 +45,7 @@ struct PlaybackPageView: View {
                             appState.openPlaybackLibraryEpisodeFromOverlay
                     )
                         .id(subtitleFocusSession.token.sessionGeneration)
+                        .environmentObject(playback.pointerVisibility)
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .allowsHitTesting(!isCommandPanelActive)
                         .accessibilityHidden(isCommandPanelActive)
