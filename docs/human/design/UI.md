@@ -2433,8 +2433,10 @@
   - Playback Overlay 活跃时也可以打开
   - 文本输入状态下不响应 `Cmd+Enter`
   - 打开后暂停 Playback
-  - 每次打开默认进入一级界面
-  - Command Panel Search Box 默认获得输入焦点
+  - 通过 `Cmd+Enter` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
+  - 视频播放界面的 URL Scheme 搜索可以直接进入 Search Result 二级界面。
+  - `Play First Search Result` 关闭时，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索。
+  - `Play First Search Result` 开启但不存在结果时，进入显示 `0 results` 的 Search Result 二级界面。
 
 - 一级界面 / Empty Query：
   - 第一项为 Recent Videos，并默认处于 Selected

@@ -157,7 +157,12 @@ Command Panel 是播放内的轻量搜索、跳转和恢复入口，不是完整
 - 打开后取得唯一键盘焦点。
 - 下层内容保持可见但不可交互，并降低对比、变暗或轻微模糊。
 - Command Panel 不显示 macOS Traffic Light Buttons。
-- 每次打开默认进入一级界面，搜索框默认获得焦点。
+- 通过 `Cmd+Enter` 打开时，默认进入一级界面，搜索框默认获得焦点。
+- 视频播放界面收到 URL Scheme 搜索请求时：
+  - `Play First Search Result` 关闭：打开 Command Panel，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索，并直接进入 Search Result 二级界面。
+  - `Play First Search Result` 开启且存在结果：保持现有行为，直接播放第一个搜索结果。
+  - `Play First Search Result` 开启但不存在结果：打开 Command Panel，并直接进入显示 `0 results` 的 Search Result 二级界面。
+- 非视频播放界面的 URL Scheme 搜索继续进入 Workbench Search。
 
 ### 7.2 一级界面
 
@@ -194,6 +199,7 @@ Command Panel 是播放内的轻量搜索、跳转和恢复入口，不是完整
 ### 7.4 Search Result
 
 - 标题显示当前查询词。
+- 无论从 Command Panel 一级界面的 Search Action 进入，还是由视频播放界面的 URL Scheme 搜索直接进入，均使用相同的搜索过程、结果数据和 Search Result 交互规则。
 - 复用 Current 的左右布局，并使用更紧凑的排版。
 - 默认选择第一条有效结果。
 - 完整结果不超过 `50` 条时，Footer 显示 `{N} results`。
@@ -694,8 +700,10 @@ View Content Region：
 - Playback Overlay 活跃时也可以打开。
 - 文本输入状态下不响应 `Cmd+Enter`。
 - 打开后暂停 Playback。
-- 每次打开默认进入一级界面。
-- Command Panel Search Box 默认获得输入焦点。
+- 通过 `Cmd+Enter` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
+- 视频播放界面的 URL Scheme 搜索可以直接进入 Search Result 二级界面。
+- `Play First Search Result` 关闭时，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索。
+- `Play First Search Result` 开启但不存在结果时，进入显示 `0 results` 的 Search Result 二级界面。
 
 一级界面 / Empty Query：
 
