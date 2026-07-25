@@ -2159,7 +2159,8 @@
 - Overlay 显示期间 Playback 保持暂停，直到执行播放动作或退出 Overlay。
 
 - Playlist Source Host：
-  - Playlist 可以来源于 Search Result、Shiori、Recent Videos 或 Library
+  - Playlist 可以来源于 Search Result、Shiori 或 Library
+  - 通过 Recent Videos 或 Library 入口播放视频时，均使用当前视频所在文件夹对应的 Library Playlist
   - Playlist 复用对应 Workbench Feature 的数据顺序和正式操作结果
   - Playback 不提供 Checkbox 批量操作、导出、添加文件夹、Context、Filter 控件或复制表格入口
   - Playback 只提供 Current 和当前 Playlist Source 在本 Layout 中明确列出的操作
@@ -2171,9 +2172,10 @@
   - 打开 Playback Page 时，以进入 Playback 前的 Workbench Feature 初始化
   - 从 Search Result Playlist 成功播放 Result 时更新为 Search
   - 从 Shiori Playlist 成功播放 Result 时更新为 Shiori
-  - 从 Recent Videos Playlist 成功播放视频时更新为 Recent
-  - 从 Library Playlist 成功播放视频时更新为对应的 Library Folder Detail
-  - 后一次成功播放更新并替换前一次 Playback Enter Context
+  - 通过 Recent Videos 入口打开 Playback Page 时初始化为 Recent
+  - 通过 Library Folder Detail 入口打开 Playback Page 时初始化为对应的 Library Folder Detail
+  - 在 Library Playlist 中成功播放其他视频时，保持当前的 Recent 或 Library Playback Enter Context
+  - 从 Search Result 或 Shiori Playlist 成功播放后，新的返回目标替换当前 Playback Enter Context
   - 只切换 Current 与 Playlist、浏览 Playlist、打开或关闭 Command Panel，不更新 Playback Enter Context
   - 关闭 Playback Page 时，根据当前 Playback Enter Context 返回 Workbench
   - Playback Enter Context 只决定返回目标，不保存、删除或回滚其他 Feature 状态
@@ -2317,13 +2319,13 @@
   - 从 Current 切换回字幕型 Playlist 后，恢复本次 Session 内的选择和滚动位置
 
 - Playback Media Selection：
-  - 适用于来源为 Recent Videos 或 Library 的视频型 Playlist
-  - Workbench 中这些卡片只使用所属 Layout 定义的 Hover，不建立持久 Selected Item
-  - Playback 的 Selected Item 完整复用所属 Workbench Card Layout 的 Hover Region 和 Hover 视觉
+  - 适用于从 Recent Videos 或 Library 进入的视频播放
+  - 视频型 Playlist 中的 Item 统一复用 Library Episode Layout
+  - Workbench 中的 Library Episode 只使用所属 Layout 定义的 Hover，不建立持久 Selected Item
+  - Playback 的 Selected Item 完整复用 Library Episode Layout 的 Hover Region 和 Hover 视觉
   - Selected Item 不显示额外 Focus Ring、边框或独立 Selected 背景
-  - Recent Watching Card 的 Selected 视觉作用于完整卡片
   - Library Episode 的 Selected 视觉只作用于 Cover Region
-  - Library Source 不存在 Library Folder Card 或 Library 层级导航
+  - 视频型 Playlist 不显示 Library Folder Card 或 Library 层级导航
   - 方向键选择对应视觉方向上最近的可用 Item
   - Pointer 显示时，Hover 到可用的非 Selected Item 会将其设为 Selected Item
   - Pointer 显示时，滚动内容使静止 Pointer 下的 Hover 目标发生变化，也按新的 Hover 目标更新 Selected Item
@@ -2331,8 +2333,8 @@
   - 不可用 Item 不允许成为 Selected Item，方向键和 Hover 均跳过
   - Selected Item 始终滚动到可见区域
   - Selected Item 因数据刷新消失后，选择当前 Playlist 的第一条可用 Item
-  - Enter 执行 Selected Item 在原 Layout 中定义的左键主操作
-  - 鼠标左键和右键动作继续由所属 Card Layout 定义
+  - Enter 执行 Selected Item 在 Library Episode Layout 中定义的左键主操作
+  - 鼠标左键和右键动作继续由 Library Episode Layout 定义
   - 没有可用 Item 时不存在 Selected Item，Enter 无动作
   - 从 Current 切换回视频型 Playlist 后，恢复本次 Session 内的选择和滚动位置
 
@@ -2355,13 +2357,14 @@
   - S、X、C 和 Enter 的动作目标均为 Selected Result 的 Primary Cue
 
 - 视频型 Playlist：
-  - 适用于 Library 和 Recent Videos
-  - Recent Videos Source 复用现有 Recent Watching Card 的视觉元素和完整数据
-  - Library Source 直接显示当前视频所在文件夹的完整视频列表
-  - Library Source 复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉
-  - Library Source 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部 Title
-  - Library Source 的 Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序
-  - Selected 视觉复用对应现有条目的选择区域和视觉规则
+  - 适用于从 Recent Videos 或 Library 进入的视频播放
+  - Recent Videos 和 Library 只是进入视频播放的不同入口，不产生不同的 Playlist
+  - 两个入口均显示当前视频所在文件夹的完整视频列表
+  - Recent Videos 和 Library 只决定退出视频播放后返回的位置，不决定 Playlist 的内容或布局
+  - 统一复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉
+  - 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部 Title
+  - Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序
+  - Selected 视觉复用 Library Episode 的选择区域和视觉规则
   - 方向键选择 Previous Item 或 Next Item
   - Enter 执行当前 Selected Item 的主操作
 
@@ -2431,11 +2434,11 @@
 - Panel 使用内容排列、留白和 Selected Row 自然划分区域。
 
 - 打开：
-  - Playback Page 活跃时按 `Cmd+Enter`
+  - Playback Page 活跃时按 `/`
   - Playback Overlay 活跃时也可以打开
-  - 文本输入状态下不响应 `Cmd+Enter`
+  - 文本输入状态下，`/` 作为正常文本输入，不打开 Command Panel
   - 打开后暂停 Playback
-  - 通过 `Cmd+Enter` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
+  - 通过 `/` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
   - 视频播放界面的 URL Scheme 搜索可以直接进入 Search Result 二级界面。
   - `Play First Search Result` 关闭时，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索。
   - `Play First Search Result` 开启但不存在结果时，进入显示 `0 results` 的 Search Result 二级界面。

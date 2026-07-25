@@ -128,13 +128,14 @@ Playlist 始终使用当前播放来源的完整数据，不受 Command Panel �
 
 视频型 Playlist：
 
-- 适用于 Library 和 Recent Videos。
-- Recent Videos Source 复用现有 Recent Watching Card 的视觉元素和完整数据。
-- Library Source 直接显示当前视频所在文件夹的完整视频列表。
-- Library Source 复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉。
-- Library Source 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部标题。
-- Library Source 的 Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序。
-- 选择效果复用对应现有条目的选择区域和视觉规则。
+- 适用于通过 Library 或 Recent Videos 入口播放的视频。
+- 视频型 Playlist 统一使用 Library Playlist，不存在独立的 Recent Videos Playlist。
+- Library Playlist 直接显示当前视频所在文件夹的完整视频列表。
+- Library Playlist 复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉。
+- Library Playlist 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部标题。
+- Library Playlist 的 Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序。
+- 播放入口只决定关闭 Playback Page 后的返回位置，不改变 Playlist 的数据或视觉。
+- 选择效果复用 Library Episode 的选择区域和视觉规则。
 - 不增加新的 Library 详情界面或独立视频列表组件。
 
 ### 6.3 Cue 快捷键
@@ -154,13 +155,13 @@ Command Panel 是播放内的轻量搜索、跳转和恢复入口，不是完整
 
 ### 7.1 打开和层级
 
-- Playback Page 或 Playback Overlay 活跃时，按 `Cmd+Enter` 打开。
-- 文本输入状态下不响应 `Cmd+Enter`。
+- Playback Page 或 Playback Overlay 活跃时，按 `/` 打开。
+- 文本输入状态下，`/` 作为正常文本输入，不打开 Command Panel。
 - Command Panel 位于 Playback Content 和 Playback Overlay 之上。
 - 打开后取得唯一键盘焦点。
 - 下层内容保持可见但不可交互，并降低对比、变暗或轻微模糊。
 - Command Panel 不显示 macOS Traffic Light Buttons。
-- 通过 `Cmd+Enter` 打开时，默认进入一级界面，搜索框默认获得焦点。
+- 通过 `/` 打开时，默认进入一级界面，搜索框默认获得焦点。
 - 视频播放界面收到 URL Scheme 搜索请求时：
   - `Play First Search Result` 关闭：打开 Command Panel，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索，并直接进入 Search Result 二级界面。
   - `Play First Search Result` 开启且存在结果：保持现有行为，直接播放第一个搜索结果。
@@ -479,8 +480,8 @@ Playback Overlay 和 Command Panel 共同构成播放模态层级：
 - Playlist 可以来源于：
   - Search Result
   - Shiori
-  - Recent Videos
   - Library
+- 通过 Recent Videos 或 Library 入口播放视频时，均使用当前视频所在文件夹对应的 Library Playlist。
 - Playlist 复用对应 Workbench Feature 的数据顺序和正式操作结果。
 - Playback 不提供 Checkbox 批量操作、导出、添加文件夹、Context、Filter 控件或复制表格入口。
 - Current 不属于 Workbench Feature Host，只显示当前视频及其完整 Cue 集合。
@@ -489,9 +490,10 @@ Playback Enter Context 更新规则：
 
 - 从 Search Result Playlist 成功播放 Result 时更新为 Search。
 - 从 Shiori Playlist 成功播放 Result 时更新为 Shiori。
-- 从 Recent Videos Playlist 成功播放视频时更新为 Recent。
-- 从 Library Playlist 成功播放视频时更新为对应的 Library Folder Detail。
-- 后一次成功播放替换前一次 Playback Enter Context。
+- 通过 Recent Videos 入口打开 Playback Page 时初始化为 Recent。
+- 通过 Library Folder Detail 入口打开 Playback Page 时初始化为对应的 Library Folder Detail。
+- 在 Library Playlist 中成功播放其他视频时，保持当前的 Recent 或 Library Playback Enter Context。
+- 从 Search Result 或 Shiori Playlist 成功播放后，新的返回目标替换当前 Playback Enter Context。
 - 只切换 Current 与 Playlist、浏览 Playlist、打开或关闭 Command Panel，不更新 Playback Enter Context。
 - 关闭 Playback Page 时，根据当前 Playback Enter Context 返回 Workbench。
 - Playback Enter Context 只决定返回目标，不保存、删除或回滚其他 Feature 状态。
@@ -599,15 +601,14 @@ View Content Region：
 
 修改后：
 
-- 适用于来源为 Recent Videos 或 Library 的视频型 Playlist。
-- 继续复用所属 Workbench Card Layout 的 Hover Region 和 Hover 视觉。
-- Recent Watching Card 的 Selected 视觉作用于完整卡片。
+- 适用于通过 Recent Videos 或 Library 入口播放的视频型 Playlist。
+- 视频型 Playlist 统一复用 Library Episode Layout 的 Hover Region 和 Hover 视觉。
 - Library Episode 的 Selected 视觉只作用于 Cover Region。
-- Library Source 不存在 Library Folder Card 或 Library 层级导航。
+- Library Playlist 不存在 Recent Watching Card、Library Folder Card 或 Library 层级导航。
 - 不可用 Item 不允许成为 Selected Item。
-- `Enter` 执行 Selected Item 在原 Layout 中定义的左键主操作。
-- 鼠标左键和右键动作继续由所属 Card Layout 定义。
-- 从 Current 切换回视频型 Playlist 后，恢复本次 Session 内的选择和滚动位置。
+- `Enter` 执行 Selected Library Episode 在原 Layout 中定义的左键主操作。
+- 鼠标左键和右键动作继续由 Library Episode Layout 定义。
+- 从 Current 切换回 Library Playlist 后，恢复本次 Session 内的选择和滚动位置。
 
 ## 14. Playlist 视觉分型
 
@@ -636,13 +637,14 @@ View Content Region：
 
 视频型 Playlist：
 
-- 适用于 Library 和 Recent Videos。
-- Recent Videos Source 复用现有 Recent Watching Card 的视觉元素和完整数据。
-- Library Source 直接显示当前视频所在文件夹的完整视频列表。
-- Library Source 复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉。
-- Library Source 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部 Title。
-- Library Source 的 Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序。
-- Selected 视觉复用对应现有条目的选择区域和视觉规则。
+- 适用于通过 Library 或 Recent Videos 入口播放的视频。
+- 视频型 Playlist 统一使用 Library Playlist，不存在独立的 Recent Videos Playlist。
+- Library Playlist 直接显示当前视频所在文件夹的完整视频列表。
+- Library Playlist 复用现有 Library Folder Detail 的 Episode 列表、条目和选择视觉。
+- Library Playlist 不显示 Library 一级界面、Library Folder Card、返回按钮或页面顶部 Title。
+- Library Playlist 的 Item 顺序与视频播放界面的上一个、下一个使用同一份当前文件夹视频顺序。
+- 播放入口只决定关闭 Playback Page 后的返回位置，不改变 Playlist 的数据或视觉。
+- Selected 视觉复用 Library Episode 的选择区域和视觉规则。
 - 方向键选择 Previous Item 或 Next Item。
 - `Enter` 执行当前 Selected Item 的主操作。
 
@@ -701,11 +703,11 @@ View Content Region：
 
 打开：
 
-- Playback Page 活跃时按 `Cmd+Enter`。
+- Playback Page 活跃时按 `/`。
 - Playback Overlay 活跃时也可以打开。
-- 文本输入状态下不响应 `Cmd+Enter`。
+- 文本输入状态下，`/` 作为正常文本输入，不打开 Command Panel。
 - 打开后暂停 Playback。
-- 通过 `Cmd+Enter` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
+- 通过 `/` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
 - 视频播放界面的 URL Scheme 搜索可以直接进入 Search Result 二级界面。
 - `Play First Search Result` 关闭时，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索。
 - `Play First Search Result` 开启但不存在结果时，进入显示 `0 results` 的 Search Result 二级界面。
