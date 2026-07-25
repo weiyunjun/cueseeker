@@ -362,8 +362,9 @@ Rules:
 - A Shiori relation owns ShioriID, CueID, list identity, creation time, and
   relation-scoped Tags. It must not own another subtitle text, Cue Group,
   title, language, timing, path, or media snapshot.
-- The first relation implementation uses one default Shiori list. Multi-list
-  management and presentation remain future product work.
+- Shiori relations are scoped to the existing multi-list model. Each relation
+  keeps one list identity, and list management reuses the accepted Shiori
+  persistence and presentation paths.
 - Shiori initialization loads its complete relation collection and all
   referenced Cue content into memory before presenting the ready table.
   Arbitrary table positions must not trigger database hydration.
