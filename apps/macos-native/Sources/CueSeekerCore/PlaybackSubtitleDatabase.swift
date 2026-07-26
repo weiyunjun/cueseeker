@@ -332,55 +332,6 @@ extension PlaybackSubtitleDatabase {
         return records
     }
 
-    public func speakersByCueLineID(
-        forSubtitleFile subtitleFile: URL
-    ) throws -> [Int64: Set<String>] {
-        let statement = try database.prepare(
-            """
-            SELECT l.id, s.speaker
-            FROM subtitle_cue_line_speakers s
-            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY l.id ASC, s.speaker_key ASC;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-
-        var speakersByCueLineID: [Int64: Set<String>] = [:]
-        while try statement.step() {
-            speakersByCueLineID[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
-        }
-        return speakersByCueLineID
-    }
-
-    public func speakersByCueGroupID(
-        forSubtitleFile subtitleFile: URL
-    ) throws -> [Int64: Set<String>] {
-        let statement = try database.prepare(
-            """
-            SELECT g.id, s.speaker
-            FROM subtitle_cue_line_speakers s
-            JOIN subtitle_cue_lines l ON l.id = s.cue_line_id
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
-            GROUP BY g.id, s.speaker_key, s.speaker
-            ORDER BY g.id ASC, s.speaker_key ASC;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-
-        var speakersByCueGroupID: [Int64: Set<String>] = [:]
-        while try statement.step() {
-            speakersByCueGroupID[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
-        }
-        return speakersByCueGroupID
-    }
-
     private func entry(from statement: SQLiteStatement) -> PlaybackSubtitleEntry {
         PlaybackSubtitleEntry(
             id: statement.int64Column(0),

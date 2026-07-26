@@ -16,10 +16,6 @@ struct SubtitleTableClipboardColumn {
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.timeRange }
         case "cues":
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { $0.primaryCueText }
-        case "speaker":
-            return SubtitleTableClipboardColumn(id: column.id, title: column.title) { row in
-                row.speakerTags.map(\.label).joined(separator: ", ")
-            }
         case "language":
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { row in
                 row.tags.map(\.label).joined(separator: ", ")
@@ -49,8 +45,6 @@ struct SubtitleTableTextCopyColumn: Equatable, Sendable {
         case "cues":
             let cueTexts = (showsCueGroup ? row.additionalCueTexts : []) + [row.primaryCueText]
             return cueTexts.joined(separator: "\n")
-        case "speaker":
-            return row.speakerTags.map(\.label).joined(separator: ", ")
         case "language":
             return row.tags.map(\.label).joined(separator: ", ")
         case "tags":

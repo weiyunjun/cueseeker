@@ -48,7 +48,6 @@ func playbackPlaylistShioriItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
         primaryGroupIndex: 1,
         cueGroupTexts: ["same", "same", "tail"],
         languages: [.unknown],
-        speakers: []
     )
 
     let item = PlaybackPlaylistItem(
@@ -438,6 +437,5 @@ private func makePlaybackPlaylistCueContent(id: Int64) -> CueContent {
         cueLines: shiori.cueLines,
         cueGroupLines: shiori.cueLines,
         languages: [.unknown],
-        speakers: []
     )
 }

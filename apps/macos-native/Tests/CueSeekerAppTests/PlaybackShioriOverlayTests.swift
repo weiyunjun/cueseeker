@@ -265,7 +265,6 @@ private func playbackSharedShioriFixture(
                 "after-\(ordinal)",
             ],
             languages: [.japanese],
-            speakers: []
         )
     )
 }

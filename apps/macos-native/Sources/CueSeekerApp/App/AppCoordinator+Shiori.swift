@@ -533,8 +533,7 @@ extension AppCoordinator {
             return matchesSearch && filterSet.matches(
                 display: displayTitle,
                 cues: cueText,
-                languages: content?.languages.map(\.rawValue).sorted() ?? [],
-                speakers: content?.speakers.sorted() ?? []
+                languages: content?.languages.map(\.rawValue).sorted() ?? []
             )
         }
         shiori.installTableResultShioriIDs(relations.map(\.id))

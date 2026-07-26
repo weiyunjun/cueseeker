@@ -3,10 +3,6 @@ import SQLite3
 import Testing
 @testable import CueSeekerCore
 
-func mockChunks(_ items: [String]) -> [AIChunkItem] {
-    items.map { AIChunkItem(item: $0, translation: $0) }
-}
-
 final class SearchProgressCollector: @unchecked Sendable {
     private let lock = NSLock()
     private var snapshots: [SubtitleSearchProgressSnapshot] = []

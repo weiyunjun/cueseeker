@@ -193,8 +193,7 @@ struct TableSandboxRowsSnapshot {
             cueGroupID: nil,
             primaryGroupIndex: groupTexts.firstIndex(of: shiori.content),
             cueGroupTexts: groupTexts.isEmpty ? [shiori.content] : groupTexts,
-            languages: [.unknown],
-            speakers: []
+            languages: [.unknown]
         )
     }
 }
@@ -1044,8 +1043,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             primaryCueText: result.content,
             cueGroupTexts: result.cueGroupLines,
             primaryGroupIndex: result.primaryGroupIndex,
-            tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages),
-            speakerTags: tableSandboxSpeakerTags(for: result.speakers)
+            tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages)
         )
     }
 
@@ -1066,7 +1064,6 @@ final class TableSandboxRowModelStore: ObservableObject {
             tags: SubtitleLanguageWorkbenchTags.tags(
                 for: cuePresentation?.languages ?? item.languages
             ),
-            speakerTags: tableSandboxSpeakerTags(for: cuePresentation?.speakers ?? []),
             shioriTags: tableSandboxShioriTags(for: item.shioriTags),
             cueState: tableSandboxCueState(for: item.shiori)
         )
@@ -1106,8 +1103,7 @@ func tableSandboxSearchRow(for result: SubtitleSearchResult) -> SubtitleTableRow
         primaryCueText: result.content,
         cueGroupTexts: result.cueGroupLines,
         primaryGroupIndex: result.primaryGroupIndex,
-        tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages),
-        speakerTags: tableSandboxSpeakerTags(for: result.speakers)
+        tags: SubtitleLanguageWorkbenchTags.tags(for: result.languages)
     )
 }
 
@@ -1128,7 +1124,6 @@ func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTab
         tags: SubtitleLanguageWorkbenchTags.tags(
             for: cuePresentation?.languages ?? item.languages
         ),
-        speakerTags: tableSandboxSpeakerTags(for: cuePresentation?.speakers ?? []),
         shioriTags: tableSandboxShioriTags(for: item.shioriTags),
         cueState: tableSandboxCueState(for: item.shiori)
     )
@@ -1153,7 +1148,6 @@ private func tableSandboxShioriRow(
         cueGroupTexts: cueContent.cueGroupLines,
         primaryGroupIndex: cueContent.primaryGroupIndex,
         tags: SubtitleLanguageWorkbenchTags.tags(for: cueContent.languages),
-        speakerTags: tableSandboxSpeakerTags(for: cueContent.speakers),
         shioriTags: tableSandboxShioriTags(for: shioriTags),
         cueState: resolvedShiori.map(tableSandboxCueState(for:)) ?? .normal
     )
@@ -1231,13 +1225,6 @@ func tableSandboxCueTimeText(milliseconds: Int) -> String {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     return String(format: "%02d:%02d", minutes, seconds)
-}
-
-private func tableSandboxSpeakerTags(for speakers: Set<String>) -> [WorkbenchTag] {
-    speakers
-        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        .sorted()
-        .map { WorkbenchTag(key: $0, colorID: .purple) }
 }
 
 private func tableSandboxShioriTags(for tags: [ShioriTag]) -> [WorkbenchTag] {

@@ -228,17 +228,7 @@ public final class SearchDatabase: @unchecked Sendable {
                        SELECT GROUP_CONCAT(cgl.language_code)
                        FROM subtitle_cue_group_languages cgl
                        WHERE cgl.cue_group_id = g.id
-                   ) AS language_values,
-                   (
-                       SELECT GROUP_CONCAT(speaker, char(31))
-                       FROM (
-                           SELECT speaker
-                           FROM subtitle_cue_line_speakers cls
-                           WHERE cls.cue_line_id = l.id
-                           GROUP BY speaker_key, speaker
-                           ORDER BY speaker_key ASC
-                       )
-                   ) AS speaker_values
+                   ) AS language_values
             FROM subtitle_cue_groups g
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
@@ -283,14 +273,10 @@ public final class SearchDatabase: @unchecked Sendable {
                 detections: languageDetections,
                 cueGroupLanguages: cueGroupLanguages
             )
-            let displaySpeakers = Self.speakerValues(
-                from: statement.nullableStringColumn(30)
-            )
             guard filterSet.isEffectivelyEmpty || filterSet.matches(
                 display: candidate.order.displayTitle,
                 cues: cueLineRecord.line.content,
-                languages: Self.filterSetLanguageValues(displayLanguages),
-                speakers: Self.filterSetSpeakerValues(displaySpeakers)
+                languages: Self.filterSetLanguageValues(displayLanguages)
             ) else {
                 continue
             }
@@ -301,8 +287,7 @@ public final class SearchDatabase: @unchecked Sendable {
                     AllCuePageCandidate(
                         candidate: candidate,
                         cueLineRecord: cueLineRecord,
-                        displayLanguages: displayLanguages,
-                        displaySpeakers: displaySpeakers
+                        displayLanguages: displayLanguages
                     )
                 )
             }
@@ -326,8 +311,7 @@ public final class SearchDatabase: @unchecked Sendable {
                         $0.id == item.cueLineRecord.id
                     } ?? 0,
                     cueGroupLines: groupRecords.map(\.line.content),
-                    displayLanguages: item.displayLanguages,
-                    displaySpeakers: item.displaySpeakers
+                    displayLanguages: item.displayLanguages
                 )
             ).result
             result.searchRank = offset + index
@@ -580,7 +564,6 @@ public final class SearchDatabase: @unchecked Sendable {
         }
         let cueRecordsByCueGroupID = try cueLineRecords(forCueGroupIDs: cueGroupIDs)
         let languagesByCueGroupID = try cueGroupLanguages(forCueGroupIDs: cueGroupIDs)
-        let speakersByCueID = try cueLineSpeakers(forCueIDs: indexWindow.cueIDs)
         var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
         try Task.checkCancellation()
 
@@ -616,8 +599,7 @@ public final class SearchDatabase: @unchecked Sendable {
                     cueLineRecord: cueRecord,
                     primaryGroupIndex: groupRecords.firstIndex { $0.id == cueID } ?? 0,
                     cueGroupLines: groupRecords.map(\.line.content),
-                    displayLanguages: languages,
-                    displaySpeakers: speakersByCueID[cueID] ?? []
+                    displayLanguages: languages
                 )
             ).result
             result.searchRank = indexWindow.offset + index
@@ -976,10 +958,6 @@ public final class SearchDatabase: @unchecked Sendable {
                 )
                 let cueLineRows = cueLineRecordsByCueGroupID.values.reduce(0) { $0 + $1.count }
                 totalCueLineRows += cueLineRows
-                let cueIDs = cueLineRecordsByCueGroupID.values.flatMap { records in
-                    records.map(\.id)
-                }
-                let speakersByCueID = try cueLineSpeakers(forCueIDs: cueIDs)
                 var fallbackLanguageCueGroupIDs: [Int64] = []
                 fallbackLanguageCueGroupIDs.reserveCapacity(candidates.count)
                 for candidate in candidates {
@@ -1022,7 +1000,6 @@ public final class SearchDatabase: @unchecked Sendable {
                         languageFilterCodes: languageFilterCodeSet,
                         languageDetections: languageDetectionsBySubtitleFileID[candidate.subtitleFileID],
                         cueGroupLanguages: languagesByCueGroupID[candidate.cueGroupID] ?? [],
-                        speakersByCueID: speakersByCueID,
                         filterSet: filterSet
                     )
                     if !orderedMatches.isEmpty {
@@ -1475,14 +1452,12 @@ public final class SearchDatabase: @unchecked Sendable {
         let primaryGroupIndex: Int
         let cueGroupLines: [String]
         let displayLanguages: Set<SubtitleLanguageCode>
-        let displaySpeakers: Set<String>
     }
 
     private struct AllCuePageCandidate {
         let candidate: SearchCandidate
         let cueLineRecord: SubtitleCueLineRecord
         let displayLanguages: Set<SubtitleLanguageCode>
-        let displaySpeakers: Set<String>
     }
 
     private struct SearchLanguageDetections {
@@ -1567,7 +1542,6 @@ public final class SearchDatabase: @unchecked Sendable {
         languageFilterCodes: Set<SubtitleLanguageCode>,
         languageDetections: SearchLanguageDetections?,
         cueGroupLanguages: Set<SubtitleLanguageCode>,
-        speakersByCueID: [Int64: Set<String>],
         filterSet: SubtitleSearchFilterSet
     ) -> [OrderedSearchResult] {
         searchMatches(
@@ -1577,7 +1551,6 @@ public final class SearchDatabase: @unchecked Sendable {
             languageFilterCodes: languageFilterCodes,
             languageDetections: languageDetections,
             cueGroupLanguages: cueGroupLanguages,
-            speakersByCueID: speakersByCueID,
             filterSet: filterSet
         ).map { orderedSearchResult(for: candidate, match: $0) }
     }
@@ -1589,7 +1562,6 @@ public final class SearchDatabase: @unchecked Sendable {
         languageFilterCodes: Set<SubtitleLanguageCode>,
         languageDetections: SearchLanguageDetections?,
         cueGroupLanguages: Set<SubtitleLanguageCode>,
-        speakersByCueID: [Int64: Set<String>],
         filterSet: SubtitleSearchFilterSet
     ) -> [SearchResultMatch] {
         let lines = cueLineRecords.map(\.line)
@@ -1614,13 +1586,11 @@ public final class SearchDatabase: @unchecked Sendable {
                 continue
             }
 
-            let displaySpeakers = speakersByCueID[record.id] ?? []
             if !filterSet.isEffectivelyEmpty,
                !filterSet.matches(
                    display: candidate.order.displayTitle,
                    cues: record.line.content,
-                   languages: Self.filterSetLanguageValues(displayLanguages),
-                   speakers: Self.filterSetSpeakerValues(displaySpeakers)
+                   languages: Self.filterSetLanguageValues(displayLanguages)
                ) {
                 continue
             }
@@ -1630,8 +1600,7 @@ public final class SearchDatabase: @unchecked Sendable {
                     cueLineRecord: record,
                     primaryGroupIndex: index,
                     cueGroupLines: cueGroupLines,
-                    displayLanguages: displayLanguages,
-                    displaySpeakers: displaySpeakers
+                    displayLanguages: displayLanguages
                 )
             )
         }
@@ -1660,8 +1629,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 content: cue.line.content,
                 cueLines: [cue.line.content],
                 cueGroupLines: match.cueGroupLines,
-                languages: match.displayLanguages,
-                speakers: match.displaySpeakers
+                languages: match.displayLanguages
             ),
             order: candidate.order
         )
@@ -1674,12 +1642,6 @@ public final class SearchDatabase: @unchecked Sendable {
             .sorted()
     }
 
-    private static func filterSetSpeakerValues(_ speakers: Set<String>) -> [String] {
-        speakers
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .sorted()
-    }
-
     private static func languageValues(from rawValue: String?) -> Set<SubtitleLanguageCode> {
         guard let rawValue, !rawValue.isEmpty else {
             return [.unknown]
@@ -1689,43 +1651,6 @@ public final class SearchDatabase: @unchecked Sendable {
             .split(separator: ",")
             .compactMap { SubtitleLanguageCode(rawValue: String($0)) }
         return values.isEmpty ? [.unknown] : Set(values)
-    }
-
-    private static func speakerValues(from rawValue: String?) -> Set<String> {
-        guard let rawValue, !rawValue.isEmpty else {
-            return []
-        }
-
-        return Set(
-            rawValue
-                .split(separator: "\u{1f}")
-                .map(String.init)
-                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        )
-    }
-
-    private static func speakerHexValues(from rawValue: String?) -> Set<String> {
-        guard let rawValue, !rawValue.isEmpty else {
-            return []
-        }
-
-        return Set(rawValue.split(separator: ",").compactMap { encodedSpeaker in
-            guard encodedSpeaker.count.isMultiple(of: 2) else {
-                return nil
-            }
-            var bytes: [UInt8] = []
-            bytes.reserveCapacity(encodedSpeaker.count / 2)
-            var index = encodedSpeaker.startIndex
-            while index < encodedSpeaker.endIndex {
-                let nextIndex = encodedSpeaker.index(index, offsetBy: 2)
-                guard let byte = UInt8(encodedSpeaker[index..<nextIndex], radix: 16) else {
-                    return nil
-                }
-                bytes.append(byte)
-                index = nextIndex
-            }
-            return String(bytes: bytes, encoding: .utf8)
-        })
     }
 
     private static func languagesForMatchingLine(
@@ -2059,35 +1984,6 @@ public final class SearchDatabase: @unchecked Sendable {
             recordsByCueID[record.id] = record
         }
         return recordsByCueID
-    }
-
-    private func cueLineSpeakers(
-        forCueIDs cueIDs: [Int64]
-    ) throws -> [Int64: Set<String>] {
-        guard !cueIDs.isEmpty else {
-            return [:]
-        }
-
-        let placeholders = cueIDs.map { _ in "?" }.joined(separator: ", ")
-        let statement = try database.prepare(
-            """
-            SELECT cue_line_id, speaker
-            FROM subtitle_cue_line_speakers
-            WHERE cue_line_id IN (\(placeholders))
-            ORDER BY cue_line_id ASC, speaker_key ASC;
-            """
-        )
-        for (offset, cueID) in cueIDs.enumerated() {
-            try statement.bind(cueID, at: Int32(offset + 1))
-        }
-
-        var speakersByCueID: [Int64: Set<String>] = [:]
-        while try statement.step() {
-            speakersByCueID[statement.int64Column(0), default: []].insert(
-                statement.stringColumn(1)
-            )
-        }
-        return speakersByCueID
     }
 
     private func searchCandidates(forCueGroupIDs cueGroupIDs: [Int64]) throws -> [Int64: SearchCandidate] {

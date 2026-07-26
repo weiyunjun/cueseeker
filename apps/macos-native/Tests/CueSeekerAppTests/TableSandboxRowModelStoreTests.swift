@@ -638,31 +638,6 @@ func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreMapsSearchSpeakersToTags() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
-    let path = "/tmp/CueSeeker/Series/episode-01.ass"
-
-    store.updateSearchRows(
-        [
-            searchResult(
-                id: 1,
-                path: path,
-                content: "speaker row",
-                cueLines: ["speaker row"],
-                speakers: ["高松灯", "长崎素世"]
-            )
-        ],
-        tableName: "test-search"
-    )
-
-    let tags = store.snapshot.row(at: 0)?.speakerTags ?? []
-    #expect(tags.map(\.key) == ["长崎素世", "高松灯"])
-    #expect(tags.map(\.label) == ["长崎素世", "高松灯"])
-    #expect(tags.map(\.colorID) == [.purple, .purple])
-}
-
-@MainActor
-@Test
 func tableSandboxRowModelStoreMapsShioriTagsToNeutralTags() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
 
@@ -701,7 +676,6 @@ func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity
         primaryGroupIndex: 1,
         cueGroupTexts: [repeatedText, repeatedText, "lower sibling"],
         languages: [.japanese],
-        speakers: ["高松灯"]
     )
 
     store.hydrateShioriRows(
@@ -727,7 +701,6 @@ func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity
     #expect(row?.primaryGroupIndex == 1)
     #expect(row?.additionalCueTexts == [repeatedText, "lower sibling"])
     #expect(row?.tags.map(\.key) == ["jp"])
-    #expect(row?.speakerTags.map(\.key) == ["高松灯"])
 }
 
 @MainActor
@@ -741,7 +714,6 @@ func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
         primaryGroupIndex: nil,
         cueGroupTexts: [content],
         languages: [.unknown],
-        speakers: []
     )
 
     store.hydrateShioriRows(
@@ -792,7 +764,6 @@ func tableSandboxRowModelStorePatchesShioriTagCells() {
         primaryGroupIndex: 1,
         cueGroupTexts: ["upper sibling", "saved row"],
         languages: [.japanese],
-        speakers: ["speaker"]
     )
 
     store.hydrateShioriRows(
@@ -827,7 +798,6 @@ func tableSandboxRowModelStorePatchesShioriTagCells() {
     #expect(rowAfterPatch?.primaryGroupIndex == rowBeforePatch?.primaryGroupIndex)
     #expect(rowAfterPatch?.additionalCueTexts == rowBeforePatch?.additionalCueTexts)
     #expect(rowAfterPatch?.cueGroupCopyText == rowBeforePatch?.cueGroupCopyText)
-    #expect(rowAfterPatch?.speakerTags == rowBeforePatch?.speakerTags)
     #expect(store.snapshot.update == .cells([TableSandboxCellInvalidation(row: 0, columnID: "tags")]))
 }
 
@@ -1245,7 +1215,6 @@ private func searchResult(
     primaryGroupIndex: Int = 0,
     cueGroupLines: [String]? = nil,
     languages: Set<SubtitleLanguageCode> = [.unknown],
-    speakers: Set<String> = [],
     timeRange: String = "",
     startMilliseconds: Int = 1_000,
     endMilliseconds: Int = 2_000
@@ -1265,8 +1234,7 @@ private func searchResult(
         content: content,
         cueLines: cueLines,
         cueGroupLines: cueGroupLines ?? [content],
-        languages: languages,
-        speakers: speakers
+        languages: languages
     )
 }
 
@@ -1319,6 +1287,5 @@ private func residentCueContent(cueID: Int64, content: String) -> CueContent {
         cueLines: [content],
         cueGroupLines: [content],
         languages: [.japanese],
-        speakers: []
     )
 }

@@ -142,7 +142,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(39)
+    try expectUnsupportedSchemaVersion(40)
 }
 
 @Test
@@ -191,6 +191,83 @@ func freshSchemaOmitsLegacyPlaybackNavigationTables() throws {
         "playback_navigation_entries",
         databaseURL: databaseURL
     ) == false)
+    #expect(try sqliteTableExists(
+        "subtitle_cue_line_speakers",
+        databaseURL: databaseURL
+    ) == false)
+    #expect(try sqliteTableExists(
+        "ai_chunk_cache_entries",
+        databaseURL: databaseURL
+    ) == false)
+}
+
+@Test
+func migratesSchema38ByDroppingOnlySpeakerAndAICacheStorage() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        CREATE TABLE subtitle_cue_lines (
+            id INTEGER PRIMARY KEY,
+            content TEXT NOT NULL
+        );
+        CREATE TABLE subtitle_cue_group_languages (
+            cue_group_id INTEGER NOT NULL,
+            language_code TEXT NOT NULL
+        );
+        CREATE TABLE shioris (
+            id INTEGER PRIMARY KEY,
+            cue_id INTEGER NOT NULL
+        );
+        CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
+            content,
+            cue_group_id UNINDEXED
+        );
+        CREATE TABLE subtitle_cue_line_speakers (
+            cue_line_id INTEGER NOT NULL,
+            cue_group_id INTEGER NOT NULL,
+            speaker TEXT NOT NULL,
+            speaker_key TEXT NOT NULL,
+            PRIMARY KEY(cue_line_id, speaker_key)
+        );
+        CREATE INDEX idx_subtitle_cue_line_speakers_group
+            ON subtitle_cue_line_speakers(cue_group_id, speaker_key);
+        CREATE INDEX idx_subtitle_cue_line_speakers_speaker
+            ON subtitle_cue_line_speakers(speaker_key, cue_group_id);
+        CREATE TABLE ai_chunk_cache_entries (
+            id INTEGER PRIMARY KEY,
+            normalized_sentence TEXT NOT NULL
+        );
+        CREATE INDEX idx_ai_chunk_cache_entries_lookup
+            ON ai_chunk_cache_entries(normalized_sentence);
+
+        INSERT INTO subtitle_cue_lines(id, content) VALUES (1, 'retained cue');
+        INSERT INTO subtitle_cue_group_languages(cue_group_id, language_code)
+            VALUES (10, 'ja');
+        INSERT INTO shioris(id, cue_id) VALUES (20, 1);
+        INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
+            VALUES ('retained search', 10);
+        INSERT INTO subtitle_cue_line_speakers(
+            cue_line_id, cue_group_id, speaker, speaker_key
+        ) VALUES (1, 10, 'legacy', 'legacy');
+        INSERT INTO ai_chunk_cache_entries(id, normalized_sentence)
+            VALUES (1, 'legacy');
+        PRAGMA user_version = 38;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteTableExists("subtitle_cue_line_speakers", databaseURL: databaseURL) == false)
+    #expect(try sqliteTableExists("ai_chunk_cache_entries", databaseURL: databaseURL) == false)
+    #expect(try sqliteRowCount(in: "subtitle_cue_lines", databaseURL: databaseURL) == 1)
+    #expect(try sqliteRowCount(in: "subtitle_cue_group_languages", databaseURL: databaseURL) == 1)
+    #expect(try sqliteRowCount(in: "shioris", databaseURL: databaseURL) == 1)
+    #expect(try sqliteRowCount(in: "subtitle_cue_groups_fts", databaseURL: databaseURL) == 1)
 }
 
 @Test
@@ -310,6 +387,14 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
             cue_id INTEGER PRIMARY KEY,
             subtitle_file_id INTEGER NOT NULL,
             unavailable_reason TEXT NOT NULL
+        );
+        CREATE TABLE shiori_lists (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            cover_path TEXT,
+            created_at TEXT NOT NULL
         );
         INSERT INTO subtitle_files(id, binding_state)
         VALUES (10, 'available'), (20, 'missing');

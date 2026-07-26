@@ -40,7 +40,6 @@ public final class CueContentDatabase: @unchecked Sendable {
 
         let groupRecordsByID = try cueLineRecords(forCueGroupIDs: cueGroupIDs)
         let languagesByGroupID = try cueGroupLanguages(forCueGroupIDs: cueGroupIDs)
-        let speakersByCueID = try cueLineSpeakers(forCueIDs: orderedCueIDs)
         var detectionsByFileID: [Int64: LanguageDetections] = [:]
         var contents: [CueContent] = []
         contents.reserveCapacity(orderedCueIDs.count)
@@ -80,8 +79,7 @@ public final class CueContentDatabase: @unchecked Sendable {
                     candidate: candidate,
                     detections: detections,
                     cueGroupLanguages: languagesByGroupID[cueRecord.cueGroupID] ?? [.unknown]
-                ),
-                speakers: speakersByCueID[cueID] ?? []
+                )
             ))
         }
         return contents
@@ -187,19 +185,6 @@ public final class CueContentDatabase: @unchecked Sendable {
             if let language = SubtitleLanguageCode(rawValue: statement.stringColumn(1)) {
                 result[statement.int64Column(0), default: []].insert(language)
             }
-        }
-        return result
-    }
-
-    private func cueLineSpeakers(forCueIDs ids: [Int64]) throws -> [Int64: Set<String>] {
-        let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
-        let statement = try database.prepare(
-            "SELECT cue_line_id, speaker FROM subtitle_cue_line_speakers WHERE cue_line_id IN (\(placeholders)) ORDER BY cue_line_id, speaker_key;"
-        )
-        for (offset, id) in ids.enumerated() { try statement.bind(id, at: Int32(offset + 1)) }
-        var result: [Int64: Set<String>] = [:]
-        while try statement.step() {
-            result[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
         }
         return result
     }

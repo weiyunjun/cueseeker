@@ -302,22 +302,19 @@ public struct ShioriCuePresentation: Equatable, Sendable {
     public let primaryGroupIndex: Int?
     public let cueGroupTexts: [String]
     public let languages: Set<SubtitleLanguageCode>
-    public let speakers: Set<String>
 
     public init(
         cueID: Int64?,
         cueGroupID: Int64?,
         primaryGroupIndex: Int?,
         cueGroupTexts: [String],
-        languages: Set<SubtitleLanguageCode>,
-        speakers: Set<String>
+        languages: Set<SubtitleLanguageCode>
     ) {
         self.cueID = cueID
         self.cueGroupID = cueGroupID
         self.primaryGroupIndex = primaryGroupIndex
         self.cueGroupTexts = cueGroupTexts
         self.languages = languages.isEmpty ? [.unknown] : languages
-        self.speakers = speakers
     }
 
     public init(cueContent: CueContent) {
@@ -326,8 +323,7 @@ public struct ShioriCuePresentation: Equatable, Sendable {
             cueGroupID: cueContent.cueGroupID,
             primaryGroupIndex: cueContent.primaryGroupIndex,
             cueGroupTexts: cueContent.cueGroupLines,
-            languages: cueContent.languages,
-            speakers: cueContent.speakers
+            languages: cueContent.languages
         )
     }
 }

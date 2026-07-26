@@ -1250,7 +1250,6 @@ private func cueGroupRefreshScopeSearchResults(
             cueLines: [group[2]],
             cueGroupLines: group,
             languages: [.japanese],
-            speakers: []
         )
     }
 }
@@ -1291,7 +1290,6 @@ private func cueGroupRefreshScopeShioriSources(
                 primaryGroupIndex: 2,
                 cueGroupTexts: group,
                 languages: [.japanese],
-                speakers: []
             )
         )
     }

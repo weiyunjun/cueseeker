@@ -18,7 +18,6 @@ public struct CueContent: Equatable, Sendable, Identifiable {
     public let cueLines: [String]
     public let cueGroupLines: [String]
     public let languages: Set<SubtitleLanguageCode>
-    public let speakers: Set<String>
 
     public var id: Int64 { cueID }
 
@@ -39,8 +38,7 @@ public struct CueContent: Equatable, Sendable, Identifiable {
         content: String,
         cueLines: [String],
         cueGroupLines: [String],
-        languages: Set<SubtitleLanguageCode>,
-        speakers: Set<String>
+        languages: Set<SubtitleLanguageCode>
     ) {
         self.cueID = cueID
         self.cueGroupID = cueGroupID
@@ -64,7 +62,6 @@ public struct CueContent: Equatable, Sendable, Identifiable {
         self.cueLines = cueLines
         self.cueGroupLines = cueGroupLines.isEmpty ? [content] : cueGroupLines
         self.languages = languages.isEmpty ? [.unknown] : languages
-        self.speakers = speakers
     }
 }
 
@@ -86,7 +83,6 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let cueLines: [String]
     public let cueGroupLines: [String]
     public let languages: Set<SubtitleLanguageCode>
-    public let speakers: Set<String>
     public var searchRank: Int
 
     public var cueIdentity: SubtitleCueIdentity {
@@ -115,7 +111,6 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         cueLines: [String],
         cueGroupLines: [String]? = nil,
         languages: Set<SubtitleLanguageCode> = [.unknown],
-        speakers: Set<String> = [],
         searchRank: Int = 0
     ) {
         self.entryID = entryID
@@ -140,7 +135,6 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         self.cueLines = cueLines
         self.cueGroupLines = cueGroupLines ?? (cueLines.isEmpty ? [content] : cueLines)
         self.languages = languages.isEmpty ? [.unknown] : languages
-        self.speakers = speakers
         self.searchRank = searchRank
     }
 
@@ -163,7 +157,6 @@ public struct SubtitleSearchResult: Equatable, Sendable {
             cueLines: cueContent.cueLines,
             cueGroupLines: cueContent.cueGroupLines,
             languages: cueContent.languages,
-            speakers: cueContent.speakers,
             searchRank: searchRank
         )
     }
@@ -186,8 +179,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
             content: content,
             cueLines: cueLines,
             cueGroupLines: cueGroupLines,
-            languages: languages,
-            speakers: speakers
+            languages: languages
         )
     }
 }

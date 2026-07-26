@@ -65,16 +65,6 @@ public struct SubtitleCueLineRecord: Equatable, Sendable {
     }
 }
 
-public struct SubtitleCueLineSpeakerAssignment: Equatable, Sendable {
-    public let cueLineID: Int64
-    public let speakers: Set<String>
-
-    public init(cueLineID: Int64, speakers: Set<String>) {
-        self.cueLineID = cueLineID
-        self.speakers = speakers
-    }
-}
-
 public struct SubtitleCueTextSelection: Equatable, Sendable {
     public let cueGroupID: Int64
     public let cueLineID: Int64?

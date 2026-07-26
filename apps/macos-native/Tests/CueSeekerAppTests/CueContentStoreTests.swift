@@ -200,6 +200,5 @@ private func cueContent(cueID: Int64, content: String) -> CueContent {
         cueLines: [content],
         cueGroupLines: [content],
         languages: [.unknown],
-        speakers: []
     )
 }

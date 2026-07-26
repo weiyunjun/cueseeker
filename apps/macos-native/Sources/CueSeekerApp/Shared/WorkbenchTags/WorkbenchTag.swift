@@ -20,7 +20,6 @@ enum WorkbenchTagColorID: String, Equatable {
     case yellow
     case green
     case blue
-    case purple
     case pink
     case red
 
@@ -40,8 +39,6 @@ enum WorkbenchTagColorID: String, Equatable {
             return NSColor(red: 0.133, green: 0.392, blue: 0.220, alpha: 1)
         case .blue:
             return NSColor(red: 0.078, green: 0.322, blue: 0.647, alpha: 1)
-        case .purple:
-            return NSColor(red: 0.369, green: 0.235, blue: 0.647, alpha: 1)
         case .pink:
             return NSColor(red: 0.529, green: 0.122, blue: 0.337, alpha: 1)
         case .red:
@@ -65,8 +62,6 @@ enum WorkbenchTagColorID: String, Equatable {
             return NSColor(red: 0.820, green: 0.902, blue: 0.839, alpha: 1)
         case .blue:
             return NSColor(red: 0.855, green: 0.925, blue: 1.0, alpha: 1)
-        case .purple:
-            return NSColor(red: 0.882, green: 0.820, blue: 0.965, alpha: 1)
         case .pink:
             return NSColor(red: 0.969, green: 0.855, blue: 0.929, alpha: 1)
         case .red:

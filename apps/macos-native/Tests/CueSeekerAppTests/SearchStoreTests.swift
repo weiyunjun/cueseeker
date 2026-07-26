@@ -85,7 +85,6 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
         makeTableSandboxSearchResult(
             id: 999,
             content: "stale pending row",
-            speakers: [],
             searchRank: 0
         )
     ]
@@ -191,13 +190,11 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
     let currentResult = makeTableSandboxSearchResult(
         id: 42,
         content: "current foo result",
-        speakers: [],
         searchRank: 0
     )
     let staleResult = makeTableSandboxSearchResult(
         id: 7,
         content: "stale first foo result",
-        speakers: [],
         searchRank: 0
     )
     app.indexing.selectedFolders = [fixtureRoot]
@@ -254,8 +251,7 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let result = makeTableSandboxSearchResult(
         id: 42,
-        content: "Speaker filtered cue",
-        speakers: ["高松灯"],
+        content: "hydrated cue",
         searchRank: 10
     )
     let page = TableSandboxSearchHydrationPage(
@@ -448,14 +444,12 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     let existingResult = makeTableSandboxSearchResult(
         id: 41,
         content: "Existing visible result",
-        speakers: [],
         searchRank: 0
     )
     let progressResults = (0..<3).map { index in
         makeTableSandboxSearchResult(
             id: Int64(100 + index),
             content: "Renderable progress result \(index)",
-            speakers: [],
             searchRank: index
         )
     }
@@ -549,7 +543,6 @@ func searchResultGroupsKeepSummaryOnlyRowsUntilGroupExpansion() {
         makeTableSandboxSearchResult(
             id: Int64(index + 1),
             content: "Grouped result \(index)",
-            speakers: [],
             searchRank: index
         )
     }
@@ -656,7 +649,6 @@ func cueContextTargetSourceIndexUsesStableSearchRankNearTail() {
     let target = makeTableSandboxSearchResult(
         id: 1520171,
         content: "target cue",
-        speakers: [],
         searchRank: 2717
     )
     let page = TableSandboxSearchHydrationPage(
@@ -665,7 +657,6 @@ func cueContextTargetSourceIndexUsesStableSearchRankNearTail() {
             makeTableSandboxSearchResult(
                 id: 1520169,
                 content: "preceding cue",
-                speakers: [],
                 searchRank: 2715
             ),
             target
@@ -684,7 +675,6 @@ func cueContextTargetSourceIndexFallsBackToLoadedRangeStartWhenTargetIsMissing()
             makeTableSandboxSearchResult(
                 id: 1520169,
                 content: "preceding cue",
-                speakers: [],
                 searchRank: 2715
             )
         ],
@@ -813,19 +803,16 @@ func openingSearchResultUpdatesNavigationStateImmediately() throws {
     let first = makeTableSandboxSearchResult(
         id: 1,
         content: "first result",
-        speakers: [],
         searchRank: 0
     )
     let second = makeTableSandboxSearchResult(
         id: 2,
         content: "second result",
-        speakers: [],
         searchRank: 1
     )
     let third = makeTableSandboxSearchResult(
         id: 3,
         content: "third result",
-        speakers: [],
         searchRank: 2
     )
     app.search.searchResults = [first, second, third]
@@ -857,7 +844,6 @@ func searchTableProjectionSurvivesViewRemountWithoutMaterializingResults() {
         makeTableSandboxSearchResult(
             id: Int64(value),
             content: "Search Cue \(value)",
-            speakers: [],
             searchRank: value - 1
         )
     }
@@ -956,7 +942,6 @@ func indexedCueMutationInvalidatesFilterProjectionAndAdvancesItsIdentity() throw
         [makeTableSandboxSearchResult(
             id: 42,
             content: "Stale indexed Cue",
-            speakers: [],
             searchRank: 0
         )],
         cueContentProvider: { _ in nil },
@@ -1001,7 +986,6 @@ func indexedCueMutationPreservesResidentSearchProjection() {
     let result = makeTableSandboxSearchResult(
         id: 42,
         content: "Resident Search Cue",
-        speakers: [],
         searchRank: 0
     )
     search.replaceLoadedSearchResults([result])
@@ -1027,7 +1011,6 @@ func residentSearchProjectionRevisionDirectlyUpdatesOwnedRowStore() {
     let original = makeTableSandboxSearchResult(
         id: 42,
         content: "Stable Cue",
-        speakers: [],
         searchRank: 0
     )
     search.replaceLoadedSearchResults([original])
@@ -1093,7 +1076,6 @@ private func makeSearchResults() throws -> [SubtitleSearchResult] {
 private func makeTableSandboxSearchResult(
     id: Int64,
     content: String,
-    speakers: Set<String>,
     searchRank: Int
 ) -> SubtitleSearchResult {
     SubtitleSearchResult(
@@ -1106,7 +1088,6 @@ private func makeTableSandboxSearchResult(
         endMilliseconds: 2_000,
         content: content,
         cueLines: [content],
-        speakers: speakers,
         searchRank: searchRank
     )
 }

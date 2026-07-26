@@ -114,13 +114,11 @@ struct WorkbenchTestSearchView: View {
                     displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
                     timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time Range"),
                     cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
-                    speakerHeader: columnTitle("speaker", in: visibleColumns, fallback: "Speaker"),
                     languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
                     columnOrder: visibleColumns.map(\.id),
                     showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
                     showsTimeColumn: isColumnVisible("time", in: visibleColumns),
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
-                    showsSpeakerColumn: isColumnVisible("speaker", in: visibleColumns),
                     showsCueGroup: appliedShowCueGroup
                         ?? (allowsTableResponse && settingsStore.showCueGroup),
                     scrollResetToken: tableScrollResetToken,

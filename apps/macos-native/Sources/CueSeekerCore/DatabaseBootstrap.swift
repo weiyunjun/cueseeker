@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 38
+    public static let currentSchemaVersion = 39
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -38,6 +38,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 35
                 || previousVersion == 36
                 || previousVersion == 37
+                || previousVersion == 38
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -68,6 +69,15 @@ private extension DatabaseBootstrap {
             || previousVersion == 37
         {
             try migrateSchema37To38(on: database)
+        }
+        if previousVersion == 33
+            || previousVersion == 34
+            || previousVersion == 35
+            || previousVersion == 36
+            || previousVersion == 37
+            || previousVersion == 38
+        {
+            try migrateSchema38To39(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -326,22 +336,6 @@ private extension DatabaseBootstrap {
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_playback_finish_metadata_path
                 ON subtitle_playback_finish_metadata(subtitle_path);
-
-            CREATE TABLE IF NOT EXISTS subtitle_cue_line_speakers (
-                cue_line_id INTEGER NOT NULL,
-                cue_group_id INTEGER NOT NULL,
-                speaker TEXT NOT NULL,
-                speaker_key TEXT NOT NULL,
-                PRIMARY KEY(cue_line_id, speaker_key),
-                FOREIGN KEY(cue_line_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE,
-                FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_line_speakers_group
-                ON subtitle_cue_line_speakers(cue_group_id, speaker_key);
-
-            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_line_speakers_speaker
-                ON subtitle_cue_line_speakers(speaker_key, cue_group_id);
 
             CREATE VIRTUAL TABLE IF NOT EXISTS subtitle_cue_groups_fts USING fts5(
                 content,
@@ -609,25 +603,6 @@ private extension DatabaseBootstrap {
 
             CREATE INDEX IF NOT EXISTS idx_shiori_tag_assignments_shiori
                 ON shiori_tag_assignments(shiori_id, created_at, tag_id);
-
-            CREATE TABLE IF NOT EXISTS ai_chunk_cache_entries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                normalized_sentence TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                model TEXT NOT NULL,
-                prompt_version TEXT NOT NULL,
-                chunks_json TEXT NOT NULL,
-                cache_date TEXT NOT NULL,
-                UNIQUE(normalized_sentence, provider, model, prompt_version)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_ai_chunk_cache_entries_lookup
-                ON ai_chunk_cache_entries(
-                    normalized_sentence,
-                    provider,
-                    model,
-                    prompt_version
-                );
 
             """
             )
@@ -916,6 +891,23 @@ private extension DatabaseBootstrap {
                     ADD COLUMN recent_played_at TEXT;
 
                 PRAGMA user_version = 38;
+                """
+            )
+        }
+    }
+
+    static func migrateSchema38To39(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                DROP INDEX IF EXISTS idx_subtitle_cue_line_speakers_group;
+                DROP INDEX IF EXISTS idx_subtitle_cue_line_speakers_speaker;
+                DROP TABLE IF EXISTS subtitle_cue_line_speakers;
+
+                DROP INDEX IF EXISTS idx_ai_chunk_cache_entries_lookup;
+                DROP TABLE IF EXISTS ai_chunk_cache_entries;
+
+                PRAGMA user_version = 39;
                 """
             )
         }

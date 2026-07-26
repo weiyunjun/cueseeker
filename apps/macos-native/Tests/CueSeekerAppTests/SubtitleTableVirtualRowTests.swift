@@ -39,9 +39,6 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
         tags: [
             WorkbenchTag(key: "zh-hans"),
             WorkbenchTag(key: "jp"),
-        ],
-        speakerTags: [
-            WorkbenchTag(key: "高松灯"),
         ]
     )
     let coordinator = SubtitleTableView.Coordinator(
@@ -54,7 +51,6 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
         displayTitleHeader: "Display Title",
         showsTimeColumn: true,
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
@@ -62,18 +58,15 @@ func subtitleTableViewUsesVirtualRowCountWithoutMaterializingModels() {
     #expect(coordinator.numberOfRowsForTesting() == 2_000_000)
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
     #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
-    #expect(coordinator.cellFullText(row: -1, column: 4) == "Speaker")
-    #expect(coordinator.cellFullText(row: -1, column: 5) == "Language")
+    #expect(coordinator.cellFullText(row: -1, column: 4) == "Language")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
     #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
     #expect(coordinator.cellFullText(row: 0, column: 3) == "01:15:32 - 01:16:04")
-    #expect(coordinator.cellFullText(row: 0, column: 4) == "高松灯")
-    #expect(coordinator.cellFullText(row: 0, column: 5) == "zh-hans, jp")
+    #expect(coordinator.cellFullText(row: 0, column: 4) == "zh-hans, jp")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 0) == "1000001")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 2) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 3) == "")
     #expect(coordinator.cellFullText(row: 1_000_000, column: 4) == "")
-    #expect(coordinator.cellFullText(row: 1_000_000, column: 5) == "")
 }
 
 @MainActor
@@ -88,9 +81,6 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
         tags: [
             WorkbenchTag(key: "zh-hans"),
             WorkbenchTag(key: "jp"),
-        ],
-        speakerTags: [
-            WorkbenchTag(key: "高松灯"),
         ]
     )
     let coordinator = SubtitleTableView.Coordinator(
@@ -102,7 +92,6 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
         showsDisplayTitleColumn: false,
         showsTimeColumn: true,
         showsLanguageColumn: true,
-        showsSpeakerColumn: false,
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
@@ -143,7 +132,6 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         showsDateAddedColumn: true,
         showsTimeColumn: true,
         showsLanguageColumn: false,
-        showsSpeakerColumn: false,
         showsTagsColumn: true,
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
@@ -168,7 +156,6 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
     let searchMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
     )
@@ -176,7 +163,6 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
@@ -185,7 +171,6 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: true,
         showsLanguageColumn: true,
         showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
@@ -193,7 +178,7 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
 
     #expect(searchMinimumWidth == 610)
     #expect(shioriMinimumWidth == 870)
-    #expect(allOptionalColumnsMinimumWidth == 1_130)
+    #expect(allOptionalColumnsMinimumWidth == 990)
 }
 
 @MainActor
@@ -204,7 +189,6 @@ func subtitleTableColumnLayoutRedistributesWidthAfterMinimumConstraints() {
         height: 64,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
         columnOrder: ["display", "cues", "time"]
@@ -229,7 +213,6 @@ func subtitleTableColumnLayoutExpandsNarrowDocumentsToAllVisibleMinimums() {
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
@@ -253,7 +236,6 @@ func subtitleTableColumnLayoutExcludesHiddenColumnsFromWeightedAllocation() {
         height: 64,
         showsDisplayTitleColumn: true,
         showsTimeColumn: false,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
         columnOrder: ["display", "cues", "time"]
@@ -273,7 +255,6 @@ func subtitleTableColumnLayoutUsesUnconstrainedWeightsInWideDocuments() {
         height: 64,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
         columnOrder: ["display", "cues", "time"]
@@ -294,7 +275,6 @@ func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
@@ -306,7 +286,6 @@ func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsSpeakerColumn: false,
         showsLanguageColumn: false,
         showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
@@ -341,7 +320,6 @@ func subtitleTableViewUsesDynamicMinimumRowHeightAndLazySelectionState() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { $0 == 99_999 },
         onPlay: { _ in }
@@ -364,7 +342,6 @@ func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
         onPlay: { _ in }
@@ -382,7 +359,6 @@ func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
         rowsUpdate: .reload,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
@@ -405,7 +381,6 @@ func subtitleTableViewChoosesFirstVisibleRowForKeyboardCheckboxEntry() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
         onPlay: { _ in }
@@ -426,7 +401,6 @@ func subtitleTableViewRejectsKeyboardCheckboxEntryWhenNoRowsExist() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
         onPlay: { _ in }
@@ -505,7 +479,6 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         onVisibleRowsChange: { notifiedRanges.append($0) },
         isRowSelected: { _ in false },
         onPlay: { _ in }
@@ -920,7 +893,7 @@ func subtitleTableViewRightClickUsesEveryNonSelectionCellFullArea() throws {
         showsTagsColumn: true
     )
 
-    for columnID in ["display", "cues", "speaker", "language", "tags", "time", "dateAdded"] {
+    for columnID in ["display", "cues", "language", "tags", "time", "dateAdded"] {
         let cellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: columnID))
         let blankSidePoint = CGPoint(x: cellRect.maxX - 4, y: cellRect.midY)
         let windowPoint = fixture.documentView.convert(blankSidePoint, to: nil)
@@ -1159,7 +1132,6 @@ func subtitleTableViewClampsHorizontalScrollWhenColumnsAreHidden() {
         displayTitleHeader: "Display Title",
         showsDisplayTitleColumn: false,
         showsLanguageColumn: false,
-        showsSpeakerColumn: false,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
@@ -1193,7 +1165,6 @@ func subtitleTableViewScrollsToTargetRowOnReset() {
         rowsUpdate: .reload,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         scrollResetToken: 1,
         scrollTargetRow: 42,
         onVisibleRowsChange: { _ in },
@@ -1223,7 +1194,6 @@ func subtitleTableViewDoesNotRedrawForCallbackOnlyUpdates() {
         rowsUpdate: .none,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
@@ -1377,7 +1347,6 @@ func subtitleTableViewDoesNotReplayReloadForTheSameRowsVersion() {
         rowsUpdate: .reload,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         showsCueGroup: true,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
@@ -2774,7 +2743,6 @@ func subtitleTableViewShowCueGroupReflowPreservesPrimaryFirstLineAndPresentation
             rowsUpdate: .none,
             displayTitleHeader: "Display Title",
             showsLanguageColumn: true,
-            showsSpeakerColumn: true,
             showsCueGroup: true,
             scrollResetToken: 0,
             onVisibleRowsChange: { _ in visibleNotifications += 1 },
@@ -2866,7 +2834,6 @@ func subtitleTableViewCueCellPatchPreservesSamePrimaryIdentityAnchor() throws {
         rowsUpdate: .cells([TableSandboxCellInvalidation(row: anchorRow, columnID: "cues")]),
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
@@ -2907,7 +2874,6 @@ func subtitleTableViewReloadPreservesSamePrimaryIdentityAnchor() throws {
         rowsUpdate: .reload,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
@@ -2944,7 +2910,6 @@ func subtitleTableViewAppendKeepsMeasurementsWhileReloadInvalidatesIdentityConte
         rowsUpdate: .append(2..<3),
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
@@ -2967,7 +2932,6 @@ func subtitleTableViewAppendKeepsMeasurementsWhileReloadInvalidatesIdentityConte
         rowsUpdate: .reload,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         scrollResetToken: 0,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
@@ -3041,7 +3005,6 @@ private func makeKeyboardFocusTableCoordinator(
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         onVisibleRowsChange: { _ in },
         isRowSelected: { _ in false },
         onToggleRowSelection: onToggleRowSelection,
@@ -3118,7 +3081,6 @@ private func makeAttachedVirtualTableCoordinator(
         endTime: "00:02",
         cues: "cue text",
         tags: [],
-        speakerTags: [],
         shioriTags: showsTagsColumn ? [WorkbenchTag(key: "7", label: "Review", colorID: .gray)] : []
     )
     let rowProvider = customRowProvider ?? { _ in loadedRow }
@@ -3131,7 +3093,6 @@ private func makeAttachedVirtualTableCoordinator(
         showsDateAddedColumn: showsDateAddedColumn,
         showsTimeColumn: showsTimeColumn,
         showsLanguageColumn: true,
-        showsSpeakerColumn: true,
         showsTagsColumn: showsTagsColumn,
         showsCueGroup: showsCueGroup,
         onVisibleRowsChange: onVisibleRowsChange,

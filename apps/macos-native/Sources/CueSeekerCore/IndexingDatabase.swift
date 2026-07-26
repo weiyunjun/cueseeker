@@ -762,9 +762,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
 
         var newCueIndex = 0
-        let storedStateByCueID = Dictionary(
-            uniqueKeysWithValues: storedCueStates.map { ($0.identity.cueID, $0) }
-        )
         for (index, group) in cueGroups.enumerated() {
             let cueGroupID = try insertCueGroup(
                 subtitleFileID: subtitleFileID,
@@ -780,13 +777,6 @@ public final class IndexingDatabase: @unchecked Sendable {
                     cueID: assignment?.cueID
                 )
                 try deleteCueTombstone(cueID: cueLineID)
-                if let speakers = storedStateByCueID[cueLineID]?.speakers {
-                    try insertCueLineSpeakers(
-                        cueLineID: cueLineID,
-                        cueGroupID: cueGroupID,
-                        speakers: speakers
-                    )
-                }
                 if let assignment,
                    assignment.previousContent != line.content
                 {
@@ -816,39 +806,6 @@ public final class IndexingDatabase: @unchecked Sendable {
             previousSubtitlePath: upsertedSubtitleFile.previousPath,
             videoPath: videoFile.path
         )
-    }
-
-    public func replaceCueLineSpeakers(
-        forSubtitleFile subtitleFile: URL,
-        assignments: [SubtitleCueLineSpeakerAssignment]
-    ) throws {
-        let cueGroupIDsByLineID = try cueGroupIDsByCueLineID(forSubtitleFile: subtitleFile)
-        let assignedLineIDs = Set(assignments.map(\.cueLineID))
-        guard assignedLineIDs.isSubset(of: Set(cueGroupIDsByLineID.keys)) else {
-            throw SQLiteDatabaseError.stepFailed(
-                "Speaker assignments contain cue lines outside subtitle file: \(subtitleFile.path)"
-            )
-        }
-
-        try database.withImmediateTransaction {
-            try clearCueLineSpeakersInCurrentTransaction(forSubtitleFile: subtitleFile)
-            for assignment in assignments {
-                guard let cueGroupID = cueGroupIDsByLineID[assignment.cueLineID] else {
-                    continue
-                }
-                try insertCueLineSpeakers(
-                    cueLineID: assignment.cueLineID,
-                    cueGroupID: cueGroupID,
-                    speakers: assignment.speakers
-                )
-            }
-        }
-    }
-
-    public func clearCueLineSpeakers(forSubtitleFile subtitleFile: URL) throws {
-        try database.withImmediateTransaction {
-            try clearCueLineSpeakersInCurrentTransaction(forSubtitleFile: subtitleFile)
-        }
     }
 
     public func languageDetections(
@@ -994,36 +951,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
 
         return statement.int64Column(0)
-    }
-
-    private func cueGroupSpeakers(
-        forCueGroupIDs cueGroupIDs: [Int64]
-    ) throws -> [Int64: Set<String>] {
-        guard !cueGroupIDs.isEmpty else {
-            return [:]
-        }
-
-        let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
-        let statement = try database.prepare(
-            """
-            SELECT cue_group_id, speaker
-            FROM subtitle_cue_line_speakers
-            WHERE cue_group_id IN (\(placeholders))
-            GROUP BY cue_group_id, speaker_key, speaker
-            ORDER BY cue_group_id ASC, speaker_key ASC;
-            """
-        )
-
-        for (offset, cueGroupID) in cueGroupIDs.enumerated() {
-            try statement.bind(cueGroupID, at: Int32(offset + 1))
-        }
-
-        var speakersByCueGroupID: [Int64: Set<String>] = [:]
-        while try statement.step() {
-            speakersByCueGroupID[statement.int64Column(0), default: []].insert(statement.stringColumn(1))
-        }
-
-        return speakersByCueGroupID
     }
 
     public func hasCurrentSubtitleLanguageManifest(forSubtitleFile subtitleFile: URL) throws -> Bool {
@@ -1397,7 +1324,6 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     private struct StoredCueState {
         let identity: StoredCueIdentity
-        var speakers: Set<String>
     }
 
 
@@ -2547,11 +2473,10 @@ public final class IndexingDatabase: @unchecked Sendable {
             """
             SELECT l.id, l.source_format, l.source_style,
                    l.source_identity_remainder, l.start_ms, l.end_ms,
-                   l.content, s.speaker
+                   l.content
             FROM subtitle_cue_lines l
-            LEFT JOIN subtitle_cue_line_speakers s ON s.cue_line_id = l.id
             WHERE l.subtitle_file_id = ?
-            ORDER BY l.id ASC, s.speaker_key ASC;
+            ORDER BY l.id ASC;
             """
         )
         try statement.bind(subtitleFileID, at: 1)
@@ -2559,7 +2484,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         var stateByCueID: [Int64: StoredCueState] = [:]
         while try statement.step() {
             let cueID = statement.int64Column(0)
-            var state = stateByCueID[cueID] ?? StoredCueState(
+            stateByCueID[cueID] = StoredCueState(
                 identity: StoredCueIdentity(
                     cueID: cueID,
                     sourceFormat: SubtitleFormat(
@@ -2570,13 +2495,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                     startMilliseconds: statement.intColumn(4),
                     endMilliseconds: statement.intColumn(5),
                     content: statement.stringColumn(6)
-                ),
-                speakers: []
+                )
             )
-            if let speaker = statement.nullableStringColumn(7) {
-                state.speakers.insert(speaker)
-            }
-            stateByCueID[cueID] = state
         }
 
         let tombstones = try database.prepare(
@@ -2605,8 +2525,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     startMilliseconds: tombstones.intColumn(4),
                     endMilliseconds: tombstones.intColumn(5),
                     content: tombstones.stringColumn(6)
-                ),
-                speakers: []
+                )
             )
         }
 
@@ -2994,87 +2913,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(line.displayOrder, at: 16)
         try statement.run()
         return cueID ?? database.lastInsertRowID()
-    }
-
-    private func cueGroupIDsByCueLineID(forSubtitleFile subtitleFile: URL) throws -> [Int64: Int64] {
-        let statement = try database.prepare(
-            """
-            SELECT l.id, l.cue_group_id
-            FROM subtitle_cue_lines l
-            JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?;
-            """
-        )
-
-        try statement.bind(subtitleFile.path, at: 1)
-
-        var cueGroupIDsByLineID: [Int64: Int64] = [:]
-        while try statement.step() {
-            cueGroupIDsByLineID[statement.int64Column(0)] = statement.int64Column(1)
-        }
-        return cueGroupIDsByLineID
-    }
-
-    private func clearCueLineSpeakersInCurrentTransaction(forSubtitleFile subtitleFile: URL) throws {
-        let statement = try database.prepare(
-            """
-            DELETE FROM subtitle_cue_line_speakers
-            WHERE cue_line_id IN (
-                SELECT l.id
-                FROM subtitle_cue_lines l
-                JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
-                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                WHERE sf.subtitle_path = ?
-            );
-            """
-        )
-        try statement.bind(subtitleFile.path, at: 1)
-        try statement.run()
-    }
-
-    private func insertCueLineSpeakers(
-        cueLineID: Int64,
-        cueGroupID: Int64,
-        speakers: Set<String>
-    ) throws {
-        let normalizedSpeakers = Self.normalizedSpeakerValues(speakers)
-        guard !normalizedSpeakers.isEmpty else {
-            return
-        }
-
-        let statement = try database.prepare(
-            """
-            INSERT OR REPLACE INTO subtitle_cue_line_speakers(
-                cue_line_id,
-                cue_group_id,
-                speaker,
-                speaker_key
-            )
-            VALUES (?, ?, ?, ?);
-            """
-        )
-
-        for speaker in normalizedSpeakers {
-            try statement.reset()
-            try statement.clearBindings()
-            try statement.bind(cueLineID, at: 1)
-            try statement.bind(cueGroupID, at: 2)
-            try statement.bind(speaker, at: 3)
-            try statement.bind(Self.speakerKey(for: speaker), at: 4)
-            try statement.run()
-        }
-    }
-
-    private static func normalizedSpeakerValues(_ speakers: Set<String>) -> [String] {
-        speakers
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .sorted()
-    }
-
-    private static func speakerKey(for speaker: String) -> String {
-        speaker.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func validateLanguageAnalysis(

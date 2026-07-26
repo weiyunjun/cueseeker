@@ -37,17 +37,6 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
             )
         ]
     )
-    let cacheKey = AIChunkCacheKey(
-        normalizedSentence: "startup cache should stay available",
-        provider: "deepseek",
-        model: "deepseek-chat",
-        promptVersion: "startup-v1"
-    )
-    let cache = try AIChunkCacheDatabase(path: databaseURL)
-    try cache.upsertAIChunkCacheEntry(
-        key: cacheKey,
-        chunks: [AIChunkItem(item: "startup", translation: "startup")]
-    )
     #expect(try SearchDatabase(path: databaseURL).cueOccurrenceCount(for: "startup") == 1)
 
     _ = NSApplication.shared
@@ -56,9 +45,6 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
     #expect(app.startupDatabaseTask == nil)
     #expect(app.libraryDisplayRenditionTask == nil)
     #expect(try #require(app.searchDatabase).cueOccurrenceCount(for: "startup") == 1)
-    #expect(try cache.aiChunkCacheEntry(for: cacheKey)?.chunks == [
-        AIChunkItem(item: "startup", translation: "startup")
-    ])
     #expect(app.indexing.databaseStorageStats == nil)
 }
 

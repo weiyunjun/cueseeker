@@ -86,7 +86,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
     /// legacy Shiori snapshots that have no durable Cue identity.
     let primaryGroupIndex: Int?
     let tags: [WorkbenchTag]
-    let speakerTags: [WorkbenchTag]
     let shioriTags: [WorkbenchTag]
     let cueState: SubtitleTableCueState
 
@@ -132,7 +131,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
         cueGroupTexts: [String],
         primaryGroupIndex: Int?,
         tags: [WorkbenchTag] = [],
-        speakerTags: [WorkbenchTag] = [],
         shioriTags: [WorkbenchTag] = [],
         cueState: SubtitleTableCueState = .normal
     ) {
@@ -158,7 +156,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.cueGroupTexts = resolvedCueGroupTexts
         self.primaryGroupIndex = resolvedPrimaryGroupIndex
         self.tags = tags
-        self.speakerTags = speakerTags
         self.shioriTags = shioriTags
         self.cueState = cueState
     }
@@ -175,7 +172,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
         timeRange: String? = nil,
         cues: String,
         tags: [WorkbenchTag] = [],
-        speakerTags: [WorkbenchTag] = [],
         shioriTags: [WorkbenchTag] = []
     ) {
         self.init(
@@ -191,7 +187,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
             cueGroupTexts: [cues],
             primaryGroupIndex: 0,
             tags: tags,
-            speakerTags: speakerTags,
             shioriTags: shioriTags
         )
     }
@@ -210,7 +205,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
             cueGroupTexts: cueGroupTexts,
             primaryGroupIndex: primaryGroupIndex,
             tags: tags,
-            speakerTags: speakerTags,
             shioriTags: nextShioriTags,
             cueState: cueState
         )

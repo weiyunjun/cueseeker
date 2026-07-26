@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed the retired Speaker and AI Chunking paths. Database schema 39 drops
+  their obsolete tables in place while preserving Cue, Language, Shiori, and
+  search data, so no reindex is required. App startup also clears the saved
+  DeepSeek Keychain credential, obsolete preferences, and saved Speaker filter
+  rules without affecting the remaining filters.
 - Hardened Library Index recovery and persistent identity handling. Replacing a
   subtitle with a different disk resource can no longer be hidden by identical
   size and modification time, unavailable platform identities follow the

@@ -44,7 +44,7 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
 }
 
 @Test
-func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
+func allCuesVisiblePageReturnsDefaultOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -53,8 +53,8 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    let subtitleFile = URL(fileURLWithPath: "/Media/SpeakerTest.srt")
-    let videoFile = URL(fileURLWithPath: "/Media/SpeakerTest.mkv")
+    let subtitleFile = URL(fileURLWithPath: "/Media/OrderTest.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/OrderTest.mkv")
     try database.replaceEntries(
         subtitleFile: subtitleFile,
         videoFile: videoFile,
@@ -92,15 +92,6 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
             )
         ]
     )
-    let cueLines = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
-    let secondCueLine = try #require(cueLines.first { $0.line.content == "second cue" })
-    try database.replaceCueLineSpeakers(
-        forSubtitleFile: subtitleFile,
-        assignments: [
-            SubtitleCueLineSpeakerAssignment(cueLineID: secondCueLine.id, speakers: ["高松灯"])
-        ]
-    )
-
     let page = try SearchDatabase(path: database.path).allCuesVisiblePage(limit: 10, cursor: .start)
 
     #expect(page.totalCount == 3)
@@ -110,31 +101,12 @@ func allCuesVisiblePageReturnsDefaultOrderAndSpeakers() throws {
         "00:02 - 00:02",
         "00:03 - 00:03",
     ])
-    #expect(page.results[0].speakers == [])
-    #expect(page.results[1].speakers == ["高松灯"])
-    #expect(page.results[2].speakers == [])
     #expect(Dictionary(uniqueKeysWithValues: page.fileSummaries.map {
         ($0.subtitlePath, $0.matchCount)
     }) == [
         subtitleFile.path: 2,
         summarySubtitleFile.path: 1,
     ])
-
-    let speakerPage = try SearchDatabase(path: database.path).allCuesVisiblePage(
-        limit: 10,
-        cursor: .start,
-        filterSet: SubtitleSearchFilterSet(
-            rules: [
-                SubtitleSearchFilterRule(
-                    field: .speaker,
-                    operatorID: .contains,
-                    value: "高松灯"
-                )
-            ]
-        )
-    )
-    #expect(speakerPage.totalCount == 1)
-    #expect(speakerPage.results.map(\.content) == ["second cue"])
 }
 
 @Test
@@ -204,14 +176,6 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
         languageAnalysis: analysis
     )
     let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
-    try database.replaceCueLineSpeakers(
-        forSubtitleFile: subtitleFile,
-        assignments: [
-            SubtitleCueLineSpeakerAssignment(cueLineID: cueRecords[0].id, speakers: ["上方角色"]),
-            SubtitleCueLineSpeakerAssignment(cueLineID: cueRecords[1].id, speakers: ["下方角色"]),
-        ]
-    )
-
     let firstPage = try SearchDatabase(path: database.path).allCuesVisiblePage(limit: 1, cursor: .start)
     #expect(firstPage.totalCount == 2)
     #expect(firstPage.results.map(\.entryID) == [cueRecords[0].id])
@@ -219,7 +183,6 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
     #expect(firstPage.results[0].cueGroupLines == ["中文上方", "日本語の下側\n二行目"])
     #expect(firstPage.results[0].primaryGroupIndex == 0)
     #expect(firstPage.results[0].languages == [.simplifiedChinese])
-    #expect(firstPage.results[0].speakers == ["上方角色"])
     #expect(firstPage.nextCursor == SubtitleSearchCursor(offset: 1))
 
     let secondPage = try SearchDatabase(path: database.path).allCuesVisiblePage(
@@ -231,7 +194,6 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
     #expect(secondPage.results[0].cueLines == ["日本語の下側\n二行目"])
     #expect(secondPage.results[0].primaryGroupIndex == 1)
     #expect(secondPage.results[0].languages == [.japanese])
-    #expect(secondPage.results[0].speakers == ["下方角色"])
     #expect(secondPage.results[0].cueGroupID == firstPage.results[0].cueGroupID)
 
     let filteredPage = try SearchDatabase(path: database.path).allCuesVisiblePage(
@@ -239,9 +201,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
         cursor: .start,
         filterSet: SubtitleSearchFilterSet(
             rules: [
-                SubtitleSearchFilterRule(field: .speaker, operatorID: .contains, value: "下方角色"),
                 SubtitleSearchFilterRule(
-                    join: .and,
                     field: .language,
                     operatorID: .contains,
                     value: "ja"
@@ -2300,7 +2260,7 @@ func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
 }
 
 @Test
-func searchCueFiltersAndSpeakersDoNotLeakFromSiblingCue() throws {
+func searchCueFiltersDoNotLeakFromSiblingCue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -2323,27 +2283,13 @@ func searchCueFiltersAndSpeakersDoNotLeakFromSiblingCue() throws {
         format: .ass,
         cueGroups: [cueGroup]
     )
-    let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
-    let sibling = try #require(cueRecords.first { $0.line.content == "secret sibling cue" })
-    try database.replaceCueLineSpeakers(
-        forSubtitleFile: subtitleFile,
-        assignments: [
-            SubtitleCueLineSpeakerAssignment(cueLineID: sibling.id, speakers: ["Sibling Speaker"])
-        ]
-    )
-
     let siblingCueFilter = SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(field: .cues, operatorID: .contains, value: "secret")
     ])
-    let siblingSpeakerFilter = SubtitleSearchFilterSet(rules: [
-        SubtitleSearchFilterRule(field: .speaker, operatorID: .contains, value: "Sibling Speaker")
-    ])
     #expect(try SearchDatabase(path: database.path).search("target", filterSet: siblingCueFilter).isEmpty)
-    #expect(try SearchDatabase(path: database.path).search("target", filterSet: siblingSpeakerFilter).isEmpty)
 
     let siblingResults = try SearchDatabase(path: database.path).search("secret")
     #expect(siblingResults.map(\.content) == ["secret sibling cue"])
-    #expect(siblingResults.first?.speakers == ["Sibling Speaker"])
 }
 
 @Test

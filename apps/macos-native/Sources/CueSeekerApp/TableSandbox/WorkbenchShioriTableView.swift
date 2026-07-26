@@ -89,7 +89,6 @@ private struct WorkbenchShioriTableContent: View {
                     showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
                     showsTimeColumn: isColumnVisible("time", in: visibleColumns),
                     showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
-                    showsSpeakerColumn: false,
                     showsTagsColumn: isColumnVisible("tags", in: visibleColumns),
                     showsCueGroup: appliedShowCueGroup
                         ?? (allowsTableResponse && settingsStore.showCueGroup),
