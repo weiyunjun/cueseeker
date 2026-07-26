@@ -925,11 +925,7 @@ extension AppCoordinator {
             }
 
             playback.playbackViewModel?.bindPendingPresentation(to: generation)
-            do {
-                try shioriDatabase?.recordRecentShioriPlayback(shioriID: shiori.id)
-            } catch {
-                print("Failed to record recent Shiori playback: \(error)")
-            }
+            recordRecentShioriPlayback(for: shiori)
             return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()
@@ -937,6 +933,21 @@ extension AppCoordinator {
             playback.playbackViewModel?.clearSubtitleCues()
             playback.playbackStatus = .failed(Self.errorMessage(for: error))
             return false
+        }
+    }
+
+    func recordRecentShioriPlayback(for item: Shiori) {
+        guard let shioriDatabase else {
+            return
+        }
+        do {
+            try shioriDatabase.recordRecentShioriPlayback(shioriID: item.id)
+            shioriListOverviewTask?.cancel()
+            shiori.installRecentListSummaries(
+                try shioriDatabase.recentShioriListSummaries()
+            )
+        } catch {
+            print("Failed to record recent Shiori playback: \(error)")
         }
     }
 

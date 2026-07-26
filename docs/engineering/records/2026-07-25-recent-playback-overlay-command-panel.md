@@ -243,3 +243,26 @@ speculative abstractions.
 - `git diff --check` passed.
 - Per owner direction, no desktop automation or screenshot-based end-to-end
   validation was performed.
+
+## Step 9: Recent Shiori Command Panel Synchronization
+
+- Published the database-derived Recent Shiori summaries to the existing
+  `ShioriStore` immediately after a Shiori playback successfully opens or
+  seeks and records its recent state.
+- Cancelled an in-flight Shiori overview load before installing the current
+  snapshot so an older result cannot replace the newly recorded list order.
+- Kept Command Panel rows, item count, initial selection, and keyboard movement
+  on the existing `recentListSummaries` source without adding another cache or
+  presentation state.
+- Added regression coverage for playing from two different Shiori Lists and
+  opening Recent Shioris with working downward selection.
+
+## Step 9 Verification
+
+- The focused Recent Shiori Command Panel regression test passed.
+- The combined Shiori and Command Panel selection ran 83 tests successfully.
+- The application and test targets compiled successfully as part of the
+  focused test runs.
+- `git diff --check` passed.
+- Per owner direction, no desktop automation or screenshot-based end-to-end
+  validation was performed.
