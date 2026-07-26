@@ -19,10 +19,6 @@ extension AppCoordinator {
         if playback.subtitleFocusSession != nil {
             return true
         }
-        if playbackRecentOpenTask != nil {
-            return true
-        }
-
         guard !playback.isTimelineScrubbing,
               playback.playbackStatus == .playing || playback.playbackStatus == .paused,
               let playbackViewModel = playback.playbackViewModel,
@@ -55,30 +51,20 @@ extension AppCoordinator {
                 .videos
                 .first { $0.videoPath == source.videoPath }
         )
-        let recentStore: PlaybackRecentSessionStore?
         let libraryStore: PlaybackLibrarySessionStore?
         if case .library = activePlaybackSource {
-            if playbackReturnContext == .recent {
-                recentStore = makePlaybackRecentSessionStore()
-                libraryStore = nil
-            } else {
-                recentStore = nil
-                libraryStore = makePlaybackLibrarySessionStore(
-                    folderPath: URL(fileURLWithPath: source.videoPath)
-                        .deletingLastPathComponent()
-                        .standardizedFileURL.path
-                )
-            }
+            libraryStore = makePlaybackLibrarySessionStore(
+                folderPath: URL(fileURLWithPath: source.videoPath)
+                    .deletingLastPathComponent()
+                    .standardizedFileURL.path
+            )
         } else {
-            recentStore = nil
             libraryStore = nil
         }
         guard let session = playback.beginSubtitleFocusSession(
             openSnapshot: openSnapshot,
-            recentStore: recentStore,
             libraryStore: libraryStore
         ) else {
-            recentStore?.invalidate()
             libraryStore?.invalidate()
             return false
         }
@@ -120,7 +106,6 @@ extension AppCoordinator {
     func invalidatePlaybackSubtitleFocusForSourceReplacement(
         finishesPlaybackSearchHost: Bool = true
     ) {
-        cancelPlaybackRecentOpenTask()
         cancelPlaybackSubtitleFocusActionTask()
         cancelPlaybackSubtitleFocusCueLoadTasks()
         if finishesPlaybackSearchHost {
@@ -132,81 +117,6 @@ extension AppCoordinator {
 
         session.invalidateForSourceReplacement()
         playback.releaseSubtitleFocusSession(session)
-    }
-
-    @discardableResult
-    func requestPlaybackRecentOpenAction() -> Bool {
-        guard let item = playback.subtitleFocusSession?
-            .selectedRecentPrimaryActionItem()
-        else {
-            return false
-        }
-        return openPlaybackRecentItemFromOverlay(item)
-    }
-
-    @discardableResult
-    func openPlaybackRecentItemFromOverlay(
-        _ requestedItem: RecentLibraryWatchingPresentation
-    ) -> Bool {
-        guard let session = playback.subtitleFocusSession,
-              (
-                  session.selectedModule == .recent
-                      || session.selectedModule == .playlist
-                          && session.recentStore != nil
-              ),
-              let recentStore = session.recentStore,
-              let item = recentStore.primaryActionItem(itemID: requestedItem.id),
-              item == requestedItem
-        else {
-            return false
-        }
-
-        let source = session.openSnapshot.source
-        invalidatePlaybackSubtitleFocusForSourceReplacement()
-
-        playbackRecentOpenGeneration &+= 1
-        let generation = playbackRecentOpenGeneration
-        playbackRecentOpenTask = Task { @MainActor [weak self] in
-            guard let self else {
-                return
-            }
-            defer {
-                if playbackRecentOpenGeneration == generation {
-                    playbackRecentOpenTask = nil
-                }
-            }
-
-            await prepareRecentLibraryNavigation(for: item)
-            guard !Task.isCancelled,
-                  playbackRecentOpenGeneration == generation,
-                  currentPlaybackVideoPath.map({
-                      URL(fileURLWithPath: $0).standardizedFileURL.path
-                  }) == source.videoPath,
-                  currentPlaybackSubtitlePath.map({
-                      URL(fileURLWithPath: $0).standardizedFileURL.path
-                  }) == source.subtitlePath,
-                  currentPlaybackSubtitleFormat == source.subtitleFormat
-            else {
-                return
-            }
-
-            playbackRecentOpenTask = nil
-            openLibraryVideo(
-                item.libraryVideo,
-                displayTitle: item.displayTitle,
-                playbackReturnContextOnSuccessfulPlay: .recent
-            )
-        }
-        return true
-    }
-
-    func cancelPlaybackRecentOpenTask() {
-        guard playbackRecentOpenTask != nil else {
-            return
-        }
-        playbackRecentOpenGeneration &+= 1
-        playbackRecentOpenTask?.cancel()
-        playbackRecentOpenTask = nil
     }
 
     @discardableResult
@@ -249,10 +159,7 @@ extension AppCoordinator {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         openLibraryVideo(
             video.libraryVideo,
-            displayTitle: video.displayTitle,
-            playbackReturnContextOnSuccessfulPlay: .libraryFolderDetail(
-                folderPath: detail.folderPath
-            )
+            displayTitle: video.displayTitle
         )
         return true
     }

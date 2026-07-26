@@ -98,7 +98,6 @@ final class PlaybackStore: ObservableObject {
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
         availableModules: [PlaybackOverlayModule]? = nil,
         searchStore: SearchStore? = nil,
-        recentStore: PlaybackRecentSessionStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
         shioriStore: ShioriStore? = nil
     ) -> PlaybackSubtitleFocusSessionStore? {
@@ -113,13 +112,11 @@ final class PlaybackStore: ObservableObject {
             availableModules: availableModules
                 ?? PlaybackOverlayModule.modules(
                     hasPlaylist: playlistSource?.hasItems == true
-                        || recentStore != nil
                         || libraryStore != nil
                 ),
             playlistSource: playlistSource,
             playlistPosition: playlistPosition,
             searchStore: searchStore,
-            recentStore: recentStore,
             libraryStore: libraryStore,
             shioriStore: shioriStore
         )

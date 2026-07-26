@@ -733,8 +733,8 @@ extension AppCoordinator {
             .option,
             .shift,
         ]
-        if (keyCode == 36 || keyCode == 76),
-           modifierFlags.intersection(commandPanelModifiers) == .command,
+        if keyCode == 50,
+           modifierFlags.intersection(commandPanelModifiers).isEmpty,
            !textInputState.isEditableFocused {
             if !isRepeat {
                 _ = presentPlaybackCommandPanel()
@@ -880,12 +880,8 @@ extension AppCoordinator {
 
             let usesMediaPlaylist =
                 subtitleFocusSession.selectedModule == .playlist
-                && (
-                    subtitleFocusSession.recentStore != nil
-                        || subtitleFocusSession.libraryStore != nil
-                )
-            if subtitleFocusSession.selectedModule == .recent
-                || subtitleFocusSession.selectedModule == .library
+                && subtitleFocusSession.libraryStore != nil
+            if subtitleFocusSession.selectedModule == .library
                 || usesMediaPlaylist {
                 guard !textInputState.isEditableFocused else {
                     return false
@@ -912,11 +908,7 @@ extension AppCoordinator {
                     _ = subtitleFocusSession.requestMediaSelectionNavigation(.down)
                 case 36, 76:
                     if !isRepeat {
-                        if subtitleFocusSession.recentStore != nil {
-                            _ = requestPlaybackRecentOpenAction()
-                        } else {
-                            _ = requestPlaybackLibraryPrimaryAction()
-                        }
+                        _ = requestPlaybackLibraryPrimaryAction()
                     }
                 default:
                     break

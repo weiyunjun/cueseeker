@@ -95,7 +95,6 @@ func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
     for expectedModule in [
         PlaybackOverlayModule.playlist,
         .search,
-        .recent,
         .library,
         .shiori,
         .current,

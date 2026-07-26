@@ -36,7 +36,6 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
     case current
     case playlist
     case search
-    case recent
     case library
     case shiori
 
@@ -56,8 +55,6 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
             "Playlist"
         case .search:
             "Search"
-        case .recent:
-            "Recent"
         case .library:
             "Library"
         case .shiori:
@@ -67,7 +64,7 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
 
     var systemImage: String {
         switch self {
-        case .current, .recent:
+        case .current:
             "clock"
         case .playlist:
             "list.bullet"
@@ -84,7 +81,7 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
         switch self {
         case .current, .playlist, .shiori:
             true
-        case .search, .recent, .library:
+        case .search, .library:
             false
         }
     }
@@ -134,7 +131,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: SearchStore?
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
-    @Published private(set) var recentStore: PlaybackRecentSessionStore?
     @Published private(set) var libraryStore: PlaybackLibrarySessionStore?
     @Published private(set) var shioriStore: ShioriStore?
     @Published private(set) var shioriWindow: PlaybackCueResultSessionWindowStore?
@@ -164,7 +160,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         playlistSource: PlaybackPlaylistSource? = nil,
         playlistPosition: PlaybackPlaylistPosition? = nil,
         searchStore: SearchStore? = nil,
-        recentStore: PlaybackRecentSessionStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
         shioriStore: ShioriStore? = nil
     ) {
@@ -182,7 +177,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         )
         self.playlistWindow = playlistWindow
         self.searchStore = searchStore
-        self.recentStore = recentStore
         self.libraryStore = libraryStore
         self.shioriStore = shioriStore
         token = PlaybackSubtitleFocusSessionToken(
@@ -321,12 +315,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
         prepareReelForModuleTransition()
         selectedModule = module
-        if module == .recent {
-            recentStore?.activate(refreshesExistingSnapshot: true)
-        } else if module == .library {
+        if module == .library {
             libraryStore?.activate(refreshesExistingSnapshot: true)
         } else if module == .playlist {
-            recentStore?.activate(refreshesExistingSnapshot: true)
             libraryStore?.activate(refreshesExistingSnapshot: true)
         }
         return true
@@ -358,31 +349,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
         switch selectedModule {
-        case .recent:
-            return recentStore?.selection.move(direction) == true
         case .library:
             return libraryStore?.moveSelection(direction) == true
         case .playlist:
-            if let recentStore {
-                return recentStore.selection.move(direction)
-            }
             return libraryStore?.moveSelection(direction) == true
         default:
             return false
         }
-    }
-
-    func selectedRecentPrimaryActionItem()
-        -> RecentLibraryWatchingPresentation? {
-        guard isSessionActive,
-              (
-                  selectedModule == .recent
-                      || selectedModule == .playlist && recentStore != nil
-              )
-        else {
-            return nil
-        }
-        return recentStore?.primaryActionItem()
     }
 
     func selectedLibraryPrimaryActionVideo()
@@ -1046,8 +1019,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         searchSource?.invalidate()
         searchSource = nil
         searchStore = nil
-        recentStore?.invalidate()
-        recentStore = nil
         libraryStore?.invalidate()
         libraryStore = nil
         shioriResultsCancellable?.cancel()

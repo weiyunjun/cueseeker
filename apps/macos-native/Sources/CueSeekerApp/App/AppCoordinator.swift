@@ -452,8 +452,6 @@ final class AppCoordinator: ObservableObject {
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusActionTask: Task<Void, Never>?
     var playbackSubtitleFocusActionGeneration = 0
-    var playbackRecentOpenTask: Task<Void, Never>?
-    var playbackRecentOpenGeneration = 0
     var databaseStorageStatsTask: Task<Void, Never>?
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?

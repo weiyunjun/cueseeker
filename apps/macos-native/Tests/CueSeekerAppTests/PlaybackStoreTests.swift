@@ -97,7 +97,7 @@ func playbackStoreOpensPlaylistOverlayAtLogicalPlayingItem() throws {
 
 @MainActor
 @Test
-func playbackStoreUsesExistingMediaSessionStoresAsPlaylistSources() throws {
+func playbackStoreUsesTheLibrarySessionStoreAsTheMediaPlaylistSource() throws {
     let suiteName = "CueSeekerMediaPlaylistTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     defer {
@@ -105,10 +105,6 @@ func playbackStoreUsesExistingMediaSessionStoresAsPlaylistSources() throws {
     }
     let store = PlaybackStore(userDefaults: userDefaults)
     let library = LibraryStore()
-    let recentStore = PlaybackRecentSessionStore(
-        libraryStore: library,
-        isVideoAvailable: { _ in true }
-    )
     let openSnapshot = PlaybackSubtitleFocusOpenSnapshot(
         source: SubtitleFocusSourceIdentity(
             videoPath: "/video/current.mkv",
@@ -118,14 +114,6 @@ func playbackStoreUsesExistingMediaSessionStoresAsPlaylistSources() throws {
         timestampMilliseconds: 1_000,
         wasPlaying: false
     )
-
-    let recentSession = try #require(store.beginSubtitleFocusSession(
-        openSnapshot: openSnapshot,
-        recentStore: recentStore
-    ))
-    #expect(recentSession.availableModules == [.current, .playlist])
-    #expect(recentSession.recentStore === recentStore)
-    store.releaseSubtitleFocusSession(recentSession)
 
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: library,

@@ -67,15 +67,6 @@ extension AppCoordinator {
         return position.ordinal + (direction == .previous ? -1 : 1)
     }
 
-    func makePlaybackRecentSessionStore() -> PlaybackRecentSessionStore {
-        PlaybackRecentSessionStore(
-            libraryStore: library,
-            requestSource: { [weak self] in
-                self?.hydrateTestRecentWatchingAsync()
-            }
-        )
-    }
-
     func makePlaybackLibrarySessionStore(
         folderPath: String
     ) -> PlaybackLibrarySessionStore {

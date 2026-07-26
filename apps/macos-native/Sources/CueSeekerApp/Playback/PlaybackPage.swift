@@ -39,8 +39,6 @@ struct PlaybackPageView: View {
                             appState.executePlaybackSubtitleFocusAction,
                         resolveVideoPresentation:
                             appState.playbackVideoPresentation,
-                        onOpenRecentItem:
-                            appState.openPlaybackRecentItemFromOverlay,
                         onOpenLibraryEpisode:
                             appState.openPlaybackLibraryEpisodeFromOverlay
                     )

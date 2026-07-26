@@ -120,7 +120,37 @@ func playbackLibrarySourceOpensAsTheMediaPlaylist() async throws {
         #expect(session.libraryStore?.libraryStore === app.library)
         #expect(session.libraryStore?.folderPath == folder.folderPath)
         #expect(session.libraryStore?.detail?.videos == expectedVideos)
-        #expect(session.recentStore == nil)
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
+    }
+}
+
+@MainActor
+@Test
+func playbackRecentEntryUsesTheCurrentFolderLibraryPlaylist() async throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
+    try await withPlaybackLibraryApp { app in
+        app.library.completeLibraryFolderSummaries = fixture.folders
+        app.library.completeLibraryFolderDetailsByPath =
+            fixture.detailsByFolderPath
+        let folder = fixture.folders[0]
+        let video = try #require(
+            fixture.detailsByFolderPath[folder.folderPath]?.videos[0]
+        )
+        app.library.selectedLibraryVideo = video.libraryVideo
+        app.search.selectedSearchResult = nil
+        app.activePlaybackSource = .library(videoPath: video.videoPath)
+        app.playbackReturnContext = .recent
+        app.ensurePlayerInitialized()
+
+        #expect(app.openPlaybackSubtitleFocusFromUser())
+        let session = try #require(app.playback.subtitleFocusSession)
+        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.libraryStore?.folderPath == folder.folderPath)
+        #expect(
+            session.libraryStore?.detail?.videos
+                == fixture.detailsByFolderPath[folder.folderPath]?.videos
+        )
+        #expect(app.playbackReturnContext == .recent)
         app.invalidatePlaybackSubtitleFocusForSourceReplacement()
     }
 }
@@ -234,17 +264,20 @@ func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackLibraryOpenSnapshot(),
-            availableModules: PlaybackOverlayModule.allCases,
             libraryStore: store
         ))
         #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-        #expect(session.selectModule(.library))
+        #expect(session.selectModule(.playlist))
         let detail = try #require(store.detail)
         let clickedVideo = detail.videos[1]
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.playbackReturnContext = .recent
 
         #expect(app.openPlaybackLibraryEpisodeFromOverlay(clickedVideo))
+        await Task.yield()
         #expect(app.playback.subtitleFocusSession == nil)
         #expect(app.library.selectedLibraryVideo?.videoPath == clickedVideo.videoPath)
+        #expect(app.playbackReturnContext == .recent)
         #expect(
             app.library.libraryPlaybackNavigationVideos.map(\.videoPath)
                 == detail.videos.map(\.videoPath)

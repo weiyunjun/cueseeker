@@ -186,14 +186,13 @@ func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
 
 @MainActor
 @Test
-func playbackCommandPanelCommandEnterOpensRootAndEscapeCloses() async throws {
+func playbackCommandPanelBacktickOpensRootAndEscapeCloses() async throws {
     try await withKeyboardActionApp { app, _ in
-        let commandModifier = NSEvent.ModifierFlags.command.rawValue
         app.playback.isPlaybackSurfaceExpanded = true
 
         #expect(app.handlePlaybackKeyDown(
-            keyCode: 36,
-            modifierFlagsRawValue: commandModifier
+            keyCode: 50,
+            modifierFlagsRawValue: 0
         ))
         let presentation = try #require(
             app.playback.commandPanelPresentation
@@ -209,12 +208,24 @@ func playbackCommandPanelCommandEnterOpensRootAndEscapeCloses() async throws {
         #expect(app.playback.commandPanelPresentation == nil)
 
         #expect(!app.handlePlaybackKeyDown(
-            keyCode: 36,
-            modifierFlagsRawValue: commandModifier,
+            keyCode: 50,
+            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
+        ))
+        #expect(app.playback.commandPanelPresentation == nil)
+
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 50,
+            modifierFlagsRawValue: 0,
             textInputState: PlaybackKeyboardTextInputState(
                 isEditableFocused: true,
                 hasMarkedText: false
             )
+        ))
+        #expect(app.playback.commandPanelPresentation == nil)
+
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: NSEvent.ModifierFlags.command.rawValue
         ))
         #expect(app.playback.commandPanelPresentation == nil)
     }
@@ -234,9 +245,8 @@ func playbackCommandPanelPreservesUnderlyingOverlay() async throws {
         ))
 
         #expect(app.handlePlaybackKeyDown(
-            keyCode: 36,
-            modifierFlagsRawValue:
-                NSEvent.ModifierFlags.command.rawValue
+            keyCode: 50,
+            modifierFlagsRawValue: 0
         ))
         #expect(app.playback.commandPanelPresentation?.page == .root)
         #expect(app.playback.subtitleFocusSession === session)

@@ -218,3 +218,28 @@ speculative abstractions.
 - `git diff --check` passed.
 - Per owner direction, no desktop automation or screenshot-based end-to-end
   validation was performed.
+
+## Step 8: Unified Library Playlist And Backtick Command Entry
+
+- Routed every Library-backed video playback session, including playback
+  entered from Recent Videos, to the current video's existing Library folder
+  detail and Library Episode selection path.
+- Preserved the current Recent or Library Playback Enter Context when opening
+  another episode from that unified Library Playlist.
+- Removed the replaced Playback-only Recent Videos session store, Overlay,
+  asynchronous open task, keyboard branch, and obsolete tests. Command Panel
+  Recent Videos remains a Workbench Recent entry point and is unchanged.
+- Replaced the Command Panel `Cmd+Enter` key route with the physical macOS ANSI
+  grave key (`keyCode 50`) in the existing playback key monitor. The route
+  accepts no Command, Control, Option, or Shift modifier and yields to native
+  text input whenever an editable control is focused.
+
+## Step 8 Verification
+
+- Fourteen focused Library Playlist, media-session, multi-module, and keyboard
+  tests passed.
+- All five focused Command Panel tests passed.
+- `swift build` passed.
+- `git diff --check` passed.
+- Per owner direction, no desktop automation or screenshot-based end-to-end
+  validation was performed.
