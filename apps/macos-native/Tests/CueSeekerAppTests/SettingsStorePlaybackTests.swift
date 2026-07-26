@@ -6,11 +6,8 @@ import Testing
 @MainActor
 @Test
 func settingsStoreDefaultsToValidOnOffPlaylistCueState() {
-    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(store.autoPauseAfterCueFinishesEnabled)
         #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
@@ -22,11 +19,8 @@ func settingsStoreDefaultsToValidOnOffPlaylistCueState() {
 @MainActor
 @Test
 func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
-    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         store.autoSwitchToNextCuesInPlaylistEnabled = true
         store.setAutoSwitchCueSequenceGapMilliseconds(750)
@@ -44,10 +38,7 @@ func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
 
         #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
 
-        let reloadedStore = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let reloadedStore = SettingsStore(userDefaults: userDefaults)
 
         #expect(!reloadedStore.autoPauseAfterCueFinishesEnabled)
         #expect(!reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
@@ -59,14 +50,11 @@ func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
 @MainActor
 @Test
 func settingsStoreMigratesAndNormalizesPersistedOffOnPlaylistCueState() {
-    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
         userDefaults.set(false, forKey: "onlyPlayCuesInPlaylistEnabled")
         userDefaults.set(true, forKey: "autoSwitchToNextCuesInPlaylistEnabled")
 
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(!store.autoPauseAfterCueFinishesEnabled)
         #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
@@ -81,14 +69,11 @@ func settingsStoreMigratesAndNormalizesPersistedOffOnPlaylistCueState() {
 @MainActor
 @Test
 func settingsStoreMigratesStoredAutoStopPreferenceOverLegacyOnlyPlayValue() {
-    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
         userDefaults.set(false, forKey: "onlyPlayCuesInPlaylistEnabled")
         userDefaults.set(true, forKey: "autoStopAfterCueFinishesEnabled")
 
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(store.autoPauseAfterCueFinishesEnabled)
         #expect(userDefaults.object(forKey: "onlyPlayCuesInPlaylistEnabled") == nil)
@@ -100,14 +85,11 @@ func settingsStoreMigratesStoredAutoStopPreferenceOverLegacyOnlyPlayValue() {
 @MainActor
 @Test
 func settingsStoreKeepsStoredAutoPausePreferenceOverLegacyAutoStopValue() {
-    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
         userDefaults.set(false, forKey: "autoStopAfterCueFinishesEnabled")
         userDefaults.set(true, forKey: "autoPauseAfterCueFinishesEnabled")
 
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(store.autoPauseAfterCueFinishesEnabled)
         #expect(userDefaults.object(forKey: "autoStopAfterCueFinishesEnabled") == nil)
@@ -118,22 +100,16 @@ func settingsStoreKeepsStoredAutoPausePreferenceOverLegacyAutoStopValue() {
 @MainActor
 @Test
 func settingsStoreMigratesEnabledLegacyAutoPlayToBothPlaylistBehaviors() {
-    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
         userDefaults.set(true, forKey: "autoPlayCueSequenceEnabled")
 
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(store.autoPauseAfterCueFinishesEnabled)
         #expect(store.autoSwitchToNextCuesInPlaylistEnabled)
 
         userDefaults.set(false, forKey: "autoPlayCueSequenceEnabled")
-        let reloadedStore = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let reloadedStore = SettingsStore(userDefaults: userDefaults)
 
         #expect(reloadedStore.autoPauseAfterCueFinishesEnabled)
         #expect(reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
@@ -143,11 +119,8 @@ func settingsStoreMigratesEnabledLegacyAutoPlayToBothPlaylistBehaviors() {
 @MainActor
 @Test
 func settingsStoreClampsCueSequenceAutoSwitchGap() {
-    withTemporaryPlaybackSettingsUserDefaults { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         store.setAutoSwitchCueSequenceGapMilliseconds(-1)
         #expect(store.autoSwitchCueSequenceGapMilliseconds == 0)
@@ -155,17 +128,14 @@ func settingsStoreClampsCueSequenceAutoSwitchGap() {
         store.setAutoSwitchCueSequenceGapMilliseconds(10_001)
         #expect(store.autoSwitchCueSequenceGapMilliseconds == 10_000)
 
-        let reloadedStore = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let reloadedStore = SettingsStore(userDefaults: userDefaults)
 
         #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 10_000)
     }
 }
 
 @MainActor
-private func withTemporaryPlaybackSettingsUserDefaults(_ body: (UserDefaults, String) -> Void) {
+private func withTemporaryPlaybackSettingsUserDefaults(_ body: (UserDefaults) -> Void) {
     _ = NSApplication.shared
     let suiteName = "CueSeekerPlaybackSettingsTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!
@@ -173,5 +143,5 @@ private func withTemporaryPlaybackSettingsUserDefaults(_ body: (UserDefaults, St
         userDefaults.removePersistentDomain(forName: suiteName)
     }
 
-    body(userDefaults, suiteName)
+    body(userDefaults)
 }

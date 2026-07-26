@@ -6,11 +6,8 @@ import Testing
 @MainActor
 @Test
 func settingsStoreDefaultsShowCueGroupOff() {
-    withTemporarySearchSettingsUserDefaults { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(!store.showCueGroup)
     }
@@ -19,11 +16,8 @@ func settingsStoreDefaultsShowCueGroupOff() {
 @MainActor
 @Test
 func settingsStorePersistsShowCueGroupChanges() {
-    withTemporarySearchSettingsUserDefaults { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         store.showCueGroup = true
         #expect(userDefaults.bool(forKey: "showCueGroup"))
@@ -36,11 +30,8 @@ func settingsStorePersistsShowCueGroupChanges() {
 @MainActor
 @Test
 func settingsStoreRecordsShowCueGroupUserAction() {
-    withTemporarySearchSettingsUserDefaults { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         let recording = UIInvalidationProbe.recordForTesting {
             store.cueGroupPresentation.setFromUser(true)
@@ -54,13 +45,10 @@ func settingsStoreRecordsShowCueGroupUserAction() {
 @MainActor
 @Test
 func settingsStoreLoadsPersistedShowCueGroupValue() {
-    withTemporarySearchSettingsUserDefaults { userDefaults, service in
+    withTemporarySearchSettingsUserDefaults { userDefaults in
         userDefaults.set(true, forKey: "showCueGroup")
 
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(store.showCueGroup)
     }
@@ -68,7 +56,7 @@ func settingsStoreLoadsPersistedShowCueGroupValue() {
 
 @MainActor
 private func withTemporarySearchSettingsUserDefaults(
-    _ body: (UserDefaults, String) -> Void
+    _ body: (UserDefaults) -> Void
 ) {
     _ = NSApplication.shared
     let suiteName = "CueSeekerSearchSettingsTests-\(UUID().uuidString)"
@@ -77,5 +65,5 @@ private func withTemporarySearchSettingsUserDefaults(
         userDefaults.removePersistentDomain(forName: suiteName)
     }
 
-    body(userDefaults, suiteName)
+    body(userDefaults)
 }

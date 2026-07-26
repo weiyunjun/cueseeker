@@ -113,7 +113,7 @@ func schemaWorkbenchSaveActionUpdatesActiveFilterSet() {
 @MainActor
 @Test
 func settingsStorePersistsSearchFilterSetsWithoutDefaultActiveFilter() {
-    withTemporaryFilterSetSettingsUserDefaults { userDefaults, service in
+    withTemporaryFilterSetSettingsUserDefaults { userDefaults in
         let rule = SchemaWorkbenchSearchDefaults.makeFilterRule(
             id: "rule-1",
             join: nil,
@@ -126,18 +126,12 @@ func settingsStorePersistsSearchFilterSetsWithoutDefaultActiveFilter() {
             name: "Filter Set 1",
             rules: [rule]
         )
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(store.searchFilterSets.isEmpty)
         store.searchFilterSets = [filterSet]
 
-        let reloadedStore = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let reloadedStore = SettingsStore(userDefaults: userDefaults)
 
         #expect(reloadedStore.searchFilterSets == [filterSet])
         #expect(SchemaWorkbenchSearchDefaults.defaultFilterSetID == nil)
@@ -146,7 +140,7 @@ func settingsStorePersistsSearchFilterSetsWithoutDefaultActiveFilter() {
 }
 
 @MainActor
-private func withTemporaryFilterSetSettingsUserDefaults(_ body: (UserDefaults, String) throws -> Void) rethrows {
+private func withTemporaryFilterSetSettingsUserDefaults(_ body: (UserDefaults) throws -> Void) rethrows {
     _ = NSApplication.shared
     let suiteName = "CueSeekerFilterSetTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!
@@ -154,5 +148,5 @@ private func withTemporaryFilterSetSettingsUserDefaults(_ body: (UserDefaults, S
         userDefaults.removePersistentDomain(forName: suiteName)
     }
 
-    try body(userDefaults, suiteName)
+    try body(userDefaults)
 }

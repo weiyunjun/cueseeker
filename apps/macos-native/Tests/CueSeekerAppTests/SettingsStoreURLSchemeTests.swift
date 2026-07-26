@@ -6,11 +6,8 @@ import Testing
 @MainActor
 @Test
 func settingsStoreDefaultsURLSchemePlayFirstSearchResultOff() {
-    withTemporaryURLSchemeSettings { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporaryURLSchemeSettings { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(!store.urlSchemePlayFirstSearchResultEnabled)
     }
@@ -19,26 +16,20 @@ func settingsStoreDefaultsURLSchemePlayFirstSearchResultOff() {
 @MainActor
 @Test
 func settingsStorePersistsURLSchemePlayFirstSearchResult() {
-    withTemporaryURLSchemeSettings { userDefaults, service in
-        let store = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+    withTemporaryURLSchemeSettings { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
 
         store.urlSchemePlayFirstSearchResultEnabled = true
         #expect(userDefaults.bool(forKey: "urlSchemePlayFirstSearchResultEnabled"))
 
-        let reloadedStore = SettingsStore(
-            userDefaults: userDefaults,
-            credentialStore: KeychainCredentialStore(service: service)
-        )
+        let reloadedStore = SettingsStore(userDefaults: userDefaults)
         #expect(reloadedStore.urlSchemePlayFirstSearchResultEnabled)
     }
 }
 
 @MainActor
 private func withTemporaryURLSchemeSettings(
-    _ body: (UserDefaults, String) -> Void
+    _ body: (UserDefaults) -> Void
 ) {
     _ = NSApplication.shared
     let suiteName = "CueSeekerURLSchemeSettingsTests-\(UUID().uuidString)"
@@ -46,5 +37,5 @@ private func withTemporaryURLSchemeSettings(
     defer {
         userDefaults.removePersistentDomain(forName: suiteName)
     }
-    body(userDefaults, suiteName)
+    body(userDefaults)
 }

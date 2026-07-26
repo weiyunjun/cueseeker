@@ -26,7 +26,6 @@ final class AppCoordinator: ObservableObject {
     nonisolated static let playbackSubtitleWindowRadius = 80
     static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
     static let databaseCompactionMinimumFreelistRatio = 0.25
-    static let aiChunkingPromptAwareCacheClearKey = "aiChunkingPromptAwareCacheCleared"
 
     @Published var startupError: String?
     let uiProbeScope: String
@@ -868,18 +867,6 @@ final class AppCoordinator: ObservableObject {
             at: databaseURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-    }
-
-    static func clearAIChunkCacheForPromptAwareSettingsIfNeeded(
-        cache: AIChunkCacheDatabase,
-        userDefaults: UserDefaults
-    ) throws {
-        guard !userDefaults.bool(forKey: aiChunkingPromptAwareCacheClearKey) else {
-            return
-        }
-
-        try cache.clearAIChunkCacheEntries()
-        userDefaults.set(true, forKey: aiChunkingPromptAwareCacheClearKey)
     }
 
     static func availableDiskSpaceBytes(for databaseURL: URL) -> Int64? {

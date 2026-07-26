@@ -35,3 +35,29 @@ func sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues(
     )
     #expect(sharedDefaults.stringArray(forKey: "selectedFolderPaths") == ["/tmp/Library"])
 }
+
+@Test
+func obsoleteAIChunkingStateCleanupRemovesDefaultsAndDeletesCredential() {
+    let suiteName = "ApplicationPersistenceCleanupTests-\(UUID().uuidString)"
+    let userDefaults = UserDefaults(suiteName: suiteName)!
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+    }
+    let keys = [
+        "aiChunkingEnabled",
+        "aiChunkingTranslationLanguage",
+        "aiChunkingPromptTemplate",
+        "aiChunkingPromptDefaultVersion",
+        "aiChunkingPromptAwareCacheCleared"
+    ]
+    keys.forEach { userDefaults.set("legacy", forKey: $0) }
+    var credentialWasDeleted = false
+
+    ApplicationPersistence.removeObsoleteAIChunkingState(
+        from: userDefaults,
+        credentialDeletion: { credentialWasDeleted = true }
+    )
+
+    #expect(keys.allSatisfy { userDefaults.object(forKey: $0) == nil })
+    #expect(credentialWasDeleted)
+}

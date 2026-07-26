@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import CueSeekerCore
 
 enum ApplicationPersistence {
@@ -7,11 +8,19 @@ enum ApplicationPersistence {
         ApplicationInfo.name
     ]
     private static let migrationKey = "sharedPersistenceDomainMigrationCompleted"
+    private static let obsoleteAIChunkingKeys = [
+        "aiChunkingEnabled",
+        "aiChunkingTranslationLanguage",
+        "aiChunkingPromptTemplate",
+        "aiChunkingPromptDefaultVersion",
+        "aiChunkingPromptAwareCacheCleared"
+    ]
 
     static func sharedUserDefaults() -> UserDefaults {
         guard let sharedDefaults = UserDefaults(
             suiteName: ApplicationInfo.preferencesSuiteIdentifier
         ) else {
+            removeObsoleteAIChunkingState(from: .standard)
             return .standard
         }
 
@@ -19,6 +28,7 @@ enum ApplicationPersistence {
             UserDefaults.standard.persistentDomain(forName: $0) ?? [:]
         }
         migrateLegacyDefaultsIfNeeded(legacyDomains, into: sharedDefaults)
+        removeObsoleteAIChunkingState(from: sharedDefaults)
         return sharedDefaults
     }
 
@@ -36,5 +46,22 @@ enum ApplicationPersistence {
             }
         }
         sharedDefaults.set(true, forKey: migrationKey)
+    }
+
+    static func removeObsoleteAIChunkingState(
+        from userDefaults: UserDefaults,
+        credentialDeletion: () -> Void = { ApplicationPersistence.deleteDeepSeekCredential() }
+    ) {
+        obsoleteAIChunkingKeys.forEach(userDefaults.removeObject(forKey:))
+        credentialDeletion()
+    }
+
+    private static func deleteDeepSeekCredential() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "CueSeekerAI",
+            kSecAttrAccount as String: "deepseek"
+        ]
+        _ = SecItemDelete(query as CFDictionary)
     }
 }

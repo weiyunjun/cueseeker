@@ -129,17 +129,6 @@ func playbackStoreUsesTheLibrarySessionStoreAsTheMediaPlaylistSource() throws {
     store.releaseSubtitleFocusSession(librarySession)
 }
 
-@Test
-func aiChunkingUsageEstimatesCNYCost() {
-    let usage = AIChunkingUsage(
-        promptTokens: 1_000,
-        completionTokens: 2_000,
-        totalTokens: 3_000
-    )
-
-    #expect(usage.estimatedCostCNY == 0.005)
-}
-
 private func withTemporaryUserDefaults(_ body: (UserDefaults) -> Void) {
     let suiteName = "CueSeekerAppTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!
