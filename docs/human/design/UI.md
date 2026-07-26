@@ -2434,11 +2434,12 @@
 - Panel 使用内容排列、留白和 Selected Row 自然划分区域。
 
 - 打开：
-  - Playback Page 活跃时按 `/`
+  - Playback Page 活跃时按反引号键（`` ` ``，Esc 下方、数字 `1` 左侧）
   - Playback Overlay 活跃时也可以打开
-  - 文本输入状态下，`/` 作为正常文本输入，不打开 Command Panel
+  - 只有无修饰键的 `` ` `` 打开 Command Panel；`Shift` + `` ` `` 不打开 Command Panel
+  - 文本输入状态下，`` ` `` 作为正常文本输入，不打开 Command Panel
   - 打开后暂停 Playback
-  - 通过 `/` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
+  - 通过 `` ` `` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
   - 视频播放界面的 URL Scheme 搜索可以直接进入 Search Result 二级界面。
   - `Play First Search Result` 关闭时，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索。
   - `Play First Search Result` 开启但不存在结果时，进入显示 `0 results` 的 Search Result 二级界面。

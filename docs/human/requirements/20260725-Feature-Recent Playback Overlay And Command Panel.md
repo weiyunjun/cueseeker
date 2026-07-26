@@ -155,13 +155,14 @@ Command Panel 是播放内的轻量搜索、跳转和恢复入口，不是完整
 
 ### 7.1 打开和层级
 
-- Playback Page 或 Playback Overlay 活跃时，按 `/` 打开。
-- 文本输入状态下，`/` 作为正常文本输入，不打开 Command Panel。
+- Playback Page 或 Playback Overlay 活跃时，按反引号键（`` ` ``，Esc 下方、数字 `1` 左侧）打开。
+- 只有无修饰键的 `` ` `` 打开 Command Panel；`Shift` + `` ` `` 不打开 Command Panel。
+- 文本输入状态下，`` ` `` 作为正常文本输入，不打开 Command Panel。
 - Command Panel 位于 Playback Content 和 Playback Overlay 之上。
 - 打开后取得唯一键盘焦点。
 - 下层内容保持可见但不可交互，并降低对比、变暗或轻微模糊。
 - Command Panel 不显示 macOS Traffic Light Buttons。
-- 通过 `/` 打开时，默认进入一级界面，搜索框默认获得焦点。
+- 通过 `` ` `` 打开时，默认进入一级界面，搜索框默认获得焦点。
 - 视频播放界面收到 URL Scheme 搜索请求时：
   - `Play First Search Result` 关闭：打开 Command Panel，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索，并直接进入 Search Result 二级界面。
   - `Play First Search Result` 开启且存在结果：保持现有行为，直接播放第一个搜索结果。
@@ -703,11 +704,12 @@ View Content Region：
 
 打开：
 
-- Playback Page 活跃时按 `/`。
+- Playback Page 活跃时按反引号键（`` ` ``，Esc 下方、数字 `1` 左侧）。
 - Playback Overlay 活跃时也可以打开。
-- 文本输入状态下，`/` 作为正常文本输入，不打开 Command Panel。
+- 只有无修饰键的 `` ` `` 打开 Command Panel；`Shift` + `` ` `` 不打开 Command Panel。
+- 文本输入状态下，`` ` `` 作为正常文本输入，不打开 Command Panel。
 - 打开后暂停 Playback。
-- 通过 `/` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
+- 通过 `` ` `` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
 - 视频播放界面的 URL Scheme 搜索可以直接进入 Search Result 二级界面。
 - `Play First Search Result` 关闭时，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索。
 - `Play First Search Result` 开启但不存在结果时，进入显示 `0 results` 的 Search Result 二级界面。
