@@ -110,8 +110,6 @@
 
 #### Status
 
-- `--color-chip-speaker-bg`: Light `#DDD6FE`; Dark `#31294C`
-- `--color-chip-speaker-text`: Light `#5B21B6`; Dark `#D8B4FE`
 - `--color-chip-language-bg`: Light `#DBEAFE`; Dark `#172A4A`
 - `--color-chip-language-text`: Light `#0040FF`; Dark `#93C5FD`
 - `--color-watch-status-unwatched-bg`: Light `#F3F4F6`; Dark `#27272A`
@@ -947,9 +945,8 @@
 
 #### Chip / Tag
 
-- 用途：显示 Speaker、Language 或 Shiori Tag，并在所属界面允许时提供标签操作。
+- 用途：显示 Language 或 Shiori Tag，并在所属界面允许时提供标签操作。
 - Token：`--radius-chip`、`--padding-chip-x`、`--padding-chip-y`、`--font-family-base`、`--font-size-caption`。
-- Speaker 使用 `--color-chip-speaker-bg`、`--color-chip-speaker-text`。
 - Language 使用 `--color-chip-language-bg`、`--color-chip-language-text`。
 - Shiori Tag 使用 `--color-bg-hover`、`--color-text-secondary`。
 - Disabled 使用 `--color-bg-disabled`、`--color-text-disabled`。
