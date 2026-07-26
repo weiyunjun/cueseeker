@@ -78,8 +78,6 @@ enum WorkbenchTagColorID: String, Equatable {
         switch self {
         case .gray:
             return WorkbenchRedesignColors.NS.textSecondary
-        case .purple:
-            return WorkbenchRedesignColors.NS.chipSpeakerText
         case .blue:
             return WorkbenchRedesignColors.NS.chipLanguageText
         default:
@@ -91,8 +89,6 @@ enum WorkbenchTagColorID: String, Equatable {
         switch self {
         case .gray:
             return WorkbenchRedesignColors.NS.bgHover
-        case .purple:
-            return WorkbenchRedesignColors.NS.chipSpeakerBg
         case .blue:
             return WorkbenchRedesignColors.NS.chipLanguageBg
         default:

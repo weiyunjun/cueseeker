@@ -87,7 +87,6 @@ final class SettingsStore: ObservableObject {
     private static let autoPauseAfterCueFinishesEnabledKey = "autoPauseAfterCueFinishesEnabled"
     private static let autoSwitchToNextCuesInPlaylistEnabledKey = "autoSwitchToNextCuesInPlaylistEnabled"
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
-    private static let playbackSpeakerDisplayEnabledKey = "playbackSpeakerDisplayEnabled"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let searchFilterSetsKey = "searchFilterSets"
@@ -155,12 +154,6 @@ final class SettingsStore: ObservableObject {
     }
 
     @Published private(set) var autoSwitchCueSequenceGapMilliseconds: Int
-
-    @Published var playbackSpeakerDisplayEnabled: Bool {
-        didSet {
-            userDefaults.set(playbackSpeakerDisplayEnabled, forKey: Self.playbackSpeakerDisplayEnabledKey)
-        }
-    }
 
     @Published var searchE2ELoggingEnabled: Bool {
         didSet {
@@ -244,7 +237,6 @@ final class SettingsStore: ObservableObject {
             Self.showCueGroupKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoSwitchCueSequenceGapDefaultMilliseconds,
-            Self.playbackSpeakerDisplayEnabledKey: false,
             Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
             Self.urlSchemePlayFirstSearchResultEnabledKey: false
@@ -265,12 +257,18 @@ final class SettingsStore: ObservableObject {
         self.autoSwitchCueSequenceGapMilliseconds = Self.loadAutoSwitchCueSequenceGapMilliseconds(
             from: userDefaults
         )
-        self.playbackSpeakerDisplayEnabled = userDefaults.bool(forKey: Self.playbackSpeakerDisplayEnabledKey)
         self.searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
         )
-        self.searchFilterSets = Self.loadSearchFilterSets(from: userDefaults)
+        let storedSearchFilterSets = Self.loadSearchFilterSets(from: userDefaults)
+        let sanitizedSearchFilterSets = Self.removingObsoleteSpeakerRules(
+            from: storedSearchFilterSets
+        )
+        self.searchFilterSets = sanitizedSearchFilterSets
+        if sanitizedSearchFilterSets != storedSearchFilterSets {
+            Self.saveSearchFilterSets(sanitizedSearchFilterSets, to: userDefaults)
+        }
         self.urlSchemePlayFirstSearchResultEnabled = userDefaults.bool(
             forKey: Self.urlSchemePlayFirstSearchResultEnabledKey
         )
@@ -371,6 +369,18 @@ final class SettingsStore: ObservableObject {
         }
 
         userDefaults.set(data, forKey: searchFilterSetsKey)
+    }
+
+    private static func removingObsoleteSpeakerRules(
+        from filterSets: [SchemaWorkbenchFilterSet]
+    ) -> [SchemaWorkbenchFilterSet] {
+        filterSets.map { filterSet in
+            SchemaWorkbenchFilterSet(
+                id: filterSet.id,
+                name: filterSet.name,
+                rules: filterSet.rules.filter { $0.fieldID != "speaker" }
+            )
+        }
     }
 
     private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {

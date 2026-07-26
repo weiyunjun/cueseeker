@@ -126,35 +126,12 @@ enum SRTSubtitleRenderer {
                 errorDescription: "SRT renderer found no valid playback Cues."
             )
         }
-        let speakers = Dictionary(
-            source.speakerDisplayCues.map {
-                (
-                    speakerKey(
-                        $0.startMilliseconds,
-                        $0.endMilliseconds,
-                        $0.cleanText
-                    ),
-                    $0.speakers
-                )
-            },
-            uniquingKeysWith: { first, _ in first }
-        )
         return entries.enumerated().map { ordinal, entry in
-            let speakerSet = speakers[
-                speakerKey(
-                    entry.startMilliseconds,
-                    entry.endMilliseconds,
-                    entry.text
-                )
-            ] ?? []
             return PlaybackSubtitleCue(
                 sourceOrdinal: ordinal,
                 startMilliseconds: entry.startMilliseconds,
                 endMilliseconds: entry.endMilliseconds,
-                text: SubtitleSpeakerDisplayFormatter.prefixedText(
-                    entry.text,
-                    speakers: speakerSet
-                )
+                text: entry.text
             )
         }
     }
@@ -311,13 +288,6 @@ enum SRTSubtitleRenderer {
         )
     }
 
-    private static func speakerKey(
-        _ start: Int,
-        _ end: Int,
-        _ text: String
-    ) -> String {
-        "\(start):\(end):\(text.trimmingCharacters(in: .whitespacesAndNewlines))"
-    }
 }
 
 private enum SRTInlineText {

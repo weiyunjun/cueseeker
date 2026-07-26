@@ -354,8 +354,7 @@ public enum SubtitleScreenshotExporter {
             url: source.url.standardizedFileURL,
             format: .srt,
             matchedVideoURL: source.matchedVideoURL,
-            renderCacheDatabaseURL: source.renderCacheDatabaseURL,
-            speakerDisplayCues: source.speakerDisplayCues
+            renderCacheDatabaseURL: source.renderCacheDatabaseURL
         )
     }
 
@@ -516,12 +515,8 @@ public enum SubtitleScreenshotExporter {
                 timestampMilliseconds: timestampMilliseconds
            )
         {
-            let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
-                script: segment.scriptText,
-                cues: source.speakerDisplayCues
-            )
             let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-                speakerRewrittenScript,
+                segment.scriptText,
                 requestedFontNames: requestedFontNames
             )
             return try SFXASSRendererSession(
@@ -533,12 +528,8 @@ public enum SubtitleScreenshotExporter {
         }
 
         if let sourceScript = try? String(contentsOf: source.url) {
-            let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
-                script: sourceScript,
-                cues: source.speakerDisplayCues
-            )
             let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-                speakerRewrittenScript,
+                sourceScript,
                 requestedFontNames: requestedFontNames
             )
             if renderScript != sourceScript {

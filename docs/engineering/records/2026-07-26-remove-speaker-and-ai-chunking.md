@@ -17,7 +17,10 @@ search-filter behavior.
 2. Added startup cleanup for the five obsolete AI Chunking UserDefaults keys
    and the `CueSeekerAI/deepseek` Keychain item. The cleanup is idempotent and
    does not create another migration marker.
-3. Pending: remove Speaker product UI, playback, settings, and import tooling.
+3. Removed the Speaker playback setting and prefix-rendering path for SRT, ASS,
+   and subtitle screenshots; removed the Speaker-specific UI tokens and the
+   `SpeakerImport` executable. Obsolete saved Speaker filter rules are removed
+   without discarding other rules in the same Filter Set.
 4. Pending: migrate the database once to remove Speaker and AI cache storage,
    then remove the remaining Core APIs and tests.
 
@@ -27,6 +30,9 @@ search-filter behavior.
   passed with 2 tests, including obsolete defaults and credential-deletion
   coverage.
 - `swift build --package-path apps/macos-native` passed.
+- The Step 2 targeted run passed 4 tests covering obsolete preference cleanup,
+  saved Speaker-rule removal, and ASS playback source construction.
+- The post-Step 2 `swift build --package-path apps/macos-native` passed.
 - Pending final full test suite and schema migration verification.
 
 ## Outcome

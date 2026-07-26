@@ -91,8 +91,6 @@ private extension SubtitleSearchFilterField {
             self = .cues
         case "language":
             self = .language
-        case "speaker":
-            self = .speaker
         default:
             return nil
         }

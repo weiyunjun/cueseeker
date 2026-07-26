@@ -8,19 +8,20 @@ enum ApplicationPersistence {
         ApplicationInfo.name
     ]
     private static let migrationKey = "sharedPersistenceDomainMigrationCompleted"
-    private static let obsoleteAIChunkingKeys = [
+    private static let obsoleteFeaturePreferenceKeys = [
         "aiChunkingEnabled",
         "aiChunkingTranslationLanguage",
         "aiChunkingPromptTemplate",
         "aiChunkingPromptDefaultVersion",
-        "aiChunkingPromptAwareCacheCleared"
+        "aiChunkingPromptAwareCacheCleared",
+        "playbackSpeakerDisplayEnabled"
     ]
 
     static func sharedUserDefaults() -> UserDefaults {
         guard let sharedDefaults = UserDefaults(
             suiteName: ApplicationInfo.preferencesSuiteIdentifier
         ) else {
-            removeObsoleteAIChunkingState(from: .standard)
+            removeObsoleteFeatureState(from: .standard)
             return .standard
         }
 
@@ -28,7 +29,7 @@ enum ApplicationPersistence {
             UserDefaults.standard.persistentDomain(forName: $0) ?? [:]
         }
         migrateLegacyDefaultsIfNeeded(legacyDomains, into: sharedDefaults)
-        removeObsoleteAIChunkingState(from: sharedDefaults)
+        removeObsoleteFeatureState(from: sharedDefaults)
         return sharedDefaults
     }
 
@@ -48,11 +49,11 @@ enum ApplicationPersistence {
         sharedDefaults.set(true, forKey: migrationKey)
     }
 
-    static func removeObsoleteAIChunkingState(
+    static func removeObsoleteFeatureState(
         from userDefaults: UserDefaults,
         credentialDeletion: () -> Void = { ApplicationPersistence.deleteDeepSeekCredential() }
     ) {
-        obsoleteAIChunkingKeys.forEach(userDefaults.removeObject(forKey:))
+        obsoleteFeaturePreferenceKeys.forEach(userDefaults.removeObject(forKey:))
         credentialDeletion()
     }
 

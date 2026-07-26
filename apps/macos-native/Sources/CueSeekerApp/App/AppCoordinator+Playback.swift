@@ -1166,20 +1166,6 @@ extension AppCoordinator {
 
         let videoURL = URL(fileURLWithPath: videoPath)
 
-        let speakerDisplayCues = playbackSpeakerDisplayCues(forSubtitleFile: subtitleURL)
-        SubtitleSpeakerDisplayDiagnostics.log(
-            "app.assSubtitleSource.created",
-            fields: [
-                "subtitle": subtitleURL.lastPathComponent,
-                "subtitlePath": subtitleURL.path,
-                "video": videoURL.lastPathComponent,
-                "speakerDisplayEnabled": "\(settings.playbackSpeakerDisplayEnabled)",
-                "speakerCueCount": "\(speakerDisplayCues.count)",
-                "startMilliseconds": "\(startMilliseconds)",
-                "fallbackEndMilliseconds": "\(fallbackEndMilliseconds)"
-            ]
-        )
-
         return PlaybackSubtitleSource(
             url: subtitleURL,
             format: playbackFormat,
@@ -1190,108 +1176,8 @@ extension AppCoordinator {
                 startingAtMilliseconds: startMilliseconds,
                 fallbackEndMilliseconds: fallbackEndMilliseconds
             ),
-            renderCacheDatabaseURL: databaseURL,
-            speakerDisplayCues: speakerDisplayCues
+            renderCacheDatabaseURL: databaseURL
         )
-    }
-
-    func refreshCurrentPlaybackSubtitleDisplay() {
-        guard let currentPlaybackSubtitlePath,
-              let currentPlaybackSubtitleFormat,
-              let currentPlaybackVideoPath
-        else {
-            return
-        }
-
-        let subtitleFile = URL(fileURLWithPath: currentPlaybackSubtitlePath)
-        let currentMilliseconds = max(
-            0,
-            Int(((playback.playbackViewModel?.currentTime ?? 0) * 1_000).rounded(.down))
-        )
-
-        playback.playbackViewModel?.clearSubtitleCues()
-        player?.loadSubtitleSource(
-            playbackSubtitleSource(
-                forSubtitleFile: subtitleFile,
-                format: currentPlaybackSubtitleFormat,
-                videoPath: currentPlaybackVideoPath,
-                startingAtMilliseconds: currentMilliseconds,
-                fallbackEndMilliseconds: currentMilliseconds
-            )
-        )
-    }
-
-    func playbackSpeakersByCueGroupID(forSubtitleFile subtitleFile: URL) -> [Int64: Set<String>] {
-        guard settings.playbackSpeakerDisplayEnabled,
-              let playbackSubtitleDatabase
-        else {
-            return [:]
-        }
-
-        do {
-            return try playbackSubtitleDatabase.speakersByCueGroupID(forSubtitleFile: subtitleFile)
-        } catch {
-            print("Failed to load playback speaker labels: \(error)")
-            return [:]
-        }
-    }
-
-    func playbackSpeakerDisplayCues(forSubtitleFile subtitleFile: URL) -> [SubtitleSpeakerDisplayCue] {
-        guard settings.playbackSpeakerDisplayEnabled else {
-            SubtitleSpeakerDisplayDiagnostics.log(
-                "app.assSpeakerDisplayCues.disabled",
-                fields: [
-                    "subtitle": subtitleFile.lastPathComponent,
-                    "subtitlePath": subtitleFile.path
-                ]
-            )
-            return []
-        }
-
-        guard let playbackSubtitleDatabase else {
-            SubtitleSpeakerDisplayDiagnostics.log(
-                "app.assSpeakerDisplayCues.noDatabase",
-                fields: [
-                    "subtitle": subtitleFile.lastPathComponent,
-                    "subtitlePath": subtitleFile.path
-                ]
-            )
-            return []
-        }
-
-        do {
-            let records = try playbackSubtitleDatabase.cueLineRecords(forSubtitleFile: subtitleFile)
-            let speakersByCueLineID = try playbackSubtitleDatabase.speakersByCueLineID(
-                forSubtitleFile: subtitleFile
-            )
-            let cues = SubtitleSpeakerDisplayCue.targetCues(
-                records: records,
-                speakersByCueLineID: speakersByCueLineID
-            )
-            SubtitleSpeakerDisplayDiagnostics.log(
-                "app.assSpeakerDisplayCues.loaded",
-                fields: [
-                    "subtitle": subtitleFile.lastPathComponent,
-                    "subtitlePath": subtitleFile.path,
-                    "recordCount": "\(records.count)",
-                    "speakerLineCount": "\(speakersByCueLineID.count)",
-                    "speakerCueCount": "\(cues.count)",
-                    "firstCue": cues.first.map { "\($0.startMilliseconds)-\($0.endMilliseconds):\($0.sourceStyle ?? ""):\($0.cleanText)" } ?? ""
-                ]
-            )
-            return cues
-        } catch {
-            SubtitleSpeakerDisplayDiagnostics.log(
-                "app.assSpeakerDisplayCues.failed",
-                fields: [
-                    "subtitle": subtitleFile.lastPathComponent,
-                    "subtitlePath": subtitleFile.path,
-                    "error": Self.errorMessage(for: error)
-                ]
-            )
-            print("Failed to load ASS playback speaker labels: \(error)")
-            return []
-        }
     }
 
     func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {

@@ -114,8 +114,6 @@ enum WorkbenchRedesignColors {
         static let scrollbarTrack = NSColor.clear
 
         // Chip
-        static let chipSpeakerBg = NSColor.dynamic(lightHex: "#DDD6FE", darkHex: "#31294C")
-        static let chipSpeakerText = NSColor.dynamic(lightHex: "#5B21B6", darkHex: "#D8B4FE")
         static let chipLanguageBg = NSColor.dynamic(lightHex: "#DBEAFE", darkHex: "#172A4A")
         static let chipLanguageText = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#93C5FD")
 
@@ -212,8 +210,6 @@ enum WorkbenchRedesignColors {
     static let scrollbarTrack = Color.clear
 
     // Chip
-    static let chipSpeakerBg = Color(nsColor: NS.chipSpeakerBg)
-    static let chipSpeakerText = Color(nsColor: NS.chipSpeakerText)
     static let chipLanguageBg = Color(nsColor: NS.chipLanguageBg)
     static let chipLanguageText = Color(nsColor: NS.chipLanguageText)
 

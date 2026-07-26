@@ -101,7 +101,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var frameHeight = 0
     private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
     private var requestedFontNames: [String]?
-    private var speakerDisplayCues: [SubtitleSpeakerDisplayCue] = []
 
     func load(
         source: PlaybackSubtitleSource,
@@ -129,18 +128,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
-                self.speakerDisplayCues = source.speakerDisplayCues
-                SubtitleSpeakerDisplayDiagnostics.log(
-                    "renderer.assSource.load",
-                    fields: [
-                        "subtitle": source.url.lastPathComponent,
-                        "subtitlePath": sourcePath,
-                        "speakerCueCount": "\(source.speakerDisplayCues.count)",
-                        "frameWidth": "\(frameWidth)",
-                        "frameHeight": "\(frameHeight)",
-                        "initialTimestampMilliseconds": "\(initialTimestampMilliseconds)"
-                    ]
-                )
                 self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
                     sourcePath: sourcePath,
                     renderCacheDatabaseURL: renderCacheDatabaseURL
@@ -256,7 +243,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         frameHeight = 0
         activeRenderSegmentWindow = nil
         requestedFontNames = nil
-        speakerDisplayCues = []
     }
 
     private func ensureSessionCovers(timestampMilliseconds: Int) throws {
@@ -298,7 +284,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 "libass indexed segment: window=\(segment.startMilliseconds)-\(segment.endMilliseconds)ms events=\(segment.eventCount) bytes=\(segment.byteCount)"
             )
             let sourceIdentifier = "\(sourcePath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)"
-            let renderScript = rewriteRenderScript(segment.scriptText)
+            let renderScript = rewriteFontAliases(in: segment.scriptText)
             return try SFXASSRendererSession(
                 assScript: renderScript,
                 sourceIdentifier: sourceIdentifier,
@@ -309,7 +295,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
         activeRenderSegmentWindow = nil
         if let sourceScript = try? String(contentsOf: URL(fileURLWithPath: sourcePath)) {
-            let renderScript = rewriteRenderScript(sourceScript)
+            let renderScript = rewriteFontAliases(in: sourceScript)
             if renderScript != sourceScript {
                 return try SFXASSRendererSession(
                     assScript: renderScript,
@@ -327,23 +313,9 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         )
     }
 
-    private func rewriteRenderScript(_ script: String) -> String {
-        let speakerRewrittenScript = ASSSpeakerDisplayRewriter.rewrite(
-            script: script,
-            cues: speakerDisplayCues
-        )
-        SubtitleSpeakerDisplayDiagnostics.log(
-            "renderer.assScript.rewrite",
-            fields: [
-                "subtitlePath": sourcePath ?? "",
-                "speakerCueCount": "\(speakerDisplayCues.count)",
-                "changed": "\(speakerRewrittenScript != script)",
-                "scriptBytes": "\(script.lengthOfBytes(using: .utf8))",
-                "rewrittenBytes": "\(speakerRewrittenScript.lengthOfBytes(using: .utf8))"
-            ]
-        )
+    private func rewriteFontAliases(in script: String) -> String {
         return ASSFontAliasResolver.shared.rewriteRenderScript(
-            speakerRewrittenScript,
+            script,
             requestedFontNames: requestedFontNames
         )
     }

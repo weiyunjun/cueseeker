@@ -12,7 +12,6 @@ func settingsStoreDefaultsToValidOnOffPlaylistCueState() {
         #expect(store.autoPauseAfterCueFinishesEnabled)
         #expect(!store.autoSwitchToNextCuesInPlaylistEnabled)
         #expect(store.autoSwitchCueSequenceGapMilliseconds == 500)
-        #expect(!store.playbackSpeakerDisplayEnabled)
     }
 }
 
@@ -24,7 +23,6 @@ func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
 
         store.autoSwitchToNextCuesInPlaylistEnabled = true
         store.setAutoSwitchCueSequenceGapMilliseconds(750)
-        store.playbackSpeakerDisplayEnabled = true
 
         #expect(store.autoPauseAfterCueFinishesEnabled)
         #expect(store.autoSwitchToNextCuesInPlaylistEnabled)
@@ -43,7 +41,6 @@ func settingsStorePersistsOnlyTheThreeValidPlaylistCueStates() {
         #expect(!reloadedStore.autoPauseAfterCueFinishesEnabled)
         #expect(!reloadedStore.autoSwitchToNextCuesInPlaylistEnabled)
         #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 750)
-        #expect(reloadedStore.playbackSpeakerDisplayEnabled)
     }
 }
 

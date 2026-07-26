@@ -59,17 +59,6 @@ struct SettingsPlayCategory: View {
                 }
             }
 
-            HStack(spacing: 16) {
-                Text("Show Speaker in Subtitles")
-                    .font(.headline)
-
-                Spacer()
-
-                Toggle("", isOn: $settingsStore.playbackSpeakerDisplayEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-            }
-
             Spacer()
         }
         .padding(24)

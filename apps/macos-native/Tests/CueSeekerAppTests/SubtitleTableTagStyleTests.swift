@@ -23,7 +23,7 @@ func subtitleTableTagStyleUsesRedesignChipPaddingAndFitContentHeight() {
 @Test
 func subtitleTableTagStyleUsesDisabledRedesignColors() {
     let style = SubtitleTableTagStyle.resolve(isRedesign: true)
-    let tag = WorkbenchTag(key: "speaker", colorID: .purple)
+    let tag = WorkbenchTag(key: "zh-hans", colorID: .blue)
     let attributed = SubtitleTableText.tag(tag, isRedesign: true, isEnabled: false)
     let foreground = attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
 
@@ -32,9 +32,7 @@ func subtitleTableTagStyleUsesDisabledRedesignColors() {
 }
 
 @Test
-func workbenchTagRedesignColorsMapSpeakerAndLanguageTokens() {
-    #expect(hexString(WorkbenchTagColorID.purple.redesignFillColor()) == "#DDD6FE")
-    #expect(hexString(WorkbenchTagColorID.purple.redesignForegroundColor()) == "#5B21B6")
+func workbenchTagRedesignColorsMapLanguageTokens() {
     #expect(hexString(WorkbenchTagColorID.blue.redesignFillColor()) == "#DBEAFE")
     #expect(hexString(WorkbenchTagColorID.blue.redesignForegroundColor()) == "#0040FF")
 }

@@ -462,22 +462,12 @@ func playbackRequestStoresASSSubtitleSource() throws {
     try Data().write(to: videoURL)
 
     let subtitleURL = videoURL.deletingPathExtension().appendingPathExtension("ass")
-    let speakerDisplayCue = SubtitleSpeakerDisplayCue(
-        cueGroupID: 1,
-        startMilliseconds: 1_000,
-        endMilliseconds: 2_000,
-        sourceStyle: "Default",
-        sourceLayer: 0,
-        cleanText: "Hello",
-        speakers: ["高松灯"]
-    )
     let request = try PlaybackRequest(
         videoURL: videoURL,
         startMilliseconds: 1_000,
         subtitleSource: PlaybackSubtitleSource(
             url: subtitleURL,
-            format: .ass,
-            speakerDisplayCues: [speakerDisplayCue]
+            format: .ass
         )
     )
 
@@ -485,7 +475,6 @@ func playbackRequestStoresASSSubtitleSource() throws {
     #expect(request.subtitleSource?.format == .ass)
     #expect(request.subtitleSource?.matchedVideoURL == videoURL.standardizedFileURL)
     #expect(request.subtitleSource?.initialTimestampMilliseconds == 1_000)
-    #expect(request.subtitleSource?.speakerDisplayCues == [speakerDisplayCue])
 }
 
 private struct TestFontNameRecord {

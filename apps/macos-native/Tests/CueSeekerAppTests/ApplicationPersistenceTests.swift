@@ -37,7 +37,7 @@ func sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues(
 }
 
 @Test
-func obsoleteAIChunkingStateCleanupRemovesDefaultsAndDeletesCredential() {
+func obsoleteFeatureStateCleanupRemovesDefaultsAndDeletesCredential() {
     let suiteName = "ApplicationPersistenceCleanupTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!
     defer {
@@ -48,12 +48,13 @@ func obsoleteAIChunkingStateCleanupRemovesDefaultsAndDeletesCredential() {
         "aiChunkingTranslationLanguage",
         "aiChunkingPromptTemplate",
         "aiChunkingPromptDefaultVersion",
-        "aiChunkingPromptAwareCacheCleared"
+        "aiChunkingPromptAwareCacheCleared",
+        "playbackSpeakerDisplayEnabled"
     ]
     keys.forEach { userDefaults.set("legacy", forKey: $0) }
     var credentialWasDeleted = false
 
-    ApplicationPersistence.removeObsoleteAIChunkingState(
+    ApplicationPersistence.removeObsoleteFeatureState(
         from: userDefaults,
         credentialDeletion: { credentialWasDeleted = true }
     )

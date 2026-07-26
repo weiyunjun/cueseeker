@@ -55,19 +55,12 @@ func schemaWorkbenchFilterRulesConvertToCoreFilterSet() {
             operatorID: .contains,
             value: "ja"
         ),
-        SchemaWorkbenchSearchDefaults.makeFilterRule(
-            join: .and,
-            fieldID: "speaker",
-            operatorID: .contains,
-            value: "高松灯"
-        ),
     ]
     let filterSet = rules.subtitleSearchFilterSet
 
-    #expect(filterSet.matches(display: "Ave Mujica", cues: "", languages: ["ja"], speakers: ["高松灯"]))
-    #expect(!filterSet.matches(display: "Ave Mujica", cues: "", languages: ["en"], speakers: ["高松灯"]))
-    #expect(!filterSet.matches(display: "MyGO", cues: "", languages: ["ja"], speakers: ["高松灯"]))
-    #expect(!filterSet.matches(display: "Ave Mujica", cues: "", languages: ["ja"], speakers: ["千早爱音"]))
+    #expect(filterSet.matches(display: "Ave Mujica", cues: "", languages: ["ja"]))
+    #expect(!filterSet.matches(display: "Ave Mujica", cues: "", languages: ["en"]))
+    #expect(!filterSet.matches(display: "MyGO", cues: "", languages: ["ja"]))
 }
 
 @Test
@@ -136,6 +129,38 @@ func settingsStorePersistsSearchFilterSetsWithoutDefaultActiveFilter() {
         #expect(reloadedStore.searchFilterSets == [filterSet])
         #expect(SchemaWorkbenchSearchDefaults.defaultFilterSetID == nil)
         #expect(SchemaWorkbenchSearchDefaults.defaultFilterRules.isEmpty)
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreRemovesObsoleteSpeakerRulesFromSavedFilterSets() throws {
+    try withTemporaryFilterSetSettingsUserDefaults { userDefaults in
+        let filterSet = SchemaWorkbenchFilterSet(
+            id: "filter-set-1",
+            name: "Filter Set 1",
+            rules: [
+                SchemaWorkbenchSearchDefaults.makeFilterRule(
+                    id: "speaker-rule",
+                    join: nil,
+                    fieldID: "speaker",
+                    operatorID: .contains,
+                    value: "legacy"
+                ),
+                SchemaWorkbenchSearchDefaults.makeFilterRule(
+                    id: "language-rule",
+                    join: .and,
+                    fieldID: "language",
+                    operatorID: .contains,
+                    value: "ja"
+                )
+            ]
+        )
+        userDefaults.set(try JSONEncoder().encode([filterSet]), forKey: "searchFilterSets")
+
+        let store = SettingsStore(userDefaults: userDefaults)
+
+        #expect(store.searchFilterSets.first?.rules.map(\.fieldID) == ["language"])
     }
 }
 

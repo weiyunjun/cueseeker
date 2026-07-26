@@ -54,7 +54,6 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let initialTimestampMilliseconds: Int?
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
     public let renderCacheDatabaseURL: URL?
-    public let speakerDisplayCues: [SubtitleSpeakerDisplayCue]
 
     public init(
         url: URL,
@@ -62,8 +61,7 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
         matchedVideoURL: URL? = nil,
         initialTimestampMilliseconds: Int? = nil,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
-        renderCacheDatabaseURL: URL? = nil,
-        speakerDisplayCues: [SubtitleSpeakerDisplayCue] = []
+        renderCacheDatabaseURL: URL? = nil
     ) {
         self.url = url
         self.format = format
@@ -71,7 +69,6 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
         self.initialTimestampMilliseconds = initialTimestampMilliseconds.map { max(0, $0) }
         self.preparationTimeWindow = preparationTimeWindow
         self.renderCacheDatabaseURL = renderCacheDatabaseURL
-        self.speakerDisplayCues = speakerDisplayCues
     }
 
     public func initialRenderTimestamp(fallbackMilliseconds: Int) -> Int {
@@ -93,8 +90,7 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
             matchedVideoURL: matchedVideoURL ?? fallbackVideoURL,
             initialTimestampMilliseconds: initialTimestampMilliseconds ?? max(0, startMilliseconds),
             preparationTimeWindow: preparationTimeWindow,
-            renderCacheDatabaseURL: renderCacheDatabaseURL,
-            speakerDisplayCues: speakerDisplayCues
+            renderCacheDatabaseURL: renderCacheDatabaseURL
         )
     }
 }
