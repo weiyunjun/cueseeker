@@ -864,6 +864,11 @@ Behavior:
   Detail Header, and Episode cards. Playback Selected state reuses each card's
   existing Hover region and visual: full card for Recent/Folder and Cover only
   for Episode. It adds no Focus Ring, border, or independent selected fill.
+- When a Library video cover is unavailable, every Library, Recent, and
+  playback surface that uses the shared cover view should show the existing
+  `16:9` Library Cover Placeholder background with a centered muted `film`
+  symbol. The fallback must not use red error styling and must not remove Cue
+  counts, playback progress, duration, or manual cover replacement actions.
 - Removing a Shiori should show transient playback feedback with the Shiori icon
   and `Shiori Removed`.
 - Collapsing the Shared Content Panel hides the active mode content.

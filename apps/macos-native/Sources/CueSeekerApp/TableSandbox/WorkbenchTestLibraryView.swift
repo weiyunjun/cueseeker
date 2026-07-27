@@ -1791,8 +1791,15 @@ struct LibraryCachedCoverImage: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                Rectangle()
-                    .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
+                ZStack {
+                    Rectangle()
+                        .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
+
+                    Image(systemName: "film")
+                        .font(.system(size: 44, weight: .medium))
+                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                        .accessibilityHidden(true)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

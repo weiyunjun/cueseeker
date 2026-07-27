@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Replaced the flat gray fallback for unavailable automatic Library covers with
+  the shared `16:9` Library Cover Placeholder background and a centered muted
+  `film` symbol. Existing Cue-count badges, playback progress, duration, and
+  manual cover replacement remain available; AV1 software decoding is deferred
+  to the separately accepted follow-up phase.
 - Removed the retired Speaker and AI Chunking paths. Database schema 39 drops
   their obsolete tables in place while preserving Cue, Language, Shiori, and
   search data, so no reindex is required. App startup also clears the saved
