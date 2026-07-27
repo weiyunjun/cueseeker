@@ -48,3 +48,73 @@ main
 
 ## Step 9：最终回归与文档汇总
 对应条目：1–16
+
+# UI文档改动
+
+- Core Tokens：
+  - 增加 Filter Count Badge 的字号、尺寸、水平内边距、圆角和垂直偏移 Token。
+  - Filter Count Badge 颜色复用现有 `--color-text-muted` 和 `--color-checkbox-icon`。
+  - 删除不再使用的 `--height-table-utility-bar`。
+
+- 全局交互规则：
+  - Table Row 作为整行 Hover 和 Selected 视觉的显式例外。
+  - 明确表格文字选择仅适用于普通模式；Select 状态下禁用文字选择。
+
+- Search Box：
+  - 增加可选 Result Count Text。
+  - 仅在 Search exact 结果完整计算后显示。
+  - 使用 muted 颜色，位于 Inline Clear Button 左侧。
+  - 支持 `1 result` 与 `{N} results`，Shiori 不显示结果数量。
+
+- Filter：
+  - 删除 Filter Sets 相关术语。
+  - 将 Filter Panel Trigger Button 更新为中性样式的 Filter Button。
+  - 增加 Filter Count Badge 的组成、Token、颜色、尺寸和显示规则。
+  - Filter Rule Count 为 `0` 时不显示 Badge。
+  - 一位数显示为圆形，两位数或更多显示为胶囊形。
+  - 删除 Active Accent 和 Trailing Clear 规则。
+  - Filter Editor 不提供命名、复用、全局保存或 `Save Filter Set`。
+  - Search 与 Shiori 分别保留独立的当前会话筛选状态，App 重启后不恢复。
+  - 打开 Filter Editor 时不自动创建规则。
+  - 删除最后一条规则后回到 `0` 条规则。
+
+- Search / Shiori Toolbar：
+  - 合并为单行 Toolbar。
+  - 顺序调整为 `Search Box → Filter → View → Select / Exit Select`。
+  - Toolbar 与 Table Viewport 使用 `--spacing-8` 作为左右页面留白，并保持边界对齐。
+  - Select 使用 `square.and.pencil`。
+  - 进入 Select 状态后显示 `Exit Select`。
+  - Search 只有在 exact 结果完整计算后才能进入 Select 状态。
+  - 删除独立结果数量栏和 Shiori 数量栏。
+
+- Table 外观：
+  - 删除表格外部框线和垂直列分隔线。
+  - 仅保留长度等于 Table Content Width 的水平 Row Divider。
+  - Header 文字统一使用 `--color-text-secondary`。
+  - Cues 与 Display Title 调换位置，保留原列宽权重和最小宽度。
+  - Primary Cue 使用 secondary，Extra Cues 和其它数据列内容使用 muted。
+  - Interactive Text Cell Hover 不再绘制独立背景，只保留文字色变化和下划线。
+  - 普通模式下整行 Hover 使用 `--color-row-hover`。
+
+- Selection Column：
+  - 始终保留固定 `50pt` 宽度，不因进入或退出 Select 状态改变其它列宽。
+  - 非 Select 状态下，Header 显示 `#`，正文显示从 `1` 开始的动态结果序号。
+  - `#` 使用 secondary，正文序号使用 muted。
+  - Select 状态下原位切换为 Header 和 Row Checkbox。
+  - Selection Column 不出现在 View Menu 中。
+
+- Select 状态：
+  - Search Box、Filter、View、Sortable Header Cell 和其它 Header Button 为 Disabled。
+  - 点击正文行任意非 Overlay、非 Scrollbar 区域切换该行的选择状态。
+  - 禁用 Cue 播放、Shiori Tags Cell 编辑、Row Action Menu、Interactive Text Cell Hover 下划线和表格文字选择。
+  - 只允许滚动表格、拖动 Scrollbar、选择或取消结果、操作 Selection Action Overlay，以及退出 Select 状态。
+  - 已选择行使用 `--color-row-selected`。
+  - Hover 未选择行使用 `--color-row-hover`。
+  - Hover 已选择行时不叠加 Hover 背景。
+
+- Selection Action Overlay：
+  - 替代原 Count Summary 和 Batch Actions 区域。
+  - Checkbox Selected Count 大于 `0` 时显示在表格底部中央。
+  - 使用完全不透明的 `--color-bg-popover`，并复用现有边框、圆角、间距和阴影 Token。
+  - 内容顺序为 `{N} selected → Anki → Screenshot → Collage → Copy Table`。
+  - 清空选择后隐藏。
