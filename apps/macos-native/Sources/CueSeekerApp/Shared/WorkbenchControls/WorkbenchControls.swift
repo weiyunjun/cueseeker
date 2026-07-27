@@ -46,6 +46,12 @@ enum WorkbenchControlMetrics {
     static let redesignInlineClearButtonRadius: CGFloat = 9999
     /// --size-control-icon: 16px
     static let redesignControlIconSize: CGFloat = 16
+    /// --size-filter-count-badge: 20px
+    static let redesignFilterCountBadgeSize: CGFloat = 20
+    /// --padding-filter-count-badge-x: 6px
+    static let redesignFilterCountBadgeHorizontalPadding: CGFloat = 6
+    /// --radius-filter-count-badge: 9999px
+    static let redesignFilterCountBadgeRadius: CGFloat = 9999
     /// --size-select-indicator: 12pt
     static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 12
     /// --weight-select-indicator: semibold
@@ -340,6 +346,7 @@ struct WorkbenchToolbarButton: View {
     let title: String
     let systemImage: String
     var showsChevron = false
+    var badgeCount: Int? = nil
     var isRedesign: Bool = false
     var isMenuOpen: Bool = false
     var action: (() -> Void)? = nil
@@ -374,6 +381,13 @@ struct WorkbenchToolbarButton: View {
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
+
+            if let badgeCount, badgeCount > 0 {
+                WorkbenchFilterCountBadge(
+                    count: badgeCount,
+                    isEnabled: isEnabled
+                )
+            }
 
             if showsChevron {
                 if isRedesign {
@@ -421,6 +435,42 @@ struct WorkbenchToolbarButton: View {
         .onHover { isHovered = $0 }
         .fixedSize(horizontal: true, vertical: false)
         .contentShape(Rectangle())
+    }
+}
+
+struct WorkbenchFilterCountBadge: View {
+    let count: Int
+    var isEnabled = true
+
+    var body: some View {
+        Text(String(count))
+            .font(
+                .system(
+                    size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                    weight: WorkbenchControlMetrics.redesignFontWeightControl
+                )
+            )
+            .foregroundStyle(
+                isEnabled
+                    ? WorkbenchRedesignColors.filterCountBadgeText
+                    : WorkbenchRedesignColors.textDisabled
+            )
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignFilterCountBadgeHorizontalPadding)
+            .frame(minWidth: WorkbenchControlMetrics.redesignFilterCountBadgeSize)
+            .frame(height: WorkbenchControlMetrics.redesignFilterCountBadgeSize)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignFilterCountBadgeRadius,
+                    style: .continuous
+                )
+                .fill(
+                    isEnabled
+                        ? WorkbenchRedesignColors.filterCountBadgeBg
+                        : WorkbenchRedesignColors.bgDisabled
+                )
+            )
     }
 }
 

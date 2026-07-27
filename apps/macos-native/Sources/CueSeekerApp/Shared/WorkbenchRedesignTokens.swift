@@ -104,6 +104,10 @@ enum WorkbenchRedesignColors {
         static let bgCheckboxChecked = NSColor.dynamic(lightHex: "#111827", darkHex: "#F4F4F5")
         static let checkboxIcon = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
 
+        // Filter Count Badge
+        static let filterCountBadgeBg = bgCheckboxChecked
+        static let filterCountBadgeText = checkboxIcon
+
         // Danger
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
         static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#3A1717")
@@ -199,6 +203,10 @@ enum WorkbenchRedesignColors {
     static let bgCheckboxUnchecked = Color(nsColor: NS.bgCheckboxUnchecked)
     static let bgCheckboxChecked = Color(nsColor: NS.bgCheckboxChecked)
     static let checkboxIcon = Color(nsColor: NS.checkboxIcon)
+
+    // Filter Count Badge
+    static let filterCountBadgeBg = Color(nsColor: NS.filterCountBadgeBg)
+    static let filterCountBadgeText = Color(nsColor: NS.filterCountBadgeText)
 
     // Danger
     static let dangerText = Color(nsColor: NS.dangerText)

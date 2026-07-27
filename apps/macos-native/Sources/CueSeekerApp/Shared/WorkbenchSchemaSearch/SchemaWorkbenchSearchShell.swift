@@ -352,6 +352,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     SchemaWorkbenchSearchFilterBar(
                         placeholder: searchPlaceholder,
                         searchDraft: $searchDraft,
+                        filterCount: filterRules.count,
                         isRedesign: true,
                         isFilterBuilderMenuOpen: openPopover == .filterBuilder,
                         onSubmit: onSearchSubmit,
@@ -674,6 +675,7 @@ enum SchemaWorkbenchStyle {
 struct SchemaWorkbenchSearchFilterBar: View {
     let placeholder: String
     @Binding var searchDraft: String
+    let filterCount: Int
     var isRedesign: Bool = false
     var isFilterBuilderMenuOpen: Bool = false
     var onSubmit: (() -> Void)?
@@ -693,6 +695,7 @@ struct SchemaWorkbenchSearchFilterBar: View {
                 title: "Filter",
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
+                badgeCount: filterCount,
                 isRedesign: isRedesign,
                 isMenuOpen: isFilterBuilderMenuOpen,
                 action: onFilter

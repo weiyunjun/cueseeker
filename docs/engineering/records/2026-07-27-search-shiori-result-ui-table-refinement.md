@@ -8,9 +8,9 @@
 ## Scope
 
 - Classify the change as macOS platform UI and UX work.
-- Implement Steps 1 through 3 of the requirement: increase the horizontal
+- Implement Steps 1 through 4 of the requirement: increase the horizontal
   breathing room, remove the Search and Shiori table outer frame, and replace
-  persisted reusable Filter Sets with session-only filters.
+  persisted reusable Filter Sets with session-only filters and a count badge.
 - Preserve column layout, filtering execution, selection behavior, and table
   interaction outside the requested filter-control changes.
 
@@ -42,6 +42,14 @@
     empty in new store instances.
 11. Removed the two obsolete filter-status controls after their final call
     sites were removed.
+12. Added Filter Count Badge geometry tokens and semantic color aliases that
+    reuse the existing checked-checkbox high-contrast palette in Light and Dark
+    modes.
+13. Extended the shared toolbar button with an optional numeric badge and used
+    it only for the Filter trigger.
+14. Passed the current Filter Rule count into the trigger, hiding the badge at
+    zero while allowing its tokenized minimum circle to expand for multi-digit
+    counts.
 
 ## Verification
 
@@ -60,6 +68,9 @@
 - The complete `--no-parallel` suite ran 880 tests and reported one unrelated
   shared-preferences migration failure consistent with retained test state;
   that test passed immediately when rerun alone.
+- `swift build` passed after the Step 4 badge change.
+- Ten focused workbench and Filter Count Badge token tests passed with
+  `--no-parallel`.
 - The complete parallel `swift test` run executed 882 tests and reported 10
   timing or database-I/O failures unrelated to the spacing constant.
 - The 10 failed tests all passed when rerun together with `--no-parallel`,
@@ -75,10 +86,11 @@
   resource contention.
 - Step 1 received human visual acceptance.
 - Step 2 received human visual acceptance.
-- Step 3 automated verification passed; human visual acceptance remains
+- Step 3 received human visual acceptance.
+- Step 4 automated verification passed; human visual acceptance remains
   pending.
 
 ## Follow-ups
 
-- Continue to Step 4 only after Step 3 is explicitly accepted.
+- Continue to Step 5 only after Step 4 is explicitly accepted.
 - Update the human-owned requirement and UI design only through the human-owner workflow after the iterative UI work is complete.
