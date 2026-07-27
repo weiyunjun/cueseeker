@@ -183,6 +183,7 @@
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
 - `--font-size-caption`: `12px`
+- `--font-size-filter-count-badge`: `10px`
 - `--line-height-table-cue-primary`: `24px`
 - `--line-height-table-cue-secondary`: `20px`
 - `--font-size-app-sidebar-item`: `13px`
@@ -209,6 +210,7 @@
 
 - `--width-interactive-text-underline`: `1px`
 - `--offset-interactive-text-underline`: `2px`
+- `--offset-filter-count-badge-y`: `1px`
 
 ### 1.3 尺寸
 
@@ -218,7 +220,6 @@
 - `--height-control`: `40px`
 - `--height-field`: `40px`
 - `--height-form-text-area`: `96px`
-- `--height-table-utility-bar`: `40px`
 - `--height-table-header`: `40px`
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `40px`
@@ -241,6 +242,7 @@
 #### Size
 
 - `--size-checkbox`: `16px`
+- `--size-filter-count-badge`: `16px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
 - `--size-inline-clear-symbol-font-size-macos`: `11pt`
@@ -300,6 +302,7 @@
 #### Padding
 
 - `--padding-control-x`: `14px`
+- `--padding-filter-count-badge-x`: `4px`
 - `--padding-field-x`: `16px`
 - `--padding-menu-item`: `12px 16px`
 - `--padding-header-trigger-x`: `12px`
@@ -333,6 +336,7 @@
 #### Radius
 
 - `--radius-control`: `8px`
+- `--radius-filter-count-badge`: `9999px`
 - `--radius-field`: `8px`
 - `--radius-search`: `9999px`
 - `--radius-inline-clear-button`: `9999px`
@@ -428,7 +432,8 @@
 
 - 组件只定义实际存在差异的状态。
 - 常用状态包括 Default、Hover、Pressed、Focused、Selected、Checked、Indeterminate、Menu Open、Highlighted、Error、Disabled。
-- Hover 和 Pressed 只作用于实际交互目标，不扩散到父容器或整行。
+- Hover 和 Pressed 只作用于实际交互目标，不自动扩散到父容器。
+- Table Row 是显式例外，其整行 Hover 和 Selected 视觉由 Table Row Component 定义。
 - 普通文字、图标和装饰元素不能表现为没有对应动作的控件。
 - Selected 只表达持续生效的选择状态，不用于短暂 Hover。
 - Menu Open 可以复用所属 Trigger 的 Hover 视觉。
@@ -468,8 +473,9 @@
 
 ### 2.5 文字选择与复制
 
-- 表格中的所有文字均可选择，包括表头、Display Title、Cues、Tags、Time Range 和 Date Added。
-- 支持在单元格、列和行之间连续拖拽选择。
+- 普通模式下，表格中的所有文字均可选择，包括表头、Display Title、Cues、Tags、Time Range 和 Date Added。
+- 普通模式下支持在单元格、列和行之间连续拖拽选择。
+- Select 状态下禁用表格文字选择，不建立或扩展文字选区。
 - 拖拽到可视区域顶部或底部时，表格自动滚动并继续扩展选择。
 - 固定表头不随正文滚动，但仍参与文字选择和复制。
 - 表格拥有键盘上下文时，`Cmd+A` 选择当前完整结果中的全部表格文字。
@@ -510,8 +516,11 @@
 
 - 用途：输入 Search 查询词。
 - Token：`--height-filter-bar-control`、`--radius-search`、`--padding-control-x`、`--color-bg-surface`、`--color-bg-disabled`、`--color-border-control`、`--color-border-focus`、`--color-border-disabled`、`--color-focus-ring`。
-- 内容：Search 图标、输入文字、Placeholder、Inline Clear Button。
+- 内容：Search 图标、输入文字、Placeholder、可选 Result Count Text、Inline Clear Button。
 - 文字使用 `--font-family-base`、`--font-size-control`、`--color-text-primary`、`--color-text-placeholder`。
+- Result Count Text 使用 `--font-size-control` 和 `--color-text-muted`，位于 Inline Clear Button 左侧。
+- 只有 Search exact 结果完整计算完成后才显示 Result Count Text。
+- Result Count Text 使用 `1 result` 和 `{N} results`，不在 Shiori 中显示。
 - 状态：Empty、Focused Empty、Typing / Focused Filled、Filled、Clear Button Hover、Disabled。
 - 只有 Focused 或 Typing 状态显示 caret。
 - 有内容时显示 Inline Clear Button。
@@ -535,7 +544,7 @@
 
 #### Select Trigger Button
 
-- 用途：打开 Filter Sets、View 等选择型菜单。
+- 用途：打开 View 等选择型菜单。
 - Token：`--height-filter-bar-control`、`--radius-control`、`--padding-control-x`、`--color-bg-surface`、`--color-bg-hover`、`--color-bg-disabled`、`--color-border-control`、`--color-border-control-hover`、`--color-border-focus`、`--color-border-disabled`。
 - 内容：可选 Leading Icon、Label、Select Indicator。
 - Select Indicator 固定使用 `chevrons-up-down`。
@@ -623,15 +632,19 @@
 - 始终无边框。
 - 点击只清除当前值，不触发父控件动作。
 
-#### Filter Panel Trigger Button
+#### Filter Button
 
-- 用途：显示筛选已生效状态并打开或关闭筛选面板。
-- Token：`--height-filter-bar-control`、`--radius-control`、`--padding-control-x`、`--color-border-active`、`--color-bg-active`、`--color-bg-active-hover`。
-- 文字和图标使用 `--color-text-active`、`--color-icon-active`。
-- Disabled 使用 `--color-bg-disabled`、`--color-border-disabled`、`--color-text-disabled`。
-- 状态：Active Default、Active Hover / Open、Clear Button Hover、Disabled。
-- Trailing Clear 使用 Inline Clear Button。
-- 点击 Clear 不得同时切换筛选面板。
+- 用途：打开或关闭当前 Search 或 Shiori 的 Filter Editor。
+- Token：`--height-filter-bar-control`、`--radius-control`、`--padding-control-x`、`--spacing-2`、`--color-bg-surface`、`--color-bg-hover`、`--color-bg-disabled`、`--color-border-control`、`--color-border-control-hover`、`--color-border-disabled`。
+- 内容顺序：Filter Icon、`Filter`、可选 Filter Count Badge、Select Indicator。
+- Filter Icon、文字和 Select Indicator 使用普通中性按钮颜色，不使用 Active Accent 颜色。
+- Filter Count Badge 使用 `--size-filter-count-badge`、`--padding-filter-count-badge-x`、`--radius-filter-count-badge`、`--offset-filter-count-badge-y` 和 `--font-size-filter-count-badge`。
+- Filter Count Badge 背景使用 `--color-text-muted`，文字使用 `--color-checkbox-icon`。
+- Filter Rule Count 为 `0` 时不显示 Badge。
+- Filter Rule Count 为一位数时视觉上为圆形；两位数或更多时按内容扩展为胶囊形。
+- Disabled 使用 `--color-bg-disabled`、`--color-border-disabled`、`--color-text-disabled` 和 `--color-icon-disabled`。
+- 状态：Default、Hover / Open、Disabled。
+- 不显示 Trailing Clear。
 
 #### Neutral Button
 
@@ -827,21 +840,27 @@
 - Metadata 不再对齐 Primary Cue 第一视觉行。
 - Primary Cue 使用 `--font-size-table`、`--line-height-table-cue-primary`、`--color-text-secondary`。
 - Extra Cues 使用 `--font-size-caption`、`--line-height-table-cue-secondary`、`--color-text-muted`。
-- Normal 和 Content Changed Shiori Row 保持各列原有文字颜色。
+- Display Title、Tag 文字、Time Range 和 Date Added 使用 `--color-text-muted`。
+- Normal 和 Content Changed Shiori Row 的 Primary Cue 使用 `--color-text-secondary`，其它文字内容使用 `--color-text-muted`。
 - Unavailable Shiori Row 的 Display Title、Primary Cue、Extra Cues、Tag 文字、Time Range 和 Date Added 统一使用 `--color-text-muted`。
 - Unavailable 不属于 Disabled，不使用 `--color-bg-disabled`，不增加整行背景或透明度。
 - Primary Cue 和 Extra Cues 的文字字形分别在各自的 line-height 行框内垂直视觉居中。
 - 所有 Cue 保留源换行和自动换行，不裁剪、不截断、不显示省略号。
-- 行不显示 Full-row Hover 或 Full-row Selected 背景。
+- 普通模式下，Row Hover 使用 `--color-row-hover`。
+- 普通模式不显示 Full-row Selected 背景。
+- Select 状态下，已选择行使用 `--color-row-selected`。
+- Select 状态下，Hover 未选择行继续使用 `--color-row-hover`。
+- Select 状态下，Hover 已选择行时不叠加 `--color-row-hover`。
 - 只显示水平 Divider，不显示垂直列分隔线。
-- 普通左键不选择整行。
-- Checkbox 是批量选择的唯一入口。
-- 行级右键交互使用 Row Action Menu。
+- 普通模式下，左键不选择整行。
+- Select 状态下，点击行内任意非 Overlay、非 Scrollbar 区域切换该行的选择状态。
+- 普通模式下，行级右键交互使用 Row Action Menu。
+- Select 状态下，禁用 Row Action Menu。
 
 #### Sortable Header Cell
 
 - 用途：显示列名、当前排序方向并打开 Column Header Menu。
-- Token：`--height-table-header`、`--padding-header-trigger-x`、`--color-bg-hover`、`--font-size-table-header`、`--color-text-primary`、`--color-icon-default`。
+- Token：`--height-table-header`、`--padding-header-trigger-x`、`--color-bg-hover`、`--font-size-table-header`、`--color-text-secondary`、`--color-icon-default`。
 - 排序状态：Unsorted、Sorted Asc、Sorted Desc。
 - Indicator 分别为 `chevrons-up-down`、`arrow-up`、`arrow-down`。
 - 交互状态：Default、Hover、Menu Open、Disabled / Not Sortable。
@@ -852,8 +871,10 @@
 
 #### Row Selection Checkbox
 
-- 用途：明确控制单行或整个结果范围的批量选择。
+- 用途：在 Select 状态下明确控制单行或整个结果范围的批量选择。
 - Token：`--size-checkbox`、`--radius-checkbox`、`--color-border-checkbox`、`--color-border-focus`、`--color-bg-checkbox-unchecked`、`--color-bg-checkbox-checked`、`--color-checkbox-icon`。
+- 只在 Select 状态下显示。
+- 非 Select 状态下，相同列宽位置显示动态序号。
 - 行状态：Unchecked、Checked、Disabled。
 - Header 状态：Unchecked、Checked、Indeterminate、Disabled。
 - Header Checkbox 不排序，也不打开 Column Header Menu。
@@ -862,16 +883,16 @@
 #### Interactive Text Cell
 
 - 用途：为可播放 Cue 文字提供文字选择和表格正文中唯一的普通文字左键动作。
-- Token：`--color-bg-hover`、`--radius-table-cell-hover`、`--padding-table-cell-hover-x`、`--padding-table-cell-hover-y`。
-- 下划线使用 `--width-interactive-text-underline`、`--offset-interactive-text-underline` 和当前文字色。
+- Token：`--color-text-primary`、`--padding-table-cell-hover-x`、`--padding-table-cell-hover-y`、`--width-interactive-text-underline`、`--offset-interactive-text-underline`。
+- 下划线使用当前文字色。
 - Normal 和 Content Changed Cue 使用完整 Interactive Text Cell 交互。
 - Hover Region 覆盖当前完整显示的 Cue 内容，但不包含 Cue State Indicator。
 - Show Cue Group 开启时，所有显示的 Cue 共用一个 Hover Region。
-- Hover 使用一个圆角矩形，不为每一行文字分别绘制背景。
-- Hover 时所有显示的 Cue 文字显示下划线。
+- Hover 不绘制独立背景。
+- Hover 时 Primary Cue 使用 `--color-text-primary`，所有显示的 Cue 文字使用当前文字色显示下划线。
 - 无拖拽的普通单击从 Primary Cue 播放。
 - 从 Cue 文字开始拖拽时进入文字选择并抑制播放。
-- Unavailable Cue 不显示 Hover 背景或下划线，不响应普通左键播放，也不使用 `pointer` Cursor。
+- Unavailable Cue 不显示 Hover 下划线，不响应普通左键播放，也不使用 `pointer` Cursor。
 - Unavailable Cue 文字仍然允许选择和复制。
 - Cue State Indicator 是独立 Hover Target，不属于 Interactive Text Cell。
 - Display Title、Tags 中的文字、Time Range 和 Date Added 不使用 Interactive Text Cell。
@@ -887,15 +908,14 @@
 - 只显示 Thumb，不显示箭头按钮。
 - Track 保持透明。
 
-#### Count Summary
+#### Selection Action Overlay
 
-- 用途：显示结果数量和批量选择数量。
-- Token：`--height-table-utility-bar`、`--font-family-base`、`--font-size-body`、`--color-text-primary`、`--color-text-muted`。
-- 默认格式：`{total} rows`
-- 选择格式：`{selected} / {total} rows selected`
-- 超过 `99999` 显示 `99999+`。
-- 状态：Default、Overflow Total、Selected、Selected / Overflow。
-- 只读，不响应点击。
+- 用途：在 Select 状态下显示已选择数量和批量操作。
+- Token：`--spacing-2`、`--spacing-3`、`--radius-control`、`--color-bg-popover`、`--color-border-muted`、`--shadow-popover`、`--font-size-control`、`--color-text-muted`。
+- 背景必须完全不透明。
+- 内容顺序：`{N} selected`、Anki、Screenshot、Collage、Copy Table。
+- `{N} selected` 只读，其余项目复用现有操作按钮。
+- Selected Count 大于 `0` 时显示；清空选择后隐藏。
 
 ### 3.5 展示与状态
 
@@ -1521,24 +1541,27 @@
 - App Topbar Title 保持为 `Shiori`。
 - 只显示当前 Shiori List 中的 Shiori。
 - 完整保留现有：
-  - Search Filter Bar Layout
-  - Search / Shiori Utility Bar Layout
+  - Search / Shiori Toolbar Layout
+  - Selection Action Overlay Layout
   - Search / Shiori / Context Table Layout
 - 本需求不增加当前列表身份 Header。
 - 当前列表没有 Shiori 时继续使用现有 Shiori Empty Hint。
 
-#### Search Filter Bar Layout
+#### Search / Shiori Toolbar Layout
 
-- 使用水平 Toolbar。
+- 使用单行水平 Toolbar。
+- Toolbar 和其下方 Table Viewport 使用 `--spacing-8` 作为左右页面留白，并保持左右边界对齐。
 - 子项垂直居中。
 - 间距使用 `--spacing-3`。
 - Search Box 为主要 Flexible 区域。
-- Filter Sets Select Trigger 和 Filter Panel Trigger Button 为固定内容宽度。
+- Filter、View 和 Select / Exit Select 为固定内容宽度。
 - 基本顺序：
 
-  `Search Box → Filter Sets Select Trigger → Filter Panel Trigger Button`
+  `Search Box → Filter → View → Select / Exit Select`
 
-- 不需要查询输入的页面可以隐藏 Search Box，但保留 Filter Controls。
+- Select 使用 Edit Icon `square.and.pencil`。
+- 进入 Select 状态后，Select 的 Label 改为 `Exit Select`。
+- Search 中只有 exact 结果完整计算完成后 Select 才可用；其余计算阶段为 Disabled。
 - Filter Editor 作为二级界面打开。
 - Filter Editor 可以组合：
   - Logic Connector
@@ -1546,52 +1569,80 @@
   - Value Input Field
   - Inline Add Button
   - Neutral Button
+- Filter Editor 不提供 Filter 命名、复用或保存功能，也不显示 `Save Filter Set`。
+- Search 与 Shiori 分别保留彼此独立的当前会话 Filter Rule。
+- Filter Rule 不进行全局保存，App 重启后不恢复。
+- 打开 Filter Editor 时不自动创建 Filter Rule；只有点击 `New Filter` 才创建第一条 Filter Rule。
+- 每条 Filter Rule 均可删除；删除最后一条规则后回到 `0` 条规则。
 - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果。
 - Query 后续发生变化时，以最新输入内容更新结果。
 - Enter 不用于提交 Search。
-- Filter Trigger 负责打开、关闭和清除筛选。
-
-#### Search / Shiori Utility Bar Layout
-
-- 使用水平布局。
-- 高度使用 `--height-table-utility-bar`。
-- 子项垂直居中。
-- 间距使用 `--spacing-3`。
-- 左右区域使用 `space-between`。
-- Left Region 包含：
-  - Count Summary
-  - Batch Actions
-- Batch Actions 使用 Neutral Button。
-- Batch Actions 只在 Checkbox Selected Count 大于 `0` 时显示。
-- Right Region 包含 View Controls。
-- View Controls 可以使用 Icon Button 和 Select Trigger Button。
+- Filter Button 负责打开或关闭 Filter Editor。
 - View Menu 控制列显示。
 - Cues 始终显示，不允许隐藏。
-- Utility Bar 的复杂 Batch 操作只提供入口，具体配置在二级界面中完成。
+- 不显示独立的结果数量栏或 Shiori 数量。
+
+#### Selection Action Overlay Layout
+
+- Overlay 悬浮在表格底部中央，不占用正常文档流空间。
+- Overlay 使用完全不透明的 `--color-bg-popover`。
+- 边框、圆角和阴影使用 `--color-border-muted`、`--radius-control` 和 `--shadow-popover`。
+- 内部间距使用 `--spacing-2` 和 `--spacing-3`。
+- Checkbox Selected Count 大于 `0` 时显示。
+- 内容顺序：
+
+  `{N} selected → Anki → Screenshot → Collage → Copy Table`
 
 #### Search / Shiori / Context Table Layout
 
 - 适用于 Search、Shiori 和 Search-hosted Context。
 - Header 固定，正文独立滚动。
 - Header 和正文保持相同水平偏移。
+- Table 不绘制外部框线。
 - 不显示垂直列分隔线。
-- 只显示水平 Row Divider。
+- 只显示水平 Row Divider，Divider 长度等于 Table Content Width。
 - Header 和正文默认使用 `--color-bg-surface`。
 - 不为 Header 增加独立 Tint。
+- Header 文字使用 `--color-text-secondary`。
 
 - Search / Context 列顺序：
   1. Selection
-  2. Display Title
-  3. Cues
+  2. Cues
+  3. Display Title
   4. Time Range
 
 - Shiori 列顺序：
   1. Selection
-  2. Display Title
-  3. Cues
+  2. Cues
+  3. Display Title
   4. Tags
   5. Time Range
   6. Date Added
+
+- Selection Column：
+  - 非 Select 状态下，Header 显示 `#`，正文显示当前结果列表中从 `1` 开始的动态序号。
+  - 序号只反映当前列表中的实际位置，不作为结果数据保存。
+  - `#` 使用 `--color-text-secondary`，正文序号使用 `--color-text-muted`。
+  - Select 状态下，Header 和正文原位切换为 Checkbox。
+  - Selection Column 始终保留固定宽度，不因进入或退出 Select 状态改变其它数据列宽度。
+  - Selection Column 不出现在 View Menu 中。
+
+- Select 状态：
+  - Search Box 为 Disabled，不允许编辑 Query。
+  - Filter 和 View 为 Disabled。
+  - Select 保持可用，Label 为 `Exit Select`。
+  - Sortable Header Cell 和其它 Header Button 为 Disabled。
+  - Header 和正文显示 Row Selection Checkbox。
+  - 点击正文行任意非 Overlay、非 Scrollbar 区域切换该行的选择状态。
+  - 禁用 Cue 播放。
+  - 禁用 Shiori Tags Cell 编辑。
+  - 禁用 Row Action Menu。
+  - 禁用 Interactive Text Cell Hover 文字色和下划线。
+  - 禁用表格文字选择。
+  - 允许滚动表格、拖动 Scrollbar、选择或取消结果、操作 Selection Action Overlay，以及退出 Select 状态。
+  - 已选择行使用 `--color-row-selected`。
+  - Hover 未选择行使用 `--color-row-hover`。
+  - Hover 已选择行时不叠加 Hover 背景。
 
 - Column Width：
   - Selection：`50pt`，固定，不参与权重分配
@@ -1639,17 +1690,18 @@
 
 - Display Title：
   - Secondary Context
-  - `--color-text-secondary`
+  - `--color-text-muted`
   - Font Weight `500`
 
 - Tags：
   - 仅 Shiori
   - 使用 Chip / Tag
+  - Table Tag 文字使用 `--color-text-muted`
   - Table Tag 不显示删除按钮
 
 - Time Range 和 Date Added：
   - Metadata
-  - `--color-text-secondary`
+  - `--color-text-muted`
   - Font Weight `500`
   - 使用 `tabular-nums`
 
@@ -1698,8 +1750,8 @@
   - 选区内容始终只有表格文字。
 
 - 正文 Hover：
-  - 不显示 Full-row Hover 或 Full-row Selected。
-  - Normal 和 Content Changed Cue Hover 使用 Interactive Text Cell。
+  - 普通模式下，Row Hover 使用 `--color-row-hover`，不显示 Full-row Selected。
+  - Normal 和 Content Changed Cue Hover 使用 Interactive Text Cell；只改变文字色和下划线，不绘制独立背景。
   - Unavailable Cue 不显示 Interactive Text Cell Hover。
   - Cue State Indicator Hover 显示 Cue State Tip。
   - Display Title、Time Range 和 Date Added 不显示可点击 Hover。
@@ -1799,7 +1851,7 @@
 - View Menu：
   - Cues 始终 Checked 且 Disabled。
   - 其他数据列可以隐藏。
-  - Selection Column 不作为普通数据列隐藏。
+  - Selection Column 是 `#` / Checkbox 状态列，不出现在 View Menu 中。
 
 - Search Empty Hint：
   - 文案：`Enter a search term or add filters to show cues.`
