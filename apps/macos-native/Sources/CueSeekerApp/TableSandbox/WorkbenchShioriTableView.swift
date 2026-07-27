@@ -61,8 +61,7 @@ private struct WorkbenchShioriTableContent: View {
             searchPlaceholder: "Search Shiori by title or cues...",
             isRedesign: true,
             tableSummary: tableSummary,
-            tableSummaryLeadingInset: tableSummaryLeadingInset,
-            tableSummaryAction: selectedSummaryActions,
+            selectionActions: selectedSummaryActions,
             filterableColumnIDs: ["display", "cues"],
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
@@ -248,10 +247,6 @@ private struct WorkbenchShioriTableContent: View {
             hasExactResultSet: shioriStore.tableHasLoadedInitialPage
                 && shioriStore.tableResultShioriIDs?.count == resultRowCount
         )
-    }
-
-    private var tableSummaryLeadingInset: CGFloat {
-        SubtitleTableMetrics.checkboxLeadingInset
     }
 
     private var selectedSummaryActions: AnyView? {

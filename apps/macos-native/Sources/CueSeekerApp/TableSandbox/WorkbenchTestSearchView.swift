@@ -79,8 +79,8 @@ struct WorkbenchTestSearchView: View {
             columns: SchemaWorkbenchSearchDefaults.columns,
             isRedesign: true,
             tableSummary: tableSummary,
-            tableSummaryLeadingInset: tableSummaryLeadingInset,
-            tableSummaryAction: selectedSummaryActions,
+            searchResultCountText: exactSearchResultCountText,
+            selectionActions: selectedSummaryActions,
             filterableColumnIDs: ["display", "cues"],
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
@@ -483,8 +483,13 @@ struct WorkbenchTestSearchView: View {
         return rowStore.snapshot.totalRowCount
     }
 
-    private var tableSummaryLeadingInset: CGFloat {
-        SubtitleTableMetrics.checkboxLeadingInset
+    private var exactSearchResultCountText: String? {
+        guard let source = tableTextCopySource,
+              case .search = source.mode
+        else {
+            return nil
+        }
+        return schemaWorkbenchResultCountText(source.resultRowCount)
     }
 
     private var selectedSummaryActions: AnyView? {

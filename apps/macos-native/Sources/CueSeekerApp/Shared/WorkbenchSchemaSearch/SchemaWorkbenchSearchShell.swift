@@ -11,41 +11,13 @@ struct SchemaWorkbenchTableSummary: Equatable {
     let selectedRowCount: Int
 }
 
-struct SchemaWorkbenchCountSummarySegment: Equatable {
-    enum Tone: Equatable {
-        case primary
-        case secondary
-    }
-
-    let text: String
-    let tone: Tone
+func schemaWorkbenchResultCountText(_ count: Int) -> String {
+    let safeCount = max(0, count)
+    return safeCount == 1 ? "1 result" : "\(safeCount) results"
 }
 
-enum SchemaWorkbenchCountSummaryText {
-    static let overflowLimit = 99_999
-
-    static func formattedCount(_ count: Int) -> String {
-        let safeCount = max(0, count)
-        return safeCount > overflowLimit ? "\(overflowLimit)+" : "\(safeCount)"
-    }
-
-    static func segments(for summary: SchemaWorkbenchTableSummary) -> [SchemaWorkbenchCountSummarySegment] {
-        let totalText = formattedCount(summary.totalRowCount)
-        let selectedText = formattedCount(summary.selectedRowCount)
-        guard summary.selectedRowCount > 0 else {
-            return [
-                SchemaWorkbenchCountSummarySegment(text: totalText, tone: .primary),
-                SchemaWorkbenchCountSummarySegment(text: " rows", tone: .secondary),
-            ]
-        }
-
-        return [
-            SchemaWorkbenchCountSummarySegment(text: selectedText, tone: .primary),
-            SchemaWorkbenchCountSummarySegment(text: " / ", tone: .secondary),
-            SchemaWorkbenchCountSummarySegment(text: totalText, tone: .primary),
-            SchemaWorkbenchCountSummarySegment(text: " rows selected", tone: .secondary),
-        ]
-    }
+func schemaWorkbenchSelectedCountText(_ count: Int) -> String {
+    "\(max(0, count)) selected"
 }
 
 func schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: Bool) -> Bool {
@@ -299,8 +271,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let searchPlaceholder: String
     let isRedesign: Bool
     let tableSummary: SchemaWorkbenchTableSummary?
-    let tableSummaryLeadingInset: CGFloat
-    let tableSummaryAction: AnyView?
+    let searchResultCountText: String?
+    let selectionActions: AnyView?
     let filterableColumnIDs: Set<String>?
     let isSelectionMode: Bool
     let canEnterSelectionMode: Bool
@@ -321,8 +293,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
-        tableSummaryLeadingInset: CGFloat = 0,
-        tableSummaryAction: AnyView? = nil,
+        searchResultCountText: String? = nil,
+        selectionActions: AnyView? = nil,
         filterableColumnIDs: Set<String>? = nil,
         isSelectionMode: Bool = false,
         canEnterSelectionMode: Bool = false,
@@ -337,8 +309,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
         self.tableSummary = tableSummary
-        self.tableSummaryLeadingInset = tableSummaryLeadingInset
-        self.tableSummaryAction = tableSummaryAction
+        self.searchResultCountText = searchResultCountText
+        self.selectionActions = selectionActions
         self.filterableColumnIDs = filterableColumnIDs
         self.isSelectionMode = isSelectionMode
         self.canEnterSelectionMode = canEnterSelectionMode
@@ -362,37 +334,27 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
             VStack(spacing: 0) {
                 if isRedesign {
-                    SchemaWorkbenchSearchFilterBar(
+                    SchemaWorkbenchSearchToolbar(
                         placeholder: searchPlaceholder,
                         searchDraft: $searchDraft,
+                        searchResultCountText: searchResultCountText,
                         filterCount: filterRules.count,
                         isSelectionMode: isSelectionMode,
-                        isRedesign: true,
                         isFilterBuilderMenuOpen: openPopover == .filterBuilder,
+                        isViewMenuOpen: openPopover == .columnVisibility,
+                        canEnterSelectionMode: canEnterSelectionMode,
                         onSubmit: onSearchSubmit,
                         onFilter: {
                             openFilterBuilder()
-                        }
-                    )
-                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                    .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
-                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-
-                    SchemaWorkbenchTableUtilityBar(
-                        tableSummary: tableSummary,
-                        summaryLeadingInset: tableSummaryLeadingInset,
-                        summaryAction: tableSummaryAction,
-                        isRedesign: true,
-                        isViewMenuOpen: openPopover == .columnVisibility,
-                        isSelectionMode: isSelectionMode,
-                        canEnterSelectionMode: canEnterSelectionMode,
+                        },
                         onViewMenu: {
                             togglePopover(.columnVisibility)
                         },
                         onToggleSelectionMode: onToggleSelectionMode
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                    .padding(.bottom, 12)
+                    .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                 } else {
                     SchemaWorkbenchLegacySearchCommandBar(
                         placeholder: searchPlaceholder,
@@ -417,7 +379,20 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .padding(.bottom, 12)
                 }
 
-                tableContent(visibleColumns)
+                ZStack(alignment: .bottom) {
+                    tableContent(visibleColumns)
+
+                    if isRedesign,
+                       let tableSummary,
+                       tableSummary.selectedRowCount > 0,
+                       let selectionActions {
+                        SchemaWorkbenchSelectionActionOverlay(
+                            selectedRowCount: tableSummary.selectedRowCount,
+                            actions: selectionActions
+                        )
+                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                    }
+                }
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, SchemaWorkbenchStyle.pageBottomPadding)
                     .frame(maxHeight: .infinity)
@@ -683,22 +658,27 @@ enum SchemaWorkbenchStyle {
     }
 }
 
-struct SchemaWorkbenchSearchFilterBar: View {
+struct SchemaWorkbenchSearchToolbar: View {
     let placeholder: String
     @Binding var searchDraft: String
+    let searchResultCountText: String?
     let filterCount: Int
     var isSelectionMode: Bool = false
-    var isRedesign: Bool = false
     var isFilterBuilderMenuOpen: Bool = false
+    var isViewMenuOpen: Bool = false
+    var canEnterSelectionMode: Bool = false
     var onSubmit: (() -> Void)?
     var onFilter: () -> Void
+    var onViewMenu: () -> Void
+    var onToggleSelectionMode: () -> Void
 
     var body: some View {
-        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing3 : 10) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             WorkbenchSearchField(
                 placeholder: placeholder,
                 text: $searchDraft,
-                isRedesign: isRedesign,
+                isRedesign: true,
+                trailingStatusText: searchResultCountText,
                 onSubmit: onSubmit
             )
             .frame(maxWidth: .infinity)
@@ -709,46 +689,18 @@ struct SchemaWorkbenchSearchFilterBar: View {
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
                 badgeCount: filterCount,
-                isRedesign: isRedesign,
+                isRedesign: true,
                 isMenuOpen: isFilterBuilderMenuOpen,
                 action: onFilter
             )
             .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
             .disabled(isSelectionMode)
-        }
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
-    }
-}
-
-struct SchemaWorkbenchTableUtilityBar: View {
-    var tableSummary: SchemaWorkbenchTableSummary?
-    var summaryLeadingInset: CGFloat = 0
-    var summaryAction: AnyView? = nil
-    var isRedesign: Bool = false
-    var isViewMenuOpen: Bool = false
-    var isSelectionMode: Bool = false
-    var canEnterSelectionMode: Bool = false
-    var onViewMenu: () -> Void
-    var onToggleSelectionMode: () -> Void = {}
-
-    var body: some View {
-        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing3 : 12) {
-            if let tableSummary {
-                SchemaWorkbenchCountSummaryView(summary: tableSummary)
-                    .padding(.leading, summaryLeadingInset)
-            }
-
-            if let summaryAction {
-                summaryAction
-            }
-
-            Spacer(minLength: 0)
 
             WorkbenchToolbarButton(
                 title: "View",
                 systemImage: "slider.horizontal.3",
                 showsChevron: true,
-                isRedesign: isRedesign,
+                isRedesign: true,
                 isMenuOpen: isViewMenuOpen,
                 action: onViewMenu
             )
@@ -758,39 +710,55 @@ struct SchemaWorkbenchTableUtilityBar: View {
             WorkbenchToolbarButton(
                 title: isSelectionMode ? "Exit Select" : "Select",
                 systemImage: "square.and.pencil",
-                isRedesign: isRedesign,
+                isRedesign: true,
                 action: onToggleSelectionMode
             )
             .disabled(!isSelectionMode && !canEnterSelectionMode)
         }
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignTableUtilityBarHeight : WorkbenchControlMetrics.controlHeight)
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 }
 
-struct SchemaWorkbenchCountSummaryView: View {
-    let summary: SchemaWorkbenchTableSummary
+struct SchemaWorkbenchSelectionActionOverlay: View {
+    let selectedRowCount: Int
+    let actions: AnyView
 
     var body: some View {
-        summaryText
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(height: WorkbenchControlMetrics.redesignTableUtilityBarHeight, alignment: .center)
-    }
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            Text(schemaWorkbenchSelectedCountText(selectedRowCount))
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
-    private var summaryText: Text {
-        SchemaWorkbenchCountSummaryText.segments(for: summary).reduce(Text("")) { partial, segment in
-            partial + Text(segment.text).foregroundColor(color(for: segment.tone))
+            actions
         }
-    }
-
-    private func color(for tone: SchemaWorkbenchCountSummarySegment.Tone) -> Color {
-        switch tone {
-        case .primary:
-            return WorkbenchRedesignColors.textPrimary
-        case .secondary:
-            return WorkbenchRedesignColors.textMuted
-        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
+        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+            .fill(WorkbenchRedesignColors.bgPopover)
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+            .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
+        )
+        .shadowToken(WorkbenchRedesignColors.shadowPopover)
+        .contentShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+        )
     }
 }
 

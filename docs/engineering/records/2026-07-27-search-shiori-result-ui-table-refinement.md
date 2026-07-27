@@ -8,13 +8,13 @@
 ## Scope
 
 - Classify the change as macOS platform UI and UX work.
-- Implement Steps 1 through 7 and item 16 from Step 8 of the requirement:
-  increase the horizontal
+- Implement Steps 1 through 8 of the requirement: increase the horizontal
   breathing room, remove the Search and Shiori table outer frame, and replace
   persisted reusable Filter Sets with session-only filters and a count badge,
   then refine the result-table column order, text hierarchy, and normal-mode
   Hover treatment before adding the core Select-mode interaction and the
-  normal-mode dynamic result sequence column.
+  consolidated toolbar, exact Search result count, dynamic result sequence
+  column, and floating selection action overlay.
 - Preserve filtering execution, column width formulas, scrolling, and table
   interaction outside the requested Select-mode changes.
 
@@ -102,6 +102,16 @@
     normal mode, showing a secondary `#` Header and muted one-based row numbers,
     then replacing them in place with Checkboxes in Select mode without adding
     the dynamic column to View.
+33. Consolidated Search, Filter, View, and Select into the existing shared top
+    toolbar and removed the separate table utility row from Search and Shiori.
+34. Added plain muted Search result-count text before the existing clear button,
+    using the existing exact-result identity boundary and singular `1 result`
+    formatting without showing a corresponding Shiori count.
+35. Moved the existing selected-row actions into a bottom-centered table
+    overlay that includes `xx selected` and reuses the popover background,
+    border, shadow, radius, spacing, and existing action buttons.
+36. Removed the superseded Count Summary presentation, alignment metric, and
+    utility-row interaction test so the consolidated layout has one active path.
 
 ## Verification
 
@@ -164,6 +174,12 @@
   geometry, one-based sequence text, and muted sequence color.
 - The existing focused View column-menu test passed, confirming the dynamic
   Selection Column remains outside the menu.
+- `swift build` passed after the Step 8 toolbar, result-count, and action-overlay
+  consolidation.
+- Three focused count-formatting, Select-entry, and exact-boundary tests passed.
+- Sixteen focused Schema Workbench and external text-selection tests passed,
+  covering Filter/View column behavior and removal of the obsolete utility-row
+  interaction surface.
 - No AI visual acceptance was performed; visual review is reserved for the
   human owner.
 
@@ -187,9 +203,10 @@
   human verification remains pending.
 - Item 16 from Step 8 passed automated verification; human visual acceptance
   remains pending.
+- The remaining Step 8 toolbar, Search result-count, and Action Overlay work
+  passed automated verification; human visual acceptance remains pending.
 
 ## Follow-ups
 
-- Continue the remaining Step 8 work only after the current item is explicitly
-  accepted.
+- Continue to Step 9 only after Step 8 is explicitly accepted.
 - Update the human-owned requirement and UI design only through the human-owner workflow after the iterative UI work is complete.

@@ -74,8 +74,6 @@ enum WorkbenchControlMetrics {
     static let redesignIconButtonSize: CGFloat = 32
     /// --height-table-header: 40px
     static let redesignTableHeaderHeight: CGFloat = 40
-    /// --height-table-utility-bar: 40px
-    static let redesignTableUtilityBarHeight: CGFloat = 40
     /// --spacing-1: 4px
     static let redesignSpacing1: CGFloat = 4
     /// --spacing-2: 8px
@@ -263,6 +261,7 @@ struct WorkbenchSearchField: View {
     var isRedesign: Bool
     var showsFocusRing: Bool
     var autofocus: Bool
+    var trailingStatusText: String?
     var onSubmit: (() -> Void)?
 
     @FocusState private var isFocused: Bool
@@ -274,6 +273,7 @@ struct WorkbenchSearchField: View {
         isRedesign: Bool = false,
         showsFocusRing: Bool = true,
         autofocus: Bool = false,
+        trailingStatusText: String? = nil,
         onSubmit: (() -> Void)? = nil
     ) {
         self.placeholder = placeholder
@@ -281,6 +281,7 @@ struct WorkbenchSearchField: View {
         self.isRedesign = isRedesign
         self.showsFocusRing = showsFocusRing
         self.autofocus = autofocus
+        self.trailingStatusText = trailingStatusText
         self.onSubmit = onSubmit
     }
 
@@ -302,6 +303,19 @@ struct WorkbenchSearchField: View {
             .focused($isFocused)
             .onSubmit {
                 onSubmit?()
+            }
+
+            if isRedesign,
+               let trailingStatusText,
+               !trailingStatusText.isEmpty {
+                Text(trailingStatusText)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeControl,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
 
             if isRedesign && !text.isEmpty {

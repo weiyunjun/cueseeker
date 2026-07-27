@@ -40,7 +40,6 @@ enum SubtitleTableMetrics {
     static let tagHorizontalSpacing: CGFloat = 6
     static let tagVerticalSpacing: CGFloat = 4
     static let checkboxSize: CGFloat = 16
-    static var checkboxLeadingInset: CGFloat { (indexColumnWidth - checkboxSize) / 2 }
     static let checkboxCornerRadius: CGFloat = 4
     static let checkboxBorderWidth: CGFloat = 1.5
     static let checkboxHitSlop: CGFloat = 8

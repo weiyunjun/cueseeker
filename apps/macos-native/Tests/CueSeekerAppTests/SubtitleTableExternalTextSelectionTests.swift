@@ -203,58 +203,6 @@ func subtitleTableTextSelectionHitTestingUsesTopmostSemanticSurface() throws {
 
 @MainActor
 @Test
-func subtitleTableTextSelectionHitTestingMatchesActualUtilityBarSurfaces() throws {
-    let size = CGSize(
-        width: 500,
-        height: WorkbenchControlMetrics.redesignTableUtilityBarHeight
-    )
-    let host = NSHostingView(
-        rootView: SchemaWorkbenchTableUtilityBar(
-            tableSummary: SchemaWorkbenchTableSummary(
-                totalRowCount: 42,
-                selectedRowCount: 0
-            ),
-            summaryLeadingInset: SubtitleTableMetrics.checkboxLeadingInset,
-            isRedesign: true,
-            onViewMenu: {}
-        )
-        .frame(width: size.width, height: size.height)
-    )
-    host.frame = CGRect(origin: .zero, size: size)
-    let window = NSWindow(
-        contentRect: host.frame,
-        styleMask: [.borderless],
-        backing: .buffered,
-        defer: false
-    )
-    window.contentView = host
-    host.layoutSubtreeIfNeeded()
-
-    let viewButtonMarker = try #require(descendants(in: host).compactMap {
-        $0 as? SubtitleTableTextSelectionInteractiveRegionView
-    }.first(where: { $0.isActive }))
-    let viewButtonRect = viewButtonMarker.convert(viewButtonMarker.bounds, to: nil)
-    let countSummaryPoint = host.convert(
-        CGPoint(x: 40, y: host.bounds.midY),
-        to: nil
-    )
-    let utilityGapPoint = host.convert(
-        CGPoint(x: host.bounds.midX, y: host.bounds.midY),
-        to: nil
-    )
-
-    #expect(!viewButtonRect.contains(countSummaryPoint))
-    #expect(!isInteractiveWindowPoint(countSummaryPoint, in: host))
-    #expect(!viewButtonRect.contains(utilityGapPoint))
-    #expect(!isInteractiveWindowPoint(utilityGapPoint, in: host))
-    #expect(isInteractiveWindowPoint(
-        CGPoint(x: viewButtonRect.midX, y: viewButtonRect.midY),
-        in: host
-    ))
-}
-
-@MainActor
-@Test
 func subtitleTableExternalTextSelectionSessionArmsOutsideAndBeginsOnlyAfterEnteringTable() {
     let target = SubtitleTableExternalTextSelectionTargetSpy()
     let session = SubtitleTableExternalTextSelectionSession()
