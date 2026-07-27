@@ -862,17 +862,19 @@ final class SearchStore: ObservableObject {
         navigationTask = nil
     }
 
-    func updateFolderScope(_ folders: [URL]) {
+    func updateFolderScope(_ folders: [URL]) -> Bool {
         let paths = Self.normalizedFolderPaths(folders)
         guard paths != folderScopePaths else {
-            return
+            return false
         }
+        let didInvalidateActiveSearch = isSearching
         folderScopePaths = paths
         folderScopeGeneration &+= 1
         resultListGeneration &+= 1
         cancelAllSearchTasks()
         suspendFilterOnlyPageLoad()
         cancelContextTableLoad()
+        return didInvalidateActiveSearch
     }
 
     func acceptsFolderScope(

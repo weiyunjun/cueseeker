@@ -213,13 +213,14 @@ extension AppCoordinator {
         appending: Bool,
         debounce: Bool,
         urlSchemeIntentID: UUID? = nil,
-        filterSetOverride: SubtitleSearchFilterSet? = nil
+        filterSetOverride: SubtitleSearchFilterSet? = nil,
+        folderScopeOverride: [URL]? = nil
     ) {
         if pendingURLSchemeDirectPlayIntent?.id != urlSchemeIntentID {
             pendingURLSchemeDirectPlayIntent = nil
         }
 
-        let folders = indexing.selectedFolders
+        let folders = folderScopeOverride ?? indexing.selectedFolders
         let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         let watchStateFilter = settings.searchScope.searchWatchStateFilter
         search.startSearch(
@@ -281,7 +282,10 @@ extension AppCoordinator {
         loadSearchNavigationSnapshot(opening: direction)
     }
 
-    func refreshCurrentSearch(clearExistingResults: Bool = false) {
+    func refreshCurrentSearch(
+        clearExistingResults: Bool = false,
+        folderScopeOverride: [URL]? = nil
+    ) {
         guard !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
@@ -291,7 +295,17 @@ extension AppCoordinator {
             AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
         }
 
-        updateSearchQuery(search.searchQuery)
+        guard let folderScopeOverride else {
+            updateSearchQuery(search.searchQuery)
+            return
+        }
+        startSearch(
+            query: search.searchQuery,
+            cursor: .start,
+            appending: false,
+            debounce: true,
+            folderScopeOverride: folderScopeOverride
+        )
     }
 
     func refreshSearchForLibraryWatchStateChange() {

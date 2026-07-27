@@ -505,7 +505,7 @@ final class AppCoordinator: ObservableObject {
             database: openedSearchDatabase,
             uiProbeScope: uiProbeScope
         )
-        search.updateFolderScope(indexing.selectedFolders)
+        _ = search.updateFolderScope(indexing.selectedFolders)
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         self.libraryDatabase = openedLibraryDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
@@ -537,7 +537,15 @@ final class AppCoordinator: ObservableObject {
         indexing.$selectedFolders
             .dropFirst()
             .sink { [weak self] folders in
-                self?.search.updateFolderScope(folders)
+                guard let self,
+                      search.updateFolderScope(folders)
+                else {
+                    return
+                }
+                refreshCurrentSearch(
+                    clearExistingResults: true,
+                    folderScopeOverride: folders
+                )
             }
             .store(in: &settingsCancellables)
 

@@ -45,7 +45,7 @@ func folderScopeChangeRejectsStaleNavigationAcrossABA() async {
         totalRowCount: 1
     )
 
-    search.updateFolderScope([folderA])
+    _ = search.updateFolderScope([folderA])
     let staleGeneration = search.folderScopeGeneration
     let staleTask = Task { @MainActor in
         await Task.yield()
@@ -61,8 +61,8 @@ func folderScopeChangeRejectsStaleNavigationAcrossABA() async {
     }
     search.replaceNavigationTask(staleTask)
 
-    search.updateFolderScope([folderB])
-    search.updateFolderScope([folderA])
+    _ = search.updateFolderScope([folderB])
+    _ = search.updateFolderScope([folderA])
     await staleTask.value
 
     #expect(staleTask.isCancelled)
@@ -72,6 +72,141 @@ func folderScopeChangeRejectsStaleNavigationAcrossABA() async {
         generation: staleGeneration
     ))
     #expect(search.searchResults.isEmpty)
+}
+
+@MainActor
+@Test
+func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
+    let suiteName = "CueSeekerEmptyFolderSearchLifecycleTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let testRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: testRoot)
+    }
+
+    let app = try await makeFolderScopeLifecycleApp(
+        userDefaults: userDefaults,
+        testRoot: testRoot
+    )
+    app.updateSearchQuery("scope lifecycle")
+    let staleTask = try #require(app.search.searchTask)
+    let emptyFolder = testRoot.appendingPathComponent(
+        "Empty",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+        at: emptyFolder,
+        withIntermediateDirectories: true
+    )
+
+    app.addFolder(emptyFolder)
+    let replacementTask = try #require(app.search.searchTask)
+    await app.indexingTask?.value
+    await app.libraryTask?.value
+    await app.recentWatchingTask?.value
+    await app.completeLibraryTask?.value
+    await app.databaseStorageStatsTask?.value
+    await replacementTask.value
+    await app.search.exactCompletionTask?.value
+
+    #expect(staleTask.isCancelled)
+    guard case let .completed(_, result) = app.indexing.indexingStatus else {
+        Issue.record("Expected empty folder indexing to complete")
+        return
+    }
+    #expect(!result.hasIndexedContentChanges)
+    #expect(!app.search.isSearching)
+    #expect(app.search.searchStatus == .completed)
+    #expect(app.search.searchResults.map(\.content) == [
+        "scope lifecycle result"
+    ])
+}
+
+@MainActor
+@Test
+func failedFolderIndexRestartsInvalidatedActiveSearch() async throws {
+    let suiteName = "CueSeekerFailedFolderSearchLifecycleTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let testRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: testRoot)
+    }
+
+    let app = try await makeFolderScopeLifecycleApp(
+        userDefaults: userDefaults,
+        testRoot: testRoot
+    )
+    app.updateSearchQuery("scope lifecycle")
+    let staleTask = try #require(app.search.searchTask)
+    let invalidFolder = testRoot.appendingPathComponent("Not a folder")
+    try Data("file root".utf8).write(to: invalidFolder)
+
+    app.addFolder(invalidFolder)
+    let replacementTask = try #require(app.search.searchTask)
+    await app.indexingTask?.value
+    await replacementTask.value
+    await app.search.exactCompletionTask?.value
+
+    #expect(staleTask.isCancelled)
+    guard case let .failed(folder, _) = app.indexing.indexingStatus else {
+        Issue.record("Expected file root indexing to fail")
+        return
+    }
+    #expect(folder == invalidFolder)
+    #expect(!app.search.isSearching)
+    #expect(app.search.searchStatus == .completed)
+    #expect(app.search.searchResults.map(\.content) == [
+        "scope lifecycle result"
+    ])
+}
+
+@MainActor
+private func makeFolderScopeLifecycleApp(
+    userDefaults: UserDefaults,
+    testRoot: URL
+) async throws -> AppCoordinator {
+    let libraryRoot = testRoot.appendingPathComponent(
+        "Library",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+        at: libraryRoot,
+        withIntermediateDirectories: true
+    )
+    try """
+    1
+    00:00:01,000 --> 00:00:02,000
+    scope lifecycle result
+
+    """.write(
+        to: libraryRoot.appendingPathComponent("Episode.srt"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try Data([0]).write(
+        to: libraryRoot.appendingPathComponent("Episode.mkv")
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: testRoot.appendingPathComponent("CueSeeker.sqlite")
+    )
+    app.addFolder(libraryRoot)
+    await app.indexingTask?.value
+    await app.libraryTask?.value
+    await app.recentWatchingTask?.value
+    await app.completeLibraryTask?.value
+    await app.databaseStorageStatsTask?.value
+    guard case .completed = app.indexing.indexingStatus else {
+        Issue.record("Expected lifecycle fixture indexing to complete")
+        return app
+    }
+    return app
 }
 
 @MainActor
