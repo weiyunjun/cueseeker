@@ -58,10 +58,9 @@ func schemaWorkbenchCountSummaryClampsNegativeCounts() {
 }
 
 @Test
-func schemaWorkbenchSelectionModeRequiresExactNonemptyResults() {
-    #expect(!schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: false, resultRowCount: 10))
-    #expect(!schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: true, resultRowCount: 0))
-    #expect(schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: true, resultRowCount: 10))
+func schemaWorkbenchSelectionModeRequiresExactResults() {
+    #expect(!schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: false))
+    #expect(schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: true))
 }
 
 @Test

@@ -468,8 +468,7 @@ struct WorkbenchTestSearchView: View {
 
     private var canEnterSelectionMode: Bool {
         schemaWorkbenchCanEnterSelectionMode(
-            hasExactResultSet: tableTextCopySource != nil,
-            resultRowCount: tableSummaryTotalRowCount
+            hasExactResultSet: tableTextCopySource != nil
         )
     }
 

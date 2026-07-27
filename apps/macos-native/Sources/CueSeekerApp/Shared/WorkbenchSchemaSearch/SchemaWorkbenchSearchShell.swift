@@ -48,11 +48,8 @@ enum SchemaWorkbenchCountSummaryText {
     }
 }
 
-func schemaWorkbenchCanEnterSelectionMode(
-    hasExactResultSet: Bool,
-    resultRowCount: Int
-) -> Bool {
-    hasExactResultSet && resultRowCount > 0
+func schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: Bool) -> Bool {
+    hasExactResultSet
 }
 
 struct SchemaWorkbenchFilterRule: Identifiable, Equatable, Codable {

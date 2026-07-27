@@ -78,7 +78,7 @@
     Tag, text-selection, and context-menu hit regions unchanged.
 25. Added a shared Select trigger using the existing Edit icon mapping and
     toolbar-control styling; it changes to `Exit Select` while active.
-26. Gated Select entry on a complete, nonempty result identity set: Search
+26. Gated Select entry on a complete result identity set: Search
     reuses its existing exact text-copy boundary, while Shiori verifies its
     complete result-ID snapshot.
 27. Reused the existing row-selection state and fixed selection-column width,

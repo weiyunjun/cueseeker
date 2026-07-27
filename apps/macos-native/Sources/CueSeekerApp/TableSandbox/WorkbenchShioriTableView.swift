@@ -246,8 +246,7 @@ private struct WorkbenchShioriTableContent: View {
         )
         return schemaWorkbenchCanEnterSelectionMode(
             hasExactResultSet: shioriStore.tableHasLoadedInitialPage
-                && shioriStore.tableResultShioriIDs?.count == resultRowCount,
-            resultRowCount: resultRowCount
+                && shioriStore.tableResultShioriIDs?.count == resultRowCount
         )
     }
 
