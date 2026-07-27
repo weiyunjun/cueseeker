@@ -78,6 +78,8 @@ enum WorkbenchControlMetrics {
     static let redesignSpacing4: CGFloat = 16
     /// --spacing-6: 24px
     static let redesignSpacing6: CGFloat = 24
+    /// --spacing-8: 32px
+    static let redesignSpacing8: CGFloat = 32
     /// --gap-app-topbar-title-after-toggle: 12px
     static let redesignAppTopbarTitleAfterToggleGap: CGFloat = 12
     /// --padding-header-trigger-x: 12px

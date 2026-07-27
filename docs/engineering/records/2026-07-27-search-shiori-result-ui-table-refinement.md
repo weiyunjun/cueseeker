@@ -20,12 +20,17 @@
 4. Replaced the initial `24pt` literal with
    `WorkbenchControlMetrics.redesignSpacing6` so the implementation references
    the existing UI token directly.
+5. Added the missing Swift mapping for the existing `--spacing-8` token and
+   changed the Step 1 review candidate from `--spacing-6` (`24pt`) to
+   `--spacing-8` (`32pt`) at the human owner's request.
 
 ## Verification
 
 - `swift build` passed.
 - `swift build` passed again after replacing the literal with the existing
   `--spacing-6` token reference.
+- `swift build` passed after changing the review candidate to the newly mapped
+  existing `--spacing-8` token.
 - The complete parallel `swift test` run executed 882 tests and reported 10
   timing or database-I/O failures unrelated to the spacing constant.
 - The 10 failed tests all passed when rerun together with `--no-parallel`,
@@ -35,8 +40,8 @@
 
 ## Outcome
 
-- Step 1 now uses a `24pt` horizontal inset for the shared Search and Shiori
-  result shell through the existing `--spacing-6` token.
+- Step 1 now uses a `32pt` horizontal inset for the shared Search and Shiori
+  result shell through the existing `--spacing-8` token.
 - Automated verification passed subject to the documented parallel-suite
   resource contention.
 - Human visual acceptance remains pending.
