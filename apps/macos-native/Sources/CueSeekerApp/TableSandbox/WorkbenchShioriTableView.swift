@@ -55,9 +55,7 @@ private struct WorkbenchShioriTableContent: View {
         SchemaWorkbenchSearchShell(
             searchDraft: $shioriStore.tableSearchDraft,
             visibleColumnIDs: $shioriStore.tableVisibleColumnIDs,
-            activeFilterSetID: $shioriStore.tableActiveFilterSetID,
             filterRules: $shioriStore.tableFilterRules,
-            filterSets: $settingsStore.searchFilterSets,
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
             searchPlaceholder: "Search Shiori by title or cues...",
             isRedesign: true,

@@ -3,7 +3,6 @@ import CueSeekerCore
 
 enum SchemaWorkbenchPopover: Equatable {
     case columnVisibility
-    case filterSets
     case filterBuilder
 }
 
@@ -47,12 +46,6 @@ enum SchemaWorkbenchCountSummaryText {
             SchemaWorkbenchCountSummarySegment(text: " rows selected", tone: .secondary),
         ]
     }
-}
-
-struct SchemaWorkbenchFilterSet: Identifiable, Equatable, Codable {
-    let id: String
-    let name: String
-    let rules: [SchemaWorkbenchFilterRule]
 }
 
 struct SchemaWorkbenchFilterRule: Identifiable, Equatable, Codable {
@@ -270,13 +263,9 @@ enum SchemaWorkbenchSearchDefaults {
     static let initialVisibleColumnIDs = Set(columns.map(\.id))
     static let initialVisibleShioriColumnIDs = Set(shioriColumns.map(\.id))
 
-    static let defaultFilterSetID: String? = nil
-
     static var defaultFilterRules: [SchemaWorkbenchFilterRule] {
         []
     }
-
-    static let filterSets: [SchemaWorkbenchFilterSet] = []
 
     static func makeFilterRule(
         id: String = UUID().uuidString,
@@ -300,9 +289,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     @Binding var searchDraft: String
     @Binding var visibleColumnIDs: Set<String>
-    @Binding var activeFilterSetID: String?
     @Binding var filterRules: [SchemaWorkbenchFilterRule]
-    @Binding var filterSets: [SchemaWorkbenchFilterSet]
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
@@ -322,9 +309,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     init(
         searchDraft: Binding<String>,
         visibleColumnIDs: Binding<Set<String>>,
-        activeFilterSetID: Binding<String?>,
         filterRules: Binding<[SchemaWorkbenchFilterRule]>,
-        filterSets: Binding<[SchemaWorkbenchFilterSet]>,
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
@@ -337,9 +322,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     ) {
         _searchDraft = searchDraft
         _visibleColumnIDs = visibleColumnIDs
-        _activeFilterSetID = activeFilterSetID
         _filterRules = filterRules
-        _filterSets = filterSets
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
@@ -369,20 +352,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     SchemaWorkbenchSearchFilterBar(
                         placeholder: searchPlaceholder,
                         searchDraft: $searchDraft,
-                        activeFilterSetName: activeFilterSetName,
-                        filterCount: filterRules.count,
                         isRedesign: true,
-                        isFilterSetsMenuOpen: openPopover == .filterSets,
                         isFilterBuilderMenuOpen: openPopover == .filterBuilder,
                         onSubmit: onSearchSubmit,
-                        onFilterSets: {
-                            togglePopover(.filterSets)
-                        },
-                        onFilterBuilder: {
+                        onFilter: {
                             openFilterBuilder()
-                        },
-                        onReset: {
-                            resetFilters()
                         }
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
@@ -416,18 +390,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .padding(.bottom, 12)
 
                     SchemaWorkbenchLegacyFilterControlBar(
-                        activeFilterSetName: activeFilterSetName,
-                        filterCount: filterRules.count,
-                        isFilterSetsMenuOpen: openPopover == .filterSets,
                         isFilterBuilderMenuOpen: openPopover == .filterBuilder,
-                        onFilterSets: {
-                            togglePopover(.filterSets)
-                        },
-                        onFilterBuilder: {
+                        onFilter: {
                             openFilterBuilder()
-                        },
-                        onReset: {
-                            resetFilters()
                         }
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
@@ -538,46 +503,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 ),
                 y: isRedesign ? ((shellDropdownFrames["view"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.viewPopoverTop(isRedesign: isRedesign)
             )
-        case .filterSets:
-            SchemaWorkbenchFilterSetPopover(
-                options: filterSets,
-                activeFilterSetID: activeFilterSetID,
-                isRedesign: isRedesign,
-                onSelect: selectFilterSet
-            )
-            .frame(
-                minWidth: isRedesign ? max(260, shellDropdownFrames["filterSets"]?.width ?? 260) : 260,
-                alignment: .topLeading
-            )
-            .fixedSize(horizontal: isRedesign, vertical: false)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            self.openPopoverWidth = geo.size.width
-                        }
-                        .onChange(of: geo.size.width) { newWidth in
-                            self.openPopoverWidth = newWidth
-                        }
-                }
-            )
-            .offset(
-                x: isRedesign ? {
-                    let triggerMinX = shellDropdownFrames["filterSets"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding
-                    let popoverWidth = self.openPopoverWidth > 0 ? self.openPopoverWidth : max(260, shellDropdownFrames["filterSets"]?.width ?? 260)
-                    let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
-                    return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
-                }() : SchemaWorkbenchStyle.pageHorizontalPadding,
-                y: isRedesign ? ((shellDropdownFrames["filterSets"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
-            )
         case .filterBuilder:
             SchemaWorkbenchFilterBuilderPopover(
                 columns: filterableColumns,
                 rules: $filterRules,
-                isRedesign: isRedesign,
-                onSave: {
-                    saveFilterSet()
-                }
+                isRedesign: isRedesign
             )
             .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
             .background(
@@ -614,14 +544,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         }
     }
 
-    private var activeFilterSetName: String? {
-        guard let activeFilterSetID else {
-            return nil
-        }
-
-        return filterSets.first { $0.id == activeFilterSetID }?.name
-    }
-
     private func toggleColumnVisibility(_ columnID: String) {
         guard !SchemaWorkbenchColumnVisibilityMenu.isLocked(columnID) else {
             visibleColumnIDs.insert(columnID)
@@ -634,15 +556,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         }
     }
 
-    private func selectFilterSet(_ filterSet: SchemaWorkbenchFilterSet) {
-        activeFilterSetID = filterSet.id
-        filterRules = normalizedFilterRules(filterSet.rules)
-        openPopover = nil
-    }
-
     private func openFilterBuilder() {
         if filterRules.isEmpty, let firstColumn = filterableColumns.first {
-            activeFilterSetID = nil
             filterRules = [
                 SchemaWorkbenchSearchDefaults.makeFilterRule(
                     join: nil,
@@ -656,29 +571,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         openPopover = .filterBuilder
     }
 
-    private func resetFilters() {
-        activeFilterSetID = nil
-        filterRules = []
-        openPopover = nil
-    }
-
-    private func saveFilterSet() {
-        let normalizedRules = normalizedFilterRules(filterRules)
-        let saveResult = SchemaWorkbenchFilterSetSaveAction.save(
-            rules: normalizedRules,
-            activeFilterSetID: activeFilterSetID,
-            existingFilterSets: filterSets,
-            makeID: { number in
-                "filter-set-\(number)-\(UUID().uuidString)"
-            }
-        )
-
-        filterSets = saveResult.filterSets
-        activeFilterSetID = saveResult.activeFilterSetID
-        filterRules = normalizedRules
-        openPopover = nil
-    }
-
     private var filterableColumns: [WorkbenchTableColumn] {
         columns.filter { column in
             column.kind != .rowNumber
@@ -686,85 +578,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         }
     }
 
-    private func normalizedFilterRules(_ sourceRules: [SchemaWorkbenchFilterRule]) -> [SchemaWorkbenchFilterRule] {
-        guard !sourceRules.isEmpty else {
-            return []
-        }
-
-        var normalizedRules = sourceRules
-        let fallbackColumn = filterableColumns.first
-        let resolvedJoin = normalizedRules.dropFirst().first?.join ?? .and
-        for index in normalizedRules.indices {
-            if index == 0 {
-                normalizedRules[index].join = nil
-            } else {
-                normalizedRules[index].join = resolvedJoin
-            }
-
-            let column = filterableColumns.first { $0.id == normalizedRules[index].fieldID } ?? fallbackColumn
-            if let column {
-                normalizedRules[index].fieldID = column.id
-                let operators = SchemaWorkbenchFilterRuleRow.operators(for: column)
-                if !operators.contains(normalizedRules[index].operatorID) {
-                    normalizedRules[index].operatorID = operators.first ?? .contains
-                    normalizedRules[index].value = ""
-                }
-            }
-
-            if SchemaWorkbenchFilterRuleRow.doesOperatorNeedNoValue(normalizedRules[index].operatorID) {
-                normalizedRules[index].value = ""
-            }
-        }
-
-        return normalizedRules
-    }
-}
-
-struct SchemaWorkbenchFilterSetSaveResult: Equatable {
-    let filterSets: [SchemaWorkbenchFilterSet]
-    let activeFilterSetID: String
-}
-
-enum SchemaWorkbenchFilterSetSaveAction {
-    static func save(
-        rules: [SchemaWorkbenchFilterRule],
-        activeFilterSetID: String?,
-        existingFilterSets: [SchemaWorkbenchFilterSet],
-        makeID: (Int) -> String
-    ) -> SchemaWorkbenchFilterSetSaveResult {
-        if let activeFilterSetID,
-           let activeIndex = existingFilterSets.firstIndex(where: { $0.id == activeFilterSetID })
-        {
-            var filterSets = existingFilterSets
-            let activeFilterSet = filterSets[activeIndex]
-            filterSets[activeIndex] = SchemaWorkbenchFilterSet(
-                id: activeFilterSet.id,
-                name: activeFilterSet.name,
-                rules: rules
-            )
-
-            return SchemaWorkbenchFilterSetSaveResult(
-                filterSets: filterSets,
-                activeFilterSetID: activeFilterSet.id
-            )
-        }
-
-        var filterSets = existingFilterSets
-        let nextNumber = filterSets.count + 1
-        let id = makeID(nextNumber)
-        filterSets.append(
-            SchemaWorkbenchFilterSet(
-                id: id,
-                name: "Filter Set \(nextNumber)",
-                rules: rules
-            )
-        )
-
-        return SchemaWorkbenchFilterSetSaveResult(
-            filterSets: filterSets,
-            activeFilterSetID: id
-        )
-    }
 }
 
 private enum FilterBuilderDropdownKind: Hashable {
@@ -861,18 +674,12 @@ enum SchemaWorkbenchStyle {
 struct SchemaWorkbenchSearchFilterBar: View {
     let placeholder: String
     @Binding var searchDraft: String
-    let activeFilterSetName: String?
-    let filterCount: Int
     var isRedesign: Bool = false
-    var isFilterSetsMenuOpen: Bool = false
     var isFilterBuilderMenuOpen: Bool = false
     var onSubmit: (() -> Void)?
-    var onFilterSets: () -> Void
-    var onFilterBuilder: () -> Void
-    var onReset: () -> Void
+    var onFilter: () -> Void
 
     var body: some View {
-        let filterCountText = filterCount == 1 ? "1 Filter" : "\(filterCount) Filters"
         HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing3 : 10) {
             WorkbenchSearchField(
                 placeholder: placeholder,
@@ -883,50 +690,14 @@ struct SchemaWorkbenchSearchFilterBar: View {
             .frame(maxWidth: .infinity)
 
             WorkbenchToolbarButton(
-                title: "Filter Sets",
+                title: "Filter",
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
                 isRedesign: isRedesign,
-                isMenuOpen: isFilterSetsMenuOpen,
-                action: onFilterSets
+                isMenuOpen: isFilterBuilderMenuOpen,
+                action: onFilter
             )
-            .workbenchDropdownAnchor(id: "filterSets", in: "SearchShellSpace")
-
-            if filterCount > 0 {
-                if isRedesign {
-                    WorkbenchFilterPanelTriggerButton(
-                        title: activeFilterSetName ?? filterCountText,
-                        detail: activeFilterSetName == nil ? nil : filterCountText,
-                        isMenuOpen: isFilterBuilderMenuOpen,
-                        onTrigger: onFilterBuilder,
-                        onClear: onReset
-                    )
-                    .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
-                } else {
-                    WorkbenchFilterChip(
-                        systemImage: "line.3.horizontal.decrease",
-                        title: activeFilterSetName ?? filterCountText,
-                        detail: activeFilterSetName == nil ? nil : filterCountText,
-                        action: onFilterBuilder
-                    )
-
-                    WorkbenchToolbarButton(
-                        title: "Reset",
-                        systemImage: "xmark",
-                        showsChevron: false,
-                        isRedesign: isRedesign,
-                        action: onReset
-                    )
-                }
-            } else {
-                WorkbenchPlainActionButton(
-                    title: "New Filter Set",
-                    systemImage: "plus",
-                    isRedesign: isRedesign,
-                    action: onFilterBuilder
-                )
-                .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
-            }
+            .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
         }
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
     }
@@ -1024,48 +795,19 @@ struct SchemaWorkbenchLegacySearchCommandBar: View {
 }
 
 struct SchemaWorkbenchLegacyFilterControlBar: View {
-    let activeFilterSetName: String?
-    let filterCount: Int
-    var isFilterSetsMenuOpen: Bool = false
     var isFilterBuilderMenuOpen: Bool = false
-    var onFilterSets: () -> Void
-    var onFilterBuilder: () -> Void
-    var onReset: () -> Void
+    var onFilter: () -> Void
 
     var body: some View {
-        let filterCountText = filterCount == 1 ? "1 Filter" : "\(filterCount) Filters"
         HStack(spacing: 10) {
             WorkbenchToolbarButton(
-                title: "Filter Sets",
+                title: "Filter",
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
-                isMenuOpen: isFilterSetsMenuOpen,
-                action: onFilterSets
+                isMenuOpen: isFilterBuilderMenuOpen,
+                action: onFilter
             )
-            .workbenchDropdownAnchor(id: "filterSets", in: "SearchShellSpace")
-
-            if filterCount > 0 {
-                WorkbenchFilterChip(
-                    systemImage: "line.3.horizontal.decrease",
-                    title: activeFilterSetName ?? filterCountText,
-                    detail: activeFilterSetName == nil ? nil : filterCountText,
-                    action: onFilterBuilder
-                )
-
-                WorkbenchToolbarButton(
-                    title: "Reset",
-                    systemImage: "xmark",
-                    showsChevron: false,
-                    action: onReset
-                )
-            } else {
-                WorkbenchPlainActionButton(
-                    title: "New Filter Set",
-                    systemImage: "plus",
-                    action: onFilterBuilder
-                )
-                .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
-            }
+            .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
 
             Spacer(minLength: 0)
         }
@@ -1137,31 +879,6 @@ struct SchemaWorkbenchColumnVisibilityPopover: View {
     }
 }
 
-struct SchemaWorkbenchFilterSetPopover: View {
-    let options: [SchemaWorkbenchFilterSet]
-    let activeFilterSetID: String?
-    var isRedesign: Bool = false
-    var onSelect: (SchemaWorkbenchFilterSet) -> Void
-
-    var body: some View {
-        WorkbenchPopoverPanel(isRedesign: isRedesign) {
-            VStack(spacing: 0) {
-                ForEach(options) { option in
-                    WorkbenchPopoverRow(
-                        title: option.name,
-                        isSelected: option.id == activeFilterSetID,
-                        isHighlighted: option.id == activeFilterSetID,
-                        isRedesign: isRedesign,
-                        action: {
-                            onSelect(option)
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
 private struct DropdownFramePreferenceKey: PreferenceKey {
     typealias Value = [FilterBuilderDropdownID: CGRect]
     static var defaultValue: Value { [:] }
@@ -1174,7 +891,6 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
     let columns: [WorkbenchTableColumn]
     @Binding var rules: [SchemaWorkbenchFilterRule]
     var isRedesign: Bool = false
-    var onSave: () -> Void
     @State private var openDropdown: FilterBuilderDropdownID?
     @State private var dropdownFrames: [FilterBuilderDropdownID: CGRect] = [:]
     @State private var openDropdownWidth: CGFloat = 0
@@ -1212,8 +928,6 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
 
                             Spacer(minLength: 0)
                         }
-
-                        WorkbenchButton(title: "Save Filter Set", isRedesign: isRedesign, action: onSave)
                     }
                     .padding(8)
                 }

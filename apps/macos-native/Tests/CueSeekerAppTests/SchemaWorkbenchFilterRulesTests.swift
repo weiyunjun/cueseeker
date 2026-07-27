@@ -1,13 +1,9 @@
-import AppKit
-import Foundation
 import Testing
 @testable import CueSeekerApp
 
 @Test
-func schemaWorkbenchStartsWithoutPresetFilterSets() {
-    #expect(SchemaWorkbenchSearchDefaults.defaultFilterSetID == nil)
+func schemaWorkbenchStartsWithoutFilterRules() {
     #expect(SchemaWorkbenchSearchDefaults.defaultFilterRules.isEmpty)
-    #expect(SchemaWorkbenchSearchDefaults.filterSets.isEmpty)
 }
 
 @Test
@@ -63,115 +59,31 @@ func schemaWorkbenchFilterRulesConvertToCoreFilterSet() {
     #expect(!filterSet.matches(display: "MyGO", cues: "", languages: ["ja"]))
 }
 
+@MainActor
 @Test
-func schemaWorkbenchSaveActionUpdatesActiveFilterSet() {
-    let firstRule = SchemaWorkbenchSearchDefaults.makeFilterRule(
-        id: "rule-1",
+func searchAndShioriKeepIndependentSessionFilterRules() {
+    let searchRule = SchemaWorkbenchSearchDefaults.makeFilterRule(
+        id: "search-rule",
         join: nil,
         fieldID: "display",
         operatorID: .contains,
         value: "Ave"
     )
-    let createdResult = SchemaWorkbenchFilterSetSaveAction.save(
-        rules: [firstRule],
-        activeFilterSetID: nil,
-        existingFilterSets: [],
-        makeID: { "filter-set-\($0)" }
-    )
-
-    #expect(createdResult.activeFilterSetID == "filter-set-1")
-    #expect(createdResult.filterSets.count == 1)
-    #expect(createdResult.filterSets[0].name == "Filter Set 1")
-
-    let updatedRule = SchemaWorkbenchSearchDefaults.makeFilterRule(
-        id: "rule-2",
+    let shioriRule = SchemaWorkbenchSearchDefaults.makeFilterRule(
+        id: "shiori-rule",
         join: nil,
         fieldID: "cues",
         operatorID: .contains,
-        value: "Tomori"
+        value: "星"
     )
-    let updatedResult = SchemaWorkbenchFilterSetSaveAction.save(
-        rules: [updatedRule],
-        activeFilterSetID: createdResult.activeFilterSetID,
-        existingFilterSets: createdResult.filterSets,
-        makeID: { "filter-set-\($0)" }
-    )
+    let search = SearchStore()
+    let shiori = ShioriStore()
 
-    #expect(updatedResult.activeFilterSetID == "filter-set-1")
-    #expect(updatedResult.filterSets.count == 1)
-    #expect(updatedResult.filterSets[0].name == "Filter Set 1")
-    #expect(updatedResult.filterSets[0].rules == [updatedRule])
-}
+    search.tableFilterRules = [searchRule]
+    shiori.tableFilterRules = [shioriRule]
 
-@MainActor
-@Test
-func settingsStorePersistsSearchFilterSetsWithoutDefaultActiveFilter() {
-    withTemporaryFilterSetSettingsUserDefaults { userDefaults in
-        let rule = SchemaWorkbenchSearchDefaults.makeFilterRule(
-            id: "rule-1",
-            join: nil,
-            fieldID: "language",
-            operatorID: .contains,
-            value: "ja"
-        )
-        let filterSet = SchemaWorkbenchFilterSet(
-            id: "filter-set-1",
-            name: "Filter Set 1",
-            rules: [rule]
-        )
-        let store = SettingsStore(userDefaults: userDefaults)
-
-        #expect(store.searchFilterSets.isEmpty)
-        store.searchFilterSets = [filterSet]
-
-        let reloadedStore = SettingsStore(userDefaults: userDefaults)
-
-        #expect(reloadedStore.searchFilterSets == [filterSet])
-        #expect(SchemaWorkbenchSearchDefaults.defaultFilterSetID == nil)
-        #expect(SchemaWorkbenchSearchDefaults.defaultFilterRules.isEmpty)
-    }
-}
-
-@MainActor
-@Test
-func settingsStoreRemovesObsoleteSpeakerRulesFromSavedFilterSets() throws {
-    try withTemporaryFilterSetSettingsUserDefaults { userDefaults in
-        let filterSet = SchemaWorkbenchFilterSet(
-            id: "filter-set-1",
-            name: "Filter Set 1",
-            rules: [
-                SchemaWorkbenchSearchDefaults.makeFilterRule(
-                    id: "speaker-rule",
-                    join: nil,
-                    fieldID: "speaker",
-                    operatorID: .contains,
-                    value: "legacy"
-                ),
-                SchemaWorkbenchSearchDefaults.makeFilterRule(
-                    id: "language-rule",
-                    join: .and,
-                    fieldID: "language",
-                    operatorID: .contains,
-                    value: "ja"
-                )
-            ]
-        )
-        userDefaults.set(try JSONEncoder().encode([filterSet]), forKey: "searchFilterSets")
-
-        let store = SettingsStore(userDefaults: userDefaults)
-
-        #expect(store.searchFilterSets.first?.rules.map(\.fieldID) == ["language"])
-    }
-}
-
-@MainActor
-private func withTemporaryFilterSetSettingsUserDefaults(_ body: (UserDefaults) throws -> Void) rethrows {
-    _ = NSApplication.shared
-    let suiteName = "CueSeekerFilterSetTests-\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName)!
-    defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-    }
-
-    try body(userDefaults)
+    #expect(search.tableFilterRules == [searchRule])
+    #expect(shiori.tableFilterRules == [shioriRule])
+    #expect(SearchStore().tableFilterRules.isEmpty)
+    #expect(ShioriStore().tableFilterRules.isEmpty)
 }

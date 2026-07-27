@@ -20,7 +20,6 @@ final class ShioriStore: ObservableObject {
     @Published var tableSearchDraft = ""
     @Published var tableSubmittedSearchText = ""
     @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
-    @Published var tableActiveFilterSetID: String?
     @Published var tableFilterRules: [SchemaWorkbenchFilterRule] = []
     @Published var tableTotalSavedRowCount = 0
     @Published var tableResultRowCount = 0

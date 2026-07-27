@@ -1139,7 +1139,6 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     let store = ShioriStore()
     store.tableSearchDraft = "tomori"
     store.tableVisibleColumnIDs = ["display", "cues"]
-    store.tableActiveFilterSetID = "favorite-cues"
     store.tableFilterRules = [
         SchemaWorkbenchSearchDefaults.makeFilterRule(
             join: nil,
@@ -1166,7 +1165,6 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
 
     #expect(store.tableSearchDraft == "tomori")
     #expect(store.tableVisibleColumnIDs == ["display", "cues"])
-    #expect(store.tableActiveFilterSetID == "favorite-cues")
     #expect(store.tableFilterRules.count == 1)
     #expect(store.tableHasLoadedInitialPage)
     #expect(store.tableTotalSavedRowCount == 1)

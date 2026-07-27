@@ -8,10 +8,11 @@
 ## Scope
 
 - Classify the change as macOS platform UI and UX work.
-- Implement Steps 1 and 2 of the requirement: increase the horizontal breathing
-  room and remove the Search and Shiori table outer frame.
-- Preserve toolbar composition, column layout, filtering behavior, selection
-  behavior, and table interaction.
+- Implement Steps 1 through 3 of the requirement: increase the horizontal
+  breathing room, remove the Search and Shiori table outer frame, and replace
+  persisted reusable Filter Sets with session-only filters.
+- Preserve column layout, filtering execution, selection behavior, and table
+  interaction outside the requested filter-control changes.
 
 ## Steps
 
@@ -31,6 +32,16 @@
 7. Kept the Header and Row Divider paths at the full table width and changed
    their redesign color from the control-border token to the existing
    `--color-border-divider` token.
+8. Replaced the Filter Sets and New Filter Set controls with one Filter trigger
+   that reuses the existing toolbar control and opens the existing filter
+   editor directly.
+9. Removed the Filter Set model, picker, save action, Save Filter Set button,
+   active Filter Set identifiers, and UserDefaults persistence.
+10. Kept Search and Shiori filter rules in their existing separate in-memory
+    stores so they survive view remounts within the current app session but are
+    empty in new store instances.
+11. Removed the two obsolete filter-status controls after their final call
+    sites were removed.
 
 ## Verification
 
@@ -43,6 +54,12 @@
   divider token.
 - Focused subtitle-table tests passed with `--no-parallel` after the Step 2
   change.
+- `swift build` passed after the Step 3 filter simplification.
+- Focused filter and Shiori remount tests passed with `--no-parallel`, including
+  the new Search/Shiori session-state isolation coverage.
+- The complete `--no-parallel` suite ran 880 tests and reported one unrelated
+  shared-preferences migration failure consistent with retained test state;
+  that test passed immediately when rerun alone.
 - The complete parallel `swift test` run executed 882 tests and reported 10
   timing or database-I/O failures unrelated to the spacing constant.
 - The 10 failed tests all passed when rerun together with `--no-parallel`,
@@ -57,10 +74,11 @@
 - Automated verification passed subject to the documented parallel-suite
   resource contention.
 - Step 1 received human visual acceptance.
-- Step 2 automated verification passed; human visual acceptance remains
+- Step 2 received human visual acceptance.
+- Step 3 automated verification passed; human visual acceptance remains
   pending.
 
 ## Follow-ups
 
-- Continue to Step 3 only after Step 2 is explicitly accepted.
+- Continue to Step 4 only after Step 3 is explicitly accepted.
 - Update the human-owned requirement and UI design only through the human-owner workflow after the iterative UI work is complete.

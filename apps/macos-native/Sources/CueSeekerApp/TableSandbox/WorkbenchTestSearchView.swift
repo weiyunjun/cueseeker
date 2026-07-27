@@ -36,7 +36,6 @@ struct WorkbenchTestSearchView: View {
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
     @State private var visibleColumnIDs: Set<String>
-    @State private var activeFilterSetID: String?
     @State private var filterRules: [SchemaWorkbenchFilterRule]
     @State private var lastVisibleRows: Range<Int>?
     @State private var appliedFilterSignature = ""
@@ -61,7 +60,6 @@ struct WorkbenchTestSearchView: View {
         self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
-        _activeFilterSetID = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterSetID)
         _filterRules = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterRules)
     }
 
@@ -74,9 +72,7 @@ struct WorkbenchTestSearchView: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             visibleColumnIDs: $visibleColumnIDs,
-            activeFilterSetID: $activeFilterSetID,
             filterRules: $filterRules,
-            filterSets: $settingsStore.searchFilterSets,
             columns: SchemaWorkbenchSearchDefaults.columns,
             isRedesign: true,
             tableSummary: tableSummary,
@@ -159,9 +155,6 @@ struct WorkbenchTestSearchView: View {
         }
         .onChange(of: visibleColumnIDs) { newValue in
             search.tableVisibleColumnIDs = newValue
-        }
-        .onChange(of: activeFilterSetID) { newValue in
-            search.tableActiveFilterSetID = newValue
         }
         .onChange(of: search.searchQuery) { newValue in
             searchDraft = newValue
@@ -426,7 +419,6 @@ struct WorkbenchTestSearchView: View {
         }
 
         searchDraft = ""
-        activeFilterSetID = nil
         filterRules = rules
         search.updateQuery("")
         search.updateNavigationSnapshot(nil)
@@ -901,7 +893,6 @@ struct WorkbenchTestSearchView: View {
 
     private func restoreTableControls() {
         visibleColumnIDs = search.tableVisibleColumnIDs
-        activeFilterSetID = search.tableActiveFilterSetID
         if filterRules != search.tableFilterRules {
             suppressNextFilterRulesReload = true
             filterRules = search.tableFilterRules
@@ -911,7 +902,6 @@ struct WorkbenchTestSearchView: View {
     private func persistTableControls() {
         search.tableSearchDraft = searchDraft
         search.tableVisibleColumnIDs = visibleColumnIDs
-        search.tableActiveFilterSetID = activeFilterSetID
         search.tableFilterRules = filterRules
     }
 }

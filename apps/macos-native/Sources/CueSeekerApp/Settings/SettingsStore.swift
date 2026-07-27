@@ -89,7 +89,6 @@ final class SettingsStore: ObservableObject {
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
-    private static let searchFilterSetsKey = "searchFilterSets"
     private static let urlSchemePlayFirstSearchResultEnabledKey = "urlSchemePlayFirstSearchResultEnabled"
     static let autoSwitchCueSequenceGapDefaultMilliseconds = 500
     static let autoSwitchCueSequenceGapMinimumMilliseconds = 0
@@ -167,12 +166,6 @@ final class SettingsStore: ObservableObject {
                 searchFTSVocabularyDiagnosticsEnabled,
                 forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
             )
-        }
-    }
-
-    @Published var searchFilterSets: [SchemaWorkbenchFilterSet] {
-        didSet {
-            Self.saveSearchFilterSets(searchFilterSets, to: userDefaults)
         }
     }
 
@@ -261,14 +254,6 @@ final class SettingsStore: ObservableObject {
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
         )
-        let storedSearchFilterSets = Self.loadSearchFilterSets(from: userDefaults)
-        let sanitizedSearchFilterSets = Self.removingObsoleteSpeakerRules(
-            from: storedSearchFilterSets
-        )
-        self.searchFilterSets = sanitizedSearchFilterSets
-        if sanitizedSearchFilterSets != storedSearchFilterSets {
-            Self.saveSearchFilterSets(sanitizedSearchFilterSets, to: userDefaults)
-        }
         self.urlSchemePlayFirstSearchResultEnabled = userDefaults.bool(
             forKey: Self.urlSchemePlayFirstSearchResultEnabledKey
         )
@@ -348,39 +333,6 @@ final class SettingsStore: ObservableObject {
             max(milliseconds, autoSwitchCueSequenceGapMinimumMilliseconds),
             autoSwitchCueSequenceGapMaximumMilliseconds
         )
-    }
-
-    private static func loadSearchFilterSets(from userDefaults: UserDefaults) -> [SchemaWorkbenchFilterSet] {
-        guard let data = userDefaults.data(forKey: searchFilterSetsKey),
-              let filterSets = try? JSONDecoder().decode([SchemaWorkbenchFilterSet].self, from: data)
-        else {
-            return []
-        }
-
-        return filterSets
-    }
-
-    private static func saveSearchFilterSets(
-        _ filterSets: [SchemaWorkbenchFilterSet],
-        to userDefaults: UserDefaults
-    ) {
-        guard let data = try? JSONEncoder().encode(filterSets) else {
-            return
-        }
-
-        userDefaults.set(data, forKey: searchFilterSetsKey)
-    }
-
-    private static func removingObsoleteSpeakerRules(
-        from filterSets: [SchemaWorkbenchFilterSet]
-    ) -> [SchemaWorkbenchFilterSet] {
-        filterSets.map { filterSet in
-            SchemaWorkbenchFilterSet(
-                id: filterSet.id,
-                name: filterSet.name,
-                rules: filterSet.rules.filter { $0.fieldID != "speaker" }
-            )
-        }
     }
 
     private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {

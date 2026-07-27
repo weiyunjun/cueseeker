@@ -121,7 +121,6 @@ final class SearchStore: ObservableObject {
     @Published private(set) var tableLoadRevision: UInt64 = 0
     @Published var tableSearchDraft = ""
     @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs
-    @Published var tableActiveFilterSetID = SchemaWorkbenchSearchDefaults.defaultFilterSetID
     @Published var tableFilterRules = SchemaWorkbenchSearchDefaults.defaultFilterRules
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
