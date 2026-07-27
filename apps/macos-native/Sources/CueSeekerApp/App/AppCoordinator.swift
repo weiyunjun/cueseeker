@@ -75,46 +75,6 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    static func makeSearchResultGroups(
-        results searchResults: [SubtitleSearchResult],
-        fileSummaries searchFileSummaries: [SubtitleSearchFileSummary],
-        expandedRowsByPath: [String: [SubtitleSearchResult]],
-        collapsedGroupPaths: Set<String>,
-        includesSummaryOnlyGroups: Bool
-    ) -> [SearchResultFileGroup] {
-        let nonEmptyExpandedRowsByPath = expandedRowsByPath.filter { !$0.value.isEmpty }
-        let loadedCountsByPath = searchResults.reduce(into: [String: Int]()) { counts, result in
-            counts[result.subtitlePath, default: 0] += 1
-        }
-        let loadedPaths = Set(loadedCountsByPath.keys).union(nonEmptyExpandedRowsByPath.keys)
-        guard !searchFileSummaries.isEmpty || !loadedPaths.isEmpty else {
-            return []
-        }
-
-        let summaryByPath = Dictionary(uniqueKeysWithValues: searchFileSummaries.map { ($0.subtitlePath, $0) })
-        let summaryPaths = Set(searchFileSummaries.map(\.subtitlePath))
-        let orderedPaths = searchFileSummaries
-            .map(\.subtitlePath)
-            .filter { includesSummaryOnlyGroups || loadedPaths.contains($0) || summaryByPath[$0] != nil }
-        let extraPaths = loadedPaths
-            .filter { !summaryPaths.contains($0) }
-            .sorted(by: Self.searchResultGroupPathSort)
-
-        return (orderedPaths + extraPaths).map { path in
-            let summary = summaryByPath[path]
-            let groupRows = nonEmptyExpandedRowsByPath[path] ?? []
-            let results = groupRows.sorted(by: Self.searchResultSort)
-            return SearchResultFileGroup(
-                subtitlePath: path,
-                subtitleDisplayTitle: summary?.subtitleDisplayTitle
-                    ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path),
-                totalCount: summary?.matchCount ?? loadedCountsByPath[path] ?? results.count,
-                results: results,
-                isCollapsed: collapsedGroupPaths.contains(path)
-            )
-        }
-    }
-
     static func makeShioriFileGroups(
         from shioris: [Shiori],
         collapsedGroupPaths: Set<String>
@@ -223,10 +183,7 @@ final class AppCoordinator: ObservableObject {
 
         return playbackDisplayTitle(
             providedDisplayTitle: resolvedDisplayTitle,
-            fallback: search.searchResultGroups
-                .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
-                .subtitleDisplayTitle
-            ?? search.searchFileSummaries
+            fallback: search.searchFileSummaries
                 .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
                 .subtitleDisplayTitle
             ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
@@ -455,9 +412,7 @@ final class AppCoordinator: ObservableObject {
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?
     var windowFrameBeforeUserZoom: NSRect?
-    var searchResultGroupTasks: [String: Task<Void, Never>] = [:]
     var activeSearchPerformanceRun: SearchPerformanceRun?
-    var pendingSearchVisibleEntryIDs: Set<Int64> = []
     var shioriPlaybackNavigationScopeIDs: [Int64]?
     var shioriPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
@@ -723,18 +678,8 @@ final class AppCoordinator: ObservableObject {
         loadedGlobalSearchResultCount = search.searchResults.count
         nextGlobalSearchCursor = nil
         search.hasMoreSearchResults = false
-        search.collapsedSearchResultGroupPaths = search.collapsedSearchResultGroupPaths.filter { !Self.path($0, isUnder: folder) }
         removeLibraryPresentation(under: folder)
         removeCompleteLibraryPresentation(under: folder)
-        search.expandedSearchResultGroupRowsByPath = search.expandedSearchResultGroupRowsByPath.filter { path, _ in
-            !Self.path(path, isUnder: folder)
-        }
-        rebuildSearchResultGroups()
-        let groupTaskPaths = searchResultGroupTasks.keys.filter { Self.path($0, isUnder: folder) }
-        for path in groupTaskPaths {
-            searchResultGroupTasks[path]?.cancel()
-            searchResultGroupTasks.removeValue(forKey: path)
-        }
 
         let selectedSearchResultIsUnderFolder = search.selectedSearchResult.map {
             Self.path($0.subtitlePath, isUnder: folder)
@@ -783,29 +728,6 @@ final class AppCoordinator: ObservableObject {
             path.removeLast()
         }
         return path
-    }
-
-    static func searchResultGroupPathSort(_ lhs: String, _ rhs: String) -> Bool {
-        let lhsDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: lhs)
-        let rhsDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: rhs)
-        let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
-        if displayTitleComparison != .orderedSame {
-            return displayTitleComparison == .orderedAscending
-        }
-
-        return lhs.localizedStandardCompare(rhs) == .orderedAscending
-    }
-
-    static func searchResultSort(_ lhs: SubtitleSearchResult, _ rhs: SubtitleSearchResult) -> Bool {
-        if lhs.startMilliseconds != rhs.startMilliseconds {
-            return lhs.startMilliseconds < rhs.startMilliseconds
-        }
-
-        if lhs.endMilliseconds != rhs.endMilliseconds {
-            return lhs.endMilliseconds < rhs.endMilliseconds
-        }
-
-        return lhs.entryID < rhs.entryID
     }
 
     static func shioriSort(_ lhs: Shiori, _ rhs: Shiori) -> Bool {

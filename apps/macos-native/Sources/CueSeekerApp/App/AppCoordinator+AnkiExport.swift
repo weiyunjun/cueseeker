@@ -5,16 +5,6 @@ import CueSeekerCore
 
 @MainActor
 extension AppCoordinator {
-    func exportSearchResultGroupToAnki(_ group: SearchResultFileGroup) {
-        let items = group.results.map { result in
-            Self.ankiExportItem(
-                for: result,
-                deckDisplayTitle: group.subtitleDisplayTitle
-            )
-        }
-        exportAnkiItems(items)
-    }
-
     func exportShioriGroupToAnki(_ group: ShioriFileGroup) {
         let items = group.shioris.map { shiori in
             Self.ankiExportItem(

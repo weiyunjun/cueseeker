@@ -716,7 +716,6 @@ extension AppCoordinator {
         searchNavigationTask = nil
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
         indexing.searchFTSVocabularyDiagnosticsTask = nil
-        cancelSearchResultGroupTasks()
 
         if case .loading = library.libraryStatus {
             library.libraryStatus = library.libraryVideos.isEmpty ? .idle : .completed

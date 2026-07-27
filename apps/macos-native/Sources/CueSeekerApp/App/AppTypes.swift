@@ -52,11 +52,6 @@ enum SearchStatus: Equatable {
     case failed(String)
 }
 
-enum SearchResultPresentationState: Equatable {
-    case initial
-    case collapsed
-}
-
 enum LibraryStatus: Equatable {
     case idle
     case loading
@@ -253,20 +248,6 @@ enum SearchScope: String, CaseIterable, Identifiable, Sendable {
         case .watchingAndFinished:
             .watchingAndFinished
         }
-    }
-}
-
-struct SearchResultFileGroup: Identifiable, Equatable {
-    let subtitlePath: String
-    let subtitleDisplayTitle: String
-    let totalCount: Int
-    let results: [SubtitleSearchResult]
-    let isCollapsed: Bool
-
-    var id: String { subtitlePath }
-
-    var displayCount: String {
-        totalCount > 99 ? "99+" : "\(totalCount)"
     }
 }
 

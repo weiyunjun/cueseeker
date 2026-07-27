@@ -100,7 +100,6 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     #expect(app.search.searchResults.isEmpty)
     #expect(app.search.searchResultCueIDs.isEmpty)
     #expect(app.search.searchResultTotalCount == 0)
-    #expect(app.search.searchResultGroups.isEmpty)
     #expect(app.search.searchNavigationSnapshot == nil)
     #expect(!app.search.hasMoreSearchResults)
 }
@@ -533,48 +532,6 @@ func workbenchSearchTextCopyBoundaryRequiresExactCountAndCompleteCueIDs() {
         cueIDs: [],
         resultRowCount: -1
     ))
-}
-
-@MainActor
-@Test
-func searchResultGroupsKeepSummaryOnlyRowsUntilGroupExpansion() {
-    let path = "/Media/Episode.srt"
-    let results = (0..<3).map { index in
-        makeTableSandboxSearchResult(
-            id: Int64(index + 1),
-            content: "Grouped result \(index)",
-            searchRank: index
-        )
-    }
-    let summary = SubtitleSearchFileSummary(
-        subtitlePath: path,
-        subtitleFileName: "Episode.srt",
-        subtitleDisplayTitle: "Episode",
-        matchCount: results.count
-    )
-
-    let summaryOnlyGroups = AppCoordinator.makeSearchResultGroups(
-        results: results,
-        fileSummaries: [summary],
-        expandedRowsByPath: [:],
-        collapsedGroupPaths: [],
-        includesSummaryOnlyGroups: false
-    )
-
-    #expect(summaryOnlyGroups.count == 1)
-    #expect(summaryOnlyGroups[0].totalCount == 3)
-    #expect(summaryOnlyGroups[0].results.isEmpty)
-
-    let expandedGroups = AppCoordinator.makeSearchResultGroups(
-        results: results,
-        fileSummaries: [summary],
-        expandedRowsByPath: [path: [results[1]]],
-        collapsedGroupPaths: [],
-        includesSummaryOnlyGroups: false
-    )
-
-    #expect(expandedGroups.count == 1)
-    #expect(expandedGroups[0].results.map(\.entryID) == [2])
 }
 
 @MainActor

@@ -83,12 +83,7 @@ final class SearchStore: ObservableObject {
     @Published var searchKnownFileCount = 0
     @Published var hasMoreSearchResults = false
     @Published var activeFilterSet = SubtitleSearchFilterSet()
-    @Published var collapsedSearchResultGroupPaths: Set<String> = []
-    @Published var searchResultPresentationState: SearchResultPresentationState = .initial
-    @Published var searchResultGroups: [SearchResultFileGroup] = []
-    @Published var renderedSearchResultCount = 0
     @Published var searchNavigationSnapshot: SearchNavigationSnapshot?
-    @Published var expandedSearchResultGroupRowsByPath: [String: [SubtitleSearchResult]] = [:]
     @Published var selectedSearchResult: SubtitleSearchResult?
     @Published var cueContextSearchRequest: CueContextSearchRequest?
     @Published var tableSearchDraft = ""
@@ -354,27 +349,6 @@ final class SearchStore: ObservableObject {
             return true
         }
         return false
-    }
-
-    var hasSearchResultGroups: Bool {
-        !searchResultGroups.isEmpty
-    }
-
-    var searchResultFileCount: Int {
-        searchFileSummaries.count
-    }
-
-    var canCollapseAllSearchResultGroups: Bool {
-        hasSearchResultGroups
-            && !isSearching
-            && searchStatus == .completed
-            && searchCountState == .exact
-            && searchResultPresentationState != .collapsed
-            && !searchFileSummaries.isEmpty
-    }
-
-    var shouldShowSearchGlobalLoadMoreTrigger: Bool {
-        searchResultPresentationState != .collapsed && hasMoreSearchResults
     }
 
     var activeFilterSetSignature: String {

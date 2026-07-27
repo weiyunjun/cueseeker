@@ -188,11 +188,6 @@ extension AppCoordinator {
     }
 
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
-        if search.searchResultPresentationState == .collapsed {
-            loadMoreSearchResultGroupRowsIfNeeded(currentResult: result)
-            return
-        }
-
         guard search.hasMoreSearchResults, !search.isSearching else {
             return
         }
@@ -207,10 +202,6 @@ extension AppCoordinator {
     }
 
     func loadMoreSearchResultsIfNeeded() {
-        guard search.searchResultPresentationState != .collapsed else {
-            return
-        }
-
         guard search.hasMoreSearchResults, !search.isSearching else {
             return
         }
@@ -481,48 +472,6 @@ extension AppCoordinator {
         )
     }
 
-    func toggleSearchResultGroup(_ subtitlePath: String) {
-        let hasLoadedRows = searchResultGroupHasLoadedRows(subtitlePath)
-        UIInvalidationProbe.mark(
-            "ACTION UI.SearchResultGroup.toggled",
-            details: "collapsedBefore=\(search.collapsedSearchResultGroupPaths.contains(subtitlePath)) loadedRows=\(hasLoadedRows)"
-        )
-        if search.collapsedSearchResultGroupPaths.contains(subtitlePath) {
-            search.collapsedSearchResultGroupPaths.remove(subtitlePath)
-            rebuildSearchResultGroups()
-            if search.searchResultPresentationState == .collapsed {
-                revealInitialSearchResultGroupPage(for: subtitlePath)
-            }
-        } else if hasLoadedRows {
-            search.collapsedSearchResultGroupPaths.insert(subtitlePath)
-            rebuildSearchResultGroups()
-        } else if searchResultGroupTasks[subtitlePath] == nil {
-            revealInitialSearchResultGroupPage(for: subtitlePath)
-        } else {
-            return
-        }
-    }
-
-    func collapseAllSearchResultGroups() {
-        guard search.canCollapseAllSearchResultGroups else {
-            return
-        }
-
-        let groupPaths = Set(search.searchFileSummaries.map(\.subtitlePath))
-        guard !groupPaths.isEmpty else {
-            return
-        }
-
-        UIInvalidationProbe.mark(
-            "ACTION UI.SearchResults.collapseAll",
-            details: "groups=\(groupPaths.count)"
-        )
-        search.searchResultPresentationState = .collapsed
-        search.expandedSearchResultGroupRowsByPath = [:]
-        search.collapsedSearchResultGroupPaths = groupPaths
-        rebuildSearchResultGroups()
-    }
-
     func startSearch(
         query: String,
         cursor: SubtitleSearchCursor,
@@ -578,7 +527,6 @@ extension AppCoordinator {
             e2eLoggingEnabled: settings.searchE2ELoggingEnabled
         )
         activeSearchPerformanceRun = searchPerformanceRun
-        pendingSearchVisibleEntryIDs = []
 
         if !appending {
             let resetStart = SearchPerformanceLogger.now()
@@ -587,8 +535,8 @@ extension AppCoordinator {
                 searchPerformanceRun,
                 "search_state_reset",
                 phaseStart: resetStart,
-                groupCount: search.searchResultGroups.count,
-                renderedRowCount: search.renderedSearchResultCount,
+                groupCount: search.searchFileSummaries.count,
+                renderedRowCount: search.searchResults.count,
                 status: "reset"
             )
         }
@@ -789,24 +737,6 @@ extension AppCoordinator {
                     fileSummaryCount: search.searchFileSummaries.count
                 )
 
-                let rebuildStart = SearchPerformanceLogger.now()
-                rebuildSearchResultGroups()
-                let groupRebuildMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: rebuildStart)
-                SearchPerformanceLogger.mark(
-                    searchPerformanceRun,
-                    "search_groups_rebuilt",
-                    phaseStart: rebuildStart,
-                    resultCount: search.searchResults.count,
-                    totalCount: search.searchResultTotalCount,
-                    fileSummaryCount: search.searchFileSummaries.count,
-                    groupCount: search.searchResultGroups.count,
-                    renderedRowCount: search.renderedSearchResultCount
-                )
-                prepareSearchPerformanceVisibility(
-                    for: searchPerformanceRun,
-                    resultsAwaitingFirstAppearance: page.results
-                )
-
                 let completionStart = SearchPerformanceLogger.now()
                 let pageCompletesSearch = page.countState == .exact || shouldPreserveExactMetadata
                 if pageCompletesSearch {
@@ -825,8 +755,8 @@ extension AppCoordinator {
                     resultCount: search.searchResults.count,
                     totalCount: search.searchResultTotalCount,
                     fileSummaryCount: search.searchFileSummaries.count,
-                    groupCount: search.searchResultGroups.count,
-                    renderedRowCount: search.renderedSearchResultCount,
+                    groupCount: search.searchFileSummaries.count,
+                    renderedRowCount: search.searchResults.count,
                     status: statusText
                 )
                 SearchPerformanceLogger.writeE2ESearchPage(
@@ -835,10 +765,9 @@ extension AppCoordinator {
                     page: page,
                     databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
                     stateAssignMilliseconds: stateAssignMilliseconds,
-                    groupRebuildMilliseconds: groupRebuildMilliseconds,
                     statusCompletionMilliseconds: statusCompletionMilliseconds,
-                    groupCount: search.searchResultGroups.count,
-                    renderedRowCount: search.renderedSearchResultCount,
+                    groupCount: search.searchFileSummaries.count,
+                    renderedRowCount: search.searchResults.count,
                     status: statusText
                 )
                 let consumedURLSchemeIntent = resolveURLSchemeDirectPlayIntent(
@@ -890,8 +819,8 @@ extension AppCoordinator {
                         searchPerformanceRun,
                         "search_state_reset_after_error",
                         phaseStart: resetStart,
-                        groupCount: search.searchResultGroups.count,
-                        renderedRowCount: search.renderedSearchResultCount
+                        groupCount: search.searchFileSummaries.count,
+                        renderedRowCount: search.searchResults.count
                     )
                 }
                 search.hasMoreSearchResults = false
@@ -907,8 +836,8 @@ extension AppCoordinator {
                     searchPerformanceRun,
                     event: "search_failed",
                     page: nil,
-                    groupCount: search.searchResultGroups.count,
-                    renderedRowCount: search.renderedSearchResultCount,
+                    groupCount: search.searchFileSummaries.count,
+                    renderedRowCount: search.searchResults.count,
                     status: "failed",
                     error: message
                 )
@@ -968,7 +897,6 @@ extension AppCoordinator {
         refreshSearchPlaybackPlaylistSource(
             resultListGeneration: resultListGeneration
         )
-        rebuildSearchResultGroups()
 
         SearchPerformanceLogger.mark(
             searchPerformanceRun,
@@ -976,16 +904,16 @@ extension AppCoordinator {
             resultCount: search.searchResults.count,
             totalCount: search.searchResultTotalCount,
             fileSummaryCount: search.searchFileSummaries.count,
-            groupCount: search.searchResultGroups.count,
-            renderedRowCount: search.renderedSearchResultCount,
+            groupCount: search.searchFileSummaries.count,
+            renderedRowCount: search.searchResults.count,
             status: "searching"
         )
         SearchPerformanceLogger.writeE2ECountProgress(
             searchPerformanceRun,
             progress: progress,
             resultCount: search.searchResults.count,
-            groupCount: search.searchResultGroups.count,
-            renderedRowCount: search.renderedSearchResultCount
+            groupCount: search.searchFileSummaries.count,
+            renderedRowCount: search.searchResults.count
         )
     }
 
@@ -1102,10 +1030,6 @@ extension AppCoordinator {
                 )
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
 
-                let rebuildStart = SearchPerformanceLogger.now()
-                rebuildSearchResultGroups()
-                let groupRebuildMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: rebuildStart)
-
                 let completionStart = SearchPerformanceLogger.now()
                 search.searchStatus = .completed
                 searchExactCompletionTask = nil
@@ -1117,8 +1041,8 @@ extension AppCoordinator {
                     resultCount: search.searchResults.count,
                     totalCount: search.searchResultTotalCount,
                     fileSummaryCount: search.searchFileSummaries.count,
-                    groupCount: search.searchResultGroups.count,
-                    renderedRowCount: search.renderedSearchResultCount,
+                    groupCount: search.searchFileSummaries.count,
+                    renderedRowCount: search.searchResults.count,
                     status: "completed"
                 )
                 SearchPerformanceLogger.writeE2ESearchPage(
@@ -1127,10 +1051,9 @@ extension AppCoordinator {
                     page: page,
                     databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
                     stateAssignMilliseconds: stateAssignMilliseconds,
-                    groupRebuildMilliseconds: groupRebuildMilliseconds,
                     statusCompletionMilliseconds: statusCompletionMilliseconds,
-                    groupCount: search.searchResultGroups.count,
-                    renderedRowCount: search.renderedSearchResultCount,
+                    groupCount: search.searchFileSummaries.count,
+                    renderedRowCount: search.searchResults.count,
                     status: "completed"
                 )
             } catch is CancellationError {
@@ -1178,57 +1101,13 @@ extension AppCoordinator {
                     searchPerformanceRun,
                     event: "search_exact_completion_failed",
                     page: nil,
-                    groupCount: search.searchResultGroups.count,
-                    renderedRowCount: search.renderedSearchResultCount,
+                    groupCount: search.searchFileSummaries.count,
+                    renderedRowCount: search.searchResults.count,
                     status: "failed",
                     error: message
                 )
             }
         }
-    }
-
-    func markSearchResultVisible(_ result: SubtitleSearchResult) {
-        guard let activeSearchPerformanceRun,
-              pendingSearchVisibleEntryIDs.contains(result.entryID)
-        else {
-            return
-        }
-
-        pendingSearchVisibleEntryIDs = []
-        SearchPerformanceLogger.mark(
-            activeSearchPerformanceRun,
-            "first_result_row_appeared",
-            resultCount: search.searchResults.count,
-            totalCount: search.searchResultTotalCount,
-            fileSummaryCount: search.searchFileSummaries.count,
-            groupCount: search.searchResultGroups.count,
-            renderedRowCount: search.renderedSearchResultCount,
-            entryID: result.entryID
-        )
-        SearchPerformanceLogger.writeE2EFirstVisible(
-            activeSearchPerformanceRun,
-            result: result,
-            resultCount: search.searchResults.count,
-            countState: search.searchCountState,
-            knownResultCount: search.searchKnownResultCount,
-            knownFileCount: search.searchKnownFileCount,
-            totalCount: search.searchResultTotalCount,
-            fileSummaryCount: search.searchFileSummaries.count,
-            groupCount: search.searchResultGroups.count,
-            renderedRowCount: search.renderedSearchResultCount
-        )
-        clearSearchPerformanceRunIfActive(activeSearchPerformanceRun)
-    }
-
-    func prepareSearchPerformanceVisibility(
-        for run: SearchPerformanceRun?,
-        resultsAwaitingFirstAppearance results: [SubtitleSearchResult]
-    ) {
-        guard let run, activeSearchPerformanceRun?.id == run.id else {
-            return
-        }
-
-        pendingSearchVisibleEntryIDs = Set(results.map(\.entryID))
     }
 
     func clearSearchPerformanceRunIfActive(_ run: SearchPerformanceRun?) {
@@ -1237,7 +1116,6 @@ extension AppCoordinator {
         }
 
         activeSearchPerformanceRun = nil
-        pendingSearchVisibleEntryIDs = []
     }
 
     func refreshSearchNavigationSnapshot() {
@@ -1271,14 +1149,12 @@ extension AppCoordinator {
             let releasedRows = max(
                 search.searchResults.count,
                 search.searchResultCueIDs.count,
-                search.searchResultTotalCount,
-                search.renderedSearchResultCount
+                search.searchResultTotalCount
             )
             search.searchResults = []
             search.searchResultCueIDs = []
             search.searchResultTotalCount = 0
             search.searchFileSummaries = []
-            search.expandedSearchResultGroupRowsByPath = [:]
             search.searchCountState = .exact
             search.searchKnownResultCount = 0
             search.searchKnownFileCount = 0
@@ -1286,7 +1162,6 @@ extension AppCoordinator {
             loadedGlobalSearchResultCount = 0
             lastSearchCountProgressUpdate = 0
             nextGlobalSearchCursor = nil
-            rebuildSearchResultGroups()
             AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
         }
 
@@ -1589,219 +1464,7 @@ extension AppCoordinator {
         )
     }
 
-    func revealInitialSearchResultGroupPage(for subtitlePath: String) {
-        let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
-        if !currentRows.isEmpty {
-            search.expandedSearchResultGroupRowsByPath[subtitlePath] = Array(currentRows.prefix(Self.searchPageSize))
-            rebuildSearchResultGroups()
-        }
-
-        loadSearchResultGroupPage(for: subtitlePath, offset: 0)
-    }
-
-    func loadMoreSearchResultGroupRowsIfNeeded(currentResult result: SubtitleSearchResult) {
-        let subtitlePath = result.subtitlePath
-        guard searchResultGroupTasks[subtitlePath] == nil else {
-            return
-        }
-
-        let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
-        guard let index = currentRows.firstIndex(where: { $0.entryID == result.entryID }),
-              index >= currentRows.count - Self.searchPrefetchThreshold
-        else {
-            return
-        }
-
-        guard let totalCount = search.searchFileSummaries.first(where: { $0.subtitlePath == subtitlePath })?.matchCount,
-              currentRows.count < totalCount
-        else {
-            return
-        }
-
-        loadSearchResultGroupPage(for: subtitlePath, offset: currentRows.count)
-    }
-
-    func loadSearchResultGroupPage(for subtitlePath: String, offset: Int) {
-        guard searchResultGroupTasks[subtitlePath] == nil else {
-            return
-        }
-
-        let currentRows = loadedRowsForSearchResultGroup(subtitlePath)
-        let rowsBefore = currentRows.count
-        let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty, !indexing.selectedFolders.isEmpty else {
-            return
-        }
-
-        let folders = indexing.selectedFolders
-        guard let database = searchDatabase else {
-            return
-        }
-        let pageSize = Self.searchPageSize
-        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
-        let watchStateFilter = settings.searchScope.searchWatchStateFilter
-        let filterSet = search.resultFilterSet
-        let filterSignature = filterSet.cacheSignature
-        let subtitleDisplayTitle = search.searchFileSummaries
-            .first(where: { $0.subtitlePath == subtitlePath })?
-            .subtitleDisplayTitle
-            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: subtitlePath)
-        let totalCount = search.searchFileSummaries
-            .first(where: { $0.subtitlePath == subtitlePath })?
-            .matchCount
-        let loadMoreRun = SearchPerformanceLogger.startRun(
-            query: trimmedQuery,
-            queryLength: trimmedQuery.count,
-            offset: offset,
-            limit: pageSize,
-            appending: true,
-            debounce: false,
-            folderPaths: folders.map(\.path),
-            e2eLoggingEnabled: settings.searchE2ELoggingEnabled
-        )
-        searchResultGroupTasks[subtitlePath] = Task { [weak self] in
-            do {
-                let pageLoad = try await Task.detached(priority: .userInitiated) {
-                    let databaseSearchStart = SearchPerformanceLogger.now()
-                    let results = try database.search(
-                        trimmedQuery,
-                        limit: pageSize,
-                        offset: offset,
-                        under: folders,
-                        inSubtitlePath: subtitlePath,
-                        languageFilter: languageFilter,
-                        watchStateFilter: watchStateFilter,
-                        filterSet: filterSet
-                    )
-                    let databaseSearchMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(
-                        since: databaseSearchStart
-                    )
-                    return (results, databaseSearchMilliseconds)
-                }.value
-                let results = pageLoad.0
-                let databaseSearchMilliseconds = pageLoad.1
-
-                guard !Task.isCancelled else {
-                    SearchPerformanceLogger.writeE2EFileLoadMore(
-                        loadMoreRun,
-                        subtitlePath: subtitlePath,
-                        subtitleDisplayTitle: subtitleDisplayTitle,
-                        rowsBefore: rowsBefore,
-                        rowsAfter: nil,
-                        returned: nil,
-                        totalCount: totalCount,
-                        databaseSearchMilliseconds: databaseSearchMilliseconds,
-                        status: "cancelled"
-                    )
-                    return
-                }
-
-                guard let self,
-                      self.search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
-                      self.settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
-                      self.settings.searchScope.searchWatchStateFilter == watchStateFilter,
-                      self.search.resultFilterSetSignature == filterSignature,
-                      self.search.searchFileSummaries.contains(where: { $0.subtitlePath == subtitlePath })
-                else {
-                    SearchPerformanceLogger.writeE2EFileLoadMore(
-                        loadMoreRun,
-                        subtitlePath: subtitlePath,
-                        subtitleDisplayTitle: subtitleDisplayTitle,
-                        rowsBefore: rowsBefore,
-                        rowsAfter: nil,
-                        returned: results.count,
-                        totalCount: totalCount,
-                        databaseSearchMilliseconds: databaseSearchMilliseconds,
-                        status: "cancelled"
-                    )
-                    return
-                }
-
-                let mergedResults: [SubtitleSearchResult]
-                if offset == 0 {
-                    mergedResults = results
-                } else {
-                    let existingEntryIDs = Set(currentRows.map(\.entryID))
-                    mergedResults = (currentRows + results.filter { !existingEntryIDs.contains($0.entryID) })
-                        .sorted(by: Self.searchResultSort)
-                }
-                self.search.expandedSearchResultGroupRowsByPath[subtitlePath] = mergedResults
-                self.searchResultGroupTasks.removeValue(forKey: subtitlePath)
-                self.rebuildSearchResultGroups()
-                SearchPerformanceLogger.writeE2EFileLoadMore(
-                    loadMoreRun,
-                    subtitlePath: subtitlePath,
-                    subtitleDisplayTitle: subtitleDisplayTitle,
-                    rowsBefore: rowsBefore,
-                    rowsAfter: mergedResults.count,
-                    returned: results.count,
-                    totalCount: totalCount,
-                    databaseSearchMilliseconds: databaseSearchMilliseconds,
-                    groupCount: self.search.searchResultGroups.count,
-                    renderedRowCount: self.search.renderedSearchResultCount,
-                    status: "completed"
-                )
-            } catch is CancellationError {
-                SearchPerformanceLogger.writeE2EFileLoadMore(
-                    loadMoreRun,
-                    subtitlePath: subtitlePath,
-                    subtitleDisplayTitle: subtitleDisplayTitle,
-                    rowsBefore: rowsBefore,
-                    rowsAfter: nil,
-                    returned: nil,
-                    totalCount: totalCount,
-                    status: "cancelled"
-                )
-                return
-            } catch {
-                guard !Task.isCancelled else {
-                    SearchPerformanceLogger.writeE2EFileLoadMore(
-                        loadMoreRun,
-                        subtitlePath: subtitlePath,
-                        subtitleDisplayTitle: subtitleDisplayTitle,
-                        rowsBefore: rowsBefore,
-                        rowsAfter: nil,
-                        returned: nil,
-                        totalCount: totalCount,
-                        status: "cancelled"
-                    )
-                    return
-                }
-
-                self?.searchResultGroupTasks.removeValue(forKey: subtitlePath)
-                self?.search.searchStatus = .failed(Self.errorMessage(for: error))
-                SearchPerformanceLogger.writeE2EFileLoadMore(
-                    loadMoreRun,
-                    subtitlePath: subtitlePath,
-                    subtitleDisplayTitle: subtitleDisplayTitle,
-                    rowsBefore: rowsBefore,
-                    rowsAfter: nil,
-                    returned: nil,
-                    totalCount: totalCount,
-                    status: "failed",
-                    error: Self.errorMessage(for: error)
-                )
-            }
-        }
-    }
-
-    func loadedRowsForSearchResultGroup(_ subtitlePath: String) -> [SubtitleSearchResult] {
-        let rows = search.expandedSearchResultGroupRowsByPath[subtitlePath]
-            ?? search.searchResults.filter { $0.subtitlePath == subtitlePath }
-        return rows.sorted(by: Self.searchResultSort)
-    }
-
-    func searchResultGroupHasLoadedRows(_ subtitlePath: String) -> Bool {
-        if search.expandedSearchResultGroupRowsByPath[subtitlePath]?.isEmpty == false {
-            return true
-        }
-
-        return search.searchResults.contains { $0.subtitlePath == subtitlePath }
-    }
-
     func revealInitialGlobalSearchResultPage() {
-        cancelSearchResultGroupTasks()
-        search.expandedSearchResultGroupRowsByPath = [:]
         search.searchResults = Array(search.searchResults.prefix(Self.searchPageSize))
         loadedGlobalSearchResultCount = search.searchResults.count
         search.searchKnownResultCount = search.searchResultTotalCount
@@ -1810,7 +1473,6 @@ extension AppCoordinator {
         nextGlobalSearchCursor = search.hasMoreSearchResults
             ? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
             : nil
-        rebuildSearchResultGroups()
     }
 
     func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
@@ -1820,15 +1482,13 @@ extension AppCoordinator {
     }
 
     func resetSearchResultLoadingState() {
-        cancelSearchResultGroupTasks()
         searchExactCompletionTask?.cancel()
         searchExactCompletionTask = nil
         searchNavigationTask?.cancel()
         let releasedRows = max(
             search.searchResults.count,
             search.searchResultCueIDs.count,
-            search.searchResultTotalCount,
-            search.renderedSearchResultCount
+            search.searchResultTotalCount
         )
         search.searchResults = []
         search.searchResultCueIDs = []
@@ -1839,36 +1499,9 @@ extension AppCoordinator {
         search.searchKnownFileCount = 0
         search.hasMoreSearchResults = false
         lastSearchCountProgressUpdate = 0
-        search.searchResultPresentationState = .initial
-        search.collapsedSearchResultGroupPaths = []
-        search.expandedSearchResultGroupRowsByPath = [:]
         loadedGlobalSearchResultCount = 0
         nextGlobalSearchCursor = nil
         search.searchNavigationSnapshot = nil
-        rebuildSearchResultGroups()
         AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
-    }
-
-    func rebuildSearchResultGroups() {
-        search.searchResultGroups = Self.makeSearchResultGroups(
-            results: search.searchResults,
-            fileSummaries: search.searchFileSummaries,
-            expandedRowsByPath: search.expandedSearchResultGroupRowsByPath,
-            collapsedGroupPaths: search.collapsedSearchResultGroupPaths,
-            includesSummaryOnlyGroups: search.searchResultPresentationState == .collapsed
-        )
-        search.renderedSearchResultCount = search.searchResultGroups.reduce(0) { count, group in
-            group.isCollapsed ? count : count + group.results.count
-        }
-        UIInvalidationProbe.count(
-            "UI.SearchPresentation.rebuilt",
-            scope: uiProbeScope,
-            details: "groups=\(search.searchResultGroups.count) rows=\(search.renderedSearchResultCount)"
-        )
-    }
-
-    func cancelSearchResultGroupTasks() {
-        searchResultGroupTasks.values.forEach { $0.cancel() }
-        searchResultGroupTasks = [:]
     }
 }
