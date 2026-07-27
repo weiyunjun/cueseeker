@@ -8,11 +8,12 @@
 ## Scope
 
 - Classify the change as macOS platform UI and UX work.
-- Implement Steps 1 through 4 of the requirement: increase the horizontal
+- Implement Steps 1 through 5 of the requirement: increase the horizontal
   breathing room, remove the Search and Shiori table outer frame, and replace
-  persisted reusable Filter Sets with session-only filters and a count badge.
-- Preserve column layout, filtering execution, selection behavior, and table
-  interaction outside the requested filter-control changes.
+  persisted reusable Filter Sets with session-only filters and a count badge,
+  then refine the result-table column order and text hierarchy.
+- Preserve filtering execution, selection behavior, column width formulas, and
+  table interaction outside the requested changes.
 
 ## Steps
 
@@ -60,6 +61,16 @@
 18. Removed the remaining legacy rule initializer from the Filter trigger so
     opening an empty Filter editor keeps zero rules; the first rule is created
     only through `New Filter`.
+19. Swapped the Search and Shiori `Cues` and `Display Title` schema positions
+    while retaining each column's existing weight and minimum-width formula.
+20. Kept Primary Cue on `--color-text-secondary` and moved Display Title, Time
+    Range, Date Added, Extra Cues, and table Tag text to
+    `--color-text-muted`.
+21. Changed enabled table-header text to `--color-text-secondary` in both the
+    rendered SwiftUI headers and their attributed text-selection representation.
+22. Preserved the shared table's legacy fallback column order because Search
+    and Shiori already pass their explicit schema order; this avoids changing
+    unrelated callers.
 
 ## Verification
 
@@ -91,6 +102,12 @@
   timing or database-I/O failures unrelated to the spacing constant.
 - The 10 failed tests all passed when rerun together with `--no-parallel`,
   confirming that the parallel-run failures were resource-contention flakes.
+- `swift build` passed after the Step 5 column and text hierarchy changes.
+- Twenty-one focused schema, column-layout, typography, header, and Tag tests
+  passed with `--no-parallel`.
+- The initial broader SubtitleTable run exposed an out-of-scope fallback-order
+  change; after preserving that fallback, the final rerun passed all 167
+  SubtitleTable tests with `--no-parallel`.
 - No AI visual acceptance was performed; visual review is reserved for the
   human owner.
 
@@ -103,10 +120,12 @@
 - Step 1 received human visual acceptance.
 - Step 2 received human visual acceptance.
 - Step 3 received human visual acceptance.
-- Step 4 automated verification passed; human visual acceptance remains
+- Step 4 received human visual acceptance when the human owner advanced to the
+  next step.
+- Step 5 automated verification passed; human visual acceptance remains
   pending.
 
 ## Follow-ups
 
-- Continue to Step 5 only after Step 4 is explicitly accepted.
+- Continue to Step 6 only after Step 5 is explicitly accepted.
 - Update the human-owned requirement and UI design only through the human-owner workflow after the iterative UI work is complete.

@@ -106,9 +106,9 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
 
     #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(try attributedForeground(hoveredPrimary) === WorkbenchRedesignColors.NS.textPrimary)
-    #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textSecondary)
-    #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textSecondary)
-    #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textPrimary)
+    #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textMuted)
+    #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textMuted)
+    #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textSecondary)
 }
 
 private func attributedFont(_ attributed: NSAttributedString) throws -> NSFont {

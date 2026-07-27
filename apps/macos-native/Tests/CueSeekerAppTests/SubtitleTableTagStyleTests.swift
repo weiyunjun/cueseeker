@@ -11,12 +11,14 @@ func subtitleTableTagStyleUsesRedesignChipPaddingAndFitContentHeight() {
         isRedesign: true
     )
     let textSize = attributed.size()
+    let foreground = attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
 
     #expect(style.horizontalInset == 10)
     #expect(style.verticalInset == 4)
     #expect(style.cornerRadius == 6)
     #expect(style.width(for: textSize) == ceil(textSize.width) + 20)
     #expect(style.height(for: textSize) == ceil(textSize.height) + 8)
+    #expect(foreground === WorkbenchRedesignColors.NS.textMuted)
 }
 
 @MainActor

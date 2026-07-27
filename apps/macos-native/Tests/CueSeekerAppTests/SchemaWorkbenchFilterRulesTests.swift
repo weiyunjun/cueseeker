@@ -13,8 +13,8 @@ func schemaWorkbenchColumnVisibilityMenuLocksCuesAndSkipsCheckboxColumn() {
         visibleColumnIDs: ["display", "time"]
     )
 
-    #expect(items.map(\.id) == ["display", "cues", "time"])
-    #expect(items.map(\.title) == ["Display Title", "Cues", "Time Range"])
+    #expect(items.map(\.id) == ["cues", "display", "time"])
+    #expect(items.map(\.title) == ["Cues", "Display Title", "Time Range"])
 
     let cues = items.first { $0.id == "cues" }
     #expect(cues?.isSelected == true)
@@ -32,8 +32,8 @@ func schemaWorkbenchColumnVisibilityMenuUsesShioriColumnOrder() {
         visibleColumnIDs: SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
     )
 
-    #expect(items.map(\.id) == ["display", "cues", "tags", "time", "dateAdded"])
-    #expect(items.map(\.title) == ["Display Title", "Cues", "Tags", "Time Range", "Date Added"])
+    #expect(items.map(\.id) == ["cues", "display", "tags", "time", "dateAdded"])
+    #expect(items.map(\.title) == ["Cues", "Display Title", "Tags", "Time Range", "Date Added"])
 }
 
 @Test

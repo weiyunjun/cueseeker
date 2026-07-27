@@ -529,7 +529,7 @@ enum SubtitleTableText {
     static func header(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
             .font: isRedesign ? redesignHeaderFont : headerFont,
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textPrimary : NSColor.labelColor,
+            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textSecondary : NSColor.labelColor,
         ])
     }
 
@@ -564,8 +564,10 @@ enum SubtitleTableText {
     private static func bodyColor(role: SubtitleTableTextRole, isRedesign: Bool) -> NSColor {
         guard isRedesign else { return NSColor.labelColor }
         switch role {
-        case .primaryContent, .secondaryContext, .metadata:
+        case .primaryContent:
             return WorkbenchRedesignColors.NS.textSecondary
+        case .secondaryContext, .metadata:
+            return WorkbenchRedesignColors.NS.textMuted
         }
     }
 
@@ -574,7 +576,7 @@ enum SubtitleTableText {
         if isRedesign, !isEnabled {
             foregroundColor = WorkbenchRedesignColors.NS.textDisabled
         } else {
-            foregroundColor = isRedesign ? tag.colorID.redesignForegroundColor() : tag.colorID.appKitForegroundColor
+            foregroundColor = isRedesign ? WorkbenchRedesignColors.NS.textMuted : tag.colorID.appKitForegroundColor
         }
         return NSAttributedString(string: tag.label, attributes: [
             .font: tagFont,
@@ -7593,7 +7595,7 @@ struct SubtitleTableHeaderCellView: View {
         HStack(spacing: 0) {
             Text(title)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled)
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
@@ -7602,7 +7604,7 @@ struct SubtitleTableHeaderCellView: View {
 
     private var textColor: Color {
         guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
-        return WorkbenchRedesignColors.textPrimary
+        return WorkbenchRedesignColors.textSecondary
     }
 
     private var iconColor: Color {

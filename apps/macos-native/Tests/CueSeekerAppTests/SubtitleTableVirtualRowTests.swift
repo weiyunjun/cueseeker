@@ -128,7 +128,7 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
-        columnOrder: ["display", "cues", "tags", "time", "dateAdded"],
+        columnOrder: ["cues", "display", "tags", "time", "dateAdded"],
         showsDateAddedColumn: true,
         showsTimeColumn: true,
         showsLanguageColumn: false,
@@ -138,13 +138,13 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
     )
     coordinator.isRedesign = true
 
-    #expect(coordinator.cellFullText(row: -1, column: 1) == "Display Title")
-    #expect(coordinator.cellFullText(row: -1, column: 2) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
+    #expect(coordinator.cellFullText(row: -1, column: 2) == "Display Title")
     #expect(coordinator.cellFullText(row: -1, column: 3) == "Tags")
     #expect(coordinator.cellFullText(row: -1, column: 4) == "Time Range")
     #expect(coordinator.cellFullText(row: -1, column: 5) == "Date Added")
-    #expect(coordinator.cellFullText(row: 0, column: 1) == "Episode 01")
-    #expect(coordinator.cellFullText(row: 0, column: 2) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 1) == "loaded cue")
+    #expect(coordinator.cellFullText(row: 0, column: 2) == "Episode 01")
     #expect(coordinator.cellFullText(row: 0, column: 3) == "Review, Grammar")
     #expect(coordinator.cellFullText(row: 0, column: 4) == "15:18 - 15:20")
     #expect(coordinator.cellFullText(row: 0, column: 5) == "26-07-02 14:30")
@@ -191,16 +191,16 @@ func subtitleTableColumnLayoutRedistributesWidthAfterMinimumConstraints() {
         showsTimeColumn: true,
         showsLanguageColumn: false,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "time"]
+        columnOrder: ["cues", "display", "time"]
     )
 
     #expect(layout.indexRect.width == 50)
     #expect(layout.nameRect.width == 182)
     #expect(layout.cuesRect.width == 364)
     #expect(layout.timeRect?.width == 140)
-    #expect(layout.nameRect.minX == layout.indexRect.maxX)
-    #expect(layout.cuesRect.minX == layout.nameRect.maxX)
-    #expect(layout.timeRect?.minX == layout.cuesRect.maxX)
+    #expect(layout.cuesRect.minX == layout.indexRect.maxX)
+    #expect(layout.nameRect.minX == layout.cuesRect.maxX)
+    #expect(layout.timeRect?.minX == layout.nameRect.maxX)
     #expect(layout.contentWidth == 736)
 }
 
