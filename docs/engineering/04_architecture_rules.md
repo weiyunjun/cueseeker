@@ -4,17 +4,23 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines architecture rules for the native macOS rewrite of CueSeeker.
+This document defines architecture rules for the native macOS implementation of CueSeeker.
 
-It is an engineering rule document, not a product requirements document. Product behavior belongs in `docs/product/`.
+It is an engineering rule document, not a product requirements document.
+Stable product behavior belongs primarily in `docs/human/design/`; derived
+product documents must remain aligned with it.
 
 ## 2. Architecture Principles
 
-The native rewrite must prioritize a small, reliable local workflow before broader features.
+The core native product workflow is implemented. The current architecture
+priority is to improve incomplete details and remove architecture problems that
+materially slow safe iteration.
 
 Core principles:
 
-- Keep the M1 implementation focused on the local subtitle search and playback loop.
+- Preserve accepted product behavior while architecture boundaries are refined.
+- Prefer small architecture steps that remove a demonstrated ownership,
+  dependency, lifecycle, performance, or verification bottleneck.
 - Prefer native macOS capabilities when they satisfy the product requirement.
 - Keep persistent data local unless a future proposal explicitly changes that rule.
 - Make hard-to-reverse technical decisions through ADRs before production implementation depends on them.
@@ -35,9 +41,10 @@ Rules:
 - CueSeeker should move shared product-domain behavior into a shared core where
   doing so prevents macOS and Windows from reimplementing the same rules.
 - Rust is the preferred shared-core implementation language.
-- Rust shared-core implementation work is paused while the native macOS product
-  is still being polished. During this pause, macOS code must still be written
-  along the future shared-core boundary so later extraction remains practical.
+- Rust shared-core implementation work remains paused during the current native
+  macOS architecture-refinement phase. This architecture work does not restart
+  Rust migration. During the pause, macOS code must still be written along the
+  future shared-core boundary so later extraction remains practical.
 - The first shared-core migration phase is limited to database, folder
   indexing, subtitle parsing, subtitle-to-video matching, Search, Library,
   Shiori, and playback intent resolution.
@@ -90,7 +97,26 @@ Rules:
   product-domain layer and keep presentation, OS integration, and playback
   execution in platform layers.
 
-## 2.3 Minimum Sufficient Design
+## 2.3 Architecture Refinement
+
+Architecture refinement is current product-development work, not a license for
+broad speculative rewrites.
+
+Rules:
+
+- Start from a concrete development bottleneck, unclear ownership boundary,
+  recurrent regression, or verification problem.
+- Preserve accepted behavior unless the current committed requirement
+  explicitly changes it.
+- Split work into the smallest independently verifiable steps and use test,
+  measurement, or focused manual evidence to decide the next step.
+- Let repeated implementation and verification refine uncertain details. Do
+  not require exhaustive up-front documentation for commonplace implementation
+  choices that introduce no CueSeeker-specific behavior or constraint.
+- Do not add abstractions solely for hypothetical flexibility or to prepare
+  inactive Rust implementation work.
+
+## 2.4 Minimum Sufficient Design
 
 Rules:
 
@@ -693,10 +719,12 @@ Replacement and simplicity rules:
 ### 7.1 Info-page / video-page refactor (v6)
 
 This subsection reconciles §7 with the info-page / video-page refactor. The
-authoritative behavior is `docs/product/12_liquid_glass_ux_mapping.md`
-(§5, §10.1, §10.4, §11), `docs/proposals/2026-05-ui-info-page-video-page-refactor.md`,
-and ADR-0013. The §7 invalidation-domain and product-semantics rules above are
-preserved; the following points clarify how they apply.
+human-owned behavior authority is `docs/human/design/UI.md`. The derived
+implementation mapping is `docs/product/12_liquid_glass_ux_mapping.md`
+(§5, §10.1, §10.4, §11), supported by
+`docs/proposals/2026-05-ui-info-page-video-page-refactor.md` and ADR-0013. The
+§7 invalidation-domain and product-semantics rules above are preserved; the
+following points clarify how they apply.
 
 - The video page is a dedicated full-window presentation layered above a still
   alive info-page workbench (Library / Search / Shiori). It is not a route swap

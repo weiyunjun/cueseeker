@@ -14,8 +14,13 @@ Project documentation must make decisions explicit before they become implementa
 
 Principles:
 
-- Documentation comes before major implementation.
-- Stable product behavior belongs in product documents.
+- Documentation comes before major implementation when project-specific
+  meaning, workflow, constraints, or ambiguity must be settled.
+- Stable product meaning and accepted workflows belong primarily in
+  human-owned design documents.
+- Every new change request requires a human-owned requirement document; when
+  stable design already exists, the requirement should reference it and record
+  only the requested delta.
 - Stable engineering behavior belongs in engineering documents.
 - Exploratory ideas belong in proposals.
 - Hard-to-reverse decisions belong in ADRs.
@@ -68,9 +73,11 @@ docs/
 
 Rules:
 
-- `docs/product/` records stable product facts.
-- `docs/human/` records human-owned requirements, design, planning, product
-  meaning, and stable human decisions.
+- `docs/human/design/` is the primary human-owned source for stable product
+  meaning, accepted workflows, and design decisions.
+- `docs/human/requirements/` records each new change or implementation request.
+- `docs/product/` records AI-maintained product facts derived from and aligned
+  with human-owned documents.
 - `docs/engineering/` records stable engineering rules.
 - `docs/engineering/records/` records AI implementation process notes for
   accepted work outside `docs/human/`.
@@ -80,9 +87,34 @@ Rules:
   Socratic architecture alignment sessions.
 - `docs/changelog.md` records milestone-level progress.
 
+### 4.1 Human-Owned Design and Requirements
+
+Human-owned design documents exist to align requirements, make workflows
+explicit, and remove ambiguity that could cause incompatible implementation.
+
+Rules:
+
+- A new change request must have its own committed requirement document even
+  when the requested behavior is already described in `docs/human/design/`.
+- The requirement should cite the relevant design document or section and
+  focus on the requested delta, execution scope, and acceptance criteria.
+- Design documents should record project-specific outcomes, decisions,
+  constraints, workflows, edge cases, and unresolved ambiguity.
+- Commonplace implementation details with a clear, broadly accepted practice
+  need documentation only when CueSeeker has a specific constraint, deviation,
+  risk, or acceptance condition.
+- Documentation depth should be proportional to decision risk and ambiguity.
+  Do not turn stable design into an implementation tutorial or paper when a
+  shorter statement can guide implementation and review.
+- Iterative implementation and verification are valid ways to discover detail.
+  When they change accepted product meaning or workflow, the human-owned design
+  and current requirement must be updated before dependent work continues.
+
 ## 5. Product Documents
 
-Product documents describe confirmed product behavior and user-facing expectations.
+Product documents are AI-maintained descriptions of confirmed product behavior
+and user-facing expectations. They are derived views, not a stronger authority
+than `docs/human/`.
 
 Product documents should cover:
 
@@ -99,7 +131,9 @@ Rules:
 
 - Product documents must not be used as temporary discussion notes.
 - Product documents must not hide engineering constraints that belong in engineering rules.
-- Stable user-facing behavior must be reflected in product documents before implementation depends on it.
+- Stable user-facing behavior must first be covered by the current requirement
+  and relevant human-owned design. Product documents must remain aligned when
+  they describe the same behavior.
 
 ## 6. Engineering Documents
 
@@ -157,7 +191,8 @@ Rules:
 
 - Each AI-performed change outside `docs/human/` must create or update one
   implementation record.
-- The record must cite the relevant human-owned requirement or design document.
+- The record must cite the current human-owned requirement and any human-owned
+  design document it references.
 - The record should state each meaningful step, what was changed, what was
   checked, and whether the result matched the expected outcome.
 - Implementation records do not replace human-owned requirements, product or
@@ -199,7 +234,10 @@ Decision
 
 Rules:
 
-- Accepted proposal conclusions must be merged into the relevant product or engineering documents.
+- Accepted product conclusions must be reflected in the relevant human-owned
+  design by the human owner and aligned into any derived product documents.
+- Accepted engineering conclusions must be merged into the relevant
+  engineering documents.
 - Rejected or superseded proposals should remain as historical context.
 - Implementation should not depend on proposal text that has not been accepted.
 
@@ -238,7 +276,9 @@ Rules:
 
 - ADRs should state the selected decision and why alternatives were not chosen.
 - ADRs should be updated or superseded when decisions change.
-- ADRs do not replace product or engineering documents; stable conclusions must be reflected in the relevant rules.
+- ADRs do not replace human-owned design, product, or engineering documents;
+  stable conclusions must be reflected in the relevant authority and derived
+  rules.
 
 ## 10. Chronicle
 
@@ -298,11 +338,13 @@ Rules:
 
 ## 12. Change Process
 
-Every change outside `docs/human/` must be covered by a human-owned requirement
-or design document before it is made.
+Every new change outside `docs/human/` must be covered by its own committed
+human-owned requirement before it is made. Stable design documents provide the
+authoritative behavior and workflow context but do not replace the requirement
+for the current change.
 
 Small documentation changes may directly update stable documents when their
-human-owned requirement or design document is already committed.
+current human-owned requirement is already committed.
 
 Examples:
 
@@ -311,7 +353,10 @@ Examples:
 - Formatting cleanup.
 - Acceptance criteria clarification.
 
-Medium and large changes require a proposal or ADR first.
+Medium and large changes require a proposal only when the direction remains
+unsettled, and an ADR only when the decision is expensive or hard to reverse.
+A stable human-owned design should be referenced instead of duplicated in an
+extra proposal.
 
 Examples:
 
@@ -325,11 +370,11 @@ Examples:
 Required flow for significant changes:
 
 ```text
-Create or update the human-owned requirement or design document
-Commit the human-owned requirement or design document
+Create the current human-owned requirement and reference or update design
+Commit the human-owned requirement and any required design update
 Create proposal or ADR when required
 Review the decision
-Merge stable conclusions into product or engineering docs
+Align stable conclusions into human-owned design, product, or engineering docs
 Implement
 Verify
 Update the implementation record

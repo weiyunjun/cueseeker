@@ -4,9 +4,11 @@ Status: Draft
 
 ## 1. Purpose
 
-This document defines database engineering rules for the native macOS rewrite of CueSeeker.
+This document defines database engineering rules for the native macOS implementation of CueSeeker.
 
-Product data facts belong in `docs/product/05_data_model.md`. This document defines how the database is managed, migrated, tested, and changed.
+Stable product data meaning belongs primarily in `docs/human/design/Data.md`.
+`docs/product/05_data_model.md` is the aligned AI-maintained projection. This
+document defines how the database is managed, migrated, tested, and changed.
 
 ## 2. Database Role
 
@@ -106,7 +108,10 @@ Rules:
 - A fresh install must create the complete current schema. Every supported
   future migration path must produce that same final schema.
 - Schema version updates must be committed with migration notes.
-- Schema changes must update `docs/product/05_data_model.md` before implementation depends on them.
+- Schema changes require a current committed human-owned requirement. When they
+  change stable data meaning, the human owner must update
+  `docs/human/design/Data.md`; `docs/product/05_data_model.md` must then be
+  aligned before implementation depends on the change.
 
 Recommended mechanism:
 

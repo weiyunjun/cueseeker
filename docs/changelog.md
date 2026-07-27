@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Aligned the project workflow with its formal native-development stage.
+  Human-owned design documents are now the primary source for stable product
+  meaning and workflows, while every new change still requires a focused
+  requirement that references existing design instead of duplicating it.
+  Documentation depth is now proportional to CueSeeker-specific ambiguity and
+  risk, architecture refinement is the current engineering priority, and Rust
+  shared-core implementation remains paused.
 - Replaced the flat gray fallback for unavailable automatic Library covers with
   the shared `16:9` Library Cover Placeholder background and a centered muted
   `film` symbol. Existing Cue-count badges, playback progress, duration, and

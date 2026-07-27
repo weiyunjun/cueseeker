@@ -14,18 +14,23 @@ CueSeeker should be managed through explicit documents and small, reviewable imp
 
 The project follows these principles:
 
-- Documentation comes before major implementation.
-- Stable product behavior belongs in product documents.
+- Documentation comes before major implementation when a project-specific
+  decision, workflow, or ambiguity must be settled.
+- Human-owned design documents are the primary source for stable product
+  meaning and accepted workflows.
+- New change requests require human-owned requirement documents, which should
+  reference the relevant stable design instead of restating it.
 - Stable engineering rules belong in engineering documents.
 - Exploratory changes start as proposals.
 - Expensive or hard-to-reverse decisions are recorded as ADRs.
 - Git history must preserve meaningful project stages.
 - Legacy code must be archived only after a Git baseline exists.
-- All project documents must be written in English.
+- AI-maintained project documents must be written in English.
 
 ## 3. Documentation Language
 
-All documentation files under `docs/` must be written in English.
+AI-maintained documentation files outside `docs/human/` must be written in
+English.
 
 This applies to:
 
@@ -37,23 +42,49 @@ This applies to:
 - Changelog entries.
 - Release notes.
 
-Chinese may appear only when it is part of a literal UI string, user-facing copy being discussed, an external source title, or a necessary example.
+Human-owned documents under `docs/human/` may use the human owner's chosen
+language and must not be edited by the AI.
+
+Chinese may appear in AI-maintained documentation only when it is part of a
+literal UI string, user-facing copy being discussed, an external source title,
+or a necessary example.
 
 ## 4. Documentation System
 
-Project documentation is divided into six categories:
+Project documentation is organized into human-owned authority and
+AI-maintained project records:
 
 ```text
 docs/
+  human/
+    requirements/
+    design/
   product/
   engineering/
+    records/
   proposals/
   decisions/
   chronicle/
   changelog.md
 ```
 
-### 4.1 Product Documents
+### 4.1 Human-Owned Documents
+
+`docs/human/` is the authoritative human-maintained area.
+
+- `docs/human/design/` records stable product meaning, accepted workflows, and
+  decisions that must remain consistent across future changes.
+- `docs/human/requirements/` records each new change or implementation request.
+  A requirement should cite the relevant design document and describe only the
+  requested delta, scope, and acceptance needs when the design already covers
+  the stable behavior.
+- Design documents should resolve requirements, workflows, and meaningful
+  ambiguity. They do not need tutorial-style explanations of commonplace
+  implementation practices unless a project-specific constraint, deviation,
+  risk, or acceptance condition makes that detail necessary.
+- The AI may review human-owned documents but must not modify them.
+
+### 4.2 Product Documents
 
 `docs/product/` records stable product facts.
 
@@ -74,11 +105,13 @@ docs/product/
   10_ui_collaboration_workflow.md
 ```
 
-Product documents should describe confirmed requirements, current product behavior, user workflows, UI/UX expectations, and acceptance criteria.
+Product documents are AI-maintained projections of confirmed requirements,
+current product behavior, user workflows, UI/UX expectations, and acceptance
+criteria. They must remain aligned with `docs/human/` and do not override it.
 
 Product documents should not be used as temporary discussion notes.
 
-### 4.2 Engineering Documents
+### 4.3 Engineering Documents
 
 `docs/engineering/` records engineering rules, architecture constraints, development workflow, repository conventions, testing rules, database rules, and release rules.
 
@@ -99,11 +132,11 @@ docs/engineering/
 
 This document is the top-level governance document. Detailed rules live in the dedicated files listed above.
 
-### 4.3 Proposals
+### 4.4 Proposals
 
 `docs/proposals/` records feature proposals, redesign proposals, or major change drafts before they become stable project facts.
 
-Use a proposal when a change:
+Use a proposal when the direction is not yet stable and a change:
 
 - Adds a significant feature.
 - Changes a core user flow.
@@ -131,9 +164,13 @@ Acceptance criteria
 Decision
 ```
 
-After a proposal is accepted, stable conclusions must be merged into the relevant product or engineering documents. The proposal remains as historical context.
+After a proposal is accepted, stable product conclusions must be reflected in
+the relevant human-owned design by the human owner and then aligned into any
+derived product documents. Stable engineering conclusions must be merged into
+the relevant engineering documents. The proposal remains as historical
+context.
 
-### 4.4 Architecture Decision Records
+### 4.5 Architecture Decision Records
 
 `docs/decisions/` records major product or technical decisions that are expensive to reverse.
 
@@ -162,7 +199,7 @@ Alternatives considered
 Status
 ```
 
-### 4.5 Chronicle
+### 4.6 Chronicle
 
 `docs/chronicle/` records reasoning provenance for explicitly started
 Socratic architecture alignment sessions.
@@ -180,7 +217,7 @@ Chronicle entries should not replace:
 - `docs/decisions/`, which records accepted hard-to-reverse decisions.
 - Git commits, which record concrete file changes.
 
-### 4.6 Changelog
+### 4.7 Changelog
 
 `docs/changelog.md` records milestone-level changes and user-visible project progress.
 
@@ -206,7 +243,10 @@ Examples:
 
 ### 5.2 Medium and Large Changes
 
-Medium and large changes require a proposal before implementation.
+Medium and large changes require a committed human-owned requirement. Use a
+proposal when the direction is not yet stable, and use an ADR when the decision
+is expensive or hard to reverse. Do not duplicate a stable human-owned design
+in a proposal solely because the implementation is large.
 
 Examples:
 
@@ -220,10 +260,11 @@ Examples:
 Required flow:
 
 ```text
-Create proposal
-Review proposal
-Confirm decision
-Merge stable conclusions into product or engineering docs
+Create and commit the human-owned requirement
+Reference or update the relevant human-owned design
+Create a proposal or ADR only when required
+Review any open decision
+Align stable conclusions into human-owned design, product, or engineering docs
 Implement
 Verify
 Evaluate changelog trigger and update when required
@@ -392,7 +433,10 @@ Archived code is not active implementation code.
 
 ### 8.3 Documentation as Source of Truth
 
-Confirmed product and engineering documents are the source of truth for implementation.
+Human-owned design documents are the primary source for confirmed product
+meaning and workflows. Engineering documents are the source of truth for
+engineering constraints, and AI-maintained product documents are derived
+alignment records.
 
 If implementation needs to diverge from documented behavior, update the relevant document first or create a proposal or ADR.
 
@@ -406,7 +450,13 @@ Detailed rules should live at:
 docs/engineering/05_database_rules.md
 ```
 
-Data model facts should live at:
+Stable data meaning should live primarily at:
+
+```text
+docs/human/design/Data.md
+```
+
+The aligned AI-maintained data model lives at:
 
 ```text
 docs/product/05_data_model.md
@@ -423,7 +473,9 @@ Database rules must define:
 - Rules for indexes and FTS tables.
 - Rules for test fixtures and sample data.
 
-Any schema change must update the data model document first.
+Any schema change requires a current committed human-owned requirement. When
+stable data meaning changes, the human owner must update
+`docs/human/design/Data.md`, followed by alignment of the derived data model.
 
 Any destructive or hard-to-reverse schema change requires an ADR.
 
@@ -431,7 +483,9 @@ Database changes must include migration notes. Schema changes should not be hidd
 
 ## 10. Playback Selection Rules
 
-Playback is a high-risk module and must be documented separately in:
+Playback is a high-risk module. Stable product behavior must be covered by the
+current requirement and relevant human-owned design. Its aligned
+AI-maintained requirements are documented separately in:
 
 ```text
 docs/product/06_playback_requirements.md
@@ -600,7 +654,9 @@ Signed or notarized builds require a release checklist update before release.
 
 ## 15. Rewrite Milestones
 
-Milestones are planning checkpoints. Detailed product behavior must be defined in `docs/product/` before implementation.
+Milestones are historical planning checkpoints. Current detailed product
+behavior is governed primarily by `docs/human/design/`; AI-maintained product
+documents must remain aligned with it.
 
 ### M0: Governance and Baseline
 
@@ -663,7 +719,11 @@ Goal:
 
 Data structure is high-stability project material.
 
-The following changes must update `docs/product/05_data_model.md` first and may require an ADR:
+The following changes must be covered by a committed human-owned requirement.
+When stable data meaning changes, the human owner must update
+`docs/human/design/Data.md`; the derived `docs/product/05_data_model.md` must be
+aligned before implementation depends on it. Hard-to-reverse changes may also
+require an ADR:
 
 - Table structure changes.
 - Field meaning changes.
@@ -702,14 +762,12 @@ Each major difficult-to-reverse decision must create or update an ADR.
 
 Current priority:
 
-1. Keep product and engineering documents aligned.
-2. Finalize the formal engineering document structure.
-3. Record any hard-to-reverse architecture decisions as ADRs.
-4. Start the native macOS M1 minimal loop only after the required engineering rules are in place.
-
-Do not prioritize the following before M1 is complete:
-
-- Advanced glass or real-time video visual effects.
-- Anki or vocabulary book integration.
-- Cross-platform support.
-- Public release work.
+1. Maintain stable product meaning and accepted workflows primarily in
+   `docs/human/design/`, with each new requirement citing the relevant design.
+2. Refine incomplete product details through small implementation and
+   verification loops, updating human-owned decisions before behavior diverges.
+3. Correct architecture boundaries and development bottlenecks that materially
+   reduce iteration speed, while preserving accepted product behavior.
+4. Keep Rust shared-core implementation paused. Continue native macOS
+   refinement along the future shared-core boundary without adding Rust
+   scaffold, FFI, fixtures, shadow-mode code, or production replacement.

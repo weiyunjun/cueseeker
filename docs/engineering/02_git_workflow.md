@@ -206,15 +206,24 @@ When a technical or product rule is missing, add or update documentation before 
 
 Rules:
 
-- Product behavior changes must update product documents.
+- Every new change must have its own committed requirement under
+  `docs/human/requirements/`. When stable behavior or workflow is already
+  defined, the requirement should cite the relevant document under
+  `docs/human/design/` and describe only the requested delta.
+- Product behavior changes must remain aligned with the relevant human-owned
+  design and any AI-maintained product documents that describe the same
+  behavior.
 - Engineering process or architecture changes must update engineering documents.
 - Expensive or hard-to-reverse decisions require ADRs.
-- Significant proposed changes should start in `docs/proposals/`.
+- Significant changes should start in `docs/proposals/` only when their
+  direction is not yet stable; do not duplicate accepted human-owned design.
 
 ## 10. Implementation Traceability
 
-Every change outside `docs/human/` must be traceable to a human-maintained
-requirement document or stabilized design/planning document.
+Every new change outside `docs/human/` must be traceable to its own committed
+human-maintained requirement document. Stabilized design documents provide the
+authoritative behavior and workflow context but do not replace the requirement
+for the current change.
 
 This is a project rule for human ownership and review, not only an AI assistant
 rule.
@@ -226,20 +235,21 @@ Rules:
   documents, proposals, ADRs, changelog entries, and AI-maintained process
   records.
 - Before a change outside `docs/human/` is implemented or accepted, the
-  responsible human owner must make sure the change is reflected in either a
-  requirement document under `docs/human/requirements/` or a design/planning
-  document under `docs/human/design/`.
-- The covering human-owned document must be committed before the AI modifies
-  files outside `docs/human/`. An uncommitted human-owned document may be
-  reviewed or discussed, but it does not authorize dependent AI-maintained
-  documentation or code changes.
+  responsible human owner must create or update the current requirement under
+  `docs/human/requirements/`. The requirement should cite the relevant
+  stabilized document under `docs/human/design/` when one exists.
+- The covering requirement and any necessary design update must be committed
+  before the AI modifies files outside `docs/human/`. Uncommitted human-owned
+  documents may be reviewed or discussed, but they do not authorize dependent
+  AI-maintained documentation or code changes.
 - Requirement documents record historical change or implementation requests.
+  They should reference rather than restate stable design when possible.
   Design/planning documents record stabilized product content, expected
-  behavior, or the accepted initialization of a new feature.
-- If no human-owned requirement or design/planning document covers a requested
-  change outside `docs/human/`, the missing document is a process blocker. The
-  human owner should create or update the human-owned document before the change
-  proceeds.
+  behavior, accepted workflows, and decisions that should remain consistent
+  across requests.
+- If no current human-owned requirement covers a requested change outside
+  `docs/human/`, the missing requirement is a process blocker. The human owner
+  should create or update it before the change proceeds.
 - When a requirement changes, the human-owned document must be updated before
   dependent AI-maintained documentation or code changes proceed.
 - The AI must not satisfy this requirement by editing `docs/human/`. It may
@@ -259,8 +269,9 @@ Rules:
 
 - For every code modification, the AI must explicitly state both the before-modification version and the after-modification version to the user to prevent them from having to scroll through chat history. All Git Hashes MUST be represented in their short hash format (typically 7 characters).
 - For every documentation or code modification outside `docs/human/`, the AI
-  must confirm that a committed human-owned requirement or design document
-  covers the change before editing.
+  must confirm that a committed current human-owned requirement covers the
+  change before editing and must use any design document it cites as the stable
+  product authority.
 - Unless the user provides an explicit instruction to modify code, all user prompts must be treated as discussion or proposal requests. The AI is strictly prohibited from modifying code without explicit permission.
 - Human-owned documentation lives under `docs/human/`. It is the
   authoritative human-maintained documentation area for requirements, design,
@@ -283,16 +294,16 @@ Rules:
   understand, the AI must report the unclear point and ask for clarification or
   suggest explanatory text outside `docs/human/`. It must not silently reinterpret
   or directly fix the human-owned document.
-- If a human-owned document required for a requested change is missing or
-  uncommitted, the AI must report the blocker. It may help review or commit
-  human-owned documentation when explicitly asked, but it must not modify files
-  outside `docs/human/` until the covering human-owned document is committed.
+- If the current human-owned requirement or a necessary design update is
+  missing or uncommitted, the AI must report the blocker. It may help review or
+  commit human-owned documentation when explicitly asked, but it must not
+  modify files outside `docs/human/` until the covering requirement and any
+  necessary design update are committed.
 - The AI must not use an older human-owned requirement as authority for a new
   regression fix, same-area follow-up, build behavior change, runtime dependency
   change, or scope expansion unless that older document explicitly covers the
   requested work. New regressions and new implementation requests require their
-  own current human-owned requirement or design document before dependent
-  changes proceed.
+  own current human-owned requirement before dependent changes proceed.
 - Build and dependency fixes must preserve existing build override semantics
   unless the human-owned requirement explicitly asks to change them. If a fix
   changes compiler include paths, linker search paths, runtime library roots, or
@@ -352,7 +363,8 @@ Rules:
   may update native SwiftUI/AppKit code before updating HTML prototypes.
 - HTML prototypes under `ui/prototypes/` are reference and review artifacts,
   not the source of truth for active native UI implementation. The accepted
-  Swift implementation and stable product documents are authoritative.
+  human-owned UI design and accepted Swift implementation are authoritative;
+  AI-maintained product documents are derived alignment records.
 - Liquid Glass component and UX mapping documents should be synchronized when
   component classes, tokens, SwiftUI ownership, layout, state, interaction,
   timing, behavior, or native-difference rules become stable. They do not block

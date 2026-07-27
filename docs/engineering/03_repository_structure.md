@@ -20,10 +20,15 @@ CueSeeker/
   archive/
     flutter/
   docs/
+    human/
+      requirements/
+      design/
     product/
     engineering/
+      records/
     proposals/
     decisions/
+    chronicle/
     changelog.md
   ui/
     prototypes/
@@ -77,27 +82,43 @@ Rules:
 
 ## 5. Documentation
 
-`docs/` is the source of truth for stable project direction.
+`docs/` contains the sources of truth and derived records for stable project
+direction. Within it, `docs/human/` is the stronger human-owned authority.
 
 Expected structure:
 
 ```text
 docs/
+  human/
+    requirements/
+    design/
   product/
   engineering/
+    records/
   proposals/
   decisions/
+  chronicle/
   changelog.md
 ```
 
 Rules:
 
-- Product requirements belong in `docs/product/`.
+- Stable human-owned product meaning and workflows belong in
+  `docs/human/design/`.
+- Each new change request belongs in `docs/human/requirements/` and should
+  reference the relevant design rather than duplicate it.
+- AI-maintained product descriptions belong in `docs/product/` and must remain
+  aligned with `docs/human/`.
 - Engineering rules belong in `docs/engineering/`.
+- AI implementation records belong in `docs/engineering/records/`.
 - Proposed changes belong in `docs/proposals/`.
 - ADRs belong in `docs/decisions/`.
+- Socratic architecture reasoning records belong in `docs/chronicle/` when the
+  documented workflow requires them.
 - Milestone progress belongs in `docs/changelog.md`.
-- All project documentation must be written in English.
+- AI-maintained project documentation must be written in English.
+- Human-owned documents may use the human owner's chosen language and must not
+  be modified by the AI.
 
 ## 6. Engineering Document Set
 
@@ -118,7 +139,8 @@ docs/engineering/
 
 Rules:
 
-- These files should exist before formal native app implementation begins.
+- Keep this rule set complete and aligned throughout formal native app
+  development.
 - Missing files in this set should be created as proper rule documents, not vague placeholders.
 - If the formal structure changes, update `00_project_governance.md`, this document, and any affected references.
 
@@ -141,8 +163,9 @@ Rules:
 - Local HTML prototypes belong in `ui/prototypes/`, not under `docs/`.
 - Visual reference material belongs in `ui/references/`.
 - Shared prototype assets belong in `ui/assets/`.
-- Stable UI requirements, prototype-to-App mappings, and known native App
-  differences belong in `docs/product/`.
+- Stable UI requirements and workflows belong primarily in
+  `docs/human/design/`; AI-maintained prototype-to-App mappings and known native
+  App differences belong in `docs/product/` and must remain aligned.
 - HTML prototypes should be treated as collaboration source artifacts. They are
   not substitutes for stable product documentation.
 
