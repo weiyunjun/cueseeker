@@ -43,12 +43,17 @@ Filter, Context, pagination, selection, or playback behavior.
     folder publication. The restart no longer depends on indexing reporting a
     content change, and it does not read the old `@Published` value during its
     `willSet` notification.
+12. Restored the active Filter-only or Context table projection directly in
+    `SearchStore` after folder-scope invalidation, using the newly published
+    folders and the existing page sizes. This covers initial and adjacent page
+    cancellation without adding another state model or depending on an index
+    content revision.
 
 ## Verification
 
 - `swift test --filter SearchStoreTests`
-- Result: 25 tests passed, including folder-scope A-to-B-to-A, empty-folder,
-  and indexing-failure lifecycle coverage.
+- Result: 26 tests passed, including folder-scope A-to-B-to-A, empty-folder,
+  indexing-failure, Filter-only, and Context pagination lifecycle coverage.
 - `swift test --filter PlaybackSearch`
 - Result: 4 tests passed.
 - `swift test --filter URLSchemeSearch`
@@ -61,14 +66,16 @@ Filter, Context, pagination, selection, or playback behavior.
 - Result: 21 tests passed.
 - `swift test --filter NativePlaybackMediaTimelineTests`
 - Result: 5 tests passed.
+- `swift test --filter SubtitleTableRowActionMenuTests`
+- Result: 10 tests passed.
 - `swift test --filter PlaybackPlaylistSourceTests`
 - Result: 9 tests passed.
 - `swift test`
-- Result: 881 tests ran with 14 issues while the full suite concurrently
+- Result: 882 tests ran with 14 issues while the full suite concurrently
   exhausted shared media and SQLite resources or exceeded UI/media timing
-  thresholds. SearchStore, CueGroup refresh, Library folder removal, Playback
-  Subtitle Focus, and Native Playback failures all passed when rerun in their
-  focused suites.
+  thresholds. SearchStore passed within the full run; CueGroup refresh, Library
+  folder removal, row action menu, and Native Playback failures all passed when
+  rerun in their focused suites.
 
 ## Outcome
 
@@ -76,7 +83,8 @@ The unified result table remains the only production Search result presentation
 path. `SearchStore` now owns query execution, database access boundaries, result
 consistency, folder-scope invalidation, and Filter/Context pagination lifecycle.
 Invalidated active searches restart under the new scope and reach a terminal
-state even when indexing finds no content change or fails. `AppCoordinator`
-retains cross-feature coordination, while the View retains UI-only state.
-Focused verification passed; the existing full-suite resource contention
-remains outside this change.
+state even when indexing finds no content change or fails. Active Filter-only
+and Context table projections also resume under the new scope, including
+adjacent Context pagination. `AppCoordinator` retains cross-feature
+coordination, while the View retains UI-only state. Focused verification passed;
+the existing full-suite resource contention remains outside this change.
