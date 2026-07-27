@@ -3,11 +3,13 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 func workbenchSearchHasCompleteTextCopyBoundary(
+    searchStatus: SearchStatus,
     countState: SubtitleSearchCountState,
     cueIDs: [Int64],
     resultRowCount: Int
 ) -> Bool {
-    countState == .exact
+    searchStatus == .completed
+        && countState == .exact
         && resultRowCount >= 0
         && cueIDs.count == resultRowCount
 }
@@ -304,6 +306,7 @@ struct WorkbenchTestSearchView: View {
             resultRowCount = search.searchResultTotalCount
             guard !query.isEmpty,
                   workbenchSearchHasCompleteTextCopyBoundary(
+                      searchStatus: search.searchStatus,
                       countState: search.searchCountState,
                       cueIDs: cueIDs,
                       resultRowCount: resultRowCount
@@ -384,6 +387,7 @@ struct WorkbenchTestSearchView: View {
                   settingsStore.primarySearchLanguage.searchLanguageFilter == source.languageFilter,
                   settingsStore.searchScope.searchWatchStateFilter == source.watchStateFilter,
                   workbenchSearchHasCompleteTextCopyBoundary(
+                      searchStatus: search.searchStatus,
                       countState: search.searchCountState,
                       cueIDs: search.searchResultCueIDs,
                       resultRowCount: search.searchResultTotalCount

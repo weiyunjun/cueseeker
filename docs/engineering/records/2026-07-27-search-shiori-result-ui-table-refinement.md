@@ -93,6 +93,9 @@
 30. Cleared transient selection when exiting Select mode, when its exact-result
     boundary becomes unavailable, or when the owning table leaves its active
     presentation.
+31. Corrected the Search Select-entry boundary to require the existing search
+    lifecycle to be completed as well as exact, preventing the reset-time empty
+    exact metadata from briefly enabling Select while a new search is running.
 
 ## Verification
 
@@ -148,6 +151,8 @@
 - The final complete `--no-parallel` rerun executed 884 tests with only that
   same retained shared-preferences-state failure; all Step 7 and Cue Group
   integration coverage passed.
+- The focused Search text-copy boundary regression test passed, including the
+  new searching-with-empty-exact-metadata case.
 - No AI visual acceptance was performed; visual review is reserved for the
   human owner.
 
@@ -167,6 +172,8 @@
   Step 7.
 - Step 7 automated verification passed; human visual acceptance remains
   pending.
+- The Search Select-button transient-enable regression was fixed within Step 7;
+  human verification remains pending.
 
 ## Follow-ups
 

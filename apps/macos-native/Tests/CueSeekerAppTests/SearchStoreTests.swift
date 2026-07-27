@@ -961,31 +961,43 @@ func workbenchSearchTextCopyBoundaryRequiresExactCountAndCompleteCueIDs() {
     let completeCueIDs: [Int64] = [11, 12, 13]
 
     #expect(workbenchSearchHasCompleteTextCopyBoundary(
+        searchStatus: .completed,
         countState: .exact,
         cueIDs: completeCueIDs,
         resultRowCount: completeCueIDs.count
     ))
     #expect(workbenchSearchHasCompleteTextCopyBoundary(
+        searchStatus: .completed,
         countState: .exact,
         cueIDs: [],
         resultRowCount: 0
     ))
     #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        searchStatus: .searching,
+        countState: .exact,
+        cueIDs: [],
+        resultRowCount: 0
+    ))
+    #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        searchStatus: .completed,
         countState: .exactProgress,
         cueIDs: completeCueIDs,
         resultRowCount: completeCueIDs.count
     ))
     #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        searchStatus: .completed,
         countState: .exact,
         cueIDs: Array(completeCueIDs.dropLast()),
         resultRowCount: completeCueIDs.count
     ))
     #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        searchStatus: .completed,
         countState: .exact,
         cueIDs: completeCueIDs,
         resultRowCount: completeCueIDs.count - 1
     ))
     #expect(!workbenchSearchHasCompleteTextCopyBoundary(
+        searchStatus: .completed,
         countState: .exact,
         cueIDs: [],
         resultRowCount: -1
