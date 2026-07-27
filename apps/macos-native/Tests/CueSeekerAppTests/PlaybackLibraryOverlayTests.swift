@@ -105,7 +105,7 @@ func playbackLibrarySourceOpensAsTheMediaPlaylist() async throws {
             fixture.detailsByFolderPath[folder.folderPath]?.videos[0]
         )
         app.library.selectedLibraryVideo = video.libraryVideo
-        app.search.selectedSearchResult = nil
+        app.search.selectResult(nil)
         app.activePlaybackSource = .library(videoPath: video.videoPath)
         app.playbackReturnContext = .libraryFolderDetail(
             folderPath: folder.folderPath
@@ -137,7 +137,7 @@ func playbackRecentEntryUsesTheCurrentFolderLibraryPlaylist() async throws {
             fixture.detailsByFolderPath[folder.folderPath]?.videos[0]
         )
         app.library.selectedLibraryVideo = video.libraryVideo
-        app.search.selectedSearchResult = nil
+        app.search.selectResult(nil)
         app.activePlaybackSource = .library(videoPath: video.videoPath)
         app.playbackReturnContext = .recent
         app.ensurePlayerInitialized()
@@ -401,7 +401,7 @@ private func withPlaybackLibraryApp(
 @MainActor
 private func configurePlaybackLibrarySource(_ app: AppCoordinator) {
     let source = playbackLibraryOpenSnapshot().source
-    app.search.selectedSearchResult = SubtitleSearchResult(
+    app.search.selectResult(SubtitleSearchResult(
         entryID: 1,
         subtitlePath: source.subtitlePath,
         subtitleFormat: source.subtitleFormat,
@@ -411,7 +411,7 @@ private func configurePlaybackLibrarySource(_ app: AppCoordinator) {
         endMilliseconds: 2_000,
         content: "source",
         cueLines: ["source"]
-    )
+    ))
     app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
     app.playback.playbackStatus = .paused
 }

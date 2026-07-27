@@ -60,14 +60,14 @@ final class SearchStore: ObservableObject {
     private let uiProbeScope: String?
     let databaseURL: URL?
     let database: SearchDatabase?
-    var searchTask: Task<Void, Never>?
-    var exactCompletionTask: Task<Void, Never>?
-    var navigationTask: Task<Void, Never>?
-    var activePerformanceRun: SearchPerformanceRun?
-    var resultListGeneration: UInt64 = 0
-    var loadedGlobalResultCount = 0
-    var lastCountProgressUpdate: UInt64 = 0
-    var nextGlobalCursor: SubtitleSearchCursor?
+    private(set) var searchTask: Task<Void, Never>?
+    private(set) var exactCompletionTask: Task<Void, Never>?
+    private(set) var navigationTask: Task<Void, Never>?
+    private(set) var activePerformanceRun: SearchPerformanceRun?
+    private(set) var resultListGeneration: UInt64 = 0
+    private(set) var loadedGlobalResultCount = 0
+    private(set) var lastCountProgressUpdate: UInt64 = 0
+    private(set) var nextGlobalCursor: SubtitleSearchCursor?
     private var isTableProjectionResponseActive = true
     private var pendingCueContentChange: CueContentStoreChange?
     private(set) var loadedSearchResultCueIDs: [Int64] = []
@@ -83,19 +83,19 @@ final class SearchStore: ObservableObject {
     private var activeIndexedCueMutationGeneration: UInt64?
 
     @Published private(set) var indexedCueDataRevision: UInt64 = 0
-    @Published var searchQuery = ""
-    @Published var searchStatus: SearchStatus = .idle
-    @Published var searchResultCueIDs: [Int64] = []
-    @Published var searchResultTotalCount = 0
-    @Published var searchFileSummaries: [SubtitleSearchFileSummary] = []
-    @Published var searchCountState: SubtitleSearchCountState = .exact
-    @Published var searchKnownResultCount = 0
-    @Published var searchKnownFileCount = 0
-    @Published var hasMoreSearchResults = false
-    @Published var activeFilterSet = SubtitleSearchFilterSet()
-    @Published var searchNavigationSnapshot: SearchNavigationSnapshot?
-    @Published var selectedSearchResult: SubtitleSearchResult?
-    @Published var cueContextSearchRequest: CueContextSearchRequest?
+    @Published private(set) var searchQuery = ""
+    @Published private(set) var searchStatus: SearchStatus = .idle
+    @Published private(set) var searchResultCueIDs: [Int64] = []
+    @Published private(set) var searchResultTotalCount = 0
+    @Published private(set) var searchFileSummaries: [SubtitleSearchFileSummary] = []
+    @Published private(set) var searchCountState: SubtitleSearchCountState = .exact
+    @Published private(set) var searchKnownResultCount = 0
+    @Published private(set) var searchKnownFileCount = 0
+    @Published private(set) var hasMoreSearchResults = false
+    @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
+    @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
+    @Published private(set) var selectedSearchResult: SubtitleSearchResult?
+    @Published private(set) var cueContextSearchRequest: CueContextSearchRequest?
     @Published var tableSearchDraft = ""
     @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs
     @Published var tableActiveFilterSetID = SchemaWorkbenchSearchDefaults.defaultFilterSetID
@@ -121,7 +121,7 @@ final class SearchStore: ObservableObject {
         }
     }
 
-    var searchResults: [SubtitleSearchResult] {
+    private(set) var searchResults: [SubtitleSearchResult] {
         get {
             loadedSearchResultCueIDs.compactMap { cueID in
                 cueContentStore.content(for: cueID).map {
@@ -355,8 +355,212 @@ final class SearchStore: ObservableObject {
         filterOnlyTotalRowCount = 0
     }
 
-    var resultFilterSet = SubtitleSearchFilterSet()
-    var isPlaybackTemporaryFilterActive = false
+    private(set) var resultFilterSet = SubtitleSearchFilterSet()
+    private(set) var isPlaybackTemporaryFilterActive = false
+
+    func updateQuery(_ query: String) {
+        searchQuery = query
+    }
+
+    func updateStatus(_ status: SearchStatus) {
+        searchStatus = status
+    }
+
+    func updateActiveFilterSet(_ filterSet: SubtitleSearchFilterSet) {
+        activeFilterSet = filterSet
+    }
+
+    func activatePlaybackTemporaryFilter() {
+        isPlaybackTemporaryFilterActive = true
+    }
+
+    func deactivatePlaybackTemporaryFilter() {
+        isPlaybackTemporaryFilterActive = false
+    }
+
+    func finishPlaybackTemporaryFilter(
+        committingEmptyFilter: Bool
+    ) -> SubtitleSearchFilterSet? {
+        guard isPlaybackTemporaryFilterActive else {
+            return nil
+        }
+        isPlaybackTemporaryFilterActive = false
+        if committingEmptyFilter {
+            let emptyFilterSet = SubtitleSearchFilterSet()
+            activeFilterSet = emptyFilterSet
+            resultFilterSet = emptyFilterSet
+            return nil
+        }
+        return resultFilterSetSignature == activeFilterSetSignature
+            ? nil
+            : activeFilterSet
+    }
+
+    func updateNavigationSnapshot(_ snapshot: SearchNavigationSnapshot?) {
+        searchNavigationSnapshot = snapshot
+    }
+
+    func selectResult(_ result: SubtitleSearchResult?) {
+        selectedSearchResult = result
+    }
+
+    func updateContextRequest(_ request: CueContextSearchRequest?) {
+        cueContextSearchRequest = request
+    }
+
+    @discardableResult
+    func prepareSearch(
+        appending: Bool,
+        filterSet: SubtitleSearchFilterSet
+    ) -> UInt64 {
+        if !appending {
+            resultListGeneration &+= 1
+            exactCompletionTask?.cancel()
+            exactCompletionTask = nil
+            resultFilterSet = filterSet
+        }
+        searchTask?.cancel()
+        return resultListGeneration
+    }
+
+    @discardableResult
+    func advanceResultListGeneration() -> UInt64 {
+        resultListGeneration &+= 1
+        return resultListGeneration
+    }
+
+    func replaceSearchTask(_ task: Task<Void, Never>?) {
+        searchTask = task
+    }
+
+    func replaceExactCompletionTask(_ task: Task<Void, Never>?) {
+        exactCompletionTask = task
+    }
+
+    func replaceNavigationTask(_ task: Task<Void, Never>?) {
+        navigationTask = task
+    }
+
+    func cancelQueryTasks() {
+        searchTask?.cancel()
+        searchTask = nil
+        exactCompletionTask?.cancel()
+        exactCompletionTask = nil
+    }
+
+    func cancelAllSearchTasks() {
+        cancelQueryTasks()
+        navigationTask?.cancel()
+        navigationTask = nil
+    }
+
+    func cancelCompletionAndNavigationTasks() {
+        exactCompletionTask?.cancel()
+        exactCompletionTask = nil
+        navigationTask?.cancel()
+        navigationTask = nil
+    }
+
+    func cancelNavigationTask() {
+        navigationTask?.cancel()
+        navigationTask = nil
+    }
+
+    func updateActivePerformanceRun(_ run: SearchPerformanceRun?) {
+        activePerformanceRun = run
+    }
+
+    func updateResultCueIDs(_ cueIDs: [Int64]) {
+        searchResultCueIDs = cueIDs
+    }
+
+    func publishResultMetadata(
+        totalCount: Int,
+        fileSummaries: [SubtitleSearchFileSummary],
+        countState: SubtitleSearchCountState,
+        knownResultCount: Int,
+        knownFileCount: Int,
+        hasMore: Bool
+    ) {
+        searchResultTotalCount = totalCount
+        searchFileSummaries = fileSummaries
+        searchCountState = countState
+        searchKnownResultCount = knownResultCount
+        searchKnownFileCount = knownFileCount
+        hasMoreSearchResults = hasMore
+    }
+
+    func publishKnownCounts(resultCount: Int, fileCount: Int) {
+        searchKnownResultCount = resultCount
+        searchKnownFileCount = fileCount
+    }
+
+    func updateHasMoreResults(_ hasMore: Bool) {
+        hasMoreSearchResults = hasMore
+    }
+
+    func updatePagination(
+        loadedResultCount: Int,
+        nextCursor: SubtitleSearchCursor?
+    ) {
+        loadedGlobalResultCount = loadedResultCount
+        nextGlobalCursor = nextCursor
+    }
+
+    func updateNextGlobalCursor(_ cursor: SubtitleSearchCursor?) {
+        nextGlobalCursor = cursor
+    }
+
+    func updateLastCountProgress(_ update: UInt64) {
+        lastCountProgressUpdate = update
+    }
+
+    @discardableResult
+    func clearResults() -> Int {
+        let releasedRows = max(
+            searchResults.count,
+            searchResultCueIDs.count,
+            searchResultTotalCount
+        )
+        searchResults = []
+        searchResultCueIDs = []
+        publishResultMetadata(
+            totalCount: 0,
+            fileSummaries: [],
+            countState: .exact,
+            knownResultCount: 0,
+            knownFileCount: 0,
+            hasMore: false
+        )
+        loadedGlobalResultCount = 0
+        lastCountProgressUpdate = 0
+        nextGlobalCursor = nil
+        searchNavigationSnapshot = nil
+        return releasedRows
+    }
+
+    func appendLoadedResults(_ results: [SubtitleSearchResult]) {
+        let existingEntryIDs = Set(searchResults.map(\.entryID))
+        searchResults = searchResults
+            + results.filter { !existingEntryIDs.contains($0.entryID) }
+    }
+
+    func revealInitialGlobalPage(limit: Int) {
+        searchResults = Array(searchResults.prefix(limit))
+        let loadedResultCount = searchResults.count
+        publishKnownCounts(
+            resultCount: searchResultTotalCount,
+            fileCount: searchFileSummaries.count
+        )
+        let hasMore = loadedResultCount < searchResultTotalCount
+        hasMoreSearchResults = hasMore
+        updatePagination(
+            loadedResultCount: loadedResultCount,
+            nextCursor: hasMore
+                ? SubtitleSearchCursor(offset: loadedResultCount)
+                : nil
+        )
+    }
 
     var isSearching: Bool {
         if case .searching = searchStatus {

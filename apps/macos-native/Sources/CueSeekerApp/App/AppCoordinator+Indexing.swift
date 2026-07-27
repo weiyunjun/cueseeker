@@ -708,12 +708,7 @@ extension AppCoordinator {
         testRecentWatchingTask = nil
         completeLibraryTask?.cancel()
         completeLibraryTask = nil
-        search.searchTask?.cancel()
-        search.searchTask = nil
-        search.exactCompletionTask?.cancel()
-        search.exactCompletionTask = nil
-        search.navigationTask?.cancel()
-        search.navigationTask = nil
+        search.cancelAllSearchTasks()
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
         indexing.searchFTSVocabularyDiagnosticsTask = nil
 
@@ -730,7 +725,7 @@ extension AppCoordinator {
             library.completeLibraryStatus = library.completeLibraryFolderSummaries.isEmpty ? .idle : .completed
         }
         if case .searching = search.searchStatus {
-            search.searchStatus = .completed
+            search.updateStatus(.completed)
         }
     }
 }

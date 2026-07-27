@@ -21,18 +21,18 @@ func urlSchemeSearchClearsFiltersAndForcesSearchRoute() throws {
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     app.workbenchLayout.selectPanelMode(.shiori)
-    app.search.activeFilterSet = SubtitleSearchFilterSet(rules: [
+    app.search.updateActiveFilterSet(SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(
             field: .display,
             operatorID: .contains,
             value: "old filter"
         )
-    ])
-    app.search.cueContextSearchRequest = CueContextSearchRequest(
+    ]))
+    app.search.updateContextRequest(CueContextSearchRequest(
         displayTitle: "Old context",
         subtitlePath: "/tmp/old.ass",
         targetCueID: 42
-    )
+    ))
 
     var presentationReadyCount = 0
     app.handleURLSchemeCommand(.search(keyword: "大丈夫")) {
@@ -56,7 +56,7 @@ func urlSchemeSearchOpensCommandPanelResultsForActivePlayback() throws {
         content: "existing playback"
     )
     fixture.app.ensurePlayerInitialized()
-    fixture.app.search.selectedSearchResult = playingResult
+    fixture.app.search.selectResult(playingResult)
     fixture.app.activePlaybackSource = .search
     fixture.app.playback.isPlaybackSurfaceExpanded = true
     fixture.app.playback.playbackStatus = .paused
@@ -82,10 +82,10 @@ func urlSchemeDirectPlayFallsBackToCommandPanelWhenPlaybackIsActive() throws {
     defer { fixture.cleanup() }
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
     fixture.app.workbenchLayout.selectPanelMode(.shiori)
-    fixture.app.search.selectedSearchResult = makeURLSchemeSearchResult(
+    fixture.app.search.selectResult(makeURLSchemeSearchResult(
         id: 1,
         content: "existing playback"
-    )
+    ))
     fixture.app.playback.isPlaybackSurfaceExpanded = true
     fixture.app.playbackReturnContext = .shiori
     let originalResult = try #require(fixture.app.search.selectedSearchResult)
@@ -144,7 +144,7 @@ func urlSchemeDirectPlayConsumesOnlyMatchingFirstPageGeneration() throws {
     let fixture = try makeURLSchemeRoutingFixture("DirectPlayGeneration")
     defer { fixture.cleanup() }
     let activeID = UUID()
-    fixture.app.search.searchQuery = "target"
+    fixture.app.search.updateQuery("target")
     fixture.app.pendingURLSchemeDirectPlayIntent = URLSchemeDirectPlayIntent(
         id: activeID,
         keyword: "target"
@@ -288,7 +288,7 @@ func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
     defer { fixture.cleanup() }
     let playbackIntentID = UUID()
     let playbackResult = makeURLSchemeSearchResult(id: 11, content: "old playback")
-    fixture.app.search.searchQuery = "old playback"
+    fixture.app.search.updateQuery("old playback")
     fixture.app.pendingURLSchemeDirectPlayIntent = URLSchemeDirectPlayIntent(
         id: playbackIntentID,
         keyword: "old playback"
@@ -312,8 +312,8 @@ func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
     let oldExactTask = Task<Void, Never> {
         try? await Task.sleep(nanoseconds: 10_000_000_000)
     }
-    fixture.app.search.searchTask = oldSearchTask
-    fixture.app.search.exactCompletionTask = oldExactTask
+    fixture.app.search.replaceSearchTask(oldSearchTask)
+    fixture.app.search.replaceExactCompletionTask(oldExactTask)
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = false
 
     fixture.app.handleURLSchemeCommand(.search(keyword: "replacement"))

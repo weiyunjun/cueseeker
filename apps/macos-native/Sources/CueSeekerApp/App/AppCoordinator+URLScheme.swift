@@ -43,15 +43,13 @@ extension AppCoordinator {
         pendingURLSchemeCuePlaybackIntent = nil
         urlSchemeCueLookupTask?.cancel()
         urlSchemeCueLookupTask = nil
-        search.searchTask?.cancel()
-        search.exactCompletionTask?.cancel()
-        search.exactCompletionTask = nil
+        search.cancelQueryTasks()
 
         switch command {
         case let .search(keyword):
-            search.activeFilterSet = SubtitleSearchFilterSet()
-            search.cueContextSearchRequest = nil
-            search.searchNavigationSnapshot = nil
+            search.updateActiveFilterSet(SubtitleSearchFilterSet())
+            search.updateContextRequest(nil)
+            search.updateNavigationSnapshot(nil)
             guard settings.urlSchemePlayFirstSearchResultEnabled else {
                 presentURLSchemeSearch(
                     keyword: keyword,
@@ -62,7 +60,7 @@ extension AppCoordinator {
             }
 
             if !hasPlaybackSelection {
-                search.selectedSearchResult = nil
+                search.selectResult(nil)
             }
 
             let intent = URLSchemeDirectPlayIntent(
@@ -71,7 +69,7 @@ extension AppCoordinator {
                 onPresentationReady: onPresentationReady
             )
             pendingURLSchemeDirectPlayIntent = intent
-            search.searchQuery = keyword
+            search.updateQuery(keyword)
             startSearch(
                 query: keyword,
                 cursor: .start,
@@ -182,8 +180,8 @@ extension AppCoordinator {
         startsSearch: Bool,
         onPresentationReady: @escaping @MainActor () -> Void
     ) {
-        search.searchQuery = keyword
-        search.searchNavigationSnapshot = nil
+        search.updateQuery(keyword)
+        search.updateNavigationSnapshot(nil)
         let hadActivePlayback = isPlaybackPageVisible
 
         if hadActivePlayback,
@@ -195,9 +193,9 @@ extension AppCoordinator {
             return
         }
 
-        search.isPlaybackTemporaryFilterActive = false
+        search.deactivatePlaybackTemporaryFilter()
         if !hadActivePlayback {
-            search.selectedSearchResult = nil
+            search.selectResult(nil)
         }
         workbenchLayout.selectPanelMode(.search)
         if startsSearch {

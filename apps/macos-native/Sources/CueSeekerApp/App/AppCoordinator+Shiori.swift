@@ -857,7 +857,7 @@ extension AppCoordinator {
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
         self.shiori.selectedShiori = shiori
-        search.selectedSearchResult = nil
+        search.selectResult(nil)
         library.selectedLibraryVideo = nil
         refreshPlaybackChromeSnapshot(
             displayTitle: playbackDisplayTitle(

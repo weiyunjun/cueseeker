@@ -8,12 +8,13 @@ import Testing
 @Test
 func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async throws {
     let searchStore = SearchStore()
-    searchStore.searchResults = (0..<40).map {
+    let initialResults = (0..<40).map {
         playbackSharedSearchResult(
             id: Int64(1_000 + $0),
             rank: $0
         )
     }
+    searchStore.replaceLoadedSearchResults(initialResults)
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackSharedSearchOpenSnapshot(),
         sessionGeneration: 1,
@@ -27,8 +28,9 @@ func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async th
     #expect(window.snapshot.isComplete)
     #expect(window.item(at: 39)?.identity == .search(1_039))
 
-    searchStore.searchResults.append(
-        playbackSharedSearchResult(id: 1_040, rank: 40)
+    searchStore.replaceLoadedSearchResults(
+        searchStore.searchResults
+            + [playbackSharedSearchResult(id: 1_040, rank: 40)]
     )
     await Task.yield()
 
@@ -54,8 +56,8 @@ func playbackSearchTemporaryFilterDoesNotChangeFormalFilterUntilPlay() throws {
             value: "Episode"
         ),
     ])
-    app.search.activeFilterSet = formalFilter
-    app.search.resultFilterSet = formalFilter
+    app.search.updateActiveFilterSet(formalFilter)
+    app.search.prepareSearch(appending: false, filterSet: formalFilter)
 
     app.activatePlaybackSearchHost()
 
@@ -109,11 +111,14 @@ func playbackSearchFailedPlayDoesNotCommitTheTemporaryFilter() async throws {
         ),
     ])
     let result = playbackSharedSearchResult(id: 8_001, rank: 0)
-    app.search.activeFilterSet = formalFilter
-    app.search.resultFilterSet = SubtitleSearchFilterSet()
-    app.search.isPlaybackTemporaryFilterActive = true
-    app.search.searchQuery = "shared"
-    app.search.searchResults = [result]
+    app.search.updateActiveFilterSet(formalFilter)
+    app.search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    app.search.activatePlaybackTemporaryFilter()
+    app.search.updateQuery("shared")
+    app.search.replaceLoadedSearchResults([result])
     app.playback.isPlaybackSurfaceExpanded = true
     app.playbackReturnContext = .shiori
 

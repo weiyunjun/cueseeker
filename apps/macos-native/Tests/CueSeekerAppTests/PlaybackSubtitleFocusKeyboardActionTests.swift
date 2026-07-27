@@ -864,7 +864,7 @@ private func withKeyboardActionApp(
             )
         }
     )
-    app.search.selectedSearchResult = SubtitleSearchResult(
+    app.search.selectResult(SubtitleSearchResult(
         entryID: 1,
         subtitlePath: source.subtitlePath,
         subtitleFormat: source.subtitleFormat,
@@ -874,7 +874,7 @@ private func withKeyboardActionApp(
         endMilliseconds: 12_900,
         content: "selected cue",
         cueLines: ["selected cue"]
-    )
+    ))
     app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
     app.playback.playbackStatus = .paused
     try await body(app, database)

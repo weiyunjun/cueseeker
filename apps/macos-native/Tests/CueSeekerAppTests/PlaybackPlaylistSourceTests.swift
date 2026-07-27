@@ -245,15 +245,22 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
         .appendingPathComponent("playback-playlist-search-\(UUID().uuidString).sqlite")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
-    app.search.resultListGeneration = 7
+    let initialGeneration = app.search.advanceResultListGeneration()
     let initialResults = (0..<2).map { ordinal in
         makePlaybackPlaylistSearchResult(
             id: Int64(100 + ordinal),
             searchRank: ordinal
         )
     }
-    app.search.searchResults = initialResults
-    app.search.searchResultTotalCount = initialResults.count
+    app.search.replaceLoadedSearchResults(initialResults)
+    app.search.publishResultMetadata(
+        totalCount: initialResults.count,
+        fileSummaries: [],
+        countState: .exact,
+        knownResultCount: initialResults.count,
+        knownFileCount: 0,
+        hasMore: false
+    )
     app.installSearchPlaybackPlaylistSource(seed: initialResults[1])
     let source = try #require(app.playback.playlistSource)
     let window = try #require(source.makeSessionWindowStore())
@@ -275,19 +282,29 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
             searchRank: ordinal
         )
     }
-    app.search.searchResults = updatedResults
-    app.search.searchResultTotalCount = updatedResults.count
-    app.refreshSearchPlaybackPlaylistSource(resultListGeneration: 7)
+    app.search.replaceLoadedSearchResults(updatedResults)
+    app.search.publishResultMetadata(
+        totalCount: updatedResults.count,
+        fileSummaries: [],
+        countState: .exact,
+        knownResultCount: updatedResults.count,
+        knownFileCount: 0,
+        hasMore: false
+    )
+    app.refreshSearchPlaybackPlaylistSource(
+        resultListGeneration: initialGeneration
+    )
 
     #expect(app.playback.playlistSource === source)
     #expect(app.playback.playlistPosition == nil)
     #expect(window.snapshot.loadedOrdinalRange == (0..<5))
     #expect(window.item(at: 4)?.identity == .search(204))
 
-    app.search.resultListGeneration = 8
-    app.search.searchResults = []
-    app.search.searchResultTotalCount = 0
-    app.refreshSearchPlaybackPlaylistSource(resultListGeneration: 8)
+    let replacementGeneration = app.search.advanceResultListGeneration()
+    app.search.clearResults()
+    app.refreshSearchPlaybackPlaylistSource(
+        resultListGeneration: replacementGeneration
+    )
 
     #expect(source.boundary.totalCount == 5)
     #expect(window.item(at: 4)?.identity == .search(204))

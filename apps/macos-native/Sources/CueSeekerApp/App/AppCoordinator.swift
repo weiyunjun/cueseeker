@@ -662,14 +662,22 @@ final class AppCoordinator: ObservableObject {
             remainingSearchResults,
             orderedCueIDs: remainingSearchResults.map(\.entryID)
         )
-        search.searchFileSummaries.removeAll { Self.path($0.subtitlePath, isUnder: folder) }
-        search.searchResultTotalCount = search.searchFileSummaries.reduce(0) { $0 + $1.matchCount }
-        search.searchCountState = .exact
-        search.searchKnownResultCount = search.searchResultTotalCount
-        search.searchKnownFileCount = search.searchFileSummaries.count
-        search.loadedGlobalResultCount = search.searchResults.count
-        search.nextGlobalCursor = nil
-        search.hasMoreSearchResults = false
+        let remainingFileSummaries = search.searchFileSummaries.filter {
+            !Self.path($0.subtitlePath, isUnder: folder)
+        }
+        let remainingResultCount = remainingFileSummaries.reduce(0) { $0 + $1.matchCount }
+        search.publishResultMetadata(
+            totalCount: remainingResultCount,
+            fileSummaries: remainingFileSummaries,
+            countState: .exact,
+            knownResultCount: remainingResultCount,
+            knownFileCount: remainingFileSummaries.count,
+            hasMore: false
+        )
+        search.updatePagination(
+            loadedResultCount: search.searchResults.count,
+            nextCursor: nil
+        )
         removeLibraryPresentation(under: folder)
         removeCompleteLibraryPresentation(under: folder)
 
@@ -684,7 +692,7 @@ final class AppCoordinator: ObservableObject {
         } ?? false
 
         if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder || selectedShioriIsUnderFolder {
-            search.selectedSearchResult = nil
+            search.selectResult(nil)
             library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
             stopPlayback()

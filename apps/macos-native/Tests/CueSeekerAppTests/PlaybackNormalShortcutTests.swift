@@ -154,7 +154,7 @@ private func withNormalPlaybackApp(
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let database = try #require(app.indexingDatabase)
-    app.search.selectedSearchResult = SubtitleSearchResult(
+    app.search.selectResult(SubtitleSearchResult(
         entryID: 1,
         subtitlePath: "/Media/Normal-Playback.srt",
         subtitleFormat: .srt,
@@ -164,7 +164,7 @@ private func withNormalPlaybackApp(
         endMilliseconds: 2_000,
         content: "normal playback cue",
         cueLines: ["normal playback cue"]
-    )
+    ))
     app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
     app.playback.playbackStatus = .paused
     try body(app, database)

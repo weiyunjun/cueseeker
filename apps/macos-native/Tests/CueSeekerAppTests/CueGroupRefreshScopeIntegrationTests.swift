@@ -85,7 +85,9 @@ struct CueGroupRefreshScopeIntegrationTests {
             initialShowCueGroup: true,
             uiProbeScope: uiProbeScope
         ) { app, window, coordinator in
-            app.search.searchResults = Array(app.search.searchResults.reversed())
+            app.search.replaceLoadedSearchResults(
+                Array(app.search.searchResults.reversed())
+            )
             let didApplyReload = await waitUntil(timeout: 1) {
                 window.contentView?.layoutSubtreeIfNeeded()
                 return coordinator.rowsVersionForTesting()
@@ -577,7 +579,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             try #require(didSelectRow)
 
             app.ensurePlayerInitialized()
-            app.search.selectedSearchResult = app.search.searchResults.first
+            app.search.selectResult(app.search.searchResults.first)
             let focusSession = try #require(app.playback.beginSubtitleFocusSession(
                 openSnapshot: cueGroupRefreshScopeFocusOpenSnapshot()
             ))
@@ -668,7 +670,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             #expect(coordinator.numberOfRowsForTesting() == 200)
             app.settings.urlSchemePlayFirstSearchResultEnabled = true
             let playingResult = app.search.searchResults[0]
-            app.search.selectedSearchResult = playingResult
+            app.search.selectResult(playingResult)
             app.activePlaybackSource = .search
             app.playback.isPlaybackSurfaceExpanded = true
             let overlaySession = try #require(app.playback.beginSubtitleFocusSession(
@@ -932,27 +934,37 @@ private final class CueGroupRefreshScopeMountedHarness {
                         value: "primary"
                     ),
                 ]
-                app.search.searchQuery = ""
+                app.search.updateQuery("")
                 app.search.tableFilterRules = rules
-                app.search.activeFilterSet = rules.subtitleSearchFilterSet
+                app.search.updateActiveFilterSet(rules.subtitleSearchFilterSet)
             } else {
-                app.search.searchQuery = "primary"
-                app.search.searchResults = cueGroupRefreshScopeSearchResults(
+                app.search.updateQuery("primary")
+                let results = cueGroupRefreshScopeSearchResults(
                     subtitlePath: subtitleURL.path,
                     videoPath: videoURL.path,
                     rowCount: 200
                 )
-                app.search.searchResultCueIDs = app.search.searchResults.map(\.entryID)
-                app.search.searchResultTotalCount = app.search.searchResults.count
-                app.search.searchStatus = .completed
+                app.search.replaceLoadedSearchResults(
+                    results,
+                    orderedCueIDs: results.map(\.entryID)
+                )
+                app.search.publishResultMetadata(
+                    totalCount: results.count,
+                    fileSummaries: [],
+                    countState: .exact,
+                    knownResultCount: results.count,
+                    knownFileCount: 0,
+                    hasMore: false
+                )
+                app.search.updateStatus(.completed)
             }
             app.activateWorkbenchPanelMode(.search)
         case .context:
-            app.search.cueContextSearchRequest = CueContextSearchRequest(
+            app.search.updateContextRequest(CueContextSearchRequest(
                 displayTitle: "Episode",
                 subtitlePath: subtitleURL.path,
                 targetCueID: usesMissingContextTarget ? Int64.max : firstCueID
-            )
+            ))
             app.activateWorkbenchPanelMode(.search)
         case .shiori:
             let sources = cueGroupRefreshScopeShioriSources(

@@ -290,11 +290,11 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
-        search.selectedSearchResult = result
+        search.selectResult(result)
         if playbackSearchPromotion == nil {
             updateSearchNavigationSnapshotForOpenedResult(result)
         } else {
-            search.searchNavigationSnapshot = nil
+            search.updateNavigationSnapshot(nil)
         }
         shiori.selectedShiori = nil
         library.selectedLibraryVideo = nil
@@ -1069,7 +1069,7 @@ extension AppCoordinator {
             try player?.stop()
             playback.playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
-            search.selectedSearchResult = nil
+            search.selectResult(nil)
             library.selectedLibraryVideo = nil
             shiori.selectedShiori = nil
             clearPlaybackChromeSnapshot()

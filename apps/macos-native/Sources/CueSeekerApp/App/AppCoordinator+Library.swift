@@ -942,7 +942,7 @@ extension AppCoordinator {
         }
         recordRecentLibraryWatching(for: video, refreshPresentation: false)
         library.selectedLibraryVideo = video
-        search.selectedSearchResult = nil
+        search.selectResult(nil)
         shiori.selectedShiori = nil
         let navigationAvailability = libraryNavigationAvailability(for: video)
         setPlaybackChromeSnapshot(

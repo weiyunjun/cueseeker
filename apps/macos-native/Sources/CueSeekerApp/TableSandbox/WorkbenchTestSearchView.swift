@@ -453,8 +453,8 @@ struct WorkbenchTestSearchView: View {
         searchDraft = ""
         activeFilterSetID = nil
         filterRules = rules
-        search.searchQuery = ""
-        search.searchNavigationSnapshot = nil
+        search.updateQuery("")
+        search.updateNavigationSnapshot(nil)
         appliedFilterSignature = filterSignature
         appState.updateSearchFilterSet(filterSet)
         tableScrollTargetRow = nil
@@ -534,7 +534,7 @@ struct WorkbenchTestSearchView: View {
             return
         }
         search.tableSearchDraft = newValue
-        search.cueContextSearchRequest = nil
+        search.updateContextRequest(nil)
         suppressNextEmptySearchQueryReload = false
         activeCueContextRequest = nil
         tableScrollTargetRow = nil

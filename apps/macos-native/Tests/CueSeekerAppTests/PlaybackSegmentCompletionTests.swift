@@ -78,7 +78,7 @@ func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.search.selectedSearchResult = SubtitleSearchResult(
+        app.search.selectResult(SubtitleSearchResult(
             entryID: 1,
             subtitlePath: "/Media/Segment.srt",
             subtitleFormat: .srt,
@@ -88,7 +88,7 @@ func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
             endMilliseconds: 2_500,
             content: "hello",
             cueLines: ["hello"]
-        )
+        ))
         app.beginCueAutoStopPlayback()
         let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: 1_000,
@@ -137,7 +137,7 @@ func cueAutoPauseSeekRearmsOnlyBeforeCurrentItemBoundary() async throws {
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 1)
+        app.search.selectResult(segmentCompletionSearchResult(entryID: 1))
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
             startMilliseconds: 1_000,
@@ -178,7 +178,7 @@ func enteringOverlayCancelsPendingAutoSwitchWithoutClearingAutoPause() async thr
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
         let result = segmentCompletionSearchResult(entryID: 1)
         app.activePlaybackSource = .search
-        app.search.selectedSearchResult = result
+        app.search.selectResult(result)
         app.playback.playbackStatus = .playing
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
@@ -208,7 +208,7 @@ func enteringCommandPanelCancelsPendingAutoSwitchDuringGap() async throws {
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
         let result = segmentCompletionSearchResult(entryID: 1)
         app.activePlaybackSource = .search
-        app.search.selectedSearchResult = result
+        app.search.selectResult(result)
         app.playback.isPlaybackSurfaceExpanded = true
         app.playback.playbackStatus = .playing
         app.beginCueAutoStopPlayback()
@@ -272,7 +272,7 @@ func newPlaylistIndexReinitializesBehaviorsAfterSeekInterruption() async throws 
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
         app.activePlaybackSource = .search
         app.playback.setPlaylistSource(source, playbackSearchSelectedOrdinal: 0)
-        app.search.selectedSearchResult = first
+        app.search.selectResult(first)
         app.playback.playbackStatus = .playing
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
@@ -293,7 +293,7 @@ func newPlaylistIndexReinitializesBehaviorsAfterSeekInterruption() async throws 
         #expect(app.playback.playbackStatus == .playing)
         #expect(app.activePlaylistCuePosition?.ordinal == 0)
 
-        app.search.selectedSearchResult = second
+        app.search.selectResult(second)
         app.beginCueAutoStopPlayback()
         let nextBoundary = app.configureCueAutoStopBoundary(
             startMilliseconds: second.startMilliseconds,
@@ -322,7 +322,7 @@ func stoppingPlaybackClearsPlaylistCueRuntimeState() async throws {
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
         app.activePlaybackSource = .search
-        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 1)
+        app.search.selectResult(segmentCompletionSearchResult(entryID: 1))
         app.playback.playbackStatus = .playing
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
@@ -430,7 +430,7 @@ func appCoordinatorKeepsCurrentItemSettingsDuringAutoSwitchGap() async throws {
         )
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.search.selectedSearchResult = result
+        app.search.selectResult(result)
         app.beginCueAutoStopPlayback()
         let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: result.startMilliseconds,
@@ -496,7 +496,7 @@ func autoPauseHoldsCurrentCueAtAdjacentBoundaryWhenSelectionDiffers() async thro
         )
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 99)
+        app.search.selectResult(segmentCompletionSearchResult(entryID: 99))
         app.beginCueAutoStopPlayback()
         let boundary = app.configureCueAutoStopBoundary(
             startMilliseconds: result.startMilliseconds,
@@ -633,7 +633,7 @@ func zeroGapAutoSwitchConsumesOnlyTheCompletedAutoStopEvent() async throws {
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(0)
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 1)
+        app.search.selectResult(segmentCompletionSearchResult(entryID: 1))
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
             startMilliseconds: 1_000,
@@ -659,7 +659,7 @@ func manualResumeCancelsPendingCueAutoSwitch() async throws {
         app.settings.setAutoSwitchCueSequenceGapMilliseconds(10_000)
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
-        app.search.selectedSearchResult = segmentCompletionSearchResult(entryID: 1)
+        app.search.selectResult(segmentCompletionSearchResult(entryID: 1))
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
             startMilliseconds: 1_000,
@@ -686,7 +686,7 @@ func replacingCuePlaybackInvalidatesPendingCueAutoSwitch() async throws {
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
         let original = segmentCompletionSearchResult(entryID: 1)
-        app.search.selectedSearchResult = original
+        app.search.selectResult(original)
         app.beginCueAutoStopPlayback()
         app.activateCueAutoStopBoundary(PlaybackAutoStopBoundary(
             startMilliseconds: 1_000,

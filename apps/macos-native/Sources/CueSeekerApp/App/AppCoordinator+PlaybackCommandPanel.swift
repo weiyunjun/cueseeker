@@ -40,9 +40,9 @@ extension AppCoordinator {
             return false
         }
 
-        search.searchQuery = trimmedQuery
-        search.searchNavigationSnapshot = nil
-        search.isPlaybackTemporaryFilterActive = true
+        search.updateQuery(trimmedQuery)
+        search.updateNavigationSnapshot(nil)
+        search.activatePlaybackTemporaryFilter()
         if startsSearch {
             startSearch(
                 query: trimmedQuery,

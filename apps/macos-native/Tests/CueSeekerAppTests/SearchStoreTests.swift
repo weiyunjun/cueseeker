@@ -62,7 +62,7 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     let staleExactTask = Task<Void, Never> {
         try? await Task.sleep(nanoseconds: 10_000_000_000)
     }
-    app.search.exactCompletionTask = staleExactTask
+    app.search.replaceExactCompletionTask(staleExactTask)
 
     app.updateSearchQuery("beta")
     let betaTask = try #require(app.search.searchTask)
@@ -81,16 +81,22 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
 
     app.updateSearchQuery("alpha")
     let pendingAlphaTask = try #require(app.search.searchTask)
-    app.search.searchResults = [
+    let staleResults = [
         makeTableSandboxSearchResult(
             id: 999,
             content: "stale pending row",
             searchRank: 0
         )
     ]
-    app.search.searchResultCueIDs = [999]
-    app.search.searchResultTotalCount = 1
-    app.search.hasMoreSearchResults = true
+    app.search.replaceLoadedSearchResults(staleResults, orderedCueIDs: [999])
+    app.search.publishResultMetadata(
+        totalCount: 1,
+        fileSummaries: [],
+        countState: .exact,
+        knownResultCount: 1,
+        knownFileCount: 0,
+        hasMore: true
+    )
 
     app.updateSearchQuery("")
 
@@ -197,15 +203,23 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
         searchRank: 0
     )
     app.indexing.selectedFolders = [fixtureRoot]
-    app.search.resultListGeneration = 3
-    app.search.searchQuery = "foo"
-    app.search.searchStatus = .searching
-    app.search.searchResults = [currentResult]
-    app.search.searchResultCueIDs = [currentResult.entryID]
-    app.search.searchResultTotalCount = 1
-    app.search.searchCountState = .exactProgress
-    app.search.searchKnownResultCount = 1
-    app.search.searchKnownFileCount = 1
+    for _ in 0..<3 {
+        app.search.advanceResultListGeneration()
+    }
+    app.search.updateQuery("foo")
+    app.search.updateStatus(.searching)
+    app.search.replaceLoadedSearchResults(
+        [currentResult],
+        orderedCueIDs: [currentResult.entryID]
+    )
+    app.search.publishResultMetadata(
+        totalCount: 1,
+        fileSummaries: [],
+        countState: .exactProgress,
+        knownResultCount: 1,
+        knownFileCount: 1,
+        hasMore: false
+    )
 
     app.applySearchCountProgress(
         SubtitleSearchProgressSnapshot(
@@ -460,16 +474,24 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     )
 
     app.indexing.selectedFolders = [fixtureRoot]
-    app.search.searchQuery = "shared"
-    app.search.searchStatus = .searching
-    app.search.searchResults = [existingResult]
-    app.search.searchResultCueIDs = [existingResult.entryID]
-    app.search.searchResultTotalCount = 100
-    app.search.searchCountState = .exactProgress
-    app.search.searchKnownResultCount = 1
-    app.search.hasMoreSearchResults = true
-    app.search.loadedGlobalResultCount = 1
-    app.search.nextGlobalCursor = SubtitleSearchCursor(offset: 1)
+    app.search.updateQuery("shared")
+    app.search.updateStatus(.searching)
+    app.search.replaceLoadedSearchResults(
+        [existingResult],
+        orderedCueIDs: [existingResult.entryID]
+    )
+    app.search.publishResultMetadata(
+        totalCount: 100,
+        fileSummaries: [],
+        countState: .exactProgress,
+        knownResultCount: 1,
+        knownFileCount: 0,
+        hasMore: true
+    )
+    app.search.updatePagination(
+        loadedResultCount: 1,
+        nextCursor: SubtitleSearchCursor(offset: 1)
+    )
 
     app.applySearchCountProgress(
         SubtitleSearchProgressSnapshot(
@@ -574,8 +596,15 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     )
 
     app.indexing.selectedFolders = [fixtureRoot]
-    app.search.searchQuery = "shared"
-    app.search.searchResultTotalCount = 120
+    app.search.updateQuery("shared")
+    app.search.publishResultMetadata(
+        totalCount: 120,
+        fileSummaries: [],
+        countState: .exact,
+        knownResultCount: 120,
+        knownFileCount: 0,
+        hasMore: true
+    )
 
     let missingIDPage = await app.loadTableSandboxSearchRows(range: 110..<112)
     #expect(missingIDPage == nil)
@@ -585,10 +614,15 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
         limit: 0,
         under: [fixtureRoot]
     )
-    app.search.searchResultCueIDs = exactPage.cueIDs
-    app.search.searchResultTotalCount = exactPage.totalCount
-    app.search.searchFileSummaries = exactPage.fileSummaries
-    app.search.searchCountState = exactPage.countState
+    app.search.updateResultCueIDs(exactPage.cueIDs)
+    app.search.publishResultMetadata(
+        totalCount: exactPage.totalCount,
+        fileSummaries: exactPage.fileSummaries,
+        countState: exactPage.countState,
+        knownResultCount: exactPage.totalCount,
+        knownFileCount: exactPage.fileSummaries.count,
+        hasMore: false
+    )
 
     let page = try #require(await app.loadTableSandboxSearchRows(range: 110..<112))
 
@@ -729,7 +763,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
             totalRowCount: page.totalCount
         )
     )
-    app.search.selectedSearchResult = selected
+    app.search.selectResult(selected)
 
     app.refreshSearchNavigationSnapshot()
     await app.search.navigationTask?.value
@@ -772,8 +806,15 @@ func openingSearchResultUpdatesNavigationStateImmediately() throws {
         content: "third result",
         searchRank: 2
     )
-    app.search.searchResults = [first, second, third]
-    app.search.searchResultTotalCount = 3
+    app.search.replaceLoadedSearchResults([first, second, third])
+    app.search.publishResultMetadata(
+        totalCount: 3,
+        fileSummaries: [],
+        countState: .exact,
+        knownResultCount: 3,
+        knownFileCount: 0,
+        hasMore: false
+    )
 
     app.openSearchResult(first)
 
@@ -904,11 +945,11 @@ func indexedCueMutationInvalidatesFilterProjectionAndAdvancesItsIdentity() throw
         cueContentProvider: { _ in nil },
         tableName: "test-search"
     )
-    search.cueContextSearchRequest = CueContextSearchRequest(
+    search.updateContextRequest(CueContextSearchRequest(
         displayTitle: "Episode",
         subtitlePath: "/Media/Episode.srt",
         targetCueID: 42
-    )
+    ))
 
     let mutation = search.beginIndexedCueDataMutation()
 

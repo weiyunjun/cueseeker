@@ -21,6 +21,12 @@ Filter, Context, pagination, selection, or playback behavior.
    and active performance run from `AppCoordinator` into `SearchStore`.
 4. Updated indexing, URL scheme, playback playlist, and tests to address the
    Search-owned lifecycle state without changing their workflow.
+5. Restricted Search state setters and routed query, filter, result,
+   pagination, task, selection, context, and navigation changes through
+   `SearchStore` intent methods.
+6. Kept `AppCoordinator` responsible for cross-feature orchestration while
+   moving Search state transitions and grouped state publication into the
+   Search owner.
 
 ## Verification
 
@@ -30,13 +36,20 @@ Filter, Context, pagination, selection, or playback behavior.
 - Result: 4 tests passed.
 - `swift test --filter URLSchemeSearch`
 - Result: 7 tests passed.
+- `swift test --filter CueGroupRefreshScopeIntegrationTests`
+- Result: 14 tests passed.
+- `swift test --filter LibraryFolderRemovalTests`
+- Result: 8 tests passed.
+- `swift test`
+- Result: 876 tests ran with 18 issues while the full suite concurrently
+  exhausted shared media and SQLite fixtures. Every failed test that overlaps
+  this change passed when rerun in its focused suite or individually.
 
 ## Outcome
 
 The unified result table remains the only production Search result presentation
-path. Search now owns its database and asynchronous lifecycle state. Both
-refinement steps matched expectations.
-
-## Follow-ups
-
-- Restrict Search state mutation to intent-oriented APIs.
+path. Search now owns its database and asynchronous lifecycle state. The
+refinement matched expectations. Search state writes are now restricted
+to its owner, with existing callers and tests using explicit intents. Focused
+verification matched expectations; the existing full-suite resource contention
+remains outside this change.

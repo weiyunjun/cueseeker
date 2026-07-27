@@ -90,7 +90,7 @@ func urlSchemeUnavailableCueDoesNotReplaceCurrentPresentation() async throws {
     let fixture = try makeURLSchemeCuePlaybackFixture("Unavailable")
     defer { fixture.cleanup() }
     fixture.app.workbenchLayout.selectPanelMode(.shiori)
-    fixture.app.search.searchQuery = "keep me"
+    fixture.app.search.updateQuery("keep me")
 
     var presentationReadyCount = 0
     fixture.app.handleURLSchemeCommand(.cue(id: Int64.max)) {

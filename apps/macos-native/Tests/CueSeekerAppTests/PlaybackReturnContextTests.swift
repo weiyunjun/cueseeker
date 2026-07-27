@@ -86,7 +86,7 @@ func closingPlaybackRestoresEveryReturnTargetAndClearsTheContext() throws {
     let app = fixture.app
     let folder = playbackReturnContextFolder()
     app.library.completeLibraryFolderSummaries = [folder]
-    app.search.searchQuery = "current shared query"
+    app.search.updateQuery("current shared query")
 
     let cases: [(PlaybackReturnContext, WorkbenchPanelMode)] = [
         (.search, .search),

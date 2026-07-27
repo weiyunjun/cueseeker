@@ -13,7 +13,7 @@ extension AppCoordinator {
             "ACTION UI.SearchQuery.changed",
             details: "length=\(query.count)"
         )
-        search.searchQuery = query
+        search.updateQuery(query)
         startSearch(query: query, cursor: .start, appending: false, debounce: true)
     }
 
@@ -29,7 +29,7 @@ extension AppCoordinator {
             debounce: false,
             filterSetOverride: SubtitleSearchFilterSet()
         )
-        search.isPlaybackTemporaryFilterActive = true
+        search.activatePlaybackTemporaryFilter()
     }
 
     func updatePlaybackSearchQuery(_ query: String) {
@@ -37,7 +37,7 @@ extension AppCoordinator {
             "ACTION UI.PlaybackSearchQuery.changed",
             details: "length=\(query.count)"
         )
-        search.searchQuery = query
+        search.updateQuery(query)
         if search.isPlaybackTemporaryFilterActive {
             startSearch(
                 query: query,
@@ -52,19 +52,9 @@ extension AppCoordinator {
     }
 
     func finishPlaybackSearchHost(committingEmptyFilter: Bool) {
-        guard search.isPlaybackTemporaryFilterActive else {
-            return
-        }
-
-        search.isPlaybackTemporaryFilterActive = false
-        if committingEmptyFilter {
-            let emptyFilterSet = SubtitleSearchFilterSet()
-            search.activeFilterSet = emptyFilterSet
-            search.resultFilterSet = emptyFilterSet
-            return
-        }
-
-        guard search.resultFilterSetSignature != search.activeFilterSetSignature else {
+        guard let restoreFilterSet = search.finishPlaybackTemporaryFilter(
+            committingEmptyFilter: committingEmptyFilter
+        ) else {
             return
         }
         startSearch(
@@ -72,13 +62,13 @@ extension AppCoordinator {
             cursor: .start,
             appending: false,
             debounce: false,
-            filterSetOverride: search.activeFilterSet
+            filterSetOverride: restoreFilterSet
         )
     }
 
     func updateSearchFilterSet(_ filterSet: SubtitleSearchFilterSet) {
         let previousSignature = search.activeFilterSetSignature
-        search.activeFilterSet = filterSet
+        search.updateActiveFilterSet(filterSet)
 
         guard previousSignature != filterSet.cacheSignature else {
             return
@@ -97,8 +87,8 @@ extension AppCoordinator {
             pausePlayback()
         }
         workbenchLayout.selectPanelMode(.search)
-        search.searchQuery = trimmedQuery
-        search.searchNavigationSnapshot = nil
+        search.updateQuery(trimmedQuery)
+        search.updateNavigationSnapshot(nil)
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
     }
 
@@ -183,7 +173,7 @@ extension AppCoordinator {
             subtitlePath: subtitlePath,
             targetCueID: targetCueID
         )
-        search.cueContextSearchRequest = request
+        search.updateContextRequest(request)
         workbenchLayout.selectPanelMode(.search)
     }
 
@@ -447,19 +437,23 @@ extension AppCoordinator {
     }
 
     func applyTableSandboxAllCueSearchContext(_ page: TableSandboxSearchHydrationPage) {
-        search.searchStatus = .completed
+        search.updateStatus(.completed)
         search.replaceLoadedSearchResults(
             page.results,
             orderedCueIDs: page.results.map(\.entryID)
         )
-        search.searchResultTotalCount = page.totalRowCount
-        search.searchCountState = .exact
-        search.searchKnownResultCount = page.totalRowCount
-        search.searchKnownFileCount = 0
-        search.hasMoreSearchResults = page.range.upperBound < page.totalRowCount
-        search.nextGlobalCursor = search.hasMoreSearchResults
+        let hasMore = page.range.upperBound < page.totalRowCount
+        search.publishResultMetadata(
+            totalCount: page.totalRowCount,
+            fileSummaries: search.searchFileSummaries,
+            countState: .exact,
+            knownResultCount: page.totalRowCount,
+            knownFileCount: 0,
+            hasMore: hasMore
+        )
+        search.updateNextGlobalCursor(hasMore
             ? SubtitleSearchCursor(offset: page.range.upperBound)
-            : nil
+            : nil)
         refreshSearchPlaybackPlaylistSource(
             resultListGeneration: search.resultListGeneration
         )
@@ -481,17 +475,8 @@ extension AppCoordinator {
         urlSchemeIntentID: UUID? = nil,
         filterSetOverride: SubtitleSearchFilterSet? = nil
     ) {
-        if !appending {
-            search.resultListGeneration &+= 1
-        }
-        let resultListGeneration = search.resultListGeneration
         if pendingURLSchemeDirectPlayIntent?.id != urlSchemeIntentID {
             pendingURLSchemeDirectPlayIntent = nil
-        }
-        search.searchTask?.cancel()
-        if !appending {
-            search.exactCompletionTask?.cancel()
-            search.exactCompletionTask = nil
         }
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -504,9 +489,10 @@ extension AppCoordinator {
             ? search.resultFilterSet
             : (filterSetOverride ?? search.activeFilterSet)
         let filterSignature = filterSet.cacheSignature
-        if !appending {
-            search.resultFilterSet = filterSet
-        }
+        let resultListGeneration = search.prepareSearch(
+            appending: appending,
+            filterSet: filterSet
+        )
         if let activePerformanceRun = search.activePerformanceRun {
             SearchPerformanceLogger.mark(activePerformanceRun, "search_superseded_by_new_search")
             SearchPerformanceLogger.writeE2ESearchPage(
@@ -527,7 +513,7 @@ extension AppCoordinator {
             folderPaths: folders.map(\.path),
             e2eLoggingEnabled: settings.searchE2ELoggingEnabled
         )
-        search.activePerformanceRun = searchPerformanceRun
+        search.updateActivePerformanceRun(searchPerformanceRun)
 
         if !appending {
             let resetStart = SearchPerformanceLogger.now()
@@ -543,7 +529,7 @@ extension AppCoordinator {
         }
 
         guard !trimmedQuery.isEmpty else {
-            search.searchStatus = .idle
+            search.updateStatus(.idle)
             SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_empty_query", status: "idle")
             SearchPerformanceLogger.writeE2ESearchPage(
                 searchPerformanceRun,
@@ -557,9 +543,9 @@ extension AppCoordinator {
         }
 
         guard !folders.isEmpty else {
-            search.searchStatus = .completed
+            search.updateStatus(.completed)
             if activePlaybackSource != .search || !isPlaybackPageVisible {
-                search.selectedSearchResult = nil
+                search.selectResult(nil)
             }
             SearchPerformanceLogger.mark(searchPerformanceRun, "search_skipped_no_folders", status: "completed")
             SearchPerformanceLogger.writeE2ESearchPage(
@@ -573,11 +559,11 @@ extension AppCoordinator {
             return
         }
 
-        search.searchStatus = .searching
+        search.updateStatus(.searching)
         SearchPerformanceLogger.mark(searchPerformanceRun, "search_status_searching", status: "searching")
 
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
-            search.searchStatus = .failed("Database compaction is running")
+            search.updateStatus(.failed("Database compaction is running"))
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
                 "search_failed_database_compacting",
@@ -597,7 +583,7 @@ extension AppCoordinator {
         }
 
         guard let database = search.database else {
-            search.searchStatus = .failed("Database is not initialized")
+            search.updateStatus(.failed("Database is not initialized"))
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
                 "search_failed_no_database",
@@ -620,7 +606,7 @@ extension AppCoordinator {
             scope: uiProbeScope,
             details: "offset=\(offset) appending=\(appending)"
         )
-        search.searchTask = Task {
+        search.replaceSearchTask(Task {
             do {
                 if debounce {
                     let debounceStart = SearchPerformanceLogger.now()
@@ -702,29 +688,38 @@ extension AppCoordinator {
                 }
 
                 let stateAssignStart = SearchPerformanceLogger.now()
+                let loadedResultCount: Int
                 if appending {
                     appendGlobalSearchResults(page.results)
-                    search.loadedGlobalResultCount = max(
+                    loadedResultCount = max(
                         search.loadedGlobalResultCount,
                         offset + page.results.count
                     )
                 } else {
                     search.replaceLoadedSearchResults(page.results)
-                    search.loadedGlobalResultCount = page.results.count
+                    loadedResultCount = page.results.count
                 }
                 let shouldPreserveExactMetadata = appending && search.searchCountState == .exact
                 if shouldPreserveExactMetadata && page.countState != .exact {
-                    search.searchKnownResultCount = max(search.searchKnownResultCount, page.knownResultCount)
-                    search.searchKnownFileCount = max(search.searchKnownFileCount, page.knownFileCount)
+                    search.publishKnownCounts(
+                        resultCount: max(search.searchKnownResultCount, page.knownResultCount),
+                        fileCount: max(search.searchKnownFileCount, page.knownFileCount)
+                    )
+                    search.updateHasMoreResults(page.hasMore)
                 } else {
-                    search.searchResultTotalCount = page.totalCount
-                    search.searchFileSummaries = page.fileSummaries
-                    search.searchCountState = page.countState
-                    search.searchKnownResultCount = page.knownResultCount
-                    search.searchKnownFileCount = page.knownFileCount
+                    search.publishResultMetadata(
+                        totalCount: page.totalCount,
+                        fileSummaries: page.fileSummaries,
+                        countState: page.countState,
+                        knownResultCount: page.knownResultCount,
+                        knownFileCount: page.knownFileCount,
+                        hasMore: page.hasMore
+                    )
                 }
-                search.hasMoreSearchResults = page.hasMore
-                search.nextGlobalCursor = page.nextCursor
+                search.updatePagination(
+                    loadedResultCount: loadedResultCount,
+                    nextCursor: page.nextCursor
+                )
                 refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: resultListGeneration
                 )
@@ -741,9 +736,9 @@ extension AppCoordinator {
                 let completionStart = SearchPerformanceLogger.now()
                 let pageCompletesSearch = page.countState == .exact || shouldPreserveExactMetadata
                 if pageCompletesSearch {
-                    search.searchStatus = .completed
+                    search.updateStatus(.completed)
                 } else {
-                    search.searchStatus = .searching
+                    search.updateStatus(.searching)
                 }
                 let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
                 let logPageHasExactCounts = page.countState == .exact
@@ -824,9 +819,9 @@ extension AppCoordinator {
                         renderedRowCount: search.searchResults.count
                     )
                 }
-                search.hasMoreSearchResults = false
+                search.updateHasMoreResults(false)
                 let message = Self.errorMessage(for: error)
-                search.searchStatus = .failed(message)
+                search.updateStatus(.failed(message))
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_failed",
@@ -845,7 +840,7 @@ extension AppCoordinator {
                 clearSearchPerformanceRunIfActive(searchPerformanceRun)
                 resolveURLSchemeDirectPlayIntent(id: urlSchemeIntentID, firstPageResult: nil)
             }
-        }
+        })
     }
 
     func applySearchCountProgress(
@@ -877,24 +872,33 @@ extension AppCoordinator {
            now - search.lastCountProgressUpdate < Self.searchCountProgressMinimumIntervalNanoseconds {
             return
         }
-        search.lastCountProgressUpdate = now
+        search.updateLastCountProgress(now)
 
+        let loadedResultCount: Int
         if !progress.results.isEmpty {
             search.replaceLoadedSearchResults(
                 progress.results,
                 orderedCueIDs: progress.cueIDs
             )
-            search.loadedGlobalResultCount = progress.results.count
+            loadedResultCount = progress.results.count
+        } else {
+            loadedResultCount = search.loadedGlobalResultCount
         }
-        search.searchResultTotalCount = progress.knownResultCount
-        search.searchFileSummaries = progress.fileSummaries
-        search.searchCountState = progress.countState
-        search.searchKnownResultCount = progress.knownResultCount
-        search.searchKnownFileCount = progress.knownFileCount
-        search.hasMoreSearchResults = search.loadedGlobalResultCount < search.searchResultTotalCount
-        search.nextGlobalCursor = search.hasMoreSearchResults
-            ? (search.nextGlobalCursor ?? SubtitleSearchCursor(offset: search.loadedGlobalResultCount))
+        let hasMore = loadedResultCount < progress.knownResultCount
+        search.publishResultMetadata(
+            totalCount: progress.knownResultCount,
+            fileSummaries: progress.fileSummaries,
+            countState: progress.countState,
+            knownResultCount: progress.knownResultCount,
+            knownFileCount: progress.knownFileCount,
+            hasMore: hasMore
+        )
+        search.updatePagination(
+            loadedResultCount: loadedResultCount,
+            nextCursor: hasMore
+            ? (search.nextGlobalCursor ?? SubtitleSearchCursor(offset: loadedResultCount))
             : nil
+        )
         refreshSearchPlaybackPlaylistSource(
             resultListGeneration: resultListGeneration
         )
@@ -927,7 +931,7 @@ extension AppCoordinator {
         resultListGeneration: UInt64,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
-        search.exactCompletionTask?.cancel()
+        search.replaceExactCompletionTask(nil)
 
         guard let database = search.database else {
             return
@@ -950,7 +954,7 @@ extension AppCoordinator {
                 )
             }
         }
-        search.exactCompletionTask = Task {
+        search.replaceExactCompletionTask(Task {
             do {
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_exact_completion_started")
                 let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
@@ -1008,32 +1012,40 @@ extension AppCoordinator {
                 }
 
                 let stateAssignStart = SearchPerformanceLogger.now()
+                let loadedResultCount: Int
                 if !page.renderableResults.isEmpty {
                     search.replaceLoadedSearchResults(
                         page.renderableResults,
                         orderedCueIDs: page.cueIDs
                     )
-                    search.loadedGlobalResultCount = page.renderableResults.count
+                    loadedResultCount = page.renderableResults.count
                 } else {
-                    search.searchResultCueIDs = page.cueIDs
+                    search.updateResultCueIDs(page.cueIDs)
+                    loadedResultCount = search.loadedGlobalResultCount
                 }
-                search.searchResultTotalCount = page.totalCount
-                search.searchFileSummaries = page.fileSummaries
-                search.searchCountState = page.countState
-                search.searchKnownResultCount = page.knownResultCount
-                search.searchKnownFileCount = page.knownFileCount
-                search.hasMoreSearchResults = search.loadedGlobalResultCount < page.totalCount
-                search.nextGlobalCursor = search.hasMoreSearchResults
-                    ? (search.nextGlobalCursor ?? SubtitleSearchCursor(offset: search.loadedGlobalResultCount))
-                    : nil
+                let hasMore = loadedResultCount < page.totalCount
+                search.publishResultMetadata(
+                    totalCount: page.totalCount,
+                    fileSummaries: page.fileSummaries,
+                    countState: page.countState,
+                    knownResultCount: page.knownResultCount,
+                    knownFileCount: page.knownFileCount,
+                    hasMore: hasMore
+                )
+                search.updatePagination(
+                    loadedResultCount: loadedResultCount,
+                    nextCursor: hasMore
+                        ? (search.nextGlobalCursor ?? SubtitleSearchCursor(offset: loadedResultCount))
+                        : nil
+                )
                 refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: resultListGeneration
                 )
                 let stateAssignMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
 
                 let completionStart = SearchPerformanceLogger.now()
-                search.searchStatus = .completed
-                search.exactCompletionTask = nil
+                search.updateStatus(.completed)
+                search.replaceExactCompletionTask(nil)
                 let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -1090,8 +1102,8 @@ extension AppCoordinator {
                 }
 
                 let message = Self.errorMessage(for: error)
-                search.searchStatus = .failed(message)
-                search.exactCompletionTask = nil
+                search.updateStatus(.failed(message))
+                search.replaceExactCompletionTask(nil)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_exact_completion_failed",
@@ -1108,7 +1120,7 @@ extension AppCoordinator {
                     error: message
                 )
             }
-        }
+        })
     }
 
     func clearSearchPerformanceRunIfActive(_ run: SearchPerformanceRun?) {
@@ -1116,7 +1128,7 @@ extension AppCoordinator {
             return
         }
 
-        search.activePerformanceRun = nil
+        search.updateActivePerformanceRun(nil)
     }
 
     func refreshSearchNavigationSnapshot() {
@@ -1147,22 +1159,7 @@ extension AppCoordinator {
         }
 
         if clearExistingResults {
-            let releasedRows = max(
-                search.searchResults.count,
-                search.searchResultCueIDs.count,
-                search.searchResultTotalCount
-            )
-            search.searchResults = []
-            search.searchResultCueIDs = []
-            search.searchResultTotalCount = 0
-            search.searchFileSummaries = []
-            search.searchCountState = .exact
-            search.searchKnownResultCount = 0
-            search.searchKnownFileCount = 0
-            search.hasMoreSearchResults = false
-            search.loadedGlobalResultCount = 0
-            search.lastCountProgressUpdate = 0
-            search.nextGlobalCursor = nil
+            let releasedRows = search.clearResults()
             AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
         }
 
@@ -1193,13 +1190,13 @@ extension AppCoordinator {
     }
 
     func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {
-        search.navigationTask?.cancel()
+        search.cancelNavigationTask()
 
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !indexing.selectedFolders.isEmpty,
               search.database != nil
         else {
-            search.searchNavigationSnapshot = nil
+            search.updateNavigationSnapshot(nil)
             if let direction {
                 playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
@@ -1220,7 +1217,7 @@ extension AppCoordinator {
         let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         let filterSet = search.resultFilterSet
         let filterSignature = filterSet.cacheSignature
-        search.navigationTask = Task { [weak self] in
+        search.replaceNavigationTask(Task { [weak self] in
             guard !Task.isCancelled, let self else {
                 return
             }
@@ -1259,7 +1256,7 @@ extension AppCoordinator {
             } else if let direction {
                 self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
-        }
+        })
     }
 
     private func loadAllCueSearchNavigationSnapshot(
@@ -1269,7 +1266,7 @@ extension AppCoordinator {
     ) {
         let totalCount = searchNavigationTotalCount
         guard totalCount > 0 else {
-            search.searchNavigationSnapshot = nil
+            search.updateNavigationSnapshot(nil)
             if let direction {
                 playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
@@ -1289,7 +1286,7 @@ extension AppCoordinator {
         }
         let requestedRange = lowerBound..<upperBound
 
-        search.navigationTask = Task { [weak self] in
+        search.replaceNavigationTask(Task { [weak self] in
             guard let self,
                   let page = await self.loadTableSandboxAllCueRows(range: requestedRange)
             else {
@@ -1330,7 +1327,7 @@ extension AppCoordinator {
             } else if let direction {
                 self.playback.playbackViewModel?.showSearchNavigationFeedback(direction: direction, hasResult: false)
             }
-        }
+        })
     }
 
     func currentSearchNavigationAnchor() -> SearchNavigationAnchor {
@@ -1397,7 +1394,7 @@ extension AppCoordinator {
     }
 
     func applySearchNavigationSnapshot(_ snapshot: SearchNavigationSnapshot) {
-        search.searchNavigationSnapshot = snapshot
+        search.updateNavigationSnapshot(snapshot)
         guard activePlaybackSource == .search,
               search.selectedSearchResult?.entryID == snapshot.current?.entryID
         else {
@@ -1432,7 +1429,7 @@ extension AppCoordinator {
             return
         }
 
-        search.searchNavigationSnapshot = nil
+        search.updateNavigationSnapshot(nil)
     }
 
     private func searchNavigationSnapshot(
@@ -1466,43 +1463,16 @@ extension AppCoordinator {
     }
 
     func revealInitialGlobalSearchResultPage() {
-        search.searchResults = Array(search.searchResults.prefix(Self.searchPageSize))
-        search.loadedGlobalResultCount = search.searchResults.count
-        search.searchKnownResultCount = search.searchResultTotalCount
-        search.searchKnownFileCount = search.searchFileSummaries.count
-        search.hasMoreSearchResults = search.loadedGlobalResultCount < search.searchResultTotalCount
-        search.nextGlobalCursor = search.hasMoreSearchResults
-            ? SubtitleSearchCursor(offset: search.loadedGlobalResultCount)
-            : nil
+        search.revealInitialGlobalPage(limit: Self.searchPageSize)
     }
 
     func appendGlobalSearchResults(_ results: [SubtitleSearchResult]) {
-        let existingEntryIDs = Set(search.searchResults.map(\.entryID))
-        search.searchResults = search.searchResults
-            + results.filter { !existingEntryIDs.contains($0.entryID) }
+        search.appendLoadedResults(results)
     }
 
     func resetSearchResultLoadingState() {
-        search.exactCompletionTask?.cancel()
-        search.exactCompletionTask = nil
-        search.navigationTask?.cancel()
-        let releasedRows = max(
-            search.searchResults.count,
-            search.searchResultCueIDs.count,
-            search.searchResultTotalCount
-        )
-        search.searchResults = []
-        search.searchResultCueIDs = []
-        search.searchResultTotalCount = 0
-        search.searchFileSummaries = []
-        search.searchCountState = .exact
-        search.searchKnownResultCount = 0
-        search.searchKnownFileCount = 0
-        search.hasMoreSearchResults = false
-        search.lastCountProgressUpdate = 0
-        search.loadedGlobalResultCount = 0
-        search.nextGlobalCursor = nil
-        search.searchNavigationSnapshot = nil
+        search.cancelCompletionAndNavigationTasks()
+        let releasedRows = search.clearResults()
         AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
     }
 }

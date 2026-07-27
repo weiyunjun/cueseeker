@@ -10,7 +10,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     let fixture = playbackMultiModuleFixture()
     let featureLibrary = playbackMultiModuleFeatureLibrary(fixture)
     let searchStore = SearchStore()
-    searchStore.searchResults = fixture.searchResults
+    searchStore.replaceLoadedSearchResults(fixture.searchResults)
     let shioriStore = playbackMultiModuleShioriStore(fixture.shiori)
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
@@ -41,7 +41,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     #expect(playbackMultiModuleCommit(ordinal: 1, in: playlistWindow))
 
     #expect(session.selectModule(.search))
-    searchStore.searchQuery = "overlay"
+    searchStore.updateQuery("overlay")
     let searchWindow = try #require(session.searchWindow)
     #expect(playbackMultiModuleCommit(ordinal: 1, in: searchWindow))
 
@@ -134,7 +134,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     featureLibrary.completeLibraryFolderDetailStatusesByPath = [
         fixture.detail.folderPath: .completed,
     ]
-    app.search.searchResults = fixture.searchResults
+    app.search.replaceLoadedSearchResults(fixture.searchResults)
     app.shiori.tableRowStore.updateShioriRows(
         [playbackMultiModuleShioriRow(fixture.shiori)],
         tableName: "shiori"
