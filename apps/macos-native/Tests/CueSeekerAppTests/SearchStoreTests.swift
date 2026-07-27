@@ -29,6 +29,53 @@ func searchInputDebounceIsOneHundredMilliseconds() {
 
 @MainActor
 @Test
+func folderScopeChangeRejectsStaleNavigationAcrossABA() async {
+    let search = SearchStore()
+    let folderA = URL(fileURLWithPath: "/tmp/CueSeeker-Scope-A")
+    let folderB = URL(fileURLWithPath: "/tmp/CueSeeker-Scope-B")
+    let stalePage = TableSandboxSearchHydrationPage(
+        range: 0..<1,
+        results: [
+            makeTableSandboxSearchResult(
+                id: 42,
+                content: "stale folder A result",
+                searchRank: 0
+            )
+        ],
+        totalRowCount: 1
+    )
+
+    search.updateFolderScope([folderA])
+    let staleGeneration = search.folderScopeGeneration
+    let staleTask = Task { @MainActor in
+        await Task.yield()
+        guard !Task.isCancelled,
+              search.acceptsFolderScope(
+                [folderA],
+                generation: staleGeneration
+              )
+        else {
+            return
+        }
+        search.applyAllCueSearchContext(stalePage)
+    }
+    search.replaceNavigationTask(staleTask)
+
+    search.updateFolderScope([folderB])
+    search.updateFolderScope([folderA])
+    await staleTask.value
+
+    #expect(staleTask.isCancelled)
+    #expect(search.folderScopeGeneration != staleGeneration)
+    #expect(!search.acceptsFolderScope(
+        [folderA],
+        generation: staleGeneration
+    ))
+    #expect(search.searchResults.isEmpty)
+}
+
+@MainActor
+@Test
 func resultStateCommitPublishesOneCoherentRevision() {
     let search = SearchStore()
     let result = makeTableSandboxSearchResult(
@@ -287,6 +334,8 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
         query: "foo",
         filterSignature: app.search.activeFilterSetSignature,
         generation: 1,
+        folders: app.indexing.selectedFolders,
+        folderScopeGeneration: app.search.folderScopeGeneration,
         run: nil,
         isContextCurrent: { true },
         onResultsChanged: { _ in }
@@ -354,6 +403,7 @@ func contextTableLifecycleLoadsInitialAndAdjacentPages() async throws {
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    app.indexing.selectedFolders = [fixtureRoot]
     let subtitleURL = fixtureRoot.appendingPathComponent("Episode.srt")
     let videoURL = fixtureRoot.appendingPathComponent("Episode.mkv")
     let database = try #require(app.indexingDatabase)

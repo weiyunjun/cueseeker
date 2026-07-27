@@ -37,6 +37,7 @@ extension SearchStore {
             ? resultFilterSet
             : (filterSetOverride ?? activeFilterSet)
         let filterSignature = filterSet.cacheSignature
+        let scopeGeneration = folderScopeGeneration
         let generation = prepareSearch(
             appending: appending,
             filterSet: filterSet
@@ -182,6 +183,10 @@ extension SearchStore {
                     return
                 }
                 guard generation == self.resultListGeneration,
+                      self.acceptsFolderScope(
+                        folders,
+                        generation: scopeGeneration
+                      ),
                       self.searchQuery.trimmingCharacters(
                         in: .whitespacesAndNewlines
                       ) == trimmedQuery,
@@ -248,6 +253,7 @@ extension SearchStore {
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
                         generation: generation,
+                        folderScopeGeneration: scopeGeneration,
                         run: run,
                         isContextCurrent: isContextCurrent,
                         onResultsChanged: onResultsChanged
@@ -270,7 +276,12 @@ extension SearchStore {
                     databaseSearchMilliseconds: nil
                 )
             } catch {
-                guard !Task.isCancelled else {
+                guard !Task.isCancelled,
+                      self.acceptsFolderScope(
+                        folders,
+                        generation: scopeGeneration
+                      )
+                else {
                     self.logCancelledPage(
                         run: run,
                         event: "search_cancelled_after_error",
@@ -312,6 +323,7 @@ extension SearchStore {
         watchStateFilter: SubtitleSearchWatchStateFilter,
         filterSet: SubtitleSearchFilterSet,
         generation: UInt64,
+        folderScopeGeneration: UInt64,
         run: SearchPerformanceRun?,
         isContextCurrent: @escaping @MainActor () -> Bool,
         onResultsChanged: @escaping @MainActor (UInt64) -> Void
@@ -327,6 +339,8 @@ extension SearchStore {
                     query: query,
                     filterSignature: filterSignature,
                     generation: generation,
+                    folders: folders,
+                    folderScopeGeneration: folderScopeGeneration,
                     run: run,
                     isContextCurrent: isContextCurrent,
                     onResultsChanged: onResultsChanged
@@ -363,6 +377,10 @@ extension SearchStore {
 
                 guard !Task.isCancelled,
                       generation == self.resultListGeneration,
+                      self.acceptsFolderScope(
+                        folders,
+                        generation: folderScopeGeneration
+                      ),
                       self.searchQuery.trimmingCharacters(
                         in: .whitespacesAndNewlines
                       ) == query,
@@ -415,6 +433,10 @@ extension SearchStore {
             } catch {
                 guard !Task.isCancelled,
                       generation == self.resultListGeneration,
+                      self.acceptsFolderScope(
+                        folders,
+                        generation: folderScopeGeneration
+                      ),
                       self.resultFilterSetSignature == filterSignature,
                       isContextCurrent()
                 else {
@@ -438,11 +460,17 @@ extension SearchStore {
         query: String,
         filterSignature: String,
         generation: UInt64,
+        folders: [URL],
+        folderScopeGeneration: UInt64,
         run: SearchPerformanceRun?,
         isContextCurrent: @escaping @MainActor () -> Bool,
         onResultsChanged: @escaping @MainActor (UInt64) -> Void
     ) {
         guard generation == resultListGeneration,
+              acceptsFolderScope(
+                folders,
+                generation: folderScopeGeneration
+              ),
               progress.countState == .exactProgress,
               searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query,
               resultFilterSetSignature == filterSignature,
@@ -559,11 +587,13 @@ extension SearchStore {
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter
     ) async -> TableSandboxSearchHydrationPage? {
+        let scopeGeneration = folderScopeGeneration
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let filterSet = resultFilterSet
         let filterSignature = filterSet.cacheSignature
         guard !query.isEmpty,
               !folders.isEmpty,
+              acceptsFolderScope(folders, generation: scopeGeneration),
               database != nil,
               let databaseURL
         else {
@@ -606,6 +636,10 @@ extension SearchStore {
                 }
                 guard !Task.isCancelled,
                       let page,
+                      acceptsFolderScope(
+                        folders,
+                        generation: scopeGeneration
+                      ),
                       searchQuery.trimmingCharacters(
                         in: .whitespacesAndNewlines
                       ) == query,
@@ -649,6 +683,10 @@ extension SearchStore {
                 )
             }
             guard !Task.isCancelled,
+                  acceptsFolderScope(
+                    folders,
+                    generation: scopeGeneration
+                  ),
                   searchQuery.trimmingCharacters(
                     in: .whitespacesAndNewlines
                   ) == query,
@@ -671,9 +709,11 @@ extension SearchStore {
         range: Range<Int>,
         folders: [URL]
     ) async -> TableSandboxSearchHydrationPage? {
+        let scopeGeneration = folderScopeGeneration
         let filterSet = activeFilterSet
         let filterSignature = filterSet.cacheSignature
         guard !folders.isEmpty,
+              acceptsFolderScope(folders, generation: scopeGeneration),
               database != nil,
               let databaseURL
         else {
@@ -699,6 +739,10 @@ extension SearchStore {
                 )
             }
             guard !Task.isCancelled,
+                  acceptsFolderScope(
+                    folders,
+                    generation: scopeGeneration
+                  ),
                   activeFilterSetSignature == filterSignature
             else {
                 return nil
@@ -721,7 +765,13 @@ extension SearchStore {
         anchorWindowSize: Int = TableSandboxHydrationPaging.pageSize,
         anchorsInitialPage: Bool = false
     ) async -> TableSandboxSearchHydrationPage? {
-        guard database != nil, let databaseURL else { return nil }
+        let scopeGeneration = folderScopeGeneration
+        guard acceptsFolderScope(folders, generation: scopeGeneration),
+              database != nil,
+              let databaseURL
+        else {
+            return nil
+        }
         let lowerBound = max(0, range.lowerBound)
         let upperBound = max(lowerBound, range.upperBound)
         guard lowerBound < upperBound else { return nil }
@@ -748,6 +798,10 @@ extension SearchStore {
             }
             guard !Task.isCancelled,
                   let page,
+                  acceptsFolderScope(
+                    folders,
+                    generation: scopeGeneration
+                  ),
                   cueContextSearchRequest?.id == request.id
             else {
                 return nil

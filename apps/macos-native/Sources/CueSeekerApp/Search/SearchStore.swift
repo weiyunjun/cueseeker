@@ -70,6 +70,8 @@ final class SearchStore: ObservableObject {
     private(set) var navigationTask: Task<Void, Never>?
     private(set) var activePerformanceRun: SearchPerformanceRun?
     private(set) var resultListGeneration: UInt64 = 0
+    private(set) var folderScopeGeneration: UInt64 = 0
+    private var folderScopePaths: [String] = []
     private(set) var loadedGlobalResultCount = 0
     private(set) var lastCountProgressUpdate: UInt64 = 0
     private(set) var nextGlobalCursor: SubtitleSearchCursor?
@@ -850,6 +852,31 @@ final class SearchStore: ObservableObject {
     func cancelNavigationTask() {
         navigationTask?.cancel()
         navigationTask = nil
+    }
+
+    func updateFolderScope(_ folders: [URL]) {
+        let paths = Self.normalizedFolderPaths(folders)
+        guard paths != folderScopePaths else {
+            return
+        }
+        folderScopePaths = paths
+        folderScopeGeneration &+= 1
+        resultListGeneration &+= 1
+        cancelAllSearchTasks()
+        suspendFilterOnlyPageLoad()
+        cancelContextTableLoad()
+    }
+
+    func acceptsFolderScope(
+        _ folders: [URL],
+        generation: UInt64
+    ) -> Bool {
+        generation == folderScopeGeneration
+            && Self.normalizedFolderPaths(folders) == folderScopePaths
+    }
+
+    private static func normalizedFolderPaths(_ folders: [URL]) -> [String] {
+        folders.map { $0.standardizedFileURL.path }
     }
 
     func updateActivePerformanceRun(_ run: SearchPerformanceRun?) {

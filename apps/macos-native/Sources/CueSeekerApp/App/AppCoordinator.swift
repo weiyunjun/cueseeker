@@ -505,6 +505,7 @@ final class AppCoordinator: ObservableObject {
             database: openedSearchDatabase,
             uiProbeScope: uiProbeScope
         )
+        search.updateFolderScope(indexing.selectedFolders)
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         self.libraryDatabase = openedLibraryDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
@@ -533,6 +534,13 @@ final class AppCoordinator: ObservableObject {
     }
 
     func setupSettingsObservers() {
+        indexing.$selectedFolders
+            .dropFirst()
+            .sink { [weak self] folders in
+                self?.search.updateFolderScope(folders)
+            }
+            .store(in: &settingsCancellables)
+
         playback.$playlistSource
             .dropFirst()
             .sink { [weak self] source in
