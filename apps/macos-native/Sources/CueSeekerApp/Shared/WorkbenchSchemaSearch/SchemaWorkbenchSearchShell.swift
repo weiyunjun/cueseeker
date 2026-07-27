@@ -1123,12 +1123,7 @@ struct SchemaWorkbenchFilterBuilderPopover: View {
 
     private func deleteRule(_ id: String) {
         rules.removeAll { $0.id == id }
-
-        if rules.isEmpty {
-            addRule()
-        } else {
-            normalizeRules()
-        }
+        normalizeRules()
     }
 
     private var fieldChoices: [WorkbenchDropdownChoice] {

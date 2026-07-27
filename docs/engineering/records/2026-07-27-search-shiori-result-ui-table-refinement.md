@@ -42,14 +42,18 @@
     empty in new store instances.
 11. Removed the two obsolete filter-status controls after their final call
     sites were removed.
-12. Added Filter Count Badge geometry tokens and semantic color aliases that
-    reuse the existing checked-checkbox high-contrast palette in Light and Dark
-    modes.
+12. Added Filter Count Badge geometry tokens and semantic color aliases.
 13. Extended the shared toolbar button with an optional numeric badge and used
     it only for the Filter trigger.
 14. Passed the current Filter Rule count into the trigger, hiding the badge at
     zero while allowing its tokenized minimum circle to expand for multi-digit
     counts.
+15. Refined the Step 4 review candidate to a `16px` badge with a dedicated
+    `10px` font-size token, `4px` horizontal padding, and the existing muted
+    color palette in Light and Dark modes.
+16. Corrected the Filter editor's final-rule deletion path: the previous code
+    immediately inserted a replacement rule whenever deletion made the array
+    empty; the editor now preserves the valid empty-filter state.
 
 ## Verification
 
@@ -71,6 +75,10 @@
 - `swift build` passed after the Step 4 badge change.
 - Ten focused workbench and Filter Count Badge token tests passed with
   `--no-parallel`.
+- `swift build` passed after the Step 4 review refinements and final-rule
+  deletion correction.
+- Seven focused Filter Rule and Filter Count Badge tests passed with
+  `--no-parallel` after the refinements.
 - The complete parallel `swift test` run executed 882 tests and reported 10
   timing or database-I/O failures unrelated to the spacing constant.
 - The 10 failed tests all passed when rerun together with `--no-parallel`,

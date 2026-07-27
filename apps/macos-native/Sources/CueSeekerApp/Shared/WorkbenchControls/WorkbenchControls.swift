@@ -46,10 +46,10 @@ enum WorkbenchControlMetrics {
     static let redesignInlineClearButtonRadius: CGFloat = 9999
     /// --size-control-icon: 16px
     static let redesignControlIconSize: CGFloat = 16
-    /// --size-filter-count-badge: 20px
-    static let redesignFilterCountBadgeSize: CGFloat = 20
-    /// --padding-filter-count-badge-x: 6px
-    static let redesignFilterCountBadgeHorizontalPadding: CGFloat = 6
+    /// --size-filter-count-badge: 16px
+    static let redesignFilterCountBadgeSize: CGFloat = 16
+    /// --padding-filter-count-badge-x: 4px
+    static let redesignFilterCountBadgeHorizontalPadding: CGFloat = 4
     /// --radius-filter-count-badge: 9999px
     static let redesignFilterCountBadgeRadius: CGFloat = 9999
     /// --size-select-indicator: 12pt
@@ -104,6 +104,8 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
     static let redesignFontSizeCaption: CGFloat = 12
+    /// --font-size-filter-count-badge: 10px
+    static let redesignFontSizeFilterCountBadge: CGFloat = 10
     /// --height-app-sidebar-item: 32px
     static let redesignAppSidebarItemHeight: CGFloat = 32
     /// --height-app-topbar: 45px
@@ -446,7 +448,7 @@ struct WorkbenchFilterCountBadge: View {
         Text(String(count))
             .font(
                 .system(
-                    size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                    size: WorkbenchControlMetrics.redesignFontSizeFilterCountBadge,
                     weight: WorkbenchControlMetrics.redesignFontWeightControl
                 )
             )

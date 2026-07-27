@@ -105,7 +105,7 @@ enum WorkbenchRedesignColors {
         static let checkboxIcon = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
 
         // Filter Count Badge
-        static let filterCountBadgeBg = bgCheckboxChecked
+        static let filterCountBadgeBg = textMuted
         static let filterCountBadgeText = checkboxIcon
 
         // Danger
