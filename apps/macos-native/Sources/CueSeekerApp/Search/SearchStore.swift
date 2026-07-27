@@ -151,6 +151,14 @@ final class SearchStore: ObservableObject {
         }
     }
 
+    var isDatabaseAvailable: Bool {
+        database != nil
+    }
+
+    func firstCueID(forSubtitleFile subtitleFile: URL) throws -> Int64? {
+        try database?.firstCueID(forSubtitleFile: subtitleFile)
+    }
+
     private func setLoadedSearchResults(
         _ results: [SubtitleSearchResult],
         orderedCueIDs: [Int64]? = nil

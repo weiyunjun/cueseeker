@@ -422,7 +422,7 @@ func contextTableLifecycleLoadsInitialAndAdjacentPages() async throws {
         }
     )
     let targetCueID = try #require(
-        try app.search.database?.firstCueID(forSubtitleFile: subtitleURL)
+        try app.search.firstCueID(forSubtitleFile: subtitleURL)
     )
     let request = CueContextSearchRequest(
         displayTitle: "Episode",
@@ -574,7 +574,7 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
     #expect(upperCue.cueGroupID == lowerCue.cueGroupID)
     #expect(upperCue.id != upperCue.cueGroupID)
     #expect(lowerCue.id != lowerCue.cueGroupID)
-    #expect(try #require(app.search.database).firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
+    #expect(try app.search.firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
     #expect(try database.firstCueGroupID(forSubtitleFile: subtitleFile) == upperCue.cueGroupID)
 
     let allCuePage = try #require(app.search.database).allCuesVisiblePage(

@@ -124,12 +124,8 @@ extension AppCoordinator {
     }
 
     func openLibraryVideoContext(_ video: LibraryVideo, displayTitle: String) {
-        guard let database = search.database else {
-            return
-        }
-
         do {
-            guard let targetCueID = try database.firstCueID(
+            guard let targetCueID = try search.firstCueID(
                 forSubtitleFile: URL(fileURLWithPath: video.subtitlePath)
             ) else {
                 return
@@ -326,7 +322,7 @@ extension AppCoordinator {
 
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !indexing.selectedFolders.isEmpty,
-              search.database != nil
+              search.isDatabaseAvailable
         else {
             search.updateNavigationSnapshot(nil)
             if let direction {

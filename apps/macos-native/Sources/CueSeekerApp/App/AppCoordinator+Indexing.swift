@@ -564,7 +564,7 @@ extension AppCoordinator {
         }
 
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
-        guard search.database != nil else {
+        guard search.isDatabaseAvailable else {
             indexing.searchFTSVocabularyDiagnosticsStatus = .failed("Database is not initialized")
             return
         }
