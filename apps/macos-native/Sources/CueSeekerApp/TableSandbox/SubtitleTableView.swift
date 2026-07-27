@@ -1498,9 +1498,6 @@ final class SubtitleTableContainerView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.cornerRadius = SubtitleTableMetrics.cornerRadius
-        layer?.borderWidth = 1
-        layer?.masksToBounds = true
         applyAppearanceColors()
     }
 
@@ -1521,9 +1518,14 @@ final class SubtitleTableContainerView: NSView {
         guard let layer else { return }
         effectiveAppearance.performAsCurrentDrawingAppearance {
             if isRedesign {
+                layer.cornerRadius = 0
+                layer.borderWidth = 0
+                layer.masksToBounds = false
                 layer.backgroundColor = WorkbenchRedesignColors.NS.bgSurface.cgColor
-                layer.borderColor = WorkbenchRedesignColors.NS.borderControl.cgColor
             } else {
+                layer.cornerRadius = SubtitleTableMetrics.cornerRadius
+                layer.borderWidth = 1
+                layer.masksToBounds = true
                 layer.backgroundColor = NSColor.textBackgroundColor.cgColor
                 layer.borderColor = NSColor.separatorColor.cgColor
             }
@@ -1847,7 +1849,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             super.draw(dirtyRect)
             
             if isRedesign {
-                WorkbenchRedesignColors.NS.borderControl.setStroke()
+                WorkbenchRedesignColors.NS.borderDivider.setStroke()
                 let path = NSBezierPath()
                 path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
                 path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
@@ -4514,7 +4516,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             if isRedesign {
-                WorkbenchRedesignColors.NS.borderControl.setStroke()
+                WorkbenchRedesignColors.NS.borderDivider.setStroke()
             } else {
                 NSColor.separatorColor.setStroke()
             }
