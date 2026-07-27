@@ -47,29 +47,11 @@ struct WorkbenchTestSearchView: View {
     @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var canExportSelectedRowsAsCollage = false
-    @State private var lastHandledCueContextRequestID: UUID?
-    @State private var activeCueContextRequest: CueContextSearchRequest?
-    @State private var cueContextLoadGeneration = 0
-    @State private var cueContextLoadedSourceRange: Range<Int>?
-    @State private var cueContextTotalRowCount = 0
-    @State private var cueContextTargetSourceIndex: Int?
-    @State private var isLoadingCueContextRows = false
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
     @State private var hasDeferredRefreshWhileCovered = false
 
     private static let continuousPageSize = 1_000
-
-    private enum CueContextLoadDirection {
-        case previous
-        case next
-    }
-
-    private enum CueContextScrollAnchor {
-        case target
-        case visibleTop
-        case none
-    }
 
     init(
         rowStore: TableSandboxRowModelStore,
@@ -192,10 +174,8 @@ struct WorkbenchTestSearchView: View {
             lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 search.activateResidentSearchTableProjection()
-                activeCueContextRequest = nil
                 tableScrollTargetRow = nil
-                cueContextLoadGeneration += 1
-                resetCueContextWindow()
+                search.cancelContextTableLoad()
             }
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 if suppressNextEmptySearchQueryReload {
@@ -210,15 +190,7 @@ struct WorkbenchTestSearchView: View {
                 }
             }
         }
-        .onChange(of: search.searchResultTotalCount) { _ in
-            guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
-            updateRowsFromResidentSearch()
-        }
-        .onChange(of: search.searchCountState) { _ in
-            guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
-            updateRowsFromResidentSearch()
-        }
-        .onChange(of: search.searchResultCueIDs) { _ in
+        .onChange(of: search.resultRevision) { _ in
             guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
             updateRowsFromResidentSearch()
         }
@@ -229,6 +201,12 @@ struct WorkbenchTestSearchView: View {
         .onChange(of: rowStore.snapshot.version) { _ in
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
+        }
+        .onChange(of: search.tableLoadRevision) { _ in
+            handleContextTablePresentation()
+            appState.refreshSearchPlaybackPlaylistSource(
+                resultListGeneration: search.resultListGeneration
+            )
         }
         .onChange(of: search.cueContextSearchRequest) { request in
             guard let request else {
@@ -297,15 +275,15 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var tableProbeSurface: SubtitleTableProbeSurface {
-        activeCueContextRequest == nil ? .search : .context
+        search.cueContextSearchRequest == nil ? .search : .context
     }
 
     private var tableTextCopySource: WorkbenchSearchTableTextCopySource? {
         let mode: WorkbenchSearchTableTextCopySource.Mode
         let resultRowCount: Int
-        if let request = activeCueContextRequest {
+        if let request = search.cueContextSearchRequest {
             mode = .context(request)
-            resultRowCount = cueContextTotalRowCount
+            resultRowCount = search.contextTotalRowCount
         } else if isFilterOnlyMode {
             mode = .allCues
             resultRowCount = search.searchResultTotalCount
@@ -347,15 +325,22 @@ struct WorkbenchTestSearchView: View {
         }
 
         let page: TableSandboxSearchHydrationPage?
+        let folders = source.folderPaths.map(URL.init(fileURLWithPath:))
         switch source.mode {
         case .search:
-            page = await appState.loadTableSandboxSearchRows(range: range)
+            page = await search.loadSearchRows(
+                range: range,
+                folders: folders,
+                languageFilter: source.languageFilter,
+                watchStateFilter: source.watchStateFilter
+            )
         case .allCues:
-            page = await appState.loadTableSandboxAllCueRows(range: range)
+            page = await search.loadAllCueRows(range: range, folders: folders)
         case .context(let request):
-            page = await appState.loadCueContextSearchPage(
+            page = await search.loadContextRows(
                 request: request,
                 range: range,
+                folders: folders,
                 anchorsInitialPage: false
             )
         }
@@ -382,7 +367,7 @@ struct WorkbenchTestSearchView: View {
         }
         switch source.mode {
         case .search(let query, let cueIDs):
-            guard activeCueContextRequest == nil,
+            guard search.cueContextSearchRequest == nil,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query,
                   search.activeFilterSetSignature == source.filterSignature,
                   settingsStore.primarySearchLanguage.searchLanguageFilter == source.languageFilter,
@@ -399,15 +384,15 @@ struct WorkbenchTestSearchView: View {
             }
             return true
         case .allCues:
-            return activeCueContextRequest == nil
+            return search.cueContextSearchRequest == nil
                 && search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && !search.activeFilterSet.isEffectivelyEmpty
                 && search.activeFilterSetSignature == source.filterSignature
                 && search.searchResultTotalCount == source.resultRowCount
         case .context(let request):
-            return activeCueContextRequest?.id == request.id
+            return search.cueContextSearchRequest?.id == request.id
                 && search.cueContextSearchRequest?.id == request.id
-                && cueContextTotalRowCount == source.resultRowCount
+                && search.contextTotalRowCount == source.resultRowCount
         }
     }
 
@@ -417,21 +402,11 @@ struct WorkbenchTestSearchView: View {
             hasDeferredRefreshWhileCovered = true
             return false
         }
-        guard lastHandledCueContextRequestID != request.id else {
-            return false
-        }
-
         let displayTitle = request.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !displayTitle.isEmpty else {
             return false
         }
 
-        lastHandledCueContextRequestID = request.id
-        activeCueContextRequest = request
-        search.activateContextTableProjection(requestID: request.id)
-        cueContextLoadGeneration += 1
-        resetCueContextWindow()
-        let generation = cueContextLoadGeneration
         let rules = [
             SchemaWorkbenchSearchDefaults.makeFilterRule(
                 join: nil,
@@ -457,14 +432,17 @@ struct WorkbenchTestSearchView: View {
         search.updateNavigationSnapshot(nil)
         appliedFilterSignature = filterSignature
         appState.updateSearchFilterSet(filterSet)
-        tableScrollTargetRow = nil
-        tableScrollResetToken += 1
-        clearTableRows(resetScroll: false)
-        loadCueContextRows(
+        let didBeginLoad = search.beginContextTableLoad(
             request: request,
-            filterSignature: filterSignature,
-            generation: generation
+            folders: appState.indexing.selectedFolders,
+            initialPageSize: TableSandboxHydrationPaging.pageSize,
+            continuationPageSize: Self.continuousPageSize
         )
+        if didBeginLoad {
+            tableScrollTargetRow = nil
+            tableScrollResetToken += 1
+            clearTableRows(resetScroll: false, cancelContextLoad: false)
+        }
         return true
     }
 
@@ -536,10 +514,8 @@ struct WorkbenchTestSearchView: View {
         search.tableSearchDraft = newValue
         search.updateContextRequest(nil)
         suppressNextEmptySearchQueryReload = false
-        activeCueContextRequest = nil
         tableScrollTargetRow = nil
-        cueContextLoadGeneration += 1
-        resetCueContextWindow()
+        search.cancelContextTableLoad()
         appState.updateSearchQuery(newValue)
     }
 
@@ -575,14 +551,19 @@ struct WorkbenchTestSearchView: View {
         return { cueID in store.content(for: cueID) }
     }
 
-    private func clearTableRows(resetScroll: Bool) {
+    private func clearTableRows(
+        resetScroll: Bool,
+        cancelContextLoad: Bool = true
+    ) {
         guard allowsTableResponse else {
             hasDeferredRefreshWhileCovered = true
             resetCoveredTableLoading()
             return
         }
         let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
-        resetCueContextWindow()
+        if cancelContextLoad {
+            search.cancelContextTableLoad()
+        }
         lastVisibleRows = nil
         rowSelection.reset()
         persistSelection()
@@ -628,12 +609,16 @@ struct WorkbenchTestSearchView: View {
         guard allowsTableResponse else { return }
         lastVisibleRows = visibleRows
         captureVisibleRows(visibleRows)
-        if activeCueContextRequest != nil {
-            loadCueContextAdjacentRowsIfNeeded(generation: cueContextLoadGeneration)
+        if search.cueContextSearchRequest != nil {
+            search.loadAdjacentContextRows(
+                visibleRows: visibleRows,
+                folders: appState.indexing.selectedFolders,
+                pageSize: Self.continuousPageSize
+            )
             return
         }
         guard isFilterOnlyMode,
-              activeCueContextRequest == nil,
+              search.cueContextSearchRequest == nil,
               visibleRows.upperBound >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize
         else {
             return
@@ -641,22 +626,15 @@ struct WorkbenchTestSearchView: View {
         loadAllCueRows(resetScroll: false)
     }
 
-    private func resetCueContextWindow() {
-        cueContextLoadedSourceRange = nil
-        cueContextTotalRowCount = 0
-        cueContextTargetSourceIndex = nil
-        isLoadingCueContextRows = false
-    }
-
     private func resetCoveredTableLoading() {
         search.suspendFilterOnlyPageLoad()
-        cueContextLoadGeneration += 1
-        isLoadingCueContextRows = false
+        search.cancelContextTableLoad()
     }
 
     private func resumeDeferredTableResponse() {
         guard allowsTableResponse else { return }
-        let isStandardSearch = activeCueContextRequest == nil && !isFilterOnlyMode
+        let isStandardSearch = search.cueContextSearchRequest == nil
+            && !isFilterOnlyMode
         guard hasDeferredRefreshWhileCovered || isStandardSearch else { return }
         hasDeferredRefreshWhileCovered = false
         refreshTableForCurrentState()
@@ -677,27 +655,6 @@ struct WorkbenchTestSearchView: View {
         }
     }
 
-    @discardableResult
-    private func appendContinuousRows(
-        _ page: TableSandboxSearchHydrationPage,
-        expectedStartIndex: Int
-    ) -> Bool {
-        guard page.range.lowerBound == expectedStartIndex, !page.results.isEmpty else {
-            return false
-        }
-        rowStore.hydrateResidentSearchResults(
-            page.results,
-            startIndex: expectedStartIndex,
-            cueContentProvider: searchCueContentProvider,
-            cueContentRevision: appState.cueContent.revision,
-            tableName: "test-search",
-            probeSurface: tableProbeSurface,
-            probeScope: appState.uiProbeScope
-        )
-        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-        return rowStore.snapshot.totalRowCount > expectedStartIndex
-    }
-
     private func loadAllCueRows(resetScroll: Bool) {
         guard allowsTableResponse,
               !appState.indexing.isLibraryFolderOperationActive
@@ -706,17 +663,8 @@ struct WorkbenchTestSearchView: View {
             resetCoveredTableLoading()
             return
         }
-        let projectionKey = SearchFilterOnlyProjectionKey(
-            filterSignature: search.activeFilterSetSignature,
-            folderPaths: appState.indexing.selectedFolders.map(\.path),
-            indexedCueDataRevision: search.indexedCueDataRevision
-        )
-        let sourceChanged = search.prepareFilterOnlyTableProjection(
-            key: projectionKey
-        )
-        activeCueContextRequest = nil
         tableScrollTargetRow = nil
-        resetCueContextWindow()
+        search.cancelContextTableLoad()
         lastVisibleRows = nil
         if resetScroll {
             rowSelection.reset()
@@ -724,321 +672,30 @@ struct WorkbenchTestSearchView: View {
             resetSelectedCollageAvailability()
             tableScrollResetToken += 1
         }
-        if sourceChanged {
-            rowStore.updateResidentSearchResults(
-                [],
-                cueContentProvider: searchCueContentProvider,
-                cueContentRevision: appState.cueContent.revision,
-                tableName: "test-search",
-                probeSurface: tableProbeSurface,
-                probeScope: appState.uiProbeScope
-            )
-        }
-        guard let loadToken = search.beginFilterOnlyPageLoad(
-            key: projectionKey,
-            loadedRowCount: rowStore.snapshot.totalRowCount
-        ) else {
-            return
-        }
-        let pageSize = loadToken.startIndex == 0
-            ? TableSandboxHydrationPaging.pageSize
-            : Self.continuousPageSize
-        let range = loadToken.startIndex..<(loadToken.startIndex + pageSize)
-
-        Task { @MainActor in
-            guard allowsTableResponse,
-                  search.acceptsFilterOnlyPageLoad(loadToken),
-                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  !search.activeFilterSet.isEffectivelyEmpty
-            else {
-                search.failFilterOnlyPageLoad(loadToken)
-                return
-            }
-            UIInvalidationProbe.count(
-                SubtitleTableProbeSurface.search.counterName("row_hydration_requested"),
-                scope: appState.uiProbeScope
-            )
-            guard let page = await appState.loadTableSandboxAllCueRows(range: range),
-                  search.acceptsFilterOnlyPageLoad(loadToken),
-                  allowsTableResponse,
-                  page.range.lowerBound == loadToken.startIndex,
-                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  activeCueContextRequest == nil,
-                  search.activeFilterSetSignature == projectionKey.filterSignature
-            else {
-                search.failFilterOnlyPageLoad(loadToken)
-                return
-            }
-            if loadToken.startIndex == 0 {
-                appState.applyTableSandboxAllCueSearchContext(page)
-                rowStore.updateResidentSearchResults(
-                    page.results,
-                    cueContentProvider: searchCueContentProvider,
-                    cueContentRevision: appState.cueContent.revision,
-                    tableName: "test-search",
-                    probeSurface: tableProbeSurface,
-                    probeScope: appState.uiProbeScope,
-                    isHydration: true
-                )
-                rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-            } else {
-                _ = appendContinuousRows(
-                    page,
-                    expectedStartIndex: loadToken.startIndex
-                )
-            }
-            let loadedRowCount = rowStore.snapshot.totalRowCount
-            let shouldContinue = search.completeFilterOnlyPageLoad(
-                loadToken,
-                totalRowCount: page.totalRowCount,
-                loadedRowCount: loadedRowCount
-            )
-            if shouldContinue, loadedRowCount > loadToken.startIndex {
-                loadAllCueRows(resetScroll: false)
-            }
-        }
+        search.loadFilterOnlyTableRows(
+            folders: appState.indexing.selectedFolders,
+            initialPageSize: TableSandboxHydrationPaging.pageSize,
+            continuationPageSize: Self.continuousPageSize
+        )
     }
 
-    private func loadCueContextRows(
-        request: CueContextSearchRequest,
-        filterSignature: String,
-        generation: Int
-    ) {
-        guard allowsTableResponse else {
-            hasDeferredRefreshWhileCovered = true
-            return
+    private func handleContextTablePresentation() {
+        let prepended = search.contextPrependedRowCount
+        if prepended > 0 {
+            rowSelection.shiftRows(by: prepended)
         }
-        Task { @MainActor in
-            guard allowsTableResponse else { return }
-            UIInvalidationProbe.count(
-                SubtitleTableProbeSurface.context.counterName("row_hydration_requested"),
-                scope: appState.uiProbeScope
-            )
-            guard let page = await appState.loadCueContextSearchPage(
-                request: request,
-                range: 0..<TableSandboxHydrationPaging.pageSize,
-                anchorsInitialPage: true
-            ) else {
-                guard generation == cueContextLoadGeneration else { return }
-                rowStore.updateResidentSearchResults(
-                    [],
-                    cueContentProvider: searchCueContentProvider,
-                    cueContentRevision: appState.cueContent.revision,
-                    tableName: "test-search",
-                    probeSurface: .context,
-                    probeScope: appState.uiProbeScope
-                )
-                return
-            }
-
-            guard generation == cueContextLoadGeneration,
-                  allowsTableResponse,
-                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  search.activeFilterSetSignature == filterSignature
-            else {
-                return
-            }
-
-            appState.applyTableSandboxAllCueSearchContext(page)
-            rowStore.updateResidentSearchResults(
-                page.results,
-                cueContentProvider: searchCueContentProvider,
-                cueContentRevision: appState.cueContent.revision,
-                tableName: "test-search",
-                probeSurface: .context,
-                probeScope: appState.uiProbeScope,
-                isHydration: true
-            )
-            cueContextLoadedSourceRange = page.range
-            cueContextTotalRowCount = page.totalRowCount
-            let targetSourceIndex = resolvedCueContextTargetSourceIndex(
-                in: page,
-                targetCueID: request.targetCueID
-            )
-            cueContextTargetSourceIndex = targetSourceIndex
+        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
+        if let sourceIndex = search.contextScrollTargetSourceIndex,
+           let loadedRange = search.contextLoadedSourceRange {
             tableScrollTargetRow = cueContextDisplayRow(
-                forSourceIndex: targetSourceIndex,
-                loadedSourceRange: page.range,
+                forSourceIndex: sourceIndex,
+                loadedSourceRange: loadedRange,
                 loadedRowCount: rowStore.snapshot.totalRowCount
             )
             tableScrollResetToken += 1
-            rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-            loadCueContextAdjacentRowsIfNeeded(
-                generation: generation,
-                preferredDirection: .previous
-            )
         }
-    }
-
-    private func loadCueContextAdjacentRowsIfNeeded(
-        generation: Int,
-        preferredDirection: CueContextLoadDirection? = nil
-    ) {
-        guard generation == cueContextLoadGeneration,
-              allowsTableResponse,
-              activeCueContextRequest != nil,
-              let sourceRange = cueContextLoadedSourceRange,
-              cueContextTotalRowCount > 0,
-              !isLoadingCueContextRows
-        else {
-            return
-        }
-
-        if preferredDirection == .previous, sourceRange.lowerBound > 0 {
-            loadCueContextRows(
-                direction: .previous,
-                generation: generation,
-                scrollAnchor: .target
-            )
-            return
-        }
-
-        let visibleRows = lastVisibleRows
-        let isNearLoadedStart = (visibleRows?.lowerBound ?? 0) <= TableSandboxHydrationPaging.pageSize
-        let isNearLoadedEnd = (visibleRows?.upperBound ?? rowStore.snapshot.totalRowCount)
-            >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize
-
-        if sourceRange.lowerBound > 0, isNearLoadedStart {
-            loadCueContextRows(
-                direction: .previous,
-                generation: generation,
-                scrollAnchor: .visibleTop
-            )
-            return
-        }
-
-        if sourceRange.upperBound < cueContextTotalRowCount, isNearLoadedEnd {
-            loadCueContextRows(
-                direction: .next,
-                generation: generation,
-                scrollAnchor: .none
-            )
-        }
-    }
-
-    private func loadCueContextRows(
-        direction: CueContextLoadDirection,
-        generation: Int,
-        scrollAnchor: CueContextScrollAnchor
-    ) {
-        guard generation == cueContextLoadGeneration,
-              allowsTableResponse,
-              let request = activeCueContextRequest,
-              let sourceRange = cueContextLoadedSourceRange,
-              !isLoadingCueContextRows
-        else {
-            return
-        }
-
-        let range: Range<Int>
-        switch direction {
-        case .previous:
-            let lowerBound = max(0, sourceRange.lowerBound - Self.continuousPageSize)
-            range = lowerBound..<sourceRange.lowerBound
-        case .next:
-            let upperBound = min(cueContextTotalRowCount, sourceRange.upperBound + Self.continuousPageSize)
-            range = sourceRange.upperBound..<upperBound
-        }
-        guard range.lowerBound < range.upperBound else { return }
-
-        let filterSignature = search.activeFilterSetSignature
-        let anchorSourceIndex = cueContextAnchorSourceIndex(
-            scrollAnchor,
-            loadedSourceRange: sourceRange
-        )
-        isLoadingCueContextRows = true
-
-        Task { @MainActor in
-            guard allowsTableResponse else {
-                if generation == cueContextLoadGeneration {
-                    isLoadingCueContextRows = false
-                }
-                return
-            }
-            UIInvalidationProbe.count(
-                SubtitleTableProbeSurface.context.counterName("row_hydration_requested"),
-                scope: appState.uiProbeScope
-            )
-            guard let page = await appState.loadCueContextSearchPage(
-                request: request,
-                range: range,
-                anchorsInitialPage: false
-            ),
-                generation == cueContextLoadGeneration,
-                allowsTableResponse,
-                activeCueContextRequest?.id == request.id,
-                search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                search.activeFilterSetSignature == filterSignature
-            else {
-                if generation == cueContextLoadGeneration {
-                    isLoadingCueContextRows = false
-                }
-                return
-            }
-
-            switch direction {
-            case .previous:
-                guard page.range.upperBound == sourceRange.lowerBound else {
-                    isLoadingCueContextRows = false
-                    return
-                }
-                let prependedCount = rowStore.prependResidentSearchResults(
-                    page.results,
-                    cueContentProvider: searchCueContentProvider,
-                    cueContentRevision: appState.cueContent.revision,
-                    tableName: "test-search",
-                    probeSurface: .context,
-                    probeScope: appState.uiProbeScope
-                )
-                if prependedCount > 0 {
-                    let nextSourceRange = page.range.lowerBound..<sourceRange.upperBound
-                    cueContextLoadedSourceRange = nextSourceRange
-                    rowSelection.shiftRows(by: prependedCount)
-                    rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-                    if let anchorSourceIndex {
-                        tableScrollTargetRow = cueContextDisplayRow(
-                            forSourceIndex: anchorSourceIndex,
-                            loadedSourceRange: nextSourceRange,
-                            loadedRowCount: rowStore.snapshot.totalRowCount
-                        )
-                        tableScrollResetToken += 1
-                    }
-                }
-            case .next:
-                guard page.range.lowerBound == sourceRange.upperBound else {
-                    isLoadingCueContextRows = false
-                    return
-                }
-                let appendedCount = rowStore.appendResidentSearchResults(
-                    page.results,
-                    cueContentProvider: searchCueContentProvider,
-                    cueContentRevision: appState.cueContent.revision,
-                    tableName: "test-search",
-                    probeSurface: .context,
-                    probeScope: appState.uiProbeScope
-                )
-                if appendedCount > 0 {
-                    cueContextLoadedSourceRange = sourceRange.lowerBound..<page.range.upperBound
-                    rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-                }
-            }
-
-            isLoadingCueContextRows = false
-        }
-    }
-
-    private func cueContextAnchorSourceIndex(
-        _ anchor: CueContextScrollAnchor,
-        loadedSourceRange: Range<Int>
-    ) -> Int? {
-        switch anchor {
-        case .target:
-            return cueContextTargetSourceIndex
-        case .visibleTop:
-            return loadedSourceRange.lowerBound + max(0, lastVisibleRows?.lowerBound ?? 0)
-        case .none:
-            return nil
-        }
+        search.consumeContextTablePresentation()
+        refreshSelectedCollageAvailability()
     }
 
     private func applyFilterRules(_ rules: [SchemaWorkbenchFilterRule]) {
@@ -1048,9 +705,8 @@ struct WorkbenchTestSearchView: View {
             return
         }
 
-        activeCueContextRequest = nil
+        search.updateContextRequest(nil)
         tableScrollTargetRow = nil
-        cueContextLoadGeneration += 1
         appliedFilterSignature = nextSignature
         search.suspendFilterOnlyPageLoad()
         rowSelection.reset()
@@ -1207,7 +863,7 @@ struct WorkbenchTestSearchView: View {
 
     private func restoreViewportIfPossible() {
         guard !didRestoreViewport,
-              activeCueContextRequest == nil,
+              search.cueContextSearchRequest == nil,
               rowStore.snapshot.totalRowCount > 0,
               let anchor = viewportAnchorToRestore
         else {

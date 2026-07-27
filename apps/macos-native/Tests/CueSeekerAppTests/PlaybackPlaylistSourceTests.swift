@@ -252,8 +252,9 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
             searchRank: ordinal
         )
     }
-    app.search.replaceLoadedSearchResults(initialResults)
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: initialResults,
+        status: .completed,
         totalCount: initialResults.count,
         fileSummaries: [],
         countState: .exact,
@@ -282,8 +283,9 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
             searchRank: ordinal
         )
     }
-    app.search.replaceLoadedSearchResults(updatedResults)
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: updatedResults,
+        status: .completed,
         totalCount: updatedResults.count,
         fileSummaries: [],
         countState: .exact,

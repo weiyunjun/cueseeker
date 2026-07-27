@@ -18,10 +18,6 @@ final class AppCoordinator: ObservableObject {
     static let playbackSpeedKey = "playbackSpeed"
     static let playbackSubtitlesVisibleKey = "playbackSubtitlesVisible"
     static let assSubtitlePreparationCueLimit = 8
-    static let searchPageSize = 100
-    static let searchPrefetchThreshold = 10
-    static let searchInputDebounceNanoseconds: UInt64 = 100_000_000
-    static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
     static let searchNavigationPanelRadius = 120
     nonisolated static let playbackSubtitleWindowRadius = 80
     static let databaseCompactionMinimumReclaimableBytes: Int64 = 100 * 1024 * 1024
@@ -658,24 +654,21 @@ final class AppCoordinator: ObservableObject {
         let remainingSearchResults = search.searchResults.filter {
             !Self.path($0.subtitlePath, isUnder: folder)
         }
-        search.replaceLoadedSearchResults(
-            remainingSearchResults,
-            orderedCueIDs: remainingSearchResults.map(\.entryID)
-        )
         let remainingFileSummaries = search.searchFileSummaries.filter {
             !Self.path($0.subtitlePath, isUnder: folder)
         }
         let remainingResultCount = remainingFileSummaries.reduce(0) { $0 + $1.matchCount }
-        search.publishResultMetadata(
+        search.replaceResultState(
+            results: remainingSearchResults,
+            orderedCueIDs: remainingSearchResults.map(\.entryID),
+            status: search.searchStatus,
             totalCount: remainingResultCount,
             fileSummaries: remainingFileSummaries,
             countState: .exact,
             knownResultCount: remainingResultCount,
             knownFileCount: remainingFileSummaries.count,
-            hasMore: false
-        )
-        search.updatePagination(
-            loadedResultCount: search.searchResults.count,
+            hasMore: false,
+            loadedResultCount: remainingSearchResults.count,
             nextCursor: nil
         )
         removeLibraryPresentation(under: folder)

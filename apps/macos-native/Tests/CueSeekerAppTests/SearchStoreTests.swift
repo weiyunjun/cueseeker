@@ -1,13 +1,66 @@
 import Foundation
 import AppKit
+import Combine
 import Testing
 @testable import CueSeekerCore
 @testable import CueSeekerApp
 
 @MainActor
+extension SearchStore {
+    func replaceResidentResults(_ results: [SubtitleSearchResult]) {
+        replaceResultState(
+            results: results,
+            status: .completed,
+            totalCount: results.count,
+            fileSummaries: [],
+            countState: .exact,
+            knownResultCount: results.count,
+            knownFileCount: 0,
+            hasMore: false
+        )
+    }
+}
+
+@MainActor
 @Test
 func searchInputDebounceIsOneHundredMilliseconds() {
-    #expect(AppCoordinator.searchInputDebounceNanoseconds == 100_000_000)
+    #expect(SearchStore.searchInputDebounceNanoseconds == 100_000_000)
+}
+
+@MainActor
+@Test
+func resultStateCommitPublishesOneCoherentRevision() {
+    let search = SearchStore()
+    let result = makeTableSandboxSearchResult(
+        id: 42,
+        content: "atomic result",
+        searchRank: 0
+    )
+    var observedStates: [(Int, Int, SearchStatus)] = []
+    let cancellable = search.$resultRevision.dropFirst().sink { _ in
+        observedStates.append((
+            search.searchResults.count,
+            search.searchResultTotalCount,
+            search.searchStatus
+        ))
+    }
+    defer { cancellable.cancel() }
+
+    search.replaceResultState(
+        results: [result],
+        status: .completed,
+        totalCount: 1,
+        fileSummaries: [],
+        countState: .exact,
+        knownResultCount: 1,
+        knownFileCount: 0,
+        hasMore: false
+    )
+
+    #expect(observedStates.count == 1)
+    #expect(observedStates.first?.0 == 1)
+    #expect(observedStates.first?.1 == 1)
+    #expect(observedStates.first?.2 == .completed)
 }
 
 @MainActor
@@ -88,8 +141,10 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
             searchRank: 0
         )
     ]
-    app.search.replaceLoadedSearchResults(staleResults, orderedCueIDs: [999])
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: staleResults,
+        orderedCueIDs: [999],
+        status: .searching,
         totalCount: 1,
         fileSummaries: [],
         countState: .exact,
@@ -207,12 +262,10 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
         app.search.advanceResultListGeneration()
     }
     app.search.updateQuery("foo")
-    app.search.updateStatus(.searching)
-    app.search.replaceLoadedSearchResults(
-        [currentResult],
-        orderedCueIDs: [currentResult.entryID]
-    )
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: [currentResult],
+        orderedCueIDs: [currentResult.entryID],
+        status: .searching,
         totalCount: 1,
         fileSummaries: [],
         countState: .exactProgress,
@@ -221,7 +274,7 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
         hasMore: false
     )
 
-    app.applySearchCountProgress(
+    app.search.applyCountProgress(
         SubtitleSearchProgressSnapshot(
             countSnapshot: .exactProgress(
                 knownResultCount: 2,
@@ -232,12 +285,11 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
             cueIDs: [staleResult.entryID]
         ),
         query: "foo",
-        folderPaths: [fixtureRoot.path],
-        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
-        watchStateFilter: app.settings.searchScope.searchWatchStateFilter,
         filterSignature: app.search.activeFilterSetSignature,
-        resultListGeneration: 1,
-        run: nil
+        generation: 1,
+        run: nil,
+        isContextCurrent: { true },
+        onResultsChanged: { _ in }
     )
 
     #expect(app.search.searchResults == [currentResult])
@@ -273,7 +325,7 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
         totalRowCount: 42
     )
 
-    app.applyTableSandboxAllCueSearchContext(page)
+    app.search.applyAllCueSearchContext(page)
 
     #expect(app.search.searchStatus == .completed)
     #expect(app.search.searchResults == [result])
@@ -281,6 +333,75 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     #expect(app.search.searchKnownResultCount == 42)
     #expect(app.search.hasMoreSearchResults)
     #expect(app.search.nextGlobalCursor?.offset == 11)
+}
+
+@MainActor
+@Test
+func contextTableLifecycleLoadsInitialAndAdjacentPages() async throws {
+    let suiteName = "CueSeekerContextTableLifecycleTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let subtitleURL = fixtureRoot.appendingPathComponent("Episode.srt")
+    let videoURL = fixtureRoot.appendingPathComponent("Episode.mkv")
+    let database = try #require(app.indexingDatabase)
+    try database.replaceEntries(
+        subtitleFile: subtitleURL,
+        videoFile: videoURL,
+        entries: (0..<200).map { index in
+            SubtitleEntry(
+                sequenceNumber: index + 1,
+                startTimecode: String(format: "00:%02d:%02d,000", index / 60, index % 60),
+                endTimecode: String(format: "00:%02d:%02d,500", index / 60, index % 60),
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 500,
+                text: "Context row \(index)"
+            )
+        }
+    )
+    let targetCueID = try #require(
+        try app.search.database?.firstCueID(forSubtitleFile: subtitleURL)
+    )
+    let request = CueContextSearchRequest(
+        displayTitle: "Episode",
+        subtitlePath: subtitleURL.path,
+        targetCueID: targetCueID
+    )
+    app.search.updateContextRequest(request)
+
+    #expect(app.search.beginContextTableLoad(
+        request: request,
+        folders: [fixtureRoot],
+        initialPageSize: 100,
+        continuationPageSize: 100
+    ))
+    let deadline = Date().addingTimeInterval(2)
+    while app.search.tableRowStore.snapshot.totalRowCount < 200,
+          Date() < deadline {
+        await Task.yield()
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 200)
+    #expect(app.search.contextLoadedSourceRange == 0..<200)
+    #expect(!app.search.beginContextTableLoad(
+        request: request,
+        folders: [fixtureRoot],
+        initialPageSize: 100,
+        continuationPageSize: 100
+    ))
 }
 
 @MainActor
@@ -475,25 +596,21 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
 
     app.indexing.selectedFolders = [fixtureRoot]
     app.search.updateQuery("shared")
-    app.search.updateStatus(.searching)
-    app.search.replaceLoadedSearchResults(
-        [existingResult],
-        orderedCueIDs: [existingResult.entryID]
-    )
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: [existingResult],
+        orderedCueIDs: [existingResult.entryID],
+        status: .searching,
         totalCount: 100,
         fileSummaries: [],
         countState: .exactProgress,
         knownResultCount: 1,
         knownFileCount: 0,
-        hasMore: true
-    )
-    app.search.updatePagination(
+        hasMore: true,
         loadedResultCount: 1,
         nextCursor: SubtitleSearchCursor(offset: 1)
     )
 
-    app.applySearchCountProgress(
+    app.search.commitSearchCountProgress(
         SubtitleSearchProgressSnapshot(
             countSnapshot: .exactProgress(
                 knownResultCount: progressResults.count,
@@ -502,13 +619,7 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
             fileSummaries: [progressSummary],
             results: progressResults,
             cueIDs: progressResults.map(\.entryID)
-        ),
-        query: "shared",
-        folderPaths: [fixtureRoot.path],
-        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
-        watchStateFilter: app.settings.searchScope.searchWatchStateFilter,
-        filterSignature: app.search.activeFilterSetSignature,
-        run: nil
+        )
     )
 
     #expect(app.search.searchResults == progressResults)
@@ -597,7 +708,9 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
 
     app.indexing.selectedFolders = [fixtureRoot]
     app.search.updateQuery("shared")
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: [],
+        status: .completed,
         totalCount: 120,
         fileSummaries: [],
         countState: .exact,
@@ -606,7 +719,12 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
         hasMore: true
     )
 
-    let missingIDPage = await app.loadTableSandboxSearchRows(range: 110..<112)
+    let missingIDPage = await app.search.loadSearchRows(
+        range: 110..<112,
+        folders: app.indexing.selectedFolders,
+        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
+        watchStateFilter: app.settings.searchScope.searchWatchStateFilter
+    )
     #expect(missingIDPage == nil)
 
     let exactPage = try #require(app.search.database).searchPage(
@@ -614,8 +732,10 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
         limit: 0,
         under: [fixtureRoot]
     )
-    app.search.updateResultCueIDs(exactPage.cueIDs)
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: [],
+        orderedCueIDs: exactPage.cueIDs,
+        status: .completed,
         totalCount: exactPage.totalCount,
         fileSummaries: exactPage.fileSummaries,
         countState: exactPage.countState,
@@ -624,7 +744,12 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
         hasMore: false
     )
 
-    let page = try #require(await app.loadTableSandboxSearchRows(range: 110..<112))
+    let page = try #require(await app.search.loadSearchRows(
+        range: 110..<112,
+        folders: app.indexing.selectedFolders,
+        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
+        watchStateFilter: app.settings.searchScope.searchWatchStateFilter
+    ))
 
     #expect(page.range == 110..<112)
     #expect(page.totalRowCount == 120)
@@ -756,7 +881,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
         under: [fixtureRoot]
     )
     let selected = try #require(page.results.first { $0.content == "selected result" })
-    app.applyTableSandboxAllCueSearchContext(
+    app.search.applyAllCueSearchContext(
         TableSandboxSearchHydrationPage(
             range: 0..<page.results.count,
             results: page.results,
@@ -806,8 +931,9 @@ func openingSearchResultUpdatesNavigationStateImmediately() throws {
         content: "third result",
         searchRank: 2
     )
-    app.search.replaceLoadedSearchResults([first, second, third])
-    app.search.publishResultMetadata(
+    app.search.replaceResultState(
+        results: [first, second, third],
+        status: .completed,
         totalCount: 3,
         fileSummaries: [],
         countState: .exact,
@@ -845,7 +971,7 @@ func searchTableProjectionSurvivesViewRemountWithoutMaterializingResults() {
             searchRank: value - 1
         )
     }
-    search.replaceLoadedSearchResults(results)
+    search.replaceResidentResults(results)
     let rowStore = search.tableRowStore
 
     search.activateResidentSearchTableProjection()
@@ -986,7 +1112,7 @@ func indexedCueMutationPreservesResidentSearchProjection() {
         content: "Resident Search Cue",
         searchRank: 0
     )
-    search.replaceLoadedSearchResults([result])
+    search.replaceResidentResults([result])
     search.activateResidentSearchTableProjection()
     let originalSource = search.tableProjectionSource
     let originalVersion = search.tableRowStore.snapshot.version
@@ -1011,11 +1137,11 @@ func residentSearchProjectionRevisionDirectlyUpdatesOwnedRowStore() {
         content: "Stable Cue",
         searchRank: 0
     )
-    search.replaceLoadedSearchResults([original])
+    search.replaceResidentResults([original])
     search.activateResidentSearchTableProjection()
     let originalSnapshotVersion = search.tableRowStore.snapshot.version
 
-    search.replaceLoadedSearchResults([
+    search.replaceResidentResults([
         SubtitleSearchResult(cueContent: original.cueContent, searchRank: 7),
     ])
 

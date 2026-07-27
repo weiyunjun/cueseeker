@@ -45,7 +45,7 @@ func searchStoreKeepsOnlyOrderAndResolvesCurrentCanonicalCueContent() {
     let original = cueContent(cueID: 7, content: "Original")
     let updated = cueContent(cueID: 7, content: "Updated")
 
-    searchStore.replaceLoadedSearchResults([
+    searchStore.replaceResidentResults([
         SubtitleSearchResult(cueContent: original, searchRank: 12),
     ])
     cueStore.install([updated])
@@ -62,7 +62,7 @@ func canonicalCueChangeAutomaticallyReloadsResidentSearchTableProjection() {
     let searchStore = SearchStore(cueContentStore: cueStore)
     let original = cueContent(cueID: 7, content: "Original")
     let updated = cueContent(cueID: 7, content: "Updated")
-    searchStore.replaceLoadedSearchResults([
+    searchStore.replaceResidentResults([
         SubtitleSearchResult(cueContent: original, searchRank: 12),
     ])
     searchStore.activateResidentSearchTableProjection()
@@ -83,7 +83,7 @@ func unrelatedCanonicalCueChangeDoesNotReloadCoveredResidentSearch() {
     let cueStore = CueContentStore()
     let searchStore = SearchStore(cueContentStore: cueStore)
     let resident = cueContent(cueID: 7, content: "Resident")
-    searchStore.replaceLoadedSearchResults([
+    searchStore.replaceResidentResults([
         SubtitleSearchResult(cueContent: resident, searchRank: 12),
     ])
     searchStore.activateResidentSearchTableProjection()
@@ -105,7 +105,7 @@ func coveredResidentSearchCoalescesRelevantAndUnrelatedCueChangesIntoOneReload()
     let cueStore = CueContentStore()
     let searchStore = SearchStore(cueContentStore: cueStore)
     let original = cueContent(cueID: 7, content: "Original")
-    searchStore.replaceLoadedSearchResults([
+    searchStore.replaceResidentResults([
         SubtitleSearchResult(cueContent: original, searchRank: 12),
     ])
     searchStore.activateResidentSearchTableProjection()

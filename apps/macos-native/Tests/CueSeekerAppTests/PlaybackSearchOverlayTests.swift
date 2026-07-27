@@ -14,7 +14,7 @@ func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async th
             rank: $0
         )
     }
-    searchStore.replaceLoadedSearchResults(initialResults)
+    searchStore.replaceResidentResults(initialResults)
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackSharedSearchOpenSnapshot(),
         sessionGeneration: 1,
@@ -28,7 +28,7 @@ func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async th
     #expect(window.snapshot.isComplete)
     #expect(window.item(at: 39)?.identity == .search(1_039))
 
-    searchStore.replaceLoadedSearchResults(
+    searchStore.replaceResidentResults(
         searchStore.searchResults
             + [playbackSharedSearchResult(id: 1_040, rank: 40)]
     )
@@ -118,7 +118,7 @@ func playbackSearchFailedPlayDoesNotCommitTheTemporaryFilter() async throws {
     )
     app.search.activatePlaybackTemporaryFilter()
     app.search.updateQuery("shared")
-    app.search.replaceLoadedSearchResults([result])
+    app.search.replaceResidentResults([result])
     app.playback.isPlaybackSurfaceExpanded = true
     app.playbackReturnContext = .shiori
 

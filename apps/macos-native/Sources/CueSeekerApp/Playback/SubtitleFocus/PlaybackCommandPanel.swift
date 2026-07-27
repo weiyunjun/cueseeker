@@ -410,7 +410,7 @@ private struct PlaybackCommandPanelSearchResults: View {
             PlaybackCommandPanelFooter(status: resultStatus)
         }
         .onAppear(perform: onSynchronize)
-        .onChange(of: searchStore.searchResultCueIDs) { _ in
+        .onChange(of: searchStore.resultRevision) { _ in
             onSynchronize()
         }
     }

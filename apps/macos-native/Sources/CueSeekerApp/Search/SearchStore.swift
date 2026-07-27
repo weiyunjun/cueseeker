@@ -53,6 +53,11 @@ enum SearchTableProjectionSource: Equatable {
     case context(requestID: UUID)
 }
 
+private enum SearchContextLoadDirection {
+    case previous
+    case next
+}
+
 @MainActor
 final class SearchStore: ObservableObject {
     private let cueContentStore: CueContentStore
@@ -76,26 +81,38 @@ final class SearchStore: ObservableObject {
     let tableRowStore: TableSandboxRowModelStore
     private(set) var tableProjectionSource: SearchTableProjectionSource?
     private var filterOnlyLoadGeneration: UInt64 = 0
+    private var filterOnlyLoadTask: Task<Void, Never>?
     private var isFilterOnlyLoadInProgress = false
     private var hasLoadedFilterOnlyInitialPage = false
     private var filterOnlyTotalRowCount = 0
     private var indexedCueMutationGeneration: UInt64 = 0
     private var activeIndexedCueMutationGeneration: UInt64?
+    private var contextLoadGeneration: UInt64 = 0
+    private var contextLoadTask: Task<Void, Never>?
+    private var activeContextTableRequestID: UUID?
+    private var isContextLoadInProgress = false
+    private(set) var contextLoadedSourceRange: Range<Int>?
+    private(set) var contextTotalRowCount = 0
+    private(set) var contextTargetSourceIndex: Int?
+    private(set) var contextPrependedRowCount = 0
+    private(set) var contextScrollTargetSourceIndex: Int?
 
     @Published private(set) var indexedCueDataRevision: UInt64 = 0
     @Published private(set) var searchQuery = ""
-    @Published private(set) var searchStatus: SearchStatus = .idle
-    @Published private(set) var searchResultCueIDs: [Int64] = []
-    @Published private(set) var searchResultTotalCount = 0
-    @Published private(set) var searchFileSummaries: [SubtitleSearchFileSummary] = []
-    @Published private(set) var searchCountState: SubtitleSearchCountState = .exact
-    @Published private(set) var searchKnownResultCount = 0
-    @Published private(set) var searchKnownFileCount = 0
-    @Published private(set) var hasMoreSearchResults = false
+    private(set) var searchStatus: SearchStatus = .idle
+    private(set) var searchResultCueIDs: [Int64] = []
+    private(set) var searchResultTotalCount = 0
+    private(set) var searchFileSummaries: [SubtitleSearchFileSummary] = []
+    private(set) var searchCountState: SubtitleSearchCountState = .exact
+    private(set) var searchKnownResultCount = 0
+    private(set) var searchKnownFileCount = 0
+    private(set) var hasMoreSearchResults = false
+    @Published private(set) var resultRevision: UInt64 = 0
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var selectedSearchResult: SubtitleSearchResult?
     @Published private(set) var cueContextSearchRequest: CueContextSearchRequest?
+    @Published private(set) var tableLoadRevision: UInt64 = 0
     @Published var tableSearchDraft = ""
     @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs
     @Published var tableActiveFilterSetID = SchemaWorkbenchSearchDefaults.defaultFilterSetID
@@ -121,27 +138,21 @@ final class SearchStore: ObservableObject {
         }
     }
 
-    private(set) var searchResults: [SubtitleSearchResult] {
-        get {
-            loadedSearchResultCueIDs.compactMap { cueID in
-                cueContentStore.content(for: cueID).map {
-                    SubtitleSearchResult(
-                        cueContent: $0,
-                        searchRank: searchRankByCueID[cueID] ?? 0
-                    )
-                }
+    var searchResults: [SubtitleSearchResult] {
+        loadedSearchResultCueIDs.compactMap { cueID in
+            cueContentStore.content(for: cueID).map {
+                SubtitleSearchResult(
+                    cueContent: $0,
+                    searchRank: searchRankByCueID[cueID] ?? 0
+                )
             }
-        }
-        set {
-            replaceLoadedSearchResults(newValue)
         }
     }
 
-    func replaceLoadedSearchResults(
+    private func setLoadedSearchResults(
         _ results: [SubtitleSearchResult],
         orderedCueIDs: [Int64]? = nil
     ) {
-        objectWillChange.send()
         cueContentStore.install(results.map(\.cueContent))
         let nextCueIDs = results.map(\.entryID)
         let nextRanks = Dictionary(uniqueKeysWithValues: results.map {
@@ -169,6 +180,18 @@ final class SearchStore: ObservableObject {
         if case .residentSearch = tableProjectionSource {
             activateResidentSearchTableProjection()
         }
+    }
+
+    func cacheHydratedResults(_ results: [SubtitleSearchResult]) {
+        cueContentStore.install(results.map(\.cueContent))
+    }
+
+    func cachedCueContent(for cueID: Int64) -> CueContent? {
+        cueContentStore.content(for: cueID)
+    }
+
+    var cachedCueContentRevision: UInt64 {
+        cueContentStore.revision
     }
 
     func activateResidentSearchTableProjection() {
@@ -299,11 +322,348 @@ final class SearchStore: ObservableObject {
     }
 
     func suspendFilterOnlyPageLoad() {
+        filterOnlyLoadTask?.cancel()
+        filterOnlyLoadTask = nil
         guard isFilterOnlyLoadInProgress else {
             return
         }
         filterOnlyLoadGeneration &+= 1
         isFilterOnlyLoadInProgress = false
+    }
+
+    func loadFilterOnlyTableRows(
+        folders: [URL],
+        initialPageSize: Int,
+        continuationPageSize: Int
+    ) {
+        guard searchQuery.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty,
+              !activeFilterSet.isEffectivelyEmpty
+        else {
+            suspendFilterOnlyPageLoad()
+            return
+        }
+        let key = SearchFilterOnlyProjectionKey(
+            filterSignature: activeFilterSetSignature,
+            folderPaths: folders.map(\.path),
+            indexedCueDataRevision: indexedCueDataRevision
+        )
+        let sourceChanged = prepareFilterOnlyTableProjection(key: key)
+        if sourceChanged {
+            tableRowStore.updateResidentSearchResults(
+                [],
+                cueContentProvider: { [weak self] cueID in
+                    self?.cachedCueContent(for: cueID)
+                },
+                cueContentRevision: cachedCueContentRevision,
+                tableName: "test-search",
+                probeSurface: .search,
+                probeScope: uiProbeScope
+            )
+        }
+        guard let token = beginFilterOnlyPageLoad(
+            key: key,
+            loadedRowCount: tableRowStore.snapshot.totalRowCount
+        ) else {
+            return
+        }
+        let pageSize = token.startIndex == 0
+            ? initialPageSize
+            : continuationPageSize
+        let range = token.startIndex..<(token.startIndex + pageSize)
+
+        filterOnlyLoadTask = Task { [weak self] in
+            guard let self else { return }
+            UIInvalidationProbe.count(
+                SubtitleTableProbeSurface.search.counterName(
+                    "row_hydration_requested"
+                ),
+                scope: self.uiProbeScope
+            )
+            guard let page = await self.loadAllCueRows(
+                range: range,
+                folders: folders
+            ),
+                  self.acceptsFilterOnlyPageLoad(token),
+                  page.range.lowerBound == token.startIndex,
+                  self.searchQuery.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                  ).isEmpty,
+                  self.activeFilterSetSignature == key.filterSignature
+            else {
+                self.failFilterOnlyPageLoad(token)
+                return
+            }
+
+            if token.startIndex == 0 {
+                self.applyAllCueSearchContext(page)
+                self.tableRowStore.updateResidentSearchResults(
+                    page.results,
+                    cueContentProvider: { [weak self] cueID in
+                        self?.cachedCueContent(for: cueID)
+                    },
+                    cueContentRevision: self.cachedCueContentRevision,
+                    tableName: "test-search",
+                    probeSurface: .search,
+                    probeScope: self.uiProbeScope,
+                    isHydration: true
+                )
+            } else {
+                self.tableRowStore.hydrateResidentSearchResults(
+                    page.results,
+                    startIndex: token.startIndex,
+                    cueContentProvider: { [weak self] cueID in
+                        self?.cachedCueContent(for: cueID)
+                    },
+                    cueContentRevision: self.cachedCueContentRevision,
+                    tableName: "test-search",
+                    probeSurface: .search,
+                    probeScope: self.uiProbeScope
+                )
+            }
+            let loadedCount = self.tableRowStore.snapshot.totalRowCount
+            let shouldContinue = self.completeFilterOnlyPageLoad(
+                token,
+                totalRowCount: page.totalRowCount,
+                loadedRowCount: loadedCount
+            )
+            self.tableLoadRevision &+= 1
+            if shouldContinue, loadedCount > token.startIndex {
+                self.loadFilterOnlyTableRows(
+                    folders: folders,
+                    initialPageSize: initialPageSize,
+                    continuationPageSize: continuationPageSize
+                )
+            }
+        }
+    }
+
+    @discardableResult
+    func beginContextTableLoad(
+        request: CueContextSearchRequest,
+        folders: [URL],
+        initialPageSize: Int,
+        continuationPageSize: Int
+    ) -> Bool {
+        if activeContextTableRequestID == request.id,
+           isContextLoadInProgress || contextLoadedSourceRange != nil {
+            return false
+        }
+        activeContextTableRequestID = request.id
+        contextLoadGeneration &+= 1
+        let generation = contextLoadGeneration
+        contextLoadTask?.cancel()
+        isContextLoadInProgress = true
+        contextLoadedSourceRange = nil
+        contextTotalRowCount = 0
+        contextTargetSourceIndex = nil
+        contextPrependedRowCount = 0
+        contextScrollTargetSourceIndex = nil
+        activateContextTableProjection(requestID: request.id)
+
+        contextLoadTask = Task { [weak self] in
+            guard let self else { return }
+            UIInvalidationProbe.count(
+                SubtitleTableProbeSurface.context.counterName(
+                    "row_hydration_requested"
+                ),
+                scope: self.uiProbeScope
+            )
+            guard let page = await self.loadContextRows(
+                request: request,
+                range: 0..<initialPageSize,
+                folders: folders,
+                anchorsInitialPage: true
+            ),
+                  generation == self.contextLoadGeneration,
+                  self.cueContextSearchRequest?.id == request.id
+            else {
+                guard generation == self.contextLoadGeneration else { return }
+                self.activeContextTableRequestID = nil
+                self.isContextLoadInProgress = false
+                self.tableRowStore.updateResidentSearchResults(
+                    [],
+                    cueContentProvider: { [weak self] cueID in
+                        self?.cachedCueContent(for: cueID)
+                    },
+                    cueContentRevision: self.cachedCueContentRevision,
+                    tableName: "test-search",
+                    probeSurface: .context,
+                    probeScope: self.uiProbeScope
+                )
+                self.tableLoadRevision &+= 1
+                return
+            }
+
+            self.applyAllCueSearchContext(page)
+            self.tableRowStore.updateResidentSearchResults(
+                page.results,
+                cueContentProvider: { [weak self] cueID in
+                    self?.cachedCueContent(for: cueID)
+                },
+                cueContentRevision: self.cachedCueContentRevision,
+                tableName: "test-search",
+                probeSurface: .context,
+                probeScope: self.uiProbeScope,
+                isHydration: true
+            )
+            self.contextLoadedSourceRange = page.range
+            self.contextTotalRowCount = page.totalRowCount
+            self.contextTargetSourceIndex =
+                page.results.first { $0.entryID == request.targetCueID }?
+                    .searchRank
+                ?? page.range.lowerBound
+            self.contextScrollTargetSourceIndex = self.contextTargetSourceIndex
+            self.isContextLoadInProgress = false
+            self.tableLoadRevision &+= 1
+            self.loadAdjacentContextRows(
+                visibleRows: nil,
+                folders: folders,
+                pageSize: continuationPageSize,
+                prefersPrevious: true
+            )
+        }
+        return true
+    }
+
+    func loadAdjacentContextRows(
+        visibleRows: Range<Int>?,
+        folders: [URL],
+        pageSize: Int,
+        prefersPrevious: Bool = false
+    ) {
+        guard let request = cueContextSearchRequest,
+              let sourceRange = contextLoadedSourceRange,
+              contextTotalRowCount > 0,
+              !isContextLoadInProgress
+        else {
+            return
+        }
+
+        let direction: SearchContextLoadDirection
+        let scrollSourceIndex: Int?
+        if sourceRange.lowerBound > 0,
+           prefersPrevious
+            || (visibleRows?.lowerBound ?? 0)
+                <= TableSandboxHydrationPaging.pageSize {
+            direction = .previous
+            scrollSourceIndex = prefersPrevious
+                ? contextTargetSourceIndex
+                : sourceRange.lowerBound + max(0, visibleRows?.lowerBound ?? 0)
+        } else if sourceRange.upperBound < contextTotalRowCount,
+                  (visibleRows?.upperBound
+                    ?? tableRowStore.snapshot.totalRowCount)
+                    >= tableRowStore.snapshot.totalRowCount
+                        - TableSandboxHydrationPaging.pageSize {
+            direction = .next
+            scrollSourceIndex = nil
+        } else {
+            return
+        }
+
+        let range: Range<Int>
+        switch direction {
+        case .previous:
+            let lowerBound = max(0, sourceRange.lowerBound - pageSize)
+            range = lowerBound..<sourceRange.lowerBound
+        case .next:
+            let upperBound = min(
+                contextTotalRowCount,
+                sourceRange.upperBound + pageSize
+            )
+            range = sourceRange.upperBound..<upperBound
+        }
+        guard !range.isEmpty else { return }
+
+        let generation = contextLoadGeneration
+        isContextLoadInProgress = true
+        contextLoadTask = Task { [weak self] in
+            guard let self else { return }
+            UIInvalidationProbe.count(
+                SubtitleTableProbeSurface.context.counterName(
+                    "row_hydration_requested"
+                ),
+                scope: self.uiProbeScope
+            )
+            guard let page = await self.loadContextRows(
+                request: request,
+                range: range,
+                folders: folders,
+                anchorsInitialPage: false
+            ),
+                  generation == self.contextLoadGeneration,
+                  self.cueContextSearchRequest?.id == request.id
+            else {
+                if generation == self.contextLoadGeneration {
+                    self.isContextLoadInProgress = false
+                }
+                return
+            }
+
+            switch direction {
+            case .previous:
+                guard page.range.upperBound == sourceRange.lowerBound else {
+                    self.isContextLoadInProgress = false
+                    return
+                }
+                let prepended = self.tableRowStore.prependResidentSearchResults(
+                    page.results,
+                    cueContentProvider: { [weak self] cueID in
+                        self?.cachedCueContent(for: cueID)
+                    },
+                    cueContentRevision: self.cachedCueContentRevision,
+                    tableName: "test-search",
+                    probeSurface: .context,
+                    probeScope: self.uiProbeScope
+                )
+                if prepended > 0 {
+                    self.contextLoadedSourceRange =
+                        page.range.lowerBound..<sourceRange.upperBound
+                    self.contextPrependedRowCount = prepended
+                    self.contextScrollTargetSourceIndex = scrollSourceIndex
+                }
+            case .next:
+                guard page.range.lowerBound == sourceRange.upperBound else {
+                    self.isContextLoadInProgress = false
+                    return
+                }
+                let appended = self.tableRowStore.appendResidentSearchResults(
+                    page.results,
+                    cueContentProvider: { [weak self] cueID in
+                        self?.cachedCueContent(for: cueID)
+                    },
+                    cueContentRevision: self.cachedCueContentRevision,
+                    tableName: "test-search",
+                    probeSurface: .context,
+                    probeScope: self.uiProbeScope
+                )
+                if appended > 0 {
+                    self.contextLoadedSourceRange =
+                        sourceRange.lowerBound..<page.range.upperBound
+                }
+            }
+            self.isContextLoadInProgress = false
+            self.tableLoadRevision &+= 1
+        }
+    }
+
+    func consumeContextTablePresentation() {
+        contextPrependedRowCount = 0
+        contextScrollTargetSourceIndex = nil
+    }
+
+    func cancelContextTableLoad() {
+        contextLoadGeneration &+= 1
+        contextLoadTask?.cancel()
+        contextLoadTask = nil
+        activeContextTableRequestID = nil
+        isContextLoadInProgress = false
+        contextLoadedSourceRange = nil
+        contextTotalRowCount = 0
+        contextTargetSourceIndex = nil
+        contextPrependedRowCount = 0
+        contextScrollTargetSourceIndex = nil
     }
 
     @discardableResult
@@ -362,8 +722,31 @@ final class SearchStore: ObservableObject {
         searchQuery = query
     }
 
-    func updateStatus(_ status: SearchStatus) {
-        searchStatus = status
+    func markSearchIdle() {
+        commitResultMutation {
+            searchStatus = .idle
+        }
+    }
+
+    func markSearchInProgress() {
+        commitResultMutation {
+            searchStatus = .searching
+        }
+    }
+
+    func markSearchCompleted() {
+        commitResultMutation {
+            searchStatus = .completed
+        }
+    }
+
+    func markSearchFailed(_ message: String, hasMore: Bool? = nil) {
+        commitResultMutation {
+            searchStatus = .failed(message)
+            if let hasMore {
+                hasMoreSearchResults = hasMore
+            }
+        }
     }
 
     func updateActiveFilterSet(_ filterSet: SubtitleSearchFilterSet) {
@@ -406,6 +789,9 @@ final class SearchStore: ObservableObject {
 
     func updateContextRequest(_ request: CueContextSearchRequest?) {
         cueContextSearchRequest = request
+        if request == nil {
+            cancelContextTableLoad()
+        }
     }
 
     @discardableResult
@@ -470,49 +856,150 @@ final class SearchStore: ObservableObject {
         activePerformanceRun = run
     }
 
-    func updateResultCueIDs(_ cueIDs: [Int64]) {
-        searchResultCueIDs = cueIDs
-    }
-
-    func publishResultMetadata(
+    func replaceResultState(
+        results: [SubtitleSearchResult],
+        orderedCueIDs: [Int64]? = nil,
+        status: SearchStatus,
         totalCount: Int,
         fileSummaries: [SubtitleSearchFileSummary],
         countState: SubtitleSearchCountState,
         knownResultCount: Int,
         knownFileCount: Int,
-        hasMore: Bool
+        hasMore: Bool,
+        loadedResultCount: Int? = nil,
+        nextCursor: SubtitleSearchCursor? = nil
     ) {
-        searchResultTotalCount = totalCount
-        searchFileSummaries = fileSummaries
-        searchCountState = countState
-        searchKnownResultCount = knownResultCount
-        searchKnownFileCount = knownFileCount
-        hasMoreSearchResults = hasMore
+        commitResultMutation {
+            setLoadedSearchResults(results, orderedCueIDs: orderedCueIDs)
+            searchStatus = status
+            searchResultTotalCount = totalCount
+            searchFileSummaries = fileSummaries
+            searchCountState = countState
+            searchKnownResultCount = knownResultCount
+            searchKnownFileCount = knownFileCount
+            hasMoreSearchResults = hasMore
+            loadedGlobalResultCount = loadedResultCount ?? results.count
+            nextGlobalCursor = nextCursor
+        }
     }
 
-    func publishKnownCounts(resultCount: Int, fileCount: Int) {
-        searchKnownResultCount = resultCount
-        searchKnownFileCount = fileCount
+    @discardableResult
+    func commitVisibleSearchPage(
+        _ page: SubtitleSearchPage,
+        appending: Bool,
+        offset: Int
+    ) -> Bool {
+        var completesSearch = false
+        commitResultMutation {
+            let loadedResultCount: Int
+            if appending {
+                let existingIDs = Set(searchResults.map(\.entryID))
+                let combined = searchResults + page.results.filter {
+                    !existingIDs.contains($0.entryID)
+                }
+                setLoadedSearchResults(combined)
+                loadedResultCount = max(
+                    loadedGlobalResultCount,
+                    offset + page.results.count
+                )
+            } else {
+                setLoadedSearchResults(page.results)
+                loadedResultCount = page.results.count
+            }
+            let preserveExactMetadata = appending
+                && searchCountState == .exact
+                && page.countState != .exact
+            if preserveExactMetadata {
+                searchKnownResultCount = max(
+                    searchKnownResultCount,
+                    page.knownResultCount
+                )
+                searchKnownFileCount = max(
+                    searchKnownFileCount,
+                    page.knownFileCount
+                )
+            } else {
+                searchResultTotalCount = page.totalCount
+                searchFileSummaries = page.fileSummaries
+                searchCountState = page.countState
+                searchKnownResultCount = page.knownResultCount
+                searchKnownFileCount = page.knownFileCount
+            }
+            hasMoreSearchResults = page.hasMore
+            loadedGlobalResultCount = loadedResultCount
+            nextGlobalCursor = page.nextCursor
+            completesSearch = page.countState == .exact || preserveExactMetadata
+            searchStatus = completesSearch ? .completed : .searching
+        }
+        return completesSearch
     }
 
-    func updateHasMoreResults(_ hasMore: Bool) {
-        hasMoreSearchResults = hasMore
+    func commitExactSearchPage(_ page: SubtitleSearchPage) {
+        commitResultMutation {
+            let loadedResultCount: Int
+            if !page.renderableResults.isEmpty {
+                setLoadedSearchResults(
+                    page.renderableResults,
+                    orderedCueIDs: page.cueIDs
+                )
+                loadedResultCount = page.renderableResults.count
+            } else {
+                searchResultCueIDs = page.cueIDs
+                loadedResultCount = loadedGlobalResultCount
+            }
+            let hasMore = loadedResultCount < page.totalCount
+            searchResultTotalCount = page.totalCount
+            searchFileSummaries = page.fileSummaries
+            searchCountState = page.countState
+            searchKnownResultCount = page.knownResultCount
+            searchKnownFileCount = page.knownFileCount
+            hasMoreSearchResults = hasMore
+            loadedGlobalResultCount = loadedResultCount
+            nextGlobalCursor = hasMore
+                ? (nextGlobalCursor
+                    ?? SubtitleSearchCursor(offset: loadedResultCount))
+                : nil
+            searchStatus = .completed
+        }
     }
 
-    func updatePagination(
-        loadedResultCount: Int,
-        nextCursor: SubtitleSearchCursor?
-    ) {
-        loadedGlobalResultCount = loadedResultCount
-        nextGlobalCursor = nextCursor
+    func commitSearchCountProgress(_ progress: SubtitleSearchProgressSnapshot) {
+        commitResultMutation {
+            let loadedResultCount: Int
+            if !progress.results.isEmpty {
+                setLoadedSearchResults(
+                    progress.results,
+                    orderedCueIDs: progress.cueIDs
+                )
+                loadedResultCount = progress.results.count
+            } else {
+                loadedResultCount = loadedGlobalResultCount
+            }
+            let hasMore = loadedResultCount < progress.knownResultCount
+            searchResultTotalCount = progress.knownResultCount
+            searchFileSummaries = progress.fileSummaries
+            searchCountState = progress.countState
+            searchKnownResultCount = progress.knownResultCount
+            searchKnownFileCount = progress.knownFileCount
+            hasMoreSearchResults = hasMore
+            loadedGlobalResultCount = loadedResultCount
+            nextGlobalCursor = hasMore
+                ? (nextGlobalCursor
+                    ?? SubtitleSearchCursor(offset: loadedResultCount))
+                : nil
+        }
     }
 
-    func updateNextGlobalCursor(_ cursor: SubtitleSearchCursor?) {
-        nextGlobalCursor = cursor
-    }
-
-    func updateLastCountProgress(_ update: UInt64) {
+    func acceptsCountProgress(
+        at update: UInt64,
+        minimumInterval: UInt64
+    ) -> Bool {
+        if lastCountProgressUpdate != 0,
+           update - lastCountProgressUpdate < minimumInterval {
+            return false
+        }
         lastCountProgressUpdate = update
+        return true
     }
 
     @discardableResult
@@ -522,44 +1009,25 @@ final class SearchStore: ObservableObject {
             searchResultCueIDs.count,
             searchResultTotalCount
         )
-        searchResults = []
-        searchResultCueIDs = []
-        publishResultMetadata(
-            totalCount: 0,
-            fileSummaries: [],
-            countState: .exact,
-            knownResultCount: 0,
-            knownFileCount: 0,
-            hasMore: false
-        )
-        loadedGlobalResultCount = 0
-        lastCountProgressUpdate = 0
-        nextGlobalCursor = nil
-        searchNavigationSnapshot = nil
+        commitResultMutation {
+            setLoadedSearchResults([], orderedCueIDs: [])
+            searchResultTotalCount = 0
+            searchFileSummaries = []
+            searchCountState = .exact
+            searchKnownResultCount = 0
+            searchKnownFileCount = 0
+            hasMoreSearchResults = false
+            loadedGlobalResultCount = 0
+            lastCountProgressUpdate = 0
+            nextGlobalCursor = nil
+            searchNavigationSnapshot = nil
+        }
         return releasedRows
     }
 
-    func appendLoadedResults(_ results: [SubtitleSearchResult]) {
-        let existingEntryIDs = Set(searchResults.map(\.entryID))
-        searchResults = searchResults
-            + results.filter { !existingEntryIDs.contains($0.entryID) }
-    }
-
-    func revealInitialGlobalPage(limit: Int) {
-        searchResults = Array(searchResults.prefix(limit))
-        let loadedResultCount = searchResults.count
-        publishKnownCounts(
-            resultCount: searchResultTotalCount,
-            fileCount: searchFileSummaries.count
-        )
-        let hasMore = loadedResultCount < searchResultTotalCount
-        hasMoreSearchResults = hasMore
-        updatePagination(
-            loadedResultCount: loadedResultCount,
-            nextCursor: hasMore
-                ? SubtitleSearchCursor(offset: loadedResultCount)
-                : nil
-        )
+    private func commitResultMutation(_ mutation: () -> Void) {
+        mutation()
+        resultRevision &+= 1
     }
 
     var isSearching: Bool {

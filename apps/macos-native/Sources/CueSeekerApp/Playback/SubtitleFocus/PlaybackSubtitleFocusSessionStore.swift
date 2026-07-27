@@ -212,7 +212,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             if let searchWindow {
                 observeCueResultWindow(searchWindow, module: .search)
             }
-            searchResultsCancellable = searchStore.$searchResultCueIDs
+            searchResultsCancellable = searchStore.$resultRevision
                 .dropFirst()
                 .sink { [weak self, weak searchStore, weak searchSource] _ in
                     Task { @MainActor [weak self, weak searchStore, weak searchSource] in

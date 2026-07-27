@@ -725,7 +725,7 @@ extension AppCoordinator {
             library.completeLibraryStatus = library.completeLibraryFolderSummaries.isEmpty ? .idle : .completed
         }
         if case .searching = search.searchStatus {
-            search.updateStatus(.completed)
+            search.markSearchCompleted()
         }
     }
 }

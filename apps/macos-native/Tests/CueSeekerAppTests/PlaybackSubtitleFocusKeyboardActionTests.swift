@@ -330,7 +330,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
                 content: content
             )
         }
-        app.search.replaceLoadedSearchResults(results)
+        app.search.replaceResidentResults(results)
         app.playback.isPlaybackSurfaceExpanded = true
         #expect(app.presentPlaybackCommandPanelSearch(
             query: "command",
@@ -366,7 +366,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
 func playbackCommandPanelSearchSavesSelectedCue() async throws {
     try await withKeyboardActionApp { app, _ in
         let source = keyboardActionSource()
-        app.search.replaceLoadedSearchResults([
+        app.search.replaceResidentResults([
             keyboardActionPlaylistSearchResult(
                 id: 1,
                 videoPath: source.videoPath,

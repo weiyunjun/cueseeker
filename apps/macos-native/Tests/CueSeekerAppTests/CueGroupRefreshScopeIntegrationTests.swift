@@ -85,7 +85,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             initialShowCueGroup: true,
             uiProbeScope: uiProbeScope
         ) { app, window, coordinator in
-            app.search.replaceLoadedSearchResults(
+            app.search.replaceResidentResults(
                 Array(app.search.searchResults.reversed())
             )
             let didApplyReload = await waitUntil(timeout: 1) {
@@ -944,11 +944,10 @@ private final class CueGroupRefreshScopeMountedHarness {
                     videoPath: videoURL.path,
                     rowCount: 200
                 )
-                app.search.replaceLoadedSearchResults(
-                    results,
-                    orderedCueIDs: results.map(\.entryID)
-                )
-                app.search.publishResultMetadata(
+                app.search.replaceResultState(
+                    results: results,
+                    orderedCueIDs: results.map(\.entryID),
+                    status: .completed,
                     totalCount: results.count,
                     fileSummaries: [],
                     countState: .exact,
@@ -956,7 +955,6 @@ private final class CueGroupRefreshScopeMountedHarness {
                     knownFileCount: 0,
                     hasMore: false
                 )
-                app.search.updateStatus(.completed)
             }
             app.activateWorkbenchPanelMode(.search)
         case .context:
