@@ -835,7 +835,7 @@ private enum FilterBuilderLayout {
 }
 
 enum SchemaWorkbenchStyle {
-    static let pageHorizontalPadding: CGFloat = 24
+    static let pageHorizontalPadding = WorkbenchControlMetrics.redesignSpacing6
     static let pageTopPadding: CGFloat = 10
     static let pageBottomPadding: CGFloat = 14
     static let tableCornerRadius: CGFloat = 8
