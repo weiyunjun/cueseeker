@@ -1988,7 +1988,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
         let layout = currentHeaderLayout()
 
-        updateSelectionHeaderHost(&indexHeaderHost, frame: layout.indexRect)
+        if coordinator?.isSelectionModeForRendering() == true {
+            updateSelectionHeaderHost(&indexHeaderHost, frame: layout.indexRect)
+        } else {
+            indexHeaderHost?.isHidden = true
+        }
         if let dateAddedRect = layout.dateAddedRect {
             updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? "Date Added", columnID: "dateAdded", isSortable: true, frame: dateAddedRect)
         } else {
@@ -2018,7 +2022,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
             tagsHeaderHost?.isHidden = true
         }
         updateHeaderKeyViewBridge()
-        ensureTextInteractionOverlay()
+        if coordinator?.isSelectionModeForRendering() == true {
+            textInteractionOverlay?.isHidden = true
+        } else {
+            ensureTextInteractionOverlay()
+        }
         lastHeaderLayout = layout
     }
 
@@ -2028,7 +2036,12 @@ final class SubtitleVirtualTableHeaderView: NSView {
             return
         }
         let layout = currentHeaderLayout()
-        updateHeaderFrame(&indexHeaderHost, frame: layout.indexRect)
+        updateHeaderFrame(
+            &indexHeaderHost,
+            frame: coordinator?.isSelectionModeForRendering() == true
+                ? layout.indexRect
+                : nil
+        )
         updateHeaderFrame(&dateAddedHeaderHost, frame: layout.dateAddedRect)
         updateHeaderFrame(
             &nameHeaderHost,
@@ -2070,6 +2083,10 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     func textInteractionOverlayForTesting() -> SubtitleTableHeaderTextOverlayView? {
         textInteractionOverlay
+    }
+
+    func selectionHeaderIsVisibleForTesting() -> Bool {
+        indexHeaderHost?.isHidden == false
     }
 
     func shouldRouteTextSelectionMouseDownForTesting(at point: CGPoint) -> Bool {
@@ -2187,7 +2204,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         guard let coordinator else { return }
         let sortDirection = coordinator.sortedColumnID == columnID ? coordinator.sortDirection : nil
         let isMenuOpen = coordinator.isMenuOpen && coordinator.activeHeaderMenuColumnID == columnID
-        let isEnabled = coordinator.isEnabled
+        let isEnabled = coordinator.isEnabled && !coordinator.isSelectionModeForRendering()
 
         let cellView = SubtitleTableHeaderCellView(
             title: title,
@@ -2409,6 +2426,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var scrollTargetRow: Int?
     var suspendsMenuOutsideClickDismiss = false
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
+    var isSelectionMode = false
     var isRowSelected: (Int) -> Bool = { _ in false }
     var selectionHeaderState: WorkbenchCheckboxState = .unchecked
     var onToggleRowSelection: (Int) -> Void = { _ in }
@@ -2452,6 +2470,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: scrollResetToken,
             scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
+            isSelectionMode: isSelectionMode,
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
@@ -2587,6 +2606,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: scrollResetToken,
             scrollTargetRow: scrollTargetRow,
             onVisibleRowsChange: onVisibleRowsChange,
+            isSelectionMode: isSelectionMode,
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
@@ -2639,6 +2659,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var scrollResetToken: Int
         private var scrollTargetRow: Int?
         private var onVisibleRowsChange: (Range<Int>) -> Void
+        private var isSelectionMode: Bool
         private var isRowSelected: (Int) -> Bool
         private var selectionHeaderState: WorkbenchCheckboxState
         private var onToggleRowSelection: (Int) -> Void
@@ -2867,6 +2888,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: Int = 0,
             scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
+            isSelectionMode: Bool = false,
             isRowSelected: @escaping (Int) -> Bool = { _ in false },
             selectionHeaderState: WorkbenchCheckboxState = .unchecked,
             onToggleRowSelection: @escaping (Int) -> Void = { _ in },
@@ -2907,6 +2929,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollResetToken = scrollResetToken
             self.scrollTargetRow = scrollTargetRow
             self.onVisibleRowsChange = onVisibleRowsChange
+            self.isSelectionMode = isSelectionMode
             self.isRowSelected = isRowSelected
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
@@ -3020,6 +3043,7 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollResetToken: Int,
             scrollTargetRow: Int? = nil,
             onVisibleRowsChange: @escaping (Range<Int>) -> Void,
+            isSelectionMode: Bool = false,
             isRowSelected: @escaping (Int) -> Bool,
             selectionHeaderState: WorkbenchCheckboxState,
             onToggleRowSelection: @escaping (Int) -> Void,
@@ -3102,6 +3126,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.scrollResetToken = scrollResetToken
             self.scrollTargetRow = scrollTargetRow
             self.onVisibleRowsChange = onVisibleRowsChange
+            let selectionModeChanged = isSelectionMode != self.isSelectionMode
+            self.isSelectionMode = isSelectionMode
             self.isRowSelected = isRowSelected
             let selectionHeaderChanged = selectionHeaderState != self.selectionHeaderState
             self.selectionHeaderState = selectionHeaderState
@@ -3161,8 +3187,17 @@ struct SubtitleTableView: NSViewRepresentable {
             case .none, .append:
                 rowsUpdateInvalidatesTextSelection = false
             }
-            if tableChanged || shouldResetScroll || rowsUpdateInvalidatesTextSelection || columnVisibilityChanged || headerTitleChanged || showCueGroupChanged {
+            if tableChanged || shouldResetScroll || rowsUpdateInvalidatesTextSelection || columnVisibilityChanged || headerTitleChanged || showCueGroupChanged || selectionModeChanged {
                 clearTextSelection()
+            }
+            if selectionModeChanged {
+                clearFocusedCheckbox()
+                updateHoveredColumnID(nil)
+                updateHoveredCueTextRow(nil)
+                updateHoveredCueStateRow(nil)
+                if isMenuOpen {
+                    dismissMenu(recalculateHover: false)
+                }
             }
 
             if needsDocumentResize {
@@ -3198,17 +3233,17 @@ struct SubtitleTableView: NSViewRepresentable {
                     dismissMenu(recalculateHover: false)
                 }
             }
-            if tableChanged || rowsChanged || columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged {
+            if tableChanged || rowsChanged || columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged || selectionModeChanged {
                 headerView?.refreshHeaderHosts()
             }
-            if columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged {
+            if columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged || selectionModeChanged {
                 headerView?.needsDisplay = true
             }
-            if columnVisibilityChanged {
+            if columnVisibilityChanged || selectionModeChanged {
                 invalidateVisibleDocument()
             }
             invalidateRows(for: effectiveRowsUpdate, rowsChanged: rowsChanged)
-            if needsDocumentResize || columnVisibilityChanged || headerTitleChanged || shouldResetScroll {
+            if needsDocumentResize || columnVisibilityChanged || headerTitleChanged || shouldResetScroll || selectionModeChanged {
                 invalidateDocumentCursorRects()
                 layoutHoverButtons()
             }
@@ -3380,12 +3415,20 @@ struct SubtitleTableView: NSViewRepresentable {
             cellContentHoverRectInDocument(row: row, columnID: columnID)
         }
 
+        func isCellHoveredForTesting(row: Int, columnID: String) -> Bool {
+            isCellHovered(row: row, columnID: columnID)
+        }
+
         func rowBackgroundColorForTesting(row: Int) -> NSColor? {
             rowBackgroundColor(row: row)
         }
 
         func setFocusedCheckboxRowForTesting(_ row: Int?) {
             updateFocusedCheckbox(row)
+        }
+
+        func setSelectionModeForTesting(_ isSelectionMode: Bool) {
+            self.isSelectionMode = isSelectionMode
         }
 
         func cueTextHitTestForTesting(row: Int, point: CGPoint) -> Bool {
@@ -3606,6 +3649,7 @@ struct SubtitleTableView: NSViewRepresentable {
         var canBeginExternalTextSelection: Bool {
             isRedesign &&
                 isEnabled &&
+                !isSelectionMode &&
                 pendingTextInteraction == nil &&
                 container != nil &&
                 container?.window != nil &&
@@ -3892,8 +3936,12 @@ struct SubtitleTableView: NSViewRepresentable {
             selectionHeaderState
         }
 
+        func isSelectionModeForRendering() -> Bool {
+            isSelectionMode
+        }
+
         func canToggleSelectionForRendering() -> Bool {
-            isEnabled && rowCount > 0
+            isEnabled && isSelectionMode && rowCount > 0
         }
 
         func usesOverlayScrollbarsForTesting() -> Bool {
@@ -3938,7 +3986,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func toggleAllRowSelection() {
-            guard rowCount > 0 else { return }
+            guard isEnabled, isSelectionMode, rowCount > 0 else { return }
             onToggleAllSelection()
             headerView?.refreshHeaderHosts()
             invalidateVisibleDocument()
@@ -4170,7 +4218,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func selectAllTableText() {
-            guard isRedesign, isEnabled else { return }
+            guard isRedesign, isEnabled, !isSelectionMode else { return }
             let previousSelection = textSelection
             textSelection.selectAll()
             invalidateTextSelectionChange(from: previousSelection)
@@ -4179,6 +4227,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func copyTableTextSelection(to pasteboard: NSPasteboard = .general) {
             guard isRedesign,
                   isEnabled,
+                  !isSelectionMode,
                   textSelection.hasSelection
             else {
                 return
@@ -4534,6 +4583,9 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func rowBackgroundColor(row: Int) -> NSColor? {
+            if isRedesign, isSelectionMode, isRowSelected(row) {
+                return WorkbenchRedesignColors.NS.rowSelected
+            }
             guard hoveredRow == row else { return nil }
             return isRedesign
                 ? WorkbenchRedesignColors.NS.rowHover
@@ -4553,7 +4605,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     extraCueLineCounts: []
                 )
 
-            if isRedesign {
+            if isRedesign, isSelectionMode {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
                 WorkbenchCheckboxDrawing.draw(
                     state: checkboxState,
@@ -4606,7 +4658,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 )
             }
             let cuesRect = rowColumnRect(layout.cuesRect, rowRect: rowRect)
-            let isCuesHovered = !isUnavailable
+            let isCuesHovered = !isSelectionMode
+                && !isUnavailable
                 && isCellHovered(row: row, columnID: "cues")
             drawCues(
                 model: model,
@@ -5644,6 +5697,16 @@ struct SubtitleTableView: NSViewRepresentable {
                 return []
             }
 
+            if isSelectionMode {
+                return range.compactMap { row in
+                    guard rowProvider(row) != nil else { return nil }
+                    let clipped = rectForRow(row, width: documentWidth).intersection(visibleRect)
+                    return clipped.isNull || clipped.width <= 0 || clipped.height <= 0
+                        ? nil
+                        : clipped
+                }
+            }
+
             return range.flatMap { row -> [CGRect] in
                 guard let model = rowProvider(row),
                       !model.cueState.isUnavailable
@@ -5679,6 +5742,7 @@ struct SubtitleTableView: NSViewRepresentable {
         ) -> [CGRect] {
             guard isRedesign,
                   isEnabled,
+                  !isSelectionMode,
                   !isMenuOpen,
                   !isExternalPopupLayerOpen,
                   let range = visibleRowRange(in: visibleRect)
@@ -6130,6 +6194,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func hoveredDataColumnID(row: Int, point: CGPoint) -> String? {
             guard isRedesign,
+                  !isSelectionMode,
                   row >= 0,
                   row < rowCount,
                   rowProvider(row) != nil
@@ -6150,6 +6215,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func isPointInCheckbox(row: Int, point: CGPoint) -> Bool {
             guard isRedesign,
                   isEnabled,
+                  isSelectionMode,
                   !isExternalPopupLayerOpen,
                   row >= 0,
                   row < rowCount,
@@ -6165,6 +6231,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func isPointInTagsCell(row: Int, point: CGPoint) -> Bool {
             guard isRedesign,
                   isEnabled,
+                  !isSelectionMode,
                   !isExternalPopupLayerOpen,
                   row >= 0,
                   row < rowCount,
@@ -6179,7 +6246,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func isPointInCueText(row: Int, point: CGPoint) -> Bool {
-            guard row >= 0,
+            guard !isSelectionMode,
+                  row >= 0,
                   row < rowCount,
                   let model = rowProvider(row),
                   !model.primaryCueText.isEmpty,
@@ -6211,6 +6279,13 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let row = rowAtDocumentPoint(point)
             updateHoveredRow(row)
+            if isSelectionMode {
+                updateHoveredCueStateRow(nil)
+                updateHoveredColumnID(nil)
+                updateHoveredRowActionRow(nil)
+                updateHoveredCueTextRow(nil)
+                return
+            }
             let cueStateRow = row.flatMap {
                 isPointInCueStateIndicator(row: $0, point: point) ? $0 : nil
             }
@@ -6242,6 +6317,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 return false
             }
             let row = rowAtDocumentPoint(point)
+            if isSelectionMode {
+                guard let row else { return false }
+                return toggleRowCheckboxFromMouse(row: row)
+            }
             if let row, isPointInCheckbox(row: row, point: point) {
                 return toggleRowCheckboxFromMouse(row: row)
             }
@@ -6285,6 +6364,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func handleHeaderMouseDown(windowPoint: CGPoint) -> Bool {
             guard isRedesign,
                   isEnabled,
+                  !isSelectionMode,
                   !isMenuOpen,
                   !isExternalPopupLayerOpen,
                   let headerView
@@ -6411,6 +6491,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 return false
             }
             let point = documentView.convert(windowPoint, from: nil)
+            if isSelectionMode {
+                return documentView.visibleRect.contains(point)
+                    && rowAtDocumentPoint(point) != nil
+            }
             guard documentView.visibleRect.contains(point),
                   let row = rowAtDocumentPoint(point),
                   let columnID = actionMenuColumnID(row: row, point: point)
@@ -6431,6 +6515,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func toggleRowCheckboxFromMouse(row: Int) -> Bool {
             guard isRedesign,
                   isEnabled,
+                  isSelectionMode,
                   !isMenuOpen,
                   !isExternalPopupLayerOpen,
                   row >= 0,
@@ -6448,6 +6533,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func handleKeyDown(_ event: NSEvent) -> Bool {
             guard isRedesign,
                   isEnabled,
+                  isSelectionMode,
                   !isMenuOpen,
                   !isExternalPopupLayerOpen
             else {
@@ -6935,7 +7021,8 @@ struct SubtitleTableView: NSViewRepresentable {
             buttonFrame: CGRect,
             clickPointInContainer: CGPoint? = nil
         ) {
-            guard row >= 0,
+            guard !isSelectionMode,
+                  row >= 0,
                   row < rowCount,
                   let target = rowProvider(row)
             else {
@@ -7080,7 +7167,8 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @discardableResult
         private func showTagsPopover(row: Int, documentPoint: CGPoint) -> Bool {
-            guard let container,
+            guard !isSelectionMode,
+                  let container,
                   let documentView,
                   let model = rowProvider(row),
                   let popoverView = makeTagsPopover(model, { [weak self] in
@@ -7139,6 +7227,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func showHeaderMenu(for columnID: String, triggerFrame: CGRect) {
+            guard !isSelectionMode else { return }
             cancelPendingTextInteraction()
             isMenuOpen = true
             activeRowMenuRow = nil
@@ -7346,7 +7435,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func playRow(_ row: Int) {
-            guard let model = rowProvider(row),
+            guard !isSelectionMode,
+                  let model = rowProvider(row),
                   !model.cueState.isUnavailable
             else {
                 return

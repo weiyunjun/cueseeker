@@ -45,6 +45,7 @@ struct WorkbenchTestSearchView: View {
     @State private var hasPreparedViewportRestoration = false
     @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
+    @State private var isSelectionMode = false
     @State private var canExportSelectedRowsAsCollage = false
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
@@ -78,7 +79,10 @@ struct WorkbenchTestSearchView: View {
             tableSummary: tableSummary,
             tableSummaryLeadingInset: tableSummaryLeadingInset,
             tableSummaryAction: selectedSummaryActions,
-            filterableColumnIDs: ["display", "cues"]
+            filterableColumnIDs: ["display", "cues"],
+            isSelectionMode: isSelectionMode,
+            canEnterSelectionMode: canEnterSelectionMode,
+            onToggleSelectionMode: toggleSelectionMode
         ) { visibleColumns in
             ZStack {
                 SubtitleTableView(
@@ -102,6 +106,7 @@ struct WorkbenchTestSearchView: View {
                     scrollResetToken: tableScrollResetToken,
                     scrollTargetRow: tableScrollTargetRow,
                     onVisibleRowsChange: hydrateVisibleRows,
+                    isSelectionMode: isSelectionMode,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
@@ -146,6 +151,7 @@ struct WorkbenchTestSearchView: View {
             restoreViewportIfPossible()
         }
         .onChange(of: filterRules) { newValue in
+            exitSelectionMode()
             search.tableFilterRules = newValue
             if suppressNextFilterRulesReload {
                 suppressNextFilterRulesReload = false
@@ -157,6 +163,7 @@ struct WorkbenchTestSearchView: View {
             search.tableVisibleColumnIDs = newValue
         }
         .onChange(of: search.searchQuery) { newValue in
+            exitSelectionMode()
             searchDraft = newValue
             search.suspendFilterOnlyPageLoad()
             rowSelection.reset()
@@ -188,8 +195,14 @@ struct WorkbenchTestSearchView: View {
             updateRowsFromResidentSearch()
         }
         .onChange(of: search.indexedCueDataRevision) { _ in
+            exitSelectionMode()
             guard isFilterOnlyMode else { return }
             loadAllCueRows(resetScroll: false)
+        }
+        .onChange(of: canEnterSelectionMode) { canEnter in
+            if !canEnter {
+                exitSelectionMode()
+            }
         }
         .onChange(of: rowStore.snapshot.version) { _ in
             restoreSelectionIfPossible()
@@ -202,12 +215,16 @@ struct WorkbenchTestSearchView: View {
             )
         }
         .onChange(of: search.cueContextSearchRequest) { request in
+            exitSelectionMode()
             guard let request else {
                 return
             }
             _ = applyCueContextSearchRequest(request)
         }
         .onChange(of: isTableResponseActive) { isActive in
+            if !isActive {
+                exitSelectionMode()
+            }
             search.setTableProjectionResponseActive(isActive)
             if !isActive {
                 resetCoveredTableLoading()
@@ -221,6 +238,7 @@ struct WorkbenchTestSearchView: View {
             resumeDeferredTableResponse()
         }
         .onDisappear {
+            exitSelectionMode()
             search.setTableProjectionResponseActive(false)
             persistTableControls()
             persistSelection()
@@ -442,7 +460,16 @@ struct WorkbenchTestSearchView: View {
         let totalRowCount = tableSummaryTotalRowCount
         return SchemaWorkbenchTableSummary(
             totalRowCount: totalRowCount,
-            selectedRowCount: rowSelection.selectedCount(rowCount: totalRowCount)
+            selectedRowCount: isSelectionMode
+                ? rowSelection.selectedCount(rowCount: totalRowCount)
+                : 0
+        )
+    }
+
+    private var canEnterSelectionMode: Bool {
+        schemaWorkbenchCanEnterSelectionMode(
+            hasExactResultSet: tableTextCopySource != nil,
+            resultRowCount: tableSummaryTotalRowCount
         )
     }
 
@@ -458,7 +485,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var selectedSummaryActions: AnyView? {
-        guard tableSummary.selectedRowCount > 0 else {
+        guard isSelectionMode, tableSummary.selectedRowCount > 0 else {
             return nil
         }
         return AnyView(
@@ -882,6 +909,28 @@ struct WorkbenchTestSearchView: View {
     private func persistSelection() {
         search.tableSelectionState = rowSelection
         search.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
+    }
+
+    private func toggleSelectionMode() {
+        if isSelectionMode {
+            exitSelectionMode()
+            return
+        }
+        guard canEnterSelectionMode else { return }
+        rowSelection.reset()
+        persistSelection()
+        resetSelectedCollageAvailability()
+        isSelectionMode = true
+    }
+
+    private func exitSelectionMode() {
+        guard isSelectionMode || rowSelection.selectedCount(rowCount: tableSummaryTotalRowCount) > 0 else {
+            return
+        }
+        isSelectionMode = false
+        rowSelection.reset()
+        persistSelection()
+        resetSelectedCollageAvailability()
     }
 
     private func restoreSelectionIfPossible() {

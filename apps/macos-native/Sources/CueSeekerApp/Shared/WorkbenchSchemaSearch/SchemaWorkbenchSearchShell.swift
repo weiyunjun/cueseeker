@@ -48,6 +48,13 @@ enum SchemaWorkbenchCountSummaryText {
     }
 }
 
+func schemaWorkbenchCanEnterSelectionMode(
+    hasExactResultSet: Bool,
+    resultRowCount: Int
+) -> Bool {
+    hasExactResultSet && resultRowCount > 0
+}
+
 struct SchemaWorkbenchFilterRule: Identifiable, Equatable, Codable {
     let id: String
     var join: SchemaWorkbenchFilterJoin?
@@ -298,6 +305,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let tableSummaryLeadingInset: CGFloat
     let tableSummaryAction: AnyView?
     let filterableColumnIDs: Set<String>?
+    let isSelectionMode: Bool
+    let canEnterSelectionMode: Bool
+    let onToggleSelectionMode: () -> Void
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
@@ -317,6 +327,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         tableSummaryLeadingInset: CGFloat = 0,
         tableSummaryAction: AnyView? = nil,
         filterableColumnIDs: Set<String>? = nil,
+        isSelectionMode: Bool = false,
+        canEnterSelectionMode: Bool = false,
+        onToggleSelectionMode: @escaping () -> Void = {},
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
@@ -330,6 +343,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.tableSummaryLeadingInset = tableSummaryLeadingInset
         self.tableSummaryAction = tableSummaryAction
         self.filterableColumnIDs = filterableColumnIDs
+        self.isSelectionMode = isSelectionMode
+        self.canEnterSelectionMode = canEnterSelectionMode
+        self.onToggleSelectionMode = onToggleSelectionMode
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
     }
@@ -353,6 +369,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         placeholder: searchPlaceholder,
                         searchDraft: $searchDraft,
                         filterCount: filterRules.count,
+                        isSelectionMode: isSelectionMode,
                         isRedesign: true,
                         isFilterBuilderMenuOpen: openPopover == .filterBuilder,
                         onSubmit: onSearchSubmit,
@@ -370,9 +387,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         summaryAction: tableSummaryAction,
                         isRedesign: true,
                         isViewMenuOpen: openPopover == .columnVisibility,
+                        isSelectionMode: isSelectionMode,
+                        canEnterSelectionMode: canEnterSelectionMode,
                         onViewMenu: {
                             togglePopover(.columnVisibility)
-                        }
+                        },
+                        onToggleSelectionMode: onToggleSelectionMode
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, 12)
@@ -417,6 +437,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         .onChange(of: openPopover) { _ in
             self.openPopoverWidth = 0
         }
+        .onChange(of: isSelectionMode) { isSelecting in
+            if isSelecting {
+                openPopover = nil
+            }
+        }
         .onChange(of: externalTextSelectionIsBlocked) { isBlocked in
             if isBlocked {
                 externalTextSelectionSession.cancel()
@@ -433,7 +458,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     }
 
     private var externalTextSelectionIsBlocked: Bool {
-        !isRedesign || isParentWorkbenchPopupLayerOpen
+        !isRedesign || isParentWorkbenchPopupLayerOpen || isSelectionMode
     }
 
     private var externalTextSelectionStartPolicy: SubtitleTableExternalTextSelectionStartPolicy {
@@ -665,6 +690,7 @@ struct SchemaWorkbenchSearchFilterBar: View {
     let placeholder: String
     @Binding var searchDraft: String
     let filterCount: Int
+    var isSelectionMode: Bool = false
     var isRedesign: Bool = false
     var isFilterBuilderMenuOpen: Bool = false
     var onSubmit: (() -> Void)?
@@ -679,6 +705,7 @@ struct SchemaWorkbenchSearchFilterBar: View {
                 onSubmit: onSubmit
             )
             .frame(maxWidth: .infinity)
+            .disabled(isSelectionMode)
 
             WorkbenchToolbarButton(
                 title: "Filter",
@@ -690,6 +717,7 @@ struct SchemaWorkbenchSearchFilterBar: View {
                 action: onFilter
             )
             .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
+            .disabled(isSelectionMode)
         }
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight)
     }
@@ -701,7 +729,10 @@ struct SchemaWorkbenchTableUtilityBar: View {
     var summaryAction: AnyView? = nil
     var isRedesign: Bool = false
     var isViewMenuOpen: Bool = false
+    var isSelectionMode: Bool = false
+    var canEnterSelectionMode: Bool = false
     var onViewMenu: () -> Void
+    var onToggleSelectionMode: () -> Void = {}
 
     var body: some View {
         HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing3 : 12) {
@@ -725,6 +756,15 @@ struct SchemaWorkbenchTableUtilityBar: View {
                 action: onViewMenu
             )
             .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
+            .disabled(isSelectionMode)
+
+            WorkbenchToolbarButton(
+                title: isSelectionMode ? "Exit Select" : "Select",
+                systemImage: "square.and.pencil",
+                isRedesign: isRedesign,
+                action: onToggleSelectionMode
+            )
+            .disabled(!isSelectionMode && !canEnterSelectionMode)
         }
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignTableUtilityBarHeight : WorkbenchControlMetrics.controlHeight)
     }

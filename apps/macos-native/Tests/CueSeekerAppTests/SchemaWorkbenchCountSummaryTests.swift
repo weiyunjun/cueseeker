@@ -58,6 +58,13 @@ func schemaWorkbenchCountSummaryClampsNegativeCounts() {
 }
 
 @Test
+func schemaWorkbenchSelectionModeRequiresExactNonemptyResults() {
+    #expect(!schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: false, resultRowCount: 10))
+    #expect(!schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: true, resultRowCount: 0))
+    #expect(schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: true, resultRowCount: 10))
+}
+
+@Test
 func subtitleTableCheckboxLeadingInsetMatchesSummaryAlignment() {
     #expect(SubtitleTableMetrics.checkboxLeadingInset == CGFloat(17))
 }

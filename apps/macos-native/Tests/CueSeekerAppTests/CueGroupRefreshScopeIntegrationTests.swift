@@ -77,7 +77,7 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
-    func searchCueGroupSurvivesSelectionAndPanelRemountAfterReload() async throws {
+    func searchCueGroupSurvivesPanelRemountAfterSelectionExits() async throws {
         let uiProbeScope = UUID().uuidString
 
         try await withMountedCueTable(
@@ -101,6 +101,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             try #require(didApplyReload)
 
             let rowHeightBeforeSelection = coordinator.rowHeightForTesting(0)
+            coordinator.setSelectionModeForTesting(true)
             #expect(coordinator.toggleRowCheckboxFromMouseForTesting(row: 0))
             let didPreserveSelectedCueGroup = await waitUntil(timeout: 1) {
                 window.contentView?.layoutSubtreeIfNeeded()
@@ -142,7 +143,7 @@ struct CueGroupRefreshScopeIntegrationTests {
                     ).count == 3
             }
             try #require(didRemountSearchCueGroup)
-            #expect(remountedCoordinator?.rowSelectionStateForTesting(row: 0) == true)
+            #expect(remountedCoordinator?.rowSelectionStateForTesting(row: 0) == false)
         }
     }
 
@@ -458,6 +459,7 @@ struct CueGroupRefreshScopeIntegrationTests {
                 }
                 try #require(didResolveAnchor)
 
+                coordinator.setSelectionModeForTesting(true)
                 #expect(coordinator.toggleRowCheckboxFromMouseForTesting(row: targetRow))
                 let didSelectRow = await waitUntil(timeout: 1) {
                     coordinator.rowSelectionStateForTesting(row: targetRow)
@@ -572,6 +574,7 @@ struct CueGroupRefreshScopeIntegrationTests {
                 coordinator.primaryCueIdentityForTesting(row: targetRow)
             )
             let rowsVersionBefore = coordinator.rowsVersionForTesting()
+            coordinator.setSelectionModeForTesting(true)
             #expect(coordinator.toggleRowCheckboxFromMouseForTesting(row: targetRow))
             let didSelectRow = await waitUntil(timeout: 1) {
                 coordinator.rowSelectionStateForTesting(row: targetRow)
@@ -649,7 +652,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             #expect(resumedRecording.count("table.search.row_hydration_applied") == 0)
             #expect(coordinator.rowsVersionForTesting() == rowsVersionBefore)
             #expect(coordinator.primaryCueIdentityForTesting(row: targetRow) == identityBefore)
-            #expect(coordinator.rowSelectionStateForTesting(row: targetRow))
+            #expect(!coordinator.rowSelectionStateForTesting(row: targetRow))
             #expect(abs(anchorAfter - anchorBefore) < 0.5)
         }
     }

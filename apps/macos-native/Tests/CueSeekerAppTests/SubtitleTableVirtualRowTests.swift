@@ -343,6 +343,7 @@ func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
         onVisibleRowsChange: { _ in },
+        isSelectionMode: true,
         isRowSelected: { _ in false },
         onPlay: { _ in }
     )
@@ -893,27 +894,76 @@ func subtitleTableViewLeftClickOutsideInteractiveRegionsHasNoAction() throws {
 
 @MainActor
 @Test
-func subtitleTableViewCheckboxBodyIsTheOnlySelectionColumnClickTarget() throws {
+func subtitleTableViewSelectModeReservesColumnAndMakesWholeRowSelectable() throws {
     var toggledRows: [Int] = []
-    let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in
-        toggledRows.append(row)
-    })
+    var playedRow: SubtitleTableRow?
+    let normalFixture = makeAttachedVirtualTableCoordinator()
+    let fixture = makeAttachedVirtualTableCoordinator(
+        isSelectionMode: true,
+        onPlay: { playedRow = $0 },
+        onToggleRowSelection: { row in
+            toggledRows.append(row)
+        }
+    )
+    normalFixture.header.refreshHeaderHosts()
+    fixture.header.refreshHeaderHosts()
+
+    let normalLayout = normalFixture.coordinator.headerColumnLayoutForRendering(
+        viewportWidth: normalFixture.header.bounds.width,
+        height: normalFixture.header.bounds.height
+    )
+    let selectionLayout = fixture.coordinator.headerColumnLayoutForRendering(
+        viewportWidth: fixture.header.bounds.width,
+        height: fixture.header.bounds.height
+    )
+    #expect(normalLayout.indexRect == selectionLayout.indexRect)
+    #expect(normalFixture.header.selectionHeaderIsVisibleForTesting() == false)
+    #expect(fixture.header.selectionHeaderIsVisibleForTesting())
+
     let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
-    let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
-    let checkboxWindowPoint = fixture.documentView.convert(checkboxPoint, to: nil)
+    let displayRect = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "display")
+    )
+    let displayPoint = CGPoint(x: displayRect.midX, y: checkboxRect.midY)
+    let displayWindowPoint = fixture.documentView.convert(displayPoint, to: nil)
 
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint) == true)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: displayWindowPoint))
     #expect(toggledRows == [0])
-    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: checkboxWindowPoint) == false)
+    #expect(playedRow == nil)
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: displayWindowPoint))
+    #expect(!fixture.coordinator.isMenuOpenForTesting())
+    #expect(!fixture.coordinator.canBeginExternalTextSelection)
+    #expect(fixture.coordinator.selectableTextCursorRectsForTesting().isEmpty)
+    fixture.coordinator.handleMouseHover(windowPoint: displayWindowPoint)
+    #expect(!fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
+    fixture.coordinator.showHeaderMenu(for: "display", triggerFrame: displayRect)
+    #expect(!fixture.coordinator.isMenuOpenForTesting())
+}
 
-    let selectionColumnBlankPoint = CGPoint(x: 4, y: checkboxRect.midY)
-    let blankWindowPoint = fixture.documentView.convert(selectionColumnBlankPoint, to: nil)
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: blankWindowPoint) == true)
-    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: blankWindowPoint) == true)
-    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: blankWindowPoint) == false)
-    #expect(toggledRows == [0])
-    #expect(fixture.coordinator.isMenuOpenForTesting() == false)
+@MainActor
+@Test
+func subtitleTableViewSelectedRowUsesSelectedColorWithoutHoverStacking() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(
+        isSelectionMode: true,
+        isRowSelected: { $0 == 0 }
+    )
+    let rowRect = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "display")
+    )
+    let windowPoint = fixture.documentView.convert(
+        CGPoint(x: rowRect.midX, y: rowRect.midY),
+        to: nil
+    )
+
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            == WorkbenchRedesignColors.NS.rowSelected
+    )
+    fixture.coordinator.handleMouseHover(windowPoint: windowPoint)
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            == WorkbenchRedesignColors.NS.rowSelected
+    )
 }
 
 @MainActor
@@ -1894,7 +1944,7 @@ func subtitleTableViewHeaderNonInteractiveBlankStartsDragButClickDoesNothing() t
         x: displayCell.minX + 4,
         y: displayCell.midY
     )))
-    #expect(!fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
+    #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
         x: layout.indexRect.midX,
         y: layout.indexRect.midY
     )))
@@ -2241,77 +2291,27 @@ func subtitleTableViewAutoScrollTickMovesViewportAndKeepsDragSelection() throws 
 
 @MainActor
 @Test
-func subtitleTableViewKeepsCheckboxStateSeparateWhileCheckboxClickClearsTextSelection() throws {
-    let rows = [
-        SubtitleTableRow(id: 1, displayTitle: "First Episode", cues: "first cue"),
-        SubtitleTableRow(id: 2, displayTitle: "Second Episode", cues: "second cue"),
-    ]
+func subtitleTableViewSelectModeDisablesInternalTextSelection() throws {
     var toggledRows: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_400,
-        rowCount: rows.count,
-        rowProvider: { rows[$0] },
+        rowCount: 1,
+        isSelectionMode: true,
         onToggleRowSelection: { toggledRows.append($0) }
     )
-    let startFragment = try #require(
-        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "display").first
+    let displayRect = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "display")
     )
-    let endFragment = try #require(
-        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
-    )
-    let startPoint = CGPoint(x: startFragment.textBounds.midX, y: startFragment.textBounds.midY)
-    let endPoint = CGPoint(x: endFragment.textBounds.midX, y: endFragment.textBounds.midY)
-    let startWindowPoint = fixture.documentView.convert(startPoint, to: nil)
-    let endWindowPoint = fixture.documentView.convert(endPoint, to: nil)
-
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: startWindowPoint))
-    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
-
-    let firstCueLength = (rows[0].primaryCueText as NSString).length
-    #expect(
-        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues")
-            == NSRange(location: 0, length: firstCueLength)
-    )
-    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "display") != nil)
-    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") != nil)
-    #expect(!fixture.coordinator.textSelectionRectsForTesting(row: 0, columnID: "cues").isEmpty)
-    #expect(toggledRows.isEmpty)
-
-    let forwardRanges = [
-        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "display"),
-        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues"),
-        fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "display"),
-        fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues"),
-    ]
-    fixture.coordinator.clearTextSelectionForTesting()
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: endWindowPoint))
-    #expect(fixture.coordinator.handleMouseDragged(windowPoint: startWindowPoint))
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: startWindowPoint))
-    #expect([
-        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "display"),
-        fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues"),
-        fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "display"),
-        fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues"),
-    ] == forwardRanges)
-
-    let selectedCueRange = fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues")
-    let rowMenuPoint = CGPoint(x: endFragment.textBounds.midX, y: startFragment.textBounds.midY)
-    let rowMenuWindowPoint = fixture.documentView.convert(rowMenuPoint, to: nil)
-    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: rowMenuWindowPoint))
-    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues") == selectedCueRange)
-    fixture.coordinator.dismissMenu(recalculateHover: false)
-
-    let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
-    let checkboxWindowPoint = fixture.documentView.convert(
-        CGPoint(x: checkboxRect.midX, y: checkboxRect.midY),
+    let rowWindowPoint = fixture.documentView.convert(
+        CGPoint(x: displayRect.midX, y: displayRect.midY),
         to: nil
     )
-    _ = CueSeekerPointerEventRouter.routeLeftMouseDown(
-        subtitleTableLeftMouseDownEvent()
-    )
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint))
+
+    fixture.coordinator.selectAllTableText()
+    #expect(!fixture.coordinator.textSelectionSelectsAllForTesting())
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: rowWindowPoint))
     #expect(toggledRows == [0])
+    #expect(!fixture.coordinator.handleMouseDragged(windowPoint: rowWindowPoint))
     #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues") == nil)
 }
 
@@ -3039,6 +3039,7 @@ private func makeKeyboardFocusTableCoordinator(
         displayTitleHeader: "Display Title",
         showsLanguageColumn: true,
         onVisibleRowsChange: { _ in },
+        isSelectionMode: true,
         isRowSelected: { _ in false },
         onToggleRowSelection: onToggleRowSelection,
         onPlay: { _ in }
@@ -3083,6 +3084,7 @@ private func makeAttachedVirtualTableCoordinator(
     showsTimeColumn: Bool = false,
     showsTagsColumn: Bool = false,
     showsCueGroup: Bool = false,
+    isSelectionMode: Bool = false,
     rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
     makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil },
     onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
@@ -3129,6 +3131,7 @@ private func makeAttachedVirtualTableCoordinator(
         showsTagsColumn: showsTagsColumn,
         showsCueGroup: showsCueGroup,
         onVisibleRowsChange: onVisibleRowsChange,
+        isSelectionMode: isSelectionMode,
         isRowSelected: isRowSelected,
         onToggleRowSelection: onToggleRowSelection,
         allResultsTextCopyRowCount: allResultsTextCopyRowCount,

@@ -8,13 +8,13 @@
 ## Scope
 
 - Classify the change as macOS platform UI and UX work.
-- Implement Steps 1 through 6 of the requirement: increase the horizontal
+- Implement Steps 1 through 7 of the requirement: increase the horizontal
   breathing room, remove the Search and Shiori table outer frame, and replace
   persisted reusable Filter Sets with session-only filters and a count badge,
   then refine the result-table column order, text hierarchy, and normal-mode
-  Hover treatment.
-- Preserve filtering execution, selection behavior, column width formulas, and
-  table interaction outside the requested changes.
+  Hover treatment before adding the core Select-mode interaction.
+- Preserve filtering execution, column width formulas, scrolling, and table
+  interaction outside the requested Select-mode changes.
 
 ## Steps
 
@@ -76,6 +76,23 @@
     the complete row, using the existing `--color-row-hover` token.
 24. Preserved the Cues Hover text emphasis and underline while leaving Cue,
     Tag, text-selection, and context-menu hit regions unchanged.
+25. Added a shared Select trigger using the existing Edit icon mapping and
+    toolbar-control styling; it changes to `Exit Select` while active.
+26. Gated Select entry on a complete, nonempty result identity set: Search
+    reuses its existing exact text-copy boundary, while Shiori verifies its
+    complete result-ID snapshot.
+27. Reused the existing row-selection state and fixed selection-column width,
+    hiding Header and Row Checkboxes in normal mode without changing table
+    geometry.
+28. Made every loaded row area toggle selection in Select mode and disabled
+    Search editing, Filter, View, Header actions, Cue playback, Tag actions,
+    context menus, and internal or external text selection until exit.
+29. Applied the existing `--color-row-selected` token to selected rows, kept
+    unselected Row Hover on `--color-row-hover`, and gave Selected priority so
+    Hover does not stack another background.
+30. Cleared transient selection when exiting Select mode, when its exact-result
+    boundary becomes unavailable, or when the owning table leaves its active
+    presentation.
 
 ## Verification
 
@@ -116,6 +133,21 @@
 - `swift build` passed after the Step 6 Hover change.
 - The focused full-row Hover test passed, and the complete SubtitleTable test
   group passed all 168 tests with `--no-parallel` after the Step 6 change.
+- `swift build` passed after the Step 7 Select-mode change.
+- The complete SubtitleTable-focused group passed all 170 tests with
+  `--no-parallel`, including exact-entry gating, reserved selection-column
+  geometry, full-row selection, disabled text selection, and Selected/Hover
+  priority coverage.
+- The first complete `--no-parallel` run executed 884 tests and exposed five
+  legacy Cue Group integration cases that invoked Checkbox selection without
+  entering Select mode, plus the previously documented shared-preferences
+  retained-state failure.
+- The Cue Group integration tests were aligned with the new Select-mode
+  boundary and all 14 passed on rerun; the shared-preferences test also passed
+  alone.
+- The final complete `--no-parallel` rerun executed 884 tests with only that
+  same retained shared-preferences-state failure; all Step 7 and Cue Group
+  integration coverage passed.
 - No AI visual acceptance was performed; visual review is reserved for the
   human owner.
 
@@ -131,10 +163,12 @@
 - Step 4 received human visual acceptance when the human owner advanced to the
   next step.
 - Step 5 received human visual acceptance when the human owner started Step 6.
-- Step 6 automated verification passed; human visual acceptance remains
+- Step 6 received human visual acceptance when the human owner advanced to
+  Step 7.
+- Step 7 automated verification passed; human visual acceptance remains
   pending.
 
 ## Follow-ups
 
-- Continue to Step 7 only after Step 6 is explicitly accepted.
+- Continue to Step 8 only after Step 7 is explicitly accepted.
 - Update the human-owned requirement and UI design only through the human-owner workflow after the iterative UI work is complete.

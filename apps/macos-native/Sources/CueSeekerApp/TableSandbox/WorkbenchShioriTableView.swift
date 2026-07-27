@@ -41,6 +41,7 @@ private struct WorkbenchShioriTableContent: View {
     @State private var hasPreparedViewportRestoration = false
     @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
+    @State private var isSelectionMode = false
     @State private var pendingRemoval: Shiori?
     @State private var pendingTagDeletion: PendingShioriTagDeletion?
     @State private var canExportSelectedRowsAsCollage = false
@@ -63,6 +64,9 @@ private struct WorkbenchShioriTableContent: View {
             tableSummaryLeadingInset: tableSummaryLeadingInset,
             tableSummaryAction: selectedSummaryActions,
             filterableColumnIDs: ["display", "cues"],
+            isSelectionMode: isSelectionMode,
+            canEnterSelectionMode: canEnterSelectionMode,
+            onToggleSelectionMode: toggleSelectionMode,
             onSearchSubmit: {
                 submitSearchDraft()
             }
@@ -94,6 +98,7 @@ private struct WorkbenchShioriTableContent: View {
                     scrollTargetRow: tableScrollTargetRow,
                     suspendsMenuOutsideClickDismiss: pendingTagDeletion != nil,
                     onVisibleRowsChange: captureVisibleRows,
+                    isSelectionMode: isSelectionMode,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
@@ -187,18 +192,29 @@ private struct WorkbenchShioriTableContent: View {
             restoreViewportIfPossible()
         }
         .onChange(of: shioriStore.tableDataRevision) { _ in
+            exitSelectionMode()
             reloadRows(resetScroll: false)
         }
         .onChange(of: shioriStore.tableFilterRules) { _ in
+            exitSelectionMode()
             reloadRows(resetScroll: true)
         }
+        .onChange(of: canEnterSelectionMode) { canEnter in
+            if !canEnter {
+                exitSelectionMode()
+            }
+        }
         .onChange(of: isTableResponseActive) { isActive in
+            if !isActive {
+                exitSelectionMode()
+            }
             shioriStore.setTableProjectionResponseActive(isActive)
             if isActive {
                 resumeDeferredTableResponse()
             }
         }
         .onDisappear {
+            exitSelectionMode()
             shioriStore.setTableProjectionResponseActive(false)
             persistSelection()
         }
@@ -217,7 +233,21 @@ private struct WorkbenchShioriTableContent: View {
                 shioriStore.tableResultRowCount,
                 rowStore.snapshot.totalRowCount
             ),
-            selectedRowCount: rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+            selectedRowCount: isSelectionMode
+                ? rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+                : 0
+        )
+    }
+
+    private var canEnterSelectionMode: Bool {
+        let resultRowCount = max(
+            shioriStore.tableResultRowCount,
+            rowStore.snapshot.totalRowCount
+        )
+        return schemaWorkbenchCanEnterSelectionMode(
+            hasExactResultSet: shioriStore.tableHasLoadedInitialPage
+                && shioriStore.tableResultShioriIDs?.count == resultRowCount,
+            resultRowCount: resultRowCount
         )
     }
 
@@ -226,7 +256,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private var selectedSummaryActions: AnyView? {
-        guard tableSummary.selectedRowCount > 0 else {
+        guard isSelectionMode, tableSummary.selectedRowCount > 0 else {
             return nil
         }
         return AnyView(
@@ -334,6 +364,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func submitSearchDraft() {
+        exitSelectionMode()
         let trimmedDraft = shioriStore.tableSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         shioriStore.tableSubmittedSearchText = trimmedDraft
         reloadRows(resetScroll: true)
@@ -609,6 +640,28 @@ private struct WorkbenchShioriTableContent: View {
     private func persistSelection() {
         shioriStore.tableSelectionState = rowSelection
         shioriStore.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
+    }
+
+    private func toggleSelectionMode() {
+        if isSelectionMode {
+            exitSelectionMode()
+            return
+        }
+        guard canEnterSelectionMode else { return }
+        rowSelection.reset()
+        persistSelection()
+        resetSelectedCollageAvailability()
+        isSelectionMode = true
+    }
+
+    private func exitSelectionMode() {
+        guard isSelectionMode || rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount) > 0 else {
+            return
+        }
+        isSelectionMode = false
+        rowSelection.reset()
+        persistSelection()
+        resetSelectedCollageAvailability()
     }
 
     private func restoreSelectionIfPossible() {
