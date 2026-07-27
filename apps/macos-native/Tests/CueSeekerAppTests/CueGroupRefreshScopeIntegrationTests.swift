@@ -284,7 +284,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             uiProbeScope: uiProbeScope
         ) { app, window, coordinator in
             app.submitSearch("primary")
-            await app.searchTask?.value
+            await app.search.searchTask?.value
             let didLoadCanonicalSearch = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()
                 return app.search.tableRowStore.snapshot.totalRowCount == 200
@@ -315,7 +315,7 @@ struct CueGroupRefreshScopeIntegrationTests {
 
             await executor.finish()
             await removalTask.value
-            await app.searchTask?.value
+            await app.search.searchTask?.value
             let didRestoreSearch = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()
                 return app.search.tableRowStore.snapshot.orderedEntryIDs
@@ -693,7 +693,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             let recordingBefore = session.recording()
 
             app.handleURLSchemeCommand(.search(keyword: "missing URL result"))
-            await app.searchTask?.value
+            await app.search.searchTask?.value
             window.contentView?.layoutSubtreeIfNeeded()
 
             #expect(app.search.searchQuery == "missing URL result")

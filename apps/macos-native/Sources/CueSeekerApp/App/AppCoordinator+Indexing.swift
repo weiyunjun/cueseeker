@@ -564,7 +564,7 @@ extension AppCoordinator {
         }
 
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
-        guard searchDatabase != nil else {
+        guard search.database != nil else {
             indexing.searchFTSVocabularyDiagnosticsStatus = .failed("Database is not initialized")
             return
         }
@@ -708,12 +708,12 @@ extension AppCoordinator {
         testRecentWatchingTask = nil
         completeLibraryTask?.cancel()
         completeLibraryTask = nil
-        searchTask?.cancel()
-        searchTask = nil
-        searchExactCompletionTask?.cancel()
-        searchExactCompletionTask = nil
-        searchNavigationTask?.cancel()
-        searchNavigationTask = nil
+        search.searchTask?.cancel()
+        search.searchTask = nil
+        search.exactCompletionTask?.cancel()
+        search.exactCompletionTask = nil
+        search.navigationTask?.cancel()
+        search.navigationTask = nil
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
         indexing.searchFTSVocabularyDiagnosticsTask = nil
 

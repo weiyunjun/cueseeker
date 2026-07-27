@@ -43,9 +43,9 @@ extension AppCoordinator {
         pendingURLSchemeCuePlaybackIntent = nil
         urlSchemeCueLookupTask?.cancel()
         urlSchemeCueLookupTask = nil
-        searchTask?.cancel()
-        searchExactCompletionTask?.cancel()
-        searchExactCompletionTask = nil
+        search.searchTask?.cancel()
+        search.exactCompletionTask?.cancel()
+        search.exactCompletionTask = nil
 
         switch command {
         case let .search(keyword):

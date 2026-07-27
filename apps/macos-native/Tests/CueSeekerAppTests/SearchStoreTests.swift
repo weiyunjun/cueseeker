@@ -26,8 +26,8 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     defer {
-        app.searchTask?.cancel()
-        app.searchExactCompletionTask?.cancel()
+        app.search.searchTask?.cancel()
+        app.search.exactCompletionTask?.cancel()
         userDefaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
@@ -58,20 +58,20 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     app.indexing.selectedFolders = [fixtureRoot]
 
     app.updateSearchQuery("alpha")
-    let alphaTask = try #require(app.searchTask)
+    let alphaTask = try #require(app.search.searchTask)
     let staleExactTask = Task<Void, Never> {
         try? await Task.sleep(nanoseconds: 10_000_000_000)
     }
-    app.searchExactCompletionTask = staleExactTask
+    app.search.exactCompletionTask = staleExactTask
 
     app.updateSearchQuery("beta")
-    let betaTask = try #require(app.searchTask)
+    let betaTask = try #require(app.search.searchTask)
 
     #expect(alphaTask.isCancelled)
     #expect(staleExactTask.isCancelled)
     #expect(app.search.searchQuery == "beta")
-    #expect(app.activeSearchPerformanceRun?.query == "beta")
-    #expect(app.activeSearchPerformanceRun?.debounce == true)
+    #expect(app.search.activePerformanceRun?.query == "beta")
+    #expect(app.search.activePerformanceRun?.debounce == true)
 
     await betaTask.value
 
@@ -80,7 +80,7 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     #expect(app.search.searchResults.allSatisfy { !$0.content.contains("alpha") })
 
     app.updateSearchQuery("alpha")
-    let pendingAlphaTask = try #require(app.searchTask)
+    let pendingAlphaTask = try #require(app.search.searchTask)
     app.search.searchResults = [
         makeTableSandboxSearchResult(
             id: 999,
@@ -123,8 +123,8 @@ func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throw
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     defer {
-        app.searchTask?.cancel()
-        app.searchExactCompletionTask?.cancel()
+        app.search.searchTask?.cancel()
+        app.search.exactCompletionTask?.cancel()
         userDefaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
@@ -156,12 +156,12 @@ func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throw
     app.settings.searchScope = .watchingAndFinished
 
     app.updateSearchQuery("shared watch state")
-    await app.searchTask?.value
+    await app.search.searchTask?.value
     #expect(app.search.searchResults.isEmpty)
 
     app.recordRecentLibraryWatching(for: video, refreshPresentation: false)
     app.flushPendingLibraryPlaybackHistoryPresentations()
-    await app.searchTask?.value
+    await app.search.searchTask?.value
 
     #expect(app.search.searchResults.count == 1)
     #expect(app.search.searchResults.first?.videoPath == videoURL.path)
@@ -197,7 +197,7 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
         searchRank: 0
     )
     app.indexing.selectedFolders = [fixtureRoot]
-    app.searchResultListGeneration = 3
+    app.search.resultListGeneration = 3
     app.search.searchQuery = "foo"
     app.search.searchStatus = .searching
     app.search.searchResults = [currentResult]
@@ -266,7 +266,7 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     #expect(app.search.searchResultTotalCount == 42)
     #expect(app.search.searchKnownResultCount == 42)
     #expect(app.search.hasMoreSearchResults)
-    #expect(app.nextGlobalSearchCursor?.offset == 11)
+    #expect(app.search.nextGlobalCursor?.offset == 11)
 }
 
 @MainActor
@@ -389,10 +389,10 @@ func contextEntryPointsPreserveExactCueIdentity() throws {
     #expect(upperCue.cueGroupID == lowerCue.cueGroupID)
     #expect(upperCue.id != upperCue.cueGroupID)
     #expect(lowerCue.id != lowerCue.cueGroupID)
-    #expect(try #require(app.searchDatabase).firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
+    #expect(try #require(app.search.database).firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
     #expect(try database.firstCueGroupID(forSubtitleFile: subtitleFile) == upperCue.cueGroupID)
 
-    let allCuePage = try #require(app.searchDatabase).allCuesVisiblePage(
+    let allCuePage = try #require(app.search.database).allCuesVisiblePage(
         limit: 10,
         cursor: .start,
         under: [fixtureRoot]
@@ -468,8 +468,8 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     app.search.searchCountState = .exactProgress
     app.search.searchKnownResultCount = 1
     app.search.hasMoreSearchResults = true
-    app.loadedGlobalSearchResultCount = 1
-    app.nextGlobalSearchCursor = SubtitleSearchCursor(offset: 1)
+    app.search.loadedGlobalResultCount = 1
+    app.search.nextGlobalCursor = SubtitleSearchCursor(offset: 1)
 
     app.applySearchCountProgress(
         SubtitleSearchProgressSnapshot(
@@ -493,9 +493,9 @@ func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
     #expect(app.search.searchResultCueIDs == progressResults.map(\.entryID))
     #expect(app.search.searchResultTotalCount == progressResults.count)
     #expect(app.search.searchKnownResultCount == progressResults.count)
-    #expect(app.loadedGlobalSearchResultCount == progressResults.count)
+    #expect(app.search.loadedGlobalResultCount == progressResults.count)
     #expect(!app.search.hasMoreSearchResults)
-    #expect(app.nextGlobalSearchCursor == nil)
+    #expect(app.search.nextGlobalCursor == nil)
 }
 
 @Test
@@ -580,7 +580,7 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     let missingIDPage = await app.loadTableSandboxSearchRows(range: 110..<112)
     #expect(missingIDPage == nil)
 
-    let exactPage = try #require(app.searchDatabase).searchPage(
+    let exactPage = try #require(app.search.database).searchPage(
         "shared",
         limit: 0,
         under: [fixtureRoot]
@@ -716,7 +716,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
         ]
     )
     app.indexing.selectedFolders = [fixtureRoot]
-    let page = try #require(app.searchDatabase).allCuesVisiblePage(
+    let page = try #require(app.search.database).allCuesVisiblePage(
         limit: 3,
         cursor: .start,
         under: [fixtureRoot]
@@ -732,7 +732,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
     app.search.selectedSearchResult = selected
 
     app.refreshSearchNavigationSnapshot()
-    await app.searchNavigationTask?.value
+    await app.search.navigationTask?.value
 
     let snapshot = try #require(app.search.searchNavigationSnapshot)
     #expect(snapshot.totalCount == 3)

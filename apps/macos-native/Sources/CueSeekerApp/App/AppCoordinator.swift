@@ -43,7 +43,6 @@ final class AppCoordinator: ObservableObject {
     let libraryCoverDirectory: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var indexingDatabase: IndexingDatabase?
-    let searchDatabase: SearchDatabase?
     let playbackSubtitleDatabase: PlaybackSubtitleDatabase?
     let libraryDatabase: LibraryDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
@@ -401,9 +400,6 @@ final class AppCoordinator: ObservableObject {
     var shioriListOverviewTask: Task<Void, Never>?
     var shioriTableRowsTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
-    var searchTask: Task<Void, Never>?
-    var searchExactCompletionTask: Task<Void, Never>?
-    var searchNavigationTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusActionTask: Task<Void, Never>?
@@ -412,7 +408,6 @@ final class AppCoordinator: ObservableObject {
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?
     var windowFrameBeforeUserZoom: NSRect?
-    var activeSearchPerformanceRun: SearchPerformanceRun?
     var shioriPlaybackNavigationScopeIDs: [Int64]?
     var shioriPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
@@ -428,10 +423,6 @@ final class AppCoordinator: ObservableObject {
     var pendingLibraryPlaybackHistoryPresentationVideoPaths: Set<String> = []
     var autoSwitchCueSequenceTask: Task<Void, Never>?
     var autoSwitchCueSequenceGeneration = 0
-    var searchResultListGeneration: UInt64 = 0
-    var loadedGlobalSearchResultCount = 0
-    var lastSearchCountProgressUpdate: UInt64 = 0
-    var nextGlobalSearchCursor: SubtitleSearchCursor?
     var pendingURLSchemeDirectPlayIntent: URLSchemeDirectPlayIntent?
     var pendingURLSchemeCuePlaybackIntent: URLSchemeCuePlaybackIntent?
     var urlSchemeCueLookupTask: Task<Void, Never>?
@@ -481,10 +472,6 @@ final class AppCoordinator: ObservableObject {
             cueContentStore: cueContentStore,
             uiProbeScope: uiProbeScope
         )
-        search = SearchStore(
-            cueContentStore: cueContentStore,
-            uiProbeScope: uiProbeScope
-        )
         playback = PlaybackStore(userDefaults: userDefaults)
 
         var openedDatabase: IndexingDatabase?
@@ -516,7 +503,12 @@ final class AppCoordinator: ObservableObject {
         }
 
         self.indexingDatabase = openedDatabase
-        self.searchDatabase = openedSearchDatabase
+        search = SearchStore(
+            cueContentStore: cueContentStore,
+            databaseURL: resolvedDatabaseURL,
+            database: openedSearchDatabase,
+            uiProbeScope: uiProbeScope
+        )
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         self.libraryDatabase = openedLibraryDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
@@ -675,8 +667,8 @@ final class AppCoordinator: ObservableObject {
         search.searchCountState = .exact
         search.searchKnownResultCount = search.searchResultTotalCount
         search.searchKnownFileCount = search.searchFileSummaries.count
-        loadedGlobalSearchResultCount = search.searchResults.count
-        nextGlobalSearchCursor = nil
+        search.loadedGlobalResultCount = search.searchResults.count
+        search.nextGlobalCursor = nil
         search.hasMoreSearchResults = false
         removeLibraryPresentation(under: folder)
         removeCompleteLibraryPresentation(under: folder)

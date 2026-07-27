@@ -245,7 +245,7 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
         .appendingPathComponent("playback-playlist-search-\(UUID().uuidString).sqlite")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
-    app.searchResultListGeneration = 7
+    app.search.resultListGeneration = 7
     let initialResults = (0..<2).map { ordinal in
         makePlaybackPlaylistSearchResult(
             id: Int64(100 + ordinal),
@@ -284,7 +284,7 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
     #expect(window.snapshot.loadedOrdinalRange == (0..<5))
     #expect(window.item(at: 4)?.identity == .search(204))
 
-    app.searchResultListGeneration = 8
+    app.search.resultListGeneration = 8
     app.search.searchResults = []
     app.search.searchResultTotalCount = 0
     app.refreshSearchPlaybackPlaylistSource(resultListGeneration: 8)

@@ -58,6 +58,16 @@ final class SearchStore: ObservableObject {
     private let cueContentStore: CueContentStore
     private var cueContentChangesCancellable: AnyCancellable?
     private let uiProbeScope: String?
+    let databaseURL: URL?
+    let database: SearchDatabase?
+    var searchTask: Task<Void, Never>?
+    var exactCompletionTask: Task<Void, Never>?
+    var navigationTask: Task<Void, Never>?
+    var activePerformanceRun: SearchPerformanceRun?
+    var resultListGeneration: UInt64 = 0
+    var loadedGlobalResultCount = 0
+    var lastCountProgressUpdate: UInt64 = 0
+    var nextGlobalCursor: SubtitleSearchCursor?
     private var isTableProjectionResponseActive = true
     private var pendingCueContentChange: CueContentStoreChange?
     private(set) var loadedSearchResultCueIDs: [Int64] = []
@@ -96,9 +106,13 @@ final class SearchStore: ObservableObject {
 
     init(
         cueContentStore: CueContentStore = CueContentStore(),
+        databaseURL: URL? = nil,
+        database: SearchDatabase? = nil,
         uiProbeScope: String? = nil
     ) {
         self.cueContentStore = cueContentStore
+        self.databaseURL = databaseURL
+        self.database = database
         self.uiProbeScope = uiProbeScope
         tableRowStore = TableSandboxRowModelStore()
         cueContentChangesCancellable = cueContentStore.changes.sink {

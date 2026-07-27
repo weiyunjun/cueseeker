@@ -131,7 +131,7 @@ extension AppCoordinator {
     func installSearchPlaybackPlaylistSource(
         seed result: SubtitleSearchResult
     ) {
-        let resultListGeneration = searchResultListGeneration
+        let resultListGeneration = search.resultListGeneration
         let origin = PlaybackPlaylistSourceOrigin.search(
             resultListGeneration: resultListGeneration
         )

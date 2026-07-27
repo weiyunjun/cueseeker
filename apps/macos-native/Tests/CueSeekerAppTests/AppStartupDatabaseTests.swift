@@ -44,7 +44,7 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
 
     #expect(app.startupDatabaseTask == nil)
     #expect(app.libraryDisplayRenditionTask == nil)
-    #expect(try #require(app.searchDatabase).cueOccurrenceCount(for: "startup") == 1)
+    #expect(try #require(app.search.database).cueOccurrenceCount(for: "startup") == 1)
     #expect(app.indexing.databaseStorageStats == nil)
 }
 
@@ -91,7 +91,7 @@ func explicitIndexFolderKeepsSearchAndLibraryReady() async throws {
     await app.libraryTask?.value
     await app.databaseStorageStatsTask?.value
 
-    let page = try #require(app.searchDatabase).searchVisiblePage(
+    let page = try #require(app.search.database).searchVisiblePage(
         "explicit",
         limit: 10,
         cursor: .start,

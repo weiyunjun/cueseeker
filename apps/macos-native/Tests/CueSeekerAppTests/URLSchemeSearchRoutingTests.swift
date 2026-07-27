@@ -231,7 +231,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
 
     #expect(presentationReadyCount == 0)
     #expect(app.workbenchLayout.panelMode == .shiori)
-    await app.searchTask?.value
+    await app.search.searchTask?.value
 
     #expect(presentationReadyCount == 1)
     #expect(presentedPlayback)
@@ -252,7 +252,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(sameVideoPresentationReadyCount == 0)
     #expect(app.search.selectedSearchResult == originalPlaybackResult)
     #expect(app.playback.isPlaybackSurfaceExpanded)
-    await app.searchTask?.value
+    await app.search.searchTask?.value
 
     #expect(sameVideoPresentationReadyCount == 1)
     #expect(app.search.selectedSearchResult?.videoPath == originalPlaybackResult.videoPath)
@@ -268,7 +268,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(differentVideoPresentationReadyCount == 0)
     #expect(app.search.selectedSearchResult == sameVideoPlaybackResult)
     #expect(app.playback.isPlaybackSurfaceExpanded)
-    await app.searchTask?.value
+    await app.search.searchTask?.value
 
     #expect(differentVideoPresentationReadyCount == 1)
     #expect(app.search.selectedSearchResult?.videoPath.hasSuffix("Alternate.mkv") == true)
@@ -312,8 +312,8 @@ func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
     let oldExactTask = Task<Void, Never> {
         try? await Task.sleep(nanoseconds: 10_000_000_000)
     }
-    fixture.app.searchTask = oldSearchTask
-    fixture.app.searchExactCompletionTask = oldExactTask
+    fixture.app.search.searchTask = oldSearchTask
+    fixture.app.search.exactCompletionTask = oldExactTask
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = false
 
     fixture.app.handleURLSchemeCommand(.search(keyword: "replacement"))

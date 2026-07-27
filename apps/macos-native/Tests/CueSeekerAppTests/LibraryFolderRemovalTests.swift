@@ -111,7 +111,7 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
     #expect(app.indexing.folderRemovalStatus == .idle)
     #expect(app.indexing.removedFolderNotice == fixture.folder)
     #expect(app.indexing.selectedFolders.isEmpty)
-    #expect(try app.searchDatabase?.search("Actual").isEmpty == true)
+    #expect(try app.search.database?.search("Actual").isEmpty == true)
 }
 
 @MainActor
@@ -268,7 +268,7 @@ func indexedCueMutationFailureRecoveryReloadsPrunedResidentSearch() async throws
 
     let app = fixture.makeApp(executor: ControlledLibraryFolderRemovalExecutor())
     app.submitSearch("Reload pruned")
-    await app.searchTask?.value
+    await app.search.searchTask?.value
     app.search.activateResidentSearchTableProjection()
     let originalCueIDs = app.search.searchResultCueIDs
     try #require(originalCueIDs.count == 1)
@@ -278,7 +278,7 @@ func indexedCueMutationFailureRecoveryReloadsPrunedResidentSearch() async throws
     #expect(app.search.tableRowStore.snapshot.totalRowCount == 0)
 
     app.restoreCurrentSearchAfterIndexedCueMutationFailure()
-    await app.searchTask?.value
+    await app.search.searchTask?.value
 
     #expect(app.search.searchResultCueIDs == originalCueIDs)
     #expect(app.search.tableRowStore.snapshot.orderedEntryIDs
@@ -345,7 +345,7 @@ func unchangedFolderIndexPreservesLoadedSearchState() async throws {
         databaseURL: databaseURL
     )
     app.submitSearch("incremental")
-    await app.searchTask?.value
+    await app.search.searchTask?.value
     let cueIDsBefore = app.search.searchResultCueIDs
     let revisionBefore = app.search.indexedCueDataRevision
     try #require(!cueIDsBefore.isEmpty)

@@ -139,7 +139,7 @@ extension AppCoordinator {
     }
 
     func openLibraryVideoContext(_ video: LibraryVideo, displayTitle: String) {
-        guard let database = searchDatabase else {
+        guard let database = search.database else {
             return
         }
 
@@ -206,7 +206,7 @@ extension AppCoordinator {
             return
         }
 
-        guard let cursor = nextGlobalSearchCursor else {
+        guard let cursor = search.nextGlobalCursor else {
             return
         }
 
@@ -228,11 +228,11 @@ extension AppCoordinator {
 
         guard !trimmedQuery.isEmpty,
               !folders.isEmpty,
-              searchDatabase != nil
+              search.database != nil,
+              let searchDatabaseURL = search.databaseURL
         else {
             return nil
         }
-        let searchDatabaseURL = databaseURL
 
         let totalCount = search.searchResultTotalCount
         guard totalCount > 0 else { return nil }
@@ -294,7 +294,7 @@ extension AppCoordinator {
         }
 
         let fallbackUpperBound = max(
-            loadedGlobalSearchResultCount + Self.searchPageSize,
+            search.loadedGlobalResultCount + Self.searchPageSize,
             Self.searchPageSize
         )
         guard upperBound <= fallbackUpperBound else {
@@ -346,11 +346,11 @@ extension AppCoordinator {
         let filterSet = search.activeFilterSet
         let filterSignature = filterSet.cacheSignature
         guard !folders.isEmpty,
-              searchDatabase != nil
+              search.database != nil,
+              let searchDatabaseURL = search.databaseURL
         else {
             return nil
         }
-        let searchDatabaseURL = databaseURL
         let lowerBound = max(0, range.lowerBound)
         let upperBound = max(lowerBound, range.upperBound)
         guard lowerBound < upperBound else { return nil }
@@ -396,10 +396,11 @@ extension AppCoordinator {
         anchorsInitialPage: Bool = false
     ) async -> TableSandboxSearchHydrationPage? {
         let folders = indexing.selectedFolders
-        guard searchDatabase != nil else {
+        guard search.database != nil,
+              let pageDatabaseURL = search.databaseURL
+        else {
             return nil
         }
-        let pageDatabaseURL = databaseURL
         let lowerBound = max(0, range.lowerBound)
         let upperBound = max(lowerBound, range.upperBound)
         guard lowerBound < upperBound else { return nil }
@@ -456,11 +457,11 @@ extension AppCoordinator {
         search.searchKnownResultCount = page.totalRowCount
         search.searchKnownFileCount = 0
         search.hasMoreSearchResults = page.range.upperBound < page.totalRowCount
-        nextGlobalSearchCursor = search.hasMoreSearchResults
+        search.nextGlobalCursor = search.hasMoreSearchResults
             ? SubtitleSearchCursor(offset: page.range.upperBound)
             : nil
         refreshSearchPlaybackPlaylistSource(
-            resultListGeneration: searchResultListGeneration
+            resultListGeneration: search.resultListGeneration
         )
     }
 
@@ -481,16 +482,16 @@ extension AppCoordinator {
         filterSetOverride: SubtitleSearchFilterSet? = nil
     ) {
         if !appending {
-            searchResultListGeneration &+= 1
+            search.resultListGeneration &+= 1
         }
-        let resultListGeneration = searchResultListGeneration
+        let resultListGeneration = search.resultListGeneration
         if pendingURLSchemeDirectPlayIntent?.id != urlSchemeIntentID {
             pendingURLSchemeDirectPlayIntent = nil
         }
-        searchTask?.cancel()
+        search.searchTask?.cancel()
         if !appending {
-            searchExactCompletionTask?.cancel()
-            searchExactCompletionTask = nil
+            search.exactCompletionTask?.cancel()
+            search.exactCompletionTask = nil
         }
 
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -506,10 +507,10 @@ extension AppCoordinator {
         if !appending {
             search.resultFilterSet = filterSet
         }
-        if let activeSearchPerformanceRun {
-            SearchPerformanceLogger.mark(activeSearchPerformanceRun, "search_superseded_by_new_search")
+        if let activePerformanceRun = search.activePerformanceRun {
+            SearchPerformanceLogger.mark(activePerformanceRun, "search_superseded_by_new_search")
             SearchPerformanceLogger.writeE2ESearchPage(
-                activeSearchPerformanceRun,
+                activePerformanceRun,
                 event: "search_superseded_by_new_search",
                 page: nil,
                 status: "cancelled"
@@ -526,7 +527,7 @@ extension AppCoordinator {
             folderPaths: folders.map(\.path),
             e2eLoggingEnabled: settings.searchE2ELoggingEnabled
         )
-        activeSearchPerformanceRun = searchPerformanceRun
+        search.activePerformanceRun = searchPerformanceRun
 
         if !appending {
             let resetStart = SearchPerformanceLogger.now()
@@ -595,7 +596,7 @@ extension AppCoordinator {
             return
         }
 
-        guard let database = searchDatabase else {
+        guard let database = search.database else {
             search.searchStatus = .failed("Database is not initialized")
             SearchPerformanceLogger.mark(
                 searchPerformanceRun,
@@ -619,7 +620,7 @@ extension AppCoordinator {
             scope: uiProbeScope,
             details: "offset=\(offset) appending=\(appending)"
         )
-        searchTask = Task {
+        search.searchTask = Task {
             do {
                 if debounce {
                     let debounceStart = SearchPerformanceLogger.now()
@@ -682,7 +683,7 @@ extension AppCoordinator {
                     return
                 }
 
-                guard resultListGeneration == searchResultListGeneration,
+                guard resultListGeneration == search.resultListGeneration,
                       search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folders.map(\.path),
                       settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
@@ -703,13 +704,13 @@ extension AppCoordinator {
                 let stateAssignStart = SearchPerformanceLogger.now()
                 if appending {
                     appendGlobalSearchResults(page.results)
-                    loadedGlobalSearchResultCount = max(
-                        loadedGlobalSearchResultCount,
+                    search.loadedGlobalResultCount = max(
+                        search.loadedGlobalResultCount,
                         offset + page.results.count
                     )
                 } else {
                     search.replaceLoadedSearchResults(page.results)
-                    loadedGlobalSearchResultCount = page.results.count
+                    search.loadedGlobalResultCount = page.results.count
                 }
                 let shouldPreserveExactMetadata = appending && search.searchCountState == .exact
                 if shouldPreserveExactMetadata && page.countState != .exact {
@@ -723,7 +724,7 @@ extension AppCoordinator {
                     search.searchKnownFileCount = page.knownFileCount
                 }
                 search.hasMoreSearchResults = page.hasMore
-                nextGlobalSearchCursor = page.nextCursor
+                search.nextGlobalCursor = page.nextCursor
                 refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: resultListGeneration
                 )
@@ -857,7 +858,7 @@ extension AppCoordinator {
         resultListGeneration: UInt64 = 0,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
-        guard resultListGeneration == searchResultListGeneration,
+        guard resultListGeneration == search.resultListGeneration,
               progress.countState == .exactProgress,
               search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
               indexing.selectedFolders.map(\.path) == folderPaths,
@@ -872,27 +873,27 @@ extension AppCoordinator {
         }
 
         let now = SearchPerformanceLogger.now()
-        if lastSearchCountProgressUpdate != 0,
-           now - lastSearchCountProgressUpdate < Self.searchCountProgressMinimumIntervalNanoseconds {
+        if search.lastCountProgressUpdate != 0,
+           now - search.lastCountProgressUpdate < Self.searchCountProgressMinimumIntervalNanoseconds {
             return
         }
-        lastSearchCountProgressUpdate = now
+        search.lastCountProgressUpdate = now
 
         if !progress.results.isEmpty {
             search.replaceLoadedSearchResults(
                 progress.results,
                 orderedCueIDs: progress.cueIDs
             )
-            loadedGlobalSearchResultCount = progress.results.count
+            search.loadedGlobalResultCount = progress.results.count
         }
         search.searchResultTotalCount = progress.knownResultCount
         search.searchFileSummaries = progress.fileSummaries
         search.searchCountState = progress.countState
         search.searchKnownResultCount = progress.knownResultCount
         search.searchKnownFileCount = progress.knownFileCount
-        search.hasMoreSearchResults = loadedGlobalSearchResultCount < search.searchResultTotalCount
-        nextGlobalSearchCursor = search.hasMoreSearchResults
-            ? (nextGlobalSearchCursor ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount))
+        search.hasMoreSearchResults = search.loadedGlobalResultCount < search.searchResultTotalCount
+        search.nextGlobalCursor = search.hasMoreSearchResults
+            ? (search.nextGlobalCursor ?? SubtitleSearchCursor(offset: search.loadedGlobalResultCount))
             : nil
         refreshSearchPlaybackPlaylistSource(
             resultListGeneration: resultListGeneration
@@ -926,9 +927,9 @@ extension AppCoordinator {
         resultListGeneration: UInt64,
         run searchPerformanceRun: SearchPerformanceRun?
     ) {
-        searchExactCompletionTask?.cancel()
+        search.exactCompletionTask?.cancel()
 
-        guard let database = searchDatabase else {
+        guard let database = search.database else {
             return
         }
 
@@ -949,7 +950,7 @@ extension AppCoordinator {
                 )
             }
         }
-        searchExactCompletionTask = Task {
+        search.exactCompletionTask = Task {
             do {
                 SearchPerformanceLogger.mark(searchPerformanceRun, "database_exact_completion_started")
                 let diagnosticsSink = SearchPerformanceLogger.coreDiagnosticsSink(for: searchPerformanceRun)
@@ -988,7 +989,7 @@ extension AppCoordinator {
                     return
                 }
 
-                guard resultListGeneration == searchResultListGeneration,
+                guard resultListGeneration == search.resultListGeneration,
                       search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folderPaths,
                       settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
@@ -1012,7 +1013,7 @@ extension AppCoordinator {
                         page.renderableResults,
                         orderedCueIDs: page.cueIDs
                     )
-                    loadedGlobalSearchResultCount = page.renderableResults.count
+                    search.loadedGlobalResultCount = page.renderableResults.count
                 } else {
                     search.searchResultCueIDs = page.cueIDs
                 }
@@ -1021,9 +1022,9 @@ extension AppCoordinator {
                 search.searchCountState = page.countState
                 search.searchKnownResultCount = page.knownResultCount
                 search.searchKnownFileCount = page.knownFileCount
-                search.hasMoreSearchResults = loadedGlobalSearchResultCount < page.totalCount
-                nextGlobalSearchCursor = search.hasMoreSearchResults
-                    ? (nextGlobalSearchCursor ?? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount))
+                search.hasMoreSearchResults = search.loadedGlobalResultCount < page.totalCount
+                search.nextGlobalCursor = search.hasMoreSearchResults
+                    ? (search.nextGlobalCursor ?? SubtitleSearchCursor(offset: search.loadedGlobalResultCount))
                     : nil
                 refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: resultListGeneration
@@ -1032,7 +1033,7 @@ extension AppCoordinator {
 
                 let completionStart = SearchPerformanceLogger.now()
                 search.searchStatus = .completed
-                searchExactCompletionTask = nil
+                search.exactCompletionTask = nil
                 let statusCompletionMilliseconds = SearchPerformanceLogger.elapsedMilliseconds(since: completionStart)
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
@@ -1077,7 +1078,7 @@ extension AppCoordinator {
                     return
                 }
 
-                guard resultListGeneration == searchResultListGeneration,
+                guard resultListGeneration == search.resultListGeneration,
                       search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedQuery,
                       indexing.selectedFolders.map(\.path) == folderPaths,
                       settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
@@ -1090,7 +1091,7 @@ extension AppCoordinator {
 
                 let message = Self.errorMessage(for: error)
                 search.searchStatus = .failed(message)
-                searchExactCompletionTask = nil
+                search.exactCompletionTask = nil
                 SearchPerformanceLogger.mark(
                     searchPerformanceRun,
                     "search_exact_completion_failed",
@@ -1111,11 +1112,11 @@ extension AppCoordinator {
     }
 
     func clearSearchPerformanceRunIfActive(_ run: SearchPerformanceRun?) {
-        guard let run, activeSearchPerformanceRun?.id == run.id else {
+        guard let run, search.activePerformanceRun?.id == run.id else {
             return
         }
 
-        activeSearchPerformanceRun = nil
+        search.activePerformanceRun = nil
     }
 
     func refreshSearchNavigationSnapshot() {
@@ -1159,9 +1160,9 @@ extension AppCoordinator {
             search.searchKnownResultCount = 0
             search.searchKnownFileCount = 0
             search.hasMoreSearchResults = false
-            loadedGlobalSearchResultCount = 0
-            lastSearchCountProgressUpdate = 0
-            nextGlobalSearchCursor = nil
+            search.loadedGlobalResultCount = 0
+            search.lastCountProgressUpdate = 0
+            search.nextGlobalCursor = nil
             AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
         }
 
@@ -1192,11 +1193,11 @@ extension AppCoordinator {
     }
 
     func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {
-        searchNavigationTask?.cancel()
+        search.navigationTask?.cancel()
 
         let trimmedQuery = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !indexing.selectedFolders.isEmpty,
-              searchDatabase != nil
+              search.database != nil
         else {
             search.searchNavigationSnapshot = nil
             if let direction {
@@ -1219,7 +1220,7 @@ extension AppCoordinator {
         let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         let filterSet = search.resultFilterSet
         let filterSignature = filterSet.cacheSignature
-        searchNavigationTask = Task { [weak self] in
+        search.navigationTask = Task { [weak self] in
             guard !Task.isCancelled, let self else {
                 return
             }
@@ -1288,7 +1289,7 @@ extension AppCoordinator {
         }
         let requestedRange = lowerBound..<upperBound
 
-        searchNavigationTask = Task { [weak self] in
+        search.navigationTask = Task { [weak self] in
             guard let self,
                   let page = await self.loadTableSandboxAllCueRows(range: requestedRange)
             else {
@@ -1466,12 +1467,12 @@ extension AppCoordinator {
 
     func revealInitialGlobalSearchResultPage() {
         search.searchResults = Array(search.searchResults.prefix(Self.searchPageSize))
-        loadedGlobalSearchResultCount = search.searchResults.count
+        search.loadedGlobalResultCount = search.searchResults.count
         search.searchKnownResultCount = search.searchResultTotalCount
         search.searchKnownFileCount = search.searchFileSummaries.count
-        search.hasMoreSearchResults = loadedGlobalSearchResultCount < search.searchResultTotalCount
-        nextGlobalSearchCursor = search.hasMoreSearchResults
-            ? SubtitleSearchCursor(offset: loadedGlobalSearchResultCount)
+        search.hasMoreSearchResults = search.loadedGlobalResultCount < search.searchResultTotalCount
+        search.nextGlobalCursor = search.hasMoreSearchResults
+            ? SubtitleSearchCursor(offset: search.loadedGlobalResultCount)
             : nil
     }
 
@@ -1482,9 +1483,9 @@ extension AppCoordinator {
     }
 
     func resetSearchResultLoadingState() {
-        searchExactCompletionTask?.cancel()
-        searchExactCompletionTask = nil
-        searchNavigationTask?.cancel()
+        search.exactCompletionTask?.cancel()
+        search.exactCompletionTask = nil
+        search.navigationTask?.cancel()
         let releasedRows = max(
             search.searchResults.count,
             search.searchResultCueIDs.count,
@@ -1498,9 +1499,9 @@ extension AppCoordinator {
         search.searchKnownResultCount = 0
         search.searchKnownFileCount = 0
         search.hasMoreSearchResults = false
-        lastSearchCountProgressUpdate = 0
-        loadedGlobalSearchResultCount = 0
-        nextGlobalSearchCursor = nil
+        search.lastCountProgressUpdate = 0
+        search.loadedGlobalResultCount = 0
+        search.nextGlobalCursor = nil
         search.searchNavigationSnapshot = nil
         AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
     }
