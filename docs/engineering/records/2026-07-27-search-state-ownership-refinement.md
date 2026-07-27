@@ -48,12 +48,19 @@ Filter, Context, pagination, selection, or playback behavior.
     folders and the existing page sizes. This covers initial and adjacent page
     cancellation without adding another state model or depending on an index
     content revision.
+13. Reused the retained table projection as the recovery intent while playback
+    covers the Search table. When table responses become active again,
+    `SearchStore` resumes Filter-only or Context loading with its current folder
+    scope; no pending flag or View-owned compensation path was added.
 
 ## Verification
 
 - `swift test --filter SearchStoreTests`
 - Result: 26 tests passed, including folder-scope A-to-B-to-A, empty-folder,
-  indexing-failure, Filter-only, and Context pagination lifecycle coverage.
+  indexing-failure, playback-covered Filter-only, and playback-covered Context
+  initial and adjacent pagination lifecycle coverage.
+- `swift test --filter CueContentStoreTests`
+- Result: 8 tests passed.
 - `swift test --filter PlaybackSearch`
 - Result: 4 tests passed.
 - `swift test --filter URLSchemeSearch`
@@ -85,6 +92,7 @@ consistency, folder-scope invalidation, and Filter/Context pagination lifecycle.
 Invalidated active searches restart under the new scope and reach a terminal
 state even when indexing finds no content change or fails. Active Filter-only
 and Context table projections also resume under the new scope, including
-adjacent Context pagination. `AppCoordinator` retains cross-feature
-coordination, while the View retains UI-only state. Focused verification passed;
-the existing full-suite resource contention remains outside this change.
+adjacent Context pagination and reactivation after playback coverage.
+`AppCoordinator` retains cross-feature coordination, while the View retains
+UI-only state. Focused verification passed; the existing full-suite resource
+contention remains outside this change.
