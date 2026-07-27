@@ -165,6 +165,82 @@ func failedFolderIndexRestartsInvalidatedActiveSearch() async throws {
 }
 
 @MainActor
+@Test
+func folderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws {
+    let suiteName = "CueSeekerFilterOnlyScopeLifecycleTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let testRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: testRoot)
+    }
+
+    let app = try await makeFolderScopeLifecycleApp(
+        userDefaults: userDefaults,
+        testRoot: testRoot
+    )
+    app.search.updateQuery("")
+    app.search.updateActiveFilterSet(SubtitleSearchFilterSet(rules: [
+        SubtitleSearchFilterRule(
+            field: .cues,
+            operatorID: .contains,
+            value: "scope lifecycle"
+        )
+    ]))
+    app.search.loadFilterOnlyTableRows(
+        folders: app.indexing.selectedFolders,
+        initialPageSize: 100,
+        continuationPageSize: 100
+    )
+
+    let emptyFolder = testRoot.appendingPathComponent(
+        "Empty Filter Scope",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+        at: emptyFolder,
+        withIntermediateDirectories: true
+    )
+    app.addFolder(emptyFolder)
+    await app.indexingTask?.value
+
+    var deadline = Date().addingTimeInterval(2)
+    while app.search.tableRowStore.snapshot.totalRowCount != 1,
+          Date() < deadline {
+        await Task.yield()
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.search.tableRowStore.snapshot.row(at: 0)?.primaryCueText
+        == "scope lifecycle result")
+
+    let invalidFolder = testRoot.appendingPathComponent("Invalid Filter Scope")
+    try Data("file root".utf8).write(to: invalidFolder)
+    app.addFolder(invalidFolder)
+    await app.indexingTask?.value
+
+    guard case .failed = app.indexing.indexingStatus else {
+        Issue.record("Expected Filter-only file root indexing to fail")
+        return
+    }
+    deadline = Date().addingTimeInterval(2)
+    while app.search.tableRowStore.snapshot.totalRowCount != 1,
+          Date() < deadline {
+        await Task.yield()
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    let source = try #require(app.search.tableProjectionSource)
+    guard case let .filterOnly(key) = source else {
+        Issue.record("Expected Filter-only projection after scope recovery")
+        return
+    }
+    #expect(key.folderPaths == app.indexing.selectedFolders.map(\.path))
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.search.searchStatus == .completed)
+}
+
+@MainActor
 private func makeFolderScopeLifecycleApp(
     userDefaults: UserDefaults,
     testRoot: URL
@@ -521,7 +597,7 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
 
 @MainActor
 @Test
-func contextTableLifecycleLoadsInitialAndAdjacentPages() async throws {
+func contextTableLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async throws {
     let suiteName = "CueSeekerContextTableLifecycleTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
@@ -545,7 +621,7 @@ func contextTableLifecycleLoadsInitialAndAdjacentPages() async throws {
     try database.replaceEntries(
         subtitleFile: subtitleURL,
         videoFile: videoURL,
-        entries: (0..<200).map { index in
+        entries: (0..<300).map { index in
             SubtitleEntry(
                 sequenceNumber: index + 1,
                 startTimecode: String(format: "00:%02d:%02d,000", index / 60, index % 60),
@@ -572,6 +648,17 @@ func contextTableLifecycleLoadsInitialAndAdjacentPages() async throws {
         initialPageSize: 100,
         continuationPageSize: 100
     ))
+    let emptyFolder = fixtureRoot.appendingPathComponent(
+        "Empty Context Scope",
+        isDirectory: true
+    )
+    try FileManager.default.createDirectory(
+        at: emptyFolder,
+        withIntermediateDirectories: true
+    )
+    app.addFolder(emptyFolder)
+    await app.indexingTask?.value
+
     let deadline = Date().addingTimeInterval(2)
     while app.search.tableRowStore.snapshot.totalRowCount < 200,
           Date() < deadline {
@@ -581,12 +668,44 @@ func contextTableLifecycleLoadsInitialAndAdjacentPages() async throws {
 
     #expect(app.search.tableRowStore.snapshot.totalRowCount == 200)
     #expect(app.search.contextLoadedSourceRange == 0..<200)
-    #expect(!app.search.beginContextTableLoad(
-        request: request,
-        folders: [fixtureRoot],
-        initialPageSize: 100,
-        continuationPageSize: 100
-    ))
+
+    app.search.loadAdjacentContextRows(
+        visibleRows: 100..<200,
+        folders: app.indexing.selectedFolders,
+        pageSize: 100
+    )
+    let invalidFolder = fixtureRoot.appendingPathComponent(
+        "Invalid Context Scope"
+    )
+    try Data("file root".utf8).write(to: invalidFolder)
+    app.addFolder(invalidFolder)
+    await app.indexingTask?.value
+    guard case .failed = app.indexing.indexingStatus else {
+        Issue.record("Expected Context file root indexing to fail")
+        return
+    }
+
+    let recoveryDeadline = Date().addingTimeInterval(2)
+    while app.search.contextLoadedSourceRange != 0..<200,
+          Date() < recoveryDeadline {
+        await Task.yield()
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    #expect(app.search.contextLoadedSourceRange == 0..<200)
+
+    app.search.loadAdjacentContextRows(
+        visibleRows: 100..<200,
+        folders: app.indexing.selectedFolders,
+        pageSize: 100
+    )
+    let adjacentDeadline = Date().addingTimeInterval(2)
+    while app.search.tableRowStore.snapshot.totalRowCount < 300,
+          Date() < adjacentDeadline {
+        await Task.yield()
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 300)
+    #expect(app.search.contextLoadedSourceRange == 0..<300)
 }
 
 @MainActor

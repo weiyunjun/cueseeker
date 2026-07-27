@@ -87,12 +87,16 @@ final class SearchStore: ObservableObject {
     private var isFilterOnlyLoadInProgress = false
     private var hasLoadedFilterOnlyInitialPage = false
     private var filterOnlyTotalRowCount = 0
+    private var filterOnlyInitialPageSize = TableSandboxHydrationPaging.pageSize
+    private var filterOnlyContinuationPageSize = 1_000
     private var indexedCueMutationGeneration: UInt64 = 0
     private var activeIndexedCueMutationGeneration: UInt64?
     private var contextLoadGeneration: UInt64 = 0
     private var contextLoadTask: Task<Void, Never>?
     private var activeContextTableRequestID: UUID?
     private var isContextLoadInProgress = false
+    private var contextInitialPageSize = TableSandboxHydrationPaging.pageSize
+    private var contextContinuationPageSize = 1_000
     private(set) var contextLoadedSourceRange: Range<Int>?
     private(set) var contextTotalRowCount = 0
     private(set) var contextTargetSourceIndex: Int?
@@ -354,6 +358,8 @@ final class SearchStore: ObservableObject {
             suspendFilterOnlyPageLoad()
             return
         }
+        filterOnlyInitialPageSize = initialPageSize
+        filterOnlyContinuationPageSize = continuationPageSize
         let key = SearchFilterOnlyProjectionKey(
             filterSignature: activeFilterSetSignature,
             folderPaths: folders.map(\.path),
@@ -460,6 +466,8 @@ final class SearchStore: ObservableObject {
            isContextLoadInProgress || contextLoadedSourceRange != nil {
             return false
         }
+        contextInitialPageSize = initialPageSize
+        contextContinuationPageSize = continuationPageSize
         activeContextTableRequestID = request.id
         contextLoadGeneration &+= 1
         let generation = contextLoadGeneration
@@ -868,13 +876,49 @@ final class SearchStore: ObservableObject {
             return false
         }
         let didInvalidateActiveSearch = isSearching
+        let tableProjectionToRestore = tableProjectionSource
         folderScopePaths = paths
         folderScopeGeneration &+= 1
         resultListGeneration &+= 1
         cancelAllSearchTasks()
         suspendFilterOnlyPageLoad()
         cancelContextTableLoad()
+        restoreFolderScopedTableProjection(
+            tableProjectionToRestore,
+            folders: folders
+        )
         return didInvalidateActiveSearch
+    }
+
+    private func restoreFolderScopedTableProjection(
+        _ source: SearchTableProjectionSource?,
+        folders: [URL]
+    ) {
+        guard isTableProjectionResponseActive else {
+            return
+        }
+        switch source {
+        case .filterOnly:
+            loadFilterOnlyTableRows(
+                folders: folders,
+                initialPageSize: filterOnlyInitialPageSize,
+                continuationPageSize: filterOnlyContinuationPageSize
+            )
+        case .context(let requestID):
+            guard let request = cueContextSearchRequest,
+                  request.id == requestID
+            else {
+                return
+            }
+            beginContextTableLoad(
+                request: request,
+                folders: folders,
+                initialPageSize: contextInitialPageSize,
+                continuationPageSize: contextContinuationPageSize
+            )
+        case .residentSearch, nil:
+            return
+        }
     }
 
     func acceptsFolderScope(
