@@ -14,7 +14,7 @@ main
 9. Select按钮，点击以后，会显示表头和表格的checkbox，如果有任意checkbox被选中，在表格底部中间区域显示一个按钮集合栏，包括：xx selected，Anki按钮，Screenshot按钮，Collage按钮，Copy Table按钮。这些集合栏需要有一个不透明背景，作为overlay悬浮在表格上。checkbox区域，就算没有选中的时候，也要留出来，不要因为Select，造成表格压缩。
 10. Select按钮，图标用笔写字的那种编辑图标，进入选择状态以后，名称改为Exit Select。在选择状态下，禁用表格的大部分功能。点击某一行任意区域都可以选中该行，禁用播放字幕，禁用右键菜单，禁用搜索框编辑，禁用Filter和View按钮，禁用表头的按钮，禁用hover到字幕时的下划线效果（表明不可点击），禁用选择文字功能。只能滚动表格，使用滚动条，选择结果或取消结果，和底部Overlay区域交互，以及退出Select状态。
 11. 将Cues列和Display Title列，位置互换，列宽计算公式不变。
-12. 搜索的时候，等exact结果完全出来以后，在搜索框的X按钮左边，显示一个胶囊形状的，设计风格类似Filter的数字的xx results的内容（处理1 result的单数情况）。
+12. 搜索的时候，等exact结果完全出来以后，在搜索框的X按钮左边，显示一个颜色均为muted的xx results的内容（处理1 result的单数情况）。
 13. 当且仅当exact计算完毕，才可以进入Select状态。
 14. 表格区域，除了Primary Cue，其它列的内容都改为muted颜色。表头的颜色改为secondary。
 15. 取消hover Cues时的背景色变化效果，保留下划线效果。hover行时拥有和hover Cues现在的背景色变化效果。在Select状态，选中某一行以后有更深的背景色变化效果。但是hover已经selected的行，背景色不会叠加。
