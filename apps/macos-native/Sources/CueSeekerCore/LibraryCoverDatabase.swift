@@ -21,7 +21,12 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT vf.id, vf.path, vf.video_name, vf.file_size, vf.duration,
-                   sf.subtitle_path, sf.format
+                   sf.subtitle_path, sf.format,
+                   EXISTS (
+                       SELECT 1
+                       FROM user_video_covers uvc
+                       WHERE uvc.video_file_id = vf.id
+                   )
             FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
@@ -51,7 +56,8 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
                 duration: statement.nullableDoubleColumn(4),
                 subtitlePath: subtitlePath,
                 subtitleFormat: subtitleFormat,
-                folderPath: Self.folderPath(forSubtitlePath: subtitlePath)
+                folderPath: Self.folderPath(forSubtitlePath: subtitlePath),
+                hasUserCover: statement.intColumn(7) != 0
             )
 
             if let existing = videosByID[videoFileID] {
@@ -590,7 +596,12 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT vf.id, vf.path, vf.video_name, vf.file_size, vf.duration,
-                   sf.subtitle_path, sf.format
+                   sf.subtitle_path, sf.format,
+                   EXISTS (
+                       SELECT 1
+                       FROM user_video_covers uvc
+                       WHERE uvc.video_file_id = vf.id
+                   )
             FROM subtitle_files sf
             JOIN subtitle_video_matches m
               ON m.subtitle_file_id = sf.id AND m.is_active = 1
@@ -619,7 +630,8 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
                 subtitleFormat: SubtitleFormat(
                     rawValue: statement.stringColumn(6)
                 ) ?? .srt,
-                folderPath: Self.folderPath(forSubtitlePath: subtitlePath)
+                folderPath: Self.folderPath(forSubtitlePath: subtitlePath),
+                hasUserCover: statement.intColumn(7) != 0
             )
             if let existing = videosByID[videoFileID] {
                 if video.subtitlePath.localizedStandardCompare(

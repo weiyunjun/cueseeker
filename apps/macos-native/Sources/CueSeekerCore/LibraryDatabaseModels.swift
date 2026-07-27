@@ -50,6 +50,7 @@ public struct LibraryCoverEligibleVideo: Equatable, Sendable, Identifiable {
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
     public let folderPath: String
+    public let hasUserCover: Bool
 
     public var id: Int64 {
         videoFileID

@@ -12,7 +12,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   manual cover replacement remain available. The controlled and packaged
   macOS FFmpeg runtime now also includes pinned dav1d 1.5.4 software decoding,
   restoring automatic cover extraction for AV1 video without adding an AV1
-  encoder.
+  encoder. Library Index now retries videos that still use fallback even when
+  indexed content is unchanged, leaves user covers untouched, and preserves an
+  existing automatic cover when its replacement cannot be generated.
 - Removed the retired Speaker and AI Chunking paths. Database schema 39 drops
   their obsolete tables in place while preserving Cue, Language, Shiori, and
   search data, so no reindex is required. App startup also clears the saved

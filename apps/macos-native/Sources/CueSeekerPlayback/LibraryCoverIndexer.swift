@@ -54,12 +54,18 @@ public struct LibraryCoverIndexer: Sendable {
         let order: Int
         let video: LibraryCoverEligibleVideo
         let coverURL: URL
+        let displayURL: URL
+        let existingCover: LibraryVideoCover?
     }
 
     private struct GenerationResult: Sendable {
         let order: Int
         let video: LibraryCoverEligibleVideo
         let coverURL: URL
+        let displayURL: URL
+        let existingCover: LibraryVideoCover?
+        let masterData: Data?
+        let displayRendition: LibraryCoverEncodedDisplayRendition?
         let sourceTimeMilliseconds: Int
         let score: Double?
         let status: LibraryCoverStatus
@@ -89,37 +95,16 @@ public struct LibraryCoverIndexer: Sendable {
     @discardableResult
     public func indexCovers(
         under folder: URL,
+        affectedVideoPaths: Set<String> = [],
+        affectedFolderPaths: Set<String> = [],
         into database: any LibraryCoverPersistence
     ) async throws -> LibraryCoverIndexingResult {
         let videos = try database.libraryCoverEligibleVideos(under: [folder])
         return try await indexCovers(
             videos: videos,
             folderReferenceVideos: videos,
-            affectedFolderPaths: Set(videos.map(\.folderPath)),
-            displayFolders: [folder],
-            displayVideoPaths: nil,
-            into: database
-        )
-    }
-
-    @discardableResult
-    public func indexCovers(
-        videoPaths: Set<String>,
-        affectedFolderPaths: Set<String>,
-        into database: any LibraryCoverPersistence
-    ) async throws -> LibraryCoverIndexingResult {
-        let videos = try database.libraryCoverEligibleVideos(
-            videoPaths: videoPaths
-        )
-        let folderReferenceVideos = try database.libraryCoverEligibleVideos(
-            inFolderPaths: affectedFolderPaths
-        )
-        return try await indexCovers(
-            videos: videos,
-            folderReferenceVideos: folderReferenceVideos,
+            affectedVideoPaths: affectedVideoPaths,
             affectedFolderPaths: affectedFolderPaths,
-            displayFolders: nil,
-            displayVideoPaths: videoPaths,
             into: database
         )
     }
@@ -127,69 +112,136 @@ public struct LibraryCoverIndexer: Sendable {
     private func indexCovers(
         videos: [LibraryCoverEligibleVideo],
         folderReferenceVideos: [LibraryCoverEligibleVideo],
+        affectedVideoPaths: Set<String>,
         affectedFolderPaths: Set<String>,
-        displayFolders: [URL]?,
-        displayVideoPaths: Set<String>?,
         into database: any LibraryCoverPersistence
     ) async throws -> LibraryCoverIndexingResult {
         let startedAt = Date()
         let videoCoverDirectory = configuration.coverDirectory
             .appendingPathComponent("Videos", isDirectory: true)
+        let displayCoverDirectory = configuration.coverDirectory
+            .appendingPathComponent("Display", isDirectory: true)
+            .appendingPathComponent(
+                "v\(LibraryCoverDisplayProfile.current.version)",
+                isDirectory: true
+            )
         try FileManager.default.createDirectory(
             at: videoCoverDirectory,
             withIntermediateDirectories: true
         )
+        let commitToken = configuration.displayRenditionCommitToken
+            ?? LibraryCoverDisplayRenditionCommitGate().beginGeneration()
 
         var jobs: [GenerationJob] = []
         var skippedFreshCoverCount = 0
         for (index, video) in videos.enumerated() {
+            guard !video.hasUserCover else {
+                continue
+            }
             let coverURL = coverURL(for: video, in: videoCoverDirectory)
             let existingCover = try database.libraryVideoCover(forVideoFileID: video.videoFileID)
-            if isFreshCover(existingCover, for: video) {
+            if !affectedVideoPaths.contains(video.videoPath),
+               isFreshCover(existingCover, for: video)
+            {
                 skippedFreshCoverCount += 1
             } else {
-                jobs.append(GenerationJob(order: index, video: video, coverURL: coverURL))
+                jobs.append(
+                    GenerationJob(
+                        order: index,
+                        video: video,
+                        coverURL: coverURL,
+                        displayURL: LibraryCoverDisplayRenditionIndexer.displayURL(
+                            forVideoPath: video.videoPath,
+                            in: displayCoverDirectory
+                        ),
+                        existingCover: existingCover
+                    )
+                )
             }
         }
 
         let results = await generateCovers(for: jobs)
         for result in results.sorted(by: { $0.order < $1.order }) {
-            try database.upsertLibraryVideoCover(
-                videoFileID: result.video.videoFileID,
-                masterCoverPath: result.coverURL.path,
-                sourceTimeMilliseconds: result.sourceTimeMilliseconds,
-                score: result.score,
-                algorithmVersion: Self.algorithmVersion,
-                generatedFileSize: result.video.fileSize,
-                generatedDuration: result.video.duration,
-                status: result.status,
-                errorMessage: result.errorMessage
-            )
+            switch result.status {
+            case .generated:
+                guard let masterData = result.masterData,
+                      let displayRendition = result.displayRendition
+                else {
+                    continue
+                }
+                guard try commitToken.commit({
+                    try LibraryCoverDisplayRenditionGenerator.publish(
+                        masterData,
+                        to: result.coverURL
+                    )
+                    try LibraryCoverDisplayRenditionGenerator.publish(
+                        displayRendition.data,
+                        to: result.displayURL
+                    )
+                    try database.upsertLibraryVideoCover(
+                        videoFileID: result.video.videoFileID,
+                        masterCoverPath: result.coverURL.path,
+                        displayCoverPath: result.displayURL.path,
+                        displayProfileVersion:
+                            LibraryCoverDisplayProfile.current.version,
+                        sourceTimeMilliseconds: result.sourceTimeMilliseconds,
+                        score: result.score,
+                        algorithmVersion: Self.algorithmVersion,
+                        generatedFileSize: result.video.fileSize,
+                        generatedDuration: result.video.duration,
+                        status: .generated,
+                        errorMessage: nil
+                    )
+                    return true
+                }) == true else {
+                    throw CancellationError()
+                }
+            case .failed:
+                guard result.existingCover?.status != .generated else {
+                    continue
+                }
+                guard try commitToken.commit({
+                    try database.upsertLibraryVideoCover(
+                        videoFileID: result.video.videoFileID,
+                        masterCoverPath: result.coverURL.path,
+                        sourceTimeMilliseconds: result.sourceTimeMilliseconds,
+                        score: result.score,
+                        algorithmVersion: Self.algorithmVersion,
+                        generatedFileSize: result.video.fileSize,
+                        generatedDuration: result.video.duration,
+                        status: .failed,
+                        errorMessage: result.errorMessage
+                    )
+                    return true
+                }) == true else {
+                    throw CancellationError()
+                }
+            }
         }
 
         let displayIndexer = LibraryCoverDisplayRenditionIndexer(
             configuration: .init(
                 coverDirectory: configuration.coverDirectory,
-                commitToken: configuration.displayRenditionCommitToken
+                commitToken: commitToken
             )
         )
-        let displayBackfillResult: LibraryCoverDisplayBackfillResult
-        if let displayVideoPaths {
-            displayBackfillResult = try await displayIndexer
-                .backfillDisplayRenditions(
-                    videoPaths: displayVideoPaths,
-                    into: database
-                )
-        } else {
-            displayBackfillResult = try await displayIndexer
-                .backfillDisplayRenditions(
-                    under: displayFolders ?? [],
-                    into: database
-                )
-        }
+        let displayBackfillResult = try await displayIndexer
+            .backfillDisplayRenditions(
+                videoPaths: Set(
+                    videos.lazy.filter { !$0.hasUserCover }.map(\.videoPath)
+                ),
+                into: database
+            )
+        let generatedFolderPaths = Set(
+            results.lazy
+                .filter { $0.status == .generated }
+                .map(\.video.folderPath)
+        )
         try refreshFolderCoverReferences(
             for: folderReferenceVideos,
-            affectedFolderPaths: affectedFolderPaths,
+            affectedFolderPaths: affectedFolderPaths.union(
+                generatedFolderPaths
+            ),
             in: database
         )
 
@@ -200,7 +252,8 @@ public struct LibraryCoverIndexer: Sendable {
             skippedFreshCoverCount: skippedFreshCoverCount,
             generatedCoverCount: generatedCoverCount,
             failedCoverCount: failedCoverCount,
-            generatedDisplayCoverCount: displayBackfillResult.generatedDisplayCoverCount,
+            generatedDisplayCoverCount: generatedCoverCount
+                + displayBackfillResult.generatedDisplayCoverCount,
             failedDisplayCoverCount: displayBackfillResult.failedDisplayCoverCount,
             elapsedSeconds: Date().timeIntervalSince(startedAt)
         )
@@ -267,7 +320,7 @@ public struct LibraryCoverIndexer: Sendable {
             }
 
             let best = bestCandidate(from: candidates)
-            try exportFullResolutionCover(
+            let encodedCover = try encodeFullResolutionCover(
                 videoPath: job.video.videoPath,
                 timestampMilliseconds: best.timestampMilliseconds,
                 to: job.coverURL
@@ -277,6 +330,10 @@ public struct LibraryCoverIndexer: Sendable {
                 order: job.order,
                 video: job.video,
                 coverURL: job.coverURL,
+                displayURL: job.displayURL,
+                existingCover: job.existingCover,
+                masterData: encodedCover.masterData,
+                displayRendition: encodedCover.displayRendition,
                 sourceTimeMilliseconds: best.timestampMilliseconds,
                 score: best.totalScore,
                 status: .generated,
@@ -287,6 +344,10 @@ public struct LibraryCoverIndexer: Sendable {
                 order: job.order,
                 video: job.video,
                 coverURL: job.coverURL,
+                displayURL: job.displayURL,
+                existingCover: job.existingCover,
+                masterData: nil,
+                displayRendition: nil,
                 sourceTimeMilliseconds: 0,
                 score: nil,
                 status: .failed,
@@ -327,11 +388,14 @@ public struct LibraryCoverIndexer: Sendable {
         return output.count == expectedByteCount ? output : output.prefix(expectedByteCount)
     }
 
-    private func exportFullResolutionCover(
+    private func encodeFullResolutionCover(
         videoPath: String,
         timestampMilliseconds: Int,
         to coverURL: URL
-    ) throws {
+    ) throws -> (
+        masterData: Data,
+        displayRendition: LibraryCoverEncodedDisplayRendition
+    ) {
         try FileManager.default.createDirectory(
             at: coverURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -360,8 +424,13 @@ public struct LibraryCoverIndexer: Sendable {
         ]
 
         _ = try runFFmpeg(arguments: arguments, capturesStandardOutput: false)
-        try? FileManager.default.removeItem(at: coverURL)
-        try FileManager.default.moveItem(at: temporaryURL, to: coverURL)
+        let displayRendition = try LibraryCoverDisplayRenditionGenerator().encode(
+            masterURL: temporaryURL
+        )
+        return (
+            masterData: try Data(contentsOf: temporaryURL),
+            displayRendition: displayRendition
+        )
     }
 
     private func score(rawFrame data: Data) throws -> FrameMetrics {
@@ -529,7 +598,7 @@ public struct LibraryCoverIndexer: Sendable {
         for video in videos {
             guard firstGeneratedCoverByFolder[video.folderPath] == nil,
                   let cover = try database.libraryVideoCover(forVideoFileID: video.videoFileID),
-                  isFreshCover(cover, for: video)
+                  isUsableGeneratedCover(cover)
             else {
                 continue
             }
@@ -555,8 +624,8 @@ public struct LibraryCoverIndexer: Sendable {
         for video: LibraryCoverEligibleVideo
     ) -> Bool {
         guard let cover,
-              cover.status == .generated,
-              FileManager.default.fileExists(atPath: cover.masterCoverPath),
+              isUsableGeneratedCover(cover),
+              cover.algorithmVersion == Self.algorithmVersion,
               cover.generatedFileSize == video.fileSize,
               Self.durationsMatch(cover.generatedDuration, video.duration)
         else {
@@ -564,6 +633,11 @@ public struct LibraryCoverIndexer: Sendable {
         }
 
         return true
+    }
+
+    private func isUsableGeneratedCover(_ cover: LibraryVideoCover) -> Bool {
+        cover.status == .generated
+            && FileManager.default.fileExists(atPath: cover.masterCoverPath)
     }
 
     private func coverURL(for video: LibraryCoverEligibleVideo, in directory: URL) -> URL {

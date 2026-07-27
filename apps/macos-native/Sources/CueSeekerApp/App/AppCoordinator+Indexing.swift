@@ -58,46 +58,50 @@ private func performFolderIndex(
         }
     }
 
-    if result.hasIndexedContentChanges {
-        do {
-            let coverResult = try await LibraryCoverIndexer(
-                configuration: .init(
-                    coverDirectory: coverDirectory,
-                    displayRenditionCommitToken:
-                        displayRenditionCommitToken
-                )
-            ).indexCovers(
-                videoPaths: Set(result.affectedVideoPaths),
-                affectedFolderPaths: Set(
-                    result.affectedFolderPaths
-                ),
-                into: coverDatabase
+    do {
+        let coverResult = try await LibraryCoverIndexer(
+            configuration: .init(
+                coverDirectory: coverDirectory,
+                displayRenditionCommitToken:
+                    displayRenditionCommitToken
             )
-            if coverResult.failedCoverCount > 0
-                || coverResult.failedDisplayCoverCount > 0
-            {
-                failures.append(
-                    IndexingAuxiliaryFailure(
-                        kind: .automaticCover,
-                        message:
-                            "Automatic cover generation failed for "
-                            + "\(coverResult.failedCoverCount) cover(s) "
-                            + "and "
-                            + "\(coverResult.failedDisplayCoverCount) "
-                            + "display rendition(s)."
-                    )
-                )
-            }
-        } catch {
+        ).indexCovers(
+            under: folder,
+            affectedVideoPaths: Set(result.affectedVideoPaths),
+            affectedFolderPaths: Set(
+                result.affectedFolderPaths
+            ),
+            into: coverDatabase
+        )
+        if coverResult.generatedCoverCount > 0
+            || coverResult.generatedDisplayCoverCount > 0
+        {
+            refreshedAuxiliaryData = true
+        }
+        if coverResult.failedCoverCount > 0
+            || coverResult.failedDisplayCoverCount > 0
+        {
             failures.append(
                 IndexingAuxiliaryFailure(
                     kind: .automaticCover,
                     message:
-                        "Automatic cover generation failed: "
-                        + error.localizedDescription
+                        "Automatic cover generation failed for "
+                        + "\(coverResult.failedCoverCount) cover(s) "
+                        + "and "
+                        + "\(coverResult.failedDisplayCoverCount) "
+                        + "display rendition(s)."
                 )
             )
         }
+    } catch {
+        failures.append(
+            IndexingAuxiliaryFailure(
+                kind: .automaticCover,
+                message:
+                    "Automatic cover generation failed: "
+                    + error.localizedDescription
+            )
+        )
     }
 
     if let libraryID = result.libraryID {

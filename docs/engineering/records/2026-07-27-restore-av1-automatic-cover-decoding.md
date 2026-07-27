@@ -5,14 +5,15 @@ Date: 2026-07-27
 ## Requirement
 
 - `docs/human/requirements/20260727-Bug-Restore AV1 Automatic Cover Decoding.md`
+- `docs/human/design/Data.md`
 
 ## Scope
 
-This record tracks the accepted two-stage recovery. Phase 1 provides the
-platform UI/UX fallback for unavailable automatic covers. After human visual
-acceptance, Phase 2 restores software AV1 cover decoding in the controlled
-macOS media runtime without changing indexing, cover persistence, or the cover
-selection algorithm.
+This record tracks the accepted two-stage AV1 recovery and the subsequent
+automatic-cover indexing correction. Phase 1 provides the platform UI/UX
+fallback for unavailable automatic covers. Phase 2 restores software AV1 cover
+decoding in the controlled macOS media runtime. The indexing correction applies
+the stabilized fallback, automatic, and user-cover replacement rules.
 
 ## Steps
 
@@ -32,6 +33,18 @@ selection algorithm.
    `@rpath` linkage, app-bundle presence, and packaged-decoder checks.
 8. Added `libdav1d` to the Swift package media-runtime completeness gate and
    staged its license notice with the packaged application.
+9. Made every explicit Library Index inspect its complete eligible video scope,
+   so a prior fallback state retries automatic generation even when subtitle and
+   video indexing data is unchanged.
+10. Added the existing user-cover row to automatic-cover eligibility data and
+    excluded those videos from both automatic generation and automatic display
+    rendition backfill.
+11. Kept fresh unchanged automatic covers, regenerated affected or stale
+    automatic covers, and preserved the prior automatic master, display
+    rendition, database row, and folder reference when regeneration failed.
+12. Staged a newly generated master JPEG and its display rendition before
+    publishing either database path, so a decode or rendition-generation
+    failure cannot replace a prior automatic cover with fallback.
 
 ## Verification
 
@@ -54,13 +67,25 @@ selection algorithm.
 - The seven failed tests were selected together and rerun with `--skip-build`
   and `--no-parallel`; all seven passed without code or test changes. The
   isolated rerun found no failure coupled to the media-runtime dependency.
+- `swift test --package-path apps/macos-native --filter LibraryCover` passed all
+  29 selected tests after the indexing correction. The added regressions cover
+  unchanged fallback retry, user-cover preservation, failed automatic refresh
+  rollback, folder-reference preservation, and unchanged automatic-cover
+  freshness.
+- `swift test --package-path apps/macos-native --filter LibraryDatabase` passed
+  all 18 selected persistence and presentation tests.
+- `swift test --package-path apps/macos-native --filter LibraryFolderRemoval`
+  passed all eight selected App indexing and folder-lifecycle tests, including
+  the unchanged-folder Index flow.
 
 ## Outcome
 
-Both accepted phases are implemented. Unavailable covers retain the accepted
-fallback presentation, while the reproducible and packaged macOS runtime now
-uses its bundled `libdav1d` decoder for AV1 automatic-cover extraction when
-software decoding is required.
+Both accepted AV1 phases and the cover-state indexing correction are
+implemented. Unavailable covers retain the accepted fallback presentation and
+retry on later Index operations, user covers remain untouched, and a failed
+refresh cannot erase an existing automatic cover. The reproducible and packaged
+macOS runtime uses its bundled `libdav1d` decoder for AV1 automatic-cover
+extraction when software decoding is required.
 
 ## Follow-ups
 

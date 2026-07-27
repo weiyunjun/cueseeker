@@ -291,7 +291,7 @@ public struct LibraryCoverDisplayRenditionIndexer: Sendable {
         return !FileManager.default.fileExists(atPath: displayCoverPath)
     }
 
-    private static func displayURL(
+    static func displayURL(
         forVideoPath videoPath: String,
         in directory: URL
     ) -> URL {
