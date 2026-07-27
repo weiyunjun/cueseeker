@@ -8,11 +8,13 @@
 ## Scope
 
 - Classify the change as macOS platform UI and UX work.
-- Implement Steps 1 through 7 of the requirement: increase the horizontal
+- Implement Steps 1 through 7 and item 16 from Step 8 of the requirement:
+  increase the horizontal
   breathing room, remove the Search and Shiori table outer frame, and replace
   persisted reusable Filter Sets with session-only filters and a count badge,
   then refine the result-table column order, text hierarchy, and normal-mode
-  Hover treatment before adding the core Select-mode interaction.
+  Hover treatment before adding the core Select-mode interaction and the
+  normal-mode dynamic result sequence column.
 - Preserve filtering execution, column width formulas, scrolling, and table
   interaction outside the requested Select-mode changes.
 
@@ -96,6 +98,10 @@
 31. Corrected the Search Select-entry boundary to require the existing search
     lifecycle to be completed as well as exact, preventing the reset-time empty
     exact metadata from briefly enabling Select while a new search is running.
+32. Reused the fixed Selection Column as the dynamic result sequence column in
+    normal mode, showing a secondary `#` Header and muted one-based row numbers,
+    then replacing them in place with Checkboxes in Select mode without adding
+    the dynamic column to View.
 
 ## Verification
 
@@ -153,6 +159,11 @@
   integration coverage passed.
 - The focused Search text-copy boundary regression test passed, including the
   new searching-with-empty-exact-metadata case.
+- The focused Selection Column state-switch and table text hierarchy tests
+  passed, covering the normal `#` Header, Select Checkbox Header, fixed column
+  geometry, one-based sequence text, and muted sequence color.
+- The existing focused View column-menu test passed, confirming the dynamic
+  Selection Column remains outside the menu.
 - No AI visual acceptance was performed; visual review is reserved for the
   human owner.
 
@@ -174,8 +185,11 @@
   pending.
 - The Search Select-button transient-enable regression was fixed within Step 7;
   human verification remains pending.
+- Item 16 from Step 8 passed automated verification; human visual acceptance
+  remains pending.
 
 ## Follow-ups
 
-- Continue to Step 8 only after Step 7 is explicitly accepted.
+- Continue the remaining Step 8 work only after the current item is explicitly
+  accepted.
 - Update the human-owned requirement and UI design only through the human-owner workflow after the iterative UI work is complete.

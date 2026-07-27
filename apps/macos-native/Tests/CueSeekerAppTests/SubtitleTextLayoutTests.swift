@@ -87,6 +87,7 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
         isRedesign: true
     )
     let header = SubtitleTableText.header("Cues", isRedesign: true)
+    let sequence = SubtitleTableText.index(37, isRedesign: true)
 
     let primaryFont = try attributedFont(primary)
     let secondaryFont = try attributedFont(secondary)
@@ -109,6 +110,8 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textMuted)
     #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textMuted)
     #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textSecondary)
+    #expect(sequence.string == "37")
+    #expect(try attributedForeground(sequence) === WorkbenchRedesignColors.NS.textMuted)
 }
 
 private func attributedFont(_ attributed: NSAttributedString) throws -> NSFont {

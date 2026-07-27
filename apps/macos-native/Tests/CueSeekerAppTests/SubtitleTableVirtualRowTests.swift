@@ -917,7 +917,9 @@ func subtitleTableViewSelectModeReservesColumnAndMakesWholeRowSelectable() throw
         height: fixture.header.bounds.height
     )
     #expect(normalLayout.indexRect == selectionLayout.indexRect)
+    #expect(normalFixture.header.sequenceHeaderIsVisibleForTesting())
     #expect(normalFixture.header.selectionHeaderIsVisibleForTesting() == false)
+    #expect(fixture.header.sequenceHeaderIsVisibleForTesting() == false)
     #expect(fixture.header.selectionHeaderIsVisibleForTesting())
 
     let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))

@@ -1991,7 +1991,13 @@ final class SubtitleVirtualTableHeaderView: NSView {
         if coordinator?.isSelectionModeForRendering() == true {
             updateSelectionHeaderHost(&indexHeaderHost, frame: layout.indexRect)
         } else {
-            indexHeaderHost?.isHidden = true
+            updateHeaderHost(
+                &indexHeaderHost,
+                title: "#",
+                columnID: "selection",
+                isSortable: false,
+                frame: layout.indexRect
+            )
         }
         if let dateAddedRect = layout.dateAddedRect {
             updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? "Date Added", columnID: "dateAdded", isSortable: true, frame: dateAddedRect)
@@ -2038,9 +2044,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         let layout = currentHeaderLayout()
         updateHeaderFrame(
             &indexHeaderHost,
-            frame: coordinator?.isSelectionModeForRendering() == true
-                ? layout.indexRect
-                : nil
+            frame: layout.indexRect
         )
         updateHeaderFrame(&dateAddedHeaderHost, frame: layout.dateAddedRect)
         updateHeaderFrame(
@@ -2086,7 +2090,13 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     func selectionHeaderIsVisibleForTesting() -> Bool {
-        indexHeaderHost?.isHidden == false
+        coordinator?.isSelectionModeForRendering() == true
+            && indexHeaderHost?.isHidden == false
+    }
+
+    func sequenceHeaderIsVisibleForTesting() -> Bool {
+        coordinator?.isSelectionModeForRendering() == false
+            && indexHeaderHost?.isHidden == false
     }
 
     func shouldRouteTextSelectionMouseDownForTesting(at point: CGPoint) -> Bool {
