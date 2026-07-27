@@ -38,11 +38,17 @@ Filter, Context, pagination, selection, or playback behavior.
 10. Moved the remaining Library Context cue lookup behind a `SearchStore`
     intent and replaced Coordinator reads of the Search database handle with a
     Store-owned availability boundary.
+11. Made folder-scope invalidation report whether it cancelled an active
+    search, then immediately restarted that query with the scope carried by the
+    folder publication. The restart no longer depends on indexing reporting a
+    content change, and it does not read the old `@Published` value during its
+    `willSet` notification.
 
 ## Verification
 
 - `swift test --filter SearchStoreTests`
-- Result: 23 tests passed, including the folder-scope A-to-B-to-A race test.
+- Result: 25 tests passed, including folder-scope A-to-B-to-A, empty-folder,
+  and indexing-failure lifecycle coverage.
 - `swift test --filter PlaybackSearch`
 - Result: 4 tests passed.
 - `swift test --filter URLSchemeSearch`
@@ -58,7 +64,7 @@ Filter, Context, pagination, selection, or playback behavior.
 - `swift test --filter PlaybackPlaylistSourceTests`
 - Result: 9 tests passed.
 - `swift test`
-- Result: 879 tests ran with 15 issues while the full suite concurrently
+- Result: 881 tests ran with 14 issues while the full suite concurrently
   exhausted shared media and SQLite resources or exceeded UI/media timing
   thresholds. SearchStore, CueGroup refresh, Library folder removal, Playback
   Subtitle Focus, and Native Playback failures all passed when rerun in their
@@ -69,6 +75,8 @@ Filter, Context, pagination, selection, or playback behavior.
 The unified result table remains the only production Search result presentation
 path. `SearchStore` now owns query execution, database access boundaries, result
 consistency, folder-scope invalidation, and Filter/Context pagination lifecycle.
-`AppCoordinator` retains cross-feature coordination, while the View retains
-UI-only state. Focused verification passed; the existing full-suite resource
-contention remains outside this change.
+Invalidated active searches restart under the new scope and reach a terminal
+state even when indexing finds no content change or fails. `AppCoordinator`
+retains cross-feature coordination, while the View retains UI-only state.
+Focused verification passed; the existing full-suite resource contention
+remains outside this change.
