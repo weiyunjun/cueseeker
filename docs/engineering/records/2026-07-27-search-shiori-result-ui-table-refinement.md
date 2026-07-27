@@ -54,6 +54,12 @@
 16. Corrected the Filter editor's final-rule deletion path: the previous code
     immediately inserted a replacement rule whenever deletion made the array
     empty; the editor now preserves the valid empty-filter state.
+17. Kept the accepted `16px` / `10px` badge geometry and applied a tokenized
+    `1px` downward optical offset to the whole badge without changing its
+    internal number layout.
+18. Removed the remaining legacy rule initializer from the Filter trigger so
+    opening an empty Filter editor keeps zero rules; the first rule is created
+    only through `New Filter`.
 
 ## Verification
 
@@ -79,6 +85,8 @@
   deletion correction.
 - Seven focused Filter Rule and Filter Count Badge tests passed with
   `--no-parallel` after the refinements.
+- `swift build` and the focused Filter Rule and Filter Count Badge tests passed
+  after the whole-badge alignment and empty-trigger correction.
 - The complete parallel `swift test` run executed 882 tests and reported 10
   timing or database-I/O failures unrelated to the spacing constant.
 - The 10 failed tests all passed when rerun together with `--no-parallel`,

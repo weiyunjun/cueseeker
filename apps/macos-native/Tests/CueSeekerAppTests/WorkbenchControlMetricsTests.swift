@@ -13,6 +13,7 @@ func workbenchFilterCountBadgeMetricsMatchDesignTokens() {
     #expect(WorkbenchControlMetrics.redesignFilterCountBadgeSize == 16)
     #expect(WorkbenchControlMetrics.redesignFilterCountBadgeHorizontalPadding == 4)
     #expect(WorkbenchControlMetrics.redesignFilterCountBadgeRadius == 9_999)
+    #expect(WorkbenchControlMetrics.redesignFilterCountBadgeOffsetY == 1)
     #expect(WorkbenchControlMetrics.redesignFontSizeFilterCountBadge == 10)
     #expect(
         WorkbenchRedesignColors.NS.filterCountBadgeBg

@@ -52,6 +52,8 @@ enum WorkbenchControlMetrics {
     static let redesignFilterCountBadgeHorizontalPadding: CGFloat = 4
     /// --radius-filter-count-badge: 9999px
     static let redesignFilterCountBadgeRadius: CGFloat = 9999
+    /// --offset-filter-count-badge-y: 1px
+    static let redesignFilterCountBadgeOffsetY: CGFloat = 1
     /// --size-select-indicator: 12pt
     static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 12
     /// --weight-select-indicator: semibold
@@ -473,6 +475,7 @@ struct WorkbenchFilterCountBadge: View {
                         : WorkbenchRedesignColors.bgDisabled
                 )
             )
+            .offset(y: WorkbenchControlMetrics.redesignFilterCountBadgeOffsetY)
     }
 }
 

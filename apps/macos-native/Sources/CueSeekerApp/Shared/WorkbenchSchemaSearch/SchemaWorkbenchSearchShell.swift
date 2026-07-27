@@ -558,17 +558,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     }
 
     private func openFilterBuilder() {
-        if filterRules.isEmpty, let firstColumn = filterableColumns.first {
-            filterRules = [
-                SchemaWorkbenchSearchDefaults.makeFilterRule(
-                    join: nil,
-                    fieldID: firstColumn.id,
-                    operatorID: SchemaWorkbenchFilterRuleRow.operators(for: firstColumn).first ?? .contains,
-                    value: ""
-                ),
-            ]
-        }
-
         openPopover = .filterBuilder
     }
 
