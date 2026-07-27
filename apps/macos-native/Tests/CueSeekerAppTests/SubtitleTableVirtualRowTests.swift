@@ -619,6 +619,39 @@ func subtitleTableViewCueContentLeftClickPlaysInsteadOfOpeningMenu() throws {
 
 @MainActor
 @Test
+func subtitleTableViewRedesignHoverUsesFullRowBackground() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let displayRect = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "display")
+    )
+    let cuesRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+
+    fixture.coordinator.handleMouseHover(windowPoint: fixture.documentView.convert(
+        CGPoint(x: displayRect.midX, y: displayRect.midY),
+        to: nil
+    ))
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+
+    fixture.coordinator.handleMouseHover(windowPoint: fixture.documentView.convert(
+        CGPoint(x: cuesRect.midX, y: cuesRect.midY),
+        to: nil
+    ))
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+
+    fixture.coordinator.clearHover()
+    #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 0) == nil)
+}
+
+@MainActor
+@Test
 func subtitleTableViewDisplayTitleContentLeftClickHasNoAction() throws {
     var openedPath: String?
     let fixture = makeAttachedVirtualTableCoordinator(onOpenSubtitleFile: { path in

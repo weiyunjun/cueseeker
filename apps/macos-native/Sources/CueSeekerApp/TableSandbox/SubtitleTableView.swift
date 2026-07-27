@@ -3380,6 +3380,10 @@ struct SubtitleTableView: NSViewRepresentable {
             cellContentHoverRectInDocument(row: row, columnID: columnID)
         }
 
+        func rowBackgroundColorForTesting(row: Int) -> NSColor? {
+            rowBackgroundColor(row: row)
+        }
+
         func setFocusedCheckboxRowForTesting(_ row: Int?) {
             updateFocusedCheckbox(row)
         }
@@ -4512,8 +4516,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawRowBackground(row: Int, rect: CGRect) {
-            if !isRedesign, hoveredRow == row {
-                NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
+            if let backgroundColor = rowBackgroundColor(row: row) {
+                backgroundColor.setFill()
                 rect.fill()
             }
 
@@ -4527,6 +4531,13 @@ struct SubtitleTableView: NSViewRepresentable {
             path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - 0.5))
             path.lineWidth = 1
             path.stroke()
+        }
+
+        private func rowBackgroundColor(row: Int) -> NSColor? {
+            guard hoveredRow == row else { return nil }
+            return isRedesign
+                ? WorkbenchRedesignColors.NS.rowHover
+                : NSColor.secondaryLabelColor.withAlphaComponent(0.06)
         }
 
         private func drawCellTexts(row: Int, rowRect: CGRect) {
@@ -4791,19 +4802,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath.clip(rect)
-
-            var usedRects = [CGRect]()
-            for fragment in fragments {
-                textLayout.update(
-                    attributedString: fragment.attributed,
-                    width: cuesTextWidth(in: rect, model: model)
-                )
-                usedRects.append(contentsOf: textLayout.usedRects(at: fragment.origin))
-            }
-
-            if isHovered {
-                drawContentHoverBackground(rects: usedRects, clippedTo: rect)
-            }
 
             for (index, fragment) in fragments.enumerated() {
                 textLayout.update(

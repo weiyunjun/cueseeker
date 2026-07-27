@@ -8,10 +8,11 @@
 ## Scope
 
 - Classify the change as macOS platform UI and UX work.
-- Implement Steps 1 through 5 of the requirement: increase the horizontal
+- Implement Steps 1 through 6 of the requirement: increase the horizontal
   breathing room, remove the Search and Shiori table outer frame, and replace
   persisted reusable Filter Sets with session-only filters and a count badge,
-  then refine the result-table column order and text hierarchy.
+  then refine the result-table column order, text hierarchy, and normal-mode
+  Hover treatment.
 - Preserve filtering execution, selection behavior, column width formulas, and
   table interaction outside the requested changes.
 
@@ -71,6 +72,10 @@
 22. Preserved the shared table's legacy fallback column order because Search
     and Shiori already pass their explicit schema order; this avoids changing
     unrelated callers.
+23. Moved redesign Hover background rendering from the Cues content region to
+    the complete row, using the existing `--color-row-hover` token.
+24. Preserved the Cues Hover text emphasis and underline while leaving Cue,
+    Tag, text-selection, and context-menu hit regions unchanged.
 
 ## Verification
 
@@ -108,6 +113,9 @@
 - The initial broader SubtitleTable run exposed an out-of-scope fallback-order
   change; after preserving that fallback, the final rerun passed all 167
   SubtitleTable tests with `--no-parallel`.
+- `swift build` passed after the Step 6 Hover change.
+- The focused full-row Hover test passed, and the complete SubtitleTable test
+  group passed all 168 tests with `--no-parallel` after the Step 6 change.
 - No AI visual acceptance was performed; visual review is reserved for the
   human owner.
 
@@ -122,10 +130,11 @@
 - Step 3 received human visual acceptance.
 - Step 4 received human visual acceptance when the human owner advanced to the
   next step.
-- Step 5 automated verification passed; human visual acceptance remains
+- Step 5 received human visual acceptance when the human owner started Step 6.
+- Step 6 automated verification passed; human visual acceptance remains
   pending.
 
 ## Follow-ups
 
-- Continue to Step 6 only after Step 5 is explicitly accepted.
+- Continue to Step 7 only after Step 6 is explicitly accepted.
 - Update the human-owned requirement and UI design only through the human-owner workflow after the iterative UI work is complete.
