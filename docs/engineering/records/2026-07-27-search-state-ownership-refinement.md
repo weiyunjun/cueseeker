@@ -30,11 +30,19 @@ Filter, Context, pagination, selection, or playback behavior.
    longer creates or validates Filter/Context pagination tasks.
 8. Updated indexing, playback, URL scheme, table, and tests to consume the
    Search-owned lifecycle and atomic result notification.
+9. Added one Store-owned folder-scope generation. Folder changes cancel Search,
+   Exact Completion, navigation, Filter-only, and Context work, while every
+   asynchronous result path validates both the folder paths and generation
+   before publication. This rejects stale A-to-B-to-A results without adding a
+   parallel state model.
+10. Moved the remaining Library Context cue lookup behind a `SearchStore`
+    intent and replaced Coordinator reads of the Search database handle with a
+    Store-owned availability boundary.
 
 ## Verification
 
 - `swift test --filter SearchStoreTests`
-- Result: 22 tests passed.
+- Result: 23 tests passed, including the folder-scope A-to-B-to-A race test.
 - `swift test --filter PlaybackSearch`
 - Result: 4 tests passed.
 - `swift test --filter URLSchemeSearch`
@@ -45,18 +53,22 @@ Filter, Context, pagination, selection, or playback behavior.
 - Result: 8 tests passed.
 - `swift test --filter PlaybackSubtitleFocusKeyboardActionTests`
 - Result: 21 tests passed.
+- `swift test --filter NativePlaybackMediaTimelineTests`
+- Result: 5 tests passed.
 - `swift test --filter PlaybackPlaylistSourceTests`
 - Result: 9 tests passed.
 - `swift test`
-- Result: 878 tests ran with 14 issues while the full suite concurrently
+- Result: 879 tests ran with 15 issues while the full suite concurrently
   exhausted shared media and SQLite resources or exceeded UI/media timing
-  thresholds. Every failed test that overlaps this change passed when rerun in
-  its focused suite or individually.
+  thresholds. SearchStore, CueGroup refresh, Library folder removal, Playback
+  Subtitle Focus, and Native Playback failures all passed when rerun in their
+  focused suites.
 
 ## Outcome
 
 The unified result table remains the only production Search result presentation
-path. `SearchStore` now owns query execution, result consistency, and
-Filter/Context pagination lifecycle. `AppCoordinator` retains cross-feature
-coordination, while the View retains UI-only state. Focused verification passed;
-the existing full-suite resource contention remains outside this change.
+path. `SearchStore` now owns query execution, database access boundaries, result
+consistency, folder-scope invalidation, and Filter/Context pagination lifecycle.
+`AppCoordinator` retains cross-feature coordination, while the View retains
+UI-only state. Focused verification passed; the existing full-suite resource
+contention remains outside this change.
