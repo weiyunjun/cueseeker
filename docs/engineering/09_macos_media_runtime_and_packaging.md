@@ -34,6 +34,10 @@ Human-owned direction:
 - External GPL codec libraries such as x264 and x265 must not be linked.
 - LAME 3.100 is included as an LGPL shared library because the existing Anki
   workflow exports MP3 audio through FFmpeg's `libmp3lame` encoder.
+- dav1d 1.5.4 is included as a BSD-2-Clause shared library, and FFmpeg must be
+  built with `--enable-libdav1d`. It provides the controlled software AV1
+  decoder used when automatic cover extraction cannot use VideoToolbox. This
+  dependency does not add an AV1 encoder.
 - The `ffmpeg` command-line program is part of the app runtime because existing
   thumbnail, screenshot, and Anki export workflows invoke it. `ffplay`,
   `ffprobe`, documentation, static libraries, and debug symbols are excluded.
@@ -47,6 +51,8 @@ The required FFmpeg app libraries are:
 - `libavutil`
 - `libswresample`
 - `libswscale`
+
+The required external codec libraries include `libdav1d` and `libmp3lame`.
 
 ## 4. libass Runtime
 
@@ -131,7 +137,12 @@ Before accepting a packaged runtime:
 - Recursively inspect install IDs and dependencies.
 - Reject forbidden absolute paths and unresolved non-system dependencies.
 - Verify the app code signature after packaging.
+- Verify that FFmpeg records `CONFIG_LIBDAV1D_DECODER=yes`, exposes the
+  `libdav1d` decoder, and links `libavcodec` to the bundled `libdav1d` through
+  `@rpath`.
 - Build and test CueSeeker against the controlled runtime.
+- Decode an AV1 sample through the same scaled RGB-frame and JPEG extraction
+  commands used by automatic cover generation.
 - Re-run the patched Matroska attachment/subtitle open-stall samples.
 - Exercise representative H.264, HEVC, VP9, AV1, AAC, Opus, seek, and ASS
   subtitle rendering workflows when samples are available.

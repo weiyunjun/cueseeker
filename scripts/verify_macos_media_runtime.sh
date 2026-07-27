@@ -16,6 +16,7 @@ required=(
     libavutil
     libswresample
     libswscale
+    libdav1d
     libass
     libfreetype
     libfribidi
@@ -79,6 +80,21 @@ done
 
 if grep -Eq '^CONFIG_(GPL|NONFREE)=yes' "$ROOT/ffmpeg-config.mak"; then
     echo "error: staged FFmpeg configuration enables GPL or nonfree" >&2
+    exit 1
+fi
+if ! grep -Eq '^CONFIG_LIBDAV1D_DECODER=yes$' "$ROOT/ffmpeg-config.mak"; then
+    echo "error: staged FFmpeg configuration is missing libdav1d decoding" >&2
+    exit 1
+fi
+if ! "$FFMPEG_EXECUTABLE" -hide_banner -decoders 2>/dev/null | \
+    grep -E '^[[:space:]]*V[^[:space:]]*[[:space:]]+libdav1d[[:space:]]' >/dev/null; then
+    echo "error: bundled ffmpeg executable does not expose libdav1d" >&2
+    exit 1
+fi
+libavcodec_dylib="$(find "$LIB_DIR" -type f -name 'libavcodec*.dylib' -print -quit)"
+if ! otool -L "$libavcodec_dylib" | tail -n +2 | awk '{print $1}' | \
+    grep -E '^@rpath/libdav1d(\.[0-9]+)*\.dylib$' >/dev/null; then
+    echo "error: staged libavcodec is not linked to bundled libdav1d" >&2
     exit 1
 fi
 

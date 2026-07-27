@@ -8,10 +8,11 @@ Date: 2026-07-27
 
 ## Scope
 
-This record tracks the accepted two-stage recovery. Phase 1 is limited to the
-platform UI/UX fallback for unavailable automatic covers. It does not change
-FFmpeg, media-runtime dependencies, indexing, cover persistence, or AV1 decode
-behavior.
+This record tracks the accepted two-stage recovery. Phase 1 provides the
+platform UI/UX fallback for unavailable automatic covers. After human visual
+acceptance, Phase 2 restores software AV1 cover decoding in the controlled
+macOS media runtime without changing indexing, cover persistence, or the cover
+selection algorithm.
 
 ## Steps
 
@@ -22,29 +23,46 @@ behavior.
 3. Preserved the existing Cue-count badge, playback progress, duration, and
    manual cover replacement behavior by changing only the cover image layer.
 4. Synchronized the stable fallback behavior in the product UI document.
+5. Recorded dav1d 1.5.4, its official source URL, SHA-256, source directory,
+   and BSD-2-Clause license in the pinned media-runtime inputs.
+6. Built dav1d as a shared decoder library without its tools, examples, tests,
+   documentation, or optional muxer, then enabled FFmpeg's `libdav1d` decoder.
+   No AV1 encoder was added.
+7. Added runtime completeness, FFmpeg configuration, decoder registration,
+   `@rpath` linkage, app-bundle presence, and packaged-decoder checks.
+8. Added `libdav1d` to the Swift package media-runtime completeness gate and
+   staged its license notice with the packaged application.
 
 ## Verification
 
+- The full media-runtime build completed with dav1d 1.5.4, and
+  `verify_macos_media_runtime.sh` passed the ARM64, dependency, FFmpeg
+  configuration, registered-decoder, and direct `libavcodec` linkage gates.
+- An AV1 Matroska sample decoded as `av1 (libdav1d)`. The automatic-cover
+  scoring command produced the exact expected 320 x 180 RGB24 payload of
+  172,800 bytes, and the full cover command produced a valid 320 x 180 JPEG.
 - `swift test --package-path apps/macos-native --filter LibraryCover` rebuilt
-  the changed application target and passed all 25 selected cover tests.
+  against the updated runtime and passed all 25 selected cover tests.
+- `package_macos_app.sh` produced, signed, and verified a self-contained ARM64
+  application. Its packaged FFmpeg exposed `libdav1d`, linked only to the
+  bundled dylib through `@rpath`, and produced the same 172,800-byte AV1 cover
+  scoring frame.
 - The complete `swift test --package-path apps/macos-native` run executed 873
-  tests but reported 14 issues across nine playback timing, Shiori timing,
-  folder-removal, menu timing, and refresh-scope tests while the suite was
-  under broad concurrent load. This run is not recorded as passing.
-- Each of the nine failed tests was rerun individually with both `--skip-build`
-  and `--no-parallel`; all nine passed without code or test changes. The
-  isolated reruns found no failure coupled to the shared fallback cover view.
-- Human visual acceptance of the fallback remains outstanding and is the gate
-  before Phase 2 begins.
+  tests but reported 11 issues across seven existing playback timing, Shiori
+  timing, folder-removal, menu timing, and refresh-scope tests under broad
+  concurrent load. This run is not recorded as passing.
+- The seven failed tests were selected together and rerun with `--skip-build`
+  and `--no-parallel`; all seven passed without code or test changes. The
+  isolated rerun found no failure coupled to the media-runtime dependency.
 
 ## Outcome
 
-Phase 1 is compiled, targeted-cover verified, and ready for human visual
-acceptance. AV1 software decoding remains unchanged and is deferred until the
-human owner accepts the fallback behavior.
+Both accepted phases are implemented. Unavailable covers retain the accepted
+fallback presentation, while the reproducible and packaged macOS runtime now
+uses its bundled `libdav1d` decoder for AV1 automatic-cover extraction when
+software decoding is required.
 
 ## Follow-ups
 
-- Stop after the Phase 1 commit for human visual acceptance.
-- After acceptance, add the controlled AV1 software decoder and verify automatic
-  cover extraction in a separate implementation step and commit.
+- Perform the final human application test with the generated package before a
+  formal release or installation replaces an existing application.

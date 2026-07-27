@@ -9,8 +9,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Replaced the flat gray fallback for unavailable automatic Library covers with
   the shared `16:9` Library Cover Placeholder background and a centered muted
   `film` symbol. Existing Cue-count badges, playback progress, duration, and
-  manual cover replacement remain available; AV1 software decoding is deferred
-  to the separately accepted follow-up phase.
+  manual cover replacement remain available. The controlled and packaged
+  macOS FFmpeg runtime now also includes pinned dav1d 1.5.4 software decoding,
+  restoring automatic cover extraction for AV1 video without adding an AV1
+  encoder.
 - Removed the retired Speaker and AI Chunking paths. Database schema 39 drops
   their obsolete tables in place while preserving Cue, Language, Shiori, and
   search data, so no reindex is required. App startup also clears the saved

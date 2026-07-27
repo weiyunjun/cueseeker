@@ -251,6 +251,15 @@ build_lame() {
     )
 }
 
+build_dav1d() {
+    meson_build dav1d "$BUILD_ROOT/sources/dav1d-1.5.4" \
+        -Denable_tools=false \
+        -Denable_examples=false \
+        -Denable_tests=false \
+        -Denable_docs=false \
+        -Dxxhash_muxer=disabled
+}
+
 build_ffmpeg() {
     source="$BUILD_ROOT/sources/ffmpeg-8.1.2"
     build="$BUILD_ROOT/build/ffmpeg"
@@ -277,6 +286,7 @@ build_ffmpeg() {
             --disable-avdevice \
             --disable-gpl \
             --disable-nonfree \
+            --enable-libdav1d \
             --enable-libmp3lame \
             --enable-videotoolbox \
             --enable-audiotoolbox \
@@ -330,6 +340,7 @@ stage_licenses_and_manifest() {
     licenses="$PREFIX/licenses"
     mkdir -p "$licenses"
     cp "$BUILD_ROOT/sources/ffmpeg-8.1.2/LICENSE.md" "$licenses/FFmpeg-LICENSE.md"
+    cp "$BUILD_ROOT/sources/dav1d-1.5.4/COPYING" "$licenses/dav1d-COPYING"
     cp "$BUILD_ROOT/sources/libass-0.17.4/COPYING" "$licenses/libass-COPYING"
     cp "$BUILD_ROOT/sources/freetype-2.14.3/LICENSE.TXT" "$licenses/FreeType-LICENSE.txt"
     cp "$BUILD_ROOT/sources/fribidi-1.0.16/COPYING" "$licenses/FriBidi-COPYING"
@@ -364,6 +375,7 @@ build_harfbuzz
 build_libunibreak
 build_libass
 build_lame
+build_dav1d
 build_ffmpeg
 rewrite_install_names
 stage_licenses_and_manifest

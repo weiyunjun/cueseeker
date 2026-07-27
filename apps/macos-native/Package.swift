@@ -22,6 +22,7 @@ func missingMediaRuntimeFiles(_ root: String) -> [String] {
         "\(root)/lib/libavutil.dylib",
         "\(root)/lib/libswresample.dylib",
         "\(root)/lib/libswscale.dylib",
+        "\(root)/lib/libdav1d.dylib",
         "\(root)/lib/libass.dylib",
         "\(root)/lib/libfreetype.dylib",
         "\(root)/lib/libfribidi.dylib",

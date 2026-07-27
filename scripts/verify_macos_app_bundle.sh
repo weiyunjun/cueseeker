@@ -21,6 +21,16 @@ for path in "$EXECUTABLE" "$FFMPEG_EXECUTABLE" "$PLIST" "$FRAMEWORKS"; do
     fi
 done
 
+if ! find "$FRAMEWORKS" -type f -name 'libdav1d*.dylib' -print -quit | grep -q .; then
+    echo "error: bundled libdav1d is missing" >&2
+    exit 1
+fi
+if ! "$FFMPEG_EXECUTABLE" -hide_banner -decoders 2>/dev/null | \
+    grep -E '^[[:space:]]*V[^[:space:]]*[[:space:]]+libdav1d[[:space:]]' >/dev/null; then
+    echo "error: bundled ffmpeg executable does not expose libdav1d" >&2
+    exit 1
+fi
+
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" != \
     "com.cueseeker.app" ]; then
     echo "error: unexpected bundle identifier" >&2
