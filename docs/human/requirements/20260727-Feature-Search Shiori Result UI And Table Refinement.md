@@ -18,7 +18,7 @@ main
 13. 当且仅当exact计算完毕，才可以进入Select状态。
 14. 表格区域，除了Primary Cue，其它列的内容都改为muted颜色。表头的颜色改为secondary。
 15. 取消hover Cues时的背景色变化效果，保留下划线效果。hover行时拥有和hover Cues现在的背景色变化效果。在Select状态，选中某一行以后有更深的背景色变化效果。但是hover已经selected的行，背景色不会叠加。
-16. 非Select状态时，checkbox位置显示#列，即当前Search或Shiori结果的序号，它是动态的，仅反映在列表中的实际位置。表头沿用secondary颜色，表格内容沿用muted颜色。
+16. 非Select状态时，checkbox位置显示#列，即当前Search或Shiori结果的序号，它是动态的，仅反映在列表中的实际位置。表头沿用secondary颜色，表格内容沿用muted颜色。#列作为动态序号，且和非Select状态绑定，类似checkbox，不出现在View按钮的列表中。
 
 # 实施步骤
 
