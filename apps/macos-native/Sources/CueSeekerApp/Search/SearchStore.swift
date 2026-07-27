@@ -230,7 +230,12 @@ final class SearchStore: ObservableObject {
         }
         if case .residentSearch = tableProjectionSource {
             synchronizeResidentSearchTableProjection()
+            return
         }
+        restoreFolderScopedTableProjection(
+            tableProjectionSource,
+            folders: folderScopePaths.map { URL(fileURLWithPath: $0) }
+        )
     }
 
     private func synchronizeResidentSearchTableProjection() {

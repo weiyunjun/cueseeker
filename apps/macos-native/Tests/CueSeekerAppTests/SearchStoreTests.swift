@@ -166,7 +166,7 @@ func failedFolderIndexRestartsInvalidatedActiveSearch() async throws {
 
 @MainActor
 @Test
-func folderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws {
+func playbackCoveredFolderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws {
     let suiteName = "CueSeekerFilterOnlyScopeLifecycleTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let testRoot = FileManager.default.temporaryDirectory
@@ -193,6 +193,9 @@ func folderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws 
         initialPageSize: 100,
         continuationPageSize: 100
     )
+    let originalFolderPaths = app.indexing.selectedFolders.map(\.path)
+    app.search.setTableProjectionResponseActive(false)
+    app.search.suspendFilterOnlyPageLoad()
 
     let emptyFolder = testRoot.appendingPathComponent(
         "Empty Filter Scope",
@@ -204,6 +207,13 @@ func folderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws 
     )
     app.addFolder(emptyFolder)
     await app.indexingTask?.value
+
+    guard case let .filterOnly(coveredKey) = app.search.tableProjectionSource else {
+        Issue.record("Expected covered Filter-only projection to remain resident")
+        return
+    }
+    #expect(coveredKey.folderPaths == originalFolderPaths)
+    app.search.setTableProjectionResponseActive(true)
 
     var deadline = Date().addingTimeInterval(2)
     while app.search.tableRowStore.snapshot.totalRowCount != 1,
@@ -217,6 +227,8 @@ func folderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws 
 
     let invalidFolder = testRoot.appendingPathComponent("Invalid Filter Scope")
     try Data("file root".utf8).write(to: invalidFolder)
+    app.search.setTableProjectionResponseActive(false)
+    app.search.suspendFilterOnlyPageLoad()
     app.addFolder(invalidFolder)
     await app.indexingTask?.value
 
@@ -224,6 +236,7 @@ func folderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws 
         Issue.record("Expected Filter-only file root indexing to fail")
         return
     }
+    app.search.setTableProjectionResponseActive(true)
     deadline = Date().addingTimeInterval(2)
     while app.search.tableRowStore.snapshot.totalRowCount != 1,
           Date() < deadline {
@@ -597,7 +610,7 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
 
 @MainActor
 @Test
-func contextTableLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async throws {
+func playbackCoveredContextLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async throws {
     let suiteName = "CueSeekerContextTableLifecycleTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
@@ -648,6 +661,8 @@ func contextTableLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async 
         initialPageSize: 100,
         continuationPageSize: 100
     ))
+    app.search.setTableProjectionResponseActive(false)
+    app.search.cancelContextTableLoad()
     let emptyFolder = fixtureRoot.appendingPathComponent(
         "Empty Context Scope",
         isDirectory: true
@@ -658,6 +673,8 @@ func contextTableLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async 
     )
     app.addFolder(emptyFolder)
     await app.indexingTask?.value
+    #expect(app.search.contextLoadedSourceRange == nil)
+    app.search.setTableProjectionResponseActive(true)
 
     let deadline = Date().addingTimeInterval(2)
     while app.search.tableRowStore.snapshot.totalRowCount < 200,
@@ -674,6 +691,8 @@ func contextTableLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async 
         folders: app.indexing.selectedFolders,
         pageSize: 100
     )
+    app.search.setTableProjectionResponseActive(false)
+    app.search.cancelContextTableLoad()
     let invalidFolder = fixtureRoot.appendingPathComponent(
         "Invalid Context Scope"
     )
@@ -684,6 +703,8 @@ func contextTableLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async 
         Issue.record("Expected Context file root indexing to fail")
         return
     }
+    #expect(app.search.contextLoadedSourceRange == nil)
+    app.search.setTableProjectionResponseActive(true)
 
     let recoveryDeadline = Date().addingTimeInterval(2)
     while app.search.contextLoadedSourceRange != 0..<200,
