@@ -120,6 +120,7 @@ final class SearchStore: ObservableObject {
     @Published private(set) var resultRevision: UInt64 = 0
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
     @Published private(set) var searchFacetSnapshot: CueFacetSearchSnapshot?
+    @Published private(set) var emptySearchFacetDistribution: CueFacetDistribution?
     @Published private(set) var searchFacetFilter = CueFacetFilter()
     @Published private(set) var filteredSearchResultTotalCount: Int?
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
@@ -143,6 +144,7 @@ final class SearchStore: ObservableObject {
         self.databaseURL = databaseURL
         self.database = database
         self.uiProbeScope = uiProbeScope
+        emptySearchFacetDistribution = try? database?.cueFacetDistribution()
         tableRowStore = TableSandboxRowModelStore()
         cueContentChangesCancellable = cueContentStore.changes.sink {
             [weak self] change in
@@ -802,6 +804,9 @@ final class SearchStore: ObservableObject {
         if case .residentSearch = tableProjectionSource {
             return token
         }
+        if case .facetSearch = tableProjectionSource {
+            return token
+        }
         setTableProjectionSource(nil)
         tableRowStore.updateResidentSearchReferences(
             cueIDs: [],
@@ -825,8 +830,13 @@ final class SearchStore: ObservableObject {
             return false
         }
         activeIndexedCueMutationGeneration = nil
+        reloadEmptySearchFacetDistribution()
         indexedCueDataRevision &+= 1
         return true
+    }
+
+    func reloadEmptySearchFacetDistribution() {
+        emptySearchFacetDistribution = try? database?.cueFacetDistribution()
     }
 
     private func setTableProjectionSource(_ source: SearchTableProjectionSource?) {

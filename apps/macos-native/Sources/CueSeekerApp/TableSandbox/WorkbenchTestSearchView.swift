@@ -30,6 +30,8 @@ private struct WorkbenchSearchTableTextCopySource {
 }
 
 struct WorkbenchTestSearchView: View {
+    static let defaultFacetPanelVisibility = true
+
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
@@ -52,6 +54,7 @@ struct WorkbenchTestSearchView: View {
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var suppressNextFilterRulesReload = false
     @State private var hasDeferredRefreshWhileCovered = false
+    @State private var isFacetPanelVisible: Bool
 
     private static let continuousPageSize = 1_000
 
@@ -64,6 +67,7 @@ struct WorkbenchTestSearchView: View {
         _searchDraft = State(initialValue: "")
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
         _filterRules = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterRules)
+        _isFacetPanelVisible = State(initialValue: Self.defaultFacetPanelVisibility)
     }
 
     var body: some View {
@@ -84,7 +88,19 @@ struct WorkbenchTestSearchView: View {
             filterableColumnIDs: ["display", "cues"],
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
-            onToggleSelectionMode: toggleSelectionMode
+            onToggleSelectionMode: toggleSelectionMode,
+            filterPanel: AnyView(
+                CueFacetFilterPanel(
+                    distribution: facetDistribution,
+                    availableLanguages: availableFacetLanguages,
+                    isCalculating: search.isFacetSnapshotCalculating,
+                    filter: searchFacetFilterBinding
+                )
+            ),
+            isFilterPanelVisible: isFacetPanelVisible,
+            onToggleFilterPanel: {
+                isFacetPanelVisible.toggle()
+            }
         ) { visibleColumns in
             ZStack {
                 SubtitleTableView(
@@ -124,12 +140,13 @@ struct WorkbenchTestSearchView: View {
                 )
 
                 if showsSearchEmptyHint {
-                    WorkbenchEmptyHint(message: "Enter a search term or add filters to show cues.")
+                    WorkbenchEmptyHint(message: "Enter a search term to show cues.")
                 }
             }
         }
         .onAppear {
             search.setTableProjectionResponseActive(allowsTableResponse)
+            search.updateSearchFacetFilter(settingsStore.searchFacetFilter)
             prepareViewportRestoration()
             restoreTableControls()
             if let request = search.cueContextSearchRequest,
@@ -268,9 +285,39 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var showsSearchEmptyHint: Bool {
-        search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        search.cueContextSearchRequest == nil
+            && search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && search.activeFilterSet.isEffectivelyEmpty
+    }
+
+    private var searchFacetFilterBinding: Binding<CueFacetFilter> {
+        Binding(
+            get: { settingsStore.searchFacetFilter },
+            set: { newValue in
+                settingsStore.searchFacetFilter = newValue
+                applySearchFacetFilter(newValue)
+            }
+        )
+    }
+
+    private var facetDistribution: CueFacetDistribution? {
+        search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? search.emptySearchFacetDistribution
+            : search.searchFacetSnapshot?.distribution
+    }
+
+    private var availableFacetLanguages: [SubtitleLanguageCode] {
+        var available = Set(
+            search.emptySearchFacetDistribution?.languageCounts.compactMap {
+                $0.value > 0 ? $0.key : nil
+            } ?? []
+        )
+        if let snapshot = search.searchFacetSnapshot {
+            available.formUnion(snapshot.distribution.languageCounts.keys)
+        }
+        available.insert(.unknown)
+        return SubtitleLanguageCode.allCases.filter(available.contains)
     }
 
     private var searchInputBinding: Binding<String> {
@@ -302,8 +349,8 @@ struct WorkbenchTestSearchView: View {
             resultRowCount = search.searchResultTotalCount
         } else {
             let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-            let cueIDs = search.searchResultCueIDs
-            resultRowCount = search.searchResultTotalCount
+            let cueIDs = search.filteredSearchResultCueIDs
+            resultRowCount = search.filteredSearchResultTotalCount ?? -1
             guard !query.isEmpty,
                   workbenchSearchHasCompleteTextCopyBoundary(
                       searchStatus: search.searchStatus,
@@ -321,8 +368,8 @@ struct WorkbenchTestSearchView: View {
             resultRowCount: max(0, resultRowCount),
             folderPaths: appState.indexing.selectedFolders.map(\.path),
             filterSignature: search.activeFilterSetSignature,
-            languageFilter: settingsStore.primarySearchLanguage.searchLanguageFilter,
-            watchStateFilter: settingsStore.searchScope.searchWatchStateFilter
+            languageFilter: .all,
+            watchStateFilter: .all
         )
     }
 
@@ -346,7 +393,13 @@ struct WorkbenchTestSearchView: View {
                 range: range,
                 folders: folders,
                 languageFilter: source.languageFilter,
-                watchStateFilter: source.watchStateFilter
+                watchStateFilter: source.watchStateFilter,
+                orderedCueIDs: {
+                    guard case .search(_, let cueIDs) = source.mode else {
+                        return nil
+                    }
+                    return cueIDs
+                }()
             )
         case .allCues:
             page = await search.loadAllCueRows(range: range, folders: folders)
@@ -384,16 +437,14 @@ struct WorkbenchTestSearchView: View {
             guard search.cueContextSearchRequest == nil,
                   search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query,
                   search.activeFilterSetSignature == source.filterSignature,
-                  settingsStore.primarySearchLanguage.searchLanguageFilter == source.languageFilter,
-                  settingsStore.searchScope.searchWatchStateFilter == source.watchStateFilter,
                   workbenchSearchHasCompleteTextCopyBoundary(
                       searchStatus: search.searchStatus,
                       countState: search.searchCountState,
-                      cueIDs: search.searchResultCueIDs,
-                      resultRowCount: search.searchResultTotalCount
+                      cueIDs: search.filteredSearchResultCueIDs,
+                      resultRowCount: search.filteredSearchResultTotalCount ?? -1
                   ),
-                  search.searchResultTotalCount == source.resultRowCount,
-                  search.searchResultCueIDs == cueIDs
+                  search.filteredSearchResultTotalCount == source.resultRowCount,
+                  search.filteredSearchResultCueIDs == cueIDs
             else {
                 return false
             }
@@ -568,7 +619,7 @@ struct WorkbenchTestSearchView: View {
             hasDeferredRefreshWhileCovered = true
             return
         }
-        search.activateResidentSearchTableProjection()
+        search.activateCurrentSearchTableProjection()
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
         refreshSelectedCollageAvailability()
     }
@@ -753,6 +804,19 @@ struct WorkbenchTestSearchView: View {
                 loadAllCueRows(resetScroll: false)
             }
         }
+    }
+
+    private func applySearchFacetFilter(_ filter: CueFacetFilter) {
+        exitSelectionMode()
+        rowSelection.reset()
+        persistSelection()
+        search.tableViewportAnchor = nil
+        viewportAnchorToRestore = nil
+        tableScrollTargetRow = nil
+        didRestoreViewport = true
+        lastVisibleRows = nil
+        tableScrollResetToken += 1
+        search.updateSearchFacetFilter(filter)
     }
 
     private func exportSelectedRowsToAnki() {

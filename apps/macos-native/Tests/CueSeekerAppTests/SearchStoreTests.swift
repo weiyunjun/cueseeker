@@ -6,6 +6,12 @@ import Testing
 @testable import CueSeekerApp
 
 @MainActor
+@Test
+func searchFacetPanelDefaultsToVisible() {
+    #expect(WorkbenchTestSearchView.defaultFacetPanelVisibility)
+}
+
+@MainActor
 extension SearchStore {
     func replaceResidentResults(_ results: [SubtitleSearchResult]) {
         replaceResultState(
@@ -609,7 +615,7 @@ func facetFilterWithEmptyCardImmediatelyProjectsZeroRows() {
 
 @MainActor
 @Test
-func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throws {
+func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async throws {
     let suiteName = "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
@@ -656,18 +662,21 @@ func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throw
     )
     let video = presentation.libraryVideo
     app.indexing.selectedFolders = [fixtureRoot]
-    app.settings.searchScope = .watchingAndFinished
 
     app.updateSearchQuery("shared watch state")
     await app.search.searchTask?.value
-    #expect(app.search.searchResults.isEmpty)
+    await app.search.exactCompletionTask?.value
+    #expect(app.search.searchResults.count == 1)
+    #expect(app.search.searchFacetSnapshot?.distribution.watchStateCounts[.unwatched] == 1)
 
     app.recordRecentLibraryWatching(for: video, refreshPresentation: false)
     app.flushPendingLibraryPlaybackHistoryPresentations()
     await app.search.searchTask?.value
+    await app.search.exactCompletionTask?.value
 
     #expect(app.search.searchResults.count == 1)
     #expect(app.search.searchResults.first?.videoPath == videoURL.path)
+    #expect(app.search.searchFacetSnapshot?.distribution.watchStateCounts[.watching] == 1)
 }
 
 @MainActor

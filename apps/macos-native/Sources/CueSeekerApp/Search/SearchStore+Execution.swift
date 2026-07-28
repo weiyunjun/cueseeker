@@ -596,7 +596,8 @@ extension SearchStore {
         range: Range<Int>,
         folders: [URL],
         languageFilter: SubtitleSearchLanguageFilter,
-        watchStateFilter: SubtitleSearchWatchStateFilter
+        watchStateFilter: SubtitleSearchWatchStateFilter,
+        orderedCueIDs: [Int64]? = nil
     ) async -> TableSandboxSearchHydrationPage? {
         let scopeGeneration = folderScopeGeneration
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -611,15 +612,15 @@ extension SearchStore {
             return nil
         }
 
-        let totalCount = searchResultTotalCount
+        let sourceCueIDs = orderedCueIDs ?? searchResultCueIDs
+        let totalCount = orderedCueIDs?.count ?? searchResultTotalCount
         guard totalCount > 0 else { return nil }
         let lowerBound = min(max(0, range.lowerBound), totalCount)
         let upperBound = min(max(lowerBound, range.upperBound), totalCount)
         guard lowerBound < upperBound else { return nil }
 
-        let cueIDs = searchResultCueIDs
-        if cueIDs.count >= upperBound {
-            let requestedCueIDs = Array(cueIDs[lowerBound..<upperBound])
+        if sourceCueIDs.count >= upperBound {
+            let requestedCueIDs = Array(sourceCueIDs[lowerBound..<upperBound])
             let fileSummaries = searchFileSummaries
             do {
                 let page = try await Self.runCancellableDetached(
@@ -655,7 +656,7 @@ extension SearchStore {
                         in: .whitespacesAndNewlines
                       ) == query,
                       resultFilterSetSignature == filterSignature,
-                      searchResultCueIDs.count >= upperBound
+                      (orderedCueIDs != nil || searchResultCueIDs.count >= upperBound)
                 else {
                     return nil
                 }

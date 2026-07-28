@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Testing
+import CueSeekerCore
 @testable import CueSeekerApp
 
 @MainActor
@@ -51,6 +52,50 @@ func settingsStoreLoadsPersistedShowCueGroupValue() {
         let store = SettingsStore(userDefaults: userDefaults)
 
         #expect(store.showCueGroup)
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreDefaultsSearchFacetsToEveryOptionSelected() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
+
+        #expect(store.searchFacetFilter == CueFacetFilter())
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreRestoresSearchFacetSelections() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let firstStore = SettingsStore(userDefaults: userDefaults)
+        firstStore.searchFacetFilter = CueFacetFilter(
+            durations: [.underOneSecond, .fiveSecondsOrMore],
+            characters: [],
+            languages: [.japanese, .unknown],
+            watchStates: [.watching]
+        )
+
+        let restoredStore = SettingsStore(userDefaults: userDefaults)
+
+        #expect(restoredStore.searchFacetFilter == firstStore.searchFacetFilter)
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreTreatsUnrecognizedFacetValuesAsNewSelectedOptions() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        userDefaults.set([
+            "language": ["en", "future-language"],
+        ], forKey: "searchFacetExclusions")
+
+        let store = SettingsStore(userDefaults: userDefaults)
+
+        #expect(!store.searchFacetFilter.languages.contains(.english))
+        #expect(store.searchFacetFilter.languages.contains(.japanese))
+        #expect(store.searchFacetFilter.languages.contains(.unknown))
     }
 }
 

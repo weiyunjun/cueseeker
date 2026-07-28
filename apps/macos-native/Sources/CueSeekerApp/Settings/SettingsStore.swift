@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import SwiftUI
+import CueSeekerCore
 import CueSeekerPlayback
 
 @MainActor
@@ -79,6 +80,7 @@ final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
     private static let primarySearchLanguageKey = "primarySearchLanguage"
     private static let searchScopeKey = "searchScope"
+    private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let showCueGroupKey = "showCueGroup"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let legacyAutoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
@@ -110,6 +112,12 @@ final class SettingsStore: ObservableObject {
     @Published var searchScope: SearchScope {
         didSet {
             userDefaults.set(searchScope.rawValue, forKey: Self.searchScopeKey)
+        }
+    }
+
+    @Published var searchFacetFilter: CueFacetFilter {
+        didSet {
+            Self.saveSearchFacetFilter(searchFacetFilter, to: userDefaults)
         }
     }
 
@@ -244,6 +252,7 @@ final class SettingsStore: ObservableObject {
         self.appAppearanceMode = loadedAppearance
         self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
         self.searchScope = Self.loadSearchScope(from: userDefaults)
+        self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.autoPauseAfterCueFinishesEnabled = resolvedAutoPausePreference
         self.autoSwitchToNextCuesInPlaylistEnabled = resolvedAutoSwitchPreference
@@ -311,6 +320,61 @@ final class SettingsStore: ObservableObject {
             return .defaultValue
         }
         return scope
+    }
+
+    private static func loadSearchFacetFilter(from userDefaults: UserDefaults) -> CueFacetFilter {
+        let exclusions = userDefaults.dictionary(forKey: searchFacetExclusionsKey) ?? [:]
+        let durations = Set(CueDurationFacet.allCases).subtracting(
+            rawValues(for: "duration", in: exclusions).compactMap(CueDurationFacet.init(rawValue:))
+        )
+        let characters = Set(CueCharacterFacet.allCases).subtracting(
+            rawValues(for: "character", in: exclusions).compactMap(CueCharacterFacet.init(rawValue:))
+        )
+        let languages = Set(SubtitleLanguageCode.allCases).subtracting(
+            rawValues(for: "language", in: exclusions).compactMap(SubtitleLanguageCode.init(rawValue:))
+        )
+        let allWatchStates: Set<LibraryWatchState> = [.finished, .watching, .unwatched]
+        let watchStates = allWatchStates.subtracting(
+            rawValues(for: "watchState", in: exclusions).compactMap(LibraryWatchState.init(rawValue:))
+        )
+        return CueFacetFilter(
+            durations: durations,
+            characters: characters,
+            languages: languages,
+            watchStates: watchStates
+        )
+    }
+
+    private static func saveSearchFacetFilter(
+        _ filter: CueFacetFilter,
+        to userDefaults: UserDefaults
+    ) {
+        let allWatchStates: Set<LibraryWatchState> = [.finished, .watching, .unwatched]
+        userDefaults.set([
+            "duration": Set(CueDurationFacet.allCases)
+                .subtracting(filter.durations)
+                .map(\.rawValue)
+                .sorted(),
+            "character": Set(CueCharacterFacet.allCases)
+                .subtracting(filter.characters)
+                .map(\.rawValue)
+                .sorted(),
+            "language": Set(SubtitleLanguageCode.allCases)
+                .subtracting(filter.languages)
+                .map(\.rawValue)
+                .sorted(),
+            "watchState": allWatchStates
+                .subtracting(filter.watchStates)
+                .map(\.rawValue)
+                .sorted(),
+        ], forKey: searchFacetExclusionsKey)
+    }
+
+    private static func rawValues(
+        for key: String,
+        in dictionary: [String: Any]
+    ) -> [String] {
+        dictionary[key] as? [String] ?? []
     }
 
     private static func loadPlaybackDecodeMode(from userDefaults: UserDefaults) -> PlaybackDecodeMode {

@@ -9,6 +9,7 @@ extension AppCoordinator {
             details: "length=\(query.count)"
         )
         search.updateQuery(query)
+        search.updateActiveFilterSet(SubtitleSearchFilterSet())
         startSearch(query: query, cursor: .start, appending: false, debounce: true)
     }
 
@@ -83,6 +84,7 @@ extension AppCoordinator {
         }
         workbenchLayout.selectPanelMode(.search)
         search.updateQuery(trimmedQuery)
+        search.updateActiveFilterSet(SubtitleSearchFilterSet())
         search.updateNavigationSnapshot(nil)
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
     }
@@ -221,8 +223,8 @@ extension AppCoordinator {
         }
 
         let folders = folderScopeOverride ?? indexing.selectedFolders
-        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
-        let watchStateFilter = settings.searchScope.searchWatchStateFilter
+        let languageFilter = SubtitleSearchLanguageFilter.all
+        let watchStateFilter = SubtitleSearchWatchStateFilter.all
         search.startSearch(
             query: query,
             cursor: cursor,
@@ -240,10 +242,6 @@ extension AppCoordinator {
             isContextCurrent: { [weak self] in
                 guard let self else { return false }
                 return self.indexing.selectedFolders == folders
-                    && self.settings.primarySearchLanguage.searchLanguageFilter
-                        == languageFilter
-                    && self.settings.searchScope.searchWatchStateFilter
-                        == watchStateFilter
             },
             onResultsChanged: { [weak self] generation in
                 self?.refreshSearchPlaybackPlaylistSource(
@@ -309,9 +307,7 @@ extension AppCoordinator {
     }
 
     func refreshSearchForLibraryWatchStateChange() {
-        guard settings.searchScope != .all else {
-            return
-        }
+        search.reloadEmptySearchFacetDistribution()
 
         let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
@@ -356,15 +352,13 @@ extension AppCoordinator {
             return
         }
 
-        let languageFilter = settings.primarySearchLanguage.searchLanguageFilter
         let filterSet = search.resultFilterSet
         let filterSignature = filterSet.cacheSignature
         search.replaceNavigationTask(Task { [weak self] in
             guard !Task.isCancelled, let self else {
                 return
             }
-            guard self.settings.primarySearchLanguage.searchLanguageFilter == languageFilter,
-                  self.search.resultFilterSetSignature == filterSignature
+            guard self.search.resultFilterSetSignature == filterSignature
             else {
                 return
             }

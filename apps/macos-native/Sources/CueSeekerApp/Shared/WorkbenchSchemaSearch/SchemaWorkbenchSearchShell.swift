@@ -277,6 +277,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let isSelectionMode: Bool
     let canEnterSelectionMode: Bool
     let onToggleSelectionMode: () -> Void
+    let filterPanel: AnyView?
+    let isFilterPanelVisible: Bool
+    let onToggleFilterPanel: (() -> Void)?
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
@@ -299,6 +302,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         isSelectionMode: Bool = false,
         canEnterSelectionMode: Bool = false,
         onToggleSelectionMode: @escaping () -> Void = {},
+        filterPanel: AnyView? = nil,
+        isFilterPanelVisible: Bool = false,
+        onToggleFilterPanel: (() -> Void)? = nil,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
@@ -315,6 +321,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.isSelectionMode = isSelectionMode
         self.canEnterSelectionMode = canEnterSelectionMode
         self.onToggleSelectionMode = onToggleSelectionMode
+        self.filterPanel = filterPanel
+        self.isFilterPanelVisible = isFilterPanelVisible
+        self.onToggleFilterPanel = onToggleFilterPanel
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
     }
@@ -338,14 +347,23 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         placeholder: searchPlaceholder,
                         searchDraft: $searchDraft,
                         searchResultCountText: searchResultCountText,
-                        filterCount: filterRules.count,
+                        filterCount: onToggleFilterPanel == nil
+                            ? filterRules.count
+                            : nil,
                         isSelectionMode: isSelectionMode,
-                        isFilterBuilderMenuOpen: openPopover == .filterBuilder,
+                        isFilterBuilderMenuOpen: onToggleFilterPanel == nil
+                            ? openPopover == .filterBuilder
+                            : isFilterPanelVisible,
                         isViewMenuOpen: openPopover == .columnVisibility,
                         canEnterSelectionMode: canEnterSelectionMode,
                         onSubmit: onSearchSubmit,
                         onFilter: {
-                            openFilterBuilder()
+                            if let onToggleFilterPanel {
+                                openPopover = nil
+                                onToggleFilterPanel()
+                            } else {
+                                openFilterBuilder()
+                            }
                         },
                         onViewMenu: {
                             togglePopover(.columnVisibility)
@@ -377,6 +395,14 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, 12)
+                }
+
+                if isRedesign,
+                   isFilterPanelVisible,
+                   let filterPanel {
+                    filterPanel
+                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                 }
 
                 ZStack(alignment: .bottom) {
@@ -662,7 +688,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     let placeholder: String
     @Binding var searchDraft: String
     let searchResultCountText: String?
-    let filterCount: Int
+    let filterCount: Int?
     var isSelectionMode: Bool = false
     var isFilterBuilderMenuOpen: Bool = false
     var isViewMenuOpen: Bool = false

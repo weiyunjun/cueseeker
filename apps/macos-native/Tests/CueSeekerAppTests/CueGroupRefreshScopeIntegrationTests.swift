@@ -309,11 +309,12 @@ struct CueGroupRefreshScopeIntegrationTests {
             let removalTask = try #require(app.folderRemovalTask)
             await executor.waitUntilStarted()
 
-            if case .residentSearch = app.search.tableProjectionSource {
+            switch app.search.tableProjectionSource {
+            case .residentSearch, .facetSearch:
                 #expect(app.search.tableRowStore.snapshot.orderedEntryIDs
                     == originalEntryIDs)
-            } else {
-                Issue.record("Resident Search projection was cleared during removal")
+            default:
+                Issue.record("Search projection was cleared during removal")
             }
 
             await executor.finish()

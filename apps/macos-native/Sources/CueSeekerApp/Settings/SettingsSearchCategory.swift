@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct SettingsSearchCategory: View {
-    @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
 
     var body: some View {
@@ -10,44 +9,12 @@ struct SettingsSearchCategory: View {
                 Text("Search")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Choose default filters for regular Search results.")
+                Text("Choose how cues are presented in Search.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 16) {
-                    Text("Primary Search Language")
-                        .font(.headline)
-
-                    Spacer()
-
-                    Picker("Primary Search Language", selection: $settingsStore.primarySearchLanguage) {
-                        ForEach(PrimarySearchLanguage.allCases) { language in
-                            Text(language.displayName)
-                                .tag(language)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 180)
-                }
-
-                HStack(spacing: 16) {
-                    Text("Search Scope")
-                        .font(.headline)
-
-                    Spacer()
-
-                    Picker("Search Scope", selection: $settingsStore.searchScope) {
-                        ForEach(SearchScope.allCases) { scope in
-                            Text(scope.displayName)
-                                .tag(scope)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 180)
-                }
-
                 HStack(spacing: 16) {
                     Text("Show Cue Group")
                         .font(.headline)
