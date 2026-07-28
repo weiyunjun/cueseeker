@@ -46,11 +46,23 @@ func cueFacetBucketsUseRequiredBoundaries() {
 }
 
 @Test
-func cueFacetFilterTreatsEmptySelectionsAsAll() {
+func cueFacetFilterTreatsEverySelectedOptionAsUnrestricted() {
     let filter = CueFacetFilter()
 
-    #expect(filter.activeCardCount == 0)
-    #expect(matches(filter, languages: [.japanese, .english]))
+    #expect(matches(
+        filter,
+        durationMilliseconds: 500,
+        characterCount: 5,
+        languages: [.english],
+        watchState: .finished
+    ))
+    #expect(matches(
+        filter,
+        durationMilliseconds: 6_000,
+        characterCount: 40,
+        languages: [.unknown],
+        watchState: .unwatched
+    ))
 }
 
 @Test
@@ -80,22 +92,19 @@ func cueFacetFilterUsesOrWithinEveryCard() {
 }
 
 @Test
-func cueFacetFilterUsesAndForEveryActiveCardCombination() {
-    for mask in 0..<16 {
-        let filter = CueFacetFilter(
-            durations: mask & 1 == 0 ? [] : [.oneToUnderThreeSeconds],
-            characters: mask & 2 == 0 ? [] : [.elevenToTwenty],
-            languages: mask & 4 == 0 ? [] : [.japanese],
-            watchStates: mask & 8 == 0 ? [] : [.watching]
-        )
+func cueFacetFilterUsesAndBetweenCards() {
+    let filter = CueFacetFilter(
+        durations: [.oneToUnderThreeSeconds],
+        characters: [.elevenToTwenty],
+        languages: [.japanese],
+        watchStates: [.watching]
+    )
 
-        #expect(filter.activeCardCount == mask.nonzeroBitCount)
-        #expect(matches(filter, languages: [.japanese, .english]))
-        if mask & 1 != 0 { #expect(!matches(filter, durationMilliseconds: 5_000)) }
-        if mask & 2 != 0 { #expect(!matches(filter, characterCount: 30)) }
-        if mask & 4 != 0 { #expect(!matches(filter, languages: [.english])) }
-        if mask & 8 != 0 { #expect(!matches(filter, watchState: .finished)) }
-    }
+    #expect(matches(filter))
+    #expect(!matches(filter, durationMilliseconds: 5_000))
+    #expect(!matches(filter, characterCount: 30))
+    #expect(!matches(filter, languages: [.english]))
+    #expect(!matches(filter, watchState: .finished))
 }
 
 @Test
@@ -109,25 +118,19 @@ func cueFacetFilterMatchesEveryLanguageAssignedToCue() {
 }
 
 @Test
-func cueFacetFilterCanClearEveryCardBackToAll() {
-    var filter = CueFacetFilter(
-        durations: [.underOneSecond],
-        characters: [.oneToTen],
-        languages: [.unknown],
-        watchStates: [.unwatched]
-    )
+func cueFacetFilterRejectsResultsWhenAnyCardHasNoSelection() {
+    let filters = [
+        CueFacetFilter(durations: []),
+        CueFacetFilter(characters: []),
+        CueFacetFilter(languages: []),
+        CueFacetFilter(watchStates: []),
+        CueFacetFilter(
+            durations: [],
+            characters: [],
+            languages: [],
+            watchStates: []
+        ),
+    ]
 
-    filter.durations.removeAll()
-    filter.characters.removeAll()
-    filter.languages.removeAll()
-    filter.watchStates.removeAll()
-
-    #expect(filter.activeCardCount == 0)
-    #expect(matches(
-        filter,
-        durationMilliseconds: 5_000,
-        characterCount: 31,
-        languages: [.japanese],
-        watchState: .finished
-    ))
+    #expect(filters.allSatisfy { !matches($0) })
 }

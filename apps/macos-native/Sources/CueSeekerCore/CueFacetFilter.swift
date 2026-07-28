@@ -45,24 +45,15 @@ public struct CueFacetFilter: Equatable, Sendable {
     public var watchStates: Set<LibraryWatchState>
 
     public init(
-        durations: Set<CueDurationFacet> = [],
-        characters: Set<CueCharacterFacet> = [],
-        languages: Set<SubtitleLanguageCode> = [],
-        watchStates: Set<LibraryWatchState> = []
+        durations: Set<CueDurationFacet> = Set(CueDurationFacet.allCases),
+        characters: Set<CueCharacterFacet> = Set(CueCharacterFacet.allCases),
+        languages: Set<SubtitleLanguageCode> = Set(SubtitleLanguageCode.allCases),
+        watchStates: Set<LibraryWatchState> = [.unwatched, .watching, .finished]
     ) {
         self.durations = durations
         self.characters = characters
         self.languages = languages
         self.watchStates = watchStates
-    }
-
-    public var activeCardCount: Int {
-        var count = 0
-        if !durations.isEmpty { count += 1 }
-        if !characters.isEmpty { count += 1 }
-        if !languages.isEmpty { count += 1 }
-        if !watchStates.isEmpty { count += 1 }
-        return count
     }
 
     public func matches(
@@ -71,14 +62,14 @@ public struct CueFacetFilter: Equatable, Sendable {
         languages cueLanguages: Set<SubtitleLanguageCode>,
         watchState: LibraryWatchState
     ) -> Bool {
-        (durations.isEmpty || durations.contains(CueDurationFacet(
+        durations.contains(CueDurationFacet(
             durationMilliseconds: durationMilliseconds
-        ))) &&
-        (characters.isEmpty || characters.contains(CueCharacterFacet(
+        )) &&
+        characters.contains(CueCharacterFacet(
             characterCount: characterCount
-        ))) &&
-        (languages.isEmpty || !languages.isDisjoint(with: cueLanguages)) &&
-        (watchStates.isEmpty || watchStates.contains(watchState))
+        )) &&
+        !languages.isDisjoint(with: cueLanguages) &&
+        watchStates.contains(watchState)
     }
 }
 

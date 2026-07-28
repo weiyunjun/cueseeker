@@ -23,31 +23,33 @@ filters without changing UI, persistence, indexing, or query execution.
   documented boundaries.
 - Added one `CueFacetFilter` value that holds the selected values for Duration,
   Character, Language, and Watch Status.
-- Represented a card's `All` state as an empty selection, evaluated selections
-  with OR inside each card, and evaluated active cards with AND between cards.
+- Made its existing initializer select every defined value by default; callers
+  can explicitly pass an empty set to represent a fully cleared card.
+- Removed the virtual `All` state. Selecting every available value leaves a
+  card unrestricted, while an empty selection rejects every result.
+- Evaluated selections with OR inside each card and AND between all four cards.
 - Reused `SubtitleLanguageCode` so one multilingual Cue can match each language
   assigned to it, including the existing `unknown` value.
 - Reused `LibraryWatchState` directly and added `Hashable` conformance so watch
   status remains independent from playback progress.
-- Exposed `activeCardCount` as the number of cards whose selection is not All.
+- Removed the superseded active-card count; the Filter button no longer has a
+  number or Badge.
 
 ## Verification
 
-- `swift test --filter CueFacet` passed all 6 focused tests, including every
-  Duration and Character boundary, All, per-card OR, all 16 active-card
-  combinations, cross-card AND, multilingual membership, Unknown, Watch Status,
-  active-card count, and clearing all cards.
-- The first complete `swift test` run built successfully but finished with 15
-  issues among 885 tests in unrelated concurrent native playback, folder
-  removal, Subtitle Focus, and UI refresh-probe tests. The run also logged test
-  database `disk I/O error` messages.
-- Each affected area passed when immediately rerun in isolation: 5 native media
-  timeline tests, 1 folder-removal progress test, 2 Subtitle Focus Shiori tests,
-  and 1 mounted-Search refresh-probe test.
+- The revised tests first failed against the previous empty-selection-as-All
+  behavior, then passed after the product rule was corrected.
+- `swift test --filter CueFacetFilterTests` passed all 6 pure logic tests,
+  covering every boundary, all selected, partial selection, single selection,
+  multi-selection, per-card OR, cross-card AND, multilingual membership,
+  Unknown, Watch Status, and empty-card rejection.
+- `swift test --filter CueFacet` passed all 10 Step 1-3 facet tests, confirming
+  the index cache and exact-search snapshot remain unchanged.
 - `git diff --check` passed.
 
 ## Outcome
 
 Step 1 now has one small reusable core filter model and pure logic coverage for
-the accepted card semantics. No cache, asynchronous lifecycle, database query,
-or UI path was introduced.
+the revised card semantics. Every card contains only real selectable values,
+and an empty card produces no results. No cache, asynchronous lifecycle,
+database query, persistence, or UI path was introduced.
