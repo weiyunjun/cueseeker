@@ -36,12 +36,7 @@ main
 - Watch Status 直接读取观看状态，不读取观看进度。
 - 不再计算启用筛选条件的数据卡片数量。
 
-验收：
-
-- 纯逻辑测试覆盖全选、部分选择、单选、多选和全部取消。
-- 卡片内 OR、卡片间 AND 正确。
-- 全选不限制结果，全部取消返回 0 条结果。
-- 不涉及 UI。
+Step 1 验收：筛选语义通过自动化测试。
 
 ## Step 2：建立索引阶段的分布缓存
 
@@ -50,11 +45,7 @@ main
 - Watch Status 在索引关系变化或观看状态变化时更新。
 - 空搜索词只读取缓存，不扫描 Cue 表。
 
-验收：
-
-- 缓存数量与数据库直接统计一致。
-- 打开 Search 空页面不触发全 Cue 扫描。
-- 修改观看状态只更新 Watch Status 分布。
+Step 2 验收：缓存统计正确，空搜索词不发生全量 Cue 扫描。
 
 ## Step 3：让 Search exact 产出完整分布快照
 
@@ -65,11 +56,7 @@ main
 - exact 完成前数据卡片的 Count 显示 `Calculating`。所有选项禁止交互和修改，但保持原有 Checked 或 Unchecked 视觉，不使用 Disabled Token。
 - 新查询立即废弃旧查询的分布快照。
 
-验收：
-
-- exact 数量、结果 ID、分布数量来自同一 generation。
-- 旧查询结果不能覆盖新查询。
-- 不增加第二次全量搜索。
+Step 3 验收：搜索结果与分布快照属于同一 generation，且不增加第二次全量搜索。
 
 ## Step 4：实现内存筛选投影
 
@@ -79,13 +66,7 @@ main
 - 只替换表格使用的有序结果 ID 投影。
 - 数据卡片数字始终表示搜索词命中的完整分布，不随当前筛选选择变化。
 
-验收：
-
-- 卡片内 OR、卡片间 AND 正确。
-- 全选、部分选择、单选、多选和全部取消正确。
-- 筛选前后排序不变。
-- Filter 操作不触发数据库搜索。
-- 在当前完整数据库规模下进行性能测试；若结果不支持即时响应，停止并报告，不继续 UI 步骤。
+Step 4 验收：筛选语义、排序、首屏响应和渐进加载通过验证，Filter 操作不访问数据库。
 
 ## Step 5：实现 Search 三栏界面
 
@@ -128,23 +109,8 @@ main
 - Calculating 状态下 Count 显示 `Calculating`；全部 Option 禁止交互和修改，但保持原有 Checked 或 Unchecked 视觉，不显示 Disabled 视觉。
 - Select 状态下全部 Option 为 Disabled，遵守全局 Disabled 规则，禁止修改筛选条件。
 
-验收：
-- App 最小窗口宽度下保持 2 列，卡片内容和表格均可正常使用。
-- 中间窗口宽度允许出现 3 列；布局不能只处理 4 列和 2 列。
-- 增加或删除数据卡片时，Grid 根据实际卡片数量和可用宽度自动重新排列。
-- 同一行卡片等高，不同行分别按各自最高卡片确定高度。
-- Filter Data Card 和 Filter Data Panel 的所有视觉数值均能对应到 UI.md 的 Token、Component 或 Layout 规则，不存在只保留在代码中的独立 UI 数值。
-- 点击筛选选项不刷新 App Root、Sidebar、Shiori、Settings 或其他无关界面。
-- 点击筛选选项只允许更新当前 Filter Data Panel 的选择状态、Search Result Count 和 Search 结果表格投影。
-- 渐进投影的后续批次只刷新结果表格；数据卡片分布不重新计算。
-- 使用 UI Invalidation Probe 覆盖上述刷新范围。
-- 自动化测试验证默认状态、持久化恢复、筛选交互和面板显示状态。
-- App 重启后 Search 数据面板默认显示。
-- Filter 按钮没有数字或 Badge。
-- 输入搜索词后到 exact 完成前，Option 禁止交互，但 Checkbox 和 Option Label 不切换为 Disabled 视觉，不出现短暂闪烁。
-- Select 状态下整张 Filter Data Card 进入 Disabled 视觉：Card Title Icon 使用全局 Disabled Icon Token，Card Title 使用全局 Disabled Text Token，全部 Option 为 Disabled；Card Surface 和 Border 保持不变，并禁止修改筛选条件。
-- 退出 Select 状态后，Filter Data Card 恢复正常交互和视觉。
-- **视觉验收由你执行。**
+Step 5 验收：功能自动化测试通过；视觉由你验收。视觉验收通过后提供 UI.md 修改前和修改后原文，但暂不提交。
+
 - 每项 UI 改动完成后，我按以下格式提供 `UI.md` 精确原文：
 
 
@@ -175,13 +141,7 @@ main
 - 数据变化后，新出现的可用选项默认选中，已经不存在的选项不参与筛选。
 - 本版本不增加 Shiori 专属数据卡片。
 
-验收：
-
-- 四类筛选结果与当前 Shiori List 数据一致。
-- 切换 Shiori List 不会复用其他页面的筛选状态或分布快照。
-- 重启 App 后能够按 Shiori 二级页面恢复筛选选择。
-- Search 和 Shiori 状态互不影响。
-- 不同 Shiori 二级页面之间的状态互不影响。
+Step 6 验收：Search、Shiori 及不同 Shiori 页面之间的数据范围和持久化状态正确隔离。
 
 ## Step 7：实现 Shiori 三栏界面
 
@@ -197,14 +157,7 @@ main
 - 删除 Shiori 中已被替代的旧 Filter Editor。
 - 保持 Shiori 表格、选择、Tags、播放和列表行为不变。
 
-验收：
-
-- 自动化测试验证默认隐藏、按页面恢复选择和页面间状态隔离。
-- App 重启后 Shiori 二级页面的数据面板默认隐藏。
-- Filter 按钮没有数字或 Badge。
-- 自动化回归通过。
-- **视觉验收由你执行。**
-- 每项 UI 改动完成后，同样提供 `UI.md` 修改前和修改后精确原文；验收后由你更新，但暂不提交。
+Step 7 验收：功能回归通过；视觉由你验收。视觉验收通过后提供 UI.md 修改前和修改后原文，但暂不提交。
 
 ## Step 8：清理旧路径并完成整体回归
 
@@ -218,22 +171,8 @@ main
 
 保留仍被 Context 或 Command Panel 使用的路径，直到确认已有替代。
 
-验收：
-
-- Search、Shiori、Context、Playback、Command Panel、Select、复制和导出回归通过。
-- Filter 操作没有数据库搜索。
-- 空搜索词没有全 Cue 扫描。
-- Search 与各 Shiori 二级页面的持久化状态相互隔离。
-- 完整测试通过后才进入下一步。
+Step 8 验收：完整自动化测试及 Search、Shiori、Context、Playback、Command Panel、Select、复制和导出回归通过。
 
 ## Step 9：最终同步并提交 UI.md
 
-全部功能与视觉步骤验收完成后：
-
-- 汇总并复核所有 `UI.md` 修改前和修改后内容。
-- 你确认 `UI.md` 已准确记录最终稳定结果。
-- 此时才提交 `UI.md`，避免中途方案反复污染历史。
-- 完成最终需求验收和实现记录。
-- UI.md 必须覆盖本需求最终接受的全部可见 UI 数值、Token、Component、状态、交互和 Layout。
-- 不允许任何已接受的 UI 数值或规则只存在于 SwiftUI 代码、工程记录或需求单中。
-- UI.md 与最终实现逐项核对完成后才能提交 UI.md。
+Step 9 验收：最终实现与 UI.md 一致，提交 UI.md 并完成整个需求验收。
