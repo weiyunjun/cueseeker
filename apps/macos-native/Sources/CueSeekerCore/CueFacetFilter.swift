@@ -62,12 +62,26 @@ public struct CueFacetFilter: Equatable, Sendable {
         languages cueLanguages: Set<SubtitleLanguageCode>,
         watchState: LibraryWatchState
     ) -> Bool {
-        durations.contains(CueDurationFacet(
-            durationMilliseconds: durationMilliseconds
-        )) &&
-        characters.contains(CueCharacterFacet(
-            characterCount: characterCount
-        )) &&
+        matches(
+            duration: CueDurationFacet(
+                durationMilliseconds: durationMilliseconds
+            ),
+            characters: CueCharacterFacet(
+                characterCount: characterCount
+            ),
+            languages: cueLanguages,
+            watchState: watchState
+        )
+    }
+
+    public func matches(
+        duration: CueDurationFacet,
+        characters cueCharacters: CueCharacterFacet,
+        languages cueLanguages: Set<SubtitleLanguageCode>,
+        watchState: LibraryWatchState
+    ) -> Bool {
+        durations.contains(duration) &&
+        characters.contains(cueCharacters) &&
         !languages.isDisjoint(with: cueLanguages) &&
         watchStates.contains(watchState)
     }
@@ -150,5 +164,38 @@ public struct CueFacetSearchSnapshot: Equatable, Sendable {
             watchStateCounts: Dictionary(grouping: watchStateFacets, by: { $0 })
                 .mapValues { $0.count }
         )
+    }
+
+    public func filteredCueIDs(
+        using filter: CueFacetFilter,
+        startingAt sourceIndex: Int = 0,
+        limit: Int
+    ) -> (cueIDs: [Int64], nextSourceIndex: Int, isComplete: Bool) {
+        let start = min(max(0, sourceIndex), cueIDs.count)
+        let pageLimit = max(0, limit)
+        guard pageLimit > 0,
+              !filter.durations.isEmpty,
+              !filter.characters.isEmpty,
+              !filter.languages.isEmpty,
+              !filter.watchStates.isEmpty
+        else {
+            return ([], cueIDs.count, true)
+        }
+
+        var matches: [Int64] = []
+        matches.reserveCapacity(min(pageLimit, cueIDs.count - start))
+        var index = start
+        while index < cueIDs.count, matches.count < pageLimit {
+            if filter.matches(
+                duration: durationFacets[index],
+                characters: characterFacets[index],
+                languages: languageFacets[index],
+                watchState: watchStateFacets[index]
+            ) {
+                matches.append(cueIDs[index])
+            }
+            index += 1
+        }
+        return (matches, index, index == cueIDs.count)
     }
 }

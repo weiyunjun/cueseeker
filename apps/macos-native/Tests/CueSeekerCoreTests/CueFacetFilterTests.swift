@@ -1,5 +1,5 @@
 import Testing
-import CueSeekerCore
+@testable import CueSeekerCore
 
 private func matches(
     _ filter: CueFacetFilter,
@@ -133,4 +133,101 @@ func cueFacetFilterRejectsResultsWhenAnyCardHasNoSelection() {
     ]
 
     #expect(filters.allSatisfy { !matches($0) })
+}
+
+@Test
+func cueFacetSnapshotProjectsMatchingIDsInSourceOrder() {
+    let snapshot = CueFacetSearchSnapshot(
+        cueIDs: [10, 20, 30, 40, 50],
+        durationFacets: [
+            .underOneSecond,
+            .oneToUnderThreeSeconds,
+            .oneToUnderThreeSeconds,
+            .threeToUnderFiveSeconds,
+            .oneToUnderThreeSeconds,
+        ],
+        characterFacets: [
+            .oneToTen,
+            .elevenToTwenty,
+            .elevenToTwenty,
+            .elevenToTwenty,
+            .elevenToTwenty,
+        ],
+        languageFacets: [
+            [.japanese],
+            [.english],
+            [.japanese, .english],
+            [.japanese],
+            [.japanese],
+        ],
+        watchStateFacets: [
+            .watching,
+            .watching,
+            .watching,
+            .watching,
+            .finished,
+        ]
+    )
+    let filter = CueFacetFilter(
+        durations: [.oneToUnderThreeSeconds, .threeToUnderFiveSeconds],
+        characters: [.elevenToTwenty],
+        languages: [.japanese],
+        watchStates: [.watching]
+    )
+
+    let firstPage = snapshot.filteredCueIDs(using: filter, limit: 2)
+    #expect(firstPage.cueIDs == [30, 40])
+    #expect(!firstPage.isComplete)
+
+    let secondPage = snapshot.filteredCueIDs(
+        using: filter,
+        startingAt: firstPage.nextSourceIndex,
+        limit: 2
+    )
+    #expect(secondPage.cueIDs.isEmpty)
+    #expect(secondPage.isComplete)
+}
+
+@Test
+func cueFacetSnapshotStopsAfterRequestedPageAndContinuesWithoutDuplicates() {
+    let snapshot = CueFacetSearchSnapshot(
+        cueIDs: [1, 2, 3, 4],
+        durationFacets: Array(repeating: .underOneSecond, count: 4),
+        characterFacets: Array(repeating: .oneToTen, count: 4),
+        languageFacets: Array(repeating: [.english], count: 4),
+        watchStateFacets: Array(repeating: .unwatched, count: 4)
+    )
+
+    let firstPage = snapshot.filteredCueIDs(using: CueFacetFilter(), limit: 2)
+    let secondPage = snapshot.filteredCueIDs(
+        using: CueFacetFilter(),
+        startingAt: firstPage.nextSourceIndex,
+        limit: 2
+    )
+
+    #expect(firstPage.cueIDs == [1, 2])
+    #expect(firstPage.nextSourceIndex == 2)
+    #expect(!firstPage.isComplete)
+    #expect(secondPage.cueIDs == [3, 4])
+    #expect(secondPage.isComplete)
+}
+
+@Test
+func cueFacetSnapshotReturnsZeroImmediatelyForEmptyCardSelection() {
+    let snapshot = CueFacetSearchSnapshot(
+        cueIDs: [1, 2],
+        durationFacets: [.underOneSecond, .fiveSecondsOrMore],
+        characterFacets: [.oneToTen, .thirtyOneOrMore],
+        languageFacets: [[.english], [.japanese]],
+        watchStateFacets: [.unwatched, .finished]
+    )
+
+    let page = snapshot.filteredCueIDs(
+        using: CueFacetFilter(languages: []),
+        limit: 50
+    )
+
+    #expect(page.cueIDs.isEmpty)
+    #expect(page.nextSourceIndex == snapshot.cueIDs.count)
+    #expect(page.isComplete)
 }

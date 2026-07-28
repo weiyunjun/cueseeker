@@ -515,6 +515,100 @@ func exactFacetSnapshotRejectsStaleResultGeneration() throws {
 
 @MainActor
 @Test
+func facetFilterProjectsTableIDsWithoutChangingExactSearchBoundary() async {
+    let search = SearchStore()
+    search.updateQuery("query")
+    let generation = search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    let results = (0..<120).map { index in
+        makeTableSandboxSearchResult(
+            id: Int64(index + 1),
+            content: "result \(index)",
+            searchRank: index
+        )
+    }
+    let snapshot = CueFacetSearchSnapshot(
+        cueIDs: results.map(\.entryID),
+        durationFacets: (0..<120).map {
+            $0.isMultiple(of: 2) ? .underOneSecond : .fiveSecondsOrMore
+        },
+        characterFacets: Array(repeating: .oneToTen, count: 120),
+        languageFacets: Array(repeating: [.english], count: 120),
+        watchStateFacets: Array(repeating: .unwatched, count: 120)
+    )
+    let page = SubtitleSearchPage(
+        results: results,
+        cueIDs: snapshot.cueIDs,
+        totalCount: results.count,
+        fileSummaries: [],
+        facetSnapshot: snapshot
+    )
+    #expect(search.commitExactSearchPage(page, generation: generation))
+
+    search.updateSearchFacetFilter(CueFacetFilter(
+        durations: [.underOneSecond],
+        characters: Set(CueCharacterFacet.allCases),
+        languages: Set(SubtitleLanguageCode.allCases),
+        watchStates: [.unwatched, .watching, .finished]
+    ))
+    #expect(search.filteredSearchResultCueIDs.count == 50)
+    #expect(search.filteredSearchResultTotalCount == nil)
+
+    for _ in 0..<20 where search.filteredSearchResultTotalCount == nil {
+        await Task.yield()
+    }
+
+    #expect(search.filteredSearchResultCueIDs == results.enumerated().compactMap {
+        $0.offset.isMultiple(of: 2) ? $0.element.entryID : nil
+    })
+    #expect(search.filteredSearchResultTotalCount == 60)
+    #expect(search.searchResultCueIDs == results.map(\.entryID))
+    #expect(search.searchResultTotalCount == 120)
+    #expect(search.tableRowStore.snapshot.totalRowCount == 60)
+}
+
+@MainActor
+@Test
+func facetFilterWithEmptyCardImmediatelyProjectsZeroRows() {
+    let search = SearchStore()
+    search.updateQuery("query")
+    let generation = search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    let result = makeTableSandboxSearchResult(
+        id: 1,
+        content: "result",
+        searchRank: 0
+    )
+    let snapshot = CueFacetSearchSnapshot(
+        cueIDs: [result.entryID],
+        durationFacets: [.underOneSecond],
+        characterFacets: [.oneToTen],
+        languageFacets: [[.english]],
+        watchStateFacets: [.unwatched]
+    )
+    let page = SubtitleSearchPage(
+        results: [result],
+        cueIDs: snapshot.cueIDs,
+        totalCount: 1,
+        fileSummaries: [],
+        facetSnapshot: snapshot
+    )
+    #expect(search.commitExactSearchPage(page, generation: generation))
+
+    search.updateSearchFacetFilter(CueFacetFilter(languages: []))
+
+    #expect(search.filteredSearchResultCueIDs.isEmpty)
+    #expect(search.filteredSearchResultTotalCount == 0)
+    #expect(search.searchResultCueIDs == [result.entryID])
+    #expect(search.tableRowStore.snapshot.totalRowCount == 0)
+}
+
+@MainActor
+@Test
 func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throws {
     let suiteName = "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
