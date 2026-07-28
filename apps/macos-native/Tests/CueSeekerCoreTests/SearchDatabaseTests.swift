@@ -683,6 +683,7 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
     #expect(firstPage.totalCount == 2)
     #expect(firstPage.knownResultCount == 2)
     #expect(firstPage.exactTotalCount == nil)
+    #expect(firstPage.facetSnapshot == nil)
     #expect(firstPage.fileSummaries.map(\.matchCount) == [2])
     #expect(firstPage.nextCursor?.offset == 2)
     #expect(firstPage.results.map(\.content) == [
@@ -693,6 +694,7 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
     #expect(secondPage.countState == .exact)
     #expect(secondPage.totalCount == 5)
     #expect(secondPage.exactTotalCount == 5)
+    #expect(secondPage.facetSnapshot?.cueIDs.count == 5)
     #expect(secondPage.fileSummaries.map(\.matchCount) == [5])
     #expect(secondPage.nextCursor == nil)
     #expect(secondPage.results.map(\.content) == [

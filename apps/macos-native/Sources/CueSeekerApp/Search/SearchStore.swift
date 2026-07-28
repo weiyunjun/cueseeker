@@ -115,6 +115,7 @@ final class SearchStore: ObservableObject {
     private(set) var hasMoreSearchResults = false
     @Published private(set) var resultRevision: UInt64 = 0
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
+    @Published private(set) var searchFacetSnapshot: CueFacetSearchSnapshot?
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var selectedSearchResult: SubtitleSearchResult?
     @Published private(set) var cueContextSearchRequest: CueContextSearchRequest?
@@ -696,6 +697,7 @@ final class SearchStore: ObservableObject {
         )
         activeIndexedCueMutationGeneration = token.generation
         cueContextSearchRequest = nil
+        searchFacetSnapshot = nil
         if case .residentSearch = tableProjectionSource {
             return token
         }
@@ -741,7 +743,9 @@ final class SearchStore: ObservableObject {
     private(set) var isPlaybackTemporaryFilterActive = false
 
     func updateQuery(_ query: String) {
+        guard query != searchQuery else { return }
         searchQuery = query
+        searchFacetSnapshot = nil
     }
 
     func markSearchIdle() {
@@ -826,6 +830,7 @@ final class SearchStore: ObservableObject {
             exactCompletionTask?.cancel()
             exactCompletionTask = nil
             resultFilterSet = filterSet
+            searchFacetSnapshot = nil
         }
         searchTask?.cancel()
         return resultListGeneration
@@ -884,6 +889,7 @@ final class SearchStore: ObservableObject {
         folderScopePaths = paths
         folderScopeGeneration &+= 1
         resultListGeneration &+= 1
+        searchFacetSnapshot = nil
         cancelAllSearchTasks()
         suspendFilterOnlyPageLoad()
         cancelContextTableLoad()
@@ -1010,6 +1016,9 @@ final class SearchStore: ObservableObject {
                 searchKnownResultCount = page.knownResultCount
                 searchKnownFileCount = page.knownFileCount
             }
+            if let facetSnapshot = page.facetSnapshot {
+                searchFacetSnapshot = facetSnapshot
+            }
             hasMoreSearchResults = page.hasMore
             loadedGlobalResultCount = loadedResultCount
             nextGlobalCursor = page.nextCursor
@@ -1019,7 +1028,18 @@ final class SearchStore: ObservableObject {
         return completesSearch
     }
 
-    func commitExactSearchPage(_ page: SubtitleSearchPage) {
+    @discardableResult
+    func commitExactSearchPage(
+        _ page: SubtitleSearchPage,
+        generation: UInt64
+    ) -> Bool {
+        guard generation == resultListGeneration,
+              let facetSnapshot = page.facetSnapshot,
+              facetSnapshot.cueIDs == page.cueIDs,
+              facetSnapshot.distribution.totalCount == page.totalCount
+        else {
+            return false
+        }
         commitResultMutation {
             let loadedResultCount: Int
             if !page.renderableResults.isEmpty {
@@ -1044,8 +1064,10 @@ final class SearchStore: ObservableObject {
                 ? (nextGlobalCursor
                     ?? SubtitleSearchCursor(offset: loadedResultCount))
                 : nil
+            searchFacetSnapshot = facetSnapshot
             searchStatus = .completed
         }
+        return true
     }
 
     func commitSearchCountProgress(_ progress: SubtitleSearchProgressSnapshot) {
@@ -1105,6 +1127,7 @@ final class SearchStore: ObservableObject {
             loadedGlobalResultCount = 0
             lastCountProgressUpdate = 0
             nextGlobalCursor = nil
+            searchFacetSnapshot = nil
             searchNavigationSnapshot = nil
         }
         return releasedRows
@@ -1120,6 +1143,11 @@ final class SearchStore: ObservableObject {
             return true
         }
         return false
+    }
+
+    var isFacetSnapshotCalculating: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && searchFacetSnapshot == nil
     }
 
     var activeFilterSetSignature: String {

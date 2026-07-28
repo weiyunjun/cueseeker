@@ -695,7 +695,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 totalCount: 0,
                 fileSummaries: [],
                 appliedCursor: appliedCursor,
-                pageMode: mode
+                pageMode: mode,
+                facetSnapshot: .empty
             )
         }
         emit(
@@ -717,7 +718,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 totalCount: 0,
                 fileSummaries: [],
                 appliedCursor: appliedCursor,
-                pageMode: mode
+                pageMode: mode,
+                facetSnapshot: .empty
             )
         }
 
@@ -731,7 +733,8 @@ public final class SearchDatabase: @unchecked Sendable {
                     totalCount: 0,
                     fileSummaries: [],
                     appliedCursor: appliedCursor,
-                    pageMode: mode
+                    pageMode: mode,
+                    facetSnapshot: .empty
                 )
             }
             pathPrefixes = prefixes
@@ -755,7 +758,11 @@ public final class SearchDatabase: @unchecked Sendable {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
             var candidateOffset = 0
-            var exactCueIDs: [Int64] = []
+            var matchedCueIDs: [Int64] = []
+            var matchedDurationFacets: [CueDurationFacet] = []
+            var matchedCharacterFacets: [CueCharacterFacet] = []
+            var matchedLanguageFacets: [Set<SubtitleLanguageCode>] = []
+            var matchedWatchStateFacets: [LibraryWatchState] = []
             var exactPageResults: [OrderedSearchResult] = []
             var exactRenderableResults: [OrderedSearchResult] = []
             let resolvedProgressResultLimit = progressResultLimit.map {
@@ -780,6 +787,15 @@ public final class SearchDatabase: @unchecked Sendable {
                     results[index].searchRank = startIndex + index
                 }
                 return results
+            }
+            func facetSnapshot() -> CueFacetSearchSnapshot {
+                CueFacetSearchSnapshot(
+                    cueIDs: matchedCueIDs,
+                    durationFacets: matchedDurationFacets,
+                    characterFacets: matchedCharacterFacets,
+                    languageFacets: matchedLanguageFacets,
+                    watchStateFacets: matchedWatchStateFacets
+                )
             }
             let scopeCondition = pathPrefixes.map {
                 let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
@@ -814,9 +830,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 """
             }
             let watchStateValues = watchStateFilter.states.map(\.rawValue)
-            let watchStateJoin = watchStateValues.isEmpty
-                ? ""
-                : "JOIN library_watch_states ws ON ws.video_file_id = vf.id"
+            let watchStateJoin = "LEFT JOIN library_watch_states ws ON ws.video_file_id = vf.id"
             let watchStateCondition: String
             if watchStateValues.isEmpty {
                 watchStateCondition = ""
@@ -852,7 +866,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 """
                 SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
                        g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
-                       sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
+                       sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
+                       COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)')
                 FROM subtitle_cue_groups_fts f
                 JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
@@ -929,7 +944,10 @@ public final class SearchDatabase: @unchecked Sendable {
                                 displayTitle: statement.stringColumn(12),
                                 folderOrder: statement.intColumn(13),
                                 fileOrder: statement.intColumn(14)
-                            )
+                            ),
+                            watchState: LibraryWatchState(
+                                rawValue: statement.stringColumn(15)
+                            ) ?? .unwatched
                         )
                     )
                 }
@@ -1010,9 +1028,23 @@ public final class SearchDatabase: @unchecked Sendable {
                         matchedCandidateCount += 1
                     }
                     for result in orderedMatches {
+                        matchedCueIDs.append(result.result.entryID)
+                        matchedDurationFacets.append(
+                            CueDurationFacet(
+                                durationMilliseconds:
+                                    result.result.endMilliseconds
+                                    - result.result.startMilliseconds
+                            )
+                        )
+                        matchedCharacterFacets.append(
+                            CueCharacterFacet(
+                                characterCount: result.result.content.unicodeScalars.count
+                            )
+                        )
+                        matchedLanguageFacets.append(result.result.languages)
+                        matchedWatchStateFacets.append(candidate.watchState)
                         switch mode {
                         case .exact:
-                            exactCueIDs.append(result.result.entryID)
                             progressFileSummaries.add(result)
                             if progress != nil,
                                resolvedProgressResultLimit.map({
@@ -1062,7 +1094,7 @@ public final class SearchDatabase: @unchecked Sendable {
                             countSnapshot: countSnapshot,
                             fileSummaries: progressSummaries,
                             results: rankedResults(from: exactRenderableResults),
-                            cueIDs: exactCueIDs
+                            cueIDs: matchedCueIDs
                         )
                     )
                     emit(
@@ -1168,14 +1200,17 @@ public final class SearchDatabase: @unchecked Sendable {
                     nextCursor: nextCursor,
                     pageMode: mode,
                     orderSource: orderSource,
-                    materializedOrderRows: materializedOrderRows
+                    materializedOrderRows: materializedOrderRows,
+                    facetSnapshot: countSnapshot.state == .exact
+                        ? facetSnapshot()
+                        : nil
                 )
                 return page
             }
 
             let sortStart = Self.diagnosticNow()
             try Task.checkCancellation()
-            let totalExactResultCount = exactCueIDs.count
+            let totalExactResultCount = matchedCueIDs.count
             let orderSource = totalExactResultCount > 0 ? "ftsRowid" : "none"
             let materializedOrderRows = exactPageResults.count
             emit(
@@ -1184,7 +1219,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 fields: [
                     .init("results", totalExactResultCount),
                     .init("materializedResults", exactPageResults.count),
-                    .init("resultIDs", exactCueIDs.count),
+                    .init("resultIDs", matchedCueIDs.count),
                     .init("orderSource", orderSource),
                     .init("materializedOrderRows", materializedOrderRows)
                 ]
@@ -1251,7 +1286,7 @@ public final class SearchDatabase: @unchecked Sendable {
             let page = SubtitleSearchPage(
                 results: pageResults,
                 renderableResults: renderableResults,
-                cueIDs: exactCueIDs,
+                cueIDs: matchedCueIDs,
                 totalCount: totalExactResultCount,
                 fileSummaries: fileSummaries,
                 countSnapshot: countSnapshot,
@@ -1259,7 +1294,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 nextCursor: nextCursor,
                 pageMode: mode,
                 orderSource: orderSource,
-                materializedOrderRows: materializedOrderRows
+                materializedOrderRows: materializedOrderRows,
+                facetSnapshot: facetSnapshot()
             )
             return page
         } catch {
@@ -1274,7 +1310,8 @@ public final class SearchDatabase: @unchecked Sendable {
                     totalCount: 0,
                     fileSummaries: [],
                     appliedCursor: appliedCursor,
-                    pageMode: mode
+                    pageMode: mode,
+                    facetSnapshot: .empty
                 )
             }
             throw error
@@ -1437,6 +1474,7 @@ public final class SearchDatabase: @unchecked Sendable {
         let searchContent: String
         let lineCount: Int
         let order: SearchResultOrder
+        var watchState: LibraryWatchState = .unwatched
     }
 
     private struct SearchResultOrder {

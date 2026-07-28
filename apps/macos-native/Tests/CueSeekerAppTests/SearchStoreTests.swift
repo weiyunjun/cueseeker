@@ -438,6 +438,83 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
 
 @MainActor
 @Test
+func exactFacetSnapshotRejectsStaleResultGeneration() throws {
+    let search = SearchStore()
+    search.updateQuery("first")
+    let firstGeneration = search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    let firstResult = makeTableSandboxSearchResult(
+        id: 1,
+        content: "first",
+        searchRank: 0
+    )
+    let firstSnapshot = CueFacetSearchSnapshot(
+        cueIDs: [firstResult.entryID],
+        durationFacets: [.oneToUnderThreeSeconds],
+        characterFacets: [.oneToTen],
+        languageFacets: [[.english]],
+        watchStateFacets: [.unwatched]
+    )
+    let firstPage = SubtitleSearchPage(
+        results: [firstResult],
+        cueIDs: firstSnapshot.cueIDs,
+        totalCount: 1,
+        fileSummaries: [],
+        facetSnapshot: firstSnapshot
+    )
+    #expect(search.commitExactSearchPage(
+        firstPage,
+        generation: firstGeneration
+    ))
+    #expect(search.searchFacetSnapshot == firstSnapshot)
+
+    search.updateQuery("second")
+    #expect(search.searchFacetSnapshot == nil)
+    #expect(search.isFacetSnapshotCalculating)
+    let secondGeneration = search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    search.markSearchInProgress()
+
+    #expect(!search.commitExactSearchPage(
+        firstPage,
+        generation: firstGeneration
+    ))
+    #expect(search.searchFacetSnapshot == nil)
+
+    let secondResult = makeTableSandboxSearchResult(
+        id: 2,
+        content: "second",
+        searchRank: 0
+    )
+    let secondSnapshot = CueFacetSearchSnapshot(
+        cueIDs: [secondResult.entryID],
+        durationFacets: [.underOneSecond],
+        characterFacets: [.oneToTen],
+        languageFacets: [[.japanese]],
+        watchStateFacets: [.watching]
+    )
+    let secondPage = SubtitleSearchPage(
+        results: [secondResult],
+        cueIDs: secondSnapshot.cueIDs,
+        totalCount: 1,
+        fileSummaries: [],
+        facetSnapshot: secondSnapshot
+    )
+    #expect(search.commitExactSearchPage(
+        secondPage,
+        generation: secondGeneration
+    ))
+    #expect(search.searchFacetSnapshot == secondSnapshot)
+    #expect(search.searchResultCueIDs == secondSnapshot.cueIDs)
+    #expect(!search.isFacetSnapshotCalculating)
+}
+
+@MainActor
+@Test
 func watchStateScopedSearchRefreshesAfterLibraryHistoryPublication() async throws {
     let suiteName = "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))

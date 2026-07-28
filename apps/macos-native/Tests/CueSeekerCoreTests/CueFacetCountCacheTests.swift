@@ -199,3 +199,59 @@ func schema39MigrationBackfillsFacetCountsWithoutStartupRebuilds() throws {
             .durationCounts[.underOneSecond] == 55
     )
 }
+
+@Test
+func exactSearchBuildsCompleteFacetSnapshotWithItsResultIDs() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    let (_, _, videoFile) = try indexFacetFixture(at: databaseURL)
+    try LibraryDatabase(path: databaseURL).setLibraryWatchState(
+        videoFile: videoFile,
+        duration: nil,
+        state: .finished
+    )
+
+    let search = try SearchDatabase(path: databaseURL)
+    let page = try search.searchPage("a", limit: 1, cursor: .start)
+    let snapshot = try #require(page.facetSnapshot)
+
+    #expect(page.results.count == 1)
+    #expect(page.totalCount == 4)
+    #expect(page.cueIDs == snapshot.cueIDs)
+    #expect(snapshot.durationFacets == [
+        .underOneSecond,
+        .oneToUnderThreeSeconds,
+        .threeToUnderFiveSeconds,
+        .fiveSecondsOrMore,
+    ])
+    #expect(snapshot.characterFacets == [
+        .oneToTen,
+        .elevenToTwenty,
+        .twentyOneToThirty,
+        .thirtyOneOrMore,
+    ])
+    #expect(snapshot.languageFacets == [
+        [.japanese],
+        [.simplifiedChinese],
+        [.english, .japanese],
+        [.unknown],
+    ])
+    #expect(snapshot.watchStateFacets == Array(repeating: .finished, count: 4))
+    #expect(snapshot.distribution.totalCount == page.totalCount)
+    #expect(snapshot.distribution.durationCounts.values.reduce(0, +) == page.totalCount)
+    #expect(snapshot.distribution.characterCounts.values.reduce(0, +) == page.totalCount)
+    #expect(snapshot.distribution.languageCounts == [
+        .english: 1,
+        .japanese: 2,
+        .simplifiedChinese: 1,
+        .unknown: 1,
+    ])
+    #expect(snapshot.distribution.watchStateCounts == [.finished: 4])
+
+    let completeVisiblePage = try search.searchVisiblePage(
+        "a",
+        limit: 10,
+        cursor: .start
+    )
+    #expect(completeVisiblePage.facetSnapshot == snapshot)
+}

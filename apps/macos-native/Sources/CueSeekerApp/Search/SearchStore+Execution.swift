@@ -397,7 +397,18 @@ extension SearchStore {
                 }
 
                 let stateAssignStart = SearchPerformanceLogger.now()
-                self.commitExactSearchPage(page)
+                guard self.commitExactSearchPage(
+                    page,
+                    generation: generation
+                ) else {
+                    self.logCancelledPage(
+                        run: run,
+                        event: "search_exact_completion_stale",
+                        page: page,
+                        databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds
+                    )
+                    return
+                }
                 self.replaceExactCompletionTask(nil)
                 onResultsChanged(generation)
 

@@ -103,3 +103,61 @@ public struct CueFacetDistribution: Equatable, Sendable {
         self.watchStateCounts = watchStateCounts
     }
 }
+
+public struct CueFacetSearchSnapshot: Equatable, Sendable {
+    public static let empty = CueFacetSearchSnapshot(
+        cueIDs: [],
+        durationFacets: [],
+        characterFacets: [],
+        languageFacets: [],
+        watchStateFacets: []
+    )
+
+    public let cueIDs: [Int64]
+    public let durationFacets: [CueDurationFacet]
+    public let characterFacets: [CueCharacterFacet]
+    public let languageFacets: [Set<SubtitleLanguageCode>]
+    public let watchStateFacets: [LibraryWatchState]
+    public let distribution: CueFacetDistribution
+
+    init(
+        cueIDs: [Int64],
+        durationFacets: [CueDurationFacet],
+        characterFacets: [CueCharacterFacet],
+        languageFacets: [Set<SubtitleLanguageCode>],
+        watchStateFacets: [LibraryWatchState]
+    ) {
+        precondition(
+            durationFacets.count == cueIDs.count
+                && characterFacets.count == cueIDs.count
+                && languageFacets.count == cueIDs.count
+                && watchStateFacets.count == cueIDs.count
+        )
+
+        let resolvedLanguageFacets = languageFacets.map {
+            $0.isEmpty ? Set([SubtitleLanguageCode.unknown]) : $0
+        }
+        var languageCounts: [SubtitleLanguageCode: Int] = [:]
+        for languages in resolvedLanguageFacets {
+            for language in languages {
+                languageCounts[language, default: 0] += 1
+            }
+        }
+
+        self.cueIDs = cueIDs
+        self.durationFacets = durationFacets
+        self.characterFacets = characterFacets
+        self.languageFacets = resolvedLanguageFacets
+        self.watchStateFacets = watchStateFacets
+        distribution = CueFacetDistribution(
+            totalCount: cueIDs.count,
+            durationCounts: Dictionary(grouping: durationFacets, by: { $0 })
+                .mapValues { $0.count },
+            characterCounts: Dictionary(grouping: characterFacets, by: { $0 })
+                .mapValues { $0.count },
+            languageCounts: languageCounts,
+            watchStateCounts: Dictionary(grouping: watchStateFacets, by: { $0 })
+                .mapValues { $0.count }
+        )
+    }
+}
