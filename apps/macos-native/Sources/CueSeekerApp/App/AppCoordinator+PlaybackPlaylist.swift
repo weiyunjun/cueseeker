@@ -135,16 +135,16 @@ extension AppCoordinator {
         let origin = PlaybackPlaylistSourceOrigin.search(
             resultListGeneration: resultListGeneration
         )
-        let residentResults = search.searchResults
-        let selectedOrdinal = residentResults.firstIndex {
+        let projectedResults = search.projectedSearchResults
+        let selectedOrdinal = projectedResults.firstIndex {
             $0.entryID == result.entryID
         }
         if let source = playback.playlistSource,
            source.origin == origin {
             _ = source.replaceResidentItems(
-                totalCount: residentResults.count,
+                totalCount: projectedResults.count,
                 itemProvider: Self.searchPlaylistItemProvider(
-                    results: residentResults
+                    results: projectedResults
                 )
             )
             playback.setPlaylistSource(
@@ -156,9 +156,9 @@ extension AppCoordinator {
 
         let source = PlaybackPlaylistSource(
             origin: origin,
-            totalCount: residentResults.count,
+            totalCount: projectedResults.count,
             itemProvider: Self.searchPlaylistItemProvider(
-                results: residentResults
+                results: projectedResults
             )
         )
         playback.setPlaylistSource(
@@ -193,11 +193,11 @@ extension AppCoordinator {
             return
         }
 
-        let residentResults = search.searchResults
+        let projectedResults = search.projectedSearchResults
         _ = source.replaceResidentItems(
-            totalCount: residentResults.count,
+            totalCount: projectedResults.count,
             itemProvider: Self.searchPlaylistItemProvider(
-                results: residentResults
+                results: projectedResults
             )
         )
     }

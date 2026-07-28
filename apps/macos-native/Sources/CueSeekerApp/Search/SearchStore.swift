@@ -163,6 +163,29 @@ final class SearchStore: ObservableObject {
         }
     }
 
+    var projectedSearchResults: [SubtitleSearchResult] {
+        guard let searchFacetSnapshot else {
+            return searchResults
+        }
+        let cueIDs: [Int64]
+        if filteredSearchResultTotalCount != nil {
+            cueIDs = filteredSearchResultCueIDs
+        } else {
+            cueIDs = searchFacetSnapshot.filteredCueIDs(
+                using: searchFacetFilter,
+                limit: searchFacetSnapshot.cueIDs.count
+            ).cueIDs
+        }
+        return cueIDs.compactMap { cueID in
+            cueContentStore.content(for: cueID).map {
+                SubtitleSearchResult(
+                    cueContent: $0,
+                    searchRank: searchRankByCueID[cueID] ?? 0
+                )
+            }
+        }
+    }
+
     var isDatabaseAvailable: Bool {
         database != nil
     }

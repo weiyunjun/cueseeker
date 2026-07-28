@@ -1,7 +1,7 @@
 import AppKit
-import CueSeekerCore
 import Foundation
 import Testing
+@testable import CueSeekerCore
 @testable import CueSeekerApp
 
 @MainActor
@@ -314,6 +314,59 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
     #expect(reopenedWindow.snapshot.loadedOrdinalRange == (0..<5))
     #expect(reopenedWindow.item(at: 0)?.identity == .search(200))
     #expect(reopenedWindow.item(at: 4)?.identity == .search(204))
+    app.playback.clearPlaylistSource()
+}
+
+@MainActor
+@Test
+func searchPlaybackPlaylistUsesActiveFacetProjection() throws {
+    _ = NSApplication.shared
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("playback-playlist-search-facet-\(UUID().uuidString).sqlite")
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    let app = AppCoordinator(databaseURL: databaseURL)
+    app.search.updateQuery("query")
+    let generation = app.search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    let results = (0..<120).map { ordinal in
+        makePlaybackPlaylistSearchResult(
+            id: Int64(100 + ordinal),
+            searchRank: ordinal
+        )
+    }
+    let facetSnapshot = CueFacetSearchSnapshot(
+        cueIDs: results.map(\.entryID),
+        durationFacets: results.indices.map {
+            $0.isMultiple(of: 2) ? .underOneSecond : .fiveSecondsOrMore
+        },
+        characterFacets: Array(repeating: .oneToTen, count: results.count),
+        languageFacets: Array(repeating: [.english], count: results.count),
+        watchStateFacets: Array(repeating: .unwatched, count: results.count)
+    )
+    let page = SubtitleSearchPage(
+        results: results,
+        cueIDs: facetSnapshot.cueIDs,
+        totalCount: results.count,
+        fileSummaries: [],
+        facetSnapshot: facetSnapshot
+    )
+    #expect(app.search.commitExactSearchPage(page, generation: generation))
+    app.search.updateSearchFacetFilter(CueFacetFilter(
+        durations: [.underOneSecond]
+    ))
+
+    app.installSearchPlaybackPlaylistSource(seed: results[118])
+
+    let source = try #require(app.playback.playlistSource)
+    let position = try #require(app.playback.playlistPosition)
+    #expect(source.boundary.totalCount == 60)
+    #expect(source.item(at: 0)?.identity == .search(100))
+    #expect(source.item(at: 1)?.identity == .search(102))
+    #expect(source.item(at: 59)?.identity == .search(218))
+    #expect(position.itemIdentity == .search(218))
+    #expect(position.ordinal == 59)
     app.playback.clearPlaylistSource()
 }
 

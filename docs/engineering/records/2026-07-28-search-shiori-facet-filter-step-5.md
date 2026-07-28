@@ -45,6 +45,9 @@ visual acceptance and `UI.md` changes to the human owner.
   effect.
 - Applied Select's Disabled colors to the card title icon and title as well as
   every option, while leaving the card surface and border unchanged.
+- Kept Filter interaction scoped to the existing in-memory table projection,
+  and made Search Playlist installation and refresh consume that current
+  projection instead of falling back to the unfiltered exact result set.
 - Changed the Search Filter button to show or hide the panel. Its open visual
   reuses the existing open-menu button state and it receives no count or Badge.
 - Made Search panel visibility start as visible and remain session-only; no
@@ -88,6 +91,10 @@ visual acceptance and `UI.md` changes to the human owner.
 - `swift test --filter PlaybackSearchOverlayTests` passed all 4 Command Panel
   Search tests; `swift test --filter URLSchemeSearchRoutingTests` passed all 7
   URL Search tests.
+- `swift test --filter PlaybackPlaylist` passed all 14 Playlist tests,
+  including the regression test proving that Playlist order, count, and
+  selected ordinal come from the active facet projection. `swift test --filter
+  facetFilter` also passed both projection tests.
 - `swift test --filter CueGroupRefreshScopeIntegrationTests` passed all 16
   mounted tests. The added probes verify that facet selection does not rebuild
   global or inactive surfaces and progressive batches rebuild only the Search
