@@ -404,7 +404,6 @@ extension AppCoordinator {
 
         let resultSnapshotID = shiori.tableResultSnapshotID
         let searchText = shiori.tableSubmittedSearchText
-        let filterSet = shiori.tableFilterRules.subtitleSearchFilterSet
         let facetFilter = shiori.tableFacetFilter
         let dataRevision = shiori.tableDataRevision
         if shiori.residentDataRevision == dataRevision,
@@ -412,7 +411,6 @@ extension AppCoordinator {
             applyResidentShioriTableProjection(
                 resultSnapshotID: resultSnapshotID,
                 searchText: searchText,
-                filterSet: filterSet,
                 facetFilter: facetFilter,
                 listID: listID,
                 dataRevision: dataRevision
@@ -443,7 +441,6 @@ extension AppCoordinator {
                 guard self.shioriTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
-                    filterSignature: filterSet.cacheSignature,
                     facetFilter: facetFilter,
                     listID: listID,
                     dataRevision: dataRevision
@@ -459,7 +456,6 @@ extension AppCoordinator {
                 self.applyResidentShioriTableProjection(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
-                    filterSet: filterSet,
                     facetFilter: facetFilter,
                     listID: listID,
                     dataRevision: dataRevision
@@ -472,7 +468,6 @@ extension AppCoordinator {
                 if self.shioriTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
-                    filterSignature: filterSet.cacheSignature,
                     facetFilter: facetFilter,
                     listID: listID,
                     dataRevision: dataRevision
@@ -537,7 +532,6 @@ extension AppCoordinator {
         applyResidentShioriTableProjection(
             resultSnapshotID: shiori.tableResultSnapshotID,
             searchText: shiori.tableSubmittedSearchText,
-            filterSet: shiori.tableFilterRules.subtitleSearchFilterSet,
             facetFilter: filter,
             listID: listID,
             dataRevision: dataRevision
@@ -547,7 +541,6 @@ extension AppCoordinator {
     private func applyResidentShioriTableProjection(
         resultSnapshotID: UUID,
         searchText: String,
-        filterSet: SubtitleSearchFilterSet,
         facetFilter: CueFacetFilter,
         listID: Int64,
         dataRevision: Int
@@ -555,7 +548,6 @@ extension AppCoordinator {
         guard shioriTableRequestMatches(
             resultSnapshotID: resultSnapshotID,
             searchText: searchText,
-            filterSignature: filterSet.cacheSignature,
             facetFilter: facetFilter,
             listID: listID,
             dataRevision: dataRevision
@@ -587,11 +579,7 @@ extension AppCoordinator {
                     of: trimmedSearchText,
                     options: [.caseInsensitive, .diacriticInsensitive]
                 ) != nil
-            return matchesSearch && filterSet.matches(
-                display: displayTitle,
-                cues: cueText,
-                languages: content?.languages.map(\.rawValue).sorted() ?? []
-            )
+            return matchesSearch
         }
         shiori.installTableFacetDistribution(facetProjection.distribution)
         shiori.installTableResultShioriIDs(relations.map(\.id))
@@ -616,7 +604,6 @@ extension AppCoordinator {
     private func shioriTableRequestMatches(
         resultSnapshotID: UUID,
         searchText: String,
-        filterSignature: String,
         facetFilter: CueFacetFilter,
         listID: Int64,
         dataRevision: Int
@@ -624,8 +611,6 @@ extension AppCoordinator {
         !Task.isCancelled
             && shiori.tableResultSnapshotID == resultSnapshotID
             && shiori.tableSubmittedSearchText == searchText
-            && shiori.tableFilterRules.subtitleSearchFilterSet.cacheSignature
-                == filterSignature
             && shiori.tableFacetFilter == facetFilter
             && shiori.activeListID == listID
             && shiori.tableDataRevision == dataRevision

@@ -4,8 +4,6 @@ import CueSeekerPlayback
 
 private struct WorkbenchShioriTableTextCopySource {
     let searchText: String
-    let filterSet: SubtitleSearchFilterSet
-    let filterSignature: String
     let resultRowCount: Int
     let resultSnapshotID: UUID
     let resultShioriIDs: [Int64]
@@ -61,7 +59,6 @@ private struct WorkbenchShioriTableContent: View {
         SchemaWorkbenchSearchShell(
             searchDraft: $shioriStore.tableSearchDraft,
             visibleColumnIDs: $shioriStore.tableVisibleColumnIDs,
-            filterRules: $shioriStore.tableFilterRules,
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
             searchPlaceholder: "Search Shiori by title or cues...",
             isRedesign: true,
@@ -217,10 +214,6 @@ private struct WorkbenchShioriTableContent: View {
             exitSelectionMode()
             reloadRows(resetScroll: false)
         }
-        .onChange(of: shioriStore.tableFilterRules) { _ in
-            exitSelectionMode()
-            reloadRows(resetScroll: true)
-        }
         .onChange(of: shioriStore.activeListID) { _ in
             restoreShioriFacetFilter()
         }
@@ -359,11 +352,8 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private var tableTextCopySource: WorkbenchShioriTableTextCopySource {
-        let filterSet = shioriStore.tableFilterRules.subtitleSearchFilterSet
         return WorkbenchShioriTableTextCopySource(
             searchText: shioriStore.tableSubmittedSearchText,
-            filterSet: filterSet,
-            filterSignature: filterSet.cacheSignature,
             resultRowCount: max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount),
             resultSnapshotID: shioriStore.tableResultSnapshotID,
             resultShioriIDs: shioriStore.tableResultShioriIDs ?? [],
@@ -395,8 +385,6 @@ private struct WorkbenchShioriTableContent: View {
         allowsTableResponse
             && shioriStore.tableDataRevision == source.dataRevision
             && shioriStore.tableSubmittedSearchText == source.searchText
-            && shioriStore.tableFilterRules.subtitleSearchFilterSet.cacheSignature
-                == source.filterSignature
             && shioriStore.tableResultSnapshotID == source.resultSnapshotID
             && max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount)
                 == source.resultRowCount
@@ -487,7 +475,6 @@ private struct WorkbenchShioriTableContent: View {
             PlaybackPlaylistShioriTableContext(
                 runID: shioriStore.tableResultSnapshotID,
                 searchText: shioriStore.tableSubmittedSearchText,
-                filterSet: shioriStore.tableFilterRules.subtitleSearchFilterSet,
                 totalCount: navigationScopeIDs.count
             )
         )

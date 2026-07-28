@@ -17,7 +17,6 @@ func workbenchSearchHasCompleteTextCopyBoundary(
 private struct WorkbenchSearchTableTextCopySource {
     enum Mode {
         case search(query: String, cueIDs: [Int64])
-        case allCues
         case context(CueContextSearchRequest)
     }
 
@@ -40,9 +39,7 @@ struct WorkbenchTestSearchView: View {
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
     @State private var visibleColumnIDs: Set<String>
-    @State private var filterRules: [SchemaWorkbenchFilterRule]
     @State private var lastVisibleRows: Range<Int>?
-    @State private var appliedFilterSignature = ""
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
     @State private var didRestoreViewport = false
@@ -52,7 +49,6 @@ struct WorkbenchTestSearchView: View {
     @State private var isSelectionMode = false
     @State private var canExportSelectedRowsAsCollage = false
     @State private var suppressNextEmptySearchQueryReload = false
-    @State private var suppressNextFilterRulesReload = false
     @State private var hasDeferredRefreshWhileCovered = false
     @State private var isFacetPanelVisible: Bool
     @State private var searchFacetFilter = CueFacetFilter()
@@ -67,7 +63,6 @@ struct WorkbenchTestSearchView: View {
         self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
-        _filterRules = State(initialValue: SchemaWorkbenchSearchDefaults.defaultFilterRules)
         _isFacetPanelVisible = State(initialValue: Self.defaultFacetPanelVisibility)
     }
 
@@ -80,13 +75,11 @@ struct WorkbenchTestSearchView: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             visibleColumnIDs: $visibleColumnIDs,
-            filterRules: $filterRules,
             columns: SchemaWorkbenchSearchDefaults.columns,
             isRedesign: true,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,
             selectionActions: selectedSummaryActions,
-            filterableColumnIDs: ["display", "cues"],
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
@@ -167,26 +160,14 @@ struct WorkbenchTestSearchView: View {
             searchDraft = search.tableSearchDraft.isEmpty
                 ? search.searchQuery
                 : search.tableSearchDraft
-            appliedFilterSignature = filterRules.subtitleSearchFilterSet.cacheSignature
             if showsSearchEmptyHint {
                 search.clearTableProjectionSource()
                 clearTableRows(resetScroll: false)
-            } else if isFilterOnlyMode {
-                loadAllCueRows(resetScroll: false)
             } else {
                 updateRowsFromResidentSearch()
             }
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
-        }
-        .onChange(of: filterRules) { newValue in
-            exitSelectionMode()
-            search.tableFilterRules = newValue
-            if suppressNextFilterRulesReload {
-                suppressNextFilterRulesReload = false
-                return
-            }
-            applyFilterRules(newValue)
         }
         .onChange(of: visibleColumnIDs) { newValue in
             search.tableVisibleColumnIDs = newValue
@@ -194,7 +175,6 @@ struct WorkbenchTestSearchView: View {
         .onChange(of: search.searchQuery) { newValue in
             exitSelectionMode()
             searchDraft = newValue
-            search.suspendFilterOnlyPageLoad()
             rowSelection.reset()
             persistSelection()
             search.tableViewportAnchor = nil
@@ -211,22 +191,13 @@ struct WorkbenchTestSearchView: View {
                     suppressNextEmptySearchQueryReload = false
                     return
                 }
-                if search.activeFilterSet.isEffectivelyEmpty {
-                    search.clearTableProjectionSource()
-                    clearTableRows(resetScroll: true)
-                } else {
-                    loadAllCueRows(resetScroll: true)
-                }
+                search.clearTableProjectionSource()
+                clearTableRows(resetScroll: true)
             }
         }
         .onChange(of: search.resultRevision) { _ in
-            guard !isFilterOnlyMode, !showsSearchEmptyHint else { return }
+            guard !showsSearchEmptyHint else { return }
             updateRowsFromResidentSearch()
-        }
-        .onChange(of: search.indexedCueDataRevision) { _ in
-            exitSelectionMode()
-            guard isFilterOnlyMode else { return }
-            loadAllCueRows(resetScroll: false)
         }
         .onChange(of: canEnterSelectionMode) { canEnter in
             if !canEnter {
@@ -285,16 +256,10 @@ struct WorkbenchTestSearchView: View {
         visibleColumns.first { $0.id == id }?.title ?? fallback
     }
 
-    private var isFilterOnlyMode: Bool {
-        search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !search.activeFilterSet.isEffectivelyEmpty
-    }
-
     private var showsSearchEmptyHint: Bool {
         search.cueContextSearchRequest == nil
             && search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && search.activeFilterSet.isEffectivelyEmpty
     }
 
     private var searchFacetFilterBinding: Binding<CueFacetFilter> {
@@ -355,9 +320,6 @@ struct WorkbenchTestSearchView: View {
         if let request = search.cueContextSearchRequest {
             mode = .context(request)
             resultRowCount = search.contextTotalRowCount
-        } else if isFilterOnlyMode {
-            mode = .allCues
-            resultRowCount = search.searchResultTotalCount
         } else {
             let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             let cueIDs = search.filteredSearchResultCueIDs
@@ -412,8 +374,6 @@ struct WorkbenchTestSearchView: View {
                     return cueIDs
                 }()
             )
-        case .allCues:
-            page = await search.loadAllCueRows(range: range, folders: folders)
         case .context(let request):
             page = await search.loadContextRows(
                 request: request,
@@ -460,12 +420,6 @@ struct WorkbenchTestSearchView: View {
                 return false
             }
             return true
-        case .allCues:
-            return search.cueContextSearchRequest == nil
-                && search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                && !search.activeFilterSet.isEffectivelyEmpty
-                && search.activeFilterSetSignature == source.filterSignature
-                && search.searchResultTotalCount == source.resultRowCount
         case .context(let request):
             return search.cueContextSearchRequest?.id == request.id
                 && search.cueContextSearchRequest?.id == request.id
@@ -484,29 +438,20 @@ struct WorkbenchTestSearchView: View {
             return false
         }
 
-        let rules = [
-            SchemaWorkbenchSearchDefaults.makeFilterRule(
-                join: nil,
-                fieldID: "display",
+        let filterSet = SubtitleSearchFilterSet(rules: [
+            SubtitleSearchFilterRule(
+                field: .display,
                 operatorID: .contains,
                 value: displayTitle
-            )
-        ]
-        let filterSet = rules.subtitleSearchFilterSet
-        let filterSignature = filterSet.cacheSignature
-
-        if filterRules != rules {
-            suppressNextFilterRulesReload = true
-        }
+            ),
+        ])
         if !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             suppressNextEmptySearchQueryReload = true
         }
 
         searchDraft = ""
-        filterRules = rules
         search.updateQuery("")
         search.updateNavigationSnapshot(nil)
-        appliedFilterSignature = filterSignature
         appState.updateSearchFilterSet(filterSet)
         let didBeginLoad = search.beginContextTableLoad(
             request: request,
@@ -704,26 +649,16 @@ struct WorkbenchTestSearchView: View {
                 folders: appState.indexing.selectedFolders,
                 pageSize: Self.continuousPageSize
             )
-            return
         }
-        guard isFilterOnlyMode,
-              search.cueContextSearchRequest == nil,
-              visibleRows.upperBound >= rowStore.snapshot.totalRowCount - TableSandboxHydrationPaging.pageSize
-        else {
-            return
-        }
-        loadAllCueRows(resetScroll: false)
     }
 
     private func resetCoveredTableLoading() {
-        search.suspendFilterOnlyPageLoad()
         search.cancelContextTableLoad()
     }
 
     private func resumeDeferredTableResponse() {
         guard allowsTableResponse else { return }
         let isStandardSearch = search.cueContextSearchRequest == nil
-            && !isFilterOnlyMode
         guard hasDeferredRefreshWhileCovered || isStandardSearch else { return }
         hasDeferredRefreshWhileCovered = false
         refreshTableForCurrentState()
@@ -737,35 +672,9 @@ struct WorkbenchTestSearchView: View {
 
         if showsSearchEmptyHint {
             clearTableRows(resetScroll: false)
-        } else if isFilterOnlyMode {
-            loadAllCueRows(resetScroll: false)
         } else {
             updateRowsFromResidentSearch()
         }
-    }
-
-    private func loadAllCueRows(resetScroll: Bool) {
-        guard allowsTableResponse,
-              !appState.indexing.isLibraryFolderOperationActive
-        else {
-            hasDeferredRefreshWhileCovered = true
-            resetCoveredTableLoading()
-            return
-        }
-        tableScrollTargetRow = nil
-        search.cancelContextTableLoad()
-        lastVisibleRows = nil
-        if resetScroll {
-            rowSelection.reset()
-            persistSelection()
-            resetSelectedCollageAvailability()
-            tableScrollResetToken += 1
-        }
-        search.loadFilterOnlyTableRows(
-            folders: appState.indexing.selectedFolders,
-            initialPageSize: TableSandboxHydrationPaging.pageSize,
-            continuationPageSize: Self.continuousPageSize
-        )
     }
 
     private func handleContextTablePresentation() {
@@ -785,36 +694,6 @@ struct WorkbenchTestSearchView: View {
         }
         search.consumeContextTablePresentation()
         refreshSelectedCollageAvailability()
-    }
-
-    private func applyFilterRules(_ rules: [SchemaWorkbenchFilterRule]) {
-        let filterSet = rules.subtitleSearchFilterSet
-        let nextSignature = filterSet.cacheSignature
-        guard nextSignature != appliedFilterSignature else {
-            return
-        }
-
-        search.updateContextRequest(nil)
-        tableScrollTargetRow = nil
-        appliedFilterSignature = nextSignature
-        search.suspendFilterOnlyPageLoad()
-        rowSelection.reset()
-        persistSelection()
-        search.tableViewportAnchor = nil
-        viewportAnchorToRestore = nil
-        didRestoreViewport = true
-        resetSelectedCollageAvailability()
-        lastVisibleRows = nil
-        tableScrollResetToken += 1
-        appState.updateSearchFilterSet(filterSet)
-        if search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if filterSet.isEffectivelyEmpty {
-                search.clearTableProjectionSource()
-                clearTableRows(resetScroll: false)
-            } else {
-                loadAllCueRows(resetScroll: false)
-            }
-        }
     }
 
     private func applySearchFacetFilter(_ filter: CueFacetFilter) {
@@ -1029,16 +908,11 @@ struct WorkbenchTestSearchView: View {
 
     private func restoreTableControls() {
         visibleColumnIDs = search.tableVisibleColumnIDs
-        if filterRules != search.tableFilterRules {
-            suppressNextFilterRulesReload = true
-            filterRules = search.tableFilterRules
-        }
     }
 
     private func persistTableControls() {
         search.tableSearchDraft = searchDraft
         search.tableVisibleColumnIDs = visibleColumnIDs
-        search.tableFilterRules = filterRules
     }
 }
 

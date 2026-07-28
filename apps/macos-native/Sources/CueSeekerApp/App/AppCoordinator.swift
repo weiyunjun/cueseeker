@@ -591,20 +591,6 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &settingsCancellables)
 
-        settings.$primarySearchLanguage
-            .dropFirst()
-            .sink { [weak self] _ in
-                self?.refreshCurrentSearch(clearExistingResults: true)
-            }
-            .store(in: &settingsCancellables)
-
-        settings.$searchScope
-            .dropFirst()
-            .sink { [weak self] _ in
-                self?.refreshCurrentSearch(clearExistingResults: true)
-            }
-            .store(in: &settingsCancellables)
-
     }
 
     nonisolated static func runCancellableDetached<T: Sendable>(

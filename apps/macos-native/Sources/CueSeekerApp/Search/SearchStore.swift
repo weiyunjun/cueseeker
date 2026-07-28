@@ -21,36 +21,13 @@ struct CueContextSearchRequest: Equatable, Identifiable {
     }
 }
 
-struct SearchFilterOnlyProjectionKey: Equatable {
-    let filterSignature: String
-    let folderPaths: [String]
-    let indexedCueDataRevision: UInt64
-
-    init(
-        filterSignature: String,
-        folderPaths: [String],
-        indexedCueDataRevision: UInt64 = 0
-    ) {
-        self.filterSignature = filterSignature
-        self.folderPaths = folderPaths
-        self.indexedCueDataRevision = indexedCueDataRevision
-    }
-}
-
 struct SearchIndexedCueMutationToken: Equatable {
     let generation: UInt64
-}
-
-struct SearchFilterOnlyLoadToken: Equatable {
-    let key: SearchFilterOnlyProjectionKey
-    let generation: UInt64
-    let startIndex: Int
 }
 
 enum SearchTableProjectionSource: Equatable {
     case residentSearch(revision: UInt64)
     case facetSearch(generation: UInt64)
-    case filterOnly(SearchFilterOnlyProjectionKey)
     case context(requestID: UUID)
 }
 
@@ -86,13 +63,6 @@ final class SearchStore: ObservableObject {
     private var facetProjectionGeneration: UInt64 = 0
     private var facetProjectionTask: Task<Void, Never>?
     private(set) var filteredSearchResultCueIDs: [Int64] = []
-    private var filterOnlyLoadGeneration: UInt64 = 0
-    private var filterOnlyLoadTask: Task<Void, Never>?
-    private var isFilterOnlyLoadInProgress = false
-    private var hasLoadedFilterOnlyInitialPage = false
-    private var filterOnlyTotalRowCount = 0
-    private var filterOnlyInitialPageSize = TableSandboxHydrationPaging.pageSize
-    private var filterOnlyContinuationPageSize = 1_000
     private var indexedCueMutationGeneration: UInt64 = 0
     private var activeIndexedCueMutationGeneration: UInt64?
     private var contextLoadGeneration: UInt64 = 0
@@ -130,7 +100,6 @@ final class SearchStore: ObservableObject {
     @Published private(set) var tableLoadRevision: UInt64 = 0
     @Published var tableSearchDraft = ""
     @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs
-    @Published var tableFilterRules = SchemaWorkbenchSearchDefaults.defaultFilterRules
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []
@@ -425,187 +394,6 @@ final class SearchStore: ObservableObject {
     }
 
     @discardableResult
-    func prepareFilterOnlyTableProjection(
-        key: SearchFilterOnlyProjectionKey
-    ) -> Bool {
-        let source = SearchTableProjectionSource.filterOnly(key)
-        guard tableProjectionSource != source else {
-            return false
-        }
-        setTableProjectionSource(source)
-        return true
-    }
-
-    func beginFilterOnlyPageLoad(
-        key: SearchFilterOnlyProjectionKey,
-        loadedRowCount: Int
-    ) -> SearchFilterOnlyLoadToken? {
-        guard tableProjectionSource == .filterOnly(key),
-              !isFilterOnlyLoadInProgress
-        else {
-            return nil
-        }
-        if hasLoadedFilterOnlyInitialPage,
-           loadedRowCount >= filterOnlyTotalRowCount {
-            return nil
-        }
-        isFilterOnlyLoadInProgress = true
-        return SearchFilterOnlyLoadToken(
-            key: key,
-            generation: filterOnlyLoadGeneration,
-            startIndex: hasLoadedFilterOnlyInitialPage ? loadedRowCount : 0
-        )
-    }
-
-    func acceptsFilterOnlyPageLoad(_ token: SearchFilterOnlyLoadToken) -> Bool {
-        tableProjectionSource == .filterOnly(token.key)
-            && filterOnlyLoadGeneration == token.generation
-            && isFilterOnlyLoadInProgress
-    }
-
-    @discardableResult
-    func completeFilterOnlyPageLoad(
-        _ token: SearchFilterOnlyLoadToken,
-        totalRowCount: Int,
-        loadedRowCount: Int
-    ) -> Bool {
-        guard acceptsFilterOnlyPageLoad(token) else {
-            return false
-        }
-        isFilterOnlyLoadInProgress = false
-        hasLoadedFilterOnlyInitialPage = true
-        filterOnlyTotalRowCount = max(0, totalRowCount)
-        return loadedRowCount < filterOnlyTotalRowCount
-    }
-
-    func failFilterOnlyPageLoad(_ token: SearchFilterOnlyLoadToken) {
-        guard acceptsFilterOnlyPageLoad(token) else {
-            return
-        }
-        isFilterOnlyLoadInProgress = false
-    }
-
-    func suspendFilterOnlyPageLoad() {
-        filterOnlyLoadTask?.cancel()
-        filterOnlyLoadTask = nil
-        guard isFilterOnlyLoadInProgress else {
-            return
-        }
-        filterOnlyLoadGeneration &+= 1
-        isFilterOnlyLoadInProgress = false
-    }
-
-    func loadFilterOnlyTableRows(
-        folders: [URL],
-        initialPageSize: Int,
-        continuationPageSize: Int
-    ) {
-        guard searchQuery.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        ).isEmpty,
-              !activeFilterSet.isEffectivelyEmpty
-        else {
-            suspendFilterOnlyPageLoad()
-            return
-        }
-        filterOnlyInitialPageSize = initialPageSize
-        filterOnlyContinuationPageSize = continuationPageSize
-        let key = SearchFilterOnlyProjectionKey(
-            filterSignature: activeFilterSetSignature,
-            folderPaths: folders.map(\.path),
-            indexedCueDataRevision: indexedCueDataRevision
-        )
-        let sourceChanged = prepareFilterOnlyTableProjection(key: key)
-        if sourceChanged {
-            tableRowStore.updateResidentSearchResults(
-                [],
-                cueContentProvider: { [weak self] cueID in
-                    self?.cachedCueContent(for: cueID)
-                },
-                cueContentRevision: cachedCueContentRevision,
-                tableName: "test-search",
-                probeSurface: .search,
-                probeScope: uiProbeScope
-            )
-        }
-        guard let token = beginFilterOnlyPageLoad(
-            key: key,
-            loadedRowCount: tableRowStore.snapshot.totalRowCount
-        ) else {
-            return
-        }
-        let pageSize = token.startIndex == 0
-            ? initialPageSize
-            : continuationPageSize
-        let range = token.startIndex..<(token.startIndex + pageSize)
-
-        filterOnlyLoadTask = Task { [weak self] in
-            guard let self else { return }
-            UIInvalidationProbe.count(
-                SubtitleTableProbeSurface.search.counterName(
-                    "row_hydration_requested"
-                ),
-                scope: self.uiProbeScope
-            )
-            guard let page = await self.loadAllCueRows(
-                range: range,
-                folders: folders
-            ),
-                  self.acceptsFilterOnlyPageLoad(token),
-                  page.range.lowerBound == token.startIndex,
-                  self.searchQuery.trimmingCharacters(
-                    in: .whitespacesAndNewlines
-                  ).isEmpty,
-                  self.activeFilterSetSignature == key.filterSignature
-            else {
-                self.failFilterOnlyPageLoad(token)
-                return
-            }
-
-            if token.startIndex == 0 {
-                self.applyAllCueSearchContext(page)
-                self.tableRowStore.updateResidentSearchResults(
-                    page.results,
-                    cueContentProvider: { [weak self] cueID in
-                        self?.cachedCueContent(for: cueID)
-                    },
-                    cueContentRevision: self.cachedCueContentRevision,
-                    tableName: "test-search",
-                    probeSurface: .search,
-                    probeScope: self.uiProbeScope,
-                    isHydration: true
-                )
-            } else {
-                self.tableRowStore.hydrateResidentSearchResults(
-                    page.results,
-                    startIndex: token.startIndex,
-                    cueContentProvider: { [weak self] cueID in
-                        self?.cachedCueContent(for: cueID)
-                    },
-                    cueContentRevision: self.cachedCueContentRevision,
-                    tableName: "test-search",
-                    probeSurface: .search,
-                    probeScope: self.uiProbeScope
-                )
-            }
-            let loadedCount = self.tableRowStore.snapshot.totalRowCount
-            let shouldContinue = self.completeFilterOnlyPageLoad(
-                token,
-                totalRowCount: page.totalRowCount,
-                loadedRowCount: loadedCount
-            )
-            self.tableLoadRevision &+= 1
-            if shouldContinue, loadedCount > token.startIndex {
-                self.loadFilterOnlyTableRows(
-                    folders: folders,
-                    initialPageSize: initialPageSize,
-                    continuationPageSize: continuationPageSize
-                )
-            }
-        }
-    }
-
-    @discardableResult
     func beginContextTableLoad(
         request: CueContextSearchRequest,
         folders: [URL],
@@ -887,10 +675,6 @@ final class SearchStore: ObservableObject {
             return
         }
         tableProjectionSource = source
-        filterOnlyLoadGeneration &+= 1
-        isFilterOnlyLoadInProgress = false
-        hasLoadedFilterOnlyInitialPage = false
-        filterOnlyTotalRowCount = 0
     }
 
     private(set) var resultFilterSet = SubtitleSearchFilterSet()
@@ -1048,7 +832,6 @@ final class SearchStore: ObservableObject {
         searchFacetSnapshot = nil
         filteredSearchFacetDistribution = nil
         cancelAllSearchTasks()
-        suspendFilterOnlyPageLoad()
         cancelContextTableLoad()
         restoreFolderScopedTableProjection(
             tableProjectionToRestore,
@@ -1065,12 +848,6 @@ final class SearchStore: ObservableObject {
             return
         }
         switch source {
-        case .filterOnly:
-            loadFilterOnlyTableRows(
-                folders: folders,
-                initialPageSize: filterOnlyInitialPageSize,
-                continuationPageSize: filterOnlyContinuationPageSize
-            )
         case .context(let requestID):
             guard let request = cueContextSearchRequest,
                   request.id == requestID

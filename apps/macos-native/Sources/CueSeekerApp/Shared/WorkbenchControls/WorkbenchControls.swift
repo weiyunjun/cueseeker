@@ -50,14 +50,6 @@ enum WorkbenchControlMetrics {
     static let redesignCheckboxSize: CGFloat = 16
     /// --min-width-filter-data-card: 200px
     static let redesignFilterDataCardMinWidth: CGFloat = 200
-    /// --size-filter-count-badge: 16px
-    static let redesignFilterCountBadgeSize: CGFloat = 16
-    /// --padding-filter-count-badge-x: 4px
-    static let redesignFilterCountBadgeHorizontalPadding: CGFloat = 4
-    /// --radius-filter-count-badge: 9999px
-    static let redesignFilterCountBadgeRadius: CGFloat = 9999
-    /// --offset-filter-count-badge-y: 1px
-    static let redesignFilterCountBadgeOffsetY: CGFloat = 1
     /// --size-select-indicator: 12pt
     static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 12
     /// --weight-select-indicator: semibold
@@ -108,8 +100,6 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
     static let redesignFontSizeCaption: CGFloat = 12
-    /// --font-size-filter-count-badge: 10px
-    static let redesignFontSizeFilterCountBadge: CGFloat = 10
     /// --height-app-sidebar-item: 32px
     static let redesignAppSidebarItemHeight: CGFloat = 32
     /// --height-app-topbar: 45px
@@ -368,7 +358,6 @@ struct WorkbenchToolbarButton: View {
     let title: String
     let systemImage: String
     var showsChevron = false
-    var badgeCount: Int? = nil
     var isRedesign: Bool = false
     var isMenuOpen: Bool = false
     var action: (() -> Void)? = nil
@@ -403,13 +392,6 @@ struct WorkbenchToolbarButton: View {
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
-
-            if let badgeCount, badgeCount > 0 {
-                WorkbenchFilterCountBadge(
-                    count: badgeCount,
-                    isEnabled: isEnabled
-                )
-            }
 
             if showsChevron {
                 if isRedesign {
@@ -457,43 +439,6 @@ struct WorkbenchToolbarButton: View {
         .onHover { isHovered = $0 }
         .fixedSize(horizontal: true, vertical: false)
         .contentShape(Rectangle())
-    }
-}
-
-struct WorkbenchFilterCountBadge: View {
-    let count: Int
-    var isEnabled = true
-
-    var body: some View {
-        Text(String(count))
-            .font(
-                .system(
-                    size: WorkbenchControlMetrics.redesignFontSizeFilterCountBadge,
-                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                )
-            )
-            .foregroundStyle(
-                isEnabled
-                    ? WorkbenchRedesignColors.filterCountBadgeText
-                    : WorkbenchRedesignColors.textDisabled
-            )
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignFilterCountBadgeHorizontalPadding)
-            .frame(minWidth: WorkbenchControlMetrics.redesignFilterCountBadgeSize)
-            .frame(height: WorkbenchControlMetrics.redesignFilterCountBadgeSize)
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignFilterCountBadgeRadius,
-                    style: .continuous
-                )
-                .fill(
-                    isEnabled
-                        ? WorkbenchRedesignColors.filterCountBadgeBg
-                        : WorkbenchRedesignColors.bgDisabled
-                )
-            )
-            .offset(y: WorkbenchControlMetrics.redesignFilterCountBadgeOffsetY)
     }
 }
 

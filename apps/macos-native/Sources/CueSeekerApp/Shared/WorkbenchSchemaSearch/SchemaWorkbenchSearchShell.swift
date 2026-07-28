@@ -1,9 +1,7 @@
 import SwiftUI
-import CueSeekerCore
 
 enum SchemaWorkbenchPopover: Equatable {
     case columnVisibility
-    case filterBuilder
 }
 
 struct SchemaWorkbenchTableSummary: Equatable {
@@ -22,151 +20,6 @@ func schemaWorkbenchSelectedCountText(_ count: Int) -> String {
 
 func schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: Bool) -> Bool {
     hasExactResultSet
-}
-
-struct SchemaWorkbenchFilterRule: Identifiable, Equatable, Codable {
-    let id: String
-    var join: SchemaWorkbenchFilterJoin?
-    var fieldID: String
-    var operatorID: SchemaWorkbenchFilterOperatorID
-    var value: String
-}
-
-extension Array where Element == SchemaWorkbenchFilterRule {
-    var subtitleSearchFilterSet: SubtitleSearchFilterSet {
-        SubtitleSearchFilterSet(
-            rules: compactMap { rule in
-                guard let field = SubtitleSearchFilterField(workbenchFieldID: rule.fieldID) else {
-                    return nil
-                }
-
-                return SubtitleSearchFilterRule(
-                    join: rule.join?.coreJoin,
-                    field: field,
-                    operatorID: rule.operatorID.coreOperator,
-                    value: rule.value
-                )
-            }
-        )
-    }
-}
-
-private extension SubtitleSearchFilterField {
-    init?(workbenchFieldID: String) {
-        switch workbenchFieldID {
-        case "display":
-            self = .display
-        case "cues":
-            self = .cues
-        case "language":
-            self = .language
-        default:
-            return nil
-        }
-    }
-}
-
-enum SchemaWorkbenchFilterJoin: String, CaseIterable, Identifiable, Codable {
-    case and
-    case or
-
-    var id: String {
-        rawValue
-    }
-
-    var title: String {
-        rawValue
-    }
-
-    var coreJoin: SubtitleSearchFilterJoin {
-        switch self {
-        case .and:
-            return .and
-        case .or:
-            return .or
-        }
-    }
-}
-
-enum SchemaWorkbenchFilterOperatorID: String, Identifiable, Codable {
-    case contains
-    case doesNotContain
-    case `is`
-    case isNot
-    case isEmpty
-    case isNotEmpty
-    case equals
-    case doesNotEqual
-    case greaterThan
-    case greaterThanOrEqualTo
-    case lessThan
-    case lessThanOrEqualTo
-
-    var id: String {
-        rawValue
-    }
-
-    var title: String {
-        switch self {
-        case .contains:
-            return "contains"
-        case .doesNotContain:
-            return "does not contain"
-        case .is:
-            return "is"
-        case .isNot:
-            return "is not"
-        case .isEmpty:
-            return "is empty"
-        case .isNotEmpty:
-            return "is not empty"
-        case .equals:
-            return "equals"
-        case .doesNotEqual:
-            return "does not equal"
-        case .greaterThan:
-            return "greater than"
-        case .greaterThanOrEqualTo:
-            return "greater than or equal to"
-        case .lessThan:
-            return "less than"
-        case .lessThanOrEqualTo:
-            return "less than or equal to"
-        }
-    }
-
-    var coreOperator: SubtitleSearchFilterOperator {
-        switch self {
-        case .contains:
-            return .contains
-        case .doesNotContain:
-            return .doesNotContain
-        case .is:
-            return .is
-        case .isNot:
-            return .isNot
-        case .isEmpty:
-            return .isEmpty
-        case .isNotEmpty:
-            return .isNotEmpty
-        case .equals:
-            return .equals
-        case .doesNotEqual:
-            return .doesNotEqual
-        case .greaterThan:
-            return .greaterThan
-        case .greaterThanOrEqualTo:
-            return .greaterThanOrEqualTo
-        case .lessThan:
-            return .lessThan
-        case .lessThanOrEqualTo:
-            return .lessThanOrEqualTo
-        }
-    }
-
-    init?(_ coreOperator: SubtitleSearchFilterOperator) {
-        self.init(rawValue: coreOperator.rawValue)
-    }
 }
 
 enum SchemaWorkbenchSearchDefaults {
@@ -239,25 +92,6 @@ enum SchemaWorkbenchSearchDefaults {
     static let initialVisibleColumnIDs = Set(columns.map(\.id))
     static let initialVisibleShioriColumnIDs = Set(shioriColumns.map(\.id))
 
-    static var defaultFilterRules: [SchemaWorkbenchFilterRule] {
-        []
-    }
-
-    static func makeFilterRule(
-        id: String = UUID().uuidString,
-        join: SchemaWorkbenchFilterJoin?,
-        fieldID: String,
-        operatorID: SchemaWorkbenchFilterOperatorID,
-        value: String
-    ) -> SchemaWorkbenchFilterRule {
-        SchemaWorkbenchFilterRule(
-            id: id,
-            join: join,
-            fieldID: fieldID,
-            operatorID: operatorID,
-            value: value
-        )
-    }
 }
 
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
@@ -265,7 +99,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     @Binding var searchDraft: String
     @Binding var visibleColumnIDs: Set<String>
-    @Binding var filterRules: [SchemaWorkbenchFilterRule]
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
@@ -273,13 +106,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let tableSummary: SchemaWorkbenchTableSummary?
     let searchResultCountText: String?
     let selectionActions: AnyView?
-    let filterableColumnIDs: Set<String>?
     let isSelectionMode: Bool
     let canEnterSelectionMode: Bool
     let onToggleSelectionMode: () -> Void
-    let filterPanel: AnyView?
+    let filterPanel: AnyView
     let isFilterPanelVisible: Bool
-    let onToggleFilterPanel: (() -> Void)?
+    let onToggleFilterPanel: () -> Void
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
@@ -291,33 +123,29 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     init(
         searchDraft: Binding<String>,
         visibleColumnIDs: Binding<Set<String>>,
-        filterRules: Binding<[SchemaWorkbenchFilterRule]>,
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
         searchResultCountText: String? = nil,
         selectionActions: AnyView? = nil,
-        filterableColumnIDs: Set<String>? = nil,
         isSelectionMode: Bool = false,
         canEnterSelectionMode: Bool = false,
         onToggleSelectionMode: @escaping () -> Void = {},
-        filterPanel: AnyView? = nil,
+        filterPanel: AnyView,
         isFilterPanelVisible: Bool = false,
-        onToggleFilterPanel: (() -> Void)? = nil,
+        onToggleFilterPanel: @escaping () -> Void,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
         _searchDraft = searchDraft
         _visibleColumnIDs = visibleColumnIDs
-        _filterRules = filterRules
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
         self.tableSummary = tableSummary
         self.searchResultCountText = searchResultCountText
         self.selectionActions = selectionActions
-        self.filterableColumnIDs = filterableColumnIDs
         self.isSelectionMode = isSelectionMode
         self.canEnterSelectionMode = canEnterSelectionMode
         self.onToggleSelectionMode = onToggleSelectionMode
@@ -347,23 +175,14 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         placeholder: searchPlaceholder,
                         searchDraft: $searchDraft,
                         searchResultCountText: searchResultCountText,
-                        filterCount: onToggleFilterPanel == nil
-                            ? filterRules.count
-                            : nil,
                         isSelectionMode: isSelectionMode,
-                        isFilterBuilderMenuOpen: onToggleFilterPanel == nil
-                            ? openPopover == .filterBuilder
-                            : isFilterPanelVisible,
+                        isFilterPanelOpen: isFilterPanelVisible,
                         isViewMenuOpen: openPopover == .columnVisibility,
                         canEnterSelectionMode: canEnterSelectionMode,
                         onSubmit: onSearchSubmit,
                         onFilter: {
-                            if let onToggleFilterPanel {
-                                openPopover = nil
-                                onToggleFilterPanel()
-                            } else {
-                                openFilterBuilder()
-                            }
+                            openPopover = nil
+                            onToggleFilterPanel()
                         },
                         onViewMenu: {
                             togglePopover(.columnVisibility)
@@ -388,18 +207,15 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .padding(.bottom, 12)
 
                     SchemaWorkbenchLegacyFilterControlBar(
-                        isFilterBuilderMenuOpen: openPopover == .filterBuilder,
-                        onFilter: {
-                            openFilterBuilder()
-                        }
+                        isFilterPanelOpen: isFilterPanelVisible,
+                        onFilter: onToggleFilterPanel
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, 12)
                 }
 
                 if isRedesign,
-                   isFilterPanelVisible,
-                   let filterPanel {
+                   isFilterPanelVisible {
                     filterPanel
                         .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                         .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
@@ -527,33 +343,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 ),
                 y: isRedesign ? ((shellDropdownFrames["view"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.viewPopoverTop(isRedesign: isRedesign)
             )
-        case .filterBuilder:
-            SchemaWorkbenchFilterBuilderPopover(
-                columns: filterableColumns,
-                rules: $filterRules,
-                isRedesign: isRedesign
-            )
-            .frame(width: min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)))
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            self.openPopoverWidth = geo.size.width
-                        }
-                        .onChange(of: geo.size.width) { newWidth in
-                            self.openPopoverWidth = newWidth
-                        }
-                }
-            )
-            .offset(
-                x: isRedesign ? {
-                    let triggerMinX = shellDropdownFrames["filterBuilder"]?.minX ?? SchemaWorkbenchStyle.pageHorizontalPadding
-                    let popoverWidth = self.openPopoverWidth > 0 ? self.openPopoverWidth : min(760, max(360, geometry.size.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding))
-                    let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
-                    return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
-                }() : SchemaWorkbenchStyle.pageHorizontalPadding,
-                y: isRedesign ? ((shellDropdownFrames["filterBuilder"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.filterPopoverTop(isRedesign: isRedesign)
-            )
         }
     }
 
@@ -580,84 +369,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         }
     }
 
-    private func openFilterBuilder() {
-        openPopover = .filterBuilder
-    }
-
-    private var filterableColumns: [WorkbenchTableColumn] {
-        columns.filter { column in
-            column.kind != .rowNumber
-                && (filterableColumnIDs == nil || filterableColumnIDs?.contains(column.id) == true)
-        }
-    }
-
-}
-
-private enum FilterBuilderDropdownKind: Hashable {
-    case join
-    case field
-    case filterOperator
-    case value
-}
-
-private struct FilterBuilderDropdownID: Hashable {
-    let ruleID: String
-    let kind: FilterBuilderDropdownKind
-}
-
-private enum FilterBuilderLayout {
-    static let panelPadding: CGFloat = 16
-    static let titleHeight: CGFloat = 22
-    static let titleRowGap: CGFloat = 14
-    static let rowHeight = WorkbenchControlMetrics.controlHeight
-    static let rowSpacing: CGFloat = 12
-    static let dropdownGap: CGFloat = 4
-
-    static let prefixWidth: CGFloat = 58
-    static let fieldWidth: CGFloat = 110
-    static let operatorWidth: CGFloat = 150
-    static let rowColumnGap: CGFloat = 10
-
-    static func dropdownWidth(for kind: FilterBuilderDropdownKind) -> CGFloat {
-        switch kind {
-        case .join:
-            return 96
-        case .field:
-            return 150
-        case .filterOperator:
-            return 190
-        case .value:
-            return 170
-        }
-    }
-
-    static func dropdownX(for kind: FilterBuilderDropdownKind) -> CGFloat {
-        switch kind {
-        case .join:
-            return panelPadding
-        case .field:
-            return panelPadding + prefixWidth + rowColumnGap
-        case .filterOperator:
-            return panelPadding + prefixWidth + rowColumnGap + fieldWidth + rowColumnGap
-        case .value:
-            return panelPadding
-                + prefixWidth
-                + rowColumnGap
-                + fieldWidth
-                + rowColumnGap
-                + operatorWidth
-                + rowColumnGap
-        }
-    }
-
-    static func dropdownY(forRowAt index: Int) -> CGFloat {
-        panelPadding
-            + titleHeight
-            + titleRowGap
-            + CGFloat(index) * (rowHeight + rowSpacing)
-            + rowHeight
-            + dropdownGap
-    }
 }
 
 enum SchemaWorkbenchStyle {
@@ -666,31 +377,20 @@ enum SchemaWorkbenchStyle {
     static let pageBottomPadding: CGFloat = 14
     static let tableCornerRadius: CGFloat = 8
     static let hairlineWidth: CGFloat = 0.5
-    static let rowGap: CGFloat = 12
 
     static func viewPopoverTop(isRedesign: Bool) -> CGFloat {
         let searchHeight = isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight
         return pageTopPadding + searchHeight + 8
     }
 
-    static func filterPopoverTop(isRedesign: Bool) -> CGFloat {
-        let searchHeight = isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight
-        let controlHeight = isRedesign ? WorkbenchControlMetrics.redesignHeight : WorkbenchControlMetrics.controlHeight
-        return pageTopPadding
-            + searchHeight
-            + rowGap
-            + controlHeight
-            + 8
-    }
 }
 
 struct SchemaWorkbenchSearchToolbar: View {
     let placeholder: String
     @Binding var searchDraft: String
     let searchResultCountText: String?
-    let filterCount: Int?
     var isSelectionMode: Bool = false
-    var isFilterBuilderMenuOpen: Bool = false
+    var isFilterPanelOpen: Bool = false
     var isViewMenuOpen: Bool = false
     var canEnterSelectionMode: Bool = false
     var onSubmit: (() -> Void)?
@@ -714,12 +414,10 @@ struct SchemaWorkbenchSearchToolbar: View {
                 title: "Filter",
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
-                badgeCount: filterCount,
                 isRedesign: true,
-                isMenuOpen: isFilterBuilderMenuOpen,
+                isMenuOpen: isFilterPanelOpen,
                 action: onFilter
             )
-            .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
             .disabled(isSelectionMode)
 
             WorkbenchToolbarButton(
@@ -818,7 +516,7 @@ struct SchemaWorkbenchLegacySearchCommandBar: View {
 }
 
 struct SchemaWorkbenchLegacyFilterControlBar: View {
-    var isFilterBuilderMenuOpen: Bool = false
+    var isFilterPanelOpen: Bool = false
     var onFilter: () -> Void
 
     var body: some View {
@@ -827,10 +525,9 @@ struct SchemaWorkbenchLegacyFilterControlBar: View {
                 title: "Filter",
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
-                isMenuOpen: isFilterBuilderMenuOpen,
+                isMenuOpen: isFilterPanelOpen,
                 action: onFilter
             )
-            .workbenchDropdownAnchor(id: "filterBuilder", in: "SearchShellSpace")
 
             Spacer(minLength: 0)
         }
@@ -899,445 +596,5 @@ struct SchemaWorkbenchColumnVisibilityPopover: View {
             columns: columns,
             visibleColumnIDs: visibleColumnIDs
         )
-    }
-}
-
-private struct DropdownFramePreferenceKey: PreferenceKey {
-    typealias Value = [FilterBuilderDropdownID: CGRect]
-    static var defaultValue: Value { [:] }
-    static func reduce(value: inout Value, nextValue: () -> Value) {
-        value.merge(nextValue()) { $1 }
-    }
-}
-
-struct SchemaWorkbenchFilterBuilderPopover: View {
-    let columns: [WorkbenchTableColumn]
-    @Binding var rules: [SchemaWorkbenchFilterRule]
-    var isRedesign: Bool = false
-    @State private var openDropdown: FilterBuilderDropdownID?
-    @State private var dropdownFrames: [FilterBuilderDropdownID: CGRect] = [:]
-    @State private var openDropdownWidth: CGFloat = 0
-
-    var body: some View {
-        GeometryReader { popoverGeometry in
-            ZStack(alignment: .topLeading) {
-                WorkbenchPopoverPanel(isRedesign: isRedesign) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        VStack(spacing: FilterBuilderLayout.rowSpacing) {
-                            ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
-                                SchemaWorkbenchFilterRuleRow(
-                                    rule: rule,
-                                    rowIndex: index,
-                                    columns: columns,
-                                    openDropdown: openDropdown,
-                                    isRedesign: isRedesign,
-                                    onToggleDropdown: toggleDropdown,
-                                    onChange: updateRule,
-                                    onDelete: {
-                                        deleteRule(rule.id)
-                                    }
-                                )
-                                .zIndex(Double(rules.count - index))
-                            }
-                        }
-
-                        HStack(spacing: 16) {
-                            WorkbenchPlainActionButton(
-                                title: "New Filter",
-                                systemImage: "plus",
-                                isRedesign: isRedesign,
-                                action: addRule
-                            )
-
-                            Spacer(minLength: 0)
-                        }
-                    }
-                    .padding(8)
-                }
-                .coordinateSpace(name: "FilterBuilderSpace")
-                .onPreferenceChange(DropdownFramePreferenceKey.self) { frames in
-                    self.dropdownFrames = frames
-                }
-
-                dropdownOverlay(in: popoverGeometry.size.width)
-                    .zIndex(1000)
-            }
-            .onChange(of: openDropdown) { _ in
-                self.openDropdownWidth = 0
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func dropdownOverlay(in containerWidth: CGFloat) -> some View {
-        if let openDropdown,
-           let rowIndex = rules.firstIndex(where: { $0.id == openDropdown.ruleID }),
-           let frame = dropdownFrames[openDropdown]
-        {
-            WorkbenchDropdownPanel(
-                choices: dropdownChoices(for: openDropdown),
-                selectedID: selectedDropdownID(for: openDropdown),
-                isRedesign: isRedesign,
-                onSelect: { choice in
-                    selectDropdownChoice(choice, for: openDropdown)
-                    self.openDropdown = nil
-                }
-            )
-            .frame(
-                minWidth: isRedesign ? frame.width : FilterBuilderLayout.dropdownWidth(for: openDropdown.kind),
-                alignment: .topLeading
-            )
-            .fixedSize(horizontal: isRedesign, vertical: false)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            self.openDropdownWidth = geo.size.width
-                        }
-                        .onChange(of: geo.size.width) { newWidth in
-                            self.openDropdownWidth = newWidth
-                        }
-                }
-            )
-            .offset(
-                x: isRedesign ? {
-                    let triggerMinX = frame.minX
-                    let popoverWidth = self.openDropdownWidth > 0 ? self.openDropdownWidth : max(220, frame.width)
-                    let rightLimit = containerWidth - 8
-                    return max(8, min(triggerMinX, rightLimit - popoverWidth))
-                }() : FilterBuilderLayout.dropdownX(for: openDropdown.kind),
-                y: isRedesign ? (frame.maxY + 4) : FilterBuilderLayout.dropdownY(forRowAt: rowIndex)
-            )
-        }
-    }
-
-    private func toggleDropdown(_ id: FilterBuilderDropdownID) {
-        openDropdown = openDropdown == id ? nil : id
-    }
-
-    private func dropdownChoices(for id: FilterBuilderDropdownID) -> [WorkbenchDropdownChoice] {
-        guard let rule = rules.first(where: { $0.id == id.ruleID }) else {
-            return []
-        }
-
-        switch id.kind {
-        case .join:
-            return Self.joinChoices
-        case .field:
-            return fieldChoices
-        case .filterOperator:
-            return operatorChoices(for: rule)
-        case .value:
-            return Self.multiSelectChoices
-        }
-    }
-
-    private func selectedDropdownID(for id: FilterBuilderDropdownID) -> String? {
-        guard let rule = rules.first(where: { $0.id == id.ruleID }) else {
-            return nil
-        }
-
-        switch id.kind {
-        case .join:
-            return rule.join?.id ?? SchemaWorkbenchFilterJoin.and.id
-        case .field:
-            return rule.fieldID
-        case .filterOperator:
-            return rule.operatorID.id
-        case .value:
-            return rule.value.isEmpty ? nil : rule.value
-        }
-    }
-
-    private func selectDropdownChoice(
-        _ choice: WorkbenchDropdownChoice,
-        for id: FilterBuilderDropdownID
-    ) {
-        guard let rule = rules.first(where: { $0.id == id.ruleID }) else {
-            return
-        }
-
-        var updatedRule = rule
-
-        switch id.kind {
-        case .join:
-            guard let join = SchemaWorkbenchFilterJoin(rawValue: choice.id) else {
-                return
-            }
-
-            updatedRule.join = join
-        case .field:
-            guard let column = columns.first(where: { $0.id == choice.id }) else {
-                return
-            }
-
-            updatedRule.fieldID = column.id
-            updatedRule.operatorID = SchemaWorkbenchFilterRuleRow.operators(for: column).first ?? .contains
-            updatedRule.value = ""
-        case .filterOperator:
-            guard let operatorID = SchemaWorkbenchFilterOperatorID(rawValue: choice.id) else {
-                return
-            }
-
-            updatedRule.operatorID = operatorID
-            if SchemaWorkbenchFilterRuleRow.doesOperatorNeedNoValue(operatorID) {
-                updatedRule.value = ""
-            }
-        case .value:
-            updatedRule.value = choice.id
-        }
-
-        updateRule(updatedRule)
-    }
-
-    private func addRule() {
-        guard let firstColumn = filterableColumns.first else {
-            return
-        }
-
-        let resolvedJoin = rules.count <= 1 ? SchemaWorkbenchFilterJoin.and : (rules.dropFirst().first?.join ?? .and)
-        rules.append(
-            SchemaWorkbenchFilterRule(
-                id: UUID().uuidString,
-                join: rules.isEmpty ? nil : resolvedJoin,
-                fieldID: firstColumn.id,
-                operatorID: SchemaWorkbenchFilterRuleRow.operators(for: firstColumn).first ?? .contains,
-                value: ""
-            )
-        )
-    }
-
-    private func updateRule(_ updatedRule: SchemaWorkbenchFilterRule) {
-        guard let index = rules.firstIndex(where: { $0.id == updatedRule.id }) else {
-            return
-        }
-
-        rules[index] = updatedRule
-        normalizeRules()
-    }
-
-    private func normalizeRules() {
-        guard !rules.isEmpty else {
-            return
-        }
-
-        let resolvedJoin = rules.dropFirst().first?.join ?? .and
-        for index in rules.indices {
-            rules[index].join = index == 0 ? nil : resolvedJoin
-
-            let column = filterableColumns.first { $0.id == rules[index].fieldID } ?? filterableColumns.first
-            if let column {
-                rules[index].fieldID = column.id
-                let operators = SchemaWorkbenchFilterRuleRow.operators(for: column)
-                if !operators.contains(rules[index].operatorID) {
-                    rules[index].operatorID = operators.first ?? .contains
-                    rules[index].value = ""
-                }
-            }
-
-            if SchemaWorkbenchFilterRuleRow.doesOperatorNeedNoValue(rules[index].operatorID) {
-                rules[index].value = ""
-            }
-        }
-    }
-
-    private func deleteRule(_ id: String) {
-        rules.removeAll { $0.id == id }
-        normalizeRules()
-    }
-
-    private var fieldChoices: [WorkbenchDropdownChoice] {
-        filterableColumns.map { column in
-            WorkbenchDropdownChoice(id: column.id, title: column.title)
-        }
-    }
-
-    private var filterableColumns: [WorkbenchTableColumn] {
-        columns.filter { $0.kind != .rowNumber }
-    }
-
-    private func operatorChoices(for rule: SchemaWorkbenchFilterRule) -> [WorkbenchDropdownChoice] {
-        let column = columns.first { $0.id == rule.fieldID }
-
-        return SchemaWorkbenchFilterRuleRow.operators(for: column).map { operatorID in
-            WorkbenchDropdownChoice(id: operatorID.id, title: operatorID.title)
-        }
-    }
-
-    private static let joinChoices = SchemaWorkbenchFilterJoin.allCases.map { join in
-        WorkbenchDropdownChoice(id: join.id, title: join.title)
-    }
-
-    private static let multiSelectChoices: [WorkbenchDropdownChoice] = []
-}
-
-private struct SchemaWorkbenchFilterRuleRow: View {
-    let rule: SchemaWorkbenchFilterRule
-    let rowIndex: Int
-    let columns: [WorkbenchTableColumn]
-    let openDropdown: FilterBuilderDropdownID?
-    var isRedesign: Bool = false
-    var onToggleDropdown: (FilterBuilderDropdownID) -> Void
-    var onChange: (SchemaWorkbenchFilterRule) -> Void
-    var onDelete: () -> Void
-
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Group {
-                if rowIndex == 0 {
-                    Text("Where")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
-                        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : nil)
-                } else if rowIndex == 1 {
-                    WorkbenchInlineDropdown(
-                        title: rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title,
-                        isOpen: isDropdownOpen(.join),
-                        isRedesign: isRedesign,
-                        action: {
-                            onToggleDropdown(dropdownID(.join))
-                        }
-                    )
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear
-                                .preference(
-                                    key: DropdownFramePreferenceKey.self,
-                                    value: [dropdownID(.join): geo.frame(in: .named("FilterBuilderSpace"))]
-                                )
-                        }
-                    )
-                } else {
-                    Text(rule.join?.title ?? SchemaWorkbenchFilterJoin.and.title)
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
-                        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignFieldHeight : nil)
-                }
-            }
-            .frame(width: isRedesign ? nil : 58, alignment: .leading)
-
-            WorkbenchInlineDropdown(
-                title: selectedColumn?.title ?? "Field",
-                isOpen: isDropdownOpen(.field),
-                isRedesign: isRedesign,
-                action: {
-                    onToggleDropdown(dropdownID(.field))
-                }
-            )
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(
-                            key: DropdownFramePreferenceKey.self,
-                            value: [dropdownID(.field): geo.frame(in: .named("FilterBuilderSpace"))]
-                        )
-                }
-            )
-            .frame(width: isRedesign ? nil : 110)
-
-            WorkbenchInlineDropdown(
-                title: rule.operatorID.title,
-                isOpen: isDropdownOpen(.filterOperator),
-                isRedesign: isRedesign,
-                action: {
-                    onToggleDropdown(dropdownID(.filterOperator))
-                }
-            )
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(
-                            key: DropdownFramePreferenceKey.self,
-                            value: [dropdownID(.filterOperator): geo.frame(in: .named("FilterBuilderSpace"))]
-                        )
-                }
-            )
-            .frame(width: isRedesign ? nil : 150)
-
-            valueInput
-                .frame(maxWidth: .infinity)
-
-            WorkbenchIconButton(systemImage: "trash", isRedesign: isRedesign, action: onDelete)
-                .frame(width: 40)
-        }
-    }
-
-    @ViewBuilder
-    private var valueInput: some View {
-        if Self.doesOperatorNeedNoValue(rule.operatorID) {
-            WorkbenchReadonlyField(title: "No value needed", isRedesign: isRedesign)
-        } else {
-            WorkbenchTextInputField(
-                placeholder: valuePlaceholder,
-                text: Binding(
-                    get: {
-                        rule.value
-                    },
-                    set: { value in
-                        var updatedRule = rule
-                        updatedRule.value = sanitizedInput(value)
-                        onChange(updatedRule)
-                    }
-                ),
-                isRedesign: isRedesign
-            )
-        }
-    }
-
-    private var selectedColumn: WorkbenchTableColumn? {
-        columns.first { $0.id == rule.fieldID }
-    }
-
-    private var valuePlaceholder: String {
-        switch selectedColumn?.kind {
-        case .rowNumber:
-            return "Enter number..."
-        case .multiSelect:
-            return "Enter a value..."
-        case .text, nil:
-            return "Enter a value..."
-        }
-    }
-
-    private func sanitizedInput(_ value: String) -> String {
-        guard selectedColumn?.kind == .rowNumber else {
-            return value
-        }
-
-        return String(value.filter { $0.isNumber })
-    }
-
-    private func isDropdownOpen(_ kind: FilterBuilderDropdownKind) -> Bool {
-        openDropdown == dropdownID(kind)
-    }
-
-    private func dropdownID(_ kind: FilterBuilderDropdownKind) -> FilterBuilderDropdownID {
-        FilterBuilderDropdownID(ruleID: rule.id, kind: kind)
-    }
-
-    fileprivate static func operators(for column: WorkbenchTableColumn?) -> [SchemaWorkbenchFilterOperatorID] {
-        switch column?.kind {
-        case .rowNumber:
-            return [
-                .equals,
-                .doesNotEqual,
-                .greaterThan,
-                .greaterThanOrEqualTo,
-                .lessThan,
-                .lessThanOrEqualTo,
-                .isEmpty,
-                .isNotEmpty,
-            ]
-        case .multiSelect:
-            return [.contains, .doesNotContain, .isEmpty, .isNotEmpty]
-        case .text, nil:
-            return [.contains, .doesNotContain, .is, .isNot, .isEmpty, .isNotEmpty]
-        }
-    }
-
-    fileprivate static func doesOperatorNeedNoValue(_ operatorID: SchemaWorkbenchFilterOperatorID) -> Bool {
-        operatorID == .isEmpty || operatorID == .isNotEmpty
     }
 }

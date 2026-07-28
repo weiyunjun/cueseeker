@@ -229,135 +229,6 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
-    func filterOnlySearchRemountReusesResidentProjectionWithoutHydration() async throws {
-        let uiProbeScope = UUID().uuidString
-        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
-            scope: uiProbeScope
-        )
-        defer { session.finish() }
-
-        try await withMountedCueTable(
-            surface: .search,
-            usesFilterOnlySearch: true,
-            uiProbeScope: uiProbeScope
-        ) { app, window, coordinator in
-            let rowStore = app.search.tableRowStore
-            let versionBefore = rowStore.snapshot.version
-            let entryIDsBefore = rowStore.snapshot.orderedEntryIDs
-            #expect(rowStore.snapshot.totalRowCount == 200)
-            #expect(session.recording().count(
-                SubtitleTableProbeSurface.search.counterName(
-                    "row_hydration_requested"
-                )
-            ) > 0)
-            coordinator.scrollToRow(100)
-            let didCaptureViewport = await waitUntil(timeout: 1) {
-                window.contentView?.layoutSubtreeIfNeeded()
-                return (app.search.tableViewportAnchor?.rowIndex ?? 0) > 0
-            }
-            try #require(didCaptureViewport)
-            let viewportAnchorBefore = try #require(
-                app.search.tableViewportAnchor
-            )
-
-            app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
-            app.workbenchLayout.selectShioriList(
-                id: ShioriListIdentity.defaultListID
-            )
-            app.activateWorkbenchPanelMode(.shiori)
-            let didMountShiori = await waitUntil(timeout: 2) {
-                window.contentView?.layoutSubtreeIfNeeded()
-                return findSubtitleTableCoordinator(
-                    in: window.contentView,
-                    surface: .shiori
-                ) != nil
-            }
-            try #require(didMountShiori)
-            let recordingBeforeRemount = session.recording()
-
-            app.activateWorkbenchPanelMode(.search)
-            let didRemountSearch = await waitUntil(timeout: 2) {
-                window.contentView?.layoutSubtreeIfNeeded()
-                return findSubtitleTableCoordinator(
-                    in: window.contentView,
-                    surface: .search
-                ) != nil
-            }
-            try #require(didRemountSearch)
-            try await Task.sleep(nanoseconds: 100_000_000)
-
-            let remountRecording = session.recording().delta(
-                since: recordingBeforeRemount
-            )
-            #expect(remountRecording.count(
-                SubtitleTableProbeSurface.search.counterName(
-                    "row_hydration_requested"
-                )
-            ) == 0)
-            #expect(rowStore.snapshot.version == versionBefore)
-            #expect(rowStore.snapshot.orderedEntryIDs == entryIDsBefore)
-            #expect(rowStore.snapshot.totalRowCount == 200)
-            #expect(app.search.tableViewportAnchor?.entryID == viewportAnchorBefore.entryID)
-        }
-    }
-
-    @MainActor
-    @Test
-    func filterOnlySearchRejectsResidentCueIDsAfterSameFolderReindex() async throws {
-        let uiProbeScope = UUID().uuidString
-        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
-            scope: uiProbeScope
-        )
-        defer { session.finish() }
-
-        try await withMountedCueTable(
-            surface: .search,
-            usesFilterOnlySearch: true,
-            uiProbeScope: uiProbeScope
-        ) { app, window, _ in
-            let oldEntryIDs = app.search.tableRowStore.snapshot.orderedEntryIDs
-            let oldDataRevision = app.search.indexedCueDataRevision
-            let oldProjectionSource = app.search.tableProjectionSource
-            let recordingBeforeReindex = session.recording()
-            let folder = try #require(app.indexing.selectedFolders.first)
-
-            app.indexFolder(folder)
-
-            #expect(app.search.tableProjectionSource == oldProjectionSource)
-            #expect(
-                app.search.tableRowStore.snapshot.orderedEntryIDs
-                    == oldEntryIDs
-            )
-            await app.indexingTask?.value
-            let didReloadStableProjection = await waitUntil(timeout: 3) {
-                window.contentView?.layoutSubtreeIfNeeded()
-                let expectedKey = SearchFilterOnlyProjectionKey(
-                    filterSignature: app.search.activeFilterSetSignature,
-                    folderPaths: app.indexing.selectedFolders.map(\.path),
-                    indexedCueDataRevision: app.search.indexedCueDataRevision
-                )
-                return app.search.indexedCueDataRevision == oldDataRevision + 1
-                    && app.search.tableProjectionSource == .filterOnly(expectedKey)
-                    && !app.indexing.isLibraryFolderOperationActive
-            }
-            try #require(didReloadStableProjection)
-            try await Task.sleep(nanoseconds: 100_000_000)
-
-            let reindexRecording = session.recording().delta(
-                since: recordingBeforeReindex
-            )
-            #expect(reindexRecording.count(
-                SubtitleTableProbeSurface.search.counterName(
-                    "row_hydration_requested"
-                )
-            ) > 0)
-            #expect(Set(app.search.tableRowStore.snapshot.orderedEntryIDs)
-                .isDisjoint(with: oldEntryIDs))
-        }
-    }
-
-    @MainActor
-    @Test
     func failedFolderRemovalRestoresMountedResidentSearch() async throws {
         let executor = MountedFailingLibraryFolderRemovalExecutor()
         let uiProbeScope = UUID().uuidString
@@ -895,7 +766,6 @@ private func nativeSwitchDescendant(in root: NSView) -> NSView? {
 private func withMountedCueTable(
     surface: SubtitleTableProbeSurface,
     usesMissingContextTarget: Bool = false,
-    usesFilterOnlySearch: Bool = false,
     initialShowCueGroup: Bool = false,
     libraryFolderRemovalExecutor: (any LibraryFolderRemovalExecuting)? = nil,
     uiProbeScope: String,
@@ -905,7 +775,6 @@ private func withMountedCueTable(
     let harness = try CueGroupRefreshScopeMountedHarness(
         surface: surface,
         usesMissingContextTarget: usesMissingContextTarget,
-        usesFilterOnlySearch: usesFilterOnlySearch,
         initialShowCueGroup: initialShowCueGroup,
         libraryFolderRemovalExecutor: libraryFolderRemovalExecutor,
         uiProbeScope: uiProbeScope
@@ -958,7 +827,6 @@ private final class CueGroupRefreshScopeMountedHarness {
     init(
         surface: SubtitleTableProbeSurface,
         usesMissingContextTarget: Bool,
-        usesFilterOnlySearch: Bool,
         initialShowCueGroup: Bool,
         libraryFolderRemovalExecutor: (any LibraryFolderRemovalExecuting)?,
         uiProbeScope: String
@@ -1009,37 +877,23 @@ private final class CueGroupRefreshScopeMountedHarness {
         }
         switch surface {
         case .search:
-            if usesFilterOnlySearch {
-                let rules = [
-                    SchemaWorkbenchSearchDefaults.makeFilterRule(
-                        join: nil,
-                        fieldID: "cues",
-                        operatorID: .contains,
-                        value: "primary"
-                    ),
-                ]
-                app.search.updateQuery("")
-                app.search.tableFilterRules = rules
-                app.search.updateActiveFilterSet(rules.subtitleSearchFilterSet)
-            } else {
-                app.search.updateQuery("primary")
-                let results = cueGroupRefreshScopeSearchResults(
-                    subtitlePath: subtitleURL.path,
-                    videoPath: videoURL.path,
-                    rowCount: 200
-                )
-                app.search.replaceResultState(
-                    results: results,
-                    orderedCueIDs: results.map(\.entryID),
-                    status: .completed,
-                    totalCount: results.count,
-                    fileSummaries: [],
-                    countState: .exact,
-                    knownResultCount: results.count,
-                    knownFileCount: 0,
-                    hasMore: false
-                )
-            }
+            app.search.updateQuery("primary")
+            let results = cueGroupRefreshScopeSearchResults(
+                subtitlePath: subtitleURL.path,
+                videoPath: videoURL.path,
+                rowCount: 200
+            )
+            app.search.replaceResultState(
+                results: results,
+                orderedCueIDs: results.map(\.entryID),
+                status: .completed,
+                totalCount: results.count,
+                fileSummaries: [],
+                countState: .exact,
+                knownResultCount: results.count,
+                knownFileCount: 0,
+                hasMore: false
+            )
             app.activateWorkbenchPanelMode(.search)
         case .context:
             app.search.updateContextRequest(CueContextSearchRequest(

@@ -78,8 +78,6 @@ struct CueGroupPresentationGate: View {
 @MainActor
 final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
-    private static let primarySearchLanguageKey = "primarySearchLanguage"
-    private static let searchScopeKey = "searchScope"
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let shioriFacetExclusionsKey = "shioriFacetExclusionsByListID"
     private static let showCueGroupKey = "showCueGroup"
@@ -101,18 +99,6 @@ final class SettingsStore: ObservableObject {
         didSet {
             userDefaults.set(appAppearanceMode.rawValue, forKey: Self.appAppearanceModeKey)
             Self.applyAppAppearanceMode(appAppearanceMode)
-        }
-    }
-
-    @Published var primarySearchLanguage: PrimarySearchLanguage {
-        didSet {
-            userDefaults.set(primarySearchLanguage.rawValue, forKey: Self.primarySearchLanguageKey)
-        }
-    }
-
-    @Published var searchScope: SearchScope {
-        didSet {
-            userDefaults.set(searchScope.rawValue, forKey: Self.searchScopeKey)
         }
     }
 
@@ -234,8 +220,6 @@ final class SettingsStore: ObservableObject {
             && requestedAutoSwitchPreference
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
-            Self.primarySearchLanguageKey: PrimarySearchLanguage.defaultValue.rawValue,
-            Self.searchScopeKey: SearchScope.defaultValue.rawValue,
             Self.showCueGroupKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoSwitchCueSequenceGapDefaultMilliseconds,
@@ -251,8 +235,6 @@ final class SettingsStore: ObservableObject {
         )
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
-        self.primarySearchLanguage = Self.loadPrimarySearchLanguage(from: userDefaults)
-        self.searchScope = Self.loadSearchScope(from: userDefaults)
         self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.autoPauseAfterCueFinishesEnabled = resolvedAutoPausePreference
@@ -329,24 +311,6 @@ final class SettingsStore: ObservableObject {
             return .auto
         }
         return mode
-    }
-
-    private static func loadPrimarySearchLanguage(from userDefaults: UserDefaults) -> PrimarySearchLanguage {
-        guard let rawValue = userDefaults.string(forKey: primarySearchLanguageKey),
-              let language = PrimarySearchLanguage(rawValue: rawValue)
-        else {
-            return .defaultValue
-        }
-        return language
-    }
-
-    private static func loadSearchScope(from userDefaults: UserDefaults) -> SearchScope {
-        guard let rawValue = userDefaults.string(forKey: searchScopeKey),
-              let scope = SearchScope(rawValue: rawValue)
-        else {
-            return .defaultValue
-        }
-        return scope
     }
 
     private static func loadSearchFacetFilter(from userDefaults: UserDefaults) -> CueFacetFilter {

@@ -10,20 +10,17 @@ enum PlaybackPlaylistSourceKind: Hashable, Sendable {
 struct PlaybackPlaylistShioriTableContext: Hashable, Sendable {
     let runID: UUID
     let searchText: String
-    let filterSet: SubtitleSearchFilterSet
     let totalCount: Int
 
     init(
         runID: UUID = UUID(),
         searchText: String,
-        filterSet: SubtitleSearchFilterSet,
         totalCount: Int
     ) {
         self.runID = runID
         self.searchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        self.filterSet = filterSet
         self.totalCount = max(0, totalCount)
     }
 }

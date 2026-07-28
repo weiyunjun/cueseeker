@@ -185,95 +185,6 @@ func failedFolderIndexRestartsInvalidatedActiveSearch() async throws {
 }
 
 @MainActor
-@Test
-func playbackCoveredFolderScopeChangesRestoreFilterOnlyLoadWithoutIndexMutation() async throws {
-    let suiteName = "CueSeekerFilterOnlyScopeLifecycleTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-    let testRoot = FileManager.default.temporaryDirectory
-        .appendingPathComponent(suiteName, isDirectory: true)
-    defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: testRoot)
-    }
-
-    let app = try await makeFolderScopeLifecycleApp(
-        userDefaults: userDefaults,
-        testRoot: testRoot
-    )
-    app.search.updateQuery("")
-    app.search.updateActiveFilterSet(SubtitleSearchFilterSet(rules: [
-        SubtitleSearchFilterRule(
-            field: .cues,
-            operatorID: .contains,
-            value: "scope lifecycle"
-        )
-    ]))
-    app.search.loadFilterOnlyTableRows(
-        folders: app.indexing.selectedFolders,
-        initialPageSize: 100,
-        continuationPageSize: 100
-    )
-    let originalFolderPaths = app.indexing.selectedFolders.map(\.path)
-    app.search.setTableProjectionResponseActive(false)
-    app.search.suspendFilterOnlyPageLoad()
-
-    let emptyFolder = testRoot.appendingPathComponent(
-        "Empty Filter Scope",
-        isDirectory: true
-    )
-    try FileManager.default.createDirectory(
-        at: emptyFolder,
-        withIntermediateDirectories: true
-    )
-    app.addFolder(emptyFolder)
-    await app.indexingTask?.value
-
-    guard case let .filterOnly(coveredKey) = app.search.tableProjectionSource else {
-        Issue.record("Expected covered Filter-only projection to remain resident")
-        return
-    }
-    #expect(coveredKey.folderPaths == originalFolderPaths)
-    app.search.setTableProjectionResponseActive(true)
-
-    var deadline = Date().addingTimeInterval(2)
-    while app.search.tableRowStore.snapshot.totalRowCount != 1,
-          Date() < deadline {
-        await Task.yield()
-        try await Task.sleep(nanoseconds: 10_000_000)
-    }
-    #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
-    #expect(app.search.tableRowStore.snapshot.row(at: 0)?.primaryCueText
-        == "scope lifecycle result")
-
-    let invalidFolder = testRoot.appendingPathComponent("Invalid Filter Scope")
-    try Data("file root".utf8).write(to: invalidFolder)
-    app.search.setTableProjectionResponseActive(false)
-    app.search.suspendFilterOnlyPageLoad()
-    app.addFolder(invalidFolder)
-    await app.indexingTask?.value
-
-    guard case .failed = app.indexing.indexingStatus else {
-        Issue.record("Expected Filter-only file root indexing to fail")
-        return
-    }
-    app.search.setTableProjectionResponseActive(true)
-    deadline = Date().addingTimeInterval(2)
-    while app.search.tableRowStore.snapshot.totalRowCount != 1,
-          Date() < deadline {
-        await Task.yield()
-        try await Task.sleep(nanoseconds: 10_000_000)
-    }
-    let source = try #require(app.search.tableProjectionSource)
-    guard case let .filterOnly(key) = source else {
-        Issue.record("Expected Filter-only projection after scope recovery")
-        return
-    }
-    #expect(key.folderPaths == app.indexing.selectedFolders.map(\.path))
-    #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
-    #expect(app.search.searchStatus == .completed)
-}
-
-@MainActor
 private func makeFolderScopeLifecycleApp(
     userDefaults: UserDefaults,
     testRoot: URL
@@ -1272,8 +1183,8 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     let missingIDPage = await app.search.loadSearchRows(
         range: 110..<112,
         folders: app.indexing.selectedFolders,
-        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
-        watchStateFilter: app.settings.searchScope.searchWatchStateFilter
+        languageFilter: .all,
+        watchStateFilter: .all
     )
     #expect(missingIDPage == nil)
 
@@ -1297,8 +1208,8 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     let page = try #require(await app.search.loadSearchRows(
         range: 110..<112,
         folders: app.indexing.selectedFolders,
-        languageFilter: app.settings.primarySearchLanguage.searchLanguageFilter,
-        watchStateFilter: app.settings.searchScope.searchWatchStateFilter
+        languageFilter: .all,
+        watchStateFilter: .all
     ))
 
     #expect(page.range == 110..<112)
@@ -1539,79 +1450,8 @@ func searchTableProjectionSurvivesViewRemountWithoutMaterializingResults() {
 
 @MainActor
 @Test
-func filterOnlyProjectionReusesCompleteSourceAndRejectsDuplicatePageLoads() throws {
+func indexedCueMutationInvalidatesContextProjectionAndAdvancesRevision() {
     let search = SearchStore()
-    let key = SearchFilterOnlyProjectionKey(
-        filterSignature: "display:contains:episode",
-        folderPaths: ["/Media"]
-    )
-
-    #expect(search.prepareFilterOnlyTableProjection(key: key))
-    let firstToken = try #require(search.beginFilterOnlyPageLoad(
-        key: key,
-        loadedRowCount: 0
-    ))
-    #expect(search.beginFilterOnlyPageLoad(key: key, loadedRowCount: 0) == nil)
-    #expect(!search.completeFilterOnlyPageLoad(
-        firstToken,
-        totalRowCount: 200,
-        loadedRowCount: 200
-    ))
-
-    #expect(!search.prepareFilterOnlyTableProjection(key: key))
-    #expect(search.beginFilterOnlyPageLoad(key: key, loadedRowCount: 200) == nil)
-    #expect(search.tableProjectionSource == .filterOnly(key))
-}
-
-@MainActor
-@Test
-func filterOnlyProjectionResumesPartialSourceAndRejectsStaleResponse() throws {
-    let search = SearchStore()
-    let key = SearchFilterOnlyProjectionKey(
-        filterSignature: "cues:contains:review",
-        folderPaths: ["/Media"]
-    )
-    _ = search.prepareFilterOnlyTableProjection(key: key)
-    let firstToken = try #require(search.beginFilterOnlyPageLoad(
-        key: key,
-        loadedRowCount: 0
-    ))
-    #expect(search.completeFilterOnlyPageLoad(
-        firstToken,
-        totalRowCount: 2_000,
-        loadedRowCount: 200
-    ))
-    let pendingToken = try #require(search.beginFilterOnlyPageLoad(
-        key: key,
-        loadedRowCount: 200
-    ))
-
-    search.suspendFilterOnlyPageLoad()
-
-    #expect(!search.acceptsFilterOnlyPageLoad(pendingToken))
-    #expect(!search.prepareFilterOnlyTableProjection(key: key))
-    let resumedToken = try #require(search.beginFilterOnlyPageLoad(
-        key: key,
-        loadedRowCount: 200
-    ))
-    #expect(resumedToken.startIndex == 200)
-    #expect(resumedToken.generation != pendingToken.generation)
-}
-
-@MainActor
-@Test
-func indexedCueMutationInvalidatesFilterProjectionAndAdvancesItsIdentity() throws {
-    let search = SearchStore()
-    let originalKey = SearchFilterOnlyProjectionKey(
-        filterSignature: "cues:contains:review",
-        folderPaths: ["/Media"],
-        indexedCueDataRevision: search.indexedCueDataRevision
-    )
-    _ = search.prepareFilterOnlyTableProjection(key: originalKey)
-    let stalePageToken = try #require(search.beginFilterOnlyPageLoad(
-        key: originalKey,
-        loadedRowCount: 0
-    ))
     search.tableRowStore.updateResidentSearchResults(
         [makeTableSandboxSearchResult(
             id: 42,
@@ -1621,30 +1461,23 @@ func indexedCueMutationInvalidatesFilterProjectionAndAdvancesItsIdentity() throw
         cueContentProvider: { _ in nil },
         tableName: "test-search"
     )
-    search.updateContextRequest(CueContextSearchRequest(
+    let request = CueContextSearchRequest(
         displayTitle: "Episode",
         subtitlePath: "/Media/Episode.srt",
         targetCueID: 42
-    ))
+    )
+    search.updateContextRequest(request)
+    search.activateContextTableProjection(requestID: request.id)
 
     let mutation = search.beginIndexedCueDataMutation()
 
     #expect(search.tableProjectionSource == nil)
     #expect(search.tableRowStore.snapshot.totalRowCount == 0)
     #expect(search.cueContextSearchRequest == nil)
-    #expect(!search.acceptsFilterOnlyPageLoad(stalePageToken))
     #expect(search.indexedCueDataRevision == 0)
     #expect(search.completeIndexedCueDataMutation(mutation))
     #expect(!search.completeIndexedCueDataMutation(mutation))
     #expect(search.indexedCueDataRevision == 1)
-
-    let refreshedKey = SearchFilterOnlyProjectionKey(
-        filterSignature: originalKey.filterSignature,
-        folderPaths: originalKey.folderPaths,
-        indexedCueDataRevision: search.indexedCueDataRevision
-    )
-    #expect(refreshedKey != originalKey)
-    #expect(search.prepareFilterOnlyTableProjection(key: refreshedKey))
 
     let supersededMutation = search.beginIndexedCueDataMutation()
     let currentMutation = search.beginIndexedCueDataMutation()
