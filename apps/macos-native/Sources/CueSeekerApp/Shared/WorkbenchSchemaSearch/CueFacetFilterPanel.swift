@@ -221,6 +221,11 @@ struct CueFacetCard: View {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 Image(systemName: systemImage)
                     .font(.system(size: WorkbenchControlMetrics.redesignCheckboxSize))
+                    .foregroundStyle(
+                        isDisabled
+                            ? WorkbenchRedesignColors.iconDisabled
+                            : WorkbenchRedesignColors.textSecondary
+                    )
                     .frame(
                         width: WorkbenchControlMetrics.redesignCheckboxSize,
                         height: WorkbenchControlMetrics.redesignCheckboxSize
@@ -231,8 +236,12 @@ struct CueFacetCard: View {
                         size: WorkbenchControlMetrics.redesignFontSizeControl,
                         weight: .semibold
                     ))
+                    .foregroundStyle(
+                        isDisabled
+                            ? WorkbenchRedesignColors.textDisabled
+                            : WorkbenchRedesignColors.textSecondary
+                    )
             }
-            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing1)
 
             ForEach(options) { option in
@@ -278,7 +287,7 @@ struct CueFacetCard: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StaticButtonStyle())
                 .allowsHitTesting(!isCalculating)
                 .disabled(isDisabled)
                 .accessibilityLabel("\(title), \(option.title)")

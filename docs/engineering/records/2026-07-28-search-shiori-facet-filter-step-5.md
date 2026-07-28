@@ -40,6 +40,11 @@ visual acceptance and `UI.md` changes to the human owner.
   Calculating counts still block option changes while preserving the current
   checked or unchecked appearance; Select mode disables the options with the
   global Disabled colors and cannot exit Select through a facet click.
+- Reused the existing `StaticButtonStyle` for facet option rows so clicking a
+  checkbox changes only its selection state and does not add a Button pressed
+  effect.
+- Applied Select's Disabled colors to the card title icon and title as well as
+  every option, while leaving the card surface and border unchanged.
 - Changed the Search Filter button to show or hide the panel. Its open visual
   reuses the existing open-menu button state and it receives no count or Badge.
 - Made Search panel visibility start as visible and remain session-only; no
