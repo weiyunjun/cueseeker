@@ -12,6 +12,12 @@ func searchFacetPanelDefaultsToVisible() {
 }
 
 @MainActor
+@Test
+func shioriFacetPanelDefaultsToHidden() {
+    #expect(!WorkbenchShioriTableView.defaultFacetPanelVisibility)
+}
+
+@MainActor
 extension SearchStore {
     func replaceResidentResults(_ results: [SubtitleSearchResult]) {
         replaceResultState(

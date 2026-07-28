@@ -527,9 +527,13 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
-        shiori.setActiveListID(
-            try? openedShioriDatabase?.firstShioriListID()
-        )
+        let initialShioriListID = try? openedShioriDatabase?.firstShioriListID()
+        if let initialShioriListID {
+            shiori.updateTableFacetFilter(
+                settings.shioriFacetFilter(forListID: initialShioriListID)
+            )
+        }
+        shiori.setActiveListID(initialShioriListID)
         setupSettingsObservers()
     }
 

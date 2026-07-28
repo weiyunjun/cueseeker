@@ -231,6 +231,70 @@ func sharedShioriPipelineAppliesWorkbenchSearchBeforePlaybackProjection() async 
     #expect(window.item(at: 0)?.primaryCueText == "alpha shared shiori")
 }
 
+@MainActor
+@Test
+func sharedShioriFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async throws {
+    let suiteName = "PlaybackSharedShioriFacet-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("PlaybackSharedShioriFacet-\(UUID().uuidString).sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: databaseURL)
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
+        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+    }
+    _ = NSApplication.shared
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
+    await app.startupDatabaseTask?.value
+    let database = try #require(app.indexingDatabase)
+    let shortShiori = try playbackDatabaseShiori(
+        database: database,
+        content: "short shared shiori",
+        timestamp: 1_000
+    )
+    let longShiori = try playbackDatabaseShiori(
+        database: database,
+        content: "long shared shiori",
+        timestamp: 2_000,
+        durationMilliseconds: 4_000
+    )
+    let listID = try #require(app.shiori.activeListID)
+    let persistedFilter = CueFacetFilter(durations: [.underOneSecond])
+    app.settings.setShioriFacetFilter(persistedFilter, forListID: listID)
+
+    app.openShioriList(id: listID)
+    await app.shioriTableRowsTask?.value
+
+    let initialSnapshotID = app.shiori.tableResultSnapshotID
+    #expect(app.shiori.tableFacetFilter == persistedFilter)
+    #expect(app.shiori.residentFacetSnapshot?.distribution.totalCount == 2)
+    #expect(app.shiori.tableResultRowCount == 1)
+    #expect(app.shiori.playbackTableResultShioriIDs == [shortShiori.id])
+
+    app.updateShioriFacetFilter(CueFacetFilter())
+
+    #expect(app.shioriTableRowsTask == nil)
+    #expect(app.shiori.tableResultSnapshotID != initialSnapshotID)
+    #expect(app.shiori.tableResultRowCount == 2)
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 2)
+    #expect(Set(app.shiori.playbackTableResultShioriIDs ?? []) == [
+        shortShiori.id,
+        longShiori.id,
+    ])
+
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        sessionGeneration: 1,
+        shioriStore: app.shiori
+    )
+    let window = try #require(session.shioriWindow)
+    #expect(window.snapshot.totalCount == 2)
+}
+
 private struct PlaybackSharedShioriFixture {
     let shiori: Shiori
     let presentation: ShioriCuePresentation
@@ -299,7 +363,8 @@ private func playbackSharedShioriRowSource(
 private func playbackDatabaseShiori(
     database: IndexingDatabase,
     content: String,
-    timestamp: Int
+    timestamp: Int,
+    durationMilliseconds: Int = 500
 ) throws -> Shiori {
     let subtitleFile = URL(fileURLWithPath: "/Media/Shiori-\(timestamp).srt")
     let videoFile = URL(fileURLWithPath: "/Media/Shiori-\(timestamp).mkv")
@@ -312,7 +377,7 @@ private func playbackDatabaseShiori(
                 startTimecode: "00:00:00,000",
                 endTimecode: "00:00:00,500",
                 startMilliseconds: timestamp,
-                endMilliseconds: timestamp + 500,
+                endMilliseconds: timestamp + durationMilliseconds,
                 text: content
             )
         ]

@@ -26,6 +26,7 @@ final class ShioriStore: ObservableObject {
     @Published var tableHasLoadedInitialPage = false
     @Published var tableDataRevision = 0
     @Published private(set) var residentFacetSnapshot: CueFacetSnapshot?
+    private(set) var tableFacetFilter = CueFacetFilter()
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultShioriIDs: [Int64]?
     private(set) var residentRelations: [ShioriRelation] = []
@@ -238,6 +239,18 @@ final class ShioriStore: ObservableObject {
         tableResultRowCount = shioriIDs.count
     }
 
+    @discardableResult
+    func updateTableFacetFilter(_ filter: CueFacetFilter) -> Bool {
+        guard tableFacetFilter != filter else { return false }
+        tableFacetFilter = filter
+        return true
+    }
+
+    func beginTableResultProjection() {
+        tableResultSnapshotID = UUID()
+        tableResultShioriIDs = nil
+    }
+
     func installResidentSnapshot(
         _ snapshot: ShioriResidentSnapshot,
         listID: Int64 = ShioriListIdentity.defaultListID,
@@ -329,6 +342,7 @@ final class ShioriStore: ObservableObject {
 
     func markTableRowsStale() {
         tableRowsNeedReload = true
+        residentFacetSnapshot = nil
         tableDataRevision += 1
     }
 }

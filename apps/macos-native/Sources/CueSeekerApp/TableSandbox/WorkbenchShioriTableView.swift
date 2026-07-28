@@ -13,6 +13,8 @@ private struct WorkbenchShioriTableTextCopySource {
 }
 
 struct WorkbenchShioriTableView: View {
+    static let defaultFacetPanelVisibility = false
+
     @EnvironmentObject private var shioriStore: ShioriStore
     let isTableResponseActive: Bool
 
@@ -46,6 +48,9 @@ private struct WorkbenchShioriTableContent: View {
     @State private var pendingTagDeletion: PendingShioriTagDeletion?
     @State private var canExportSelectedRowsAsCollage = false
     @State private var hasDeferredReloadWhileCovered = false
+    @State private var isFacetPanelVisible =
+        WorkbenchShioriTableView.defaultFacetPanelVisibility
+    @State private var shioriFacetFilter = CueFacetFilter()
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -62,10 +67,26 @@ private struct WorkbenchShioriTableContent: View {
             isRedesign: true,
             tableSummary: tableSummary,
             selectionActions: selectedSummaryActions,
-            filterableColumnIDs: ["display", "cues"],
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
+            filterPanel: AnyView(
+                CueFacetFilterPanel(
+                    distribution:
+                        shioriStore.residentFacetSnapshot?.distribution,
+                    availableLanguages: availableFacetLanguages,
+                    isCalculating: shioriStore.residentFacetSnapshot == nil,
+                    isDisabled: isSelectionMode,
+                    filter: shioriFacetFilterBinding
+                )
+            ),
+            isFilterPanelVisible: isFacetPanelVisible,
+            onToggleFilterPanel: {
+                if !isFacetPanelVisible {
+                    restoreShioriFacetFilter()
+                }
+                isFacetPanelVisible.toggle()
+            },
             onSearchSubmit: {
                 submitSearchDraft()
             }
@@ -178,6 +199,7 @@ private struct WorkbenchShioriTableContent: View {
             }
         }
         .onAppear {
+            restoreShioriFacetFilter()
             shioriStore.setTableProjectionResponseActive(allowsTableResponse)
             prepareViewportRestoration()
             restoreSelectionIfPossible()
@@ -197,6 +219,9 @@ private struct WorkbenchShioriTableContent: View {
         .onChange(of: shioriStore.tableFilterRules) { _ in
             exitSelectionMode()
             reloadRows(resetScroll: true)
+        }
+        .onChange(of: shioriStore.activeListID) { _ in
+            restoreShioriFacetFilter()
         }
         .onChange(of: canEnterSelectionMode) { canEnter in
             if !canEnter {
@@ -303,6 +328,36 @@ private struct WorkbenchShioriTableContent: View {
         isTableResponseActive
     }
 
+    private var shioriFacetFilterBinding: Binding<CueFacetFilter> {
+        Binding(
+            get: { shioriFacetFilter },
+            set: { newValue in
+                guard !isSelectionMode,
+                      shioriStore.residentFacetSnapshot != nil,
+                      shioriFacetFilter != newValue,
+                      let listID = shioriStore.activeListID
+                else {
+                    return
+                }
+                shioriFacetFilter = newValue
+                settingsStore.setShioriFacetFilter(
+                    newValue,
+                    forListID: listID
+                )
+                applyShioriFacetFilter(newValue)
+            }
+        )
+    }
+
+    private var availableFacetLanguages: [SubtitleLanguageCode] {
+        var available = Set<SubtitleLanguageCode>()
+        if let snapshot = shioriStore.residentFacetSnapshot {
+            available.formUnion(snapshot.distribution.languageCounts.keys)
+        }
+        available.insert(.unknown)
+        return SubtitleLanguageCode.allCases.filter(available.contains)
+    }
+
     private var tableTextCopySource: WorkbenchShioriTableTextCopySource {
         let filterSet = shioriStore.tableFilterRules.subtitleSearchFilterSet
         return WorkbenchShioriTableTextCopySource(
@@ -362,6 +417,33 @@ private struct WorkbenchShioriTableContent: View {
         let trimmedDraft = shioriStore.tableSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         shioriStore.tableSubmittedSearchText = trimmedDraft
         reloadRows(resetScroll: true)
+    }
+
+    private func restoreShioriFacetFilter() {
+        guard let listID = shioriStore.activeListID else {
+            shioriFacetFilter = CueFacetFilter()
+            return
+        }
+        let filter = settingsStore.shioriFacetFilter(forListID: listID)
+        shioriFacetFilter = filter
+        appState.updateShioriFacetFilter(filter)
+    }
+
+    private func applyShioriFacetFilter(_ filter: CueFacetFilter) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.ShioriFacetFilter.changed",
+            scope: appState.uiProbeScope
+        )
+        exitSelectionMode()
+        rowSelection.reset()
+        persistSelection()
+        resetSelectedCollageAvailability()
+        shioriStore.tableViewportAnchor = nil
+        viewportAnchorToRestore = nil
+        tableScrollTargetRow = nil
+        didRestoreViewport = true
+        tableScrollResetToken += 1
+        appState.updateShioriFacetFilter(filter)
     }
 
     private func reloadRows(resetScroll: Bool) {
