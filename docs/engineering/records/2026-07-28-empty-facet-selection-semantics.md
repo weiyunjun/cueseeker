@@ -27,6 +27,9 @@ as their own persisted checkbox states.
   remain unrestricted through normal membership matching.
 - Removed the snapshot projection shortcut that previously returned zero rows
   when any card was empty.
+- Intersected Shiori's saved Language selection with the languages that are
+  actually available in the active List before projection. Hidden zero-count
+  languages therefore do not turn a visually empty card into an active filter.
 - Returned the empty default only when Search or a Shiori List has no persisted
   record. Existing saved exclusion records still restore the exact selected
   sets they represent, including empty and complete sets as distinct states.
@@ -37,6 +40,8 @@ as their own persisted checkbox states.
 
 - The focused facet, persistence, Search projection, Shiori projection, and UI
   refresh-scope run passed all 19 tests.
+- The Shiori facet persistence and projection rerun passed all 3 tests after
+  adding the hidden unavailable-language regression case.
 - The complete `swift test` run executed 910 tests and reported 17 issues in
   nine existing native playback, Subtitle Focus, Library removal, and UI probe
   timing tests. Every affected test passed when rerun individually, confirming

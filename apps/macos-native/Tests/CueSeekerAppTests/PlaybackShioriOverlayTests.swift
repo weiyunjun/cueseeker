@@ -286,6 +286,16 @@ func sharedShioriFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async 
         longShiori.id,
     ])
 
+    app.updateShioriFacetFilter(CueFacetFilter(languages: [.unknown]))
+
+    #expect(app.shioriTableRowsTask == nil)
+    #expect(app.shiori.tableResultRowCount == 2)
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 2)
+    #expect(Set(app.shiori.playbackTableResultShioriIDs ?? []) == [
+        shortShiori.id,
+        longShiori.id,
+    ])
+
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackSharedShioriOpenSnapshot(),
         sessionGeneration: 1,

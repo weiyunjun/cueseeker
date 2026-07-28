@@ -270,8 +270,12 @@ final class ShioriStore: ObservableObject {
         using filter: CueFacetFilter
     ) -> [Int64] {
         guard let residentFacetSnapshot else { return [] }
+        var availableFilter = filter
+        availableFilter.languages.formIntersection(
+            residentFacetSnapshot.distribution.languageCounts.keys
+        )
         let filteredCueIDs = residentFacetSnapshot.filteredCueIDs(
-            using: filter,
+            using: availableFilter,
             limit: residentFacetSnapshot.cueIDs.count
         ).cueIDs
         let shioriIDByCueID = Dictionary(
