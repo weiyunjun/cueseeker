@@ -142,8 +142,8 @@ main
 - App 重启后 Search 数据面板默认显示。
 - Filter 按钮没有数字或 Badge。
 - 输入搜索词后到 exact 完成前，Option 禁止交互，但 Checkbox 和 Option Label 不切换为 Disabled 视觉，不出现短暂闪烁。
-- Select 状态下全部 Option 显示 Disabled 视觉且不可点击；点击数据卡片区域不得修改筛选条件或退出 Select 状态。
-- 退出 Select 状态后，Option 恢复正常交互和视觉。
+- Select 状态下整张 Filter Data Card 进入 Disabled 视觉：Card Title Icon 使用全局 Disabled Icon Token，Card Title 使用全局 Disabled Text Token，全部 Option 为 Disabled；Card Surface 和 Border 保持不变，并禁止修改筛选条件。
+- 退出 Select 状态后，Filter Data Card 恢复正常交互和视觉。
 - **视觉验收由你执行。**
 - 每项 UI 改动完成后，我按以下格式提供 `UI.md` 精确原文：
 
