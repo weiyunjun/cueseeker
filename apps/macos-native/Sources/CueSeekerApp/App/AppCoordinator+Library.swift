@@ -820,6 +820,7 @@ extension AppCoordinator {
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
         refreshSearchForLibraryWatchStateChange()
+        refreshShioriForLibraryWatchStateChange()
     }
 
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {

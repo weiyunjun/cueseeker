@@ -123,17 +123,20 @@ public struct ShioriResidentSnapshot: Equatable, Sendable {
     public let resolvedShioris: [Shiori]
     public let cueContents: [CueContent]
     public let tagsByShioriID: [Int64: [ShioriTag]]
+    public let facetSnapshot: CueFacetSnapshot
 
     public init(
         relations: [ShioriRelation],
         resolvedShioris: [Shiori] = [],
         cueContents: [CueContent],
-        tagsByShioriID: [Int64: [ShioriTag]]
+        tagsByShioriID: [Int64: [ShioriTag]],
+        facetSnapshot: CueFacetSnapshot = .empty
     ) {
         self.relations = relations
         self.resolvedShioris = resolvedShioris
         self.cueContents = cueContents
         self.tagsByShioriID = tagsByShioriID
+        self.facetSnapshot = facetSnapshot
     }
 }
 

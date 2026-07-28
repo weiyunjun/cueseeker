@@ -456,7 +456,7 @@ func exactFacetSnapshotRejectsStaleResultGeneration() throws {
         content: "first",
         searchRank: 0
     )
-    let firstSnapshot = CueFacetSearchSnapshot(
+    let firstSnapshot = CueFacetSnapshot(
         cueIDs: [firstResult.entryID],
         durationFacets: [.oneToUnderThreeSeconds],
         characterFacets: [.oneToTen],
@@ -496,7 +496,7 @@ func exactFacetSnapshotRejectsStaleResultGeneration() throws {
         content: "second",
         searchRank: 0
     )
-    let secondSnapshot = CueFacetSearchSnapshot(
+    let secondSnapshot = CueFacetSnapshot(
         cueIDs: [secondResult.entryID],
         durationFacets: [.underOneSecond],
         characterFacets: [.oneToTen],
@@ -535,7 +535,7 @@ func facetFilterProjectsTableIDsWithoutChangingExactSearchBoundary() async {
             searchRank: index
         )
     }
-    let snapshot = CueFacetSearchSnapshot(
+    let snapshot = CueFacetSnapshot(
         cueIDs: results.map(\.entryID),
         durationFacets: (0..<120).map {
             $0.isMultiple(of: 2) ? .underOneSecond : .fiveSecondsOrMore
@@ -589,7 +589,7 @@ func facetFilterWithEmptyCardImmediatelyProjectsZeroRows() {
         content: "result",
         searchRank: 0
     )
-    let snapshot = CueFacetSearchSnapshot(
+    let snapshot = CueFacetSnapshot(
         cueIDs: [result.entryID],
         durationFacets: [.underOneSecond],
         characterFacets: [.oneToTen],

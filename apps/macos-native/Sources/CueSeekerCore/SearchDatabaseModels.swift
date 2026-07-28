@@ -372,7 +372,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     public let pageMode: SubtitleSearchPageMode
     public let orderSource: String?
     public let materializedOrderRows: Int?
-    public let facetSnapshot: CueFacetSearchSnapshot?
+    public let facetSnapshot: CueFacetSnapshot?
 
     public var hasMore: Bool {
         nextCursor != nil
@@ -410,7 +410,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
         pageMode: SubtitleSearchPageMode = .exact,
         orderSource: String? = nil,
         materializedOrderRows: Int? = nil,
-        facetSnapshot: CueFacetSearchSnapshot? = nil
+        facetSnapshot: CueFacetSnapshot? = nil
     ) {
         self.results = results
         self.renderableResults = renderableResults ?? results

@@ -788,8 +788,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 }
                 return results
             }
-            func facetSnapshot() -> CueFacetSearchSnapshot {
-                CueFacetSearchSnapshot(
+            func facetSnapshot() -> CueFacetSnapshot {
+                CueFacetSnapshot(
                     cueIDs: matchedCueIDs,
                     durationFacets: matchedDurationFacets,
                     characterFacets: matchedCharacterFacets,

@@ -509,12 +509,102 @@ public final class ShioriDatabase: @unchecked Sendable {
                     : nil
             }
         )
+        let watchStatesByShioriID = try relations.first.map {
+            try shioriWatchStatesByID(listID: $0.listID)
+        } ?? [:]
         return ShioriResidentSnapshot(
             relations: relations,
             resolvedShioris: resolvedShioris,
             cueContents: cueContents,
-            tagsByShioriID: try shioriTagsByShioriID(forShioriIDs: relations.map(\.id))
+            tagsByShioriID: try shioriTagsByShioriID(forShioriIDs: relations.map(\.id)),
+            facetSnapshot: shioriFacetSnapshot(
+                relations: relations,
+                resolvedShioris: resolvedShioris,
+                cueContents: cueContents,
+                watchStatesByShioriID: watchStatesByShioriID
+            )
         )
+    }
+
+    private func shioriFacetSnapshot(
+        relations: [ShioriRelation],
+        resolvedShioris: [Shiori],
+        cueContents: [CueContent],
+        watchStatesByShioriID: [Int64: LibraryWatchState]
+    ) -> CueFacetSnapshot {
+        let resolvedShiorisByID = Dictionary(
+            uniqueKeysWithValues: resolvedShioris.map { ($0.id, $0) }
+        )
+        let cueContentsByID = Dictionary(
+            uniqueKeysWithValues: cueContents.map { ($0.cueID, $0) }
+        )
+        var cueIDs: [Int64] = []
+        var durationFacets: [CueDurationFacet] = []
+        var characterFacets: [CueCharacterFacet] = []
+        var languageFacets: [Set<SubtitleLanguageCode>] = []
+        var watchStateFacets: [LibraryWatchState] = []
+        cueIDs.reserveCapacity(relations.count)
+        durationFacets.reserveCapacity(relations.count)
+        characterFacets.reserveCapacity(relations.count)
+        languageFacets.reserveCapacity(relations.count)
+        watchStateFacets.reserveCapacity(relations.count)
+
+        for relation in relations {
+            guard let shiori = resolvedShiorisByID[relation.id] else {
+                continue
+            }
+            let content = cueContentsByID[relation.cueID]
+            cueIDs.append(relation.cueID)
+            durationFacets.append(CueDurationFacet(
+                durationMilliseconds: max(
+                    0,
+                    (content?.endMilliseconds ?? shiori.endMilliseconds)
+                        - (content?.startMilliseconds ?? shiori.startMilliseconds)
+                )
+            ))
+            characterFacets.append(CueCharacterFacet(
+                characterCount: (content?.content ?? shiori.content)
+                    .unicodeScalars.count
+            ))
+            languageFacets.append(content?.languages ?? [.unknown])
+            watchStateFacets.append(
+                watchStatesByShioriID[relation.id] ?? .unwatched
+            )
+        }
+
+        return CueFacetSnapshot(
+            cueIDs: cueIDs,
+            durationFacets: durationFacets,
+            characterFacets: characterFacets,
+            languageFacets: languageFacets,
+            watchStateFacets: watchStateFacets
+        )
+    }
+
+    private func shioriWatchStatesByID(
+        listID: Int64
+    ) throws -> [Int64: LibraryWatchState] {
+        let statement = try database.prepare(
+            """
+            SELECT s.id, COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)')
+            FROM shioris s
+            LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            LEFT JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            LEFT JOIN video_files vf ON vf.id = m.video_file_id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = vf.id
+            WHERE s.list_id = ?;
+            """
+        )
+        try statement.bind(listID, at: 1)
+        var states: [Int64: LibraryWatchState] = [:]
+        while try statement.step() {
+            states[statement.int64Column(0)] = LibraryWatchState(
+                rawValue: statement.stringColumn(1)
+            ) ?? .unwatched
+        }
+        return states
     }
 
     public func shioriRelation(id: Int64) throws -> ShioriRelation? {

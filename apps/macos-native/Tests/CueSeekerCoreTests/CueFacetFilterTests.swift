@@ -137,7 +137,7 @@ func cueFacetFilterRejectsResultsWhenAnyCardHasNoSelection() {
 
 @Test
 func cueFacetSnapshotProjectsMatchingIDsInSourceOrder() {
-    let snapshot = CueFacetSearchSnapshot(
+    let snapshot = CueFacetSnapshot(
         cueIDs: [10, 20, 30, 40, 50],
         durationFacets: [
             .underOneSecond,
@@ -190,7 +190,7 @@ func cueFacetSnapshotProjectsMatchingIDsInSourceOrder() {
 
 @Test
 func cueFacetSnapshotStopsAfterRequestedPageAndContinuesWithoutDuplicates() {
-    let snapshot = CueFacetSearchSnapshot(
+    let snapshot = CueFacetSnapshot(
         cueIDs: [1, 2, 3, 4],
         durationFacets: Array(repeating: .underOneSecond, count: 4),
         characterFacets: Array(repeating: .oneToTen, count: 4),
@@ -214,7 +214,7 @@ func cueFacetSnapshotStopsAfterRequestedPageAndContinuesWithoutDuplicates() {
 
 @Test
 func cueFacetSnapshotReturnsZeroImmediatelyForEmptyCardSelection() {
-    let snapshot = CueFacetSearchSnapshot(
+    let snapshot = CueFacetSnapshot(
         cueIDs: [1, 2],
         durationFacets: [.underOneSecond, .fiveSecondsOrMore],
         characterFacets: [.oneToTen, .thirtyOneOrMore],

@@ -109,8 +109,8 @@ public struct CueFacetDistribution: Equatable, Sendable {
     }
 }
 
-public struct CueFacetSearchSnapshot: Equatable, Sendable {
-    public static let empty = CueFacetSearchSnapshot(
+public struct CueFacetSnapshot: Equatable, Sendable {
+    public static let empty = CueFacetSnapshot(
         cueIDs: [],
         durationFacets: [],
         characterFacets: [],
@@ -197,5 +197,20 @@ public struct CueFacetSearchSnapshot: Equatable, Sendable {
             index += 1
         }
         return (matches, index, index == cueIDs.count)
+    }
+
+    public func removingCueIDs(_ removedCueIDs: Set<Int64>) -> CueFacetSnapshot {
+        guard !removedCueIDs.isEmpty else { return self }
+
+        let retainedIndices = cueIDs.indices.filter {
+            !removedCueIDs.contains(cueIDs[$0])
+        }
+        return CueFacetSnapshot(
+            cueIDs: retainedIndices.map { cueIDs[$0] },
+            durationFacets: retainedIndices.map { durationFacets[$0] },
+            characterFacets: retainedIndices.map { characterFacets[$0] },
+            languageFacets: retainedIndices.map { languageFacets[$0] },
+            watchStateFacets: retainedIndices.map { watchStateFacets[$0] }
+        )
     }
 }

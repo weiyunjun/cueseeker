@@ -494,6 +494,12 @@ extension AppCoordinator {
         reloadShioriTableRows()
     }
 
+    func refreshShioriForLibraryWatchStateChange() {
+        guard shiori.residentDataRevision != nil else { return }
+        shiori.markTableRowsStale()
+        reloadShioriTableRows()
+    }
+
     private func applyResidentShioriTableProjection(
         resultSnapshotID: UUID,
         searchText: String,

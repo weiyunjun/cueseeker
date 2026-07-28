@@ -81,6 +81,7 @@ final class SettingsStore: ObservableObject {
     private static let primarySearchLanguageKey = "primarySearchLanguage"
     private static let searchScopeKey = "searchScope"
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
+    private static let shioriFacetExclusionsKey = "shioriFacetExclusionsByListID"
     private static let showCueGroupKey = "showCueGroup"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let legacyAutoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
@@ -295,6 +296,29 @@ final class SettingsStore: ObservableObject {
         )
     }
 
+    func shioriFacetFilter(forListID listID: Int64) -> CueFacetFilter {
+        let exclusionsByListID = userDefaults.dictionary(
+            forKey: Self.shioriFacetExclusionsKey
+        ) ?? [:]
+        let exclusions = exclusionsByListID[String(listID)]
+            as? [String: Any] ?? [:]
+        return Self.loadFacetFilter(exclusions: exclusions)
+    }
+
+    func setShioriFacetFilter(
+        _ filter: CueFacetFilter,
+        forListID listID: Int64
+    ) {
+        var exclusionsByListID = userDefaults.dictionary(
+            forKey: Self.shioriFacetExclusionsKey
+        ) ?? [:]
+        exclusionsByListID[String(listID)] = Self.facetExclusions(for: filter)
+        userDefaults.set(
+            exclusionsByListID,
+            forKey: Self.shioriFacetExclusionsKey
+        )
+    }
+
     private static func loadAppAppearanceMode(from userDefaults: UserDefaults) -> AppAppearanceMode {
         guard let rawValue = userDefaults.string(forKey: appAppearanceModeKey),
               let mode = AppAppearanceMode(rawValue: rawValue)
@@ -324,6 +348,12 @@ final class SettingsStore: ObservableObject {
 
     private static func loadSearchFacetFilter(from userDefaults: UserDefaults) -> CueFacetFilter {
         let exclusions = userDefaults.dictionary(forKey: searchFacetExclusionsKey) ?? [:]
+        return loadFacetFilter(exclusions: exclusions)
+    }
+
+    private static func loadFacetFilter(
+        exclusions: [String: Any]
+    ) -> CueFacetFilter {
         let durations = Set(CueDurationFacet.allCases).subtracting(
             rawValues(for: "duration", in: exclusions).compactMap(CueDurationFacet.init(rawValue:))
         )
@@ -349,8 +379,17 @@ final class SettingsStore: ObservableObject {
         _ filter: CueFacetFilter,
         to userDefaults: UserDefaults
     ) {
+        userDefaults.set(
+            facetExclusions(for: filter),
+            forKey: searchFacetExclusionsKey
+        )
+    }
+
+    private static func facetExclusions(
+        for filter: CueFacetFilter
+    ) -> [String: [String]] {
         let allWatchStates: Set<LibraryWatchState> = [.finished, .watching, .unwatched]
-        userDefaults.set([
+        return [
             "duration": Set(CueDurationFacet.allCases)
                 .subtracting(filter.durations)
                 .map(\.rawValue)
@@ -367,7 +406,7 @@ final class SettingsStore: ObservableObject {
                 .subtracting(filter.watchStates)
                 .map(\.rawValue)
                 .sorted(),
-        ], forKey: searchFacetExclusionsKey)
+        ]
     }
 
     private static func rawValues(

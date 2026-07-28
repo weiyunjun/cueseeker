@@ -86,6 +86,33 @@ func settingsStoreRestoresSearchFacetSelections() {
 
 @MainActor
 @Test
+func settingsStoreKeepsSearchAndShioriFacetSelectionsIndependent() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let firstStore = SettingsStore(userDefaults: userDefaults)
+        let searchFilter = CueFacetFilter(languages: [.japanese])
+        let firstListFilter = CueFacetFilter(
+            durations: [.underOneSecond],
+            watchStates: [.watching]
+        )
+        let secondListFilter = CueFacetFilter(
+            characters: [.thirtyOneOrMore],
+            languages: [.unknown]
+        )
+
+        firstStore.searchFacetFilter = searchFilter
+        firstStore.setShioriFacetFilter(firstListFilter, forListID: 1)
+        firstStore.setShioriFacetFilter(secondListFilter, forListID: 2)
+
+        let restoredStore = SettingsStore(userDefaults: userDefaults)
+        #expect(restoredStore.searchFacetFilter == searchFilter)
+        #expect(restoredStore.shioriFacetFilter(forListID: 1) == firstListFilter)
+        #expect(restoredStore.shioriFacetFilter(forListID: 2) == secondListFilter)
+        #expect(restoredStore.shioriFacetFilter(forListID: 3) == CueFacetFilter())
+    }
+}
+
+@MainActor
+@Test
 func searchFacetPersistenceDoesNotInvalidateGlobalSettingsObservers() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         let store = SettingsStore(userDefaults: userDefaults)
@@ -95,6 +122,10 @@ func searchFacetPersistenceDoesNotInvalidateGlobalSettingsObservers() {
         }
 
         store.searchFacetFilter = CueFacetFilter(languages: [.japanese])
+        store.setShioriFacetFilter(
+            CueFacetFilter(watchStates: [.finished]),
+            forListID: 1
+        )
 
         #expect(changeCount == 0)
         withExtendedLifetime(cancellable) {}
@@ -141,6 +172,25 @@ func settingsStoreTreatsUnrecognizedFacetValuesAsNewSelectedOptions() {
         #expect(!store.searchFacetFilter.languages.contains(.english))
         #expect(store.searchFacetFilter.languages.contains(.japanese))
         #expect(store.searchFacetFilter.languages.contains(.unknown))
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreIgnoresUnrecognizedShioriFacetExclusions() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        userDefaults.set([
+            "7": [
+                "language": ["en", "future-language"],
+            ],
+        ], forKey: "shioriFacetExclusionsByListID")
+
+        let store = SettingsStore(userDefaults: userDefaults)
+        let filter = store.shioriFacetFilter(forListID: 7)
+
+        #expect(!filter.languages.contains(.english))
+        #expect(filter.languages.contains(.japanese))
+        #expect(filter.languages.contains(.unknown))
     }
 }
 

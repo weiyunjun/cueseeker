@@ -25,6 +25,7 @@ final class ShioriStore: ObservableObject {
     @Published var tableResultRowCount = 0
     @Published var tableHasLoadedInitialPage = false
     @Published var tableDataRevision = 0
+    @Published private(set) var residentFacetSnapshot: CueFacetSnapshot?
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultShioriIDs: [Int64]?
     private(set) var residentRelations: [ShioriRelation] = []
@@ -247,8 +248,23 @@ final class ShioriStore: ObservableObject {
             uniqueKeysWithValues: snapshot.resolvedShioris.map { ($0.id, $0) }
         )
         residentTagsByShioriID = snapshot.tagsByShioriID
+        residentFacetSnapshot = snapshot.facetSnapshot
         residentListID = listID
         residentDataRevision = dataRevision
+    }
+
+    func filteredResidentShioriIDs(
+        using filter: CueFacetFilter
+    ) -> [Int64] {
+        guard let residentFacetSnapshot else { return [] }
+        let filteredCueIDs = residentFacetSnapshot.filteredCueIDs(
+            using: filter,
+            limit: residentFacetSnapshot.cueIDs.count
+        ).cueIDs
+        let shioriIDByCueID = Dictionary(
+            uniqueKeysWithValues: residentRelations.map { ($0.cueID, $0.id) }
+        )
+        return filteredCueIDs.compactMap { shioriIDByCueID[$0] }
     }
 
     func updateResidentTags(_ tags: [ShioriTag], forShioriID shioriID: Int64) {
@@ -267,6 +283,7 @@ final class ShioriStore: ObservableObject {
         residentRelations = []
         residentShiorisByID = [:]
         residentTagsByShioriID = [:]
+        residentFacetSnapshot = nil
         residentListID = nil
         residentDataRevision = nil
     }
@@ -278,9 +295,15 @@ final class ShioriStore: ObservableObject {
         else {
             return
         }
+        let removedCueIDs = Set(
+            residentRelations.lazy.filter { $0.id == id }.map(\.cueID)
+        )
         residentRelations.removeAll { $0.id == id }
         residentShiorisByID[id] = nil
         residentTagsByShioriID[id] = nil
+        residentFacetSnapshot = residentFacetSnapshot?.removingCueIDs(
+            removedCueIDs
+        )
         tableTotalSavedRowCount = residentRelations.count
         if let tableResultShioriIDs {
             let remainingIDs = tableResultShioriIDs.filter { $0 != id }

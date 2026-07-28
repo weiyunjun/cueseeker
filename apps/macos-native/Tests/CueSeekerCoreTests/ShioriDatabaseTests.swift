@@ -456,6 +456,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
+    let cueID = try #require(selection.cueLineID)
     let saved = try ShioriDatabase(path: database.path).upsertShiori(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -464,6 +465,11 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
         named: "Review",
         toShioriID: saved.id
     )
+    try LibraryDatabase(path: databaseURL).setLibraryWatchState(
+        videoFile: videoFile,
+        duration: nil,
+        state: .finished
+    )
 
     let snapshot = try ShioriDatabase(path: database.path).shioriResidentSnapshot()
 
@@ -471,6 +477,19 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
     #expect(snapshot.relations.map(\.cueID) == snapshot.cueContents.map(\.cueID))
     #expect(snapshot.cueContents.map(\.content) == ["Resident Cue"])
     #expect(snapshot.tagsByShioriID[saved.id] == [tag])
+    #expect(snapshot.facetSnapshot.cueIDs == [cueID])
+    #expect(snapshot.facetSnapshot.distribution.totalCount == 1)
+    #expect(snapshot.facetSnapshot.distribution.durationCounts[.oneToUnderThreeSeconds] == 1)
+    #expect(snapshot.facetSnapshot.distribution.characterCounts[.elevenToTwenty] == 1)
+    #expect(snapshot.facetSnapshot.distribution.watchStateCounts[.finished] == 1)
+    #expect(snapshot.facetSnapshot.filteredCueIDs(
+        using: CueFacetFilter(watchStates: [.finished]),
+        limit: 1
+    ).cueIDs == [cueID])
+    #expect(snapshot.facetSnapshot.filteredCueIDs(
+        using: CueFacetFilter(watchStates: [.unwatched]),
+        limit: 1
+    ).cueIDs.isEmpty)
 }
 
 @Test
@@ -590,7 +609,15 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
                 startMilliseconds: 1_000,
                 endMilliseconds: 2_000,
                 text: "One Cue, two relation lists."
-            )
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:07,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 7_000,
+                text: "Default list only."
+            ),
         ]
     )
     let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
@@ -599,7 +626,19 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     ))
     let cueID = try #require(selection.cueLineID)
     let defaultShiori = try ShioriDatabase(path: database.path).upsertShiori(
-        selection: selection
+        selection: selection,
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
+    let defaultOnlySelection = try #require(
+        try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: 3_500
+        )
+    )
+    let defaultOnlyCueID = try #require(defaultOnlySelection.cueLineID)
+    let defaultOnlyShiori = try ShioriDatabase(path: database.path).upsertShiori(
+        selection: defaultOnlySelection,
+        createdAt: Date(timeIntervalSince1970: 200)
     )
 
     try executeDatabaseTestSQLite(
@@ -629,11 +668,20 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     #expect(
         try ShioriDatabase(path: database.path).shioriRelations(
             listID: ShioriListIdentity.defaultListID
-        ).map(\.id) == [defaultShiori.id]
+        ).map(\.id) == [defaultOnlyShiori.id, defaultShiori.id]
     )
     let futureRelation = try #require(try ShioriDatabase(path: database.path).shioriRelations(listID: 2).first)
     #expect(futureRelation.cueID == cueID)
     #expect(futureRelation.listID == 2)
+
+    let defaultSnapshot = try ShioriDatabase(path: database.path)
+        .shioriResidentSnapshot(listID: ShioriListIdentity.defaultListID)
+    let futureSnapshot = try ShioriDatabase(path: database.path)
+        .shioriResidentSnapshot(listID: 2)
+    #expect(defaultSnapshot.facetSnapshot.distribution.totalCount == 2)
+    #expect(Set(defaultSnapshot.facetSnapshot.cueIDs) == [cueID, defaultOnlyCueID])
+    #expect(futureSnapshot.facetSnapshot.distribution.totalCount == 1)
+    #expect(futureSnapshot.facetSnapshot.cueIDs == [cueID])
 
     do {
         try executeDatabaseTestSQLite(

@@ -1084,6 +1084,7 @@ func tableSandboxShioriProjectionReloadsWhenCanonicalCueContentChanges() {
 @Test
 func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
     let store = ShioriStore()
+    store.setActiveListID(ShioriListIdentity.defaultListID)
     let relations = [
         ShioriRelation(
             id: 1,
@@ -1122,7 +1123,14 @@ func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
             relations: relations,
             resolvedShioris: [available, unavailable],
             cueContents: [],
-            tagsByShioriID: [:]
+            tagsByShioriID: [:],
+            facetSnapshot: CueFacetSnapshot(
+                cueIDs: [101, 102],
+                durationFacets: [.oneToUnderThreeSeconds, .oneToUnderThreeSeconds],
+                characterFacets: [.oneToTen, .elevenToTwenty],
+                languageFacets: [[.japanese], [.unknown]],
+                watchStateFacets: [.watching, .unwatched]
+            )
         ),
         dataRevision: 1
     )
@@ -1131,6 +1139,14 @@ func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
     #expect(store.tableResultRowCount == 2)
     #expect(store.tableResultShioriIDs == [1, 2])
     #expect(store.playbackTableResultShioriIDs == [1])
+    #expect(store.filteredResidentShioriIDs(
+        using: CueFacetFilter(languages: [.japanese])
+    ) == [1])
+
+    store.removeShioriFromCurrentProjection(id: 1)
+
+    #expect(store.residentFacetSnapshot?.distribution.totalCount == 1)
+    #expect(store.filteredResidentShioriIDs(using: CueFacetFilter()) == [2])
 }
 
 @MainActor

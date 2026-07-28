@@ -336,7 +336,7 @@ func searchPlaybackPlaylistUsesActiveFacetProjection() throws {
             searchRank: ordinal
         )
     }
-    let facetSnapshot = CueFacetSearchSnapshot(
+    let facetSnapshot = CueFacetSnapshot(
         cueIDs: results.map(\.entryID),
         durationFacets: results.indices.map {
             $0.isMultiple(of: 2) ? .underOneSecond : .fiveSecondsOrMore
