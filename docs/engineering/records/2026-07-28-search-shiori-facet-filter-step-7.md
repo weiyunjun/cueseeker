@@ -37,6 +37,9 @@ result projection.
   playback consumers.
 - Kept the shared panel's existing Calculating and Select-mode interaction
   rules.
+- Removed the Shiori-only forced `Unknown` language option. Language choices
+  now come exclusively from the active List's exact distribution, so a
+  zero-count `Unknown` row is not displayed.
 
 ## Verification
 

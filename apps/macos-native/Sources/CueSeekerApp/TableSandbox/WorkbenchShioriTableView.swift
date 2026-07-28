@@ -354,7 +354,6 @@ private struct WorkbenchShioriTableContent: View {
         if let snapshot = shioriStore.residentFacetSnapshot {
             available.formUnion(snapshot.distribution.languageCounts.keys)
         }
-        available.insert(.unknown)
         return SubtitleLanguageCode.allCases.filter(available.contains)
     }
 
