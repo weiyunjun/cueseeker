@@ -583,7 +583,7 @@ func facetFilterProjectsTableIDsWithoutChangingExactSearchBoundary() async {
 
 @MainActor
 @Test
-func facetFilterWithEmptyCardImmediatelyProjectsZeroRows() {
+func clearingLastFacetSelectionRestoresAllRows() {
     let search = SearchStore()
     search.updateQuery("query")
     let generation = search.prepareSearch(
@@ -611,12 +611,18 @@ func facetFilterWithEmptyCardImmediatelyProjectsZeroRows() {
     )
     #expect(search.commitExactSearchPage(page, generation: generation))
 
-    search.updateSearchFacetFilter(CueFacetFilter(languages: []))
+    search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
 
     #expect(search.filteredSearchResultCueIDs.isEmpty)
     #expect(search.filteredSearchResultTotalCount == 0)
-    #expect(search.searchResultCueIDs == [result.entryID])
     #expect(search.tableRowStore.snapshot.totalRowCount == 0)
+
+    search.updateSearchFacetFilter(CueFacetFilter(languages: []))
+
+    #expect(search.filteredSearchResultCueIDs == [result.entryID])
+    #expect(search.filteredSearchResultTotalCount == 1)
+    #expect(search.searchResultCueIDs == [result.entryID])
+    #expect(search.tableRowStore.snapshot.totalRowCount == 1)
 }
 
 @MainActor

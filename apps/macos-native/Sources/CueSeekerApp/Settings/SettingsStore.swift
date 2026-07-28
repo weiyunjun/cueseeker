@@ -300,8 +300,11 @@ final class SettingsStore: ObservableObject {
         let exclusionsByListID = userDefaults.dictionary(
             forKey: Self.shioriFacetExclusionsKey
         ) ?? [:]
-        let exclusions = exclusionsByListID[String(listID)]
-            as? [String: Any] ?? [:]
+        guard let exclusions = exclusionsByListID[String(listID)]
+                as? [String: Any]
+        else {
+            return CueFacetFilter()
+        }
         return Self.loadFacetFilter(exclusions: exclusions)
     }
 
@@ -347,7 +350,11 @@ final class SettingsStore: ObservableObject {
     }
 
     private static func loadSearchFacetFilter(from userDefaults: UserDefaults) -> CueFacetFilter {
-        let exclusions = userDefaults.dictionary(forKey: searchFacetExclusionsKey) ?? [:]
+        guard let exclusions = userDefaults.dictionary(
+            forKey: searchFacetExclusionsKey
+        ) else {
+            return CueFacetFilter()
+        }
         return loadFacetFilter(exclusions: exclusions)
     }
 

@@ -45,10 +45,10 @@ public struct CueFacetFilter: Equatable, Sendable {
     public var watchStates: Set<LibraryWatchState>
 
     public init(
-        durations: Set<CueDurationFacet> = Set(CueDurationFacet.allCases),
-        characters: Set<CueCharacterFacet> = Set(CueCharacterFacet.allCases),
-        languages: Set<SubtitleLanguageCode> = Set(SubtitleLanguageCode.allCases),
-        watchStates: Set<LibraryWatchState> = [.unwatched, .watching, .finished]
+        durations: Set<CueDurationFacet> = [],
+        characters: Set<CueCharacterFacet> = [],
+        languages: Set<SubtitleLanguageCode> = [],
+        watchStates: Set<LibraryWatchState> = []
     ) {
         self.durations = durations
         self.characters = characters
@@ -80,10 +80,10 @@ public struct CueFacetFilter: Equatable, Sendable {
         languages cueLanguages: Set<SubtitleLanguageCode>,
         watchState: LibraryWatchState
     ) -> Bool {
-        durations.contains(duration) &&
-        characters.contains(cueCharacters) &&
-        !languages.isDisjoint(with: cueLanguages) &&
-        watchStates.contains(watchState)
+        (durations.isEmpty || durations.contains(duration)) &&
+        (characters.isEmpty || characters.contains(cueCharacters)) &&
+        (languages.isEmpty || !languages.isDisjoint(with: cueLanguages)) &&
+        (watchStates.isEmpty || watchStates.contains(watchState))
     }
 }
 
@@ -173,12 +173,7 @@ public struct CueFacetSnapshot: Equatable, Sendable {
     ) -> (cueIDs: [Int64], nextSourceIndex: Int, isComplete: Bool) {
         let start = min(max(0, sourceIndex), cueIDs.count)
         let pageLimit = max(0, limit)
-        guard pageLimit > 0,
-              !filter.durations.isEmpty,
-              !filter.characters.isEmpty,
-              !filter.languages.isEmpty,
-              !filter.watchStates.isEmpty
-        else {
+        guard pageLimit > 0 else {
             return ([], cueIDs.count, true)
         }
 

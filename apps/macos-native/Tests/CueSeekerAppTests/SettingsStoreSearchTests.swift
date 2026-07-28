@@ -58,11 +58,14 @@ func settingsStoreLoadsPersistedShowCueGroupValue() {
 
 @MainActor
 @Test
-func settingsStoreDefaultsSearchFacetsToEveryOptionSelected() {
+func settingsStoreDefaultsSearchFacetsToNoOptionsSelected() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         let store = SettingsStore(userDefaults: userDefaults)
 
-        #expect(store.searchFacetFilter == CueFacetFilter())
+        #expect(store.searchFacetFilter.durations.isEmpty)
+        #expect(store.searchFacetFilter.characters.isEmpty)
+        #expect(store.searchFacetFilter.languages.isEmpty)
+        #expect(store.searchFacetFilter.watchStates.isEmpty)
     }
 }
 
@@ -81,6 +84,30 @@ func settingsStoreRestoresSearchFacetSelections() {
         let restoredStore = SettingsStore(userDefaults: userDefaults)
 
         #expect(restoredStore.searchFacetFilter == firstStore.searchFacetFilter)
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreKeepsEmptyAndCompleteFacetSelectionsDistinct() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let firstStore = SettingsStore(userDefaults: userDefaults)
+        firstStore.searchFacetFilter = CueFacetFilter()
+
+        let emptyRestoredStore = SettingsStore(userDefaults: userDefaults)
+        #expect(emptyRestoredStore.searchFacetFilter == CueFacetFilter())
+
+        let completeFilter = CueFacetFilter(
+            durations: Set(CueDurationFacet.allCases),
+            characters: Set(CueCharacterFacet.allCases),
+            languages: Set(SubtitleLanguageCode.allCases),
+            watchStates: [.finished, .watching, .unwatched]
+        )
+        emptyRestoredStore.searchFacetFilter = completeFilter
+
+        let completeRestoredStore = SettingsStore(userDefaults: userDefaults)
+        #expect(completeRestoredStore.searchFacetFilter == completeFilter)
+        #expect(completeRestoredStore.searchFacetFilter != CueFacetFilter())
     }
 }
 
@@ -161,7 +188,7 @@ func facetCardGridUsesTwoThreeAndArbitraryColumnCounts() {
 
 @MainActor
 @Test
-func settingsStoreTreatsUnrecognizedFacetValuesAsNewSelectedOptions() {
+func settingsStorePreservesKnownSelectionsBesideUnrecognizedExclusions() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         userDefaults.set([
             "language": ["en", "future-language"],

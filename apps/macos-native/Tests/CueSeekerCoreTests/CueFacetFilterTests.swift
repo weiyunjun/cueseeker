@@ -46,8 +46,37 @@ func cueFacetBucketsUseRequiredBoundaries() {
 }
 
 @Test
-func cueFacetFilterTreatsEverySelectedOptionAsUnrestricted() {
+func cueFacetFilterTreatsNoSelectionAsUnrestricted() {
     let filter = CueFacetFilter()
+
+    #expect(filter.durations.isEmpty)
+    #expect(filter.characters.isEmpty)
+    #expect(filter.languages.isEmpty)
+    #expect(filter.watchStates.isEmpty)
+    #expect(matches(
+        filter,
+        durationMilliseconds: 500,
+        characterCount: 5,
+        languages: [.english],
+        watchState: .finished
+    ))
+    #expect(matches(
+        filter,
+        durationMilliseconds: 6_000,
+        characterCount: 40,
+        languages: [.unknown],
+        watchState: .unwatched
+    ))
+}
+
+@Test
+func cueFacetFilterTreatsEverySelectedOptionAsUnrestricted() {
+    let filter = CueFacetFilter(
+        durations: Set(CueDurationFacet.allCases),
+        characters: Set(CueCharacterFacet.allCases),
+        languages: Set(SubtitleLanguageCode.allCases),
+        watchStates: [.unwatched, .watching, .finished]
+    )
 
     #expect(matches(
         filter,
@@ -118,21 +147,12 @@ func cueFacetFilterMatchesEveryLanguageAssignedToCue() {
 }
 
 @Test
-func cueFacetFilterRejectsResultsWhenAnyCardHasNoSelection() {
-    let filters = [
-        CueFacetFilter(durations: []),
-        CueFacetFilter(characters: []),
-        CueFacetFilter(languages: []),
-        CueFacetFilter(watchStates: []),
-        CueFacetFilter(
-            durations: [],
-            characters: [],
-            languages: [],
-            watchStates: []
-        ),
-    ]
+func cueFacetFilterLeavesEmptyCardsUnrestricted() {
+    let filter = CueFacetFilter(languages: [.japanese])
 
-    #expect(filters.allSatisfy { !matches($0) })
+    #expect(matches(filter, durationMilliseconds: 500, languages: [.japanese]))
+    #expect(matches(filter, durationMilliseconds: 6_000, languages: [.japanese]))
+    #expect(!matches(filter, languages: [.english]))
 }
 
 @Test
@@ -213,7 +233,7 @@ func cueFacetSnapshotStopsAfterRequestedPageAndContinuesWithoutDuplicates() {
 }
 
 @Test
-func cueFacetSnapshotReturnsZeroImmediatelyForEmptyCardSelection() {
+func cueFacetSnapshotTreatsEmptyCardSelectionAsAll() {
     let snapshot = CueFacetSnapshot(
         cueIDs: [1, 2],
         durationFacets: [.underOneSecond, .fiveSecondsOrMore],
@@ -227,7 +247,7 @@ func cueFacetSnapshotReturnsZeroImmediatelyForEmptyCardSelection() {
         limit: 50
     )
 
-    #expect(page.cueIDs.isEmpty)
+    #expect(page.cueIDs == [1, 2])
     #expect(page.nextSourceIndex == snapshot.cueIDs.count)
     #expect(page.isComplete)
 }
