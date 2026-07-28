@@ -202,7 +202,7 @@ public struct SubtitlePlaybackFinishMetadata: Equatable, Sendable {
     }
 }
 
-public enum LibraryWatchState: String, Equatable, Sendable {
+public enum LibraryWatchState: String, Equatable, Hashable, Sendable {
     case unwatched
     case watching
     case finished
