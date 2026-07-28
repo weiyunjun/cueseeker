@@ -10,7 +10,7 @@ main
 6. 数据卡片必须抽象为 Search 与 Shiori 可复用的筛选组件，布局不得假设数据卡片数量固定为 4。后续可以增加内置数据卡片和用户自定义数据卡片；本版本只实现 Duration、Character、Language、Watch Status 四张数据卡片。
 7. 旧的筛选的相关功能及代码，不用了可以删除
 8. 重启App后Search页面时默认显示筛选数据面板，默认全部选择，且选择需要持久化。重启App后Shiori二级页面时默认不显示筛选数据面板，默认全部选择，且选择需要持久化。持久化，Search和Shiori的不同，每个Shiori二级页面也不同。Command Panel界面的Search那里先维持现状（即按照现在的临时空Filter处理，后续会在界面里支持筛选条件，放到搜索结果列表左侧替代现在的封面），后续再支持，先处理Workbench这里的代码。
-9. exact结果出来之前，输入搜索词以后，数据卡片的数字都要显示Calculating，且disable所有选项，禁止修改。
+9. exact结果出来之前，输入搜索词以后，数据卡片的数字都要显示Calculating。所有选项禁止交互和修改，但保持原有Checked或Unchecked视觉，不显示Disabled视觉。
 10.搜索条件一，Duration，选择时钟图标，4个选项：<1s，1~2.999s，3~4.999s，≥5s。
 11.搜索条件二：Character，选择T的图标，4个选项：1-10，11-20，21-30，31+。
 12.搜索条件三：Language，选择地球图标，选项：以及数据库当前所有包含的语言。只需要列出单个语言，如果一个字幕被认为是多语言的，那么可以会被算在多个语言中。换言之，所有选项数字之和可能会大于字幕数量总和。
@@ -62,7 +62,7 @@ main
 
 - exact 搜索覆盖完整结果域。
 - 同步生成四类分布计数和每条结果的紧凑分类值。
-- exact 完成前数据卡片显示 `Calculating`，所有选项 Disabled，禁止修改。
+- exact 完成前数据卡片的 Count 显示 `Calculating`。所有选项禁止交互和修改，但保持原有 Checked 或 Unchecked 视觉，不使用 Disabled Token。
 - 新查询立即废弃旧查询的分布快照。
 
 验收：
@@ -125,7 +125,8 @@ main
 - Filter Data Card Checkbox 为圆形；Unchecked 使用 `--color-bg-checkbox-unchecked` 和 `--color-border-checkbox`，Checked 背景使用 `--color-text-muted`，Checkmark 使用 `--color-checkbox-icon`。
 - Checkbox 与 Option Label 的间距使用 `--spacing-2`。
 - Option 整行均为 Checkbox 的点击区域。
-- Calculating 状态下 Count 显示 `Calculating`，全部 Option 为 Disabled，并遵守全局 Disabled 规则。
+- Calculating 状态下 Count 显示 `Calculating`；全部 Option 禁止交互和修改，但保持原有 Checked 或 Unchecked 视觉，不显示 Disabled 视觉。
+- Select 状态下全部 Option 为 Disabled，遵守全局 Disabled 规则，禁止修改筛选条件。
 
 验收：
 - App 最小窗口宽度下保持 2 列，卡片内容和表格均可正常使用。
@@ -140,6 +141,9 @@ main
 - 自动化测试验证默认状态、持久化恢复、筛选交互和面板显示状态。
 - App 重启后 Search 数据面板默认显示。
 - Filter 按钮没有数字或 Badge。
+- 输入搜索词后到 exact 完成前，Option 禁止交互，但 Checkbox 和 Option Label 不切换为 Disabled 视觉，不出现短暂闪烁。
+- Select 状态下全部 Option 显示 Disabled 视觉且不可点击；点击数据卡片区域不得修改筛选条件或退出 Select 状态。
+- 退出 Select 状态后，Option 恢复正常交互和视觉。
 - **视觉验收由你执行。**
 - 每项 UI 改动完成后，我按以下格式提供 `UI.md` 精确原文：
 
