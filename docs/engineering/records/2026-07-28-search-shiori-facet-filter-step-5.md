@@ -31,8 +31,15 @@ visual acceptance and `UI.md` changes to the human owner.
   horizontal scrolling and reports only the height required by its card rows.
 - Aligned title icons and option checkboxes on the same 16-point leading
   control column. Applied the documented control/body/caption typography,
-  secondary/muted colors, circular checkbox states, and disabled Calculating
+  secondary/muted colors, circular checkbox states, and Calculating count
   presentation through existing Workbench tokens.
+- Restored the original SF Symbol checkbox instead of maintaining a custom
+  circle, stroke, and checkmark renderer. The checked symbol now changes only
+  to the required muted color and no longer gains an extra outline.
+- Split Calculating interaction suppression from the visual Disabled state.
+  Calculating counts still block option changes while preserving the current
+  checked or unchecked appearance; Select mode disables the options with the
+  global Disabled colors and cannot exit Select through a facet click.
 - Changed the Search Filter button to show or hide the panel. Its open visual
   reuses the existing open-menu button state and it receives no count or Badge.
 - Made Search panel visibility start as visible and remain session-only; no

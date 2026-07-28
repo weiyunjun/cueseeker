@@ -95,6 +95,7 @@ struct WorkbenchTestSearchView: View {
                     distribution: facetDistribution,
                     availableLanguages: availableFacetLanguages,
                     isCalculating: search.isFacetSnapshotCalculating,
+                    isDisabled: isSelectionMode,
                     filter: searchFacetFilterBinding
                 )
             ),
@@ -300,7 +301,12 @@ struct WorkbenchTestSearchView: View {
         Binding(
             get: { searchFacetFilter },
             set: { newValue in
-                guard searchFacetFilter != newValue else { return }
+                guard !isSelectionMode,
+                      !search.isFacetSnapshotCalculating,
+                      searchFacetFilter != newValue
+                else {
+                    return
+                }
                 searchFacetFilter = newValue
                 settingsStore.searchFacetFilter = newValue
                 applySearchFacetFilter(newValue)

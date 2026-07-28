@@ -5,6 +5,7 @@ struct CueFacetFilterPanel: View {
     let distribution: CueFacetDistribution?
     let availableLanguages: [SubtitleLanguageCode]
     let isCalculating: Bool
+    let isDisabled: Bool
     @Binding var filter: CueFacetFilter
 
     var body: some View {
@@ -76,7 +77,8 @@ struct CueFacetFilterPanel: View {
             title: title,
             systemImage: systemImage,
             options: options,
-            isCalculating: isCalculating
+            isCalculating: isCalculating,
+            isDisabled: isDisabled
         )
     }
 
@@ -212,6 +214,7 @@ struct CueFacetCard: View {
     let systemImage: String
     let options: [CueFacetOption]
     let isCalculating: Bool
+    let isDisabled: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -230,20 +233,32 @@ struct CueFacetCard: View {
                     ))
             }
             .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing1)
+            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing1)
 
             ForEach(options) { option in
-                Button(action: option.toggle) {
+                Button {
+                    guard !isCalculating, !isDisabled else { return }
+                    option.toggle()
+                } label: {
                     HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                        CueFacetCheckbox(
-                            isSelected: option.isSelected,
-                            isDisabled: isCalculating
-                        )
+                        Image(systemName: option.isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: WorkbenchControlMetrics.redesignCheckboxSize))
+                            .foregroundStyle(
+                                isDisabled
+                                    ? WorkbenchRedesignColors.iconDisabled
+                                    : option.isSelected
+                                        ? WorkbenchRedesignColors.textMuted
+                                        : WorkbenchRedesignColors.borderCheckbox
+                            )
+                            .frame(
+                                width: WorkbenchControlMetrics.redesignCheckboxSize,
+                                height: WorkbenchControlMetrics.redesignCheckboxSize
+                            )
 
                         Text(option.title)
                             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
                             .foregroundStyle(
-                                isCalculating
+                                isDisabled
                                     ? WorkbenchRedesignColors.textDisabled
                                     : WorkbenchRedesignColors.textMuted
                             )
@@ -254,7 +269,7 @@ struct CueFacetCard: View {
                         Text(isCalculating ? "Calculating" : String(option.count))
                             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
                             .foregroundStyle(
-                                isCalculating
+                                isDisabled
                                     ? WorkbenchRedesignColors.textDisabled
                                     : WorkbenchRedesignColors.textMuted
                             )
@@ -264,7 +279,8 @@ struct CueFacetCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(isCalculating)
+                .allowsHitTesting(!isCalculating)
+                .disabled(isDisabled)
                 .accessibilityLabel("\(title), \(option.title)")
                 .accessibilityValue(
                     isCalculating
@@ -287,50 +303,6 @@ struct CueFacetCard: View {
             cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
             style: .continuous
         ))
-    }
-}
-
-private struct CueFacetCheckbox: View {
-    let isSelected: Bool
-    let isDisabled: Bool
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(backgroundColor)
-            Circle()
-                .strokeBorder(borderColor, lineWidth: 1)
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .resizable()
-                    .scaledToFit()
-                    .padding(WorkbenchControlMetrics.redesignSpacing1)
-                    .foregroundStyle(
-                        isDisabled
-                            ? WorkbenchRedesignColors.iconDisabled
-                            : WorkbenchRedesignColors.checkboxIcon
-                    )
-            }
-        }
-        .frame(
-            width: WorkbenchControlMetrics.redesignCheckboxSize,
-            height: WorkbenchControlMetrics.redesignCheckboxSize
-        )
-    }
-
-    private var backgroundColor: Color {
-        if isDisabled {
-            return WorkbenchRedesignColors.bgDisabled
-        }
-        return isSelected
-            ? WorkbenchRedesignColors.textMuted
-            : WorkbenchRedesignColors.bgCheckboxUnchecked
-    }
-
-    private var borderColor: Color {
-        isDisabled
-            ? WorkbenchRedesignColors.borderDisabled
-            : WorkbenchRedesignColors.borderCheckbox
     }
 }
 
