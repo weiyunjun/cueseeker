@@ -17,7 +17,8 @@ main
 13. 搜索条件四：Watch Status，选择眼球图标，3个选项：Finished，Watching，Unwatched。
 14. Filter按钮处，不再显示数字。
 15. Language/Watch Status 卡片取代现有全局语言与观看范围设置。
-16. 数据卡片数字是始终表示搜索词命中的完整分布。
+16. 数据卡片数字，采用disjunctive facet算法，代表在不包含本组筛选且应用其他组筛选的情况下，本组的各个选项对应的数字。
+17. Search界面空搜索词时，未产生真实搜索结果，故所有选项的数字都显示0。
 
 # 修改流程
 
@@ -44,9 +45,9 @@ Step 1 验收：筛选语义通过自动化测试。
 - index 阶段生成 Duration、Character、Language 的分类与汇总缓存。
 - 索引增删改时同步更新。
 - Watch Status 在索引关系变化或观看状态变化时更新。
-- 空搜索词只读取缓存，不扫描 Cue 表。
+- Search 空搜索词时仅使用缓存确定当前可用的 Language Option；所有 Option Count 固定显示 `0`，不扫描 Cue 表。
 
-Step 2 验收：缓存统计正确，空搜索词不发生全量 Cue 扫描。
+Step 2 验收：缓存中的可用 Language 正确，空搜索词不扫描 Cue 表且所有 Option Count 为 `0`。
 
 ## Step 3：让 Search exact 产出完整分布快照
 
@@ -65,7 +66,7 @@ Step 3 验收：搜索结果与分布快照属于同一 generation，且不增�
 - 保留原始搜索排序。
 - 点击筛选选项不访问数据库、不执行 FTS、不创建新的 exact task。
 - 只替换表格使用的有序结果 ID 投影。
-- 数据卡片数字始终表示搜索词命中的完整分布，不随当前筛选选择变化。
+- Filter Data Card 的 Option Count 按 Step 8 定义的 disjunctive facet 规则计算。
 
 Step 4 验收：筛选语义、排序、首屏响应和渐进加载通过验证，Filter 操作不访问数据库。
 
@@ -160,7 +161,21 @@ Step 6 验收：Search、Shiori 及不同 Shiori 页面之间的数据范围和�
 
 Step 7 验收：功能回归通过；视觉由你验收。视觉验收通过后提供 UI.md 修改前和修改后原文，但暂不提交。
 
-## Step 8：清理旧路径并完成整体回归
+## Step 8：实现 disjunctive facet 计数
+
+- 非空 Search 基于当前 exact 结果快照计算。
+- Shiori 基于当前 Shiori List 的完整快照计算。
+- 计算某张 Filter Data Card 的 Option Count 时，忽略该卡片自身的选择，只应用其他 Filter Data Card 的选择。
+- 结果表格和 Result Count Text 继续应用全部 Filter Data Card 的选择。
+- 同一次完整快照扫描同时生成有序结果投影、Result Count 和四张 Filter Data Card 的 disjunctive Option Count，不为每张卡片分别扫描。
+- 首屏结果继续优先发布，剩余结果和 disjunctive Option Count 使用现有渐进任务完成。
+- 点击筛选选项不访问数据库、不执行 FTS、不创建新的 exact task。
+- Query 或筛选选择变化时废弃旧 generation 的结果投影和 disjunctive Option Count。
+- Search 空搜索词时不执行 disjunctive facet 计算，所有 Option Count 固定显示 `0`。
+
+Step 8 验收：disjunctive Option Count 和完整筛选结果正确；使用查询词 `の` 验证首屏返回及后续渐进加载没有明显回归，Filter 操作不访问数据库。
+
+## Step 9：清理旧路径并完成整体回归
 
 仅删除已经没有调用方的：
 
@@ -172,8 +187,8 @@ Step 7 验收：功能回归通过；视觉由你验收。视觉验收通过后�
 
 保留仍被 Context 或 Command Panel 使用的路径，直到确认已有替代。
 
-Step 8 验收：完整自动化测试及 Search、Shiori、Context、Playback、Command Panel、Select、复制和导出回归通过。
+Step 9 验收：完整自动化测试及 Search、Shiori、Context、Playback、Command Panel、Select、复制和导出回归通过。
 
-## Step 9：最终同步并提交 UI.md
+## Step 10：最终同步并提交 UI.md
 
-Step 9 验收：最终实现与 UI.md 一致，提交 UI.md 并完成整个需求验收。
+Step 10 验收：最终实现与 UI.md 一致，提交 UI.md 并完成整个需求验收。
