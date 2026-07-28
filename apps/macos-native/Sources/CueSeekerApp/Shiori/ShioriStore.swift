@@ -26,6 +26,7 @@ final class ShioriStore: ObservableObject {
     @Published var tableHasLoadedInitialPage = false
     @Published var tableDataRevision = 0
     @Published private(set) var residentFacetSnapshot: CueFacetSnapshot?
+    @Published private(set) var tableFacetDistribution: CueFacetDistribution?
     private(set) var tableFacetFilter = CueFacetFilter()
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultShioriIDs: [Int64]?
@@ -239,6 +240,10 @@ final class ShioriStore: ObservableObject {
         tableResultRowCount = shioriIDs.count
     }
 
+    func installTableFacetDistribution(_ distribution: CueFacetDistribution) {
+        tableFacetDistribution = distribution
+    }
+
     @discardableResult
     func updateTableFacetFilter(_ filter: CueFacetFilter) -> Bool {
         guard tableFacetFilter != filter else { return false }
@@ -262,26 +267,30 @@ final class ShioriStore: ObservableObject {
         )
         residentTagsByShioriID = snapshot.tagsByShioriID
         residentFacetSnapshot = snapshot.facetSnapshot
+        tableFacetDistribution = snapshot.facetSnapshot.distribution
         residentListID = listID
         residentDataRevision = dataRevision
     }
 
-    func filteredResidentShioriIDs(
+    func residentFacetProjection(
         using filter: CueFacetFilter
-    ) -> [Int64] {
-        guard let residentFacetSnapshot else { return [] }
+    ) -> (shioriIDs: [Int64], distribution: CueFacetDistribution) {
+        guard let residentFacetSnapshot else { return ([], .zero) }
         var availableFilter = filter
         availableFilter.languages.formIntersection(
             residentFacetSnapshot.distribution.languageCounts.keys
         )
-        let filteredCueIDs = residentFacetSnapshot.filteredCueIDs(
+        let projection = residentFacetSnapshot.filteredCueIDs(
             using: availableFilter,
             limit: residentFacetSnapshot.cueIDs.count
-        ).cueIDs
+        )
         let shioriIDByCueID = Dictionary(
             uniqueKeysWithValues: residentRelations.map { ($0.cueID, $0.id) }
         )
-        return filteredCueIDs.compactMap { shioriIDByCueID[$0] }
+        return (
+            projection.cueIDs.compactMap { shioriIDByCueID[$0] },
+            projection.distribution
+        )
     }
 
     func updateResidentTags(_ tags: [ShioriTag], forShioriID shioriID: Int64) {
@@ -301,6 +310,7 @@ final class ShioriStore: ObservableObject {
         residentShiorisByID = [:]
         residentTagsByShioriID = [:]
         residentFacetSnapshot = nil
+        tableFacetDistribution = nil
         residentListID = nil
         residentDataRevision = nil
     }
@@ -321,6 +331,9 @@ final class ShioriStore: ObservableObject {
         residentFacetSnapshot = residentFacetSnapshot?.removingCueIDs(
             removedCueIDs
         )
+        tableFacetDistribution = residentFacetProjection(
+            using: tableFacetFilter
+        ).distribution
         tableTotalSavedRowCount = residentRelations.count
         if let tableResultShioriIDs {
             let remainingIDs = tableResultShioriIDs.filter { $0 != id }
@@ -347,6 +360,7 @@ final class ShioriStore: ObservableObject {
     func markTableRowsStale() {
         tableRowsNeedReload = true
         residentFacetSnapshot = nil
+        tableFacetDistribution = nil
         tableDataRevision += 1
     }
 }

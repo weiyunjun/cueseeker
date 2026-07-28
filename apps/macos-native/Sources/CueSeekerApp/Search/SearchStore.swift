@@ -123,6 +123,7 @@ final class SearchStore: ObservableObject {
     @Published private(set) var emptySearchFacetDistribution: CueFacetDistribution?
     private(set) var searchFacetFilter = CueFacetFilter()
     @Published private(set) var filteredSearchResultTotalCount: Int?
+    @Published private(set) var filteredSearchFacetDistribution: CueFacetDistribution?
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var selectedSearchResult: SubtitleSearchResult?
     @Published private(set) var cueContextSearchRequest: CueContextSearchRequest?
@@ -184,6 +185,17 @@ final class SearchStore: ObservableObject {
                 )
             }
         }
+    }
+
+    var displayedSearchFacetDistribution: CueFacetDistribution {
+        guard !searchQuery.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty else {
+            return .zero
+        }
+        return filteredSearchFacetDistribution
+            ?? searchFacetSnapshot?.distribution
+            ?? .zero
     }
 
     var isDatabaseAvailable: Bool {
@@ -268,6 +280,7 @@ final class SearchStore: ObservableObject {
         guard let snapshot = searchFacetSnapshot else {
             filteredSearchResultCueIDs = []
             filteredSearchResultTotalCount = nil
+            filteredSearchFacetDistribution = nil
             if case .facetSearch = tableProjectionSource {
                 activateResidentSearchTableProjection()
             }
@@ -280,14 +293,18 @@ final class SearchStore: ObservableObject {
         )
         filteredSearchResultCueIDs = firstPage.cueIDs
         filteredSearchResultTotalCount = firstPage.isComplete
-            ? firstPage.cueIDs.count
+            ? firstPage.distribution.totalCount
             : nil
+        if firstPage.isComplete {
+            filteredSearchFacetDistribution = firstPage.distribution
+        }
         activateFacetSearchTableProjection()
 
         guard !firstPage.isComplete else { return }
         let filter = searchFacetFilter
         facetProjectionTask = Task { [weak self] in
             var cueIDs = firstPage.cueIDs
+            var distribution = firstPage.distribution
             var sourceIndex = firstPage.nextSourceIndex
             var isComplete = false
             while !isComplete {
@@ -306,11 +323,13 @@ final class SearchStore: ObservableObject {
                     limit: 1_000
                 )
                 cueIDs.append(contentsOf: page.cueIDs)
+                distribution = distribution.adding(page.distribution)
                 sourceIndex = page.nextSourceIndex
                 isComplete = page.isComplete
                 self.filteredSearchResultCueIDs = cueIDs
                 if isComplete {
-                    self.filteredSearchResultTotalCount = cueIDs.count
+                    self.filteredSearchResultTotalCount = distribution.totalCount
+                    self.filteredSearchFacetDistribution = distribution
                 }
                 self.synchronizeFacetSearchTableProjection()
             }
@@ -824,6 +843,7 @@ final class SearchStore: ObservableObject {
         activeIndexedCueMutationGeneration = token.generation
         cueContextSearchRequest = nil
         searchFacetSnapshot = nil
+        filteredSearchFacetDistribution = nil
         if case .residentSearch = tableProjectionSource {
             return token
         }
@@ -880,6 +900,7 @@ final class SearchStore: ObservableObject {
         guard query != searchQuery else { return }
         searchQuery = query
         searchFacetSnapshot = nil
+        filteredSearchFacetDistribution = nil
     }
 
     func markSearchIdle() {
@@ -965,6 +986,7 @@ final class SearchStore: ObservableObject {
             exactCompletionTask = nil
             resultFilterSet = filterSet
             searchFacetSnapshot = nil
+            filteredSearchFacetDistribution = nil
         }
         searchTask?.cancel()
         return resultListGeneration
@@ -1024,6 +1046,7 @@ final class SearchStore: ObservableObject {
         folderScopeGeneration &+= 1
         resultListGeneration &+= 1
         searchFacetSnapshot = nil
+        filteredSearchFacetDistribution = nil
         cancelAllSearchTasks()
         suspendFilterOnlyPageLoad()
         cancelContextTableLoad()
@@ -1276,6 +1299,7 @@ final class SearchStore: ObservableObject {
             lastCountProgressUpdate = 0
             nextGlobalCursor = nil
             searchFacetSnapshot = nil
+            filteredSearchFacetDistribution = nil
             searchNavigationSnapshot = nil
         }
         if wasShowingFacetProjection {

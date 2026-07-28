@@ -88,6 +88,14 @@ public struct CueFacetFilter: Equatable, Sendable {
 }
 
 public struct CueFacetDistribution: Equatable, Sendable {
+    public static let zero = CueFacetDistribution(
+        totalCount: 0,
+        durationCounts: [:],
+        characterCounts: [:],
+        languageCounts: [:],
+        watchStateCounts: [:]
+    )
+
     public let totalCount: Int
     public let durationCounts: [CueDurationFacet: Int]
     public let characterCounts: [CueCharacterFacet: Int]
@@ -106,6 +114,28 @@ public struct CueFacetDistribution: Equatable, Sendable {
         self.characterCounts = characterCounts
         self.languageCounts = languageCounts
         self.watchStateCounts = watchStateCounts
+    }
+
+    public func adding(_ other: CueFacetDistribution) -> CueFacetDistribution {
+        CueFacetDistribution(
+            totalCount: totalCount + other.totalCount,
+            durationCounts: durationCounts.merging(
+                other.durationCounts,
+                uniquingKeysWith: +
+            ),
+            characterCounts: characterCounts.merging(
+                other.characterCounts,
+                uniquingKeysWith: +
+            ),
+            languageCounts: languageCounts.merging(
+                other.languageCounts,
+                uniquingKeysWith: +
+            ),
+            watchStateCounts: watchStateCounts.merging(
+                other.watchStateCounts,
+                uniquingKeysWith: +
+            )
+        )
     }
 }
 
@@ -170,28 +200,73 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         using filter: CueFacetFilter,
         startingAt sourceIndex: Int = 0,
         limit: Int
-    ) -> (cueIDs: [Int64], nextSourceIndex: Int, isComplete: Bool) {
+    ) -> (
+        cueIDs: [Int64],
+        nextSourceIndex: Int,
+        isComplete: Bool,
+        distribution: CueFacetDistribution
+    ) {
         let start = min(max(0, sourceIndex), cueIDs.count)
         let pageLimit = max(0, limit)
         guard pageLimit > 0 else {
-            return ([], cueIDs.count, true)
+            return ([], cueIDs.count, true, .zero)
         }
 
         var matches: [Int64] = []
         matches.reserveCapacity(min(pageLimit, cueIDs.count - start))
+        var durationCounts: [CueDurationFacet: Int] = [:]
+        var characterCounts: [CueCharacterFacet: Int] = [:]
+        var languageCounts: [SubtitleLanguageCode: Int] = [:]
+        var watchStateCounts: [LibraryWatchState: Int] = [:]
         var index = start
         while index < cueIDs.count, matches.count < pageLimit {
-            if filter.matches(
-                duration: durationFacets[index],
-                characters: characterFacets[index],
-                languages: languageFacets[index],
-                watchState: watchStateFacets[index]
-            ) {
+            let duration = durationFacets[index]
+            let characters = characterFacets[index]
+            let languages = languageFacets[index]
+            let watchState = watchStateFacets[index]
+            let matchesDuration = filter.durations.isEmpty
+                || filter.durations.contains(duration)
+            let matchesCharacters = filter.characters.isEmpty
+                || filter.characters.contains(characters)
+            let matchesLanguages = filter.languages.isEmpty
+                || !filter.languages.isDisjoint(with: languages)
+            let matchesWatchState = filter.watchStates.isEmpty
+                || filter.watchStates.contains(watchState)
+
+            if matchesCharacters && matchesLanguages && matchesWatchState {
+                durationCounts[duration, default: 0] += 1
+            }
+            if matchesDuration && matchesLanguages && matchesWatchState {
+                characterCounts[characters, default: 0] += 1
+            }
+            if matchesDuration && matchesCharacters && matchesWatchState {
+                for language in languages {
+                    languageCounts[language, default: 0] += 1
+                }
+            }
+            if matchesDuration && matchesCharacters && matchesLanguages {
+                watchStateCounts[watchState, default: 0] += 1
+            }
+            if matchesDuration
+                && matchesCharacters
+                && matchesLanguages
+                && matchesWatchState {
                 matches.append(cueIDs[index])
             }
             index += 1
         }
-        return (matches, index, index == cueIDs.count)
+        return (
+            matches,
+            index,
+            index == cueIDs.count,
+            CueFacetDistribution(
+                totalCount: matches.count,
+                durationCounts: durationCounts,
+                characterCounts: characterCounts,
+                languageCounts: languageCounts,
+                watchStateCounts: watchStateCounts
+            )
+        )
     }
 
     public func removingCueIDs(_ removedCueIDs: Set<Int64>) -> CueFacetSnapshot {

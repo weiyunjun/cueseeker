@@ -1139,14 +1139,14 @@ func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
     #expect(store.tableResultRowCount == 2)
     #expect(store.tableResultShioriIDs == [1, 2])
     #expect(store.playbackTableResultShioriIDs == [1])
-    #expect(store.filteredResidentShioriIDs(
+    #expect(store.residentFacetProjection(
         using: CueFacetFilter(languages: [.japanese])
-    ) == [1])
+    ).shioriIDs == [1])
 
     store.removeShioriFromCurrentProjection(id: 1)
 
     #expect(store.residentFacetSnapshot?.distribution.totalCount == 1)
-    #expect(store.filteredResidentShioriIDs(using: CueFacetFilter()) == [2])
+    #expect(store.residentFacetProjection(using: CueFacetFilter()).shioriIDs == [2])
 }
 
 @MainActor

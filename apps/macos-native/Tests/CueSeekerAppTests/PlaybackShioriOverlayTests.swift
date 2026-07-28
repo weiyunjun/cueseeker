@@ -272,6 +272,11 @@ func sharedShioriFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async 
     let initialSnapshotID = app.shiori.tableResultSnapshotID
     #expect(app.shiori.tableFacetFilter == persistedFilter)
     #expect(app.shiori.residentFacetSnapshot?.distribution.totalCount == 2)
+    #expect(app.shiori.tableFacetDistribution?.totalCount == 1)
+    #expect(app.shiori.tableFacetDistribution?.durationCounts == [
+        .underOneSecond: 1,
+        .threeToUnderFiveSeconds: 1,
+    ])
     #expect(app.shiori.tableResultRowCount == 1)
     #expect(app.shiori.playbackTableResultShioriIDs == [shortShiori.id])
 
@@ -279,6 +284,7 @@ func sharedShioriFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async 
 
     #expect(app.shioriTableRowsTask == nil)
     #expect(app.shiori.tableResultSnapshotID != initialSnapshotID)
+    #expect(app.shiori.tableFacetDistribution?.totalCount == 2)
     #expect(app.shiori.tableResultRowCount == 2)
     #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 2)
     #expect(Set(app.shiori.playbackTableResultShioriIDs ?? []) == [

@@ -13,6 +13,14 @@ func searchFacetPanelDefaultsToVisible() {
 
 @MainActor
 @Test
+func emptySearchDisplaysZeroFacetCounts() {
+    let search = SearchStore()
+
+    #expect(search.displayedSearchFacetDistribution == .zero)
+}
+
+@MainActor
+@Test
 func shioriFacetPanelDefaultsToHidden() {
     #expect(!WorkbenchShioriTableView.defaultFacetPanelVisibility)
 }
@@ -576,6 +584,19 @@ func facetFilterProjectsTableIDsWithoutChangingExactSearchBoundary() async {
         $0.offset.isMultiple(of: 2) ? $0.element.entryID : nil
     })
     #expect(search.filteredSearchResultTotalCount == 60)
+    #expect(search.filteredSearchFacetDistribution?.durationCounts == [
+        .underOneSecond: 60,
+        .fiveSecondsOrMore: 60,
+    ])
+    #expect(search.filteredSearchFacetDistribution?.characterCounts == [
+        .oneToTen: 60,
+    ])
+    #expect(search.filteredSearchFacetDistribution?.languageCounts == [
+        .english: 60,
+    ])
+    #expect(search.filteredSearchFacetDistribution?.watchStateCounts == [
+        .unwatched: 60,
+    ])
     #expect(search.searchResultCueIDs == results.map(\.entryID))
     #expect(search.searchResultTotalCount == 120)
     #expect(search.tableRowStore.snapshot.totalRowCount == 60)

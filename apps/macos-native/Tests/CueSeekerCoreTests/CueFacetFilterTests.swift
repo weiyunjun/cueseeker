@@ -251,3 +251,76 @@ func cueFacetSnapshotTreatsEmptyCardSelectionAsAll() {
     #expect(page.nextSourceIndex == snapshot.cueIDs.count)
     #expect(page.isComplete)
 }
+
+@Test
+func cueFacetSnapshotBuildsDisjunctiveCountsDuringPagedProjection() {
+    let snapshot = CueFacetSnapshot(
+        cueIDs: [1, 2, 3, 4, 5, 6],
+        durationFacets: [
+            .underOneSecond,
+            .oneToUnderThreeSeconds,
+            .oneToUnderThreeSeconds,
+            .threeToUnderFiveSeconds,
+            .underOneSecond,
+            .oneToUnderThreeSeconds,
+        ],
+        characterFacets: [
+            .oneToTen,
+            .oneToTen,
+            .elevenToTwenty,
+            .elevenToTwenty,
+            .elevenToTwenty,
+            .elevenToTwenty,
+        ],
+        languageFacets: [
+            [.japanese],
+            [.english],
+            [.japanese, .english],
+            [.japanese],
+            [.japanese],
+            [.japanese],
+        ],
+        watchStateFacets: [
+            .watching,
+            .watching,
+            .watching,
+            .finished,
+            .watching,
+            .finished,
+        ]
+    )
+    let filter = CueFacetFilter(
+        durations: [.oneToUnderThreeSeconds],
+        characters: [.elevenToTwenty],
+        languages: [.japanese],
+        watchStates: [.watching]
+    )
+
+    let firstPage = snapshot.filteredCueIDs(using: filter, limit: 1)
+    let secondPage = snapshot.filteredCueIDs(
+        using: filter,
+        startingAt: firstPage.nextSourceIndex,
+        limit: snapshot.cueIDs.count
+    )
+    let distribution = firstPage.distribution.adding(secondPage.distribution)
+
+    #expect(firstPage.cueIDs == [3])
+    #expect(secondPage.cueIDs.isEmpty)
+    #expect(secondPage.isComplete)
+    #expect(distribution.totalCount == 1)
+    #expect(distribution.durationCounts == [
+        .underOneSecond: 1,
+        .oneToUnderThreeSeconds: 1,
+    ])
+    #expect(distribution.characterCounts == [
+        .elevenToTwenty: 1,
+    ])
+    #expect(distribution.languageCounts == [
+        .english: 1,
+        .japanese: 1,
+    ])
+    #expect(distribution.watchStateCounts == [
+        .watching: 1,
+        .finished: 1,
+    ])
+}

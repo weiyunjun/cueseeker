@@ -73,7 +73,8 @@ private struct WorkbenchShioriTableContent: View {
             filterPanel: AnyView(
                 CueFacetFilterPanel(
                     distribution:
-                        shioriStore.residentFacetSnapshot?.distribution,
+                        shioriStore.tableFacetDistribution
+                            ?? shioriStore.residentFacetSnapshot?.distribution,
                     availableLanguages: availableFacetLanguages,
                     isCalculating: shioriStore.residentFacetSnapshot == nil,
                     isDisabled: isSelectionMode,

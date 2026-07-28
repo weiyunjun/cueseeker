@@ -566,9 +566,8 @@ extension AppCoordinator {
         let trimmedSearchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        let matchingShioriIDs = Set(
-            shiori.filteredResidentShioriIDs(using: facetFilter)
-        )
+        let facetProjection = shiori.residentFacetProjection(using: facetFilter)
+        let matchingShioriIDs = Set(facetProjection.shioriIDs)
         let relations = shiori.residentRelations.filter { relation in
             guard matchingShioriIDs.contains(relation.id) else {
                 return false
@@ -594,6 +593,7 @@ extension AppCoordinator {
                 languages: content?.languages.map(\.rawValue).sorted() ?? []
             )
         }
+        shiori.installTableFacetDistribution(facetProjection.distribution)
         shiori.installTableResultShioriIDs(relations.map(\.id))
         shiori.markTableRowsLoaded(
             totalSavedRowCount: shiori.residentRelations.count

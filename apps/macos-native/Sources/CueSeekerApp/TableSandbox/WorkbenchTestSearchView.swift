@@ -315,9 +315,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var facetDistribution: CueFacetDistribution? {
-        search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? search.emptySearchFacetDistribution
-            : search.searchFacetSnapshot?.distribution
+        search.displayedSearchFacetDistribution
     }
 
     private var availableFacetLanguages: [SubtitleLanguageCode] {
