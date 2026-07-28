@@ -1,8 +1,8 @@
-public enum CueDurationFacet: CaseIterable, Hashable, Sendable {
-    case underOneSecond
-    case oneToUnderThreeSeconds
-    case threeToUnderFiveSeconds
-    case fiveSecondsOrMore
+public enum CueDurationFacet: String, CaseIterable, Hashable, Sendable {
+    case underOneSecond = "under_1s"
+    case oneToUnderThreeSeconds = "1s_to_2_999s"
+    case threeToUnderFiveSeconds = "3s_to_4_999s"
+    case fiveSecondsOrMore = "5s_or_more"
 
     public init(durationMilliseconds: Int) {
         switch durationMilliseconds {
@@ -18,11 +18,11 @@ public enum CueDurationFacet: CaseIterable, Hashable, Sendable {
     }
 }
 
-public enum CueCharacterFacet: CaseIterable, Hashable, Sendable {
-    case oneToTen
-    case elevenToTwenty
-    case twentyOneToThirty
-    case thirtyOneOrMore
+public enum CueCharacterFacet: String, CaseIterable, Hashable, Sendable {
+    case oneToTen = "1_to_10"
+    case elevenToTwenty = "11_to_20"
+    case twentyOneToThirty = "21_to_30"
+    case thirtyOneOrMore = "31_or_more"
 
     public init(characterCount: Int) {
         switch characterCount {
@@ -79,5 +79,27 @@ public struct CueFacetFilter: Equatable, Sendable {
         ))) &&
         (languages.isEmpty || !languages.isDisjoint(with: cueLanguages)) &&
         (watchStates.isEmpty || watchStates.contains(watchState))
+    }
+}
+
+public struct CueFacetDistribution: Equatable, Sendable {
+    public let totalCount: Int
+    public let durationCounts: [CueDurationFacet: Int]
+    public let characterCounts: [CueCharacterFacet: Int]
+    public let languageCounts: [SubtitleLanguageCode: Int]
+    public let watchStateCounts: [LibraryWatchState: Int]
+
+    public init(
+        totalCount: Int,
+        durationCounts: [CueDurationFacet: Int],
+        characterCounts: [CueCharacterFacet: Int],
+        languageCounts: [SubtitleLanguageCode: Int],
+        watchStateCounts: [LibraryWatchState: Int]
+    ) {
+        self.totalCount = totalCount
+        self.durationCounts = durationCounts
+        self.characterCounts = characterCounts
+        self.languageCounts = languageCounts
+        self.watchStateCounts = watchStateCounts
     }
 }

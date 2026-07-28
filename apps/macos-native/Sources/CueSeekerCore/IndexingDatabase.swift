@@ -318,6 +318,9 @@ public final class IndexingDatabase: @unchecked Sendable {
                     token: index.lease.token
                 )
             }
+            if !affectedFolderPaths.isEmpty {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
 
             return PublishedLibraryIndexMutation(
                 libraryID: index.lease.libraryID,
@@ -585,6 +588,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             try resolve.bind(libraryID, at: 2)
             try resolve.bind(candidatePath, at: 3)
             try resolve.run()
+            try CueFacetCountCache.rebuildAll(on: database)
             return existingSubtitleID
         }
     }
@@ -667,6 +671,9 @@ public final class IndexingDatabase: @unchecked Sendable {
                 libraryID: nil,
                 rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
             )
+            if rebuildSearchDerivedIndex {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
         }
     }
 
@@ -1018,10 +1025,11 @@ public final class IndexingDatabase: @unchecked Sendable {
     public func reconcileIndexedContent(activeFolders folders: [URL]) throws {
         let folders = folders.map(\.standardizedFileURL)
         try database.withImmediateTransaction {
+            var removedIndexedContent = false
             let inactiveSearchPaths = try searchPaths()
                 .filter { !Self.folderPath($0, matchesAny: folders) }
             for searchPath in inactiveSearchPaths {
-                _ = try removeIndexedDataInCurrentTransaction(
+                let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
                     under: URL(fileURLWithPath: searchPath),
                     keeping: [],
                     removeSearchPath: true,
@@ -1029,11 +1037,15 @@ public final class IndexingDatabase: @unchecked Sendable {
                     bindingState: .removed,
                     unavailableReason: .libraryUnavailable
                 )
+                removedIndexedContent = removedIndexedContent || !affectedFolderPaths.isEmpty
             }
 
             try deleteOrphanedVideoFiles()
             if folders.isEmpty {
                 try rebuildSearchDerivedIndexInCurrentTransaction()
+            }
+            if removedIndexedContent {
+                try CueFacetCountCache.rebuildAll(on: database)
             }
         }
     }
@@ -1425,7 +1437,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         unavailableReason: ShioriUnavailableReason
     ) throws {
         try database.withImmediateTransaction {
-            _ = try removeIndexedDataInCurrentTransaction(
+            let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
                 under: folder,
                 keeping: subtitleFiles,
                 removeSearchPath: removeSearchPath,
@@ -1433,6 +1445,9 @@ public final class IndexingDatabase: @unchecked Sendable {
                 bindingState: bindingState,
                 unavailableReason: unavailableReason
             )
+            if !affectedFolderPaths.isEmpty {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
         }
     }
 

@@ -377,22 +377,36 @@ extension LibraryDatabase {
         state: LibraryWatchState,
         updatedAt: Date
     ) throws {
-        let videoFileID = try upsertVideoFile(videoFile)
-        let statement = try database.prepare(
-            """
-            INSERT INTO library_watch_states(video_path, video_file_id, state, updated_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(video_path) DO UPDATE SET
-                video_file_id = excluded.video_file_id,
-                state = excluded.state,
-                updated_at = excluded.updated_at;
-            """
-        )
-        try statement.bind(videoFile.path, at: 1)
-        try statement.bind(videoFileID, at: 2)
-        try statement.bind(state.rawValue, at: 3)
-        try statement.bind(Self.playbackHistoryTimestamp(from: updatedAt), at: 4)
-        try statement.run()
+        try database.withImmediateTransaction {
+            let previousState = try database.prepare(
+                "SELECT state FROM library_watch_states WHERE video_path = ?;"
+            )
+            try previousState.bind(videoFile.path, at: 1)
+            let previousValue = try previousState.step()
+                ? LibraryWatchState(rawValue: previousState.stringColumn(0)) ?? .unwatched
+                : .unwatched
+
+            let videoFileID = try upsertVideoFile(videoFile)
+            let statement = try database.prepare(
+                """
+                INSERT INTO library_watch_states(video_path, video_file_id, state, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(video_path) DO UPDATE SET
+                    video_file_id = excluded.video_file_id,
+                    state = excluded.state,
+                    updated_at = excluded.updated_at;
+                """
+            )
+            try statement.bind(videoFile.path, at: 1)
+            try statement.bind(videoFileID, at: 2)
+            try statement.bind(state.rawValue, at: 3)
+            try statement.bind(Self.playbackHistoryTimestamp(from: updatedAt), at: 4)
+            try statement.run()
+
+            if previousValue != state {
+                try CueFacetCountCache.rebuildWatchStates(on: database)
+            }
+        }
     }
 
     private func upsertVideoFile(_ videoFile: URL) throws -> Int64 {

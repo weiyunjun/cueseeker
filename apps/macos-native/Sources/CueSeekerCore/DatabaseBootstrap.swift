@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 39
+    public static let currentSchemaVersion = 40
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -39,6 +39,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 36
                 || previousVersion == 37
                 || previousVersion == 38
+                || previousVersion == 39
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -78,6 +79,16 @@ private extension DatabaseBootstrap {
             || previousVersion == 38
         {
             try migrateSchema38To39(on: database)
+        }
+        if previousVersion == 33
+            || previousVersion == 34
+            || previousVersion == 35
+            || previousVersion == 36
+            || previousVersion == 37
+            || previousVersion == 38
+            || previousVersion == 39
+        {
+            try migrateSchema39To40(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -562,6 +573,13 @@ private extension DatabaseBootstrap {
             CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
                 ON subtitle_search_order_rows(folder_order, file_order, subtitle_path);
 
+            CREATE TABLE IF NOT EXISTS cue_facet_counts (
+                facet TEXT NOT NULL,
+                value TEXT NOT NULL,
+                cue_count INTEGER NOT NULL CHECK(cue_count >= 0),
+                PRIMARY KEY(facet, value)
+            );
+
             CREATE TABLE IF NOT EXISTS resource_binding_conflicts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 library_id INTEGER NOT NULL,
@@ -910,6 +928,28 @@ private extension DatabaseBootstrap {
                 PRAGMA user_version = 39;
                 """
             )
+        }
+    }
+
+    static func migrateSchema39To40(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                CREATE TABLE cue_facet_counts (
+                    facet TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    cue_count INTEGER NOT NULL CHECK(cue_count >= 0),
+                    PRIMARY KEY(facet, value)
+                );
+                """
+            )
+            let indexedContent = try database.prepare(
+                "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'subtitle_video_matches';"
+            )
+            if try indexedContent.step() {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
+            try database.execute("PRAGMA user_version = 40;")
         }
     }
 

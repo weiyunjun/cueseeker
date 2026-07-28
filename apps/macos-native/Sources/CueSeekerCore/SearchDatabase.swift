@@ -14,6 +14,10 @@ public final class SearchDatabase: @unchecked Sendable {
         database = try SQLiteDatabase(path: path, access: access)
     }
 
+    public func cueFacetDistribution() throws -> CueFacetDistribution {
+        try CueFacetCountCache.load(from: database)
+    }
+
     public func cueOccurrenceCount(
         for query: String,
         under folders: [URL]? = nil
