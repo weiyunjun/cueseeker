@@ -7,7 +7,7 @@ main
 3. 所有筛选条件，都可以多选。
 4. 每次搜索都要进行全量搜索，保证数据面板可以显示正确的数据，这里本质上是一种数据范畴分布的显示。
 5. 数据卡片内部多选默认是或的关系，例如选1~3s和3~5s其实就是同时选择这2组。但是数据卡片之间是且的关系，即同时满足这几个数据卡片条件的结果。
-6. Shiori后续还会迭代更多的数据卡片，但是这个版本先不做，注意要把数据卡片作为新的筛选项抽象出来，保证不同的位置可以调用它
+6. 数据卡片必须抽象为 Search 与 Shiori 可复用的筛选组件，布局不得假设数据卡片数量固定为 4。后续可以增加内置数据卡片和用户自定义数据卡片；本版本只实现 Duration、Character、Language、Watch Status 四张数据卡片。
 7. 旧的筛选的相关功能及代码，不用了可以删除
 8. 重启App后Search页面时默认显示筛选数据面板，默认全部选择，且选择需要持久化。重启App后Shiori二级页面时默认不显示筛选数据面板，默认全部选择，且选择需要持久化。持久化，Search和Shiori的不同，每个Shiori二级页面也不同。Command Panel界面的Search那里先维持现状（即按照现在的临时空Filter处理，后续会在界面里支持筛选条件，放到搜索结果列表左侧替代现在的封面），后续再支持，先处理Workbench这里的代码。
 9. exact结果出来之前，输入搜索词以后，数据卡片的数字都要显示Calculating，且disable所有选项，禁止修改。
@@ -104,18 +104,45 @@ main
 - Search 的筛选选择需要持久化。
 - 没有已保存状态时，所有选项默认选中；存在已保存状态时恢复该状态。
 - 数据面板的显示或隐藏状态不持久化。
-- 窄窗口下数据卡片保持可用，不挤占或破坏表格；保持单行并允许横向滚动。
+- 数据面板使用基于容器可用宽度的自适应 Grid，不固定列数，也不与当前四张数据卡片绑定。
+- Filter Data Card 最小宽度为 200px；卡片间距使用 `--spacing-3`。
+- 列数按照可用宽度和 Filter Data Card 最小宽度自动计算，最少保持 2 列，允许 3 列及更多列。
+- 末行允许不足当前列数，末行卡片保持与同一 Grid 其他卡片相同的列宽。
+- 数据面板不使用横向滚动。
+- 卡片高度由内容决定，不设置固定卡片高度或固定面板高度。
+- 同一行的卡片统一使用该行自然内容高度最高卡片的高度；不同行分别计算高度。
 - 删除 Search 中已被替代的旧 Filter Editor。
 - 移除被 Language 和 Watch Status 数据卡片取代的全局设置入口。
 - Command Panel 保持临时空 Filter，不接入本次筛选状态。
+- Filter Data Card 使用 `--color-bg-surface`、`--color-border-control`、`--radius-control` 和 `--spacing-3`。
+- Card Title 使用 `--font-size-control`、Font Weight `600` 和 `--color-text-secondary`。
+- Card Title Icon 使用 `--size-checkbox` 和 `--color-text-secondary`。
+- Option Label 使用 `--font-size-body` 和 `--color-text-muted`。
+- Option Count 使用 `--font-size-caption` 和 `--color-text-muted`。
+- Card Title Icon 与 Option Checkbox 占用相同宽度的 Leading Control Column，并保持水平中心线一致。
+- Card Title 与 Option Label 从 Leading Control Column 后的同一水平位置开始。
+- Option Count 在卡片尾部右对齐。
+- Filter Data Card Checkbox 为圆形；Unchecked 使用 `--color-bg-checkbox-unchecked` 和 `--color-border-checkbox`，Checked 背景使用 `--color-text-muted`，Checkmark 使用 `--color-checkbox-icon`。
+- Checkbox 与 Option Label 的间距使用 `--spacing-2`。
+- Option 整行均为 Checkbox 的点击区域。
+- Calculating 状态下 Count 显示 `Calculating`，全部 Option 为 Disabled，并遵守全局 Disabled 规则。
 
 验收：
-
+- App 最小窗口宽度下保持 2 列，卡片内容和表格均可正常使用。
+- 中间窗口宽度允许出现 3 列；布局不能只处理 4 列和 2 列。
+- 增加或删除数据卡片时，Grid 根据实际卡片数量和可用宽度自动重新排列。
+- 同一行卡片等高，不同行分别按各自最高卡片确定高度。
+- Filter Data Card 和 Filter Data Panel 的所有视觉数值均能对应到 UI.md 的 Token、Component 或 Layout 规则，不存在只保留在代码中的独立 UI 数值。
+- 点击筛选选项不刷新 App Root、Sidebar、Shiori、Settings 或其他无关界面。
+- 点击筛选选项只允许更新当前 Filter Data Panel 的选择状态、Search Result Count 和 Search 结果表格投影。
+- 渐进投影的后续批次只刷新结果表格；数据卡片分布不重新计算。
+- 使用 UI Invalidation Probe 覆盖上述刷新范围。
 - 自动化测试验证默认状态、持久化恢复、筛选交互和面板显示状态。
 - App 重启后 Search 数据面板默认显示。
 - Filter 按钮没有数字或 Badge。
 - **视觉验收由你执行。**
 - 每项 UI 改动完成后，我按以下格式提供 `UI.md` 精确原文：
+
 
 修改前
 
@@ -155,6 +182,8 @@ main
 ## Step 7：实现 Shiori 三栏界面
 
 - 接入与 Search 共用的数据卡片组件和响应式布局。
+- Shiori 完整复用 Step 5 定义的 Filter Data Card Component 和 Filter Data Panel Layout，不增加 Shiori 独立的尺寸、颜色、Checkbox 或响应式布局规则。
+- Shiori 与 Search 只允许在默认显示状态、数据范围和持久化状态来源上存在差异。
 - Filter 按钮显示或隐藏筛选数据面板。
 - Filter 按钮不显示数字或 Badge。
 - App 启动后，Shiori 二级页面的筛选数据面板默认隐藏。
@@ -201,3 +230,6 @@ main
 - 你确认 `UI.md` 已准确记录最终稳定结果。
 - 此时才提交 `UI.md`，避免中途方案反复污染历史。
 - 完成最终需求验收和实现记录。
+- UI.md 必须覆盖本需求最终接受的全部可见 UI 数值、Token、Component、状态、交互和 Layout。
+- 不允许任何已接受的 UI 数值或规则只存在于 SwiftUI 代码、工程记录或需求单中。
+- UI.md 与最终实现逐项核对完成后才能提交 UI.md。
