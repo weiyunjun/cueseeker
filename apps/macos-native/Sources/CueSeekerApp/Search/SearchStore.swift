@@ -121,7 +121,7 @@ final class SearchStore: ObservableObject {
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
     @Published private(set) var searchFacetSnapshot: CueFacetSearchSnapshot?
     @Published private(set) var emptySearchFacetDistribution: CueFacetDistribution?
-    @Published private(set) var searchFacetFilter = CueFacetFilter()
+    private(set) var searchFacetFilter = CueFacetFilter()
     @Published private(set) var filteredSearchResultTotalCount: Int?
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var selectedSearchResult: SubtitleSearchResult?

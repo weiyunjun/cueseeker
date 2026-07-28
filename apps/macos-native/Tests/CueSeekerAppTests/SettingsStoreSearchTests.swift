@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import Foundation
 import Testing
 import CueSeekerCore
@@ -81,6 +82,50 @@ func settingsStoreRestoresSearchFacetSelections() {
 
         #expect(restoredStore.searchFacetFilter == firstStore.searchFacetFilter)
     }
+}
+
+@MainActor
+@Test
+func searchFacetPersistenceDoesNotInvalidateGlobalSettingsObservers() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
+        var changeCount = 0
+        let cancellable = store.objectWillChange.sink {
+            changeCount += 1
+        }
+
+        store.searchFacetFilter = CueFacetFilter(languages: [.japanese])
+
+        #expect(changeCount == 0)
+        withExtendedLifetime(cancellable) {}
+    }
+}
+
+@Test
+func facetCardGridUsesTwoThreeAndArbitraryColumnCounts() {
+    let spacing = WorkbenchControlMetrics.redesignSpacing3
+    let minimumWidth = WorkbenchControlMetrics.redesignFilterDataCardMinWidth
+
+    #expect(CueFacetAdaptiveGridLayout.columnCount(
+        availableWidth: minimumWidth * 2 + spacing,
+        cardCount: 7
+    ) == 2)
+    #expect(CueFacetAdaptiveGridLayout.columnCount(
+        availableWidth: minimumWidth * 3 + spacing * 2,
+        cardCount: 7
+    ) == 3)
+    #expect(CueFacetAdaptiveGridLayout.columnCount(
+        availableWidth: minimumWidth * 6 + spacing * 5,
+        cardCount: 7
+    ) == 6)
+    #expect(CueFacetAdaptiveGridLayout.columnCount(
+        availableWidth: 10_000,
+        cardCount: 7
+    ) == 7)
+    #expect(CueFacetAdaptiveGridLayout.columnCount(
+        availableWidth: 10_000,
+        cardCount: 1
+    ) == 1)
 }
 
 @MainActor

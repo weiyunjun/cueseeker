@@ -46,6 +46,10 @@ enum WorkbenchControlMetrics {
     static let redesignInlineClearButtonRadius: CGFloat = 9999
     /// --size-control-icon: 16px
     static let redesignControlIconSize: CGFloat = 16
+    /// --size-checkbox: 16px
+    static let redesignCheckboxSize: CGFloat = 16
+    /// --min-width-filter-data-card: 200px
+    static let redesignFilterDataCardMinWidth: CGFloat = 200
     /// --size-filter-count-badge: 16px
     static let redesignFilterCountBadgeSize: CGFloat = 16
     /// --padding-filter-count-badge-x: 4px

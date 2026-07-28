@@ -8,77 +8,63 @@ struct CueFacetFilterPanel: View {
     @Binding var filter: CueFacetFilter
 
     var body: some View {
-        GeometryReader { geometry in
-            let cardWidth = max(
-                216,
-                (geometry.size.width - 3 * WorkbenchControlMetrics.redesignSpacing3) / 4
-            )
-            ScrollView(.horizontal, showsIndicators: true) {
-                HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    card(
-                        title: "Duration",
-                        systemImage: "clock",
-                        options: CueDurationFacet.allCases.map { facet in
-                            CueFacetOption(
-                                id: facet.rawValue,
-                                title: facet.title,
-                                count: distribution?.durationCounts[facet] ?? 0,
-                                isSelected: filter.durations.contains(facet),
-                                toggle: { toggle(facet, at: \.durations) }
-                            )
-                        }
+        CueFacetAdaptiveGridLayout {
+            card(
+                title: "Duration",
+                systemImage: "clock",
+                options: CueDurationFacet.allCases.map { facet in
+                    CueFacetOption(
+                        id: facet.rawValue,
+                        title: facet.title,
+                        count: distribution?.durationCounts[facet] ?? 0,
+                        isSelected: filter.durations.contains(facet),
+                        toggle: { toggle(facet, at: \.durations) }
                     )
-                    .frame(width: cardWidth)
-
-                    card(
-                        title: "Character",
-                        systemImage: "textformat",
-                        options: CueCharacterFacet.allCases.map { facet in
-                            CueFacetOption(
-                                id: facet.rawValue,
-                                title: facet.title,
-                                count: distribution?.characterCounts[facet] ?? 0,
-                                isSelected: filter.characters.contains(facet),
-                                toggle: { toggle(facet, at: \.characters) }
-                            )
-                        }
-                    )
-                    .frame(width: cardWidth)
-
-                    card(
-                        title: "Language",
-                        systemImage: "globe",
-                        options: availableLanguages.map { language in
-                            CueFacetOption(
-                                id: language.rawValue,
-                                title: language.title,
-                                count: distribution?.languageCounts[language] ?? 0,
-                                isSelected: filter.languages.contains(language),
-                                toggle: { toggle(language, at: \.languages) }
-                            )
-                        }
-                    )
-                    .frame(width: cardWidth)
-
-                    card(
-                        title: "Watch Status",
-                        systemImage: "eye",
-                        options: LibraryWatchState.facetCases.map { state in
-                            CueFacetOption(
-                                id: state.rawValue,
-                                title: state.title,
-                                count: distribution?.watchStateCounts[state] ?? 0,
-                                isSelected: filter.watchStates.contains(state),
-                                toggle: { toggle(state, at: \.watchStates) }
-                            )
-                        }
-                    )
-                    .frame(width: cardWidth)
                 }
-                .frame(minWidth: geometry.size.width, alignment: .leading)
-            }
+            )
+
+            card(
+                title: "Character",
+                systemImage: "textformat",
+                options: CueCharacterFacet.allCases.map { facet in
+                    CueFacetOption(
+                        id: facet.rawValue,
+                        title: facet.title,
+                        count: distribution?.characterCounts[facet] ?? 0,
+                        isSelected: filter.characters.contains(facet),
+                        toggle: { toggle(facet, at: \.characters) }
+                    )
+                }
+            )
+
+            card(
+                title: "Language",
+                systemImage: "globe",
+                options: availableLanguages.map { language in
+                    CueFacetOption(
+                        id: language.rawValue,
+                        title: language.title,
+                        count: distribution?.languageCounts[language] ?? 0,
+                        isSelected: filter.languages.contains(language),
+                        toggle: { toggle(language, at: \.languages) }
+                    )
+                }
+            )
+
+            card(
+                title: "Watch Status",
+                systemImage: "eye",
+                options: LibraryWatchState.facetCases.map { state in
+                    CueFacetOption(
+                        id: state.rawValue,
+                        title: state.title,
+                        count: distribution?.watchStateCounts[state] ?? 0,
+                        isSelected: filter.watchStates.contains(state),
+                        toggle: { toggle(state, at: \.watchStates) }
+                    )
+                }
+            )
         }
-        .frame(height: 224)
     }
 
     private func card(
@@ -110,7 +96,110 @@ struct CueFacetFilterPanel: View {
     }
 }
 
-private struct CueFacetOption: Identifiable {
+struct CueFacetAdaptiveGridLayout: Layout {
+    private let spacing = WorkbenchControlMetrics.redesignSpacing3
+    private let minimumCardWidth = WorkbenchControlMetrics.redesignFilterDataCardMinWidth
+
+    static func columnCount(availableWidth: CGFloat, cardCount: Int) -> Int {
+        guard cardCount > 0 else { return 0 }
+        guard availableWidth.isFinite else { return cardCount }
+        let spacing = WorkbenchControlMetrics.redesignSpacing3
+        let minimumWidth = WorkbenchControlMetrics.redesignFilterDataCardMinWidth
+        let fittingCount = max(
+            1,
+            Int((max(0, availableWidth) + spacing) / (minimumWidth + spacing))
+        )
+        return min(cardCount, max(min(2, cardCount), fittingCount))
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        guard !subviews.isEmpty else { return .zero }
+        let availableWidth = proposal.width ?? minimumFallbackWidth(cardCount: subviews.count)
+        let columns = Self.columnCount(
+            availableWidth: availableWidth,
+            cardCount: subviews.count
+        )
+        let measurements = rowMeasurements(
+            subviews: subviews,
+            availableWidth: availableWidth,
+            columns: columns
+        )
+        return CGSize(
+            width: availableWidth,
+            height: measurements.rowHeights.reduce(0, +)
+                + CGFloat(max(0, measurements.rowHeights.count - 1)) * spacing
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard !subviews.isEmpty else { return }
+        let columns = Self.columnCount(
+            availableWidth: bounds.width,
+            cardCount: subviews.count
+        )
+        let measurements = rowMeasurements(
+            subviews: subviews,
+            availableWidth: bounds.width,
+            columns: columns
+        )
+        var rowOriginY = bounds.minY
+        for index in subviews.indices {
+            let row = index / columns
+            let column = index % columns
+            if column == 0, row > 0 {
+                rowOriginY += measurements.rowHeights[row - 1] + spacing
+            }
+            subviews[index].place(
+                at: CGPoint(
+                    x: bounds.minX + CGFloat(column) * (measurements.cardWidth + spacing),
+                    y: rowOriginY
+                ),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(
+                    width: measurements.cardWidth,
+                    height: measurements.rowHeights[row]
+                )
+            )
+        }
+    }
+
+    private func minimumFallbackWidth(cardCount: Int) -> CGFloat {
+        let columns = min(2, cardCount)
+        return CGFloat(columns) * minimumCardWidth + CGFloat(max(0, columns - 1)) * spacing
+    }
+
+    private func rowMeasurements(
+        subviews: Subviews,
+        availableWidth: CGFloat,
+        columns: Int
+    ) -> (cardWidth: CGFloat, rowHeights: [CGFloat]) {
+        let cardWidth = (
+            availableWidth - CGFloat(max(0, columns - 1)) * spacing
+        ) / CGFloat(columns)
+        var rowHeights = Array(
+            repeating: CGFloat.zero,
+            count: (subviews.count + columns - 1) / columns
+        )
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(
+                ProposedViewSize(width: cardWidth, height: nil)
+            )
+            rowHeights[index / columns] = max(rowHeights[index / columns], size.height)
+        }
+        return (cardWidth, rowHeights)
+    }
+}
+
+struct CueFacetOption: Identifiable {
     let id: String
     let title: String
     let count: Int
@@ -118,7 +207,7 @@ private struct CueFacetOption: Identifiable {
     let toggle: () -> Void
 }
 
-private struct CueFacetCard: View {
+struct CueFacetCard: View {
     let title: String
     let systemImage: String
     let options: [CueFacetOption]
@@ -126,35 +215,52 @@ private struct CueFacetCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                Image(systemName: systemImage)
+                    .font(.system(size: WorkbenchControlMetrics.redesignCheckboxSize))
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignCheckboxSize,
+                        height: WorkbenchControlMetrics.redesignCheckboxSize
+                    )
+
+                Text(title)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeControl,
+                        weight: .semibold
+                    ))
+            }
+            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                 .padding(.bottom, WorkbenchControlMetrics.redesignSpacing1)
 
             ForEach(options) { option in
                 Button(action: option.toggle) {
                     HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                        Image(systemName: option.isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(
-                                option.isSelected
-                                    ? WorkbenchRedesignColors.textPrimary
-                                    : WorkbenchRedesignColors.iconMuted
-                            )
-                            .frame(width: 16, height: 16)
+                        CueFacetCheckbox(
+                            isSelected: option.isSelected,
+                            isDisabled: isCalculating
+                        )
 
                         Text(option.title)
-                            .font(.system(size: 13))
-                            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                            .foregroundStyle(
+                                isCalculating
+                                    ? WorkbenchRedesignColors.textDisabled
+                                    : WorkbenchRedesignColors.textMuted
+                            )
                             .lineLimit(1)
 
                         Spacer(minLength: WorkbenchControlMetrics.redesignSpacing2)
 
                         Text(isCalculating ? "Calculating" : String(option.count))
-                            .font(.system(size: 12))
-                            .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
+                            .foregroundStyle(
+                                isCalculating
+                                    ? WorkbenchRedesignColors.textDisabled
+                                    : WorkbenchRedesignColors.textMuted
+                            )
                             .lineLimit(1)
                     }
+                    .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -166,11 +272,9 @@ private struct CueFacetCard: View {
                         : "\(option.count), \(option.isSelected ? "selected" : "not selected")"
                 )
             }
-
-            Spacer(minLength: 0)
         }
         .padding(WorkbenchControlMetrics.redesignSpacing3)
-        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
         .overlay {
             RoundedRectangle(
@@ -183,6 +287,50 @@ private struct CueFacetCard: View {
             cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
             style: .continuous
         ))
+    }
+}
+
+private struct CueFacetCheckbox: View {
+    let isSelected: Bool
+    let isDisabled: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(backgroundColor)
+            Circle()
+                .strokeBorder(borderColor, lineWidth: 1)
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(WorkbenchControlMetrics.redesignSpacing1)
+                    .foregroundStyle(
+                        isDisabled
+                            ? WorkbenchRedesignColors.iconDisabled
+                            : WorkbenchRedesignColors.checkboxIcon
+                    )
+            }
+        }
+        .frame(
+            width: WorkbenchControlMetrics.redesignCheckboxSize,
+            height: WorkbenchControlMetrics.redesignCheckboxSize
+        )
+    }
+
+    private var backgroundColor: Color {
+        if isDisabled {
+            return WorkbenchRedesignColors.bgDisabled
+        }
+        return isSelected
+            ? WorkbenchRedesignColors.textMuted
+            : WorkbenchRedesignColors.bgCheckboxUnchecked
+    }
+
+    private var borderColor: Color {
+        isDisabled
+            ? WorkbenchRedesignColors.borderDisabled
+            : WorkbenchRedesignColors.borderCheckbox
     }
 }
 

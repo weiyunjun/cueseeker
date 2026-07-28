@@ -23,9 +23,16 @@ visual acceptance and `UI.md` changes to the human owner.
 
 - Added one reusable `CueFacetFilterPanel` for Duration, Character, Language,
   and Watch Status.
-- Displayed the four cards in one horizontal row. Each card has a minimum width
-  and the panel scrolls horizontally when the window is narrow, so the table is
-  not compressed by card wrapping.
+- Replaced the fixed four-card horizontal scroller with one adaptive SwiftUI
+  `Layout`. It derives 2, 3, or more columns from the available width and the
+  200-point minimum card width, accepts any card count, keeps incomplete last
+  rows on the same column width, and equalizes natural card heights per row.
+- Removed fixed card and panel heights. The panel now wraps vertically without
+  horizontal scrolling and reports only the height required by its card rows.
+- Aligned title icons and option checkboxes on the same 16-point leading
+  control column. Applied the documented control/body/caption typography,
+  secondary/muted colors, circular checkbox states, and disabled Calculating
+  presentation through existing Workbench tokens.
 - Changed the Search Filter button to show or hide the panel. Its open visual
   reuses the existing open-menu button state and it receives no count or Badge.
 - Made Search panel visibility start as visible and remain session-only; no
@@ -40,6 +47,13 @@ visual acceptance and `UI.md` changes to the human owner.
 - Persisted Search selection as excluded raw values. This represents an empty
   card exactly, ignores removed values, and makes future values selected by
   default without a schema or version field.
+- Kept the persisted Search facet value outside `SettingsStore`'s global
+  `objectWillChange` stream and moved the mounted selection into Search-local
+  view state. A checkbox change therefore does not invalidate App Root,
+  Sidebar, Settings, Shiori, or other unrelated surfaces.
+- Scoped `TableSandboxRowModelStore` observation to the table subtree. Later
+  progressive projection batches update only the table snapshot and native
+  table instead of rebuilding the Search toolbar and facet panel.
 - Removed the Primary Search Language and Search Scope controls from Settings.
   Workbench and Command Panel searches now use the complete language and watch
   domain; Command Panel does not receive the Workbench facet selection.
@@ -50,9 +64,10 @@ visual acceptance and `UI.md` changes to the human owner.
 
 ## Verification
 
-- `swift test --filter SettingsStoreSearchTests` passed all 7 tests, including
-  default-all selection, partial and empty-card restoration, and forward
-  compatibility for an unrecognized future value.
+- `swift test --filter SettingsStoreSearchTests` passed all 9 tests, including
+  default-all selection, persistence restoration, forward compatibility,
+  2/3/arbitrary-column calculation, and proof that facet persistence emits no
+  global Settings invalidation.
 - `swift test --filter SearchStoreTests` passed all 30 tests, including panel
   default visibility, progressive facet projection, exact filtered count,
   Watch Status distribution refresh, context, and table hydration.
@@ -61,6 +76,10 @@ visual acceptance and `UI.md` changes to the human owner.
 - `swift test --filter PlaybackSearchOverlayTests` passed all 4 Command Panel
   Search tests; `swift test --filter URLSchemeSearchRoutingTests` passed all 7
   URL Search tests.
+- `swift test --filter CueGroupRefreshScopeIntegrationTests` passed all 16
+  mounted tests. The added probes verify that facet selection does not rebuild
+  global or inactive surfaces and progressive batches rebuild only the Search
+  table snapshot/native table, not the Search surface.
 - The complete `swift test` run executed 899 tests and reported 14 concurrent
   failures in shared-persistence migration, Library removal timeouts, Subtitle
   Focus timeouts, row-menu timing, UI invalidation probes, and native playback.
@@ -74,8 +93,9 @@ visual acceptance and `UI.md` changes to the human owner.
 
 ## Outcome
 
-Workbench Search now has the requested Toolbar, facet data panel, and result
-table structure. Facet interaction stays entirely in memory after exact Search,
-empty Search reads the index-time aggregate cache, Search selections persist,
-panel visibility does not, and the shared component is ready for Shiori's
-separate integration step.
+Workbench Search now has the requested Toolbar, responsive facet data panel,
+and result table structure. Facet interaction stays entirely in memory after
+exact Search, empty Search reads the index-time aggregate cache, Search
+selections persist without global invalidation, later projection batches stay
+inside the table subtree, panel visibility does not persist, and the shared
+component is ready for Shiori's separate integration step.

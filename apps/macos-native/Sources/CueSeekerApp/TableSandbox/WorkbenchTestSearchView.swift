@@ -36,7 +36,7 @@ struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
-    @ObservedObject private var rowStore: TableSandboxRowModelStore
+    private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
     @State private var visibleColumnIDs: Set<String>
@@ -55,6 +55,7 @@ struct WorkbenchTestSearchView: View {
     @State private var suppressNextFilterRulesReload = false
     @State private var hasDeferredRefreshWhileCovered = false
     @State private var isFacetPanelVisible: Bool
+    @State private var searchFacetFilter = CueFacetFilter()
 
     private static let continuousPageSize = 1_000
 
@@ -62,7 +63,7 @@ struct WorkbenchTestSearchView: View {
         rowStore: TableSandboxRowModelStore,
         isTableResponseActive: Bool = true
     ) {
-        _rowStore = ObservedObject(wrappedValue: rowStore)
+        self.rowStore = rowStore
         self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
         _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
@@ -102,51 +103,59 @@ struct WorkbenchTestSearchView: View {
                 isFacetPanelVisible.toggle()
             }
         ) { visibleColumns in
-            ZStack {
-                SubtitleTableView(
-                    tableName: "test-search",
-                    probeSurface: tableProbeSurface,
-                    probeScope: appState.uiProbeScope,
-                    rowCount: rowStore.snapshot.totalRowCount,
-                    rowProvider: { rowStore.snapshot.row(at: $0) },
-                    rowsVersion: rowStore.snapshot.version,
-                    rowsUpdate: rowStore.snapshot.update,
-                    displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
-                    timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time Range"),
-                    cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
-                    languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
-                    columnOrder: visibleColumns.map(\.id),
-                    showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
-                    showsTimeColumn: isColumnVisible("time", in: visibleColumns),
-                    showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
-                    showsCueGroup: appliedShowCueGroup
-                        ?? (allowsTableResponse && settingsStore.showCueGroup),
-                    scrollResetToken: tableScrollResetToken,
-                    scrollTargetRow: tableScrollTargetRow,
-                    onVisibleRowsChange: hydrateVisibleRows,
-                    isSelectionMode: isSelectionMode,
-                    isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
-                    selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
-                    onToggleRowSelection: toggleRowSelection,
-                    onToggleAllSelection: toggleAllRowSelection,
-                    allResultsTextCopyRowCount: textCopySource?.resultRowCount,
-                    loadRowsForTextCopy: { range in
-                        guard let textCopySource else { return nil }
-                        return await loadRowsForTextCopy(range: range, source: textCopySource)
-                    },
-                    onPlay: play,
-                    onShowContext: showContext,
-                    isRedesign: true
-                )
+            WorkbenchSearchTableRowsObserver(rowStore: rowStore) { snapshot in
+                ZStack {
+                    SubtitleTableView(
+                        tableName: "test-search",
+                        probeSurface: tableProbeSurface,
+                        probeScope: appState.uiProbeScope,
+                        rowCount: snapshot.totalRowCount,
+                        rowProvider: { snapshot.row(at: $0) },
+                        rowsVersion: snapshot.version,
+                        rowsUpdate: snapshot.update,
+                        displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
+                        timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time Range"),
+                        cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
+                        languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
+                        columnOrder: visibleColumns.map(\.id),
+                        showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
+                        showsTimeColumn: isColumnVisible("time", in: visibleColumns),
+                        showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
+                        showsCueGroup: appliedShowCueGroup
+                            ?? (allowsTableResponse && settingsStore.showCueGroup),
+                        scrollResetToken: tableScrollResetToken,
+                        scrollTargetRow: tableScrollTargetRow,
+                        onVisibleRowsChange: hydrateVisibleRows,
+                        isSelectionMode: isSelectionMode,
+                        isRowSelected: { rowSelection.isSelected($0, rowCount: snapshot.totalRowCount) },
+                        selectionHeaderState: rowSelection.headerState(rowCount: snapshot.totalRowCount),
+                        onToggleRowSelection: toggleRowSelection,
+                        onToggleAllSelection: toggleAllRowSelection,
+                        allResultsTextCopyRowCount: textCopySource?.resultRowCount,
+                        loadRowsForTextCopy: { range in
+                            guard let textCopySource else { return nil }
+                            return await loadRowsForTextCopy(range: range, source: textCopySource)
+                        },
+                        onPlay: play,
+                        onShowContext: showContext,
+                        isRedesign: true
+                    )
 
-                if showsSearchEmptyHint {
-                    WorkbenchEmptyHint(message: "Enter a search term to show cues.")
+                    if showsSearchEmptyHint {
+                        WorkbenchEmptyHint(message: "Enter a search term to show cues.")
+                    }
+                }
+                .onChange(of: snapshot.version) { _ in
+                    restoreSelectionIfPossible()
+                    restoreViewportIfPossible()
                 }
             }
         }
         .onAppear {
             search.setTableProjectionResponseActive(allowsTableResponse)
-            search.updateSearchFacetFilter(settingsStore.searchFacetFilter)
+            let persistedFacetFilter = settingsStore.searchFacetFilter
+            searchFacetFilter = persistedFacetFilter
+            search.updateSearchFacetFilter(persistedFacetFilter)
             prepareViewportRestoration()
             restoreTableControls()
             if let request = search.cueContextSearchRequest,
@@ -223,10 +232,6 @@ struct WorkbenchTestSearchView: View {
                 exitSelectionMode()
             }
         }
-        .onChange(of: rowStore.snapshot.version) { _ in
-            restoreSelectionIfPossible()
-            restoreViewportIfPossible()
-        }
         .onChange(of: search.tableLoadRevision) { _ in
             handleContextTablePresentation()
             appState.refreshSearchPlaybackPlaylistSource(
@@ -293,8 +298,10 @@ struct WorkbenchTestSearchView: View {
 
     private var searchFacetFilterBinding: Binding<CueFacetFilter> {
         Binding(
-            get: { settingsStore.searchFacetFilter },
+            get: { searchFacetFilter },
             set: { newValue in
+                guard searchFacetFilter != newValue else { return }
+                searchFacetFilter = newValue
                 settingsStore.searchFacetFilter = newValue
                 applySearchFacetFilter(newValue)
             }
@@ -807,6 +814,10 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func applySearchFacetFilter(_ filter: CueFacetFilter) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchFacetFilter.changed",
+            scope: appState.uiProbeScope
+        )
         exitSelectionMode()
         rowSelection.reset()
         persistSelection()
@@ -1024,6 +1035,15 @@ struct WorkbenchTestSearchView: View {
         search.tableSearchDraft = searchDraft
         search.tableVisibleColumnIDs = visibleColumnIDs
         search.tableFilterRules = filterRules
+    }
+}
+
+private struct WorkbenchSearchTableRowsObserver<Content: View>: View {
+    @ObservedObject var rowStore: TableSandboxRowModelStore
+    @ViewBuilder let content: (TableSandboxRowsSnapshot) -> Content
+
+    var body: some View {
+        content(rowStore.snapshot)
     }
 }
 

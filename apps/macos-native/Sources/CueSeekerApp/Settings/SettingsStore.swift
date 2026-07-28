@@ -115,7 +115,7 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var searchFacetFilter: CueFacetFilter {
+    var searchFacetFilter: CueFacetFilter {
         didSet {
             Self.saveSearchFacetFilter(searchFacetFilter, to: userDefaults)
         }

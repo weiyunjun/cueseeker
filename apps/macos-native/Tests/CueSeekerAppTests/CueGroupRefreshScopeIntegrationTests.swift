@@ -39,6 +39,86 @@ private actor MountedFailingLibraryFolderRemovalExecutor:
 struct CueGroupRefreshScopeIntegrationTests {
     @MainActor
     @Test
+    func searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces() async throws {
+        let uiProbeScope = UUID().uuidString
+        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
+            scope: uiProbeScope
+        )
+        defer { session.finish() }
+
+        try await withMountedCueTable(
+            surface: .search,
+            uiProbeScope: uiProbeScope
+        ) { app, window, _ in
+            let recordingBefore = session.recording()
+            let filter = CueFacetFilter(languages: [.japanese])
+
+            app.settings.searchFacetFilter = filter
+            app.search.updateSearchFacetFilter(filter)
+
+            let didApply = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return app.search.searchFacetFilter == filter
+            }
+            try #require(didApply)
+            try await Task.sleep(nanoseconds: 50_000_000)
+            let recording = session.recording().delta(since: recordingBefore)
+
+            #expect(recording.count("UI.ContentView.body") == 0)
+            #expect(recording.count("UI.Workbench.body") == 0)
+            #expect(recording.count("UI.WorkbenchMainContent.body") == 0)
+            #expect(recording.count("UI.AppSidebar.body") == 0)
+            #expect(recording.count("table.shiori.surface_body") == 0)
+            #expect(recording.count("table.context.surface_body") == 0)
+        }
+    }
+
+    @MainActor
+    @Test
+    func progressiveSearchProjectionRefreshesOnlyMountedTable() async throws {
+        let uiProbeScope = UUID().uuidString
+        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
+            scope: uiProbeScope
+        )
+        defer { session.finish() }
+
+        try await withMountedCueTable(
+            surface: .search,
+            uiProbeScope: uiProbeScope
+        ) { app, window, coordinator in
+            let rowStore = app.search.tableRowStore
+            let nextResults = Array(app.search.searchResults.prefix(120))
+            let recordingBefore = session.recording()
+
+            rowStore.updateResidentSearchResults(
+                nextResults,
+                cueContentProvider: { app.search.cachedCueContent(for: $0) },
+                tableName: "test-search",
+                probeSurface: .search,
+                probeScope: uiProbeScope
+            )
+
+            let didApply = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return coordinator.rowsVersionForTesting() == rowStore.snapshot.version
+            }
+            try #require(didApply)
+            let recording = session.recording().delta(since: recordingBefore)
+
+            #expect(recording.count("table.search.snapshot_rebuild") == 1)
+            #expect(recording.count("table.search.native_update") > 0)
+            #expect(recording.count("table.search.surface_body") == 0)
+            #expect(recording.count("UI.ContentView.body") == 0)
+            #expect(recording.count("UI.Workbench.body") == 0)
+            #expect(recording.count("UI.WorkbenchMainContent.body") == 0)
+            #expect(recording.count("UI.AppSidebar.body") == 0)
+            #expect(recording.count("table.shiori.surface_body") == 0)
+            #expect(recording.count("table.context.surface_body") == 0)
+        }
+    }
+
+    @MainActor
+    @Test
     func showCueGroupInvalidationIsScopedToMountedSearch() async throws {
         try await verifyShowCueGroupInvalidation(surface: .search)
     }
