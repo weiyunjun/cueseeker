@@ -126,16 +126,8 @@ func playbackCueResultReelRapidScrollbarDragUsesResidentDataset() async throws {
     #expect(view.displayedSelectedOrdinalForTesting == nextOrdinal)
     #expect(adapter.measuredOrdinalsForTesting.contains(selectedOrdinal))
     #expect(adapter.measuredOrdinalsForTesting.contains(nextOrdinal))
-    #expect(
-        selectedBefore.extent.naturalHeight
-            - selectedAfter.extent.naturalHeight
-            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
-    )
-    #expect(
-        nextAfter.extent.naturalHeight
-            - nextBefore.extent.naturalHeight
-            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
-    )
+    #expect(selectedBefore.extent == selectedAfter.extent)
+    #expect(nextBefore.extent == nextAfter.extent)
     #expect(
         abs(
             (nextBefore.rect.midY - selectedBefore.rect.midY)
@@ -210,11 +202,7 @@ func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() thr
         uiProbeScope: nil
     ))
     #expect(adapter.measurementCacheCountForTesting == 1)
-    #expect(
-        selectedPrimaryOnlyExtent.naturalHeight
-            - primaryOnlyExtent.naturalHeight
-            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
-    )
+    #expect(selectedPrimaryOnlyExtent == primaryOnlyExtent)
     _ = adapter.extent(
         at: 1,
         isSelected: false,

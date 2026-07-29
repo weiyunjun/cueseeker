@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Extended Playback information Badges to every Cue in Current, Cue Playlist,
+  and Command Panel Search. Settled Cues retain the blue Playback palette while
+  other Cues use a Playback-specific neutral palette based on the accepted
+  Unwatched colors. Every item now includes the same fixed Badge-row height, so
+  selection changes only repaint colors and never change Reel geometry;
+  bounded Badge plan caches preserve the existing scrolling hot paths.
 - Unified Playback Command Panel Search with the Cue Playlist presentation.
   Search preview now uses the shared Cue Result Adapter and Reel without a left
   cover or Command Panel-only result Row, shows Primary Cue above optional Cue

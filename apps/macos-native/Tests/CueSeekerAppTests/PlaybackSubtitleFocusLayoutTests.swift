@@ -67,7 +67,7 @@ func playbackCurrentUsesDedicatedCuePathWithTwoSharedInformationBadges() throws 
 
 @MainActor
 @Test
-func playbackCurrentSelectionUsesCachedBaseMeasurementAndBadgePlan() throws {
+func playbackCurrentEveryCueUsesFixedInformationHeightAndCachedBadgePlan() throws {
     let cue = SubtitleFocusCue(
         id: 42,
         cueGroupID: 142,
@@ -101,10 +101,7 @@ func playbackCurrentSelectionUsesCachedBaseMeasurementAndBadgePlan() throws {
             viewportHeight: 656,
             uiProbeScope: nil
         ))
-        #expect(
-            selected.naturalHeight - base.naturalHeight
-                == PlaybackSubtitleFocusMetrics.selectedInformationHeight
-        )
+        #expect(selected == base)
     }
     for _ in 0..<1_000 {
         _ = adapter.informationBadgePlans(at: 0, width: 960)
@@ -112,6 +109,42 @@ func playbackCurrentSelectionUsesCachedBaseMeasurementAndBadgePlan() throws {
 
     #expect(adapter.measurementCountForTesting == 1)
     #expect(adapter.informationBadgePlanPreparationCountForTesting == 1)
+    #expect(
+        base.naturalHeight
+            == 76 + PlaybackSubtitleFocusMetrics.informationHeight
+    )
+}
+
+@MainActor
+@Test
+func playbackCurrentUnselectedBadgePlansStayBounded() {
+    var cues: [SubtitleFocusCue] = []
+    for ordinal in 0..<100 {
+        cues.append(SubtitleFocusCue(
+            id: Int64(ordinal + 1),
+            cueGroupID: Int64(ordinal + 1_001),
+            ordinal: ordinal,
+            eventIndex: ordinal,
+            displayOrder: 0,
+            startMilliseconds: ordinal * 1_000,
+            endMilliseconds: ordinal * 1_000 + 900,
+            content: "Cue \(ordinal)"
+        ))
+    }
+    let adapter = PlaybackSubtitleFocusCueReelAdapter()
+    adapter.update(
+        cues: cues,
+        totalCount: cues.count,
+        displayTitle: "Ave Mujica - 01",
+        generation: 1
+    )
+
+    for ordinal in cues.indices {
+        _ = adapter.informationBadgePlans(at: ordinal, width: 960)
+    }
+
+    #expect(adapter.informationBadgePlanCacheCountForTesting == 64)
+    #expect(adapter.informationBadgePlanPreparationCountForTesting == 100)
 }
 
 @MainActor

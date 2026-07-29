@@ -103,6 +103,20 @@ public enum PlaybackTheme {
         dark: NSColor.hex("#93C5FD")
     )
 
+    /// --color-playback-information-badge-unselected-bg
+    static let informationBadgeUnselectedBackgroundNative =
+        subtitleFocusDynamicColor(
+            light: NSColor.hex("#F3F4F6"),
+            dark: NSColor.hex("#27272A")
+        )
+
+    /// --color-playback-information-badge-unselected-text
+    static let informationBadgeUnselectedTextNative =
+        subtitleFocusDynamicColor(
+            light: NSColor.hex("#667085"),
+            dark: NSColor.hex("#A1A1AA")
+        )
+
     /// --color-playback-module-sidebar-selected
     public static var playbackModuleSidebarSelected: Color {
         Color(nsColor: playbackModuleSidebarSelectedNative)
@@ -314,7 +328,7 @@ enum PlaybackSubtitleFocusMetrics {
         WorkbenchControlMetrics.redesignChipVerticalPadding
     /// --height-playback-cue-information-badge
     static let informationBadgeRowHeight: CGFloat = 23
-    static var selectedInformationHeight: CGFloat {
+    static var informationHeight: CGFloat {
         informationBadgeRowHeight + informationCueGap
     }
     /// --duration-subtitle-focus-scroll

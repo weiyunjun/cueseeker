@@ -430,6 +430,20 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
             .primaryCue,
             .additionalCue(index: 0),
         ])
+        let secondResult = try #require(previewAdapter.cueResult(at: 1))
+        let secondPlan = PlaybackCueResultLayout().prepare(
+            result: secondResult,
+            showsCueGroup: true,
+            isSelected: false,
+            width: 800,
+            viewportHeight: 800
+        )
+        #expect(secondPlan.informationBadges.map(\.text) == [
+            "[2/60]",
+            "Command Episode 1",
+            results[1].timeRange,
+        ])
+        #expect(!secondPlan.isSelected)
 
         let previewSnapshot = previewAdapter.snapshot
         #expect(app.commitPlaybackCommandPanelSearchReelSelection(

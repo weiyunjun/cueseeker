@@ -807,22 +807,16 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         }
     }
 
-    private struct InformationBadgeKey: Equatable {
+    private struct InformationBadgeKey: Hashable {
         let cueID: Int64
         let displayTitle: String
         let startMilliseconds: Int
         let endMilliseconds: Int
     }
 
-    private struct InformationBadgeTextCache {
-        let key: InformationBadgeKey
+    private struct InformationBadgeTextEntry {
         let texts: [String]
-    }
-
-    private struct InformationBadgePlanCache {
-        let key: InformationBadgeKey
-        let width: CGFloat
-        let plans: [PlaybackCueInformationBadgePlan]
+        var lastAccess: UInt64
     }
 
     private let datasetID = AnyHashable("current")
@@ -833,9 +827,12 @@ final class PlaybackSubtitleFocusCueReelAdapter:
     private var signature: SnapshotSignature?
     private var revision: UInt64 = 0
     private var displayTitle = ""
-    private var informationBadgeTextCache: InformationBadgeTextCache?
-    private var informationBadgePlanCache: InformationBadgePlanCache?
-    private(set) var informationBadgePlanPreparationCountForTesting = 0
+    private let informationBadgeCacheCapacity = 64
+    private let informationBadgePlanCache =
+        PlaybackCueInformationBadgePlanCache(capacity: 64)
+    private var informationBadgeTextEntries:
+        [InformationBadgeKey: InformationBadgeTextEntry] = [:]
+    private var informationBadgeTextAccessSequence: UInt64 = 0
     private(set) var snapshot = PlaybackVirtualReelSnapshot(
         datasetID: AnyHashable("current"),
         generation: 0,
@@ -858,6 +855,14 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         measurementCache.measurementCount
     }
 
+    var informationBadgePlanCacheCountForTesting: Int {
+        informationBadgePlanCache.count
+    }
+
+    var informationBadgePlanPreparationCountForTesting: Int {
+        informationBadgePlanCache.preparationCount
+    }
+
     func update(
         cues: [SubtitleFocusCue],
         totalCount: Int,
@@ -872,6 +877,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         if snapshot.generation != generation {
             revision = 0
             invalidateMeasurements()
+            invalidateInformationBadges()
         } else if signature != nextSignature || self.displayTitle != displayTitle {
             revision &+= 1
         }
@@ -904,7 +910,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
 
     func extent(
         at ordinal: Int,
-        isSelected: Bool,
+        isSelected _: Bool,
         contentWidth: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String?
@@ -918,10 +924,10 @@ final class PlaybackSubtitleFocusCueReelAdapter:
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope
         )
-        guard isSelected, !displayTitle.isEmpty else {
+        guard !displayTitle.isEmpty else {
             return baseMeasurement
         }
-        return addingSelectedInformationHeight(
+        return addingInformationHeight(
             to: baseMeasurement,
             viewportHeight: viewportHeight
         )
@@ -931,21 +937,23 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         guard let cue = cue(at: ordinal) else {
             return
         }
-        let badgePlans = isSelected
-            ? informationBadgePlans(for: cue, width: rect.width)
-            : []
-        PlaybackCueInformationBadgeLayout.draw(badgePlans, in: rect)
+        let badgePlans = informationBadgePlans(for: cue, width: rect.width)
+        PlaybackCueInformationBadgeLayout.draw(
+            badgePlans,
+            in: rect,
+            isSelected: isSelected
+        )
         let textRect = badgePlans.isEmpty
             ? rect
             : CGRect(
                 x: rect.minX,
                 y: rect.minY
-                    + PlaybackSubtitleFocusMetrics.selectedInformationHeight,
+                    + PlaybackSubtitleFocusMetrics.informationHeight,
                 width: rect.width,
                 height: max(
                     0,
                     rect.height
-                        - PlaybackSubtitleFocusMetrics.selectedInformationHeight
+                        - PlaybackSubtitleFocusMetrics.informationHeight
                 )
             )
         textLayout.draw(
@@ -962,9 +970,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         firstLoadedOrdinal = 0
         signature = nil
         displayTitle = ""
-        informationBadgeTextCache = nil
-        informationBadgePlanCache = nil
-        informationBadgePlanPreparationCountForTesting = 0
+        invalidateInformationBadges()
         invalidateMeasurements()
     }
 
@@ -998,9 +1004,11 @@ final class PlaybackSubtitleFocusCueReelAdapter:
             return []
         }
         let key = informationBadgeKey(for: cue)
-        if let informationBadgeTextCache,
-           informationBadgeTextCache.key == key {
-            return informationBadgeTextCache.texts
+        informationBadgeTextAccessSequence &+= 1
+        if var entry = informationBadgeTextEntries[key] {
+            entry.lastAccess = informationBadgeTextAccessSequence
+            informationBadgeTextEntries[key] = entry
+            return entry.texts
         }
         let texts = [
             displayTitle,
@@ -1009,11 +1017,11 @@ final class PlaybackSubtitleFocusCueReelAdapter:
                 endMilliseconds: cue.endMilliseconds
             ),
         ]
-        informationBadgeTextCache = InformationBadgeTextCache(
-            key: key,
-            texts: texts
+        informationBadgeTextEntries[key] = InformationBadgeTextEntry(
+            texts: texts,
+            lastAccess: informationBadgeTextAccessSequence
         )
-        informationBadgePlanCache = nil
+        evictOldestInformationBadgeTextIfNeeded()
         return texts
     }
 
@@ -1021,23 +1029,10 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         for cue: SubtitleFocusCue,
         width: CGFloat
     ) -> [PlaybackCueInformationBadgePlan] {
-        let key = informationBadgeKey(for: cue)
-        if let informationBadgePlanCache,
-           informationBadgePlanCache.key == key,
-           informationBadgePlanCache.width == width {
-            return informationBadgePlanCache.plans
-        }
-        let plans = PlaybackCueInformationBadgeLayout.makePlans(
+        informationBadgePlanCache.plans(
             texts: informationBadges(for: cue),
             width: width
         )
-        informationBadgePlanPreparationCountForTesting += 1
-        informationBadgePlanCache = InformationBadgePlanCache(
-            key: key,
-            width: width,
-            plans: plans
-        )
-        return plans
     }
 
     private func informationBadgeKey(
@@ -1051,22 +1046,38 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         )
     }
 
-    private func addingSelectedInformationHeight(
+    private func addingInformationHeight(
         to base: PlaybackSubtitleFocusCueMeasurement,
         viewportHeight: CGFloat
     ) -> PlaybackSubtitleFocusCueMeasurement {
-        let selectedHeight = PlaybackSubtitleFocusMetrics
-            .selectedInformationHeight
-        let naturalHeight = base.naturalHeight + selectedHeight
+        let informationHeight = PlaybackSubtitleFocusMetrics
+            .informationHeight
+        let naturalHeight = base.naturalHeight + informationHeight
         let safeViewportHeight = max(0, viewportHeight)
         return PlaybackSubtitleFocusCueMeasurement(
             visualLineCount: base.visualLineCount,
             visualLineStackHeight: base.visualLineStackHeight,
-            resolvedContentHeight: base.resolvedContentHeight + selectedHeight,
+            resolvedContentHeight:
+                base.resolvedContentHeight + informationHeight,
             naturalHeight: naturalHeight,
             resolvedHeight: min(naturalHeight, safeViewportHeight),
             isOversized: naturalHeight > safeViewportHeight
         )
+    }
+
+    private func invalidateInformationBadges() {
+        informationBadgeTextEntries.removeAll(keepingCapacity: true)
+        informationBadgeTextAccessSequence = 0
+        informationBadgePlanCache.removeAll()
+    }
+
+    private func evictOldestInformationBadgeTextIfNeeded() {
+        while informationBadgeTextEntries.count > informationBadgeCacheCapacity,
+              let oldestKey = informationBadgeTextEntries.min(by: {
+                  $0.value.lastAccess < $1.value.lastAccess
+              })?.key {
+            informationBadgeTextEntries.removeValue(forKey: oldestKey)
+        }
     }
 }
 

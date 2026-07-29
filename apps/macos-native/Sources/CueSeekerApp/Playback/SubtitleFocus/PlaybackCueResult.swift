@@ -9,7 +9,7 @@ struct PlaybackCueResult: Equatable {
     let primaryCueIdentity: AnyHashable
     let primaryCueText: String
     let additionalCueTexts: [String]
-    /// Selected-only context rendered as independent Badges above the Cue.
+    /// Context rendered as independent Badges above the Cue.
     let informationBadges: [String]
 
     init(
@@ -178,7 +178,8 @@ enum PlaybackCueInformationBadgeLayout {
 
     static func draw(
         _ plans: [PlaybackCueInformationBadgePlan],
-        in resultRect: CGRect
+        in resultRect: CGRect,
+        isSelected: Bool
     ) {
         guard !plans.isEmpty else {
             return
@@ -189,6 +190,12 @@ enum PlaybackCueInformationBadgeLayout {
             .informationBadgeVerticalPadding
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineBreakMode = .byTruncatingTail
+        let backgroundColor = isSelected
+            ? PlaybackTheme.informationBadgeBackgroundNative
+            : PlaybackTheme.informationBadgeUnselectedBackgroundNative
+        let textColor = isSelected
+            ? PlaybackTheme.informationBadgeTextNative
+            : PlaybackTheme.informationBadgeUnselectedTextNative
 
         for plan in plans {
             let frame = plan.frame.offsetBy(
@@ -199,7 +206,7 @@ enum PlaybackCueInformationBadgeLayout {
             guard frame.width > 0, frame.height > 0 else {
                 continue
             }
-            PlaybackTheme.informationBadgeBackgroundNative.setFill()
+            backgroundColor.setFill()
             NSBezierPath(
                 roundedRect: frame,
                 xRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius,
@@ -209,7 +216,7 @@ enum PlaybackCueInformationBadgeLayout {
                 string: plan.text,
                 attributes: [
                     .font: font,
-                    .foregroundColor: PlaybackTheme.informationBadgeTextNative,
+                    .foregroundColor: textColor,
                     .paragraphStyle: paragraphStyle,
                 ]
             ).draw(
@@ -230,10 +237,76 @@ enum PlaybackCueInformationBadgeLayout {
     }
 }
 
+@MainActor
+final class PlaybackCueInformationBadgePlanCache {
+    private struct Key: Hashable {
+        let texts: [String]
+        let width: CGFloat
+    }
+
+    private struct Entry {
+        let plans: [PlaybackCueInformationBadgePlan]
+        var lastAccess: UInt64
+    }
+
+    private let capacity: Int
+    private var entries: [Key: Entry] = [:]
+    private var accessSequence: UInt64 = 0
+    private(set) var preparationCount = 0
+
+    init(capacity: Int = 64) {
+        self.capacity = max(1, capacity)
+    }
+
+    var count: Int {
+        entries.count
+    }
+
+    func plans(
+        texts: [String],
+        width: CGFloat
+    ) -> [PlaybackCueInformationBadgePlan] {
+        accessSequence &+= 1
+        let key = Key(texts: texts, width: width)
+        if var entry = entries[key] {
+            entry.lastAccess = accessSequence
+            entries[key] = entry
+            return entry.plans
+        }
+        let plans = PlaybackCueInformationBadgeLayout.makePlans(
+            texts: texts,
+            width: width
+        )
+        preparationCount += 1
+        entries[key] = Entry(
+            plans: plans,
+            lastAccess: accessSequence
+        )
+        evictIfNeeded()
+        return plans
+    }
+
+    func removeAll() {
+        entries.removeAll(keepingCapacity: true)
+        accessSequence = 0
+        preparationCount = 0
+    }
+
+    private func evictIfNeeded() {
+        while entries.count > capacity,
+              let oldest = entries.min(by: {
+                  $0.value.lastAccess < $1.value.lastAccess
+              })?.key {
+            entries.removeValue(forKey: oldest)
+        }
+    }
+}
+
 struct PlaybackCueResultLayoutPlan {
     let itemID: AnyHashable
     let primaryCueIdentity: AnyHashable
     let showsCueGroup: Bool
+    let isSelected: Bool
     let visualLinePlan: PlaybackVisualLineStackPlan
     let visualLines: [PlaybackCueResultVisualLine]
     let informationBadges: [PlaybackCueInformationBadgePlan]
@@ -305,7 +378,22 @@ struct PlaybackCueResultLayoutPlan {
 @MainActor
 final class PlaybackCueResultLayout {
     private let visualLineLayout = PlaybackVisualLineStackLayout()
+    private let informationBadgePlanCache: PlaybackCueInformationBadgePlanCache
     private(set) var plan: PlaybackCueResultLayoutPlan?
+
+    init(informationBadgeCacheCapacity: Int = 64) {
+        informationBadgePlanCache = PlaybackCueInformationBadgePlanCache(
+            capacity: informationBadgeCacheCapacity
+        )
+    }
+
+    var informationBadgePlanCacheCountForTesting: Int {
+        informationBadgePlanCache.count
+    }
+
+    var informationBadgePlanPreparationCountForTesting: Int {
+        informationBadgePlanCache.preparationCount
+    }
 
     @discardableResult
     func prepare(
@@ -355,12 +443,10 @@ final class PlaybackCueResultLayout {
                 line: line
             )
         }
-        let informationBadges = isSelected
-            ? PlaybackCueInformationBadgeLayout.makePlans(
-                texts: result.informationBadges,
-                width: safeWidth
-            )
-            : []
+        let informationBadges = informationBadgePlanCache.plans(
+            texts: result.informationBadges,
+            width: safeWidth
+        )
         let informationRowHeight = informationBadges.isEmpty
             ? 0
             : PlaybackSubtitleFocusMetrics.informationBadgeRowHeight
@@ -385,6 +471,7 @@ final class PlaybackCueResultLayout {
             itemID: result.itemID,
             primaryCueIdentity: result.primaryCueIdentity,
             showsCueGroup: showsCueGroup,
+            isSelected: isSelected,
             visualLinePlan: visualLinePlan,
             visualLines: visualLines,
             informationBadges: informationBadges,
@@ -403,7 +490,8 @@ final class PlaybackCueResultLayout {
         }
         PlaybackCueInformationBadgeLayout.draw(
             plan.informationBadges,
-            in: resultRect
+            in: resultRect,
+            isSelected: plan.isSelected
         )
         visualLineLayout.drawPreparedPlan(in: plan.cueTextRect(in: resultRect))
     }
@@ -417,6 +505,7 @@ final class PlaybackCueResultMeasurementCache {
         let primaryCueText: String
         let additionalCueTexts: [String]
         let showsCueGroup: Bool
+        let hasInformationBadges: Bool
         let width: CGFloat
         let viewportHeight: CGFloat
         let styleRevision: Int
@@ -428,13 +517,16 @@ final class PlaybackCueResultMeasurementCache {
     }
 
     private let capacity: Int
-    private let layout = PlaybackCueResultLayout()
+    private let layout: PlaybackCueResultLayout
     private var entries: [Key: Entry] = [:]
     private var accessSequence: UInt64 = 0
     private(set) var measurementCount = 0
 
     init(capacity: Int = 64) {
         self.capacity = max(1, capacity)
+        layout = PlaybackCueResultLayout(
+            informationBadgeCacheCapacity: capacity
+        )
     }
 
     var count: Int {
@@ -444,7 +536,7 @@ final class PlaybackCueResultMeasurementCache {
     func extent(
         for result: PlaybackCueResult,
         showsCueGroup: Bool,
-        isSelected: Bool = false,
+        isSelected _: Bool = false,
         width: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String? = nil
@@ -456,6 +548,9 @@ final class PlaybackCueResultMeasurementCache {
             primaryCueText: result.primaryCueText,
             additionalCueTexts: result.additionalCueTexts,
             showsCueGroup: showsCueGroup,
+            hasInformationBadges: result.informationBadges.contains {
+                !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            },
             width: width,
             viewportHeight: viewportHeight,
             styleRevision: 1
@@ -485,24 +580,7 @@ final class PlaybackCueResultMeasurementCache {
             )
             evictIfNeeded()
         }
-        guard isSelected,
-              result.informationBadges.contains(where: {
-                  !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-              })
-        else {
-            return baseExtent
-        }
-        let selectedHeight = PlaybackSubtitleFocusMetrics.selectedInformationHeight
-        let naturalHeight = baseExtent.naturalHeight + selectedHeight
-        return PlaybackVirtualReelItemExtent(
-            visualLineCount: baseExtent.visualLineCount,
-            visualLineStackHeight: baseExtent.visualLineStackHeight,
-            resolvedContentHeight:
-                baseExtent.resolvedContentHeight + selectedHeight,
-            naturalHeight: naturalHeight,
-            resolvedHeight: min(naturalHeight, max(0, viewportHeight)),
-            isOversized: naturalHeight > max(0, viewportHeight)
-        )
+        return baseExtent
     }
 
     func removeAll() {

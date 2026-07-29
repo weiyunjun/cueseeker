@@ -499,8 +499,10 @@ Presentation virtualization rules:
   Cue Playlist retains the general Cue Result layout required for optional Cue
   Group content. Current provides Display Title and Time Range and never
   provides Cue Group text; Cue Playlist additionally provides `[x/y]` and may
-  show Cue Group text below every Primary Cue. The existing Reel and Session
-  owners remain the only selection and scrolling state sources.
+  show Cue Group text below every Primary Cue. Every Cue displays its module's
+  information Badges: the settled selection uses the Playback blue palette and
+  other Cues use the Playback-specific neutral palette. The existing Reel and
+  Session owners remain the only selection and scrolling state sources.
 - Playback Command Panel Search uses the Cue Playlist's general Cue Result
   Adapter and Reel over a host-owned resident preview Window capped at 50
   results. That Window is the only Command Panel Search selection source for
@@ -509,14 +511,14 @@ Presentation virtualization rules:
   complete Search Playlist. Command Panel Search must not reintroduce its
   removed cover Context, dedicated result Row, or a duplicate selection store.
 - Cue Result base extent depends only on Primary Cue, optional resident Cue
-  Group content, presentation width, and style. Selection must not enter that
-  base measurement key, advance the dataset revision, or clear the measurement
-  cache. The Reel supplies its current visual selection directly when applying
-  the fixed-height information Badge decoration so drawing and placement use
-  the same selection during wheel, keyboard, and scrollbar motion. Current
-  applies that fixed height to its cached base Cue measurement without creating
-  a general Cue Result, remeasuring text, or rebuilding Badge text and width
-  plans on every frame.
+  Group content, fixed information Badge presence, presentation width, and
+  style. Every Cue extent includes the same fixed-height Badge row; selection
+  only chooses the Badge palette and must not enter the measurement key,
+  advance the dataset revision, clear the measurement cache, or change Reel
+  placement. Current applies the same fixed height to every cached base Cue
+  measurement without creating a general Cue Result or remeasuring text.
+  Current and Cue Result drawing retain bounded Badge text-width plan caches so
+  scrolling does not rebuild plans on every frame.
 
 Playback-specific differences are limited to:
 
@@ -528,8 +530,8 @@ Playback-specific differences are limited to:
 - the documented capability mask, including removal of batch, export, folder,
   Context, Filter-control, and table-copy entry points;
 - Playback Cue Reel layout, Focus Anchor, accepted placement, settled selection,
-  selected-item information Badges, Cue Group visibility policy, and the
-  Playback-only Current and Playlist modules;
+  selection-dependent information Badge palette, Cue Group visibility policy,
+  and the Playback-only Current and Playlist modules;
 - Playback Search's temporary empty-filter context, text-field focus routing,
   Up/Down Reel routing, and Enter-only Cue action;
 - Recent and Library persistent single selection, directional navigation,

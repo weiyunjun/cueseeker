@@ -20,7 +20,7 @@ func playbackCueResultMetricsMatchDocumentedTokens() {
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeHorizontalPadding == 10)
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeVerticalPadding == 4)
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeRowHeight == 23)
-    #expect(PlaybackSubtitleFocusMetrics.selectedInformationHeight == 31)
+    #expect(PlaybackSubtitleFocusMetrics.informationHeight == 31)
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueSelectedNative
@@ -84,6 +84,18 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
     )
     #expect(
         playbackCueResultHex(
+            PlaybackTheme.informationBadgeUnselectedBackgroundNative,
+            appearanceName: .aqua
+        ) == "#F3F4F6"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.informationBadgeUnselectedTextNative,
+            appearanceName: .aqua
+        ) == "#667085"
+    )
+    #expect(
+        playbackCueResultHex(
             PlaybackTheme.playbackModuleSidebarSelectedNative,
             appearanceName: .aqua
         ) == "#111827"
@@ -123,6 +135,18 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
             PlaybackTheme.informationBadgeTextNative,
             appearanceName: .darkAqua
         ) == "#93C5FD"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.informationBadgeUnselectedBackgroundNative,
+            appearanceName: .darkAqua
+        ) == "#27272A"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.informationBadgeUnselectedTextNative,
+            appearanceName: .darkAqua
+        ) == "#A1A1AA"
     )
 }
 
@@ -357,7 +381,7 @@ func playbackCueResultShowCueGroupDoesNotChangeEitherStableIdentity() {
 
 @MainActor
 @Test
-func playbackCueResultShowsSelectedInformationBadgesAbovePrimaryCue() throws {
+func playbackCueResultShowsInformationBadgesAboveEveryPrimaryCue() throws {
     let layout = PlaybackCueResultLayout()
     let result = playbackCueResult(
         primaryText: Array(repeating: "wide", count: 12).joined(separator: " "),
@@ -402,8 +426,37 @@ func playbackCueResultShowsSelectedInformationBadgesAbovePrimaryCue() throws {
         width: 240,
         viewportHeight: 2_000
     )
-    #expect(unselected.informationBadges.isEmpty)
-    #expect(unselected.extent.naturalHeight < plan.extent.naturalHeight)
+    #expect(unselected.informationBadges == plan.informationBadges)
+    #expect(unselected.extent == plan.extent)
+    #expect(plan.isSelected)
+    #expect(!unselected.isSelected)
+}
+
+@MainActor
+@Test
+func playbackCueResultBadgePlansStayBoundedAcrossUnselectedResults() {
+    let layout = PlaybackCueResultLayout(informationBadgeCacheCapacity: 2)
+
+    for ordinal in 0..<100 {
+        _ = layout.prepare(
+            result: playbackCueResult(
+                itemID: "result-\(ordinal)",
+                primaryIdentity: "cue-\(ordinal)",
+                informationBadges: [
+                    "[\(ordinal + 1)/100]",
+                    "Display Title \(ordinal)",
+                    "00:00 - 00:01",
+                ]
+            ),
+            showsCueGroup: true,
+            isSelected: false,
+            width: 800,
+            viewportHeight: 600
+        )
+    }
+
+    #expect(layout.informationBadgePlanCacheCountForTesting == 2)
+    #expect(layout.informationBadgePlanPreparationCountForTesting == 100)
 }
 
 @MainActor
@@ -465,10 +518,7 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
     )
     #expect(cache.measurementCount == 1)
     #expect(cache.count == 1)
-    #expect(
-        selectedExtent.naturalHeight - unselectedExtent.naturalHeight
-            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
-    )
+    #expect(selectedExtent == unselectedExtent)
 
     _ = cache.extent(
         for: playbackCueResult(
@@ -525,7 +575,7 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
         width: 700,
         viewportHeight: 500
     )
-    #expect(cache.measurementCount == 6)
+    #expect(cache.measurementCount == 7)
     #expect(cache.count == 2)
 
     _ = cache.extent(
@@ -538,7 +588,7 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
         width: 700,
         viewportHeight: 600
     )
-    #expect(cache.measurementCount == 7)
+    #expect(cache.measurementCount == 8)
     #expect(cache.count == 2)
     cache.removeAll()
     #expect(cache.count == 0)
