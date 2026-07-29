@@ -70,7 +70,7 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
                 + PlaybackSubtitleFocusMetrics.cueVerticalPadding
                 + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
     )
-    #expect(view.isCueHighlightedForTesting(at: 11))
+    #expect(!view.isCueHighlightedForTesting(at: 11))
     #expect(view.isCueHighlightedForTesting(at: 12))
 
     var toggledOrdinal: Int?

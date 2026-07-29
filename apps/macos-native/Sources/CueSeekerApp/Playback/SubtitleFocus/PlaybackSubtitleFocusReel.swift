@@ -3223,7 +3223,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                 || collageCanSelectAnotherCue
             contentAdapter?.drawItem(
                 at: placement.ordinal,
-                isSelected: placement.ordinal == selectedOrdinal || isChecked,
+                isSelected: placement.ordinal == selectedOrdinal,
                 isEnabled: canToggle,
                 in: cueContentRect(for: placement.rect)
             )
@@ -3377,7 +3377,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     }
 
     func isCueHighlightedForTesting(at ordinal: Int) -> Bool {
-        ordinal == selectedOrdinal || isCollageCueChecked(at: ordinal)
+        ordinal == selectedOrdinal
     }
 
     func isCollageCueEnabledForTesting(at ordinal: Int) -> Bool {
