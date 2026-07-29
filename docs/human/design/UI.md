@@ -163,9 +163,12 @@
 - `--color-subtitle-focus-cue-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
 - `--color-subtitle-focus-cue-group-selected`: Light `#475467`; Dark `rgba(255,255,255,0.62)`
 - `--color-subtitle-focus-cue-unselected`: Light `#858B95`; Dark `rgba(255,255,255,0.34)`
+- `--color-playback-information-badge-bg`: Light `#D1D5DB`; Dark `#18181B`
+- `--color-playback-information-badge-text`: Light `#1F2937`; Dark `#F4F4F5`
+- `--color-playback-information-badge-unselected-bg`: Light `#E5E7EB`; Dark `#303036`
+- `--color-playback-information-badge-unselected-text`: Light `#475467`; Dark `#A1A1AA`
 - `--color-playback-module-sidebar-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
 - `--color-playback-module-sidebar-unselected`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
-- `--color-playback-playlist-sequence`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
 
 ### 1.2 字体与文本
 
@@ -231,6 +234,7 @@
 - `--height-player-progress-track`: `3px`
 - `--height-player-progress-track-hover`: `6px`
 - `--height-player-progress-time-capsule`: `22px`
+- `--height-playback-cue-information-badge`: `23px`
 - `--height-library-progress-bar`: `4px`
 - `--height-library-list-cover`: `115px`
 
@@ -261,7 +265,6 @@
 - `--size-player-window-control-glyph`: `7px`
 - `--width-player-topbar-title-max`: `520px`
 - `--width-subtitle-focus-content-max`: `960px`
-- `--width-playback-playlist-sequence`: `48px`
 - `--aspect-library-cover`: `16 / 9`
 - `--width-library-recent-card-min`: `180px`
 - `--width-library-recent-card-max`: `220px`
@@ -462,7 +465,7 @@
 ### 2.4 Pointer、点击区域与 Cursor
 
 - 可编辑输入框和没有左键动作的普通可选择文字使用 `text`。
-- Cue 的直接点击区域、Shiori Tags Cell、按钮、菜单项使用 `pointer`。
+- Cue 的直接点击区域、按钮、菜单项使用 `pointer`。
 - 静态区域使用 `default`。
 - Disabled 控件使用 `not-allowed`。
 - Cursor 必须与实际点击区域一致。
@@ -471,7 +474,7 @@
 
 ### 2.5 文字选择与复制
 
-- 普通模式下，表格中的所有文字均可选择，包括表头、Display Title、Cues、Tags、Time Range 和 Date Added。
+- 普通模式下，表格中的所有文字均可选择，包括表头、Display Title、Cues、Language Tags、Time Range 和 Date Added。
 - 普通模式下支持在单元格、列和行之间连续拖拽选择。
 - Select 状态下禁用表格文字选择，不建立或扩展文字选区。
 - 拖拽到可视区域顶部或底部时，表格自动滚动并继续扩展选择。
@@ -483,7 +486,7 @@
 - 结构化复制时，列之间使用 Tab，表格行之间使用换行。
 - 多行 Cue 在粘贴到电子表格后仍属于一个单元格。
 - 文字选择不改变 Checkbox 批量选择状态。
-- 文字拖拽优先于 Cue 和 Shiori Tags Cell 的单击；发生拖拽后不得执行播放或打开 Shiori Tag Popover。
+- 文字拖拽优先于 Cue 的单击；发生拖拽后不得执行播放。
 - 表格存在文字选择时，CueSeeker 任一窗口内新的左键 Mouse Down 先清除旧选区；同一手势随后形成有效表格拖选时建立新选区。
 - 右键 Mouse Down 不清除表格文字选择。
 
@@ -517,8 +520,9 @@
 - 内容：Search 图标、输入文字、Placeholder、可选 Result Count Text、Inline Clear Button。
 - 文字使用 `--font-family-base`、`--font-size-control`、`--color-text-primary`、`--color-text-placeholder`。
 - Result Count Text 使用 `--font-size-control` 和 `--color-text-muted`，位于 Inline Clear Button 左侧。
-- 只有 Search exact 结果和当前 Filter Data Panel 的筛选投影完整计算完成后才显示 Result Count Text。
-- Result Count Text 使用 `1 result` 和 `{N} results`，显示当前 Filter Data Panel 筛选后的结果数量，不在 Shiori 中显示。
+- Search 只有 exact 结果和当前 Filter Data Panel 的筛选投影完整计算完成后才显示 Result Count Text。
+- Shiori 只有当前 Query 和 Filter Data Panel 的筛选投影完整计算完成后才显示 Result Count Text。
+- Result Count Text 使用 `1 result` 和 `{N} results`，显示 Search 或当前 Shiori List 经过 Filter Data Panel 筛选后的结果数量。
 - 状态：Empty、Focused Empty、Typing / Focused Filled、Filled、Clear Button Hover、Disabled。
 - 只有 Focused 或 Typing 状态显示 caret。
 - 有内容时显示 Inline Clear Button。
@@ -575,18 +579,6 @@
 - 不提供用户拖拽缩放。
 - 状态：Empty、Focused Empty、Typing、Filled、Error、Focused Error、Disabled。
 - Text Area 支持原生文字选择、`Cmd+A`、`Cmd+C` 和 `Cmd+V`。
-
-#### Tag Composer Field
-
-- 用途：在同一流式区域中显示已关联标签，并输入、搜索或创建新标签。
-- Token：`--spacing-2`、`--font-family-base`、`--font-size-body`、`--color-text-primary`、`--color-text-muted`。
-- 标签使用 Chip / Tag。
-- 输入框透明、无边框、无 Search 图标、无 Clear Button。
-- 标签与输入文字在同一视觉行内垂直居中。
-- 内容允许水平换行。
-- 状态：Empty、Focused Empty、Typing、Filled With Tags、Filled With Tags And Typing、Disabled。
-- 点击 Composer 空白区域聚焦输入框。
-- 标签删除按钮只执行删除，不触发标签主体动作。
 
 #### Filter Data Card
 
@@ -818,7 +810,7 @@
 - `--padding-table-cell-hover-y` 与 `--padding-table-row-y` 使用相同值。
 - Table Row 必须在当前可见列的最终列宽确定后计算内容布局和行高。
 - Display Title、Cues、Time Range 和 Date Added 按各自最终列宽自动换行，并显示完整内容。
-- Tags 按最终列宽使用水平换行布局，并形成完整内容块。
+- Language Tags 按最终列宽使用水平换行布局，并形成完整内容块。
 - 设本行显示的 Cue Item 数量为 `N`，每个 Cue Item 的自然高度为 `Hᵢ`：
 
   `Cue Block Height = ΣHᵢ + (N - 1) × --padding-table-row-y`
@@ -833,9 +825,9 @@
 - Metadata 不再对齐 Primary Cue 第一视觉行。
 - Primary Cue 使用 `--font-size-table`、`--line-height-table-cue-primary`、`--color-text-secondary`。
 - Extra Cues 使用 `--font-size-caption`、`--line-height-table-cue-secondary`、`--color-text-muted`。
-- Display Title、Tag 文字、Time Range 和 Date Added 使用 `--color-text-muted`。
+- Display Title、Language Tag 文字、Time Range 和 Date Added 使用 `--color-text-muted`。
 - Normal 和 Content Changed Shiori Row 的 Primary Cue 使用 `--color-text-secondary`，其它文字内容使用 `--color-text-muted`。
-- Unavailable Shiori Row 的 Display Title、Primary Cue、Extra Cues、Tag 文字、Time Range 和 Date Added 统一使用 `--color-text-muted`。
+- Unavailable Shiori Row 的 Display Title、Primary Cue、Extra Cues、Time Range 和 Date Added 统一使用 `--color-text-muted`。
 - Unavailable 不属于 Disabled，不使用 `--color-bg-disabled`，不增加整行背景或透明度。
 - Primary Cue 和 Extra Cues 的文字字形分别在各自的 line-height 行框内垂直视觉居中。
 - 所有 Cue 保留源换行和自动换行，不裁剪、不截断、不显示省略号。
@@ -888,7 +880,7 @@
 - Unavailable Cue 不显示 Hover 下划线，不响应普通左键播放，也不使用 `pointer` Cursor。
 - Unavailable Cue 文字仍然允许选择和复制。
 - Cue State Indicator 是独立 Hover Target，不属于 Interactive Text Cell。
-- Display Title、Tags 中的文字、Time Range 和 Date Added 不使用 Interactive Text Cell。
+- Display Title、Language Tags 中的文字、Time Range 和 Date Added 不使用 Interactive Text Cell。
 - 右键交给所属行的 Row Action Menu。
 
 #### Table Scrollbar
@@ -958,18 +950,12 @@
 
 #### Chip / Tag
 
-- 用途：显示 Language 或 Shiori Tag，并在所属界面允许时提供标签操作。
+- 用途：只读显示 Language。
 - Token：`--radius-chip`、`--padding-chip-x`、`--padding-chip-y`、`--font-family-base`、`--font-size-caption`。
 - Language 使用 `--color-chip-language-bg`、`--color-chip-language-text`。
-- Shiori Tag 使用 `--color-bg-hover`、`--color-text-secondary`。
 - Disabled 使用 `--color-bg-disabled`、`--color-text-disabled`。
-- Table 内的 Tag 不显示删除按钮。
-- Tag Composer 和 Popover 中的 Removable Tag 显示独立 `x`。
-- `x` Hover 使用 `--color-danger-text`、`--color-danger-bg-hover`。
-- 标签主体和删除按钮是两个独立命中区域。
-- Table Tag 文字可以拖拽选择。
-- Table Tag 不单独定义表格中的左键或右键动作。
-- Table Tag 所属 Shiori Tags Cell 的交互由 Search / Shiori / Context Table Layout 定义。
+- Table 内的 Language Tag 文字可以拖拽选择。
+- Language Tag 不单独定义表格中的左键或右键动作。
 
 #### Section Title
 
@@ -1221,23 +1207,41 @@
 - 点击不得改变选择，也不得穿透到底层 Video。
 - Wheel Event 交给所属 Cue Reel。
 
+#### Playback Cue Information Badge
+
+- 用途：在 Current、字幕型 Playlist 和 Command Panel Search Result 的每个 Cue 上方显示识别信息。
+- Token：`--height-playback-cue-information-badge`、`--spacing-2`、`--padding-chip-x`、`--padding-chip-y`、`--radius-chip`、`--font-size-caption`、`--color-playback-information-badge-bg`、`--color-playback-information-badge-text`、`--color-playback-information-badge-unselected-bg`、`--color-playback-information-badge-unselected-text`。
+- 每项信息使用一个独立 Badge，并按所属 Module 定义的顺序水平排列。
+- Badge 高度固定使用 `--height-playback-cue-information-badge`，不根据文字、字幕内容或选择状态临时计算。
+- Badge 之间使用 `--spacing-2`。
+- Badge 与下方 Primary Cue 之间使用 `--spacing-2`。
+- 文字使用 Semibold。
+- 全部 Badge 保持在同一行；可用宽度不足时压缩 Badge 宽度并在尾部截断文字。
+- Selected 使用 `--color-playback-information-badge-bg` 和 `--color-playback-information-badge-text`。
+- Unselected 使用 `--color-playback-information-badge-unselected-bg` 和 `--color-playback-information-badge-unselected-text`。
+- Selected 的背景和文字视觉均强于 Unselected。
+- 使用 Playback 专用的中性灰色，不复用 Watch Status Badge 或任何 `--color-watch-status-*` Token。
+- Selected 和 Unselected 显示相同的 Badge 内容、数量和高度；选择变化只改变配色。
+
 #### Playback Cue Result
 
 - 用途：在字幕型 Playlist 和 Command Panel Search Result 中显示一个 Primary Cue，以及可选的 Cue Group。
 - Result 使用 `--padding-subtitle-focus-cue-y`。
 - Primary Cue 使用 `--font-size-subtitle-focus-cue`、`--line-height-subtitle-focus-cue` 和 `--font-weight-subtitle-focus-cue`。
 - Cue Group 使用 `--font-size-subtitle-focus-cue-group`、`--line-height-subtitle-focus-cue-group` 和 `--font-weight-subtitle-focus-cue-group`。
-- Show Cue Group 为 On 时，在 Primary Cue 上方显示全部 Additional Cues。
+- Show Cue Group 为 On 时，Primary Cue 位于上方，全部 Additional Cues 位于下方。
 - Show Cue Group 为 Off 时，只显示 Primary Cue。
 - Primary Cue Identity 不因 Show Cue Group 改变。
 - Selected：
   - Primary Cue 使用 `--color-subtitle-focus-cue-selected`
   - Cue Group 使用 `--color-subtitle-focus-cue-group-selected`
+  - 所属 Module 提供信息时，在 Primary Cue 上方显示 Playback Cue Information Badge，并使用 Selected Badge 配色
 - Unselected：
   - Primary Cue 和 Cue Group 均使用 `--color-subtitle-focus-cue-unselected`
+  - 所属 Module 提供信息时，在 Primary Cue 上方显示相同内容和数量的 Playback Cue Information Badge，并使用 Unselected Badge 配色
 - 状态仅包括 Unselected 和 Selected。
 - 所有 Cue 保留源行序和源换行，并按可用宽度自动换行。
-- 将全部 Additional Cues 和 Primary Cue 展开为一个按显示顺序排列的 Visual Line Stack。
+- 将 Primary Cue 和全部 Additional Cues 展开为一个按显示顺序排列的 Visual Line Stack。
 - 每个 Visual Line 的 typographic bounds 使用实际解析后的 Font Runs 的 Ascender 和 Descender 计算，不使用随具体字形变化的 Ink Bounds。
 - 从第二个 Visual Line 开始，按下式排列：
 
@@ -1246,8 +1250,8 @@
 - 上述间距同样适用于：
   - 同一个 Cue 的源换行
   - 同一个 Cue 的自动换行
+  - Primary Cue 与第一个 Additional Cue 的交界
   - 两个 Additional Cue 的交界
-  - Additional Cue 与 Primary Cue 的交界
 - Cue 边界不增加额外 Padding、Paragraph Spacing 或 Cue Item Gap。
 - Nominal Content Height：
 
@@ -1258,19 +1262,18 @@
   `max(Nominal Content Height, Visual Line Stack Height)`
 
 - Visual Line Stack 在 Resolved Content Region 内整体垂直居中。
-- Result Natural Height：
+- Base Result Natural Height：
 
   `Resolved Content Height + 2 × --padding-subtitle-focus-cue-y`
 
+- 所属 Module 提供信息时：
+
+  `Result Natural Height = Base Result Natural Height + --height-playback-cue-information-badge + --spacing-2`
+
+- 信息行使用固定高度，不改变 Primary Cue 和 Cue Group 的 Base Result Natural Height。
+- Selected 和 Unselected Result 使用相同的 Result Natural Height；选择变化不改变 Reel Geometry。
 - 两个独立 Result 之间使用 `--gap-subtitle-focus-cue`。
-- Playlist 可以显示 Sequence Number：
-  - 位于 Result 左侧
-  - 宽度使用 `--width-playback-playlist-sequence`
-  - 使用 `--font-size-body`
-  - 使用 `--color-playback-playlist-sequence`
-  - 右对齐
-  - 与 Primary Cue 第一视觉行对齐
-  - 数值表示 Playlist 内部序号
+- 不显示独立 Sequence Number 或序号区域。
 - Playback Cue Result 本身不绑定键盘快捷键。
 - 所属 Module 提供的字幕动作均以 Primary Cue 为目标。
 - 具体快捷键和播放行为由所属 Module Layout 定义。
@@ -1388,10 +1391,11 @@
 
 #### Recent Videos Section Layout
 
-- 一级页预览复用 Recent Watching Card Layout。
-- 保留 Library Cover Progress Overlay、Library Cover Badge / Time、Episode Label 和 Watch Status Badge。
-- Recent Videos 完整二级页继续复用 Recent Watching Card Layout。
-- 完整二级页显示全部 Recent Videos，不增加 Search、Filter、Sort 或批量操作。
+- Workbench Recent 一级页的 Recent Videos 预览、Workbench Recent Videos 完整二级页和 Command Panel Recent Videos 复用 Recent Watching Card Layout 与同一个自适应卡片 Grid。
+- 三个界面均保留 Library Cover Progress Overlay、Library Cover Badge / Time、Episode Label 和 Watch Status Badge。
+- Workbench Recent Videos 完整二级页显示全部 Recent Videos，不增加 Search、Filter、Sort 或批量操作。
+- Workbench Recent 一级页和完整二级页不建立持久 Selected Card，不支持卡片键盘导航，通过 Pointer 执行卡片操作。
+- Command Panel Recent Videos 建立持久 Selected Card；Selected 复用 Recent Watching Card 的 Hover Region 和 Hover 视觉。
 
 #### Recent Shiori Resume Row Layout
 
@@ -1412,22 +1416,59 @@
 
 #### Recent Shioris Section Layout
 
-- 一级页每行显示一个 Recent Shiori Resume Row。
-- 完整二级页复用相同的 Recent Shiori Resume Row 并显示全部 Recent Shioris。
-- 首版不显示 Search、Filter、Sort、管理按钮或批量操作。
+- Workbench Recent 一级页的 Recent Shioris 预览、Workbench Recent Shioris 完整二级页和 Command Panel Recent Shioris 复用同一个 Recent Shiori Resume Row List。
+- Workbench Recent Shioris 完整二级页和 Command Panel Recent Shioris 显示全部 Recent Shioris。
+- Workbench Recent 一级页和完整二级页不建立持久 Selected Row。
+- Command Panel Recent Shioris 建立持久 Selected Row；Selected 复用 Recent Shiori Resume Row 的 Hover Region 和 Hover 视觉。
+- Workbench Recent Shioris 完整二级页不显示 Search、Filter、Sort、管理按钮或批量操作。
+
+#### Library / Shiori Overview Layout
+
+- Workbench Library 一级界面和 Workbench Shiori 一级界面复用同一个 Overview Layout。
+- 页面从上到下包括：
+  1. Summary Row
+  2. Adaptive Media Card Grid
+- 页面水平和垂直内边距使用 `--spacing-6`。
+- Summary Row 与 Media Card Grid 的间距使用 `--spacing-4`。
+- Summary Row：
+  - 使用水平布局和 `space-between`
+  - 高度使用 `--height-control`
+  - 子项间距使用 `--spacing-3`
+  - 左侧显示当前界面的数据统计
+  - 右侧使用 Inline Add Button
+- Adaptive Media Card Grid：
+  - Card Width 位于 `--width-library-recent-card-min` 和 `--width-library-recent-card-max` 之间
+  - Grid 间距使用 `--gap-library-recent-grid`
+- Library Folder Card 和 Shiori List Card 复用相同的 Card Width、内容间距、Hover Container、Pressed 动画和 Title 样式。
+- Library Folder Card 不显示 Description。
+- Shiori List Card 在 Title 下方增加 Description。
+- Workbench Library：
+  - App Topbar Title 为 `Library`
+  - Summary Row 左侧显示 `N Folders · M Videos · K Subtitles`
+  - `N Folders` 为当前 Library 一级界面展示的 Folder 数量
+  - `M Videos` 和 `K Subtitles` 按这些 Folder 中的 Library Episode 统计
+  - 每个 Library Episode 对应一个 Video 和一个 Subtitle
+  - Summary Row 右侧 Inline Add Button 的 Label 为 `Add Content`
+  - 点击 `Add Content` 打开 Settings，并显示 Library 分类
+- Workbench Shiori：
+  - App Topbar Title 为 `Shiori`
+  - Summary Row 左侧显示 `N Lists · M Cues`
+  - Summary Row 右侧 Inline Add Button 的 Label 为 `New List`
 
 #### Library Folder Card Layout
 
+- 是 Library / Shiori Overview Card Structure 的无 Description 变体。
 - 卡片为纵向 Media Card。
+- 卡片宽度位于 `--width-library-recent-card-min` 和 `--width-library-recent-card-max` 之间。
 - 内容间距使用 `--spacing-2`。
 - Hover 外围使用 `--padding-library-media-card-hover`。
 - Hover 圆角使用 `--radius-library-media-card-hover`。
 - Hover 背景使用 `--color-library-media-card-hover-bg`。
-- 内容包括：
-  - Library Cover
-  - Library Cover Badge / Count
-  - Folder Name
-- Folder Name 使用 `--font-size-library-title`、`--color-text-primary`，单行显示。
+- 内容从上到下包括：
+  1. Library Cover 和 Library Cover Badge / Count
+  2. Folder Name
+- 不显示 Description。
+- Folder Name 使用 `--font-size-library-title`、`--color-text-primary`，单行显示，溢出显示省略号。
 - Pressed 时缩放至 `--scale-library-media-card-pressed`。
 - 左键进入 Library Folder Detail。
 - 右键打开 Library Card Context Menu。
@@ -1440,7 +1481,9 @@
 
 #### Library Episode Grid and Card Layout
 
-- Grid 位于 Library Folder Detail。
+- 同时用于 Workbench Library Folder Detail 和 Playback 视频型 Playlist。
+- 两个界面复用相同的 Grid、Episode Card、内容排列、数据顺序、Hover Region 和点击区域。
+- Workbench 与 Playback 的选择差异遵循 Playback Media Selection，不建立第二套 Episode Card Layout。
 - 使用单列布局。
 - Row 占满可用内容宽度。
 - 最小 Row Width 使用 `--width-library-episode-row-min`。
@@ -1492,39 +1535,32 @@
 
 #### Shiori List Overview Layout
 
+- 完整复用 Library / Shiori Overview Layout。
 - App Topbar Title 为 `Shiori`。
-- 页面从上到下包括：
-  1. Summary Row
-  2. Shiori List Grid
-
 - Summary Row：
-  - 使用水平布局和 `space-between`
   - 左侧显示 `N Lists · M Cues`
   - `M Cues` 包含 Normal、Content Changed 和 Unavailable Shiori
   - `M Cues` 按 CueID 去重
   - 右侧使用 Inline Add Button，Label 为 `New List`
   - 点击 `New List` 打开 Shiori List Editor Dialog 的 New 模式
-
 - Shiori List Grid：
-  - 使用与 Recent Watching Card Layout 相同的 Card Width 范围
-  - Grid 间距使用 `--gap-library-recent-grid`
   - Shiori List 按创建时间倒序排列
   - 初始 Shiori List 名称为 `Default`
   - 初始 Shiori List 使用 Shiori Default Cover
 
 #### Shiori List Card Layout
 
+- 是 Library / Shiori Overview Card Structure 的 Description 变体。
 - 卡片为纵向 Media Card。
-- 卡片宽度、Hover 外围、Hover 圆角、Hover 背景和 Pressed 动画复用 Recent Watching Card Layout。
+- 卡片宽度、内容间距、Hover 外围、Hover 圆角、Hover 背景、Pressed 动画和 Title 样式复用 Library Folder Card Layout。
 - 内容从上到下包括：
-  1. Library Cover
-  2. Library Cover Badge / Count
-  3. List Name
-  4. Description
+  1. Library Cover 和 Library Cover Badge / Count
+  2. List Name
+  3. Description
 - Library Cover Badge 位于封面右下角，格式为 `{count} Cues`。
 - `{count}` 包含当前 Shiori List 中的 Normal、Content Changed 和 Unavailable Shiori。
-- List Name 使用 `--font-size-library-title`、`--color-text-primary`，固定单行高度，溢出显示省略号。
-- Description 使用 `--font-size-library-meta`、`--color-text-muted`，固定单行高度，溢出显示省略号。
+- List Name 使用 `--font-size-library-title`、`--color-text-primary`，单行显示，溢出显示省略号。
+- Description 使用 `--font-size-library-meta`、`--color-text-muted`，单行显示，溢出显示省略号。
 - Description 为空时不显示文字，但保留 Description 行高度。
 - 左键点击卡片进入对应 Shiori List Detail。
 - 右键打开 Shiori List Card Context Menu，不进入 Shiori List Detail。
@@ -1557,15 +1593,18 @@
 
 - Select 使用 Edit Icon `square.and.pencil`。
 - 进入 Select 状态后，Select 的 Label 改为 `Exit Select`。
-- Search 中只有 exact 结果和当前 Filter Data Panel 的筛选投影完整计算完成后 Select 才可用；其余计算阶段为 Disabled。
+- Search 与 Shiori 只有当前 Query 结果和 Filter Data Panel 的筛选投影完整计算完成后 Select 才可用；其余计算阶段为 Disabled。
 - Search 与 Shiori 的 Filter Button 均用于显示或隐藏当前 Filter Data Panel。
 - Search 与 Shiori 的 Filter Button 均不显示数字或 Filter Count Badge。
+- Search 与 Shiori 复用相同的 Search Box、Placeholder 和输入即搜索机制。
+- Query 只匹配 Primary Cue，不匹配 Display Title 或 Additional Cues。
+- Shiori 的 Query 只筛选当前 Shiori List。
 - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果。
 - Query 后续发生变化时，以最新输入内容更新结果。
 - Enter 不用于提交 Search。
 - View Menu 控制列显示。
 - Cues 始终显示，不允许隐藏。
-- 不显示独立的结果数量栏或 Shiori 数量。
+- Result Count Text 只显示在 Search Box 内，不显示独立的结果数量栏或 Shiori 总数量。
 
 #### Filter Data Panel Layout
 
@@ -1648,9 +1687,8 @@
   1. Selection
   2. Cues
   3. Display Title
-  4. Tags
-  5. Time Range
-  6. Date Added
+  4. Time Range
+  5. Date Added
 
 - Selection Column：
   - 非 Select 状态下，Header 显示 `#`，正文显示当前结果列表中从 `1` 开始的动态序号。
@@ -1668,7 +1706,6 @@
   - Header 和正文显示 Row Selection Checkbox。
   - 点击正文行任意非 Overlay、非 Scrollbar 区域切换该行的选择状态。
   - 禁用 Cue 播放。
-  - 禁用 Shiori Tags Cell 编辑。
   - 禁用 Row Action Menu。
   - 禁用 Interactive Text Cell Hover 文字色和下划线。
   - 禁用表格文字选择。
@@ -1681,7 +1718,6 @@
   - Selection：`50pt`，固定，不参与权重分配
   - Display Title：权重 `3`，最小 `180pt`
   - Cues：权重 `6`，最小 `240pt`
-  - Tags：权重 `2`，最小 `140pt`，仅 Shiori
   - Time Range：权重 `2`，最小 `140pt`
   - Date Added：权重 `2`，最小 `120pt`，仅 Shiori
 
@@ -1704,7 +1740,9 @@
 
 - Cues / Extra Cues：
   - Show Cue Group 开启时显示
-  - 位于 Primary Cue 上方
+  - 位于 Primary Cue 下方
+  - 保持稳定 Source Display Order
+  - Cues Cell 的显示、文字选择和结构化复制顺序均为 Primary Cue → Extra Cues
   - `--color-text-muted`
   - `--font-size-caption`
   - `--line-height-table-cue-secondary`
@@ -1725,12 +1763,6 @@
   - Secondary Context
   - `--color-text-muted`
   - Font Weight `500`
-
-- Tags：
-  - 仅 Shiori
-  - 使用 Chip / Tag
-  - Table Tag 文字使用 `--color-text-muted`
-  - Table Tag 不显示删除按钮
 
 - Time Range 和 Date Added：
   - Metadata
@@ -1758,27 +1790,28 @@
   - 跨 App 启动保留
   - 适用于 Workbench Search、Workbench Shiori 和 Context
   - 同一设置同时适用于字幕型 Playlist 和 Command Panel Search Result
-  - Off：只显示 Primary Cue
-  - On：在 Primary Cue 上方显示全部 Additional Cues
+  - Workbench Search、Workbench Shiori 和 Context：
+    - Off：只显示 Primary Cue
+    - On：在 Primary Cue 下方显示全部 Additional Cues
+  - 字幕型 Playlist 和 Command Panel Search Result：
+    - Off：只显示 Primary Cue
+    - On：在 Primary Cue 下方显示全部 Additional Cues
+  - Playback Current 始终不显示 Cue Group
   - Primary Cue Identity 不变
   - 所有默认动作继续以 Primary Cue 为目标
   - Workbench Table 中所有显示的 Cue 共用一个 Hover 和点击区域
   - Workbench Table 中 Primary Cue 与 Extra Cues 只通过字体和颜色区分
-  - Playback Overlay 和 Command Panel Search Result 中的显示规则使用 Playback Cue Result
+  - 字幕型 Playlist 和 Command Panel Search Result 的显示规则使用 Playback Cue Result
 
 - 文字选择遵循 `2.5 文字选择与复制`。
 
 - 正文左键：
   - Normal 和 Content Changed Cues 使用 Interactive Text Cell。
   - Unavailable Cues 只允许文字选择和复制，不响应播放。
-  - Normal 和 Content Changed Shiori Tags Cell 是显式控件，整个 Cell 均可点击，包括没有 Tag 的空白区域。
-  - Unavailable Shiori Tags Cell 为 Read-only，不打开 Shiori Tag Popover。
-  - 无拖拽单击可用的 Shiori Tags Cell，打开 Shiori Tag Popover。
-  - 从 Shiori Tags Cell 内的文字开始拖拽时只进行文字选择，不打开 Popover。
   - Display Title、Time Range 和 Date Added 文字只负责选择和复制。
   - Checkbox 只改变批量选择。
   - Cue State Indicator 不响应普通左键动作。
-  - 除可用的 Shiori Tags Cell 外，其他普通空白区域无动作。
+  - 普通空白区域无动作。
   - 文字拖选可以从非标题栏且非顶栏的任意非交互区域开始（非交互区域 = 点击没有效果的区域）。手势进入表格后才建立新选区。
   - 选区内容始终只有表格文字。
 
@@ -1788,7 +1821,7 @@
   - Unavailable Cue 不显示 Interactive Text Cell Hover。
   - Cue State Indicator Hover 显示 Cue State Tip。
   - Display Title、Time Range 和 Date Added 不显示可点击 Hover。
-  - Pointer Cursor 只出现在可播放 Cue 的直接点击区域和可编辑的 Shiori Tags Cell。
+  - Pointer Cursor 只出现在可播放 Cue 的直接点击区域。
 
 - 行右键交互使用 Row Action Menu。
 
@@ -1863,7 +1896,7 @@
   - 没有可用目标列表时为 Disabled。
   - 选择目标列表后，先向目标列表写入当前 Shiori。
   - 只有目标写入成功后才从来源列表移除当前 Shiori。
-  - 移动后保留 Tags 和 Time Added。
+  - 移动后保留 Time Added。
   - 操作结果按照 `Toast Usage Registry` 调用对应 Toast 场景。
 
 - `Duplicate to ...`：
@@ -1873,7 +1906,7 @@
   - Submenu 不显示当前 Shiori List。
   - 没有可用目标列表时为 Disabled。
   - 选择目标列表后创建新的 ShioriID，其他 Shiori 数据保持一致。
-  - 复制后保留 Tags 和 Time Added。
+  - 复制后保留 Time Added。
   - 操作结果按照 `Toast Usage Registry` 调用对应 Toast 场景。
 
 - `Remove Shiori`：
@@ -1999,12 +2032,6 @@
   - Cancel：Neutral Button，`Cancel`
   - Confirm：Destructive Button，`Remove`
 
-- Delete Tag：
-  - Title：`Delete Tag`
-  - Message：`Are you sure you want to delete this tag? This will remove the tag from all cues. This action cannot be undone.`
-  - Cancel：Neutral Button，`Cancel`
-  - Confirm：Destructive Button，`Delete`
-
 - Delete List：
   - Title：`Delete List`
   - Message：`The list “{List Name}” and its Shiori entries will be deleted. The original subtitle and video files will not be deleted.`
@@ -2028,62 +2055,6 @@
 
 - Confirm 只执行当前明确的 Command Target。
 - Cancel 不产生数据变更。
-
-#### Shiori Tag Popover Layout
-
-- 使用无系统箭头的 Popover Overlay。
-- 锚定于 Shiori Tags Cell 的点击位置。
-- 优先显示在指针下方，并限制在可见区域内。
-- 点击 Popover 外部关闭。
-- 点击 Popover 内部不自动关闭。
-- 内容变化时允许重新测量和调整位置。
-- 从上到下包括：
-  1. Current Tags and Search
-  2. Global Tag Pool
-- 两个 Section 之间不显示 Separator。
-- Delete Tag Confirmation 使用居中的 Confirmation Dialog，不嵌入 Popover Panel。
-
-- Current Tags and Search：
-  - Hint：`Current Tags`
-  - Hint 使用 `--color-text-muted`
-  - Tag Composer 使用 Tag Composer Field
-  - Current Tags 使用 Removable Chip / Tag
-  - 无 Current Tags 时 Placeholder 为 `Add a tag`
-  - 已有 Current Tags 时不显示 Placeholder
-
-- Global Tag Pool：
-  - Hint：`Select a tag or create one`
-  - Hint 使用 `--color-text-muted`
-  - Tags 使用水平换行布局
-  - 输入为空时显示全部 Existing Tags
-  - 输入非空时显示 Matching Tags
-  - 已关联 Tag 仍然显示
-  - 输入非空且没有完全匹配时显示 Create Option
-  - Create Option 使用 `Create` Label 和当前输入文字的 Tag Preview
-  - Create Option Hover 使用 `--color-bg-hover`
-
-- 打开时自动聚焦 Tag Composer Input。
-- 点击尚未关联的 Tag：
-  - 只关联当前 Shiori
-  - 清空输入
-  - 保持 Popover 打开
-  - 恢复输入焦点
-- 点击已经关联的 Tag：
-  - 不执行动作
-  - 不显示提示
-  - 保持 Popover 打开
-- 点击 Create Option：
-  - 创建 Tag
-  - 关联当前 Shiori
-  - 清空输入
-  - 保持 Popover 打开
-- Current Tag Body 无动作。
-- Current Tag `x` 只解除当前 Shiori 的 Tag 关联。
-- Global Tag `x` 打开 Delete Tag Confirmation。
-- Escape：
-  - Dialog 未打开时关闭 Popover
-  - Dialog 打开时取消 Dialog
-- 右键不打开 Tag 专用 Menu；所属 Table Row 的统一 Row Action Menu 优先。
 
 ### 4.5 Player
 
@@ -2281,7 +2252,7 @@
   - Current 和 Playlist 共享同一 View Content Region
   - View 切换只替换 View Content Region 内容
   - View 切换不关闭 Overlay
-  - 左右内容区域之间不显示独立背景、边框或 Divider
+  - View Content Region 内不显示独立背景、边框或 Divider
 
 - 打开：
   - Playback Page 活跃时按 `Enter`
@@ -2303,19 +2274,18 @@
   - Session 生命周期以 Playback Overlay 的打开和关闭为边界，不以单个 View 的出现或消失为边界
 
 - Current：
-  - 使用水平布局，包括 Context Region 和 Subtitle Region
-  - Context Region 约占 View Content Region 宽度的 `20%`
-  - Subtitle Region 使用其余可用宽度
-  - Context Region 显示当前视频的一张固定 Library Cover
-  - Library Cover 不显示 Progress Overlay 或 Time Badge
-  - Library Cover 下方显示弱化的视频名称、Episode Label 和必要识别信息
-  - Library Cover 不随 Cue Navigation 或滚动变化
-  - Library Cover 的视觉中心与 Subtitle Region 的 Focus Anchor 位于同一水平线上
-  - 视频识别信息排列在 Library Cover 下方，不参与中心对齐
+  - 只显示占满 View Content Region 的 Subtitle Region
+  - 不显示左侧 Context Region、Library Cover 或视频识别信息
   - Subtitle Region 维持现有 Subtitle Focus Cue Reel
-  - Cue Reel 最大宽度使用 `--width-subtitle-focus-content-max`
+  - Cue Reel 最大宽度使用 `--width-subtitle-focus-content-max`，并在 Subtitle Region 中水平居中
   - 纵向排列 Subtitle Focus Cue
   - Cue Gap 使用 `--gap-subtitle-focus-cue`
+  - Current 始终只显示 Primary Cue，不显示 Cue Group
+  - 每个 Cue 上方显示两个独立的 Playback Cue Information Badge：
+    1. Display Title
+    2. Time Range
+  - Selected Cue 使用 Selected Badge 配色
+  - Unselected Cue 显示相同内容和数量的信息行，并使用 Unselected Badge 配色
   - 允许顶部和底部出现部分可见的相邻 Cue
   - 不显示卡片、边框、背景或可见 Focus Marker
 
@@ -2334,19 +2304,26 @@
 
     `52 × Visual Line Count`
 
-  - Natural Height：
+  - Base Natural Height：
 
     `max(Nominal Content Height, Visual Line Stack Height) + 24px`
+
+  - 每个 Cue 显示信息行：
+
+    `Natural Height = Base Natural Height + --height-playback-cue-information-badge + --spacing-2`
+
+  - Selected 和 Unselected Cue 使用相同的 Natural Height
 
   - Resolved Height：
 
     `min(Natural Height, Cue Reel Viewport Height)`
 
-  - 当前字体度量下，一行 Cue Natural Height：`76px`
-  - 当前字体度量下，两行 Cue Natural Height：`128px`
-  - 当前字体度量下，三行 Cue Natural Height：`180px`
+  - 当前字体度量下，一行 Cue Base Natural Height：`76px`
+  - 当前字体度量下，两行 Cue Base Natural Height：`128px`
+  - 当前字体度量下，三行 Cue Base Natural Height：`180px`
+  - Playback Cue Information Badge 使用固定高度，不参与字幕 Base Natural Height 测量；选择变化只改变配色，不改变 Cue Geometry
   - Fit Cue 显示全部内容
-  - Oversized Cue 从第一视觉行开始，只裁剪底部超出内容
+  - Oversized Cue 从信息行和第一视觉行开始显示，只裁剪底部超出内容
   - Oversized Cue 不保留内部阅读 Offset
 
 - Current / Scrollbar：
@@ -2386,14 +2363,24 @@
 - Playback Cue Result Reel：
   - 适用于字幕型 Playlist 和 Command Panel Search Result
   - 使用 Playback Cue Result 作为纵向排列单元
+  - 不显示左侧 Library Cover 或独立 Sequence Number 区域
   - Focus Anchor、Scrollbar、Up、Down、Wheel、Trackpad、Scrollbar Drag 和 Settle 语义复用 Current Cue Reel
   - Result Natural Height 代替 Current Cue Natural Height 参与 Placement 计算
+  - Show Cue Group 为 On 时，每条 Result 都在 Primary Cue 下方显示 Cue Group
+  - Show Cue Group 为 Off 时，每条 Result 只显示 Primary Cue
+  - 每个 Result 均显示三个独立的 Playback Cue Information Badge：
+    1. `[x/y]`
+    2. Display Title
+    3. Time Range
+  - Selected Result 使用 Selected Badge 配色
+  - Unselected Result 显示相同内容和数量的 Badge，并使用 Unselected Badge 配色
+  - 选择变化不改变 Badge 内容、数量或 Result Natural Height
+  - `[x/y]` 中 `x` 表示当前 Result 在完整结果集合中的位置，`y` 表示完整结果集合的 Result 数量
+  - Command Panel Search 的 `50` 条预览限制不改变 `[x/y]` 使用的完整结果数量
   - 字幕型 Playlist 在本次 Session 首次初始化时默认选择第一条 Result
   - Command Panel Search Result 首屏结果出来后默认选择第一条 Result，且除非用户操作不修改选中 Result
   - 到达列表边界时继续导航无动作
-  - 字幕型 Playlist 中，Result 不显示 Hover，不响应左键动作
-  - Command Panel Search Result 的 Selected 和 Pointer 行为遵循 Playback Command Panel Layout
-  - Command Panel Search Result 中点击 Result，执行与 Enter 相同的主操作，并进入包含完整搜索结果的 Playlist
+  - 字幕型 Playlist 和 Command Panel Search Result 均不显示 Hover，不响应左键动作
   - 没有 Result 时不存在 Selected Result
   - 不存在 Selected Result 时，所有字幕动作均无动作
   - 从 Current 切换回字幕型 Playlist 后，恢复本次 Session 内的选择和滚动位置
@@ -2426,14 +2413,12 @@
 
 - 字幕型 Playlist：
   - 适用于 Search Result 和 Shiori
-  - 复用 Current 的 Context Region 与 Subtitle Region 结构
-  - 整体信息密度可以高于 Current
-  - Context Region 同时只显示与当前 Settled Result 对应的一张封面
-  - Context Region 可以显示 Display Title、所属 Shiori List、当前位置和总数
+  - 只显示占满 View Content Region 的 Subtitle Region
+  - 不显示左侧 Context Region、Library Cover 或视频识别信息
   - Subtitle Region 使用 Playback Cue Result Reel
+  - 整体信息密度可以高于 Current
   - Show Cue Group 为 Off 时只显示 Primary Cue
   - Show Cue Group 为 On 时显示 Primary Cue 所属 Cue Group
-  - Result 选择稳定后更新 Context Region
   - S、X、C 和 Enter 的动作目标均为 Selected Result 的 Primary Cue
 
 - 视频型 Playlist：
@@ -2511,7 +2496,7 @@
 - 下层 Playback Overlay 或 Playback Content 保持可见，但降低对比、变暗或轻微模糊，并且不可交互。
 - Command Panel 不显示 macOS Traffic Light Buttons。
 - Panel 内不显示不承担操作的顶部或左右 Divider。
-- Panel 使用内容排列、留白和 Selected Row 自然划分区域。
+- Panel 使用内容排列、留白和所属内容布局自然划分区域。
 
 - 打开：
   - Playback Page 活跃时按反引号键（`` ` ``，Esc 下方、数字 `1` 左侧）
@@ -2551,30 +2536,29 @@
   - 二级界面隐藏 Command Panel Search Box
 
 - Search Result：
-  - 使用比 Current 更紧凑的 Context Region 与 Subtitle Region 布局
-  - 不显示 Playback View Switcher
+  - 复用 Playback Cue Result Reel 的布局、选择、滚动和键盘操作
+  - 不显示 Context Region、Library Cover 或 Playback View Switcher
+  - Result Reel 占据 Header 与 Footer 之间的完整内容区域
   - 默认选择第一条 Result
-  - Selected 视觉作用于完整 Result Row
+  - Show Cue Group 为 On 时，每条 Result 都在 Primary Cue 下方显示 Cue Group
+  - Show Cue Group 为 Off 时，每条 Result 只显示 Primary Cue
+  - 每个 Result 均显示 `[x/y]`、Display Title 和 Time Range 三个独立的 Playback Cue Information Badge
+  - Selected Result 使用 Selected Badge 配色
+  - Unselected Result 显示相同内容和数量的信息行，并使用 Unselected Badge 配色
   - Command Panel 最多显示前 `50` 条 Result
+  - `[x/y]` 使用当前 Result 在完整搜索结果中的位置和完整搜索结果数量
   - 完整结果数小于等于 `50` 时，Footer 左侧显示 `{N} results`
   - 完整结果数大于 `50` 时，Footer 左侧显示 `Showing first 50 results`
-  - 打开任意 Result 后，进入包含完整结果集合的 Playlist
   - `50` 条限制只作用于 Command Panel 当前结果预览
+  - 按 `Enter` 后进入包含完整结果集合的 Playlist，并从 Selected Primary Cue 开始播放
   - Search Result 二级界面没有可编辑输入焦点
   - Search Result 支持 Playback Overlay 当前全部 Cue 快捷键，包括 `S`、`X`、`C` 和 `Enter`
   - Cue 快捷键以已经 Settled 的 Selected Primary Cue 为目标
 
 - Recent Videos：
-  - 使用纵向单列 Row
-  - Row 左侧显示紧凑的 `16:9` Library Cover
-  - Library Cover 保持现有 Workbench 视频卡片的视觉比例，不得拉伸或放大为主视觉
-  - Library Cover 底部显示 Library Cover Progress Overlay
-  - Library Cover 右下角显示 Library Cover Badge / Time
-  - Row 右侧第一行显示 Folder Name
-  - Row 右侧第二行同时显示 Episode Label 和 Watch Status Badge
-  - Episode Label 与 Watch Status Badge 紧邻排列
-  - Watch Status 必须使用圆角 Badge，不得显示为普通彩色文字
-  - Selected 视觉作用于完整 Row
+  - 复用 Recent Watching Card Layout 和自适应卡片 Grid，不使用纵向单列 Row
+  - 卡片布局、内容、Hover、Selected、Disabled、左键和右键行为均复用 Recent Watching Card Layout
+  - Selected 视觉作用于完整卡片，并复用卡片的 Hover 视觉
   - Footer 左侧显示 `{N} videos`
   - 二级界面显示完整 Recent Videos 列表
 
@@ -2585,15 +2569,22 @@
   - 二级界面显示完整 Recent Shioris 列表
 
 - 二级界面 Footer：
-  - 右侧依次显示：
+  - Recent Videos 右侧依次显示：
+    - `←`、`→`、`↑`、`↓`、`Navigate`
+    - `Open`
+    - `Enter`
+  - Search Result 和 Recent Shioris 右侧依次显示：
     - `↑`、`↓`、`Navigate`
     - `Open`
     - `Enter`
   - 不显示 Actions 或对应快捷键提示
 
 - 导航与关闭：
-  - `Up` 选择 Previous Item
-  - `Down` 选择 Next Item
+  - 一级界面、Search Result 和 Recent Shioris 使用 `Up` 选择 Previous Item，使用 `Down` 选择 Next Item
+  - Recent Videos 支持 `Left`、`Right`、`Up` 和 `Down`
+  - Recent Videos 根据当前自适应卡片 Grid 的实际视觉位置，选择对应方向最近的卡片
+  - Recent Videos 到达对应方向边界时不移动、不循环
+  - Recent Videos 的 Selected Card 始终滚动到可见区域
   - `Enter` 执行 Selected Item 的主操作
   - 二级界面按 `Escape` 返回一级界面
   - 一级界面按 `Escape` 关闭 Command Panel
