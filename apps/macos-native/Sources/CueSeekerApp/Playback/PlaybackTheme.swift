@@ -352,6 +352,21 @@ enum PlaybackOverlayMetrics {
     static let tabIndicatorHeight: CGFloat = 2
 }
 
+enum PlaybackCollageSelectionMetrics {
+    /// --size-playback-collage-checkbox
+    static let checkboxSize: CGFloat = 24
+    static var checkboxTopPadding: CGFloat {
+        PlaybackSubtitleFocusMetrics.informationHeight
+            + max(
+                0,
+                (
+                    PlaybackSubtitleFocusMetrics.cueLineHeight
+                        - checkboxSize
+                ) / 2
+            )
+    }
+}
+
 enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 0
     static let bottomInset: CGFloat = 0

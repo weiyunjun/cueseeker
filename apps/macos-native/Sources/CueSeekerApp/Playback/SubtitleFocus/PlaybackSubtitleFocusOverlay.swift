@@ -77,33 +77,43 @@ struct PlaybackOverlay: View {
     @ViewBuilder
     private var moduleContent: some View {
         if session.selectedModule == .current {
-            PlaybackSubtitleFocusOverlay(
-                snapshot: snapshot,
-                cues: cues,
-                displayTitle: currentDisplayTitle,
-                contentGeneration: session.token.sessionGeneration,
-                uiProbeScope: uiProbeScope,
-                keyboardNavigationRequest: session.keyboardNavigationRequest,
-                blocksNewNavigation: session.pendingKeyboardAction != nil
-                    || session.activeKeyboardAction != nil,
-                onCommitKeyboardNavigation: session.commitKeyboardNavigation,
-                onCommitNativeReelSelection: session.commitNativeReelSelection,
-                allowsNativeWheelInput: session.allowsNativeWheelInput,
-                allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
-                consumeDeferredAction: {
-                    session.consumeDeferredKeyboardActionIfReady(
-                        module: .current
-                    )
-                },
-                onScrollbarDraggingChanged: {
-                    session.noteScrollbarDragging($0, module: .current)
-                },
-                onCueReelMotionChanged: {
-                    session.noteCueReelMotion($0, module: .current)
-                },
-                onExecuteAction: onExecuteAction
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if session.isEditingCollage {
+                PlaybackCollageEditorContent(
+                    session: session,
+                    cues: cues,
+                    displayTitle: currentDisplayTitle,
+                    initialCueID: snapshot.selectedCue?.id
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                PlaybackSubtitleFocusOverlay(
+                    snapshot: snapshot,
+                    cues: cues,
+                    displayTitle: currentDisplayTitle,
+                    contentGeneration: session.token.sessionGeneration,
+                    uiProbeScope: uiProbeScope,
+                    keyboardNavigationRequest: session.keyboardNavigationRequest,
+                    blocksNewNavigation: session.pendingKeyboardAction != nil
+                        || session.activeKeyboardAction != nil,
+                    onCommitKeyboardNavigation: session.commitKeyboardNavigation,
+                    onCommitNativeReelSelection: session.commitNativeReelSelection,
+                    allowsNativeWheelInput: session.allowsNativeWheelInput,
+                    allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
+                    consumeDeferredAction: {
+                        session.consumeDeferredKeyboardActionIfReady(
+                            module: .current
+                        )
+                    },
+                    onScrollbarDraggingChanged: {
+                        session.noteScrollbarDragging($0, module: .current)
+                    },
+                    onCueReelMotionChanged: {
+                        session.noteCueReelMotion($0, module: .current)
+                    },
+                    onExecuteAction: onExecuteAction
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         } else if session.selectedModule == .playlist {
             if let libraryStore = session.libraryStore {
                 PlaybackLibraryOverlay(

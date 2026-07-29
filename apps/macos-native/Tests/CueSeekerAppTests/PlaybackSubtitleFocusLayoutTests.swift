@@ -38,6 +38,22 @@ func playbackOverlayCurrentAndPlaylistShareFullWidthCueGeometry() {
     )
 }
 
+@Test
+func playbackCollageCheckboxIsLargerAndAnchoredToPrimaryCue() {
+    #expect(
+        PlaybackCollageSelectionMetrics.checkboxSize
+            > WorkbenchControlMetrics.redesignCheckboxSize
+    )
+    #expect(
+        PlaybackCollageSelectionMetrics.checkboxTopPadding
+            == PlaybackSubtitleFocusMetrics.informationHeight
+                + (
+                    PlaybackSubtitleFocusMetrics.cueLineHeight
+                        - PlaybackCollageSelectionMetrics.checkboxSize
+                ) / 2
+    )
+}
+
 @MainActor
 @Test
 func playbackCurrentUsesDedicatedCuePathWithTwoSharedInformationBadges() throws {
