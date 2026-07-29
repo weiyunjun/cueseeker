@@ -199,6 +199,59 @@ func subtitleScreenshotExporterUsesSharedSRTDrawingCore() throws {
     #expect(exportTestImageContainsBrightPixel(rendered))
 }
 
+@Test
+func subtitleCollageASSRenderScriptKeepsOnlySelectedDialogueEvents() throws {
+    let sourceScript = """
+    [Script Info]
+    PlayResX: 640
+    PlayResY: 360
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: Default,Arial,32
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Not selected
+    Comment: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Preserved comment
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Selected
+    """
+
+    let selectedScript = try #require(
+        SubtitleScreenshotExporter._selectedASSRenderScriptForTesting(
+            sourceScript,
+            eventIndices: [1]
+        )
+    )
+
+    #expect(selectedScript.contains("Style: Default,Arial,32"))
+    #expect(selectedScript.contains("Preserved comment"))
+    #expect(selectedScript.contains(",,Selected"))
+    #expect(!selectedScript.contains("Not selected"))
+    #expect(
+        SubtitleScreenshotExporter._selectedASSRenderScriptForTesting(
+            sourceScript,
+            eventIndices: [2]
+        ) == nil
+    )
+}
+
+@Test
+func subtitleCollageCompositionKeepsFirstFrameAndCropsLaterSubtitleBands() throws {
+    let first = try #require(makeBlackExportTestImage(width: 20, height: 10))
+    let second = try #require(makeBlackExportTestImage(width: 20, height: 10))
+
+    let collage = try #require(
+        SubtitleScreenshotExporter._composeCollageForTesting(frames: [
+            (image: first, subtitleBands: []),
+            (image: second, subtitleBands: [2...4, 7...8]),
+        ])
+    )
+
+    #expect(collage.width == 20)
+    #expect(collage.height == 15)
+}
+
 private func subtitleScreenshotTestItem(
     displayTitle: String,
     startMilliseconds: Int = 1_000,

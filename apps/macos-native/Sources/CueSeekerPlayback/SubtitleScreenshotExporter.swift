@@ -210,40 +210,79 @@ public enum SubtitleScreenshotExporter {
             try? FileManager.default.removeItem(at: workspaceURL)
         }
 
-        var strips: [CGImage] = []
+        var renderedFrames: [RenderedSubtitleFrame] = []
         let sortedItems = sortedByTimeline(items)
         let preparedSRTSources = try await prepareSRTSources(for: sortedItems)
 
-        for (index, item) in sortedItems.enumerated() {
-            let renderedFrame = try await renderedSubtitleFrame(
+        for item in sortedItems {
+            renderedFrames.append(try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
                 workspaceURL: workspaceURL,
                 preparedSRTSources: preparedSRTSources
-            )
-
-            if index == 0 {
-                strips.append(renderedFrame.image)
-                continue
-            }
-
-            if renderedFrame.subtitleBands.isEmpty {
-                strips.append(renderedFrame.image)
-                continue
-            }
-
-            for band in renderedFrame.subtitleBands {
-                guard let crop = renderedFrame.image.cropping(to: CGRect(x: 0, y: band.y1, width: renderedFrame.image.width, height: band.height)) else {
-                    continue
-                }
-                strips.append(crop)
-            }
+            ))
         }
 
-        guard let collage = verticalStack(strips) else {
+        guard let collage = collageImage(from: renderedFrames) else {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
         try writePNG(collage, to: destinationURL)
+    }
+
+    public static func renderCollage(
+        plan: SubtitleCollageSelectionPlan,
+        videoURL: URL,
+        subtitleSource: PlaybackSubtitleSource
+    ) async throws -> CGImage {
+        guard plan.selectedCueCount > 0, !plan.groups.isEmpty else {
+            throw SubtitleScreenshotExportError.emptyItems
+        }
+        guard let ffmpegURL = ffmpegExecutableURL() else {
+            throw SubtitleScreenshotExportError.ffmpegNotFound
+        }
+
+        let workspaceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "CueSeekerSelectedSubtitleCollage-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: workspaceURL,
+            withIntermediateDirectories: true
+        )
+        defer {
+            try? FileManager.default.removeItem(at: workspaceURL)
+        }
+
+        let assSourceScript = subtitleSource.format == .ass
+            ? try String(contentsOf: subtitleSource.url)
+            : nil
+        var renderedFrames: [RenderedSubtitleFrame] = []
+        renderedFrames.reserveCapacity(plan.groups.count)
+
+        for group in plan.groups {
+            let timestampMilliseconds = group.renderTimestampMilliseconds
+            let frameImage = try await videoFrame(
+                videoPath: videoURL.path,
+                timestampMilliseconds: timestampMilliseconds,
+                ffmpegURL: ffmpegURL,
+                workspaceURL: workspaceURL
+            )
+            renderedFrames.append(
+                try renderSelectedSubtitleFrame(
+                    group: group,
+                    source: subtitleSource,
+                    sourceScript: assSourceScript,
+                    timestampMilliseconds: timestampMilliseconds,
+                    frameImage: frameImage
+                )
+            )
+        }
+
+        guard let collage = collageImage(from: renderedFrames) else {
+            throw SubtitleScreenshotExportError.imageContextFailed
+        }
+        return collage
     }
 
     private static func exportScreenshots(
@@ -309,28 +348,40 @@ public enum SubtitleScreenshotExporter {
         workspaceURL: URL,
         preparedSRTSources: [PreparedSRTSource]
     ) async throws -> RenderedSubtitleFrame {
-        let frameURL = workspaceURL
-            .appendingPathComponent("frame-\(UUID().uuidString)")
-            .appendingPathExtension("png")
         let timestampMilliseconds = midpointMilliseconds(for: item)
-        try await exportVideoFrame(
+        let frameImage = try await videoFrame(
             videoPath: item.videoPath,
             timestampMilliseconds: timestampMilliseconds,
             ffmpegURL: ffmpegURL,
-            outputURL: frameURL
+            workspaceURL: workspaceURL
         )
-
-        guard FileManager.default.fileExists(atPath: frameURL.path) else {
-            throw SubtitleScreenshotExportError.missingFrameImage(frameURL.path)
-        }
-
-        let frameImage = try loadImage(at: frameURL)
         return try renderSubtitleFrame(
             item: item,
             timestampMilliseconds: timestampMilliseconds,
             frameImage: frameImage,
             preparedSRTSources: preparedSRTSources
         )
+    }
+
+    private static func videoFrame(
+        videoPath: String,
+        timestampMilliseconds: Int,
+        ffmpegURL: URL,
+        workspaceURL: URL
+    ) async throws -> CGImage {
+        let frameURL = workspaceURL
+            .appendingPathComponent("frame-\(UUID().uuidString)")
+            .appendingPathExtension("png")
+        try await exportVideoFrame(
+            videoPath: videoPath,
+            timestampMilliseconds: timestampMilliseconds,
+            ffmpegURL: ffmpegURL,
+            outputURL: frameURL
+        )
+        guard FileManager.default.fileExists(atPath: frameURL.path) else {
+            throw SubtitleScreenshotExportError.missingFrameImage(frameURL.path)
+        }
+        return try loadImage(at: frameURL)
     }
 
     private static func subtitleSource(
@@ -482,6 +533,88 @@ public enum SubtitleScreenshotExporter {
         )
     }
 
+    private static func renderSelectedSubtitleFrame(
+        group: SubtitleCollageGroup,
+        source: PlaybackSubtitleSource,
+        sourceScript: String?,
+        timestampMilliseconds: Int,
+        frameImage: CGImage
+    ) throws -> RenderedSubtitleFrame {
+        if source.format == .srt {
+            let cues = group.cues.enumerated().map { sourceOrdinal, cue in
+                PlaybackSubtitleCue(
+                    sourceOrdinal: sourceOrdinal,
+                    startMilliseconds: cue.startMilliseconds,
+                    endMilliseconds: cue.endMilliseconds,
+                    text: cue.content
+                )
+            }
+            return try renderSRTFrame(
+                cues: cues,
+                timestampMilliseconds: timestampMilliseconds,
+                frameImage: frameImage
+            )
+        }
+
+        guard source.format == .ass,
+              let sourceScript,
+              let selectedScript = selectedASSRenderScript(
+                  sourceScript,
+                  eventIndices: Set(group.cues.map(\.eventIndex))
+              )
+        else {
+            throw SubtitleScreenshotExportError.imageContextFailed
+        }
+
+        let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
+            sourcePath: source.url.path,
+            renderCacheDatabaseURL: source.renderCacheDatabaseURL
+        )
+        let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
+            selectedScript,
+            requestedFontNames: requestedFontNames
+        )
+        let selectedEventKey = group.cues.map(\.eventIndex)
+            .sorted()
+            .map(String.init)
+            .joined(separator: ",")
+        let session = try SFXASSRendererSession(
+            assScript: renderScript,
+            sourceIdentifier: "\(source.url.path)#selected=\(selectedEventKey)",
+            frameWidth: frameImage.width,
+            frameHeight: frameImage.height
+        )
+        defer {
+            session.close()
+        }
+
+        let output = try session.renderFrame(
+            atTimestampMilliseconds: timestampMilliseconds
+        )
+        let bands = subtitleBands(
+            fromRGBAData: output.rgbaData as Data,
+            width: frameImage.width,
+            height: frameImage.height,
+            stride: output.stride
+        )
+        guard let overlayImage = rgbaImage(
+            data: output.rgbaData as Data,
+            width: output.width,
+            height: output.height,
+            stride: output.stride
+        ),
+        let composedImage = compose(
+            baseImage: frameImage,
+            overlayImage: overlayImage
+        ) else {
+            throw SubtitleScreenshotExportError.imageContextFailed
+        }
+        return RenderedSubtitleFrame(
+            image: composedImage,
+            subtitleBands: bands
+        )
+    }
+
     static func _renderSRTFrameForTesting(
         cues: [PlaybackSubtitleCue],
         timestampMilliseconds: Int,
@@ -492,6 +625,87 @@ public enum SubtitleScreenshotExporter {
             timestampMilliseconds: timestampMilliseconds,
             frameImage: frameImage
         ).image
+    }
+
+    static func _selectedASSRenderScriptForTesting(
+        _ sourceScript: String,
+        eventIndices: Set<Int>
+    ) -> String? {
+        selectedASSRenderScript(sourceScript, eventIndices: eventIndices)
+    }
+
+    static func _composeCollageForTesting(
+        frames: [(image: CGImage, subtitleBands: [ClosedRange<Int>])]
+    ) -> CGImage? {
+        collageImage(
+            from: frames.map { frame in
+                RenderedSubtitleFrame(
+                    image: frame.image,
+                    subtitleBands: frame.subtitleBands.map {
+                        SubtitleBand(y1: $0.lowerBound, y2: $0.upperBound)
+                    }
+                )
+            }
+        )
+    }
+
+    private static func selectedASSRenderScript(
+        _ sourceScript: String,
+        eventIndices: Set<Int>
+    ) -> String? {
+        guard !eventIndices.isEmpty else {
+            return nil
+        }
+
+        let normalizedScript = sourceScript
+            .replacingOccurrences(of: "\u{feff}", with: "")
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let lines = normalizedScript
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+        var isEventsSection = false
+        var hasEventFormat = false
+        var nextEventIndex = 0
+        var foundEventIndices = Set<Int>()
+        var selectedLines: [String] = []
+        selectedLines.reserveCapacity(lines.count)
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lowercased = trimmed.lowercased()
+
+            if lowercased.hasPrefix("[") && lowercased.hasSuffix("]") {
+                isEventsSection = lowercased == "[events]"
+                selectedLines.append(line)
+                continue
+            }
+            if isEventsSection, lowercased.hasPrefix("format:") {
+                hasEventFormat = true
+                selectedLines.append(line)
+                continue
+            }
+            guard isEventsSection,
+                  hasEventFormat,
+                  lowercased.hasPrefix("dialogue:")
+            else {
+                selectedLines.append(line)
+                continue
+            }
+
+            let eventIndex = nextEventIndex
+            nextEventIndex += 1
+            guard eventIndices.contains(eventIndex) else {
+                continue
+            }
+            foundEventIndices.insert(eventIndex)
+            selectedLines.append(line)
+        }
+
+        guard foundEventIndices == eventIndices else {
+            return nil
+        }
+        return selectedLines.joined(separator: "\n") + "\n"
     }
 
     private static func makeASSSession(
@@ -649,6 +863,33 @@ public enum SubtitleScreenshotExporter {
         drawImage(baseImage, in: context, rect: fullRect)
         drawImage(overlayImage, in: context, rect: fullRect)
         return context.makeImage()
+    }
+
+    private static func collageImage(
+        from renderedFrames: [RenderedSubtitleFrame]
+    ) -> CGImage? {
+        var strips: [CGImage] = []
+        for (index, renderedFrame) in renderedFrames.enumerated() {
+            if index == 0 || renderedFrame.subtitleBands.isEmpty {
+                strips.append(renderedFrame.image)
+                continue
+            }
+
+            for band in renderedFrame.subtitleBands {
+                guard let crop = renderedFrame.image.cropping(
+                    to: CGRect(
+                        x: 0,
+                        y: band.y1,
+                        width: renderedFrame.image.width,
+                        height: band.height
+                    )
+                ) else {
+                    continue
+                }
+                strips.append(crop)
+            }
+        }
+        return verticalStack(strips)
     }
 
     private static func verticalStack(_ images: [CGImage]) -> CGImage? {
