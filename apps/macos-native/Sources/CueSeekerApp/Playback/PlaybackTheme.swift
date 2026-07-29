@@ -309,9 +309,9 @@ enum PlaybackSubtitleFocusMetrics {
     /// --font-weight-subtitle-focus-cue
     static let cueFontWeight = NSFont.Weight.semibold
     /// --font-size-subtitle-focus-cue-group
-    static let cueGroupFontSize: CGFloat = 16
+    static let cueGroupFontSize: CGFloat = 20
     /// --line-height-subtitle-focus-cue-group
-    static let cueGroupLineHeight: CGFloat = 22
+    static let cueGroupLineHeight: CGFloat = 28
     /// --font-weight-subtitle-focus-cue-group
     static let cueGroupFontWeight = NSFont.Weight.medium
     /// --spacing-2

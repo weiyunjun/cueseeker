@@ -10,8 +10,8 @@ func playbackCueResultMetricsMatchCompactIteration() {
     #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 24)
     #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 32)
     #expect(PlaybackSubtitleFocusMetrics.cueFontWeight == .semibold)
-    #expect(PlaybackSubtitleFocusMetrics.cueGroupFontSize == 16)
-    #expect(PlaybackSubtitleFocusMetrics.cueGroupLineHeight == 22)
+    #expect(PlaybackSubtitleFocusMetrics.cueGroupFontSize == 20)
+    #expect(PlaybackSubtitleFocusMetrics.cueGroupLineHeight == 28)
     #expect(PlaybackSubtitleFocusMetrics.cueGroupFontWeight == .medium)
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeGap == 8)
     #expect(PlaybackSubtitleFocusMetrics.informationCueGap == 8)
@@ -216,8 +216,8 @@ func playbackCueResultFlattensMixedCueGroupIntoOneStrictStack() {
         .additionalCue(index: 0),
         .additionalCue(index: 1),
     ])
-    #expect(plan.visualLinePlan.nominalContentHeight == CGFloat(22 + 22 + 32))
-    #expect(plan.extent.naturalHeight == 92)
+    #expect(plan.visualLinePlan.nominalContentHeight == CGFloat(28 + 28 + 32))
+    #expect(plan.extent.naturalHeight == 104)
     playbackCueResultExpectStrictThreePointGaps(plan)
 }
 
@@ -270,9 +270,9 @@ func playbackCueResultPreservesRoleAwareEmptyAndTrailingLines() {
         .additionalCue(index: 0),
         .additionalCue(index: 1),
     ])
-    #expect(plan.visualLines.map(\.line.nominalLineHeight) == [32, 32, 22, 22, 22])
-    #expect(plan.visualLinePlan.nominalContentHeight == 130)
-    #expect(plan.extent.naturalHeight == 146)
+    #expect(plan.visualLines.map(\.line.nominalLineHeight) == [32, 32, 28, 28, 28])
+    #expect(plan.visualLinePlan.nominalContentHeight == 148)
+    #expect(plan.extent.naturalHeight == 164)
     playbackCueResultExpectStrictThreePointGaps(plan)
 }
 
@@ -296,7 +296,7 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
     let selectedPrimary = try #require(selected.primaryFirstVisualLine)
 
     #expect(selectedGroup.style == .cueGroup)
-    #expect(selectedGroup.style.font.pointSize == 16)
+    #expect(selectedGroup.style.font.pointSize == 20)
     #expect(playbackCueResultAlpha(selectedGroup.color) == 0.62)
     #expect(selectedPrimary.style == .primary)
     #expect(selectedPrimary.style.font.pointSize == 24)

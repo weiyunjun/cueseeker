@@ -1,6 +1,6 @@
 # Playback Cue Typography Density Implementation Record
 
-Status: First visual iteration awaiting human review
+Status: Second visual iteration awaiting human review
 
 Requirement:
 `docs/human/requirements/20260729-Feature-Playback Cue Typography Density.md`
@@ -15,7 +15,7 @@ measurement-cache, selection, scrolling, or Badge behavior.
 
 - Changed Primary Cue typography to 24-point text with a 32-point nominal line
   height.
-- Changed Cue Group typography to 16-point text with a 22-point nominal line
+- Changed Cue Group typography to 20-point text with a 28-point nominal line
   height.
 - Changed the internal visual-line gap to 3 points and Cue vertical padding to
   8 points.
@@ -41,6 +41,6 @@ measurement-cache, selection, scrolling, or Badge behavior.
 
 ## Outcome
 
-The first iteration passed its focused verification and is ready for human
+The second iteration passed its focused verification and is ready for human
 visual review. Final values and human-owned UI documentation remain
 intentionally unsettled until the visual review is accepted.
