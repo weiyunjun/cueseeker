@@ -91,6 +91,18 @@ public enum PlaybackTheme {
         )
     )
 
+    /// --color-playback-information-badge-bg
+    static let informationBadgeBackgroundNative = subtitleFocusDynamicColor(
+        light: NSColor.hex("#DBEAFE"),
+        dark: NSColor.hex("#172A4A")
+    )
+
+    /// --color-playback-information-badge-text
+    static let informationBadgeTextNative = subtitleFocusDynamicColor(
+        light: NSColor.hex("#0040FF"),
+        dark: NSColor.hex("#93C5FD")
+    )
+
     /// --color-playback-module-sidebar-selected
     public static var playbackModuleSidebarSelected: Color {
         Color(nsColor: playbackModuleSidebarSelectedNative)

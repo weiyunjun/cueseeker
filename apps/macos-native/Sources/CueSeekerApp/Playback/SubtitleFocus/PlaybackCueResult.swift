@@ -199,7 +199,7 @@ enum PlaybackCueInformationBadgeLayout {
             guard frame.width > 0, frame.height > 0 else {
                 continue
             }
-            WorkbenchRedesignColors.NS.bgHover.setFill()
+            PlaybackTheme.informationBadgeBackgroundNative.setFill()
             NSBezierPath(
                 roundedRect: frame,
                 xRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius,
@@ -209,7 +209,7 @@ enum PlaybackCueInformationBadgeLayout {
                 string: plan.text,
                 attributes: [
                     .font: font,
-                    .foregroundColor: WorkbenchRedesignColors.NS.textSecondary,
+                    .foregroundColor: PlaybackTheme.informationBadgeTextNative,
                     .paragraphStyle: paragraphStyle,
                 ]
             ).draw(

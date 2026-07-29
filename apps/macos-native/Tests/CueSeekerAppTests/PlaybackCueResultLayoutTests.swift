@@ -72,6 +72,18 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
     )
     #expect(
         playbackCueResultHex(
+            PlaybackTheme.informationBadgeBackgroundNative,
+            appearanceName: .aqua
+        ) == "#DBEAFE"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.informationBadgeTextNative,
+            appearanceName: .aqua
+        ) == "#0040FF"
+    )
+    #expect(
+        playbackCueResultHex(
             PlaybackTheme.playbackModuleSidebarSelectedNative,
             appearanceName: .aqua
         ) == "#111827"
@@ -99,6 +111,18 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
             PlaybackTheme.subtitleFocusCueUnselectedNative,
             appearanceName: .darkAqua
         ) == 0.34
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.informationBadgeBackgroundNative,
+            appearanceName: .darkAqua
+        ) == "#172A4A"
+    )
+    #expect(
+        playbackCueResultHex(
+            PlaybackTheme.informationBadgeTextNative,
+            appearanceName: .darkAqua
+        ) == "#93C5FD"
     )
 }
 

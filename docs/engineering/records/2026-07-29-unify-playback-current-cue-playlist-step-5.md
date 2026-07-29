@@ -113,3 +113,21 @@
   issues across 7 existing native-media timing, temporary-database action, and
   UI refresh-scope tests. Each failed test passed when rerun individually.
 - `git diff --check`: passed before the final review.
+
+## Follow-up: Improve Information Badge Contrast
+
+- Replaced the neutral information Badge background and text colors with
+  dedicated Playback information Badge colors for light and dark appearances.
+- Used the accepted Watching blue values as a visual reference while keeping
+  independent Playback color definitions, so later Watch Status changes do not
+  affect Playback Cue presentation.
+- Changed only Badge fill and text color selection. Badge geometry, Reel
+  measurement, caching, scrolling, and selection behavior remain unchanged.
+
+### Verification
+
+- `swift test --filter playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens`:
+  passed.
+- `swift test --filter playbackCueResult`: passed.
+- `swift build`: passed.
+- `git diff --check`: passed before the final review.
