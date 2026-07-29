@@ -269,17 +269,30 @@ struct WorkbenchTestLibraryView: View {
     @EnvironmentObject private var library: LibraryStore
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                if let selectedFolder {
+        Group {
+            if let selectedFolder {
+                ScrollView {
                     folderDetailContent(for: selectedFolder)
-                } else {
+                        .padding(
+                            .horizontal,
+                            WorkbenchTestLibraryMetrics.pageHorizontalPadding
+                        )
+                        .padding(
+                            .vertical,
+                            WorkbenchTestLibraryMetrics.pageVerticalPadding
+                        )
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            } else {
+                LibraryOverviewLayout(
+                    summaryText: completeLibrarySummaryText,
+                    actionTitle: "Add Content",
+                    actionSystemImage: "plus",
+                    action: openLibrarySettings
+                ) {
                     completeLibraryContent
                 }
             }
-            .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
-            .padding(.vertical, WorkbenchTestLibraryMetrics.pageVerticalPadding)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .task {
@@ -334,6 +347,7 @@ struct WorkbenchTestLibraryView: View {
         } else if let folderDetail, folderDetail.folderPath == folder.folderPath {
             CompleteLibraryEpisodeGrid(
                 videos: folderDetail.videos,
+                mode: .workbench,
                 onOpen: { video in
                     appState.prepareLibraryNavigationVideos(folderDetail.videos)
                     appState.openLibraryVideo(
@@ -374,6 +388,24 @@ struct WorkbenchTestLibraryView: View {
         appState.workbenchLayout.selectTestLibraryFolder(updatedFolder)
     }
 
+    private var completeLibrarySummaryText: String {
+        let folders = library.completeLibraryFolderSummaries
+        let itemCount = folders.reduce(0) { count, folder in
+            count + folder.episodeCount
+        }
+        return "\(folders.count) Folders · \(itemCount) Videos · "
+            + "\(itemCount) Subtitles"
+    }
+
+    private func openLibrarySettings() {
+        appState.performUserInitiatedAppCommand {
+            NotificationCenter.default.post(
+                name: .cueSeekerShowSettings,
+                object: nil
+            )
+        }
+    }
+
 }
 
 private extension WorkbenchTestLibraryView {
@@ -401,8 +433,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let pageHorizontalPadding: CGFloat = 24
     static let pageVerticalPadding: CGFloat = 24
     static let sectionSpacing: CGFloat = 16
-    static let completeSectionTopPadding: CGFloat = 16
-
     static let sectionTitleSize = WorkbenchControlMetrics.redesignFontSizeSectionTitle
 
     static let recentGridGap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
@@ -412,10 +442,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let mediaCardHoverPadding = WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
     static let mediaCardHoverRadius = WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius
 
-    static let folderGridGap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
-    static let folderCardMinWidth = WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth
-    static let folderCardMaxWidth = WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth
-    static let folderCardGap = WorkbenchControlMetrics.redesignSpacing2
     static let detailHeaderGap = WorkbenchControlMetrics.redesignSpacing2
     static let episodeGridTopPadding = WorkbenchControlMetrics.redesignSpacing2
     static let episodeRowMinWidth = WorkbenchControlMetrics.redesignLibraryEpisodeRowMinWidth
@@ -712,22 +738,9 @@ struct CompleteLibraryFolderGrid: View {
     var onHoverSelection: (CompleteLibraryFolderSummaryPresentation) -> Void = { _ in }
     let onOpen: (CompleteLibraryFolderSummaryPresentation) -> Void
 
-    private var columns: [GridItem] {
-        [
-            GridItem(
-                .adaptive(
-                    minimum: WorkbenchTestLibraryMetrics.folderCardMinWidth,
-                    maximum: WorkbenchTestLibraryMetrics.folderCardMaxWidth
-                ),
-                spacing: WorkbenchTestLibraryMetrics.folderGridGap,
-                alignment: .topLeading
-            )
-        ]
-    }
-
     var body: some View {
         LibraryCardContextMenuHost { openContextMenu in
-            LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderGridGap) {
+            LibraryOverviewGrid {
                 ForEach(folders) { folder in
                     LibraryFolderCard(
                         folder: folder,
@@ -755,7 +768,6 @@ struct CompleteLibraryFolderGrid: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
                 guard itemFrameCoordinateSpace != nil else {
                     return
@@ -781,41 +793,24 @@ private struct LibraryFolderCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.folderCardGap) {
-            cover
-
-            Text(folder.folderTitle)
-                .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
-        .frame(maxWidth: WorkbenchTestLibraryMetrics.folderCardMaxWidth, alignment: .topLeading)
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                style: .continuous
-            )
-            .fill(
-                (isHovered || isSelected) && isAvailable
-                    ? WorkbenchRedesignColors.libraryMediaCardHoverBg
-                    : Color.clear
-            )
-        )
-        .opacity(isAvailable ? 1 : 0.55)
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                style: .continuous
-            )
-        )
-        .onTapGesture {
+        Button {
             guard isAvailable else {
                 return
             }
             onOpen()
+        } label: {
+            LibraryOverviewCardContent(title: folder.folderTitle) {
+                cover
+            }
         }
+        .buttonStyle(
+            LibraryOverviewCardButtonStyle(
+                isHovered: isHovered,
+                isSelected: isSelected,
+                isEnabled: isAvailable
+            )
+        )
+        .disabled(!isAvailable)
         .onHover { hovering in
             isHovered = hovering
             if hovering, allowsHoverSelection, isAvailable {
@@ -834,7 +829,7 @@ private struct LibraryFolderCard: View {
             openContextMenu: openContextMenu
         )
         .libraryCardCursor(isEnabled: isAvailable)
-        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .accessibilityLabel(folder.folderTitle)
     }
 
     private var cover: some View {
@@ -904,15 +899,28 @@ struct LibraryFolderDetailHeader: View {
     }
 }
 
+enum CompleteLibraryEpisodeGridMode: Equatable {
+    case workbench
+    case playback
+
+    var displaysPersistentSelection: Bool {
+        self == .playback
+    }
+
+    var showsContextMenuItem: Bool {
+        self == .workbench
+    }
+}
+
 struct CompleteLibraryEpisodeGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
     let videos: [CompleteLibraryVideoPresentation]
+    var mode: CompleteLibraryEpisodeGridMode = .workbench
     var selectedItemID: String? = nil
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHoverSelection = false
     var onHoverSelection: (CompleteLibraryVideoPresentation) -> Void = { _ in }
-    var showsContextMenuItem = true
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
     var body: some View {
@@ -924,12 +932,14 @@ struct CompleteLibraryEpisodeGrid: View {
                     ForEach(videos) { video in
                         LibraryEpisodeCard(
                             video: video,
-                            isSelected: selectedItemID == video.id,
+                            isSelected: mode.displaysPersistentSelection
+                                && selectedItemID == video.id,
                             actions: .appState(appState),
                             openContextMenu: openContextMenu,
-                            allowsHoverSelection: allowsHoverSelection,
+                            allowsHoverSelection: mode.displaysPersistentSelection
+                                && allowsHoverSelection,
                             onHoverSelection: { onHoverSelection(video) },
-                            showsContextMenuItem: showsContextMenuItem
+                            showsContextMenuItem: mode.showsContextMenuItem
                         ) {
                             onOpen(video)
                         }

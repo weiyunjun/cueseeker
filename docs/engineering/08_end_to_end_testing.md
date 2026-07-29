@@ -1083,15 +1083,26 @@ pbpaste
     Recent card and confirm its existing primary playback action destroys the
     Overlay and opens that exact media item. Selected must reuse the complete
     card Hover visual with no Focus Ring, border, or independent selected fill.
-11. Reopen the Overlay and enter Library. Confirm the first available Folder is
-    selected, use all four arrows, scroll, and take Library-Folder-before.
+11. Before reopening Playback, enter Workbench Library. Confirm its Summary Row
+    displays the visible Folder count plus Video and Subtitle totals, and that
+    the Folder count equals the number of Folder Cards currently displayed.
+    Confirm `Add Content` opens Settings with Library selected. Return to
+    Workbench, compare Library and Shiori level one, and confirm they share the
+    same Summary Row, adaptive Grid, card width, Hover, and Pressed structure;
+    only Shiori cards include the Description line. Enter one Library Folder
+    and confirm its Episode list has no persistent default selection. Start
+    playback from that folder, reopen the Overlay, and enter Library. Confirm
+    the first available Folder is selected, use all four arrows, scroll, and
+    take Library-Folder-before.
     Before entering, verify Folder Hover and its shared card context menu with
     no `Context` item. Selected Folder must reuse the full-card Hover visual;
     Selected Episode must reuse only the Cover Region Hover visual. Neither may
     add a Focus Ring, border, or independent selected fill. Press Enter
     once to open the selected Folder and confirm a held/repeating Enter does not
     enter twice. Verify the fixed Detail Header, first available Episode
-    selection, four-arrow navigation, Cover hover, and Cover context menu.
+    selection, four-arrow navigation, Cover hover, and Cover context menu. The
+    Playback Episode rows must match the Workbench Folder Detail layout and card
+    content exactly apart from the documented selection and menu capabilities.
     Scroll Detail and take Library-Detail-before; leave and return with Sidebar
     clicks, then take Library-Detail-after and compare the selected identity and
     named Episode top-edge coordinate. Use Back and take Library-Folder-after;

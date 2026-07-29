@@ -414,6 +414,20 @@ Rules:
 Search, Recent, Library, and Shiori in Playback are capability-restricted hosts
 of their Workbench features. They are not separate feature implementations.
 
+Workbench Library and Shiori level-one pages reuse one Overview layout, one
+adaptive Grid, and one Media Card content/style structure. Their differences
+are data and actions: Library cards represent folders without a Description,
+while Shiori cards represent lists with a Description. Library statistics are
+derived from the same displayed folder summaries, and `Add Content` opens the
+existing Settings Library entry point rather than adding another folder picker.
+
+Workbench Library Folder Detail and Playback Video Playlist render the same
+Library Episode list and card implementation. Workbench does not create a
+persistent Episode selection; Playback keeps Session-local selection, defaults
+it to the first available Episode, and suppresses the Workbench-only `Context`
+menu item. These host differences must remain configuration of the shared list,
+not separate row implementations.
+
 The Playback Multi-Module Overlay owns one strictly temporary Session with
 Current, optional Playlist, Search, Recent, Library, and Shiori. Module
 switching stays inside that Session; Escape, playback, Playback Page close, and

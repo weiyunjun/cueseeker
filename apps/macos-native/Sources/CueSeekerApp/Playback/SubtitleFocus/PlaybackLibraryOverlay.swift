@@ -83,6 +83,7 @@ private struct PlaybackLibraryEpisodeList: View {
         } else if let detail = store.detail {
             CompleteLibraryEpisodeGrid(
                 videos: detail.videos,
+                mode: .playback,
                 selectedItemID: selection.selectedItemID,
                 itemFrameCoordinateSpace: coordinateSpaceName,
                 onItemFramesChange: { frames in
@@ -95,7 +96,6 @@ private struct PlaybackLibraryEpisodeList: View {
                 onHoverSelection: { video in
                     selection.selectFromPointer(video.id)
                 },
-                showsContextMenuItem: false,
                 onOpen: { video in
                     _ = onOpenEpisode(video)
                 }

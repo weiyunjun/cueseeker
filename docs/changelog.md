@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified the level-one Library and Shiori Overview structure. Library now
+  reports visible Folder, Video, and Subtitle totals and opens Settings Library
+  from `Add Content`; both pages share the same adaptive Grid and Media Card
+  structure while retaining Shiori descriptions and feature-specific actions.
+  Workbench Library Folder Detail and Playback Video Playlist now also declare
+  their selection and Context-menu differences through one shared Episode list.
 - Unified Workbench Search and Shiori query behavior. Shiori now filters as the
   user types, uses the shared Primary Cue matcher without matching Display
   Title, and displays the exact result count. Workbench Cue tables now place the

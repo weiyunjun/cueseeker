@@ -6,6 +6,14 @@ import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
+@Test
+func libraryEpisodeGridModesPreserveSurfaceSelectionRules() {
+    #expect(!CompleteLibraryEpisodeGridMode.workbench.displaysPersistentSelection)
+    #expect(CompleteLibraryEpisodeGridMode.workbench.showsContextMenuItem)
+    #expect(CompleteLibraryEpisodeGridMode.playback.displaysPersistentSelection)
+    #expect(!CompleteLibraryEpisodeGridMode.playback.showsContextMenuItem)
+}
+
 @MainActor
 @Test
 func playbackLibraryUsesOnlyTheCurrentFolderEpisodes() throws {
