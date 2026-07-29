@@ -435,6 +435,19 @@ private struct PlaybackCommandPanelRecentVideos: View {
     let onSynchronize: () -> Void
     let onOpen: (Int) -> Void
 
+    private var items: [RecentLibraryWatchingPresentation] {
+        libraryStore.testRecentWatchingItems
+    }
+
+    private var selectedItemID: String? {
+        guard let ordinal = presentation.selectedOrdinal,
+              items.indices.contains(ordinal)
+        else {
+            return nil
+        }
+        return items[ordinal].id
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             PlaybackCommandPanelSecondaryHeader(
@@ -444,25 +457,14 @@ private struct PlaybackCommandPanelRecentVideos: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(
-                        spacing: WorkbenchControlMetrics.redesignSpacing2
-                    ) {
-                        ForEach(
-                            Array(
-                                libraryStore
-                                    .testRecentWatchingItems
-                                    .enumerated()
-                            ),
-                            id: \.element.id
-                        ) { ordinal, item in
-                            PlaybackCommandPanelRecentVideoRow(
-                                item: item,
-                                isSelected:
-                                    presentation.selectedOrdinal == ordinal
-                            ) {
-                                onOpen(ordinal)
-                            }
-                            .id(ordinal)
+                    RecentWatchingGrid(
+                        items: items,
+                        selectedItemID: selectedItemID
+                    ) { item in
+                        if let ordinal = items.firstIndex(where: {
+                            $0.id == item.id
+                        }) {
+                            onOpen(ordinal)
                         }
                     }
                     .padding(
@@ -474,13 +476,12 @@ private struct PlaybackCommandPanelRecentVideos: View {
                         WorkbenchControlMetrics.redesignSpacing2
                     )
                 }
-                .onChange(of: presentation.selectedOrdinal) {
-                    selectedOrdinal in
-                    guard let selectedOrdinal else {
+                .onChange(of: selectedItemID) { selectedItemID in
+                    guard let selectedItemID else {
                         return
                     }
                     withAnimation(.easeOut(duration: 0.16)) {
-                        proxy.scrollTo(selectedOrdinal, anchor: .center)
+                        proxy.scrollTo(selectedItemID, anchor: .center)
                     }
                 }
             }
@@ -498,85 +499,25 @@ private struct PlaybackCommandPanelRecentVideos: View {
     }
 }
 
-private struct PlaybackCommandPanelRecentVideoRow: View {
-    let item: RecentLibraryWatchingPresentation
-    let isSelected: Bool
-    let onOpen: () -> Void
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(
-                alignment: .center,
-                spacing: WorkbenchControlMetrics.redesignSpacing4
-            ) {
-                LibraryCoverWithProgress(
-                    coverPath: item.coverPath,
-                    coverRevision: item.coverRevision,
-                    positionMilliseconds: item.positionMilliseconds,
-                    duration: item.playbackDuration ?? item.duration
-                )
-                .frame(
-                    width: WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth
-                )
-
-                VStack(
-                    alignment: .leading,
-                    spacing: WorkbenchControlMetrics.redesignSpacing2
-                ) {
-                    Text(item.folderTitle)
-                        .font(.system(
-                            size: WorkbenchControlMetrics
-                                .redesignFontSizeLibraryTitle,
-                            weight: .semibold
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .lineLimit(1)
-
-                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                        Text(String(format: "EP%02d", item.episodeNumber))
-                            .font(.system(
-                                size: WorkbenchControlMetrics
-                                    .redesignFontSizeLibraryMeta,
-                                weight: .medium
-                            ))
-                            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                            .monospacedDigit()
-
-                        WatchStatusBadge(
-                            status: LibraryWatchStatus(item.watchState)
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(WorkbenchControlMetrics.redesignSpacing3)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(
-                    cornerRadius:
-                        WorkbenchControlMetrics.redesignLibraryListCardRadius,
-                    style: .continuous
-                )
-                .fill(
-                    isSelected
-                        ? WorkbenchRedesignColors.libraryMediaCardHoverBg
-                        : Color.clear
-                )
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .pointerOnHover(isEnabled: true)
-    }
-}
-
 private struct PlaybackCommandPanelRecentShioris: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var shioriStore: ShioriStore
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onOpen: (Int) -> Void
+
+    private var summaries: [ShioriListSummary] {
+        shioriStore.recentListSummaries
+    }
+
+    private var selectedItemID: Int64? {
+        guard let ordinal = presentation.selectedOrdinal,
+              summaries.indices.contains(ordinal)
+        else {
+            return nil
+        }
+        return summaries[ordinal].id
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -587,19 +528,14 @@ private struct PlaybackCommandPanelRecentShioris: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(
-                            Array(shioriStore.recentListSummaries.enumerated()),
-                            id: \.element.id
-                        ) { ordinal, summary in
-                            RecentShioriResumeRow(
-                                summary: summary,
-                                isSelected:
-                                    presentation.selectedOrdinal == ordinal
-                            ) {
-                                onOpen(ordinal)
-                            }
-                            .id(ordinal)
+                    RecentShioriResumeList(
+                        summaries: summaries,
+                        selectedItemID: selectedItemID
+                    ) { summary in
+                        if let ordinal = summaries.firstIndex(where: {
+                            $0.id == summary.id
+                        }) {
+                            onOpen(ordinal)
                         }
                     }
                     .padding(
@@ -611,13 +547,12 @@ private struct PlaybackCommandPanelRecentShioris: View {
                         WorkbenchControlMetrics.redesignSpacing2
                     )
                 }
-                .onChange(of: presentation.selectedOrdinal) {
-                    selectedOrdinal in
-                    guard let selectedOrdinal else {
+                .onChange(of: selectedItemID) { selectedItemID in
+                    guard let selectedItemID else {
                         return
                     }
                     withAnimation(.easeOut(duration: 0.16)) {
-                        proxy.scrollTo(selectedOrdinal, anchor: .center)
+                        proxy.scrollTo(selectedItemID, anchor: .center)
                     }
                 }
             }

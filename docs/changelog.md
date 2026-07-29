@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified Recent presentation across Workbench overview, Workbench detail, and
+  Playback Command Panel. Recent Videos now uses one adaptive watching-card
+  Grid in all three surfaces, including Command Panel selection, scrolling, and
+  card actions; Recent Shioris now uses one shared resume-row list. The replaced
+  Command Panel-only horizontal video Row was removed.
 - Unified the level-one Library and Shiori Overview structure. Library now
   reports visible Folder, Video, and Subtitle totals and opens Settings Library
   from `Add Content`; both pages share the same adaptive Grid and Media Card

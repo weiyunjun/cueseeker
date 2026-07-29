@@ -117,15 +117,32 @@ struct WorkbenchRecentView: View {
         } else if summaries.isEmpty {
             LibraryEmptyHint("No recent Shioris yet.")
         } else {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(summaries) { summary in
-                    RecentShioriResumeRow(summary: summary) {
-                        appState.openRecentShiori(summary)
-                    }
-                    if summary.id != summaries.last?.id {
-                        Divider()
-                            .foregroundStyle(WorkbenchRedesignColors.borderMuted)
-                    }
+            RecentShioriResumeList(summaries: summaries) { summary in
+                appState.openRecentShiori(summary)
+            }
+        }
+    }
+}
+
+struct RecentShioriResumeList: View {
+    let summaries: [ShioriListSummary]
+    var selectedItemID: Int64? = nil
+    let onOpen: (ShioriListSummary) -> Void
+
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(summaries) { summary in
+                RecentShioriResumeRow(
+                    summary: summary,
+                    isSelected: selectedItemID == summary.id
+                ) {
+                    onOpen(summary)
+                }
+                .id(summary.id)
+
+                if summary.id != summaries.last?.id {
+                    Divider()
+                        .foregroundStyle(WorkbenchRedesignColors.borderMuted)
                 }
             }
         }
@@ -541,6 +558,7 @@ struct RecentWatchingGrid: View {
                             }
                         }
                     }
+                    .id(item.id)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

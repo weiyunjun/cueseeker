@@ -428,6 +428,12 @@ it to the first available Episode, and suppresses the Workbench-only `Context`
 menu item. These host differences must remain configuration of the shared list,
 not separate row implementations.
 
+Workbench Recent overview, Workbench Recent detail, and Playback Command Panel
+render one Recent Watching card Grid and one Recent Shiori resume-row list.
+Preview versus complete data limits, Command Panel selection, and scrolling are
+host inputs to those shared components; they must not create parallel card or
+row implementations.
+
 The Playback Multi-Module Overlay owns one strictly temporary Session with
 Current, optional Playlist, Search, Recent, Library, and Shiori. Module
 switching stays inside that Session; Escape, playback, Playback Page close, and
