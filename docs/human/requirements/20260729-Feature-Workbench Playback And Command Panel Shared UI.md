@@ -24,10 +24,10 @@ Command Panel Recent Shioris界面
 1. Workbench Search界面和Workbench Shiori二级界面，在搜索上仍然有很多不一致的地方。后者要按下回车才可以搜索，可以搜索Display Title，不显示搜索结果数量等。现在需要以前者为基准，Shiori 复用 Workbench Search 的输入即搜索机制和匹配范围，只匹配 Primary Cue，不匹配 Display Title，并显示结果数量。另外后者的Tags功能，前端后端都要砍掉。
 2. Workbench Library一级界面和Workbench Shiori一级界面，前者应该加上类似后者的数据统计以及添加内容的功能。数据统计包括文件夹数（文件夹数为当前 Library 一级界面展示的内容文件夹数），视频数，字幕数，添加内容则是打开Settings - Library界面。这样二者的界面可以大部分复用，只是卡片上后者多一个描述内容，具体功能和内容上有区别。
 3. Workbench Library二级界面和Playback Video Playlist界面，要大部分复用，只是细节交互（默认选中）有不同。
-4. Playback Current界面和Playback Cue Playlist界面，大部分复用。取消左侧封面图。修改所有界面的Cue Group的字幕位置：主字幕位于上方，Cue Group字幕位于下方。Playback Cue Playlist界面不再在左侧显示序号。2个界面统一在选中字幕上方加信息行：前者是Display Title + Time Range，后者加入播放队列位置：[x/y] + Display Title + Time Range。例如：Ave Mujica - 01 21:33 - 21:40，[5/100] BanG Dream! - 12 17:10 - 17:20。分别使用badge的样式。非选中字幕不需要在上方加信息行。如果开启了Cue Group，只有Playback Cue Playlist界面的所有字幕需要在下方显示Cue Group字幕，Playback Current界面的所有字幕都不需要在下方显示Cue Group字幕。
+4. Playback Current界面和Playback Cue Playlist界面，大部分复用。取消左侧封面图。修改所有界面的Cue Group的字幕位置：主字幕位于上方，Cue Group字幕位于下方。Playback Cue Playlist界面不再在左侧显示序号。2个界面的所有字幕统一在上方显示信息行：前者是Display Title + Time Range，后者加入播放队列位置：[x/y] + Display Title + Time Range。例如：Ave Mujica - 01 21:33 - 21:40，[5/100] BanG Dream! - 12 17:10 - 17:20。每项信息分别使用独立Badge。选中字幕沿用当前蓝色Badge配色；非选中字幕显示相同的Badge内容和数量，配色参考Watch Status Badge的Unwatched样式，但只参考配色，不复用Watch Status Badge组件或状态语义。如果开启了CueGroup，只有Playback Cue Playlist界面的所有字幕需要在下方显示Cue Group字幕，Playback Current界面的所有字幕都不需要在下方显示Cue Group字幕。
 5. Workbench Recent界面的Recent Videos部分、Workbench Recent Videos界面和Command Panel Recent Videos界面复用相同的视频卡片组件，Command Panel Recent Videos界面改为视频卡片排版。Command Panel Recent Videos支持上下左右四个方向键，按照当前自适应卡片网格的实际视觉位置移动到对应方向最近的卡片；到达边界时不移动、不循环，Enter打开选中卡片，选中卡片始终滚动到可见区域。
 6. Workbench Recent界面的Recent Shioris部分和Command Panel Recent Shioris界面，复用。
-7. Command Panel Search界面，删除左侧封面图，这个版本复用前面已经修改过的Playback Cue Playlist界面的大部分内容，不必和Command Panel一级界面那种选单操作一致：布局，操作，默认选中第一条结果字幕，选中字幕显示信息行，所有字幕显示Cue Group（如果开启）。Command Panel Search界面保持现在的50条限制。
+7. Command Panel Search界面，删除左侧封面图，这个版本复用前面已经修改过的Playback Cue Playlist界面的大部分内容，不必和Command Panel一级界面那种选单操作一致：布局，操作，默认选中第一条结果字幕，所有字幕显示信息行，所有字幕显示Cue Group（如果开启）。Command Panel Search界面保持现在的50条限制。
 
 # 修改步骤
 
@@ -50,5 +50,8 @@ Playback Current 使用 Display Title、Time Range 两个独立 Badge；Playback
 ## 6. 统一 Command Panel Search
 复用 Playback Cue Playlist 的布局与操作，删除左侧封面，增加相同的信息 Badge 和 Cue Group 展示，同时保留最多 50 条预览及打开后使用完整 Playlist 的行为。
 
-## 7. 全界面回归与冗余清理
+## 7. 统一非焦点字幕 Badge
+Playback Current、Playback Cue Playlist和Command Panel Search的所有字幕持续显示各自的信息Badge。选中字幕沿用当前蓝色配色；非选中字幕显示相同的Badge内容和数量，并使用参考Unwatched样式的Playback专用配色。选择变化只改变Badge配色，不改变Badge内容、数量或字幕高度。
+
+## 8. 全界面回归与冗余清理
 完整验收本需求涉及的全部界面，确认共享组件、选择状态、键盘操作、滚动、播放和返回行为一致，并删除本次改动替代掉的重复实现。
