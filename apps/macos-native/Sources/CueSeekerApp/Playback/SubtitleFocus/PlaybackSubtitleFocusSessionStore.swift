@@ -128,6 +128,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var completeCueBatch: SubtitleFocusCueBatch? = nil
     @Published private(set) var availableModules: [PlaybackOverlayModule]
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
+    @Published private(set) var isEditingCollage = false
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: SearchStore?
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
@@ -309,6 +310,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @discardableResult
     func selectModule(_ module: PlaybackOverlayModule) -> Bool {
         guard isSessionActive,
+              !isEditingCollage,
               case .cueSelection = state,
               availableModules.contains(module),
               selectedModule != module
@@ -329,6 +331,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @discardableResult
     func presentModule(_ module: PlaybackOverlayModule) -> Bool {
         guard isSessionActive,
+              !isEditingCollage,
               availableModules.contains(module)
         else {
             return false
@@ -377,6 +380,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @discardableResult
     func selectNextModule() -> Bool {
         guard isSessionActive,
+              !isEditingCollage,
               let selectedModule,
               let currentIndex = availableModules.firstIndex(of: selectedModule),
               !availableModules.isEmpty
@@ -390,6 +394,27 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             ? availableModules.startIndex
             : availableModules.index(after: currentIndex)
         return selectModule(availableModules[nextIndex])
+    }
+
+    @discardableResult
+    func toggleEditingCollage() -> Bool {
+        guard isSessionActive,
+              case .cueSelection = state
+        else {
+            return false
+        }
+
+        if isEditingCollage {
+            isEditingCollage = false
+            return true
+        }
+
+        guard selectedModule == .current else {
+            return false
+        }
+        prepareReelForModuleTransition()
+        isEditingCollage = true
+        return true
     }
 
     func cue(at ordinal: Int) -> SubtitleFocusCue? {
@@ -1003,6 +1028,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private func closeSession() -> Bool {
         let wasPlaying = openSnapshot.wasPlaying
         isSessionActive = false
+        isEditingCollage = false
         pendingKeyboardAction = nil
         activeKeyboardAction = nil
         isScrollbarDragging = false

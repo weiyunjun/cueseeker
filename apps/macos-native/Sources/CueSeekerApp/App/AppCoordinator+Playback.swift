@@ -727,6 +727,31 @@ extension AppCoordinator {
         let modifierFlags = NSEvent.ModifierFlags(
             rawValue: modifierFlagsRawValue
         )
+        if let subtitleFocusSession = playback.subtitleFocusSession,
+           subtitleFocusSession.isEditingCollage {
+            let editingCollageModifiers: NSEvent.ModifierFlags = [
+                .command,
+                .control,
+                .option,
+                .shift,
+            ]
+            guard modifierFlags.intersection(editingCollageModifiers).isEmpty
+            else {
+                return false
+            }
+
+            switch keyCode {
+            case 35, 53:
+                if !isRepeat {
+                    _ = subtitleFocusSession.toggleEditingCollage()
+                }
+                return true
+            case 123, 124, 125, 126:
+                return false
+            default:
+                return true
+            }
+        }
         let commandPanelModifiers: NSEvent.ModifierFlags = [
             .command,
             .control,
@@ -836,6 +861,15 @@ extension AppCoordinator {
                 .option,
                 .shift,
             ]
+
+            if keyCode == 35,
+               modifierFlags.intersection(moduleSwitchModifiers).isEmpty {
+                if !isRepeat,
+                   subtitleFocusSession.selectedModule == .current {
+                    _ = subtitleFocusSession.toggleEditingCollage()
+                }
+                return true
+            }
 
             if keyCode == 48,
                modifierFlags.intersection(moduleSwitchModifiers).isEmpty {

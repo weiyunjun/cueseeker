@@ -141,19 +141,48 @@ func playbackOverlayEnterQueuesPlayWhileSpaceRemainsInactive() async throws {
 
 @MainActor
 @Test
-func playbackOverlayConsumesPWithoutTakingScreenshot() async throws {
+func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
-            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
+            availableModules: [.current, .playlist]
         ))
         #expect(session.publishInitialSnapshot(
             keyboardActionSnapshot(),
             token: session.token
         ))
+        let subtitlesWereVisible = try #require(
+            app.playback.playbackViewModel
+        ).areSubtitlesVisible
 
         #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
         #expect(app.playback.subtitleFocusSession === session)
+        #expect(session.isEditingCollage)
         #expect(app.playback.playbackViewModel?.feedback == nil)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 35,
+            modifierFlagsRawValue: 0,
+            isRepeat: true
+        ))
+        #expect(session.isEditingCollage)
+        #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
+        #expect(session.selectedModule == .current)
+        #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
+        #expect(app.playback.playbackViewModel?.areSubtitlesVisible == subtitlesWereVisible)
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(session.pendingKeyboardAction == nil)
+        #expect(app.handlePlaybackKeyDown(keyCode: 50, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation == nil)
+        #expect(!app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
+        #expect(!app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        #expect(!session.isEditingCollage)
+        #expect(app.playback.subtitleFocusSession === session)
+        #expect(session.selectModule(.playlist))
+        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        #expect(!session.isEditingCollage)
     }
 }
 

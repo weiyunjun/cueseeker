@@ -57,12 +57,14 @@ struct PlaybackOverlay: View {
             PlaybackSubtitleFocusPointerShield()
 
             VStack(spacing: 0) {
-                PlaybackViewTabs(
+                PlaybackOverlayTopBar(
                     modules: session.availableModules.filter {
                         $0 == .current || $0 == .playlist
                     },
                     selectedModule: session.selectedModule,
-                    onSelect: session.selectModule
+                    isEditingCollage: session.isEditingCollage,
+                    onSelect: session.selectModule,
+                    onToggleEditingCollage: session.toggleEditingCollage
                 )
                 .frame(height: PlaybackOverlayMetrics.tabBarHeight)
 
@@ -133,48 +135,96 @@ struct PlaybackOverlay: View {
     }
 }
 
-private struct PlaybackViewTabs: View {
+private struct PlaybackOverlayTopBar: View {
     let modules: [PlaybackOverlayModule]
     let selectedModule: PlaybackOverlayModule?
+    let isEditingCollage: Bool
     let onSelect: (PlaybackOverlayModule) -> Bool
+    let onToggleEditingCollage: () -> Bool
 
     var body: some View {
-        HStack(spacing: PlaybackOverlayMetrics.tabGap) {
-            ForEach(modules, id: \.self) { module in
-                Button {
-                    _ = onSelect(module)
-                } label: {
-                    VStack(spacing: PlaybackOverlayMetrics.tabIndicatorGap) {
-                        Text(module.label)
-                            .font(.system(
-                                size: PlaybackOverlayMetrics.tabFontSize,
-                                weight: selectedModule == module
-                                    ? .semibold
-                                    : .regular
-                            ))
-                            .lineLimit(1)
+        ZStack {
+            if isEditingCollage {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignControlIconSize,
+                            weight: WorkbenchControlMetrics.redesignButtonIconWeight
+                        ))
 
-                        Capsule()
-                            .fill(PlaybackTheme.playbackModuleSidebarSelected)
-                            .frame(
-                                width: PlaybackOverlayMetrics.tabIndicatorWidth,
-                                height: PlaybackOverlayMetrics.tabIndicatorHeight
-                            )
-                            .opacity(selectedModule == module ? 1 : 0)
-                    }
-                    .foregroundStyle(
-                        selectedModule == module
-                            ? PlaybackTheme.playbackModuleSidebarSelected
-                            : PlaybackTheme.playbackModuleSidebarUnselected
-                    )
-                    .padding(.horizontal, PlaybackOverlayMetrics.tabHorizontalPadding)
-                    .contentShape(Rectangle())
+                    Text("Editing Collage")
+                        .font(.system(
+                            size: PlaybackOverlayMetrics.tabFontSize,
+                            weight: .semibold
+                        ))
+                        .lineLimit(1)
                 }
-                .buttonStyle(.plain)
-                .focusable(false)
-                .pointerOnHover(isEnabled: true)
-                .accessibilityLabel(module.label)
-                .accessibilityIdentifier("playback-view-\(module.rawValue)")
+                .foregroundStyle(PlaybackTheme.playbackModuleSidebarSelected)
+                .allowsHitTesting(false)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("playback-collage-editor-title")
+            } else {
+                HStack(spacing: PlaybackOverlayMetrics.tabGap) {
+                    ForEach(modules, id: \.self) { module in
+                        Button {
+                            _ = onSelect(module)
+                        } label: {
+                            VStack(spacing: PlaybackOverlayMetrics.tabIndicatorGap) {
+                                Text(module.label)
+                                    .font(.system(
+                                        size: PlaybackOverlayMetrics.tabFontSize,
+                                        weight: selectedModule == module
+                                            ? .semibold
+                                            : .regular
+                                    ))
+                                    .lineLimit(1)
+
+                                Capsule()
+                                    .fill(PlaybackTheme.playbackModuleSidebarSelected)
+                                    .frame(
+                                        width: PlaybackOverlayMetrics.tabIndicatorWidth,
+                                        height: PlaybackOverlayMetrics.tabIndicatorHeight
+                                    )
+                                    .opacity(selectedModule == module ? 1 : 0)
+                            }
+                            .foregroundStyle(
+                                selectedModule == module
+                                    ? PlaybackTheme.playbackModuleSidebarSelected
+                                    : PlaybackTheme.playbackModuleSidebarUnselected
+                            )
+                            .padding(
+                                .horizontal,
+                                PlaybackOverlayMetrics.tabHorizontalPadding
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                        .pointerOnHover(isEnabled: true)
+                        .accessibilityLabel(module.label)
+                        .accessibilityIdentifier("playback-view-\(module.rawValue)")
+                    }
+                }
+            }
+
+            if selectedModule == .current {
+                HStack {
+                    WorkbenchToolbarButton(
+                        title: isEditingCollage ? "Exit" : "Collage",
+                        systemImage: "square.and.pencil",
+                        isRedesign: true
+                    ) {
+                        _ = onToggleEditingCollage()
+                    }
+                    .accessibilityIdentifier(
+                        isEditingCollage
+                            ? "playback-exit-collage"
+                            : "playback-enter-collage"
+                    )
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

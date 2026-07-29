@@ -111,6 +111,39 @@ func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
 
 @MainActor
 @Test
+func playbackOverlayEditingCollageIsExclusiveToCurrent() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1,
+        availableModules: [.current, .playlist]
+    )
+    #expect(!session.toggleEditingCollage())
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    #expect(session.requestKeyboardNavigation(.forward))
+
+    #expect(session.toggleEditingCollage())
+    #expect(session.isEditingCollage)
+    #expect(session.keyboardNavigationRequest == nil)
+    #expect(!session.selectModule(.playlist))
+    #expect(!session.presentModule(.playlist))
+    #expect(!session.selectNextModule())
+    #expect(session.selectedModule == .current)
+
+    #expect(session.toggleEditingCollage())
+    #expect(!session.isEditingCollage)
+    #expect(session.selectModule(.playlist))
+    #expect(!session.toggleEditingCollage())
+    #expect(session.selectModule(.current))
+    #expect(session.toggleEditingCollage())
+    #expect(session.dismissByUser() == false)
+    #expect(!session.isEditingCollage)
+}
+
+@MainActor
+@Test
 func playbackOverlaySessionClearsModuleAndCurrentDataOnCloseThenReopensFresh() throws {
     let playback = PlaybackStore(userDefaults: .standard)
     let first = try #require(playback.beginSubtitleFocusSession(
