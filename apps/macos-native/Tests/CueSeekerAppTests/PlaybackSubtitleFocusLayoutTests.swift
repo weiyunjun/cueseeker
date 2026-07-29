@@ -15,6 +15,12 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 24)
     #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 32)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
+    #expect(PlaybackCollageSelectionMetrics.checkboxSize == 24)
+    #expect(
+        PlaybackCollageSelectionMetrics.leadingAccessoryWidth
+            == PlaybackCollageSelectionMetrics.checkboxSize
+                + WorkbenchControlMetrics.redesignSpacing4
+    )
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
             reducesMotion: false
@@ -25,6 +31,81 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
             reducesMotion: true
         ) == 0
     )
+}
+
+@MainActor
+@Test
+func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<20)
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 640, height: 656)
+    view.onToggleCollageCueSelection = { _ in }
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        displayTitle: "Ave Mujica - 01",
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false,
+        collageSelectedCueIDs: [cues[11].id],
+        collageCanSelectAnotherCue: true
+    )
+    view.layoutSubtreeIfNeeded()
+
+    let placement = try #require(
+        view.placementsForTesting.first { $0.ordinal == 11 }
+    )
+    let checkboxRect = try #require(
+        view.collageCheckboxRectForTesting(at: 11)
+    )
+    #expect(checkboxRect.width == PlaybackCollageSelectionMetrics.checkboxSize)
+    #expect(checkboxRect.height == PlaybackCollageSelectionMetrics.checkboxSize)
+    #expect(
+        checkboxRect.midY
+            == placement.rect.minY
+                + PlaybackSubtitleFocusMetrics.informationHeight
+                + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
+    )
+    #expect(view.isCueHighlightedForTesting(at: 11))
+    #expect(view.isCueHighlightedForTesting(at: 12))
+
+    var toggledOrdinal: Int?
+    view.onToggleCollageCueSelection = { toggledOrdinal = $0 }
+    #expect(view.toggleCollageCueForTesting(at: 11))
+    #expect(toggledOrdinal == 11)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func editingCollageDisablesOnlyUncheckedCuesAtSelectionLimit() {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<20)
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 640, height: 656)
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        displayTitle: "Ave Mujica - 01",
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false,
+        collageSelectedCueIDs: [cues[12].id],
+        collageCanSelectAnotherCue: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    #expect(view.isCollageCueEnabledForTesting(at: 12))
+    #expect(!view.isCollageCueEnabledForTesting(at: 11))
+    #expect(!view.toggleCollageCueForTesting(at: 11))
+    #expect(view.toggleCollageCueForTesting(at: 12))
+    view.invalidate()
 }
 
 @Test
@@ -3107,7 +3188,12 @@ private final class PlaybackVirtualReelTestAdapter:
         )
     }
 
-    func drawItem(at ordinal: Int, isSelected: Bool, in rect: CGRect) {}
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        isEnabled _: Bool,
+        in rect: CGRect
+    ) {}
 
     func requestWindow(_ request: PlaybackVirtualReelWindowRequest) {
         requestedWindows.append(request)

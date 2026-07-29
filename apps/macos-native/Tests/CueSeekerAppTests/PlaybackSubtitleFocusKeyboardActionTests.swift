@@ -170,12 +170,24 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
         #expect(session.selectedModule == .current)
         #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
         #expect(app.playback.playbackViewModel?.areSubtitlesVisible == subtitlesWereVisible)
+        #expect(session.collageSelectionPlan.contains(cueID: 13))
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(session.pendingKeyboardAction == nil)
+        #expect(!session.collageSelectionPlan.contains(cueID: 13))
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: 0,
+            isRepeat: true
+        ))
+        #expect(!session.collageSelectionPlan.contains(cueID: 13))
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(session.collageSelectionPlan.contains(cueID: 13))
         #expect(app.handlePlaybackKeyDown(keyCode: 50, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
-        #expect(!app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
-        #expect(!app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
+        #expect(session.keyboardNavigationRequest?.targetOrdinal == 11)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(session.keyboardNavigationRequest?.targetOrdinal == 12)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
         #expect(!session.isEditingCollage)

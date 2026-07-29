@@ -746,7 +746,12 @@ private final class PlaybackCueResultTestAdapter:
         )
     }
 
-    func drawItem(at ordinal: Int, isSelected: Bool, in rect: CGRect) {
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        isEnabled _: Bool,
+        in rect: CGRect
+    ) {
         guard snapshot.loadedOrdinalRange.contains(ordinal) else {
             return
         }

@@ -77,33 +77,18 @@ struct PlaybackOverlay: View {
     @ViewBuilder
     private var moduleContent: some View {
         if session.selectedModule == .current {
-            PlaybackSubtitleFocusOverlay(
-                snapshot: snapshot,
-                cues: cues,
-                displayTitle: currentDisplayTitle,
-                contentGeneration: session.token.sessionGeneration,
-                uiProbeScope: uiProbeScope,
-                keyboardNavigationRequest: session.keyboardNavigationRequest,
-                blocksNewNavigation: session.pendingKeyboardAction != nil
-                    || session.activeKeyboardAction != nil,
-                onCommitKeyboardNavigation: session.commitKeyboardNavigation,
-                onCommitNativeReelSelection: session.commitNativeReelSelection,
-                allowsNativeWheelInput: session.allowsNativeWheelInput,
-                allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
-                consumeDeferredAction: {
-                    session.consumeDeferredKeyboardActionIfReady(
-                        module: .current
-                    )
-                },
-                onScrollbarDraggingChanged: {
-                    session.noteScrollbarDragging($0, module: .current)
-                },
-                onCueReelMotionChanged: {
-                    session.noteCueReelMotion($0, module: .current)
-                },
-                onExecuteAction: onExecuteAction
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if session.isEditingCollage {
+                HStack(spacing: 0) {
+                    PlaybackTheme.subtitleFocusOverlayBackground
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    currentSubtitleOverlay
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                currentSubtitleOverlay
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         } else if session.selectedModule == .playlist {
             if let libraryStore = session.libraryStore {
                 PlaybackLibraryOverlay(
@@ -125,6 +110,39 @@ struct PlaybackOverlay: View {
             PlaybackTheme.subtitleFocusOverlayBackground
                 .contentShape(Rectangle())
         }
+    }
+
+    private var currentSubtitleOverlay: some View {
+        PlaybackSubtitleFocusOverlay(
+            snapshot: snapshot,
+            cues: cues,
+            displayTitle: currentDisplayTitle,
+            contentGeneration: session.token.sessionGeneration,
+            uiProbeScope: uiProbeScope,
+            keyboardNavigationRequest: session.keyboardNavigationRequest,
+            blocksNewNavigation: session.pendingKeyboardAction != nil
+                || session.activeKeyboardAction != nil,
+            collageSelectionPlan: session.isEditingCollage
+                ? session.collageSelectionPlan
+                : nil,
+            onCommitKeyboardNavigation: session.commitKeyboardNavigation,
+            onCommitNativeReelSelection: session.commitNativeReelSelection,
+            onToggleCollageCueSelection: session.toggleCollageCueSelection,
+            allowsNativeWheelInput: session.allowsNativeWheelInput,
+            allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
+            consumeDeferredAction: {
+                session.consumeDeferredKeyboardActionIfReady(
+                    module: .current
+                )
+            },
+            onScrollbarDraggingChanged: {
+                session.noteScrollbarDragging($0, module: .current)
+            },
+            onCueReelMotionChanged: {
+                session.noteCueReelMotion($0, module: .current)
+            },
+            onExecuteAction: onExecuteAction
+        )
     }
 
     private var currentDisplayTitle: String {
@@ -258,8 +276,10 @@ struct PlaybackSubtitleFocusOverlay: View {
     let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let blocksNewNavigation: Bool
+    let collageSelectionPlan: SubtitleCollageSelectionPlan?
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
+    let onToggleCollageCueSelection: (Int) -> SubtitleCollageSelectionMutation
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let consumeDeferredAction: () -> PlaybackSubtitleFocusActionExecution?
@@ -277,10 +297,13 @@ struct PlaybackSubtitleFocusOverlay: View {
         uiProbeScope: String? = nil,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
         blocksNewNavigation: Bool = false,
+        collageSelectionPlan: SubtitleCollageSelectionPlan? = nil,
         onCommitKeyboardNavigation: @escaping (
             PlaybackSubtitleFocusKeyboardNavigationRequest
         ) -> Bool = { _ in false },
         onCommitNativeReelSelection: @escaping (Int) -> Bool = { _ in false },
+        onToggleCollageCueSelection:
+            @escaping (Int) -> SubtitleCollageSelectionMutation = { _ in .unchanged },
         allowsNativeWheelInput: @escaping () -> Bool = { false },
         allowsNativeScrollbarInput: @escaping () -> Bool = { false },
         consumeDeferredAction: @escaping () -> PlaybackSubtitleFocusActionExecution? = { nil },
@@ -295,8 +318,10 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.uiProbeScope = uiProbeScope
         self.keyboardNavigationRequest = keyboardNavigationRequest
         self.blocksNewNavigation = blocksNewNavigation
+        self.collageSelectionPlan = collageSelectionPlan
         self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         self.onCommitNativeReelSelection = onCommitNativeReelSelection
+        self.onToggleCollageCueSelection = onToggleCollageCueSelection
         self.allowsNativeWheelInput = allowsNativeWheelInput
         self.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         self.consumeDeferredAction = consumeDeferredAction
@@ -340,8 +365,16 @@ struct PlaybackSubtitleFocusOverlay: View {
                     reducesMotion: reduceMotion,
                     isInteractionEnabled: !blocksInteraction,
                     cancelsWheelMotion: keyboardNavigationRequest != nil,
+                    collageSelectedCueIDs: collageSelectionPlan.map {
+                        Set($0.selectedCues.map(\.id))
+                    },
+                    collageCanSelectAnotherCue: collageSelectionPlan?
+                        .canSelectAnotherCue ?? true,
                     onCommitKeyboardNavigation: onCommitKeyboardNavigation,
                     onCommitNativeReelSelection: onCommitNativeReelSelection,
+                    onToggleCollageCueSelection: {
+                        _ = onToggleCollageCueSelection($0)
+                    },
                     allowsNativeWheelInput: allowsNativeWheelInput,
                     allowsNativeScrollbarInput: allowsNativeScrollbarInput,
                     onScrollbarDraggingChanged: { isDragging in

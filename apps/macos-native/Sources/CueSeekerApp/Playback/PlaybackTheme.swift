@@ -342,6 +342,16 @@ enum PlaybackSubtitleFocusMetrics {
     }
 }
 
+enum PlaybackCollageSelectionMetrics {
+    /// --size-playback-collage-checkbox
+    static let checkboxSize: CGFloat = 24
+    /// --spacing-4
+    static let checkboxCueGap = WorkbenchControlMetrics.redesignSpacing4
+    static var leadingAccessoryWidth: CGFloat {
+        checkboxSize + checkboxCueGap
+    }
+}
+
 enum PlaybackOverlayMetrics {
     static let tabBarHeight: CGFloat = 54
     static let tabGap = WorkbenchControlMetrics.redesignSpacing4

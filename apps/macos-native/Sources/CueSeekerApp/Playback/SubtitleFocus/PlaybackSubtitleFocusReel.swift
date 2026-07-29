@@ -122,7 +122,12 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
         viewportHeight: CGFloat,
         uiProbeScope: String?
     ) -> PlaybackVirtualReelItemExtent?
-    func drawItem(at ordinal: Int, isSelected: Bool, in rect: CGRect)
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        isEnabled: Bool,
+        in rect: CGRect
+    )
     func requestWindow(_ request: PlaybackVirtualReelWindowRequest)
     func invalidateMeasurements()
     func invalidate()
@@ -933,7 +938,12 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         )
     }
 
-    func drawItem(at ordinal: Int, isSelected: Bool, in rect: CGRect) {
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        isEnabled: Bool,
+        in rect: CGRect
+    ) {
         guard let cue = cue(at: ordinal) else {
             return
         }
@@ -941,7 +951,8 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         PlaybackCueInformationBadgeLayout.draw(
             badgePlans,
             in: rect,
-            isSelected: isSelected
+            isSelected: isSelected,
+            isEnabled: isEnabled
         )
         let textRect = badgePlans.isEmpty
             ? rect
@@ -960,7 +971,9 @@ final class PlaybackSubtitleFocusCueReelAdapter:
             text: cue.text,
             color: isSelected
                 ? PlaybackTheme.subtitleFocusCueSelectedNative
-                : PlaybackTheme.subtitleFocusCueUnselectedNative,
+                : isEnabled
+                    ? PlaybackTheme.subtitleFocusCueUnselectedNative
+                    : WorkbenchRedesignColors.NS.textDisabled,
             in: textRect
         )
     }
@@ -1313,8 +1326,11 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let reducesMotion: Bool
     let isInteractionEnabled: Bool
     let cancelsWheelMotion: Bool
+    let collageSelectedCueIDs: Set<Int64>?
+    let collageCanSelectAnotherCue: Bool
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
+    let onToggleCollageCueSelection: (Int) -> Void
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let onScrollbarDraggingChanged: (Bool) -> Void
@@ -1353,6 +1369,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
         view.uiProbeScope = uiProbeScope
         view.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         view.onCommitNativeReelSelection = onCommitNativeReelSelection
+        view.onToggleCollageCueSelection = onToggleCollageCueSelection
         view.allowsNativeWheelInput = allowsNativeWheelInput
         view.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         view.onScrollbarDraggingChanged = onScrollbarDraggingChanged
@@ -1367,7 +1384,9 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
             keyboardNavigationRequest: keyboardNavigationRequest,
             reducesMotion: reducesMotion,
             isInteractionEnabled: isInteractionEnabled,
-            cancelsWheelMotion: cancelsWheelMotion
+            cancelsWheelMotion: cancelsWheelMotion,
+            collageSelectedCueIDs: collageSelectedCueIDs,
+            collageCanSelectAnotherCue: collageCanSelectAnotherCue
         )
     }
 }
@@ -1437,6 +1456,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         _ in false
     }
     var onCommitNativeReelSelection: (Int) -> Bool = { _ in false }
+    var onToggleCollageCueSelection: (Int) -> Void = { _ in }
     var onCommitVirtualReelSelection: ((PlaybackVirtualReelSelectionCommit) -> Bool)?
     var allowsNativeWheelInput: () -> Bool = { false }
     var allowsNativeScrollbarInput: () -> Bool = { false }
@@ -1516,6 +1536,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         scrollView.documentView = documentView
         addSubview(scrollView)
 
+        documentView.onToggleCollageCueSelection = { [weak self] ordinal in
+            self?.onToggleCollageCueSelection(ordinal)
+        }
+
         scrollbarView.appearanceMode = .inherited
         scrollbarView.presentationProvider = { [weak self] in
             self?.scrollbarMetrics.presentation
@@ -1589,7 +1613,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?,
         reducesMotion: Bool,
         isInteractionEnabled: Bool,
-        cancelsWheelMotion: Bool
+        cancelsWheelMotion: Bool,
+        collageSelectedCueIDs: Set<Int64>? = nil,
+        collageCanSelectAnotherCue: Bool = true
     ) {
         currentCueAdapter.update(
             cues: cues,
@@ -1603,7 +1629,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             keyboardNavigationRequest: keyboardNavigationRequest,
             reducesMotion: reducesMotion,
             isInteractionEnabled: isInteractionEnabled,
-            cancelsWheelMotion: cancelsWheelMotion
+            cancelsWheelMotion: cancelsWheelMotion,
+            collageSelectedCueIDs: collageSelectedCueIDs,
+            collageCanSelectAnotherCue: collageCanSelectAnotherCue
         )
     }
 
@@ -1613,7 +1641,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?,
         reducesMotion: Bool,
         isInteractionEnabled: Bool,
-        cancelsWheelMotion: Bool
+        cancelsWheelMotion: Bool,
+        collageSelectedCueIDs: Set<Int64>? = nil,
+        collageCanSelectAnotherCue: Bool = true
     ) {
         let snapshot = contentAdapter.snapshot
         if let contentSnapshot,
@@ -1735,6 +1765,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                 : nil
         }
         documentView.updateContent(contentAdapter)
+        documentView.updateCollageSelection(
+            selectedCueIDs: collageSelectedCueIDs,
+            canSelectAnotherCue: collageCanSelectAnotherCue
+        )
         if let activeScrollbarPreview {
             fractionalOrdinal = activeScrollbarPreview.fractionalOrdinal
             hasInitializedPosition = true
@@ -1905,6 +1939,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         motionCallbackTask = nil
         onCommitKeyboardNavigation = { _ in false }
         onCommitNativeReelSelection = { _ in false }
+        onToggleCollageCueSelection = { _ in }
         onCommitVirtualReelSelection = nil
         allowsNativeWheelInput = { false }
         allowsNativeScrollbarInput = { false }
@@ -1971,6 +2006,22 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     var displayedSelectedOrdinalForTesting: Int? {
         documentView.selectedOrdinalForTesting
+    }
+
+    func toggleCollageCueForTesting(at ordinal: Int) -> Bool {
+        documentView.toggleCollageCueForTesting(at: ordinal)
+    }
+
+    func collageCheckboxRectForTesting(at ordinal: Int) -> CGRect? {
+        documentView.collageCheckboxRectForTesting(at: ordinal)
+    }
+
+    func isCueHighlightedForTesting(at ordinal: Int) -> Bool {
+        documentView.isCueHighlightedForTesting(at: ordinal)
+    }
+
+    func isCollageCueEnabledForTesting(at ordinal: Int) -> Bool {
+        documentView.isCollageCueEnabledForTesting(at: ordinal)
     }
 
     var placementsForTesting: [PlaybackSubtitleFocusCuePlacement] {
@@ -2961,8 +3012,33 @@ private final class PlaybackSubtitleFocusNativeScrollbarView:
     }
 }
 
+@MainActor
+private enum PlaybackCollageCheckboxDrawing {
+    static func draw(
+        isSelected: Bool,
+        isEnabled: Bool,
+        in rect: CGRect
+    ) {
+        let color = !isEnabled
+            ? WorkbenchRedesignColors.NS.iconDisabled
+            : isSelected
+                ? WorkbenchRedesignColors.NS.textMuted
+                : WorkbenchRedesignColors.NS.borderCheckbox
+        guard let image = NSImage(
+            systemSymbolName: isSelected ? "checkmark.circle.fill" : "circle",
+            accessibilityDescription: nil
+        )?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(hierarchicalColor: color)
+        ) else {
+            return
+        }
+        image.draw(in: rect)
+    }
+}
+
 final class PlaybackSubtitleFocusReelDocumentView: NSView {
     var uiProbeScope: String?
+    var onToggleCollageCueSelection: (Int) -> Void = { _ in }
     private var layout = PlaybackSubtitleFocusVirtualReelLayout(
         viewportSize: .zero,
         totalCount: 0,
@@ -2972,6 +3048,8 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     private var contentAdapter: (any PlaybackVirtualReelContentAdapter)?
     private var contentSnapshot: PlaybackVirtualReelSnapshot?
     private var selectedOrdinal: Int?
+    private var collageSelectedCueIDs: Set<Int64>?
+    private var collageCanSelectAnotherCue = true
     private(set) var placements: [PlaybackSubtitleFocusCuePlacement] = []
 
     override var isFlipped: Bool {
@@ -3051,6 +3129,39 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         needsDisplay = true
     }
 
+    func updateCollageSelection(
+        selectedCueIDs: Set<Int64>?,
+        canSelectAnotherCue: Bool
+    ) {
+        guard collageSelectedCueIDs != selectedCueIDs
+                || collageCanSelectAnotherCue != canSelectAnotherCue
+        else {
+            return
+        }
+        let changesMode = (collageSelectedCueIDs == nil) != (selectedCueIDs == nil)
+        let changesAvailability = collageCanSelectAnotherCue != canSelectAnotherCue
+        let changedCueIDs = (collageSelectedCueIDs ?? [])
+            .symmetricDifference(selectedCueIDs ?? [])
+        collageSelectedCueIDs = selectedCueIDs
+        collageCanSelectAnotherCue = canSelectAnotherCue
+
+        if changesMode {
+            resolveLocalPlacementsIfNeeded()
+            needsDisplay = true
+        } else if changesAvailability {
+            needsDisplay = true
+        } else {
+            for placement in placements {
+                guard let cueID = cueID(at: placement.ordinal),
+                      changedCueIDs.contains(cueID)
+                else {
+                    continue
+                }
+                invalidateRow(placement.ordinal)
+            }
+        }
+    }
+
     func updateLocalLayout(_ layout: PlaybackSubtitleFocusVirtualReelLayout) {
         guard self.layout != layout else {
             return
@@ -3070,6 +3181,8 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         contentAdapter = nil
         contentSnapshot = nil
         selectedOrdinal = nil
+        collageSelectedCueIDs = nil
+        collageCanSelectAnotherCue = true
         placements.removeAll(keepingCapacity: false)
     }
 
@@ -3086,11 +3199,23 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                 scope: uiProbeScope,
                 details: "ordinal=\(placement.ordinal)"
             )
+            let isChecked = isCollageCueChecked(at: placement.ordinal)
+            let canToggle = !isEditingCollage
+                || isChecked
+                || collageCanSelectAnotherCue
             contentAdapter?.drawItem(
                 at: placement.ordinal,
-                isSelected: placement.ordinal == selectedOrdinal,
-                in: placement.rect
+                isSelected: placement.ordinal == selectedOrdinal || isChecked,
+                isEnabled: canToggle,
+                in: cueContentRect(for: placement.rect)
             )
+            if isEditingCollage {
+                PlaybackCollageCheckboxDrawing.draw(
+                    isSelected: isChecked,
+                    isEnabled: canToggle,
+                    in: collageCheckboxRect(for: placement)
+                )
+            }
         }
     }
 
@@ -3211,8 +3336,31 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Cue-specific pointer activation is intentionally absent. Keep the
-        // event inside the focus overlay so it cannot reach the video surface.
+        let point = convert(event.locationInWindow, from: nil)
+        guard let placement = placements.first(where: {
+            collageCheckboxRect(for: $0).contains(point)
+        }) else {
+            return
+        }
+        _ = toggleCollageCue(at: placement.ordinal)
+    }
+
+    func toggleCollageCueForTesting(at ordinal: Int) -> Bool {
+        toggleCollageCue(at: ordinal)
+    }
+
+    func collageCheckboxRectForTesting(at ordinal: Int) -> CGRect? {
+        placements.first { $0.ordinal == ordinal }.map(collageCheckboxRect)
+    }
+
+    func isCueHighlightedForTesting(at ordinal: Int) -> Bool {
+        ordinal == selectedOrdinal || isCollageCueChecked(at: ordinal)
+    }
+
+    func isCollageCueEnabledForTesting(at ordinal: Int) -> Bool {
+        !isEditingCollage
+            || isCollageCueChecked(at: ordinal)
+            || collageCanSelectAnotherCue
     }
 
     private func invalidateRow(_ ordinal: Int) {
@@ -3349,7 +3497,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         contentAdapter?.extent(
             at: ordinal,
             isSelected: ordinal == selectedOrdinal,
-            contentWidth: layout.contentWidth,
+            contentWidth: cueContentWidth(for: layout.contentWidth),
             viewportHeight: layout.viewportSize.height,
             uiProbeScope: uiProbeScope
         )
@@ -3375,6 +3523,80 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             ),
             extent: measurement
         )
+    }
+
+    private var isEditingCollage: Bool {
+        collageSelectedCueIDs != nil
+    }
+
+    private func cueID(at ordinal: Int) -> Int64? {
+        contentAdapter?.itemID(at: ordinal)?.base as? Int64
+    }
+
+    private func isCollageCueChecked(at ordinal: Int) -> Bool {
+        guard let cueID = cueID(at: ordinal) else {
+            return false
+        }
+        return collageSelectedCueIDs?.contains(cueID) == true
+    }
+
+    private func cueContentWidth(for width: CGFloat) -> CGFloat {
+        guard isEditingCollage else {
+            return width
+        }
+        return max(
+            0,
+            width - PlaybackCollageSelectionMetrics.leadingAccessoryWidth
+        )
+    }
+
+    private func cueContentRect(for rect: CGRect) -> CGRect {
+        guard isEditingCollage else {
+            return rect
+        }
+        return CGRect(
+            x: rect.minX + PlaybackCollageSelectionMetrics.leadingAccessoryWidth,
+            y: rect.minY,
+            width: cueContentWidth(for: rect.width),
+            height: rect.height
+        )
+    }
+
+    private func collageCheckboxRect(
+        for placement: PlaybackSubtitleFocusCuePlacement
+    ) -> CGRect {
+        guard isEditingCollage else {
+            return .null
+        }
+        let informationOffset: CGFloat
+        if let currentAdapter = contentAdapter as? PlaybackSubtitleFocusCueReelAdapter,
+           currentAdapter.informationBadges(at: placement.ordinal)?.isEmpty == false {
+            informationOffset = PlaybackSubtitleFocusMetrics.informationHeight
+        } else {
+            informationOffset = 0
+        }
+        let size = PlaybackCollageSelectionMetrics.checkboxSize
+        let primaryCueCenterY = placement.rect.minY
+            + informationOffset
+            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+            + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
+        return CGRect(
+            x: placement.rect.minX,
+            y: primaryCueCenterY - size / 2,
+            width: size,
+            height: size
+        )
+    }
+
+    private func toggleCollageCue(at ordinal: Int) -> Bool {
+        guard isEditingCollage,
+              placements.contains(where: { $0.ordinal == ordinal }),
+              isCollageCueChecked(at: ordinal) || collageCanSelectAnotherCue
+        else {
+            return false
+        }
+        onToggleCollageCueSelection(ordinal)
+        return true
     }
 }
 

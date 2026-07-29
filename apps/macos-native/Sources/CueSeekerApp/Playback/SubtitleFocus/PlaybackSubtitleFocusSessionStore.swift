@@ -129,6 +129,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var availableModules: [PlaybackOverlayModule]
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
     @Published private(set) var isEditingCollage = false
+    @Published private(set) var collageSelectionPlan = SubtitleCollageSelectionPlan()
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: SearchStore?
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
@@ -406,15 +407,54 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
         if isEditingCollage {
             isEditingCollage = false
+            collageSelectionPlan = SubtitleCollageSelectionPlan()
             return true
         }
 
-        guard selectedModule == .current else {
+        guard selectedModule == .current,
+              let selectedCue = currentSnapshot?.selectedCue
+        else {
             return false
         }
         prepareReelForModuleTransition()
+        var selectionPlan = SubtitleCollageSelectionPlan()
+        _ = selectionPlan.select(selectedCue)
+        collageSelectionPlan = selectionPlan
         isEditingCollage = true
         return true
+    }
+
+    @discardableResult
+    func toggleCollageCueSelection(
+        at ordinal: Int
+    ) -> SubtitleCollageSelectionMutation {
+        guard isSessionActive,
+              isEditingCollage,
+              selectedModule == .current,
+              let cue = cue(at: ordinal)
+        else {
+            return .unchanged
+        }
+
+        var selectionPlan = collageSelectionPlan
+        let mutation = selectionPlan.contains(cueID: cue.id)
+            ? selectionPlan.deselect(cueID: cue.id)
+            : selectionPlan.select(cue)
+        if case .changed = mutation {
+            collageSelectionPlan = selectionPlan
+        }
+        return mutation
+    }
+
+    @discardableResult
+    func toggleFocusedCollageCueSelection() -> SubtitleCollageSelectionMutation {
+        guard let snapshot = currentSnapshot else {
+            return .unchanged
+        }
+        return toggleCollageCueSelection(
+            at: pendingKeyboardNavigationTargetOrdinal
+                ?? snapshot.selectedOrdinal
+        )
     }
 
     func cue(at ordinal: Int) -> SubtitleFocusCue? {
@@ -1029,6 +1069,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         let wasPlaying = openSnapshot.wasPlaying
         isSessionActive = false
         isEditingCollage = false
+        collageSelectionPlan = SubtitleCollageSelectionPlan()
         pendingKeyboardAction = nil
         activeKeyboardAction = nil
         isScrollbarDragging = false

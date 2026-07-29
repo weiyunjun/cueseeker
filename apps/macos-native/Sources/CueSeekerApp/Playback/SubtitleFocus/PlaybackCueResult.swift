@@ -179,7 +179,8 @@ enum PlaybackCueInformationBadgeLayout {
     static func draw(
         _ plans: [PlaybackCueInformationBadgePlan],
         in resultRect: CGRect,
-        isSelected: Bool
+        isSelected: Bool,
+        isEnabled: Bool = true
     ) {
         guard !plans.isEmpty else {
             return
@@ -195,7 +196,9 @@ enum PlaybackCueInformationBadgeLayout {
             : PlaybackTheme.informationBadgeUnselectedBackgroundNative
         let textColor = isSelected
             ? PlaybackTheme.informationBadgeTextNative
-            : PlaybackTheme.informationBadgeUnselectedTextNative
+            : isEnabled
+                ? PlaybackTheme.informationBadgeUnselectedTextNative
+                : WorkbenchRedesignColors.NS.textDisabled
 
         for plan in plans {
             let frame = plan.frame.offsetBy(

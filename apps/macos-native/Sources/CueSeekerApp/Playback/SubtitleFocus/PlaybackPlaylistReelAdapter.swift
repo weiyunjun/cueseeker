@@ -121,7 +121,12 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         )
     }
 
-    func drawItem(at ordinal: Int, isSelected: Bool, in rect: CGRect) {
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        isEnabled _: Bool,
+        in rect: CGRect
+    ) {
         guard let result = cueResult(at: ordinal) else {
             return
         }

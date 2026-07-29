@@ -746,8 +746,19 @@ extension AppCoordinator {
                     _ = subtitleFocusSession.toggleEditingCollage()
                 }
                 return true
-            case 123, 124, 125, 126:
-                return false
+            case 36, 76:
+                if !isRepeat {
+                    _ = subtitleFocusSession.toggleFocusedCollageCueSelection()
+                }
+                return true
+            case 126:
+                _ = subtitleFocusSession.requestKeyboardNavigation(.backward)
+                return true
+            case 125:
+                _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
+                return true
+            case 123, 124:
+                return true
             default:
                 return true
             }
