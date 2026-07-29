@@ -192,3 +192,80 @@ Step 9 验收：完整自动化测试及 Search、Shiori、Context、Playback、
 ## Step 10：最终同步并提交 UI.md
 
 Step 10 验收：最终实现与 UI.md 一致，提交 UI.md 并完成整个需求验收。
+
+# UI文档改动
+
+- Core Tokens：
+  - 删除不再使用的 Read-only 文字、背景和边框颜色 Token。
+  - 删除 Filter Count Badge 的字号、尺寸、内边距、圆角和偏移 Token。
+  - 增加 `--min-width-filter-data-card: 200px`。
+
+- Symbols：
+  - Filter 使用 `line.3.horizontal.decrease`。
+  - 增加 Duration、Character、Language、Watch Status 数据卡片图标。
+  - 增加数据卡片 Checked 和 Unchecked Option 图标。
+
+- 全局交互规则：
+  - 删除旧 Filter Builder 的 `No value needed` Read-only 特例。
+  - Focus 规则不再包含 Value Input Field。
+
+- Search Box：
+  - Result Count Text 在 exact 结果和当前筛选投影全部完成后显示。
+  - Result Count Text 显示筛选后的实际结果数量。
+
+- 旧 Filter Builder：
+  - 删除 Form Select Field、Value Input Field 和 Logic Connector Component。
+  - Inline Add Button 不再承担添加筛选条件或筛选集的用途。
+
+- Filter Data Card：
+  - 增加 Search 与 Shiori 共用的 Filter Data Card Component。
+  - 定义 Card、Title、Option、Count、Checkbox 的颜色、字号、间距和对齐规则。
+  - Title 使用 secondary，Option Label 和 Option Count 使用 muted。
+  - Checked Checkbox 背景使用 muted。
+  - Option 整行作为 Checkbox 点击区域，不显示额外 Hover、Pressed、Click 动画或背景。
+  - 定义 Default、Calculating 和 Disabled 状态。
+  - Calculating 时禁止交互但保持原有选择视觉。
+  - Disabled 时仅使用 Disabled 文字和图标颜色，不改变 Card Surface 和 Border。
+
+- Filter Button：
+  - 用途改为显示或隐藏 Filter Data Panel。
+  - 删除 Filter Count Badge 和数字。
+  - Filter Data Panel 可见时进入 Open 状态并复用 Hover 视觉。
+
+- Search / Shiori Toolbar：
+  - Toolbar、Filter Data Panel 和 Table Viewport 使用相同左右边界。
+  - Search 只有在 exact 结果和筛选投影完成后才能进入 Select 状态。
+  - Search 与 Shiori 的 Filter Button 均控制 Filter Data Panel。
+  - 删除旧 Filter Editor、Filter Rule 和 New Filter 相关规则。
+
+- Filter Data Panel：
+  - Search 与 Shiori 二级页面依次排列 Toolbar、可选 Filter Data Panel 和结果表格。
+  - Search 默认显示数据面板；Shiori 二级页面默认隐藏。
+  - 面板显示状态不持久化，隐藏面板不清除筛选选择或改变结果。
+  - Search 使用独立的持久化选择状态；每个 Shiori List 使用各自的持久化选择状态。
+  - 没有已保存状态时，所有 Option 默认不选中。
+  - 不显示 `All` Option；未选中和全部选中均不限制结果。
+  - 同一卡片内部使用 OR，不同卡片之间使用 AND。
+  - 保存实际 Checked 集合，不转换未选中与全部选中的显示状态。
+  - 定义 Duration、Character、Language 和 Watch Status 的 Option。
+  - Search Language 显示数据库中存在的语言和 `Unknown`。
+  - Shiori Language 只显示当前列表实际存在的语言；仅在存在 Unknown Cue 时显示 `Unknown`。
+  - Watch Status 直接读取观看状态，不根据观看进度推导。
+  - Option Count 使用 disjunctive facet：忽略所属卡片自身选择，只应用其他卡片选择。
+  - Search Term 为空时所有 Option Count 固定为 `0`，不显示结果表格。
+  - exact 或 Shiori 分布快照完成前，数据卡片进入 Calculating 状态。
+  - Select 状态下，已显示的数据卡片进入 Disabled 状态。
+  - 使用响应式 Grid，不假设数据卡片数量固定为四张。
+  - 数据卡片最小宽度为 `200px`，最少保持两列，允许三列及更多列。
+  - 同一行等宽且统一为该行最高卡片的自然高度，不同行分别计算。
+
+- Shiori List Detail：
+  - 复用 Filter Data Panel Layout 和 Filter Data Card。
+  - Filter Data Panel 的数据范围限定为当前 Shiori List。
+
+- Settings 与 Empty Hint：
+  - Show Cue Group 的位置不再描述为紧接已删除的 Search Scope。
+  - Search Empty Hint 改为 `Enter a search term to show cues.`。
+  - Filter Data Card 的选择不改变 Search Empty Hint。
+  - 空搜索词时 Filter Data Panel 继续显示，全部 Option Count 为 `0`。
+  - 删除旧 Effective Filter Condition 规则。
