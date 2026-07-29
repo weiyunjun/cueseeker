@@ -86,7 +86,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
     /// legacy Shiori snapshots that have no durable Cue identity.
     let primaryGroupIndex: Int?
     let tags: [WorkbenchTag]
-    let shioriTags: [WorkbenchTag]
     let cueState: SubtitleTableCueState
 
     /// Compatibility alias used by existing table drawing and clipboard paths.
@@ -131,7 +130,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
         cueGroupTexts: [String],
         primaryGroupIndex: Int?,
         tags: [WorkbenchTag] = [],
-        shioriTags: [WorkbenchTag] = [],
         cueState: SubtitleTableCueState = .normal
     ) {
         self.id = id
@@ -156,7 +154,6 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.cueGroupTexts = resolvedCueGroupTexts
         self.primaryGroupIndex = resolvedPrimaryGroupIndex
         self.tags = tags
-        self.shioriTags = shioriTags
         self.cueState = cueState
     }
 
@@ -171,8 +168,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
         endTime: String = "",
         timeRange: String? = nil,
         cues: String,
-        tags: [WorkbenchTag] = [],
-        shioriTags: [WorkbenchTag] = []
+        tags: [WorkbenchTag] = []
     ) {
         self.init(
             id: id,
@@ -186,27 +182,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
             primaryCueText: cues,
             cueGroupTexts: [cues],
             primaryGroupIndex: 0,
-            tags: tags,
-            shioriTags: shioriTags
-        )
-    }
-
-    func replacingShioriTags(_ nextShioriTags: [WorkbenchTag]) -> SubtitleTableRow {
-        SubtitleTableRow(
-            id: id,
-            primaryCueID: primaryCueID,
-            subtitlePath: subtitlePath,
-            dateAdded: dateAdded,
-            displayTitle: displayTitle,
-            startTime: startTime,
-            endTime: endTime,
-            timeRange: timeRange,
-            primaryCueText: primaryCueText,
-            cueGroupTexts: cueGroupTexts,
-            primaryGroupIndex: primaryGroupIndex,
-            tags: tags,
-            shioriTags: nextShioriTags,
-            cueState: cueState
+            tags: tags
         )
     }
 }

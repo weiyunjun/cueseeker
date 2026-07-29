@@ -371,7 +371,6 @@ private func playbackSharedShioriRowSource(
         displayTitle: fixture.shiori.videoName,
         dateAddedText: fixture.shiori.createdAt,
         languages: [.japanese],
-        shioriTags: [],
         cuePresentation: fixture.presentation
     )
 }

@@ -142,7 +142,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(41)
+    try expectUnsupportedSchemaVersion(42)
 }
 
 @Test
@@ -447,7 +447,7 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
 }
 
 @Test
-func migratesSchema34IdentityFoundationWithoutLosingShioriOrTags() throws {
+func migratesSchema34IdentityFoundationWithoutLosingShioriAndRemovesTags() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -558,7 +558,8 @@ func migratesSchema34IdentityFoundationWithoutLosingShioriOrTags() throws {
             == DatabaseBootstrap.currentSchemaVersion
     )
     #expect(try sqliteRowCount(in: "shioris", databaseURL: databaseURL) == 1)
-    #expect(try sqliteRowCount(in: "shiori_tag_assignments", databaseURL: databaseURL) == 1)
+    #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL) == false)
+    #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL) == false)
     #expect(try sqliteForeignKeyTables(in: "shioris", databaseURL: databaseURL) == [
         "shiori_lists"
     ])
@@ -597,7 +598,7 @@ func freshSchemaCreatesShioriTablePerformanceIndexes() throws {
 }
 
 @Test
-func freshSchemaCreatesShioriTagTablesAndIndexes() throws {
+func freshSchemaOmitsShioriTagTablesAndIndexes() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -605,9 +606,9 @@ func freshSchemaCreatesShioriTagTablesAndIndexes() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL))
-    #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL))
-    #expect(try sqliteIndexExists("idx_shiori_tags_name", databaseURL: databaseURL))
-    #expect(try sqliteIndexExists("idx_shiori_tag_assignments_tag", databaseURL: databaseURL))
-    #expect(try sqliteIndexExists("idx_shiori_tag_assignments_shiori", databaseURL: databaseURL))
+    #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL) == false)
+    #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL) == false)
+    #expect(try sqliteIndexExists("idx_shiori_tags_name", databaseURL: databaseURL) == false)
+    #expect(try sqliteIndexExists("idx_shiori_tag_assignments_tag", databaseURL: databaseURL) == false)
+    #expect(try sqliteIndexExists("idx_shiori_tag_assignments_shiori", databaseURL: databaseURL) == false)
 }

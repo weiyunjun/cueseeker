@@ -711,8 +711,9 @@ After each action, wait two seconds and preserve the corresponding log block.
    `Show Cue Group` checks. Confirm Context uses the same dynamic table contract
    and returns to the exact primary Cue.
 7. Open Shiori and repeat the checks on the saved Cue. Confirm the Shiori Cue,
-   tags, time, and date identity remain unchanged and the table is not reloaded
-   merely because presentation changed.
+   time, and date identity remain unchanged and the table is not reloaded merely
+   because presentation changed. Confirm no Shiori Tags column or interaction
+   is present.
 8. Set `Show Cue Group` On and quit. Start the performance log before relaunch,
    then open the same table for its first mount. Confirm its first visible
    presentation is already On, with no intermediate Off frame and no redundant

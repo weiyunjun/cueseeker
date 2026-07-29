@@ -1,12 +1,5 @@
 import Foundation
 
-public enum ShioriTagValidationError: Error, Equatable {
-    case emptyName
-    case nameTooLong(maximumCharacters: Int)
-    case invalidCharacters
-}
-
-
 public enum ShioriListIdentity {
     public static let defaultListID: Int64 = 1
 }
@@ -122,20 +115,17 @@ public struct ShioriResidentSnapshot: Equatable, Sendable {
     public let relations: [ShioriRelation]
     public let resolvedShioris: [Shiori]
     public let cueContents: [CueContent]
-    public let tagsByShioriID: [Int64: [ShioriTag]]
     public let facetSnapshot: CueFacetSnapshot
 
     public init(
         relations: [ShioriRelation],
         resolvedShioris: [Shiori] = [],
         cueContents: [CueContent],
-        tagsByShioriID: [Int64: [ShioriTag]],
         facetSnapshot: CueFacetSnapshot = .empty
     ) {
         self.relations = relations
         self.resolvedShioris = resolvedShioris
         self.cueContents = cueContents
-        self.tagsByShioriID = tagsByShioriID
         self.facetSnapshot = facetSnapshot
     }
 }
@@ -272,30 +262,6 @@ public struct Shiori: Equatable, Sendable, Identifiable {
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-    }
-}
-
-public struct ShioriTag: Equatable, Sendable, Identifiable {
-    public let id: Int64
-    public let name: String
-    public let createdAt: String
-
-    public init(id: Int64, name: String, createdAt: String) {
-        self.id = id
-        self.name = name
-        self.createdAt = createdAt
-    }
-}
-
-public struct ShioriTagDeletionResult: Equatable, Sendable {
-    public let tagID: Int64
-    public let didDelete: Bool
-    public let affectedShioriIDs: [Int64]
-
-    public init(tagID: Int64, didDelete: Bool, affectedShioriIDs: [Int64]) {
-        self.tagID = tagID
-        self.didDelete = didDelete
-        self.affectedShioriIDs = affectedShioriIDs
     }
 }
 

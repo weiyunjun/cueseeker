@@ -385,9 +385,9 @@ Rules:
 - Search owns an ordered CueID result collection. Shiori owns an ordered
   Shiori-relation collection whose relation identity remains distinct from its
   referenced CueID.
-- A Shiori relation owns ShioriID, CueID, list identity, creation time, and
-  relation-scoped Tags. It must not own another subtitle text, Cue Group,
-  title, language, timing, path, or media snapshot.
+- A Shiori relation owns ShioriID, CueID, list identity, and creation time. It
+  must not own another subtitle text, Cue Group, title, language, timing, path,
+  media snapshot, or relation-scoped Tags.
 - Shiori relations are scoped to the existing multi-list model. Each relation
   keeps one list identity, and list management reuses the accepted Shiori
   persistence and presentation paths.

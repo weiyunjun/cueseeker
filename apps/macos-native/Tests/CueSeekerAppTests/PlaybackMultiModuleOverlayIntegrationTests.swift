@@ -346,7 +346,6 @@ private func playbackMultiModuleShioriRow(
         displayTitle: shiori.videoName,
         dateAddedText: shiori.createdAt,
         languages: [.unknown],
-        shioriTags: []
     )
 }
 

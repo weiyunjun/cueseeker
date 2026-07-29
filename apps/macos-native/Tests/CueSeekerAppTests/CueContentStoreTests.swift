@@ -137,7 +137,6 @@ func canonicalCueChangeAutomaticallyReloadsResidentShioriTableProjection() {
     cueStore.install([original])
     shioriStore.tableRowStore.updateResidentShioriRelations(
         [relation],
-        tagsByShioriID: [:],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
         tableName: "shiori"
@@ -166,7 +165,6 @@ func unrelatedCanonicalCueChangeDoesNotReloadCoveredResidentShiori() {
     cueStore.install([resident])
     shioriStore.tableRowStore.updateResidentShioriRelations(
         [relation],
-        tagsByShioriID: [:],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
         tableName: "shiori"

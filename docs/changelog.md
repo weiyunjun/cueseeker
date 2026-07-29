@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed Shiori Tags across the UI, application state, Core API, and database.
+  Schema version 41 clears legacy tag assignments and tables while preserving
+  Shiori relations and Cue data; fresh databases no longer create the removed
+  schema.
 - Aligned the project workflow with its formal native-development stage.
   Human-owned design documents are now the primary source for stable product
   meaning and workflows, while every new change still requires a focused

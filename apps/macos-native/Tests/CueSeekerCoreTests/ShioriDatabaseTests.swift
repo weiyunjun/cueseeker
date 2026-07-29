@@ -265,11 +265,6 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
         listID: defaultList.id,
         createdAt: createdAt
     )
-    let duplicateTag = try database.assignShioriTag(
-        named: "Duplicate tag",
-        toShioriID: sourceToDuplicate.id,
-        createdAt: Date(timeIntervalSince1970: 1_700_000_100)
-    )
     let duplicate = try database.duplicateShiori(
         id: sourceToDuplicate.id,
         toListID: destinationList.id
@@ -278,7 +273,6 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     #expect(duplicate.listID == destinationList.id)
     #expect(duplicate.createdAt == sourceToDuplicate.createdAt)
     #expect(try database.shioriRelation(id: sourceToDuplicate.id) != nil)
-    #expect(try database.shioriTags(forShioriID: duplicate.id) == [duplicateTag])
     #expect(throws: ShioriTransferError.destinationAlreadyContainsCue(
         listID: destinationList.id
     )) {
@@ -293,10 +287,6 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
         listID: defaultList.id,
         createdAt: createdAt
     )
-    let moveTag = try database.assignShioriTag(
-        named: "Move tag",
-        toShioriID: sourceToMove.id
-    )
     #expect(throws: ShioriTransferError.destinationUnavailable) {
         _ = try database.moveShiori(id: sourceToMove.id, toListID: 99_999)
     }
@@ -309,7 +299,6 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     #expect(moved.id != sourceToMove.id)
     #expect(moved.createdAt == sourceToMove.createdAt)
     #expect(try database.shioriRelation(id: sourceToMove.id) == nil)
-    #expect(try database.shioriTags(forShioriID: moved.id) == [moveTag])
     #expect(try database.shioriRelations(listID: defaultList.id).map(\.id) == [
         sourceToDuplicate.id
     ])
@@ -428,7 +417,7 @@ func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
 }
 
 @Test
-func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() throws {
+func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -461,10 +450,6 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    let tag = try ShioriDatabase(path: databaseURL).assignShioriTag(
-        named: "Review",
-        toShioriID: saved.id
-    )
     try LibraryDatabase(path: databaseURL).setLibraryWatchState(
         videoFile: videoFile,
         duration: nil,
@@ -476,7 +461,6 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndTagsTogether() thro
     #expect(snapshot.relations.map(\.id) == [saved.id])
     #expect(snapshot.relations.map(\.cueID) == snapshot.cueContents.map(\.cueID))
     #expect(snapshot.cueContents.map(\.content) == ["Resident Cue"])
-    #expect(snapshot.tagsByShioriID[saved.id] == [tag])
     #expect(snapshot.facetSnapshot.cueIDs == [cueID])
     #expect(snapshot.facetSnapshot.distribution.totalCount == 1)
     #expect(snapshot.facetSnapshot.distribution.durationCounts[.oneToUnderThreeSeconds] == 1)
@@ -698,7 +682,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
 }
 
 @Test
-func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
+func shioriPersistsAndResolvesCueID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -706,8 +690,6 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let shioriDatabase = try ShioriDatabase(path: databaseURL)
-
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Permanent Identity.mkv")
     try database.replaceEntries(
@@ -742,12 +724,10 @@ func shioriPersistsAndResolvesCueIDWhileTagsReferenceShioriID() throws {
     let cueContent = try CueContentDatabase(path: database.path).cueContents(forCueIDs: [cueID])
     #expect(cueContent.first?.cueID == cueID)
 
-    let tag = try shioriDatabase.assignShioriTag(named: "CueID", toShioriID: shiori.id)
-    #expect(try shioriDatabase.shioriTags(forShioriID: shiori.id) == [tag])
 }
 
 @Test
-func rebuildingSubtitlePreservesCueIDShioriAndTagsWhenContentChanges() throws {
+func rebuildingSubtitlePreservesCueIDAndShioriWhenContentChanges() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -755,7 +735,6 @@ func rebuildingSubtitlePreservesCueIDShioriAndTagsWhenContentChanges() throws {
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let shioriDatabase = try ShioriDatabase(path: databaseURL)
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.srt")
     let videoFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.mkv")
@@ -779,10 +758,6 @@ func rebuildingSubtitlePreservesCueIDShioriAndTagsWhenContentChanges() throws {
     let originalShiori = try ShioriDatabase(path: database.path).upsertShiori(
         selection: shioriSelection(originalCue),
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
-    )
-    let tag = try shioriDatabase.assignShioriTag(
-        named: "Keep after reindex",
-        toShioriID: originalShiori.id
     )
 
     try database.replaceEntries(
@@ -819,7 +794,6 @@ func rebuildingSubtitlePreservesCueIDShioriAndTagsWhenContentChanges() throws {
         )
     )
     #expect(rebuiltShiori.createdAt == originalShiori.createdAt)
-    #expect(try shioriDatabase.shioriTags(forShioriID: originalShiori.id) == [tag])
 }
 
 @Test
@@ -891,138 +865,6 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
     #expect(try ShioriDatabase(path: database.path).removeShiori(id: bottom.id))
     #expect(try ShioriDatabase(path: database.path).shiori(id: top.id) != nil)
     #expect(try ShioriDatabase(path: database.path).shiori(id: bottom.id) == nil)
-}
-
-@Test
-func shioriTagAPIsValidatePersistAndDeleteAssignments() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    let database = try IndexingDatabase(path: databaseURL)
-    try DatabaseBootstrap.prepare(at: databaseURL)
-    let shioriDatabase = try ShioriDatabase(path: databaseURL)
-
-    let subtitleFile = URL(fileURLWithPath: "/Media/Tags.srt")
-    let videoFile = URL(fileURLWithPath: "/Media/Tags.mkv")
-    try database.replaceEntries(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        entries: [
-            SubtitleEntry(
-                sequenceNumber: 1,
-                startTimecode: "00:00:01,000",
-                endTimecode: "00:00:02,000",
-                startMilliseconds: 1_000,
-                endMilliseconds: 2_000,
-                text: "First tagged shiori."
-            ),
-            SubtitleEntry(
-                sequenceNumber: 2,
-                startTimecode: "00:00:03,000",
-                endTimecode: "00:00:04,000",
-                startMilliseconds: 3_000,
-                endMilliseconds: 4_000,
-                text: "Second tagged shiori."
-            ),
-        ]
-    )
-
-    let firstSelection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
-        forSubtitleFile: subtitleFile,
-        atMilliseconds: 1_500
-    ))
-    let secondSelection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
-        forSubtitleFile: subtitleFile,
-        atMilliseconds: 3_500
-    ))
-    let firstShiori = try ShioriDatabase(path: database.path).upsertShiori(
-        selection: firstSelection
-    )
-    let secondShiori = try ShioriDatabase(path: database.path).upsertShiori(
-        selection: secondSelection
-    )
-
-    let createdAt = try #require(ISO8601DateFormatter().date(from: "2026-07-08T00:00:00Z"))
-    let tag = try shioriDatabase.createShioriTag(named: "  Tag  ", createdAt: createdAt)
-    let duplicate = try shioriDatabase.createShioriTag(named: "Tag")
-    let lowerCaseTag = try shioriDatabase.createShioriTag(named: "tag")
-
-    #expect(tag.name == "Tag")
-    #expect(duplicate.id == tag.id)
-    #expect(lowerCaseTag.id != tag.id)
-    #expect(try shioriDatabase.shioriTag(named: " Tag ")?.id == tag.id)
-
-    #expect(try shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
-    #expect(try !shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
-    let secondTag = try shioriDatabase.assignShioriTag(named: "復習", toShioriID: secondShiori.id)
-
-    var tagsByShioriID = try shioriDatabase.shioriTagsByShioriID(
-        forShioriIDs: [firstShiori.id, secondShiori.id]
-    )
-    #expect(tagsByShioriID[firstShiori.id]?.map(\.name) == ["Tag"])
-    #expect(tagsByShioriID[secondShiori.id]?.map(\.name) == ["復習"])
-
-    #expect(try shioriDatabase.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
-    #expect(try !shioriDatabase.removeShioriTagAssignment(tagID: tag.id, fromShioriID: firstShiori.id))
-    #expect(try shioriDatabase.shioriTags(forShioriID: firstShiori.id).isEmpty)
-
-    #expect(try shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: firstShiori.id))
-    #expect(try shioriDatabase.assignShioriTag(tagID: tag.id, toShioriID: secondShiori.id))
-    let deletion = try shioriDatabase.deleteShioriTag(tagID: tag.id)
-    #expect(deletion.didDelete)
-    #expect(deletion.affectedShioriIDs == [firstShiori.id, secondShiori.id].sorted())
-    #expect(try shioriDatabase.shioriTag(id: tag.id) == nil)
-    tagsByShioriID = try shioriDatabase.shioriTagsByShioriID(
-        forShioriIDs: [firstShiori.id, secondShiori.id]
-    )
-    #expect(tagsByShioriID[firstShiori.id]?.isEmpty == true)
-    #expect(tagsByShioriID[secondShiori.id]?.map(\.id) == [secondTag.id])
-
-    let missingDeletion = try shioriDatabase.deleteShioriTag(tagID: -1)
-    #expect(!missingDeletion.didDelete)
-    #expect(missingDeletion.affectedShioriIDs.isEmpty)
-
-    do {
-        _ = try shioriDatabase.assignShioriTag(named: "Orphan", toShioriID: -1)
-        Issue.record("Expected missing Shiori assignment to fail")
-    } catch {
-        #expect(try shioriDatabase.shioriTag(named: "Orphan") == nil)
-    }
-}
-
-@Test
-func shioriTagValidationRejectsInvalidNames() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        try? FileManager.default.removeItem(at: databaseURL)
-    }
-
-    try DatabaseBootstrap.prepare(at: databaseURL)
-    let shioriDatabase = try ShioriDatabase(path: databaseURL)
-
-    expectShioriTagValidationError(.emptyName) {
-        _ = try shioriDatabase.createShioriTag(named: "   ")
-    }
-    expectShioriTagValidationError(.nameTooLong(maximumCharacters: 20)) {
-        _ = try shioriDatabase.createShioriTag(named: "123456789012345678901")
-    }
-    expectShioriTagValidationError(.invalidCharacters) {
-        _ = try shioriDatabase.createShioriTag(named: "hello\nworld")
-    }
-    expectShioriTagValidationError(.invalidCharacters) {
-        _ = try shioriDatabase.createShioriTag(named: "\nhello")
-    }
-    expectShioriTagValidationError(.invalidCharacters) {
-        _ = try shioriDatabase.createShioriTag(named: "hello\tworld")
-    }
-    expectShioriTagValidationError(.invalidCharacters) {
-        _ = try shioriDatabase.createShioriTag(named: "hello\u{200B}world")
-    }
-
-    let allowed = try shioriDatabase.createShioriTag(named: #" C++ "Q" / \ & 😀 "#)
-    #expect(allowed.name == #"C++ "Q" / \ & 😀"#)
 }
 
 @Test

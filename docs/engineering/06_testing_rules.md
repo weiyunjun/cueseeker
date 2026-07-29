@@ -680,11 +680,10 @@ Required database and search coverage:
   Group context is a separate optional presentation projection.
 - Query terms split only across different cue lines do not produce a result.
 - Multiple matching Cues in one Cue Group remain distinct results and counts.
-- Migrating legacy Shiori preserves row IDs and tag assignments while preferring
-  an indexed Japanese Cue when language classification is available, then
-  selecting the physically bottommost Cue among the eligible candidates. When
-  no Japanese candidate can be identified, migration falls back to the
-  physically bottommost indexed Cue overall. Other Cue Group text is discarded.
+- Migrating a supported legacy Shiori schema preserves Shiori row IDs and Cue
+  relations while schema version `41` removes the legacy Shiori Tag tables and
+  assignments. Fresh schema coverage must verify that those tables and indexes
+  are absent.
 - Search results remain scoped to currently selected folders.
 
 Required integration coverage:
@@ -851,7 +850,7 @@ Required Cue-table coverage:
   matching Cues from one Cue Group remain separate rows with separate stable
   identities and action targets.
 - Search and Search-hosted Context use the Search table columns; Shiori uses its
-  declared Cue, tag, time, and date columns. All three surfaces use the same
+  declared Cue, time, and date columns. All three surfaces use the same
   native virtual Cue-table geometry and interaction contract.
 - A one-line primary Cue with no additional context resolves to 40 points; each
   additional primary visual line adds 24 points and each additional Cue Group

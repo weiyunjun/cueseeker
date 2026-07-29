@@ -70,12 +70,6 @@ enum SchemaWorkbenchSearchDefaults {
             width: .weighted(weight: 3, min: 180)
         ),
         WorkbenchTableColumn(
-            id: "tags",
-            title: "Tags",
-            kind: .text,
-            width: .weighted(weight: 2, min: 140)
-        ),
-        WorkbenchTableColumn(
             id: "time",
             title: "Time Range",
             kind: .text,

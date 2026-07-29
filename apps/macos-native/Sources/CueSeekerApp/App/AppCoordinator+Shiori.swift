@@ -3,16 +3,6 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
-struct ShioriTagPopoverState: Equatable {
-    let allTags: [ShioriTag]
-    let currentTags: [ShioriTag]
-}
-
-struct ShioriTagDeletionOutcome: Equatable {
-    let popoverState: ShioriTagPopoverState
-    let deletionResult: ShioriTagDeletionResult
-}
-
 @MainActor
 extension AppCoordinator {
     func loadShioriListOverviewIfNeeded() {
@@ -588,7 +578,6 @@ extension AppCoordinator {
         )
         shiori.tableRowStore.updateResidentShioriRelations(
             relations,
-            tagsByShioriID: shiori.residentTagsByShioriID,
             resolvedShiorisByID: shiori.residentShiorisByID,
             cueContentProvider: { [cueContent] cueID in
                 cueContent.content(for: cueID)
@@ -614,83 +603,6 @@ extension AppCoordinator {
             && shiori.tableFacetFilter == facetFilter
             && shiori.activeListID == listID
             && shiori.tableDataRevision == dataRevision
-    }
-
-    func shioriTagPopoverState(forShioriID shioriID: Int64) -> ShioriTagPopoverState? {
-        guard let database = shioriDatabase else { return nil }
-        do {
-            return ShioriTagPopoverState(
-                allTags: try database.shioriTags(),
-                currentTags: try database.shioriTags(forShioriID: shioriID)
-            )
-        } catch {
-            print("Failed to load Shiori tags: \(error)")
-            return nil
-        }
-    }
-
-    func assignShioriTag(tagID: Int64, toShioriID shioriID: Int64) -> [ShioriTag]? {
-        guard let database = shioriDatabase else { return nil }
-        do {
-            _ = try database.assignShioriTag(tagID: tagID, toShioriID: shioriID)
-            let tags = try database.shioriTags(forShioriID: shioriID)
-            shiori.updateResidentTags(tags, forShioriID: shioriID)
-            return tags
-        } catch {
-            print("Failed to assign Shiori tag: \(error)")
-            return nil
-        }
-    }
-
-    func createAndAssignShioriTag(named name: String, toShioriID shioriID: Int64) -> ShioriTagPopoverState? {
-        guard let database = shioriDatabase else { return nil }
-        do {
-            _ = try database.assignShioriTag(named: name, toShioriID: shioriID)
-            let state = ShioriTagPopoverState(
-                allTags: try database.shioriTags(),
-                currentTags: try database.shioriTags(forShioriID: shioriID)
-            )
-            shiori.updateResidentTags(state.currentTags, forShioriID: shioriID)
-            return state
-        } catch {
-            print("Failed to create Shiori tag: \(error)")
-            return nil
-        }
-    }
-
-    func removeShioriTagAssignment(tagID: Int64, fromShioriID shioriID: Int64) -> [ShioriTag]? {
-        guard let database = shioriDatabase else { return nil }
-        do {
-            _ = try database.removeShioriTagAssignment(tagID: tagID, fromShioriID: shioriID)
-            let tags = try database.shioriTags(forShioriID: shioriID)
-            shiori.updateResidentTags(tags, forShioriID: shioriID)
-            return tags
-        } catch {
-            print("Failed to remove Shiori tag assignment: \(error)")
-            return nil
-        }
-    }
-
-    func deleteShioriTagGlobally(tagID: Int64, currentShioriID: Int64) -> ShioriTagDeletionOutcome? {
-        guard let database = shioriDatabase else { return nil }
-        do {
-            let deletion = try database.deleteShioriTag(tagID: tagID)
-            shiori.removeResidentTag(
-                tagID: tagID,
-                fromShioriIDs: deletion.affectedShioriIDs
-            )
-            let state = ShioriTagPopoverState(
-                allTags: try database.shioriTags(),
-                currentTags: try database.shioriTags(forShioriID: currentShioriID)
-            )
-            return ShioriTagDeletionOutcome(
-                popoverState: state,
-                deletionResult: deletion
-            )
-        } catch {
-            print("Failed to delete Shiori tag: \(error)")
-            return nil
-        }
     }
 
     @discardableResult

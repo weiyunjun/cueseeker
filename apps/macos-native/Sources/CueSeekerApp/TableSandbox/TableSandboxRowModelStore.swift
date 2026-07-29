@@ -14,7 +14,6 @@ struct TableSandboxRowsSnapshot {
     var shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:]
     fileprivate var shioriRelations: [ShioriRelation] = []
     fileprivate var shioriRelationIndexByEntryID: [Int: Int] = [:]
-    fileprivate var shioriTagsByEntryID: [Int: [ShioriTag]] = [:]
     fileprivate var cueContentProvider: ((Int64) -> CueContent?)?
     fileprivate var cueContentRevision: UInt64 = 0
     var version = 0
@@ -31,7 +30,6 @@ struct TableSandboxRowsSnapshot {
         shiorisByEntryID: [Int: Shiori] = [:],
         shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:],
         shioriRelations: [ShioriRelation] = [],
-        shioriTagsByEntryID: [Int: [ShioriTag]] = [:],
         cueContentProvider: ((Int64) -> CueContent?)? = nil,
         cueContentRevision: UInt64 = 0,
         version: Int = 0,
@@ -57,7 +55,6 @@ struct TableSandboxRowsSnapshot {
                 (Int(relation.id), index)
             }
         )
-        self.shioriTagsByEntryID = shioriTagsByEntryID
         self.cueContentProvider = cueContentProvider
         self.cueContentRevision = cueContentRevision
         self.version = version
@@ -104,8 +101,7 @@ struct TableSandboxRowsSnapshot {
                 return tableSandboxShioriRow(
                     relation: relation,
                     cueContent: cueContent,
-                    resolvedShiori: resolvedShiori,
-                    shioriTags: shioriTagsByEntryID[Int(relation.id)] ?? []
+                    resolvedShiori: resolvedShiori
                 )
             }
             guard let resolvedShiori else {
@@ -113,8 +109,7 @@ struct TableSandboxRowsSnapshot {
             }
             return tableSandboxUnavailableShioriRow(
                 relation: relation,
-                shiori: resolvedShiori,
-                shioriTags: shioriTagsByEntryID[Int(relation.id)] ?? []
+                shiori: resolvedShiori
             )
         }
         if searchCueIDs.indices.contains(index) {
@@ -203,7 +198,6 @@ struct TableSandboxShioriRowSource: Equatable, Sendable {
     let displayTitle: String
     let dateAddedText: String
     let languages: Set<SubtitleLanguageCode>
-    let shioriTags: [ShioriTag]
     let cuePresentation: ShioriCuePresentation?
 
     init(
@@ -211,14 +205,12 @@ struct TableSandboxShioriRowSource: Equatable, Sendable {
         displayTitle: String,
         dateAddedText: String,
         languages: Set<SubtitleLanguageCode>,
-        shioriTags: [ShioriTag],
         cuePresentation: ShioriCuePresentation? = nil
     ) {
         self.shiori = shiori
         self.displayTitle = displayTitle
         self.dateAddedText = dateAddedText
         self.languages = languages
-        self.shioriTags = shioriTags
         self.cuePresentation = cuePresentation
     }
 }
@@ -647,7 +639,6 @@ final class TableSandboxRowModelStore: ObservableObject {
 
     func updateResidentShioriRelations(
         _ relations: [ShioriRelation],
-        tagsByShioriID: [Int64: [ShioriTag]],
         resolvedShiorisByID: [Int64: Shiori] = [:],
         cueContentProvider: @escaping (Int64) -> CueContent?,
         cueContentRevision: UInt64 = 0,
@@ -656,16 +647,12 @@ final class TableSandboxRowModelStore: ObservableObject {
         probeScope: String? = nil
     ) {
         acknowledgeCueContentRevision(cueContentRevision)
-        let normalizedTags = Dictionary(uniqueKeysWithValues: tagsByShioriID.map { key, value in
-            (Int(key), value)
-        })
         let normalizedShioris = Dictionary(
             uniqueKeysWithValues: resolvedShiorisByID.map { key, value in
                 (Int(key), value)
             }
         )
         let contentChanged = relations != snapshot.shioriRelations
-            || normalizedTags != snapshot.shioriTagsByEntryID
             || normalizedShioris != snapshot.shiorisByEntryID
             || !snapshot.materializedRows.isEmpty
             || snapshot.cueContentRevision != referencedCueContentRevision
@@ -682,7 +669,6 @@ final class TableSandboxRowModelStore: ObservableObject {
         publishSnapshot(TableSandboxRowsSnapshot(
             shiorisByEntryID: normalizedShioris,
             shioriRelations: relations,
-            shioriTagsByEntryID: normalizedTags,
             cueContentProvider: cueContentProvider,
             cueContentRevision: referencedCueContentRevision,
             version: snapshot.version + 1,
@@ -704,12 +690,9 @@ final class TableSandboxRowModelStore: ObservableObject {
             return
         }
         let relations = snapshot.shioriRelations.filter { $0.id != id }
-        var tags = snapshot.shioriTagsByEntryID
-        tags[Int(id)] = nil
         publishSnapshot(TableSandboxRowsSnapshot(
             shiorisByEntryID: snapshot.shiorisByEntryID.filter { $0.key != Int(id) },
             shioriRelations: relations,
-            shioriTagsByEntryID: tags,
             cueContentProvider: snapshot.cueContentProvider,
             cueContentRevision: snapshot.cueContentRevision,
             version: snapshot.version + 1,
@@ -817,141 +800,6 @@ final class TableSandboxRowModelStore: ObservableObject {
            probeScope: probeScope,
            reason: "shiori_hydration",
            isHydration: true)
-    }
-
-    @discardableResult
-    func updateShioriTags(
-        _ tags: [ShioriTag],
-        forShioriID shioriID: Int64,
-        tableName: String,
-        probeSurface: SubtitleTableProbeSurface? = nil,
-        probeScope: String? = nil
-    ) -> Bool {
-        if let rowIndex = snapshot.shioriRelationIndexByEntryID[Int(shioriID)] {
-            guard snapshot.shioriTagsByEntryID[Int(shioriID)] != tags else {
-                return false
-            }
-            var nextTags = snapshot.shioriTagsByEntryID
-            nextTags[Int(shioriID)] = tags
-            publishSnapshot(TableSandboxRowsSnapshot(
-                shioriRelations: snapshot.shioriRelations,
-                shioriTagsByEntryID: nextTags,
-                cueContentProvider: snapshot.cueContentProvider,
-                cueContentRevision: snapshot.cueContentRevision,
-                version: snapshot.version + 1,
-                update: .cells([
-                    TableSandboxCellInvalidation(row: rowIndex, columnID: "tags")
-                ]),
-                totalRowCount: snapshot.totalRowCount
-            ), tableName: tableName,
-               probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
-               probeScope: probeScope,
-               reason: "shiori_tag_update")
-            return true
-        }
-
-        guard let rowIndex = snapshot.materializedRows.firstIndex(where: {
-            $0.id == Int(shioriID)
-        }) else {
-            return false
-        }
-
-        let nextRow = snapshot.materializedRows[rowIndex].replacingShioriTags(
-            tableSandboxShioriTags(for: tags)
-        )
-        guard nextRow != snapshot.materializedRows[rowIndex] else {
-            return false
-        }
-
-        var nextRows = snapshot.materializedRows
-        nextRows[rowIndex] = nextRow
-        publishSnapshot(TableSandboxRowsSnapshot(
-            rows: nextRows,
-            searchResultsByEntryID: snapshot.searchResultsByEntryID,
-            shiorisByEntryID: snapshot.shiorisByEntryID,
-            shioriCuePresentationsByEntryID: snapshot.shioriCuePresentationsByEntryID,
-            version: snapshot.version + 1,
-            update: .cells([TableSandboxCellInvalidation(row: rowIndex, columnID: "tags")]),
-            totalRowCount: snapshot.totalRowCount
-        ), tableName: tableName,
-           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
-           probeScope: probeScope,
-           reason: "shiori_tag_update")
-        return true
-    }
-
-    @discardableResult
-    func removeShioriTagFromVisibleRows(
-        tagID: Int64,
-        affectedShioriIDs: [Int64],
-        tableName: String,
-        probeSurface: SubtitleTableProbeSurface? = nil,
-        probeScope: String? = nil
-    ) -> [Int64] {
-        let tagKey = String(tagID)
-        let affectedIDs = Set(affectedShioriIDs.map(Int.init))
-        var invalidations: [TableSandboxCellInvalidation] = []
-        var patchedIDs: [Int64] = []
-
-        if !snapshot.shioriRelations.isEmpty {
-            var nextTagsByEntryID = snapshot.shioriTagsByEntryID
-            for shioriID in affectedIDs {
-                guard let rowIndex = snapshot.shioriRelationIndexByEntryID[shioriID],
-                      let tags = nextTagsByEntryID[shioriID],
-                      tags.contains(where: { String($0.id) == tagKey })
-                else {
-                    continue
-                }
-                nextTagsByEntryID[shioriID] = tags.filter { String($0.id) != tagKey }
-                invalidations.append(
-                    TableSandboxCellInvalidation(row: rowIndex, columnID: "tags")
-                )
-                patchedIDs.append(Int64(shioriID))
-            }
-
-            guard !invalidations.isEmpty else { return [] }
-            publishSnapshot(TableSandboxRowsSnapshot(
-                shioriRelations: snapshot.shioriRelations,
-                shioriTagsByEntryID: nextTagsByEntryID,
-                cueContentProvider: snapshot.cueContentProvider,
-                cueContentRevision: snapshot.cueContentRevision,
-                version: snapshot.version + 1,
-                update: .cells(invalidations),
-                totalRowCount: snapshot.totalRowCount
-            ), tableName: tableName,
-               probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
-               probeScope: probeScope,
-               reason: "shiori_tag_delete")
-            return patchedIDs
-        }
-
-        var nextRows = snapshot.materializedRows
-
-        for (index, row) in snapshot.materializedRows.enumerated()
-        where affectedIDs.contains(row.id) && row.shioriTags.contains(where: { $0.key == tagKey }) {
-            let nextTags = row.shioriTags.filter { $0.key != tagKey }
-            nextRows[index] = row.replacingShioriTags(nextTags)
-            invalidations.append(TableSandboxCellInvalidation(row: index, columnID: "tags"))
-            patchedIDs.append(Int64(row.id))
-        }
-
-        guard !invalidations.isEmpty else {
-            return []
-        }
-
-        publishSnapshot(TableSandboxRowsSnapshot(
-            rows: nextRows,
-            searchResultsByEntryID: snapshot.searchResultsByEntryID,
-            shiorisByEntryID: snapshot.shiorisByEntryID,
-            shioriCuePresentationsByEntryID: snapshot.shioriCuePresentationsByEntryID,
-            version: snapshot.version + 1,
-            update: .cells(invalidations),
-            totalRowCount: snapshot.totalRowCount
-        ), tableName: tableName,
-           probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
-           probeScope: probeScope,
-           reason: "shiori_tag_delete")
-        return patchedIDs
     }
 
     private func apply(
@@ -1064,7 +912,6 @@ final class TableSandboxRowModelStore: ObservableObject {
             tags: SubtitleLanguageWorkbenchTags.tags(
                 for: cuePresentation?.languages ?? item.languages
             ),
-            shioriTags: tableSandboxShioriTags(for: item.shioriTags),
             cueState: tableSandboxCueState(for: item.shiori)
         )
     }
@@ -1124,7 +971,6 @@ func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTab
         tags: SubtitleLanguageWorkbenchTags.tags(
             for: cuePresentation?.languages ?? item.languages
         ),
-        shioriTags: tableSandboxShioriTags(for: item.shioriTags),
         cueState: tableSandboxCueState(for: item.shiori)
     )
 }
@@ -1132,8 +978,7 @@ func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTab
 private func tableSandboxShioriRow(
     relation: ShioriRelation,
     cueContent: CueContent,
-    resolvedShiori: Shiori?,
-    shioriTags: [ShioriTag]
+    resolvedShiori: Shiori?
 ) -> SubtitleTableRow {
     SubtitleTableRow(
         id: Int(relation.id),
@@ -1148,15 +993,13 @@ private func tableSandboxShioriRow(
         cueGroupTexts: cueContent.cueGroupLines,
         primaryGroupIndex: cueContent.primaryGroupIndex,
         tags: SubtitleLanguageWorkbenchTags.tags(for: cueContent.languages),
-        shioriTags: tableSandboxShioriTags(for: shioriTags),
         cueState: resolvedShiori.map(tableSandboxCueState(for:)) ?? .normal
     )
 }
 
 private func tableSandboxUnavailableShioriRow(
     relation: ShioriRelation,
-    shiori: Shiori,
-    shioriTags: [ShioriTag]
+    shiori: Shiori
 ) -> SubtitleTableRow {
     let cueGroupTexts = tableSandboxCueGroupSnapshotTexts(shiori.cueGroupContent)
     return SubtitleTableRow(
@@ -1171,7 +1014,6 @@ private func tableSandboxUnavailableShioriRow(
         primaryCueText: shiori.content,
         cueGroupTexts: cueGroupTexts.isEmpty ? [shiori.content] : cueGroupTexts,
         primaryGroupIndex: cueGroupTexts.firstIndex(of: shiori.content) ?? 0,
-        shioriTags: tableSandboxShioriTags(for: shioriTags),
         cueState: tableSandboxCueState(for: shiori)
     )
 }
@@ -1225,10 +1067,4 @@ func tableSandboxCueTimeText(milliseconds: Int) -> String {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     return String(format: "%02d:%02d", minutes, seconds)
-}
-
-private func tableSandboxShioriTags(for tags: [ShioriTag]) -> [WorkbenchTag] {
-    tags.map { tag in
-        WorkbenchTag(key: String(tag.id), label: tag.name, colorID: .gray)
-    }
 }

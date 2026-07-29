@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 40
+    public static let currentSchemaVersion = 41
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -40,6 +40,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 37
                 || previousVersion == 38
                 || previousVersion == 39
+                || previousVersion == 40
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -89,6 +90,17 @@ private extension DatabaseBootstrap {
             || previousVersion == 39
         {
             try migrateSchema39To40(on: database)
+        }
+        if previousVersion == 33
+            || previousVersion == 34
+            || previousVersion == 35
+            || previousVersion == 36
+            || previousVersion == 37
+            || previousVersion == 38
+            || previousVersion == 39
+            || previousVersion == 40
+        {
+            try migrateSchema40To41(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -597,31 +609,6 @@ private extension DatabaseBootstrap {
 
             \(shioriSchemaSQL)
 
-            CREATE TABLE IF NOT EXISTS shiori_tags (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                normalized_name TEXT NOT NULL UNIQUE,
-                created_at TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_shiori_tags_name
-                ON shiori_tags(normalized_name);
-
-            CREATE TABLE IF NOT EXISTS shiori_tag_assignments (
-                shiori_id INTEGER NOT NULL,
-                tag_id INTEGER NOT NULL,
-                created_at TEXT NOT NULL,
-                PRIMARY KEY(shiori_id, tag_id),
-                FOREIGN KEY(shiori_id) REFERENCES shioris(id) ON DELETE CASCADE,
-                FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_shiori_tag_assignments_tag
-                ON shiori_tag_assignments(tag_id, shiori_id);
-
-            CREATE INDEX IF NOT EXISTS idx_shiori_tag_assignments_shiori
-                ON shiori_tag_assignments(shiori_id, created_at, tag_id);
-
             """
             )
 
@@ -950,6 +937,19 @@ private extension DatabaseBootstrap {
                 try CueFacetCountCache.rebuildAll(on: database)
             }
             try database.execute("PRAGMA user_version = 40;")
+        }
+    }
+
+    static func migrateSchema40To41(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                DROP TABLE IF EXISTS shiori_tag_assignments;
+                DROP TABLE IF EXISTS shiori_tags;
+
+                PRAGMA user_version = 41;
+                """
+            )
         }
     }
 

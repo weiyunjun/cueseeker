@@ -638,35 +638,6 @@ func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreMapsShioriTagsToNeutralTags() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
-
-    store.hydrateShioriRows(
-        [
-            shioriSource(
-                id: 1,
-                content: "saved row",
-                languages: [.japanese],
-                shioriTags: [
-                    ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z"),
-                    ShioriTag(id: 8, name: "Grammar", createdAt: "2026-07-08T00:01:00Z"),
-                ]
-            ),
-        ],
-        startIndex: 0,
-        totalRowCount: 1,
-        tableName: "shiori"
-    )
-
-    let row = store.snapshot.row(at: 0)
-    #expect(row?.tags.map(\.key) == ["jp"])
-    #expect(row?.shioriTags.map(\.key) == ["7", "8"])
-    #expect(row?.shioriTags.map(\.label) == ["Review", "Grammar"])
-    #expect(row?.shioriTags.map(\.colorID) == [.gray, .gray])
-}
-
-@MainActor
-@Test
 func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let repeatedText = "same subtitle"
@@ -741,127 +712,6 @@ func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
     #expect(row?.cueGroupCopyText == content)
 }
 
-@Test
-func shioriTagComposerInputRulesFilterInvalidCharactersAndCapLength() {
-    #expect(
-        ShioriTagComposerInputRules.normalizedInput("123456789012345678901") ==
-            "12345678901234567890"
-    )
-    #expect(ShioriTagComposerInputRules.normalizedInput("hello\n\t\u{200B}world") == "helloworld")
-    #expect(ShioriTagComposerInputRules.isValidTrimmedTagText("Review"))
-    #expect(!ShioriTagComposerInputRules.isValidTrimmedTagText(""))
-    #expect(!ShioriTagComposerInputRules.isValidTrimmedTagText("123456789012345678901"))
-    #expect(!ShioriTagComposerInputRules.isValidTrimmedTagText("hello\nworld"))
-}
-
-@MainActor
-@Test
-func tableSandboxRowModelStorePatchesShioriTagCells() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
-    let cuePresentation = ShioriCuePresentation(
-        cueID: 101,
-        cueGroupID: 11,
-        primaryGroupIndex: 1,
-        cueGroupTexts: ["upper sibling", "saved row"],
-        languages: [.japanese],
-    )
-
-    store.hydrateShioriRows(
-        [
-            shioriSource(
-                id: 1,
-                content: "saved row",
-                languages: [.japanese],
-                cuePresentation: cuePresentation
-            ),
-        ],
-        startIndex: 0,
-        totalRowCount: 1,
-        tableName: "shiori"
-    )
-
-    let rowBeforePatch = store.snapshot.row(at: 0)
-    let patched = store.updateShioriTags(
-        [
-            ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z"),
-        ],
-        forShioriID: 1,
-        tableName: "shiori"
-    )
-
-    #expect(patched)
-    let rowAfterPatch = store.snapshot.row(at: 0)
-    #expect(rowAfterPatch?.shioriTags.map(\.label) == ["Review"])
-    #expect(rowAfterPatch?.id == rowBeforePatch?.id)
-    #expect(rowAfterPatch?.primaryCueText == rowBeforePatch?.primaryCueText)
-    #expect(rowAfterPatch?.cueGroupTexts == rowBeforePatch?.cueGroupTexts)
-    #expect(rowAfterPatch?.primaryGroupIndex == rowBeforePatch?.primaryGroupIndex)
-    #expect(rowAfterPatch?.additionalCueTexts == rowBeforePatch?.additionalCueTexts)
-    #expect(rowAfterPatch?.cueGroupCopyText == rowBeforePatch?.cueGroupCopyText)
-    #expect(store.snapshot.update == .cells([TableSandboxCellInvalidation(row: 0, columnID: "tags")]))
-}
-
-@MainActor
-@Test
-func tableSandboxRowModelStorePatchesOnlyMatchingShioriTagCell() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
-
-    store.hydrateShioriRows(
-        [
-            shioriSource(id: 1, content: "first saved row", languages: [.japanese]),
-            shioriSource(id: 2, content: "second saved row", languages: [.japanese]),
-        ],
-        startIndex: 0,
-        totalRowCount: 2,
-        tableName: "shiori"
-    )
-
-    let patched = store.updateShioriTags(
-        [
-            ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z"),
-        ],
-        forShioriID: 1,
-        tableName: "shiori"
-    )
-
-    #expect(patched)
-    #expect(store.snapshot.row(at: 0)?.shioriTags.map(\.label) == ["Review"])
-    #expect(store.snapshot.row(at: 1)?.shioriTags.isEmpty == true)
-    #expect(store.snapshot.update == .cells([TableSandboxCellInvalidation(row: 0, columnID: "tags")]))
-}
-
-@MainActor
-@Test
-func tableSandboxRowModelStoreRemovesDeletedShioriTagFromAffectedVisibleRows() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
-    let sharedTag = ShioriTag(id: 7, name: "Review", createdAt: "2026-07-08T00:00:00Z")
-
-    store.hydrateShioriRows(
-        [
-            shioriSource(id: 1, content: "first", languages: [.japanese], shioriTags: [sharedTag]),
-            shioriSource(id: 2, content: "second", languages: [.japanese], shioriTags: [sharedTag]),
-            shioriSource(id: 3, content: "third", languages: [.japanese]),
-        ],
-        startIndex: 0,
-        totalRowCount: 3,
-        tableName: "shiori"
-    )
-
-    let patchedIDs = store.removeShioriTagFromVisibleRows(
-        tagID: 7,
-        affectedShioriIDs: [1, 2, 99],
-        tableName: "shiori"
-    )
-
-    #expect(patchedIDs == [1, 2])
-    #expect(store.snapshot.row(at: 0)?.shioriTags.isEmpty == true)
-    #expect(store.snapshot.row(at: 1)?.shioriTags.isEmpty == true)
-    #expect(store.snapshot.update == .cells([
-        TableSandboxCellInvalidation(row: 0, columnID: "tags"),
-        TableSandboxCellInvalidation(row: 1, columnID: "tags"),
-    ]))
-}
-
 @MainActor
 @Test
 func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingCollection() {
@@ -875,15 +725,8 @@ func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingColl
         )
     }
     let selectedCue = residentCueContent(cueID: 10_000, content: "Last resident Cue")
-    let selectedTag = ShioriTag(
-        id: 7,
-        name: "Review",
-        createdAt: "2026-07-21T12:00:00Z"
-    )
-
     store.updateResidentShioriRelations(
         relations,
-        tagsByShioriID: [10_000: [selectedTag]],
         cueContentProvider: { cueID in
             cueID == selectedCue.cueID ? selectedCue : residentCueContent(
                 cueID: cueID,
@@ -897,7 +740,6 @@ func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingColl
     #expect(store.snapshot.loadedReferenceCount == 10_000)
     #expect(store.snapshot.materializedRowCount == 0)
     #expect(store.snapshot.row(at: 9_999)?.primaryCueText == "Last resident Cue")
-    #expect(store.snapshot.row(at: 9_999)?.shioriTags.map(\.label) == ["Review"])
     #expect(store.snapshot.shiori(entryID: 10_000)?.content == "Last resident Cue")
     #expect(store.snapshot.rowIndex(entryID: 10_000) == 9_999)
 }
@@ -955,7 +797,6 @@ func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
 
     store.updateResidentShioriRelations(
         [unavailableRelation, changedRelation],
-        tagsByShioriID: [:],
         resolvedShiorisByID: [
             unavailable.id: unavailable,
             changed.id: changed,
@@ -1060,7 +901,6 @@ func tableSandboxShioriProjectionReloadsWhenCanonicalCueContentChanges() {
 
     store.updateResidentShioriRelations(
         relations,
-        tagsByShioriID: [:],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
         tableName: "shiori"
@@ -1069,7 +909,6 @@ func tableSandboxShioriProjectionReloadsWhenCanonicalCueContentChanges() {
     cueStore.install([changed])
     store.updateResidentShioriRelations(
         relations,
-        tagsByShioriID: [:],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
         tableName: "shiori"
@@ -1123,7 +962,6 @@ func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
             relations: relations,
             resolvedShioris: [available, unavailable],
             cueContents: [],
-            tagsByShioriID: [:],
             facetSnapshot: CueFacetSnapshot(
                 cueIDs: [101, 102],
                 durationFacets: [.oneToUnderThreeSeconds, .oneToUnderThreeSeconds],
@@ -1247,7 +1085,6 @@ private func shioriSource(
     id: Int64,
     content: String,
     languages: Set<SubtitleLanguageCode>,
-    shioriTags: [ShioriTag] = [],
     cuePresentation: ShioriCuePresentation? = nil,
     startMilliseconds: Int = 1_000,
     endMilliseconds: Int = 2_000
@@ -1268,7 +1105,6 @@ private func shioriSource(
         displayTitle: "Episode \(id)",
         dateAddedText: "26-06-23 12:00",
         languages: languages,
-        shioriTags: shioriTags,
         cuePresentation: cuePresentation
     )
 }

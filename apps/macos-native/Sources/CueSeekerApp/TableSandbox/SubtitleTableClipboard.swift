@@ -20,10 +20,6 @@ struct SubtitleTableClipboardColumn {
             return SubtitleTableClipboardColumn(id: column.id, title: column.title) { row in
                 row.tags.map(\.label).joined(separator: ", ")
             }
-        case "tags":
-            return SubtitleTableClipboardColumn(id: column.id, title: column.title) { row in
-                row.shioriTags.map(\.label).joined(separator: ", ")
-            }
         default:
             return nil
         }
@@ -47,8 +43,6 @@ struct SubtitleTableTextCopyColumn: Equatable, Sendable {
             return cueTexts.joined(separator: "\n")
         case "language":
             return row.tags.map(\.label).joined(separator: ", ")
-        case "tags":
-            return row.shioriTags.map(\.label).joined(separator: ", ")
         default:
             return ""
         }

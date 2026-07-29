@@ -1,6 +1,5 @@
 import AppKit
 import CoreGraphics
-import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -117,9 +116,9 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         startTime: "15:18",
         endTime: "15:20",
         cues: "loaded cue",
-        shioriTags: [
-            WorkbenchTag(key: "7", label: "Review", colorID: .gray),
-            WorkbenchTag(key: "8", label: "Grammar", colorID: .gray),
+        tags: [
+            WorkbenchTag(key: "en", label: "English", colorID: .gray),
+            WorkbenchTag(key: "ja", label: "Japanese", colorID: .gray),
         ]
     )
     let coordinator = SubtitleTableView.Coordinator(
@@ -128,11 +127,10 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
-        columnOrder: ["cues", "display", "tags", "time", "dateAdded"],
+        columnOrder: ["cues", "display", "language", "time", "dateAdded"],
         showsDateAddedColumn: true,
         showsTimeColumn: true,
-        showsLanguageColumn: false,
-        showsTagsColumn: true,
+        showsLanguageColumn: true,
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
@@ -140,12 +138,12 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
 
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
     #expect(coordinator.cellFullText(row: -1, column: 2) == "Display Title")
-    #expect(coordinator.cellFullText(row: -1, column: 3) == "Tags")
+    #expect(coordinator.cellFullText(row: -1, column: 3) == "Language")
     #expect(coordinator.cellFullText(row: -1, column: 4) == "Time Range")
     #expect(coordinator.cellFullText(row: -1, column: 5) == "Date Added")
     #expect(coordinator.cellFullText(row: 0, column: 1) == "loaded cue")
     #expect(coordinator.cellFullText(row: 0, column: 2) == "Episode 01")
-    #expect(coordinator.cellFullText(row: 0, column: 3) == "Review, Grammar")
+    #expect(coordinator.cellFullText(row: 0, column: 3) == "English, Japanese")
     #expect(coordinator.cellFullText(row: 0, column: 4) == "15:18 - 15:20")
     #expect(coordinator.cellFullText(row: 0, column: 5) == "26-07-02 14:30")
 }
@@ -164,7 +162,6 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
         showsLanguageColumn: false,
-        showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
     )
     let allOptionalColumnsMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
@@ -172,13 +169,12 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
         showsLanguageColumn: true,
-        showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
     )
 
     #expect(searchMinimumWidth == 610)
-    #expect(shioriMinimumWidth == 870)
-    #expect(allOptionalColumnsMinimumWidth == 990)
+    #expect(shioriMinimumWidth == 730)
+    #expect(allOptionalColumnsMinimumWidth == 850)
 }
 
 @MainActor
@@ -214,18 +210,16 @@ func subtitleTableColumnLayoutExpandsNarrowDocumentsToAllVisibleMinimums() {
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
         showsLanguageColumn: false,
-        showsTagsColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "tags", "time", "dateAdded"]
+        columnOrder: ["display", "cues", "time", "dateAdded"]
     )
 
     #expect(layout.indexRect.width == 50)
     #expect(layout.nameRect.width == 180)
     #expect(layout.cuesRect.width == 240)
-    #expect(layout.tagsRect?.width == 140)
     #expect(layout.timeRect?.width == 140)
     #expect(layout.dateAddedRect?.width == 120)
-    #expect(layout.contentWidth == 870)
+    #expect(layout.contentWidth == 730)
 }
 
 @MainActor
@@ -275,10 +269,9 @@ func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsLanguageColumn: false,
-        showsTagsColumn: true,
+        showsLanguageColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "tags", "time", "dateAdded"]
+        columnOrder: ["display", "cues", "language", "time", "dateAdded"]
     )
     let newLayout = SubtitleTableColumnLayout.resolve(
         contentWidth: 1_360,
@@ -286,10 +279,9 @@ func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
-        showsLanguageColumn: false,
-        showsTagsColumn: true,
+        showsLanguageColumn: true,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
-        columnOrder: ["display", "cues", "tags", "time", "dateAdded"]
+        columnOrder: ["display", "cues", "language", "time", "dateAdded"]
     )
 
     #expect(oldLayout.rowMeasurementLayoutKey.columnWidths == [
@@ -298,15 +290,15 @@ func subtitleTableColumnLayoutMeasurementKeyIncludesEveryVisibleColumnWidth() {
         "display": 22_200,
         "time": 14_800,
         "cues": 44_400,
-        "tags": 14_800,
+        "language": 14_800,
     ])
     #expect(newLayout.rowMeasurementLayoutKey != oldLayout.rowMeasurementLayoutKey)
     #expect(newLayout.nameRect.width > oldLayout.nameRect.width)
     #expect((newLayout.timeRect?.width ?? 0) > (oldLayout.timeRect?.width ?? 0))
     #expect((newLayout.dateAddedRect?.width ?? 0) > (oldLayout.dateAddedRect?.width ?? 0))
-    #expect((newLayout.tagsRect?.width ?? 0) > (oldLayout.tagsRect?.width ?? 0))
-    #expect(newLayout.tagsRect?.minX == newLayout.cuesRect.maxX)
-    #expect(newLayout.timeRect?.minX == newLayout.tagsRect?.maxX)
+    #expect((newLayout.languageRect?.width ?? 0) > (oldLayout.languageRect?.width ?? 0))
+    #expect(newLayout.languageRect?.minX == newLayout.cuesRect.maxX)
+    #expect(newLayout.timeRect?.minX == newLayout.languageRect?.maxX)
     #expect(newLayout.cuesRect.width > oldLayout.cuesRect.width)
 }
 
@@ -755,124 +747,6 @@ func subtitleTableViewRightClickOutsideContentHoverRegionOpensRowMenu() throws {
 
 @MainActor
 @Test
-func subtitleTableViewTagsContentRightClickOpensRowMenu() throws {
-    let fixture = makeAttachedVirtualTableCoordinator(width: 1_400, showsTagsColumn: true)
-    let tagsRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "tags"))
-    let tagsPoint = CGPoint(x: tagsRect.midX, y: tagsRect.midY)
-    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
-
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(tagsPoint) })
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: tagsPoint) == true)
-    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == true)
-    #expect(fixture.coordinator.isMenuOpenForTesting())
-}
-
-@MainActor
-@Test
-func subtitleTableViewTagsContentLeftClickOpensPopover() throws {
-    var requestedRowID: Int?
-    let fixture = makeAttachedVirtualTableCoordinator(
-        width: 1_400,
-        showsTagsColumn: true,
-        makeTagsPopover: { row, _, _ in
-            requestedRowID = row.id
-            return AnyView(Text("Tags"))
-        }
-    )
-    let tagsRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "tags"))
-    let tagsPoint = CGPoint(x: tagsRect.midX, y: tagsRect.midY)
-    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
-
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
-    #expect(requestedRowID == nil)
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: windowPoint) == true)
-    #expect(requestedRowID == 1)
-    #expect(fixture.coordinator.isMenuOpenForTesting())
-}
-
-@MainActor
-@Test
-func subtitleTableViewTagsEmptyCellAreaLeftClickOpensPopover() throws {
-    var requestedRowID: Int?
-    let fixture = makeAttachedVirtualTableCoordinator(
-        width: 1_400,
-        showsTagsColumn: true,
-        makeTagsPopover: { row, _, _ in
-            requestedRowID = row.id
-            return AnyView(Text("Tags"))
-        }
-    )
-    let tagsCellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags"))
-    let tagsContentRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "tags"))
-    let tagsPoint = CGPoint(x: tagsCellRect.maxX - 6, y: tagsCellRect.midY)
-    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
-
-    #expect(!tagsContentRect.contains(tagsPoint))
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
-    #expect(requestedRowID == nil)
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: windowPoint) == true)
-    #expect(requestedRowID == 1)
-    #expect(fixture.coordinator.isMenuOpenForTesting())
-}
-
-@MainActor
-@Test
-func subtitleTableViewMenuHostKeepsInsideClicksOpen() throws {
-    let fixture = makeAttachedVirtualTableCoordinator(
-        width: 1_400,
-        showsTagsColumn: true,
-        makeTagsPopover: { _, _, _ in
-            AnyView(Text("Tags").frame(width: 240, height: 140))
-        }
-    )
-    let tagsCellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags"))
-    let tagsPoint = CGPoint(x: tagsCellRect.midX, y: tagsCellRect.midY)
-    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
-
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: windowPoint) == true)
-    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
-    let insideMenuPoint = CGPoint(x: menuFrame.midX, y: menuFrame.midY)
-    let insideWindowPoint = fixture.container.convert(insideMenuPoint, to: nil)
-
-    #expect(fixture.coordinator.menuContainsWindowPointForTesting(insideWindowPoint))
-}
-
-@MainActor
-@Test
-func subtitleTableViewCanSuspendMenuOutsideClickDismissForExternalDialog() throws {
-    let fixture = makeAttachedVirtualTableCoordinator(
-        width: 1_400,
-        showsTagsColumn: true,
-        makeTagsPopover: { _, _, _ in
-            AnyView(Text("Tags").frame(width: 240, height: 140))
-        }
-    )
-    let tagsCellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags"))
-    let tagsPoint = CGPoint(x: tagsCellRect.midX, y: tagsCellRect.midY)
-    let windowPoint = fixture.documentView.convert(tagsPoint, to: nil)
-
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: windowPoint) == true)
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: windowPoint) == true)
-    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
-    let outsideMenuContainerPoint = try #require([
-        CGPoint(x: 4, y: 4),
-        CGPoint(x: fixture.container.bounds.maxX - 4, y: 4),
-        CGPoint(x: 4, y: fixture.container.bounds.maxY - 4),
-        CGPoint(x: fixture.container.bounds.maxX - 4, y: fixture.container.bounds.maxY - 4),
-    ].first { !menuFrame.contains($0) })
-    let outsideMenuWindowPoint = fixture.container.convert(outsideMenuContainerPoint, to: nil)
-
-    #expect(fixture.coordinator.menuOutsideClickDismissesForTesting(windowPoint: outsideMenuWindowPoint))
-
-    fixture.coordinator.suspendsMenuOutsideClickDismiss = true
-
-    #expect(!fixture.coordinator.menuOutsideClickDismissesForTesting(windowPoint: outsideMenuWindowPoint))
-    #expect(fixture.coordinator.isMenuOpenForTesting())
-}
-
-@MainActor
-@Test
 func subtitleTableViewLeftClickOutsideInteractiveRegionsHasNoAction() throws {
     var toggledRows: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in
@@ -974,11 +848,10 @@ func subtitleTableViewRightClickUsesEveryNonSelectionCellFullArea() throws {
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_800,
         showsDateAddedColumn: true,
-        showsTimeColumn: true,
-        showsTagsColumn: true
+        showsTimeColumn: true
     )
 
-    for columnID in ["display", "cues", "language", "tags", "time", "dateAdded"] {
+    for columnID in ["display", "cues", "language", "time", "dateAdded"] {
         let cellRect = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: columnID))
         let blankSidePoint = CGPoint(x: cellRect.maxX - 4, y: cellRect.midY)
         let windowPoint = fixture.documentView.convert(blankSidePoint, to: nil)
@@ -1317,7 +1190,7 @@ func subtitleTableViewSuppressesVisibleRowNotificationsWhenExternalLayerIsOpen()
 
 @MainActor
 @Test
-func subtitleTableViewLimitsPointingHandToCueAndTagsContent() throws {
+func subtitleTableViewLimitsPointingHandToCueContent() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
     let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
@@ -1344,7 +1217,7 @@ func subtitleTableViewLimitsPointingHandToCueAndTagsContent() throws {
 
 @MainActor
 @Test
-func subtitleTableViewMapsCueAndTagFragmentsIntoSingleLogicalCells() throws {
+func subtitleTableViewMapsCueAndLanguageTagFragmentsIntoSingleLogicalCells() throws {
     let row = SubtitleTableRow(
         id: 1,
         primaryCueID: 41,
@@ -1352,7 +1225,7 @@ func subtitleTableViewMapsCueAndTagFragmentsIntoSingleLogicalCells() throws {
         primaryCueText: "primary",
         cueGroupTexts: ["extra", "primary"],
         primaryGroupIndex: 1,
-        shioriTags: [
+        tags: [
             WorkbenchTag(key: "1", label: "First", colorID: .gray),
             WorkbenchTag(key: "2", label: "Second", colorID: .gray),
         ]
@@ -1361,7 +1234,6 @@ func subtitleTableViewMapsCueAndTagFragmentsIntoSingleLogicalCells() throws {
         width: 1_400,
         rowCount: 1,
         row: row,
-        showsTagsColumn: true,
         showsCueGroup: true
     )
 
@@ -1372,8 +1244,8 @@ func subtitleTableViewMapsCueAndTagFragmentsIntoSingleLogicalCells() throws {
         NSRange(location: 6, length: 7),
     ])
 
-    #expect(fixture.coordinator.selectableTextForTesting(row: 0, columnID: "tags") == "First, Second")
-    let tagFragments = fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "tags")
+    #expect(fixture.coordinator.selectableTextForTesting(row: 0, columnID: "language") == "First, Second")
+    let tagFragments = fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "language")
     #expect(tagFragments.map(\.logicalRange) == [
         NSRange(location: 0, length: 5),
         NSRange(location: 7, length: 6),
@@ -1382,7 +1254,7 @@ func subtitleTableViewMapsCueAndTagFragmentsIntoSingleLogicalCells() throws {
     let secondTagPosition = try #require(
         fixture.coordinator.textPositionForTesting(
             row: 0,
-            columnID: "tags",
+            columnID: "language",
             point: secondTagPoint
         )
     )
@@ -1395,7 +1267,7 @@ func subtitleTableViewMapsCueAndTagFragmentsIntoSingleLogicalCells() throws {
     #expect(
         fixture.coordinator.textPositionForTesting(
             row: 0,
-            columnID: "tags",
+            columnID: "language",
             point: tagPaddingPoint
         ) == nil
     )
@@ -1483,7 +1355,7 @@ func subtitleTableViewCueFallbackAlwaysKeepsPrimaryFragment() {
 
 @MainActor
 @Test
-func subtitleTableViewTagDragFocusIgnoresClippedOverflow() throws {
+func subtitleTableViewLanguageTagDragFocusIgnoresClippedOverflow() throws {
     let longLabel = String(repeating: "Long tag ", count: 30)
     let row = SubtitleTableRow(
         id: 1,
@@ -1492,7 +1364,7 @@ func subtitleTableViewTagDragFocusIgnoresClippedOverflow() throws {
         primaryCueText: "primary",
         cueGroupTexts: ["primary"],
         primaryGroupIndex: 0,
-        shioriTags: [
+        tags: [
             WorkbenchTag(key: "1", label: longLabel, colorID: .gray),
             WorkbenchTag(key: "2", label: "Second", colorID: .gray),
         ]
@@ -1500,10 +1372,9 @@ func subtitleTableViewTagDragFocusIgnoresClippedOverflow() throws {
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_400,
         rowCount: 1,
-        row: row,
-        showsTagsColumn: true
+        row: row
     )
-    let fragments = fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "tags")
+    let fragments = fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "language")
     let first = try #require(fragments.first)
     let second = try #require(fragments.last)
     #expect(fragments.count == 2)
@@ -1513,7 +1384,7 @@ func subtitleTableViewTagDragFocusIgnoresClippedOverflow() throws {
     let position = try #require(
         fixture.coordinator.textPositionForTesting(
             row: 0,
-            columnID: "tags",
+            columnID: "language",
             point: secondPoint,
             requiresTextHit: false
         )
@@ -1741,46 +1612,6 @@ func subtitleTableViewInteractiveCuePaddingSuppressesClickWithoutStartingSelecti
     #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
     #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
     #expect(playCount == 0)
-    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") == nil)
-}
-
-@MainActor
-@Test
-func subtitleTableViewInteractiveTagsBlankSuppressesPopoverWithoutStartingSelection() throws {
-    var requestedRowID: Int?
-    let fixture = makeAttachedVirtualTableCoordinator(
-        width: 1_400,
-        rowCount: 2,
-        showsTagsColumn: true,
-        makeTagsPopover: { row, _, _ in
-            requestedRowID = row.id
-            return AnyView(Text("Tags"))
-        }
-    )
-    let tagsCell = try #require(
-        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "tags")
-    )
-    let endFragment = try #require(
-        fixture.coordinator.textFragmentInfoForTesting(row: 1, columnID: "cues").first
-    )
-    let blankPoint = CGPoint(x: tagsCell.maxX - 4, y: tagsCell.midY)
-    let startWindowPoint = fixture.documentView.convert(blankPoint, to: nil)
-    let endWindowPoint = fixture.documentView.convert(
-        CGPoint(x: endFragment.textBounds.midX, y: endFragment.textBounds.midY),
-        to: nil
-    )
-
-    #expect(
-        fixture.coordinator.documentTextPositionForTesting(
-            point: blankPoint,
-            requiresTextHit: true
-        ) == nil
-    )
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: startWindowPoint))
-    #expect(fixture.coordinator.handleMouseDragged(windowPoint: endWindowPoint))
-    #expect(fixture.coordinator.pendingTextSelectionHasBegunForTesting() == false)
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: endWindowPoint))
-    #expect(requestedRowID == nil)
     #expect(fixture.coordinator.textSelectionRangeForTesting(row: 1, columnID: "cues") == nil)
 }
 
@@ -2408,24 +2239,17 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
         primaryCueText: "Unavailable Cue",
         cueGroupTexts: ["Unavailable Cue"],
         primaryGroupIndex: 0,
-        shioriTags: [WorkbenchTag(key: "7", label: "Review", colorID: .gray)],
         cueState: .unavailable(.videoMissing)
     )
     var playCount = 0
     var contextCount = 0
     var openFolderCount = 0
     var removeCount = 0
-    var tagPopoverCount = 0
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_400,
         rowCount: 1,
         row: row,
-        showsTagsColumn: true,
         rowActionMenuStyle: .shiori,
-        makeTagsPopover: { _, _, _ in
-            tagPopoverCount += 1
-            return AnyView(Text("Tags"))
-        },
         onPlay: { _ in playCount += 1 },
         onShowContext: { _ in contextCount += 1 },
         onOpenSubtitleFile: { _ in openFolderCount += 1 },
@@ -2452,23 +2276,6 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
     #expect(fixture.coordinator.handleMouseUp(windowPoint: cueWindowPoint))
     #expect(playCount == 0)
 
-    let tagFragment = try #require(
-        fixture.coordinator.textFragmentInfoForTesting(
-            row: 0,
-            columnID: "tags"
-        ).first
-    )
-    let tagWindowPoint = fixture.documentView.convert(
-        CGPoint(
-            x: tagFragment.textBounds.midX,
-            y: tagFragment.textBounds.midY
-        ),
-        to: nil
-    )
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: tagWindowPoint))
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: tagWindowPoint))
-    #expect(tagPopoverCount == 0)
-
     fixture.coordinator.performRowActionForTesting(.play, row: 0)
     fixture.coordinator.performRowActionForTesting(.context, row: 0)
     fixture.coordinator.performRowActionForTesting(.openSubtitleFolder, row: 0)
@@ -2477,34 +2284,6 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
     #expect(contextCount == 0)
     #expect(openFolderCount == 1)
     #expect(removeCount == 1)
-}
-
-@MainActor
-@Test
-func subtitleTableViewTagLabelDragSuppressesPopover() throws {
-    var requestedRowID: Int?
-    let fixture = makeAttachedVirtualTableCoordinator(
-        width: 1_400,
-        showsTagsColumn: true,
-        makeTagsPopover: { row, _, _ in
-            requestedRowID = row.id
-            return AnyView(Text("Tags"))
-        }
-    )
-    let tagFragment = try #require(
-        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "tags").first
-    )
-    let tagPoint = CGPoint(x: tagFragment.textBounds.minX + 1, y: tagFragment.textBounds.midY)
-    let dragPoint = CGPoint(x: tagFragment.textBounds.maxX - 1, y: tagFragment.textBounds.midY)
-    let tagWindowPoint = fixture.documentView.convert(tagPoint, to: nil)
-    let dragWindowPoint = fixture.documentView.convert(dragPoint, to: nil)
-
-    #expect(fixture.coordinator.handleMouseDown(windowPoint: tagWindowPoint))
-    #expect(fixture.coordinator.handleMouseDragged(windowPoint: dragWindowPoint))
-    #expect(fixture.coordinator.handleMouseUp(windowPoint: dragWindowPoint))
-    #expect(requestedRowID == nil)
-    #expect(!fixture.coordinator.isMenuOpenForTesting())
-    #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "tags") != nil)
 }
 
 @MainActor
@@ -3084,11 +2863,9 @@ private func makeAttachedVirtualTableCoordinator(
     rowProvider customRowProvider: ((Int) -> SubtitleTableRow?)? = nil,
     showsDateAddedColumn: Bool = false,
     showsTimeColumn: Bool = false,
-    showsTagsColumn: Bool = false,
     showsCueGroup: Bool = false,
     isSelectionMode: Bool = false,
     rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
-    makeTagsPopover: @escaping (SubtitleTableRow, @escaping () -> Void, @escaping () -> Void) -> AnyView? = { _, _, _ in nil },
     onVisibleRowsChange: @escaping (Range<Int>) -> Void = { _ in },
     isRowSelected: @escaping (Int) -> Bool = { _ in false },
     allResultsTextCopyRowCount: Int? = nil,
@@ -3117,8 +2894,7 @@ private func makeAttachedVirtualTableCoordinator(
         startTime: "00:01",
         endTime: "00:02",
         cues: "cue text",
-        tags: [],
-        shioriTags: showsTagsColumn ? [WorkbenchTag(key: "7", label: "Review", colorID: .gray)] : []
+        tags: []
     )
     let rowProvider = customRowProvider ?? { _ in loadedRow }
     let coordinator = SubtitleTableView.Coordinator(
@@ -3130,7 +2906,6 @@ private func makeAttachedVirtualTableCoordinator(
         showsDateAddedColumn: showsDateAddedColumn,
         showsTimeColumn: showsTimeColumn,
         showsLanguageColumn: true,
-        showsTagsColumn: showsTagsColumn,
         showsCueGroup: showsCueGroup,
         onVisibleRowsChange: onVisibleRowsChange,
         isSelectionMode: isSelectionMode,
@@ -3145,8 +2920,7 @@ private func makeAttachedVirtualTableCoordinator(
         rowActionDestinations: rowActionDestinations,
         onMoveShiori: onMoveShiori,
         onDuplicateShiori: onDuplicateShiori,
-        onRemoveShiori: onRemoveShiori,
-        makeTagsPopover: makeTagsPopover
+        onRemoveShiori: onRemoveShiori
     )
     coordinator.isRedesign = true
 

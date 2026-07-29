@@ -1231,7 +1231,6 @@ private func cueGroupRefreshScopeShioriSources(
             displayTitle: "Episode",
             dateAddedText: "26-07-12 00:00",
             languages: [.japanese],
-            shioriTags: [],
             cuePresentation: ShioriCuePresentation(
                 cueID: Int64(index + 1_000),
                 cueGroupID: Int64(index + 1),

@@ -117,10 +117,9 @@ func subtitleTableClipboardPreservesMultilineNonCueCell() {
 }
 
 @Test
-func subtitleTableClipboardCopiesVisibleTagColumnsAsText() {
+func subtitleTableClipboardCopiesVisibleLanguageColumnAsText() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "language", title: "Language", kind: .text, width: .fixed(160)),
-        WorkbenchTableColumn(id: "tags", title: "Tags", kind: .text, width: .fixed(180)),
     ])
     let row = SubtitleTableRow(
         id: 1,
@@ -129,17 +128,13 @@ func subtitleTableClipboardCopiesVisibleTagColumnsAsText() {
         tags: [
             WorkbenchTag(key: "ja", label: "Japanese"),
             WorkbenchTag(key: "zh-Hans", label: "Simplified Chinese"),
-        ],
-        shioriTags: [
-            WorkbenchTag(key: "7", label: "Review", colorID: .gray),
-            WorkbenchTag(key: "8", label: "Grammar", colorID: .gray),
         ]
     )
 
     let text = SubtitleTableClipboard.tsv(rows: [row], columns: columns)
     let expected = [
-        "Language\tTags",
-        "Japanese, Simplified Chinese\tReview, Grammar",
+        "Language",
+        "Japanese, Simplified Chinese",
     ].joined(separator: "\n")
 
     #expect(text == expected)

@@ -392,8 +392,7 @@ func shioriPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     app.shiori.installResidentSnapshot(
         ShioriResidentSnapshot(
             relations: relations,
-            cueContents: contents,
-            tagsByShioriID: [:]
+            cueContents: contents
         ),
         dataRevision: app.shiori.tableDataRevision
     )

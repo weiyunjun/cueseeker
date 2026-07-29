@@ -31,7 +31,6 @@ final class ShioriStore: ObservableObject {
     private(set) var tableResultShioriIDs: [Int64]?
     private(set) var residentRelations: [ShioriRelation] = []
     private(set) var residentShiorisByID: [Int64: Shiori] = [:]
-    private(set) var residentTagsByShioriID: [Int64: [ShioriTag]] = [:]
     private(set) var residentDataRevision: Int?
     private(set) var residentListID: Int64?
     private(set) var tableRowsNeedReload = false
@@ -264,7 +263,6 @@ final class ShioriStore: ObservableObject {
         residentShiorisByID = Dictionary(
             uniqueKeysWithValues: snapshot.resolvedShioris.map { ($0.id, $0) }
         )
-        residentTagsByShioriID = snapshot.tagsByShioriID
         residentFacetSnapshot = snapshot.facetSnapshot
         tableFacetDistribution = snapshot.facetSnapshot.distribution
         residentListID = listID
@@ -292,22 +290,9 @@ final class ShioriStore: ObservableObject {
         )
     }
 
-    func updateResidentTags(_ tags: [ShioriTag], forShioriID shioriID: Int64) {
-        guard residentDataRevision != nil else { return }
-        residentTagsByShioriID[shioriID] = tags
-    }
-
-    func removeResidentTag(tagID: Int64, fromShioriIDs shioriIDs: [Int64]) {
-        guard residentDataRevision != nil else { return }
-        for shioriID in shioriIDs {
-            residentTagsByShioriID[shioriID]?.removeAll { $0.id == tagID }
-        }
-    }
-
     func clearResidentSnapshot() {
         residentRelations = []
         residentShiorisByID = [:]
-        residentTagsByShioriID = [:]
         residentFacetSnapshot = nil
         tableFacetDistribution = nil
         residentListID = nil
@@ -326,7 +311,6 @@ final class ShioriStore: ObservableObject {
         )
         residentRelations.removeAll { $0.id == id }
         residentShiorisByID[id] = nil
-        residentTagsByShioriID[id] = nil
         residentFacetSnapshot = residentFacetSnapshot?.removingCueIDs(
             removedCueIDs
         )

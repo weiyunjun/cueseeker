@@ -335,21 +335,6 @@ func sqliteTableExists(_ name: String, databaseURL: URL) throws -> Bool {
     return sqlite3_step(statement) == SQLITE_ROW
 }
 
-func expectShioriTagValidationError(
-    _ expected: ShioriTagValidationError,
-    _ operation: () throws -> Void
-) {
-    var received: ShioriTagValidationError?
-    do {
-        try operation()
-    } catch let error as ShioriTagValidationError {
-        received = error
-    } catch {
-        Issue.record("Expected ShioriTagValidationError, received \(error)")
-    }
-    #expect(received == expected)
-}
-
 func testCueGroup(
     startMilliseconds: Int,
     endMilliseconds: Int,

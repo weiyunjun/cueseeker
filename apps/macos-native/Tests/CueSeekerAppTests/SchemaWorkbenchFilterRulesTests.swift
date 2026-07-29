@@ -27,6 +27,6 @@ func schemaWorkbenchColumnVisibilityMenuUsesShioriColumnOrder() {
         visibleColumnIDs: SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
     )
 
-    #expect(items.map(\.id) == ["cues", "display", "tags", "time", "dateAdded"])
-    #expect(items.map(\.title) == ["Cues", "Display Title", "Tags", "Time Range", "Date Added"])
+    #expect(items.map(\.id) == ["cues", "display", "time", "dateAdded"])
+    #expect(items.map(\.title) == ["Cues", "Display Title", "Time Range", "Date Added"])
 }

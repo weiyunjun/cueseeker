@@ -192,6 +192,10 @@ Current mechanism:
 - Schema version `37` adds persistent retry state for video metadata and
   Library presentation refresh, and normalizes Shiori Tombstone unavailable
   reasons to the priority `Cue > Subtitle > Video`.
+- Schema version `41` removes `shiori_tags` and `shiori_tag_assignments`. The
+  migration permanently clears legacy Shiori Tag data while preserving Shiori
+  relations and canonical Cue data; fresh databases do not create those
+  tables or their indexes.
 
 ## 5. Migration Rules
 
@@ -328,8 +332,8 @@ Rules:
   not be rebuilt from subtitle index data.
 - Search-result playback must not read or mutate Library playback history.
 - Shiori persistence is relation state, not a Cue-content snapshot. A Shiori
-  relation stores ShioriID, CueID, list identity, and creation time. Tags remain
-  separate relation-owned assignments keyed by ShioriID.
+  relation stores ShioriID, CueID, list identity, and creation time. It does not
+  store relation-owned Tags.
 - The initial relation schema contains one default list. It permits the same
   CueID in different lists while preventing duplicate relations for one CueID
   inside the same list.
