@@ -8,6 +8,7 @@
 ## Scope
 
 - Removed the unused Workbench Filter Builder UI, rule conversion models, session rule state, and Filter-only empty-query projection.
+- Removed the remaining unused Filter Builder field/dropdown components and their dedicated read-only color tokens after final UI synchronization exposed the omission.
 - Removed the replaced global Search language and watch-scope settings and the old Filter count Badge implementation.
 - Preserved the core filter model and the all-Cue loading path still used by Context and Command Panel workflows.
 - Removed tests that only exercised deleted paths and retained coverage for the surviving Search, Shiori, Context, Playback, Command Panel, selection, copy, and export boundaries.
@@ -15,6 +16,8 @@
 ## Verification
 
 - `swift build`: passed.
+- `swift test --filter WorkbenchControlMetricsTests`: 1 test passed.
+- Source scan confirmed that the removed Filter Builder component and read-only token identifiers have no remaining Swift references.
 - `swift test --filter SearchStoreTests`: 29 tests passed.
 - `swift test --filter CueGroupRefreshScopeIntegrationTests`: 14 tests passed.
 - `swift test --filter Shiori`: 76 tests passed.
@@ -30,4 +33,4 @@
 
 ## Outcome
 
-The replaced Filter paths were removed without adding compatibility state or replacement abstractions. All affected feature boundaries pass focused regression testing. The repository-wide concurrent run remains subject to pre-existing cross-test timing and shared-fixture interference; this cleanup did not expand scope to those unrelated test-harness issues.
+The replaced Filter paths, including the final unused field/dropdown components and read-only tokens, were removed without adding compatibility state or replacement abstractions. All affected feature boundaries pass focused regression testing. The repository-wide concurrent run remains subject to pre-existing cross-test timing and shared-fixture interference; this cleanup did not expand scope to those unrelated test-harness issues.

@@ -50,7 +50,6 @@ enum WorkbenchRedesignColors {
         static let textMuted = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
         static let textPlaceholder = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
         static let textDisabled = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
-        static let textReadonly = NSColor.dynamic(lightHex: "#808080", darkHex: "#A1A1AA")
 
         // Icon
         static let iconDefault = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
@@ -62,7 +61,6 @@ enum WorkbenchRedesignColors {
         static let bgSurface = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
         static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#27272A")
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#202024")
-        static let bgReadonly = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
         static let bgPopover = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
         static let appSidebarBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#202024")
         static let appSidebarItemSelectedBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#303036")
@@ -74,7 +72,6 @@ enum WorkbenchRedesignColors {
         static let borderMuted = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
         static let borderDivider = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
         static let borderDisabled = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
-        static let borderReadonly = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
         static let borderCheckbox = NSColor.dynamic(lightHex: "#D0D5DD", darkHex: "#52525B")
 
         // Active Blue
@@ -146,7 +143,6 @@ enum WorkbenchRedesignColors {
     static let textMuted = Color(nsColor: NS.textMuted)
     static let textPlaceholder = Color(nsColor: NS.textPlaceholder)
     static let textDisabled = Color(nsColor: NS.textDisabled)
-    static let textReadonly = Color(nsColor: NS.textReadonly)
 
     // Icon
     static let iconDefault = Color(nsColor: NS.iconDefault)
@@ -158,7 +154,6 @@ enum WorkbenchRedesignColors {
     static let bgSurface = Color(nsColor: NS.bgSurface)
     static let bgHover = Color(nsColor: NS.bgHover)
     static let bgDisabled = Color(nsColor: NS.bgDisabled)
-    static let bgReadonly = Color(nsColor: NS.bgReadonly)
     static let bgPopover = Color(nsColor: NS.bgPopover)
     static let appSidebarBg = Color(nsColor: NS.appSidebarBg)
     static let appSidebarItemSelectedBg = Color(nsColor: NS.appSidebarItemSelectedBg)
@@ -170,7 +165,6 @@ enum WorkbenchRedesignColors {
     static let borderMuted = Color(nsColor: NS.borderMuted)
     static let borderDivider = Color(nsColor: NS.borderDivider)
     static let borderDisabled = Color(nsColor: NS.borderDisabled)
-    static let borderReadonly = Color(nsColor: NS.borderReadonly)
     static let borderCheckbox = Color(nsColor: NS.borderCheckbox)
 
     // Active Blue
