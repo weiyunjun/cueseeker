@@ -46,3 +46,15 @@
 
 - All three requested interfaces now keep information Badges visible without
   making selection part of item geometry or the measurement hot path.
+
+## Follow-up: Replace Blue with Neutral Hierarchy
+
+- Replaced the selected blue Badge background and text with a stronger neutral
+  gray pair, and deepened the unselected neutral background and Light text for
+  contrast against the Playback surface.
+- Reused the existing four Playback-specific Badge color tokens. Badge
+  components, geometry, selection, caching, and Watch Status tokens remain
+  unchanged.
+- Verified the exact Light and Dark token values with the focused Cue Result
+  tests and reran the Playback Current, Playlist, Command Panel, and Subtitle
+  Focus suites.

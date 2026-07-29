@@ -500,9 +500,10 @@ Presentation virtualization rules:
   Group content. Current provides Display Title and Time Range and never
   provides Cue Group text; Cue Playlist additionally provides `[x/y]` and may
   show Cue Group text below every Primary Cue. Every Cue displays its module's
-  information Badges: the settled selection uses the Playback blue palette and
-  other Cues use the Playback-specific neutral palette. The existing Reel and
-  Session owners remain the only selection and scrolling state sources.
+  information Badges using Playback-specific neutral colors. The settled
+  selection uses the stronger gray background and text pair while other Cues
+  use the quieter gray pair. The existing Reel and Session owners remain the
+  only selection and scrolling state sources.
 - Playback Command Panel Search uses the Cue Playlist's general Cue Result
   Adapter and Reel over a host-owned resident preview Window capped at 50
   results. That Window is the only Command Panel Search selection source for

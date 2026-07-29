@@ -93,27 +93,27 @@ public enum PlaybackTheme {
 
     /// --color-playback-information-badge-bg
     static let informationBadgeBackgroundNative = subtitleFocusDynamicColor(
-        light: NSColor.hex("#DBEAFE"),
-        dark: NSColor.hex("#172A4A")
+        light: NSColor.hex("#D1D5DB"),
+        dark: NSColor.hex("#18181B")
     )
 
     /// --color-playback-information-badge-text
     static let informationBadgeTextNative = subtitleFocusDynamicColor(
-        light: NSColor.hex("#0040FF"),
-        dark: NSColor.hex("#93C5FD")
+        light: NSColor.hex("#1F2937"),
+        dark: NSColor.hex("#F4F4F5")
     )
 
     /// --color-playback-information-badge-unselected-bg
     static let informationBadgeUnselectedBackgroundNative =
         subtitleFocusDynamicColor(
-            light: NSColor.hex("#F3F4F6"),
-            dark: NSColor.hex("#27272A")
+            light: NSColor.hex("#E5E7EB"),
+            dark: NSColor.hex("#303036")
         )
 
     /// --color-playback-information-badge-unselected-text
     static let informationBadgeUnselectedTextNative =
         subtitleFocusDynamicColor(
-            light: NSColor.hex("#667085"),
+            light: NSColor.hex("#475467"),
             dark: NSColor.hex("#A1A1AA")
         )
 
