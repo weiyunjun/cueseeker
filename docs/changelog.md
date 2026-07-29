@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified Workbench Search and Shiori query behavior. Shiori now filters as the
+  user types, uses the shared Primary Cue matcher without matching Display
+  Title, and displays the exact result count. Workbench Cue tables now place the
+  Primary Cue above optional Cue Group context in display, selection, and copy
+  order.
 - Removed Shiori Tags across the UI, application state, Core API, and database.
   Schema version 41 clears legacy tag assignments and tables while preserving
   Shiori relations and Cue data; fresh databases no longer create the removed

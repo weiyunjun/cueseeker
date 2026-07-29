@@ -1237,11 +1237,11 @@ func subtitleTableViewMapsCueAndLanguageTagFragmentsIntoSingleLogicalCells() thr
         showsCueGroup: true
     )
 
-    #expect(fixture.coordinator.selectableTextForTesting(row: 0, columnID: "cues") == "extra\nprimary")
+    #expect(fixture.coordinator.selectableTextForTesting(row: 0, columnID: "cues") == "primary\nextra")
     let cueFragments = fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "cues")
     #expect(cueFragments.map(\.logicalRange) == [
-        NSRange(location: 0, length: 5),
-        NSRange(location: 6, length: 7),
+        NSRange(location: 0, length: 7),
+        NSRange(location: 8, length: 5),
     ])
 
     #expect(fixture.coordinator.selectableTextForTesting(row: 0, columnID: "language") == "First, Second")
@@ -1350,7 +1350,7 @@ func subtitleTableViewCueFallbackAlwaysKeepsPrimaryFragment() {
         )
     )
 
-    #expect(fragments.map(\.logicalRange) == [NSRange(location: 6, length: 7)])
+    #expect(fragments.map(\.logicalRange) == [NSRange(location: 0, length: 7)])
 }
 
 @MainActor
@@ -2510,7 +2510,11 @@ func subtitleTableViewExtraCueLeftAndRightHitRegionsStillTargetPrimaryRow() thro
     let cuesCell = try #require(fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues"))
     let extraPoint = CGPoint(
         x: cuesCell.minX + SubtitleTableCueGeometry.cellLeadingPadding + 8,
-        y: fixture.coordinator.rowYOffsetForTesting(0) + SubtitleTableCueGeometry.rowPaddingY + 10
+        y: fixture.coordinator.rowYOffsetForTesting(0)
+            + SubtitleTableCueGeometry.rowPaddingY
+            + SubtitleTableCueGeometry.primaryLineHeight
+            + SubtitleTableCueGeometry.rowPaddingY
+            + 10
     )
     let windowPoint = fixture.documentView.convert(extraPoint, to: nil)
 

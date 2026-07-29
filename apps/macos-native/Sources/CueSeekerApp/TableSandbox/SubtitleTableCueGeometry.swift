@@ -111,6 +111,8 @@ struct SubtitleTableRowMeasurement: Equatable {
 
     var extraCueOffsets: [CGFloat] {
         var nextOffset = cueBlockTopOffset
+            + CGFloat(primaryLineCount) * SubtitleTableCueGeometry.primaryLineHeight
+            + (extraCueLineCounts.isEmpty ? 0 : SubtitleTableCueGeometry.rowPaddingY)
         return extraCueLineCounts.map { lineCount in
             defer {
                 nextOffset += CGFloat(lineCount) * SubtitleTableCueGeometry.extraLineHeight
@@ -122,11 +124,6 @@ struct SubtitleTableRowMeasurement: Equatable {
 
     var primaryFirstLineOffset: CGFloat {
         cueBlockTopOffset
-            + extraCueLineCounts.reduce(CGFloat.zero) { offset, lineCount in
-                offset
-                    + CGFloat(lineCount) * SubtitleTableCueGeometry.extraLineHeight
-                    + SubtitleTableCueGeometry.rowPaddingY
-            }
     }
 }
 

@@ -181,7 +181,7 @@ func playbackShioriDispatchUsesCurrentWorkbenchResultOrder() throws {
 
 @MainActor
 @Test
-func sharedShioriPipelineAppliesWorkbenchSearchBeforePlaybackProjection() async throws {
+func sharedShioriPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() async throws {
     let suiteName = "PlaybackSharedShioriPipeline-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
@@ -209,10 +209,16 @@ func sharedShioriPipelineAppliesWorkbenchSearchBeforePlaybackProjection() async 
         content: "beta shared shiori",
         timestamp: 2_000
     )
-    app.shiori.tableSubmittedSearchText = "alpha"
-
     app.reloadShioriTableRows()
     await app.shioriTableRowsTask?.value
+
+    #expect(
+        (0..<app.shiori.tableRowStore.snapshot.totalRowCount)
+            .compactMap { app.shiori.tableRowStore.snapshot.row(at: $0)?.displayTitle }
+            .contains { $0.localizedCaseInsensitiveContains("Shiori-1000") }
+    )
+
+    app.updateShioriSearchQuery("alp")
 
     #expect(app.shiori.tableResultRowCount == 1)
     #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
@@ -220,6 +226,12 @@ func sharedShioriPipelineAppliesWorkbenchSearchBeforePlaybackProjection() async 
         app.shiori.tableRowStore.snapshot.row(at: 0)?.primaryCueText
             == "alpha shared shiori"
     )
+
+    app.updateShioriSearchQuery("Shiori-1000")
+    #expect(app.shiori.tableResultRowCount == 0)
+    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 0)
+
+    app.updateShioriSearchQuery("alp")
 
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackSharedShioriOpenSnapshot(),

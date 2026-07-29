@@ -310,7 +310,7 @@ func subtitleTableTextCopySelectAllIncludesHeaderAndDisplayedCueGroup() {
 
     #expect(
         builder.representations.tabularText
-            == "Display Title\tCues\nEpisode\t\"extra\nprimary\nline\""
+            == "Display Title\tCues\nEpisode\t\"primary\nline\nextra\""
     )
 }
 

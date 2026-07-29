@@ -36,3 +36,13 @@ func searchQueryPlannerExtractsUniqueVocabularyTerms() {
             == ["shared", "一", "級"]
     )
 }
+
+@Test
+func subtitleSearchQueryMatcherExposesSearchPrimaryCueSemantics() {
+    #expect(SubtitleSearchQueryMatcher.matches("magic circle", query: "Mag"))
+    #expect(!SubtitleSearchQueryMatcher.matches("image", query: "Mag"))
+    #expect(SubtitleSearchQueryMatcher.matches("alpha middle beta", query: "alpha beta"))
+    #expect(!SubtitleSearchQueryMatcher.matches("beta then alpha", query: "alpha beta"))
+    #expect(SubtitleSearchQueryMatcher.matches("一級試験", query: "一級"))
+    #expect(!SubtitleSearchQueryMatcher.matches("any primary cue", query: "  "))
+}

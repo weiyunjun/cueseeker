@@ -4395,7 +4395,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func displayedCueTexts(for model: SubtitleTableRow) -> [String] {
-            (showsCueGroup ? model.additionalCueTexts : []) + [model.primaryCueText]
+            [model.primaryCueText] + (showsCueGroup ? model.additionalCueTexts : [])
         }
 
         private func selectableText(for columnID: String, model: SubtitleTableRow) -> String {
@@ -4883,7 +4883,24 @@ struct SubtitleTableView: NSViewRepresentable {
             let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
             var fragments = [SubtitleTableTextFragmentLayout]()
             fragments.reserveCapacity(extraTexts.count + 1)
-            var logicalOffset = 0
+
+            let primaryText = model.primaryCueText
+            let primaryLength = (primaryText as NSString).length
+            fragments.append(SubtitleTableTextFragmentLayout(
+                attributed: SubtitleTableCueTextMeasurer.attributedString(
+                    primaryText,
+                    style: .primary,
+                    foregroundColor: primaryColor
+                ),
+                origin: CGPoint(
+                    x: rect.minX + SubtitleTableCueGeometry.cellLeadingPadding,
+                    y: rect.minY + measurement.primaryFirstLineOffset
+                ),
+                width: cuesTextWidth(in: rect, model: model),
+                clipRect: rect,
+                logicalUTF16Range: NSRange(location: 0, length: primaryLength)
+            ))
+            var logicalOffset = primaryLength + 1
 
             for (index, text) in extraTexts.enumerated() {
                 let length = (text as NSString).length
@@ -4905,23 +4922,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 }
                 logicalOffset += length + 1
             }
-
-            let primaryText = model.primaryCueText
-            let primaryLength = (primaryText as NSString).length
-            fragments.append(SubtitleTableTextFragmentLayout(
-                attributed: SubtitleTableCueTextMeasurer.attributedString(
-                    primaryText,
-                    style: .primary,
-                    foregroundColor: primaryColor
-                ),
-                origin: CGPoint(
-                x: rect.minX + SubtitleTableCueGeometry.cellLeadingPadding,
-                y: rect.minY + measurement.primaryFirstLineOffset
-                ),
-                width: cuesTextWidth(in: rect, model: model),
-                clipRect: rect,
-                logicalUTF16Range: NSRange(location: logicalOffset, length: primaryLength)
-            ))
             return fragments
         }
 

@@ -56,12 +56,12 @@ private struct WorkbenchShioriTableContent: View {
         )
         let textCopySource = tableTextCopySource
         SchemaWorkbenchSearchShell(
-            searchDraft: $shioriStore.tableSearchDraft,
+            searchDraft: searchInputBinding,
             visibleColumnIDs: $shioriStore.tableVisibleColumnIDs,
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
-            searchPlaceholder: "Search Shiori by title or cues...",
             isRedesign: true,
             tableSummary: tableSummary,
+            searchResultCountText: exactSearchResultCountText,
             selectionActions: selectedSummaryActions,
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
@@ -83,9 +83,6 @@ private struct WorkbenchShioriTableContent: View {
                     restoreShioriFacetFilter()
                 }
                 isFacetPanelVisible.toggle()
-            },
-            onSearchSubmit: {
-                submitSearchDraft()
             }
         ) { visibleColumns in
             ZStack {
@@ -214,14 +211,32 @@ private struct WorkbenchShioriTableContent: View {
         )
     }
 
-    private var canEnterSelectionMode: Bool {
+    private var hasExactTableResult: Bool {
         let resultRowCount = max(
             shioriStore.tableResultRowCount,
             rowStore.snapshot.totalRowCount
         )
+        return shioriStore.tableHasLoadedInitialPage
+            && shioriStore.tableResultShioriIDs?.count == resultRowCount
+    }
+
+    private var exactSearchResultCountText: String? {
+        guard hasExactTableResult else { return nil }
+        return schemaWorkbenchResultCountText(tableSummary.totalRowCount)
+    }
+
+    private var canEnterSelectionMode: Bool {
         return schemaWorkbenchCanEnterSelectionMode(
-            hasExactResultSet: shioriStore.tableHasLoadedInitialPage
-                && shioriStore.tableResultShioriIDs?.count == resultRowCount
+            hasExactResultSet: hasExactTableResult
+        )
+    }
+
+    private var searchInputBinding: Binding<String> {
+        Binding(
+            get: { shioriStore.tableSearchDraft },
+            set: { searchText in
+                updateSearchDraft(searchText)
+            }
         )
     }
 
@@ -310,7 +325,7 @@ private struct WorkbenchShioriTableContent: View {
 
     private var tableTextCopySource: WorkbenchShioriTableTextCopySource {
         return WorkbenchShioriTableTextCopySource(
-            searchText: shioriStore.tableSubmittedSearchText,
+            searchText: shioriStore.tableSearchDraft,
             resultRowCount: max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount),
             resultSnapshotID: shioriStore.tableResultSnapshotID,
             resultShioriIDs: shioriStore.tableResultShioriIDs ?? [],
@@ -341,7 +356,7 @@ private struct WorkbenchShioriTableContent: View {
     ) -> Bool {
         allowsTableResponse
             && shioriStore.tableDataRevision == source.dataRevision
-            && shioriStore.tableSubmittedSearchText == source.searchText
+            && shioriStore.tableSearchDraft == source.searchText
             && shioriStore.tableResultSnapshotID == source.resultSnapshotID
             && max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount)
                 == source.resultRowCount
@@ -357,11 +372,18 @@ private struct WorkbenchShioriTableContent: View {
         appState.loadShioriTableRowsIfNeeded()
     }
 
-    private func submitSearchDraft() {
+    private func updateSearchDraft(_ searchText: String) {
+        guard shioriStore.tableSearchDraft != searchText else { return }
         exitSelectionMode()
-        let trimmedDraft = shioriStore.tableSearchDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        shioriStore.tableSubmittedSearchText = trimmedDraft
-        reloadRows(resetScroll: true)
+        rowSelection.reset()
+        persistSelection()
+        resetSelectedCollageAvailability()
+        shioriStore.tableViewportAnchor = nil
+        viewportAnchorToRestore = nil
+        tableScrollTargetRow = nil
+        didRestoreViewport = true
+        tableScrollResetToken += 1
+        appState.updateShioriSearchQuery(searchText)
     }
 
     private func restoreShioriFacetFilter() {
@@ -431,7 +453,7 @@ private struct WorkbenchShioriTableContent: View {
         let playlistScope = PlaybackPlaylistShioriScope.table(
             PlaybackPlaylistShioriTableContext(
                 runID: shioriStore.tableResultSnapshotID,
-                searchText: shioriStore.tableSubmittedSearchText,
+                searchText: shioriStore.tableSearchDraft,
                 totalCount: navigationScopeIDs.count
             )
         )

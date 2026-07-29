@@ -39,7 +39,7 @@ struct SubtitleTableTextCopyColumn: Equatable, Sendable {
         case "time":
             return row.timeRange
         case "cues":
-            let cueTexts = (showsCueGroup ? row.additionalCueTexts : []) + [row.primaryCueText]
+            let cueTexts = [row.primaryCueText] + (showsCueGroup ? row.additionalCueTexts : [])
             return cueTexts.joined(separator: "\n")
         case "language":
             return row.tags.map(\.label).joined(separator: ", ")

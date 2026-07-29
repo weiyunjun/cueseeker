@@ -18,7 +18,6 @@ final class ShioriStore: ObservableObject {
     @Published var listEditorSession: ShioriListEditorSession?
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
-    @Published var tableSubmittedSearchText = ""
     @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
     @Published var tableTotalSavedRowCount = 0
     @Published var tableResultRowCount = 0
@@ -240,6 +239,13 @@ final class ShioriStore: ObservableObject {
 
     func installTableFacetDistribution(_ distribution: CueFacetDistribution) {
         tableFacetDistribution = distribution
+    }
+
+    @discardableResult
+    func updateTableSearchDraft(_ searchText: String) -> Bool {
+        guard tableSearchDraft != searchText else { return false }
+        tableSearchDraft = searchText
+        return true
     }
 
     @discardableResult

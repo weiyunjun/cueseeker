@@ -22,7 +22,7 @@ func subtitleCueGeometryUsesDocumentedHardLineHeights() {
 
 @MainActor
 @Test
-func subtitleCueGeometryAddsEveryExtraCueVisualLineAbovePrimary() {
+func subtitleCueGeometryAddsEveryExtraCueVisualLineBelowPrimary() {
     let measurer = SubtitleTableCueTextMeasurer()
     let onePrimaryOneExtra = SubtitleTableRow(
         id: 1,
@@ -46,9 +46,31 @@ func subtitleCueGeometryAddsEveryExtraCueVisualLineAbovePrimary() {
         primaryGroupIndex: 1
     )
 
-    #expect(measurer.rowMeasurement(row: onePrimaryOneExtra, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 68)
-    #expect(measurer.rowMeasurement(row: onePrimaryTwoExtras, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 96)
-    #expect(measurer.rowMeasurement(row: twoPrimaryOneExtra, effectiveCuesWidth: 2_000, showsCueGroup: true).height == 92)
+    let firstMeasurement = measurer.rowMeasurement(
+        row: onePrimaryOneExtra,
+        effectiveCuesWidth: 2_000,
+        showsCueGroup: true
+    )
+    let secondMeasurement = measurer.rowMeasurement(
+        row: onePrimaryTwoExtras,
+        effectiveCuesWidth: 2_000,
+        showsCueGroup: true
+    )
+    let thirdMeasurement = measurer.rowMeasurement(
+        row: twoPrimaryOneExtra,
+        effectiveCuesWidth: 2_000,
+        showsCueGroup: true
+    )
+
+    #expect(firstMeasurement.height == 68)
+    #expect(firstMeasurement.primaryFirstLineOffset == 8)
+    #expect(firstMeasurement.extraCueOffsets == [40])
+    #expect(secondMeasurement.height == 96)
+    #expect(secondMeasurement.primaryFirstLineOffset == 8)
+    #expect(secondMeasurement.extraCueOffsets == [40, 68])
+    #expect(thirdMeasurement.height == 92)
+    #expect(thirdMeasurement.primaryFirstLineOffset == 8)
+    #expect(thirdMeasurement.extraCueOffsets == [64])
     #expect(measurer.rowMeasurement(row: onePrimaryTwoExtras, effectiveCuesWidth: 2_000, showsCueGroup: false).height == 40)
 }
 

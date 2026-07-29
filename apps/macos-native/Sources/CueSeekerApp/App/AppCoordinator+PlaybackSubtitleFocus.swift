@@ -515,7 +515,7 @@ extension AppCoordinator {
                 PlaybackPlaylistShioriScope.table(
                     PlaybackPlaylistShioriTableContext(
                         runID: self.shiori.tableResultSnapshotID,
-                        searchText: self.shiori.tableSubmittedSearchText,
+                        searchText: self.shiori.tableSearchDraft,
                         totalCount: $0.count
                     )
                 )

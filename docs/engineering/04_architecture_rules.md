@@ -265,6 +265,9 @@ Rules:
   must satisfy line-level query semantics so terms split only across different
   cue lines do not create a match. Optional Cue Group context is a presentation
   projection and must not replace the primary Cue identity.
+- Workbench Shiori filtering must reuse Search's line-level query semantics
+  against the resolved primary Cue only. Display Title and optional Cue Group
+  context are presentation data, not Shiori search candidates.
 - Reindexing must be able to remove stale entries when source subtitle files disappear.
 - Indexed content must be reconciled with the currently selected folders so rows
   from removed folders do not remain visible.
@@ -362,7 +365,7 @@ Rules:
   table contract. Every row owns one primary Cue identity and a content-driven
   height of `16 + 24P + 20S`, where `P` is the primary Cue visual-line count and
   `S` is the visual-line count of optional additional Cue Group context shown
-  above it. Source line breaks and width-dependent wrapping both contribute to
+  below it. Source line breaks and width-dependent wrapping both contribute to
   those counts; the table must render all Cue text without truncation or a
   maximum line count.
 - Dynamic Cue-table measurement is a visible-plus-overscan concern. Width

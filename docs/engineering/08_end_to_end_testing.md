@@ -700,7 +700,7 @@ After each action, wait two seconds and preserve the corresponding log block.
    position of its first visual line. Narrow the window enough to wrap Cues,
    then widen it again.
 4. Open Settings / Search, turn `Show Cue Group` On, and return to Search.
-   Confirm additional Cues appear above each primary Cue in smaller, more muted
+   Confirm additional Cues appear below each primary Cue in smaller, more muted
    text while the same primary Cue remains the row and action identity.
 5. With `Show Cue Group` On, left-click and right-click additional Cue text.
    Confirm the shared interaction region uses the primary Cue for Play,
@@ -710,10 +710,12 @@ After each action, wait two seconds and preserve the corresponding log block.
 6. Open Context from the distinctive primary Cue and repeat the width and
    `Show Cue Group` checks. Confirm Context uses the same dynamic table contract
    and returns to the exact primary Cue.
-7. Open Shiori and repeat the checks on the saved Cue. Confirm the Shiori Cue,
-   time, and date identity remain unchanged and the table is not reloaded merely
-   because presentation changed. Confirm no Shiori Tags column or interaction
-   is present.
+7. Open Shiori and type a query one character at a time. Confirm results and the
+   exact result count update without Return, only Primary Cue text matches, and
+   a Display Title-only query returns no rows. Repeat the Cue presentation checks
+   on a saved Cue; confirm its Cue, time, and date identity remain unchanged and
+   the table is not reloaded merely because presentation changed. Confirm no
+   Shiori Tags column or interaction is present.
 8. Set `Show Cue Group` On and quit. Start the performance log before relaunch,
    then open the same table for its first mount. Confirm its first visible
    presentation is already On, with no intermediate Off frame and no redundant

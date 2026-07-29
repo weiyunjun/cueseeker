@@ -273,3 +273,12 @@ enum SearchQueryPlanner {
         isASCIILetterOrDigit(character) || character == "_"
     }
 }
+
+public enum SubtitleSearchQueryMatcher {
+    public static func matches(_ primaryCueText: String, query: String) -> Bool {
+        guard let plan = SearchQueryPlanner.plan(for: query) else {
+            return false
+        }
+        return SearchQueryPlanner.matches(primaryCueText, rule: plan.lineMatchRule)
+    }
+}

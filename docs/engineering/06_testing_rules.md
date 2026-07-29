@@ -852,6 +852,9 @@ Required Cue-table coverage:
 - Search and Search-hosted Context use the Search table columns; Shiori uses its
   declared Cue, time, and date columns. All three surfaces use the same
   native virtual Cue-table geometry and interaction contract.
+- Shiori search updates from each input change, reuses Search's Primary Cue
+  matcher without matching Display Title, and exposes its exact result count
+  only after the current resident projection is complete.
 - A one-line primary Cue with no additional context resolves to 40 points; each
   additional primary visual line adds 24 points and each additional Cue Group
   visual line adds 20 points. Tests must count source line breaks and automatic
@@ -860,7 +863,7 @@ Required Cue-table coverage:
   clipping, truncation, ellipsis, a maximum line count, or a character limit.
 - `Show Cue Group` defaults to Off, persists across launches, and uses a native
   macOS switch below Search Scope. Off renders only the primary Cue; On renders
-  every additional Cue above it while all selection and actions continue to use
+  every additional Cue below it while all selection and actions continue to use
   the primary Cue.
 - Toggling `Show Cue Group` or changing the Cues-column width remeasures only
   visible rows plus overscan. It must not rerun Search, rebuild the row identity

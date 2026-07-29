@@ -393,7 +393,7 @@ extension AppCoordinator {
         shiori.clearTableRowsForReload()
 
         let resultSnapshotID = shiori.tableResultSnapshotID
-        let searchText = shiori.tableSubmittedSearchText
+        let searchText = shiori.tableSearchDraft
         let facetFilter = shiori.tableFacetFilter
         let dataRevision = shiori.tableDataRevision
         if shiori.residentDataRevision == dataRevision,
@@ -521,8 +521,39 @@ extension AppCoordinator {
         shiori.beginTableResultProjection()
         applyResidentShioriTableProjection(
             resultSnapshotID: shiori.tableResultSnapshotID,
-            searchText: shiori.tableSubmittedSearchText,
+            searchText: shiori.tableSearchDraft,
             facetFilter: filter,
+            listID: listID,
+            dataRevision: dataRevision
+        )
+    }
+
+    func updateShioriSearchQuery(_ searchText: String) {
+        guard shiori.updateTableSearchDraft(searchText) else {
+            return
+        }
+        UIInvalidationProbe.mark(
+            "ACTION UI.ShioriSearchQuery.changed",
+            scope: uiProbeScope,
+            details: "length=\(searchText.count)"
+        )
+        guard let listID = shiori.activeListID else {
+            reloadShioriTableRows()
+            return
+        }
+        let dataRevision = shiori.tableDataRevision
+        guard shiori.residentDataRevision == dataRevision,
+              shiori.residentListID == listID
+        else {
+            reloadShioriTableRows()
+            return
+        }
+
+        shiori.beginTableResultProjection()
+        applyResidentShioriTableProjection(
+            resultSnapshotID: shiori.tableResultSnapshotID,
+            searchText: searchText,
+            facetFilter: shiori.tableFacetFilter,
             listID: listID,
             dataRevision: dataRevision
         )
@@ -558,18 +589,12 @@ extension AppCoordinator {
             guard let resolved = shiori.residentShiorisByID[relation.id] else {
                 return false
             }
-            let displayTitle = content?.displayTitle ?? resolved.displayTitle
             let cueText = content?.content ?? resolved.content
-            let matchesSearch = trimmedSearchText.isEmpty
-                || displayTitle.range(
-                    of: trimmedSearchText,
-                    options: [.caseInsensitive, .diacriticInsensitive]
-                ) != nil
-                || cueText.range(
-                    of: trimmedSearchText,
-                    options: [.caseInsensitive, .diacriticInsensitive]
-                ) != nil
-            return matchesSearch
+            return trimmedSearchText.isEmpty
+                || SubtitleSearchQueryMatcher.matches(
+                    cueText,
+                    query: trimmedSearchText
+                )
         }
         shiori.installTableFacetDistribution(facetProjection.distribution)
         shiori.installTableResultShioriIDs(relations.map(\.id))
@@ -599,7 +624,7 @@ extension AppCoordinator {
     ) -> Bool {
         !Task.isCancelled
             && shiori.tableResultSnapshotID == resultSnapshotID
-            && shiori.tableSubmittedSearchText == searchText
+            && shiori.tableSearchDraft == searchText
             && shiori.tableFacetFilter == facetFilter
             && shiori.activeListID == listID
             && shiori.tableDataRevision == dataRevision
