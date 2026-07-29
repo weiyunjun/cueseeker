@@ -15,19 +15,20 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Unified Playback Command Panel Search with the Cue Playlist presentation.
   Search preview now uses the shared Cue Result Adapter and Reel without a left
   cover or Command Panel-only result Row, shows Primary Cue above optional Cue
-  Group text, and adds `[x/y]`, Display Title, and Time Range Badges to the
-  selected result. The preview remains limited to 50 resident results while
+  Group text, and shows `[x/y]`, Display Title, and Time Range Badges above
+  every result using selection-specific neutral colors. The resident preview
+  remains limited to 50 results while
   `[x/y]` and result activation retain the complete Search collection; opening
   a result still installs the complete Playlist. The preview Reel Window is the
   only Search-panel selection source for keyboard, wheel, and scrollbar input.
 - Unified Playback Current and Cue Playlist presentation through shared Cue
   typography and information Badge primitives. Both modules now use full-width
   Cue Reels without a left cover or Playlist sequence lane, place the Primary
-  Cue above optional Cue Group text, and show independent context Badges only
-  on the selected Cue. Current shows Display Title and Time Range while
+  Cue above optional Cue Group text, and show independent context Badges above
+  every Cue. Current shows Display Title and Time Range while
   suppressing Cue Group; Cue Playlist adds `[x/y]` and shows Cue Group below
   every result when that setting is enabled.
-  Badge height is a fixed selection decoration; selection changes preserve the
+  Badge-row height remains fixed across selection changes, preserving the
   resident Cue/Cue Group measurement cache and the Reel's continuous wheel,
   keyboard, and scrollbar geometry. Current retains its dedicated primary-only
   measurement and drawing hot path so scrolling does not repeatedly construct

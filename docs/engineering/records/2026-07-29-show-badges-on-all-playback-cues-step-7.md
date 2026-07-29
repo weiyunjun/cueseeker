@@ -3,9 +3,9 @@
 ## Requirement
 
 - `docs/human/requirements/20260729-Feature-Workbench Playback And Command Panel Shared UI.md`
-- Step 7: keep each module's information Badges visible on every Cue, retain
-  the blue selected palette, use a Playback-specific neutral palette for other
-  Cues, and keep Badge content and item height stable across selection changes.
+- Step 7: keep each module's information Badges visible on every Cue, use
+  Playback-specific neutral gray palettes with a stronger selected hierarchy,
+  and keep Badge content and item height stable across selection changes.
 
 ## Classification
 
