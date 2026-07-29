@@ -3,15 +3,15 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
-func playbackCueResultMetricsMatchDocumentedTokens() {
-    #expect(PlaybackSubtitleFocusMetrics.cueVerticalPadding == 12)
+func playbackCueResultMetricsMatchCompactIteration() {
+    #expect(PlaybackSubtitleFocusMetrics.cueVerticalPadding == 8)
     #expect(PlaybackSubtitleFocusMetrics.cueGap == 8)
-    #expect(PlaybackSubtitleFocusMetrics.internalLineGap == 5)
-    #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 40)
-    #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 52)
+    #expect(PlaybackSubtitleFocusMetrics.internalLineGap == 3)
+    #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 24)
+    #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 32)
     #expect(PlaybackSubtitleFocusMetrics.cueFontWeight == .semibold)
-    #expect(PlaybackSubtitleFocusMetrics.cueGroupFontSize == 28)
-    #expect(PlaybackSubtitleFocusMetrics.cueGroupLineHeight == 38)
+    #expect(PlaybackSubtitleFocusMetrics.cueGroupFontSize == 16)
+    #expect(PlaybackSubtitleFocusMetrics.cueGroupLineHeight == 22)
     #expect(PlaybackSubtitleFocusMetrics.cueGroupFontWeight == .medium)
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeGap == 8)
     #expect(PlaybackSubtitleFocusMetrics.informationCueGap == 8)
@@ -156,11 +156,11 @@ func playbackCueResultPrimaryOnlyUsesCurrentTypographyAndEveryVisualLine() {
     let layout = PlaybackCueResultLayout()
 
     for (text, expectedLines, expectedNaturalHeight) in [
-        ("one", 1, CGFloat(76)),
-        ("one\ntwo", 2, CGFloat(128)),
-        ("one\r\ntwo", 2, CGFloat(128)),
-        ("one\n", 2, CGFloat(128)),
-        ("", 1, CGFloat(76)),
+        ("one", 1, CGFloat(48)),
+        ("one\ntwo", 2, CGFloat(80)),
+        ("one\r\ntwo", 2, CGFloat(80)),
+        ("one\n", 2, CGFloat(80)),
+        ("", 1, CGFloat(48)),
     ] {
         let plan = layout.prepare(
             result: playbackCueResult(primaryText: text),
@@ -172,11 +172,11 @@ func playbackCueResultPrimaryOnlyUsesCurrentTypographyAndEveryVisualLine() {
         #expect(plan.visualLinePlan.visualLineCount == expectedLines)
         #expect(
             plan.visualLinePlan.nominalContentHeight
-                == CGFloat(expectedLines) * 52
+                == CGFloat(expectedLines) * 32
         )
         #expect(plan.extent.naturalHeight == expectedNaturalHeight)
         #expect(plan.visualLines.allSatisfy { $0.role == .primaryCue })
-        playbackCueResultExpectStrictFivePointGaps(plan)
+        playbackCueResultExpectStrictThreePointGaps(plan)
     }
 
     let wrapped = layout.prepare(
@@ -191,9 +191,9 @@ func playbackCueResultPrimaryOnlyUsesCurrentTypographyAndEveryVisualLine() {
     #expect(wrapped.visualLines.count > 3)
     #expect(
         wrapped.visualLinePlan.nominalContentHeight
-            == CGFloat(wrapped.visualLines.count) * 52
+            == CGFloat(wrapped.visualLines.count) * 32
     )
-    playbackCueResultExpectStrictFivePointGaps(wrapped)
+    playbackCueResultExpectStrictThreePointGaps(wrapped)
 }
 
 @MainActor
@@ -216,14 +216,14 @@ func playbackCueResultFlattensMixedCueGroupIntoOneStrictStack() {
         .additionalCue(index: 0),
         .additionalCue(index: 1),
     ])
-    #expect(plan.visualLinePlan.nominalContentHeight == CGFloat(38 + 38 + 52))
-    #expect(plan.extent.naturalHeight == 152)
-    playbackCueResultExpectStrictFivePointGaps(plan)
+    #expect(plan.visualLinePlan.nominalContentHeight == CGFloat(22 + 22 + 32))
+    #expect(plan.extent.naturalHeight == 92)
+    playbackCueResultExpectStrictThreePointGaps(plan)
 }
 
 @MainActor
 @Test
-func playbackCueResultKeepsFivePointGapAcrossGroupHardSoftAndCueBoundaries() {
+func playbackCueResultKeepsThreePointGapAcrossGroupHardSoftAndCueBoundaries() {
     let layout = PlaybackCueResultLayout()
     let plan = layout.prepare(
         result: playbackCueResult(
@@ -245,7 +245,7 @@ func playbackCueResultKeepsFivePointGapAcrossGroupHardSoftAndCueBoundaries() {
     )
     #expect(plan.visualLines.contains { $0.role == .additionalCue(index: 1) })
     #expect(plan.visualLines.first?.role == .primaryCue)
-    playbackCueResultExpectStrictFivePointGaps(plan)
+    playbackCueResultExpectStrictThreePointGaps(plan)
 }
 
 @MainActor
@@ -270,10 +270,10 @@ func playbackCueResultPreservesRoleAwareEmptyAndTrailingLines() {
         .additionalCue(index: 0),
         .additionalCue(index: 1),
     ])
-    #expect(plan.visualLines.map(\.line.nominalLineHeight) == [52, 52, 38, 38, 38])
-    #expect(plan.visualLinePlan.nominalContentHeight == 218)
-    #expect(plan.extent.naturalHeight == 242)
-    playbackCueResultExpectStrictFivePointGaps(plan)
+    #expect(plan.visualLines.map(\.line.nominalLineHeight) == [32, 32, 22, 22, 22])
+    #expect(plan.visualLinePlan.nominalContentHeight == 130)
+    #expect(plan.extent.naturalHeight == 146)
+    playbackCueResultExpectStrictThreePointGaps(plan)
 }
 
 @MainActor
@@ -296,10 +296,10 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
     let selectedPrimary = try #require(selected.primaryFirstVisualLine)
 
     #expect(selectedGroup.style == .cueGroup)
-    #expect(selectedGroup.style.font.pointSize == 28)
+    #expect(selectedGroup.style.font.pointSize == 16)
     #expect(playbackCueResultAlpha(selectedGroup.color) == 0.62)
     #expect(selectedPrimary.style == .primary)
-    #expect(selectedPrimary.style.font.pointSize == 40)
+    #expect(selectedPrimary.style.font.pointSize == 24)
     #expect(playbackCueResultAlpha(selectedPrimary.color) == 0.94)
     #expect(selectedGroup.line.typographicHeight > 0)
     #expect(selectedPrimary.line.typographicHeight > 0)
@@ -336,7 +336,7 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
     #expect(unselected.visualLines.allSatisfy {
         playbackCueResultAlpha($0.color) == 0.34
     })
-    playbackCueResultExpectStrictFivePointGaps(unselected)
+    playbackCueResultExpectStrictThreePointGaps(unselected)
 }
 
 @MainActor
@@ -676,7 +676,7 @@ private func playbackCueResultColor(
     return resolved
 }
 
-private func playbackCueResultExpectStrictFivePointGaps(
+private func playbackCueResultExpectStrictThreePointGaps(
     _ plan: PlaybackCueResultLayoutPlan
 ) {
     for (previous, next) in zip(

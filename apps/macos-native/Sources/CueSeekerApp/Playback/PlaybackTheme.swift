@@ -290,26 +290,28 @@ public enum PlaybackTheme {
 
 enum PlaybackSubtitleFocusMetrics {
     /// --padding-subtitle-focus-cue-y
-    static let cueVerticalPadding: CGFloat = 12
+    static let cueVerticalPadding: CGFloat = 8
     /// --gap-subtitle-focus-cue
     static let cueGap: CGFloat = 8
     /// --gap-subtitle-focus-internal-line
-    static let internalLineGap: CGFloat = 5
-    static let minimumNaturalCueHeight: CGFloat = 76
+    static let internalLineGap: CGFloat = 3
+    static var minimumNaturalCueHeight: CGFloat {
+        cueLineHeight + cueVerticalPadding * 2
+    }
     /// --width-subtitle-focus-content-max
     static let contentMaxWidth: CGFloat = 960
     /// --spacing-8
     static let contentInset: CGFloat = 32
     /// --font-size-subtitle-focus-cue
-    static let cueFontSize: CGFloat = 40
+    static let cueFontSize: CGFloat = 24
     /// --line-height-subtitle-focus-cue
-    static let cueLineHeight: CGFloat = 52
+    static let cueLineHeight: CGFloat = 32
     /// --font-weight-subtitle-focus-cue
     static let cueFontWeight = NSFont.Weight.semibold
     /// --font-size-subtitle-focus-cue-group
-    static let cueGroupFontSize: CGFloat = 28
+    static let cueGroupFontSize: CGFloat = 16
     /// --line-height-subtitle-focus-cue-group
-    static let cueGroupLineHeight: CGFloat = 38
+    static let cueGroupLineHeight: CGFloat = 22
     /// --font-weight-subtitle-focus-cue-group
     static let cueGroupFontWeight = NSFont.Weight.medium
     /// --spacing-2

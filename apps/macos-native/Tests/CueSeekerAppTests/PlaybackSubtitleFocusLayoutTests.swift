@@ -5,15 +5,15 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
-func subtitleFocusMetricsMatchDocumentedDynamicGeometry() {
-    #expect(PlaybackSubtitleFocusMetrics.cueVerticalPadding == 12)
+func subtitleFocusMetricsMatchCompactIterationGeometry() {
+    #expect(PlaybackSubtitleFocusMetrics.cueVerticalPadding == 8)
     #expect(PlaybackSubtitleFocusMetrics.cueGap == 8)
-    #expect(PlaybackSubtitleFocusMetrics.internalLineGap == 5)
-    #expect(PlaybackSubtitleFocusMetrics.minimumNaturalCueHeight == 76)
+    #expect(PlaybackSubtitleFocusMetrics.internalLineGap == 3)
+    #expect(PlaybackSubtitleFocusMetrics.minimumNaturalCueHeight == 48)
     #expect(PlaybackSubtitleFocusMetrics.contentMaxWidth == 960)
     #expect(PlaybackSubtitleFocusMetrics.contentInset == 32)
-    #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 40)
-    #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 52)
+    #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 24)
+    #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 32)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
@@ -111,7 +111,7 @@ func playbackCurrentEveryCueUsesFixedInformationHeightAndCachedBadgePlan() throw
     #expect(adapter.informationBadgePlanPreparationCountForTesting == 1)
     #expect(
         base.naturalHeight
-            == 76 + PlaybackSubtitleFocusMetrics.informationHeight
+            == 48 + PlaybackSubtitleFocusMetrics.informationHeight
     )
 }
 
@@ -154,13 +154,13 @@ func subtitleFocusTextMeasurementUsesEveryHardAndSoftVisualLine() {
     let measurer = PlaybackSubtitleFocusCueTextMeasurer()
 
     for (text, expectedLines, expectedHeight) in [
-        ("one", 1, CGFloat(76)),
-        ("one\ntwo", 2, CGFloat(128)),
-        ("one\ntwo\nthree", 3, CGFloat(180)),
-        ("one\r\ntwo", 2, CGFloat(128)),
-        ("one\n", 2, CGFloat(128)),
-        ("one\n\nthree", 3, CGFloat(180)),
-        ("", 1, CGFloat(76)),
+        ("one", 1, CGFloat(48)),
+        ("one\ntwo", 2, CGFloat(80)),
+        ("one\ntwo\nthree", 3, CGFloat(112)),
+        ("one\r\ntwo", 2, CGFloat(80)),
+        ("one\n", 2, CGFloat(80)),
+        ("one\n\nthree", 3, CGFloat(112)),
+        ("", 1, CGFloat(48)),
     ] {
         let measurement = measurer.measurement(
             text: text,
@@ -168,7 +168,7 @@ func subtitleFocusTextMeasurementUsesEveryHardAndSoftVisualLine() {
             viewportHeight: 1_000
         )
         #expect(measurement.visualLineCount == expectedLines)
-        #expect(measurement.resolvedContentHeight == CGFloat(expectedLines) * 52)
+        #expect(measurement.resolvedContentHeight == CGFloat(expectedLines) * 32)
         #expect(measurement.naturalHeight == expectedHeight)
         #expect(measurement.resolvedHeight == expectedHeight)
         #expect(!measurement.isOversized)
@@ -182,13 +182,13 @@ func subtitleFocusTextMeasurementUsesEveryHardAndSoftVisualLine() {
     #expect(wrapped.visualLineCount > 3)
     #expect(
         wrapped.naturalHeight
-            == CGFloat(wrapped.visualLineCount) * 52 + 24
+            == CGFloat(wrapped.visualLineCount) * 32 + 16
     )
 }
 
 @MainActor
 @Test
-func subtitleFocusVisualLineStackPreservesEverySourceLineAtStrictFivePointGap() {
+func subtitleFocusVisualLineStackPreservesEverySourceLineAtStrictThreePointGap() {
     let layout = PlaybackVisualLineStackLayout()
 
     for (text, expectedLineCount) in [
@@ -217,7 +217,7 @@ func subtitleFocusVisualLineStackPreservesEverySourceLineAtStrictFivePointGap() 
 
 @MainActor
 @Test
-func subtitleFocusVisualLineStackUsesStrictFivePointGapAcrossSoftWraps() {
+func subtitleFocusVisualLineStackUsesStrictThreePointGapAcrossSoftWraps() {
     let layout = PlaybackVisualLineStackLayout()
     let plan = layout.prepare(
         text: Array(repeating: "wrap", count: 40).joined(separator: " "),
@@ -264,9 +264,9 @@ func subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtStrictInternalGap() thr
     let first = try #require(lineRects.first)
     let second = try #require(lineRects.dropFirst().first)
     let third = try #require(lineRects.last)
-    #expect(first.minY >= 12)
-    #expect(abs(second.minY - first.maxY - 5) < 0.001)
-    #expect(abs(third.minY - second.maxY - 5) < 0.001)
+    #expect(first.minY >= 8)
+    #expect(abs(second.minY - first.maxY - 3) < 0.001)
+    #expect(abs(third.minY - second.maxY - 3) < 0.001)
     #expect(lineRects.allSatisfy { cueRect.contains($0) })
 
     #expect(
@@ -286,7 +286,7 @@ func subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtStrictInternalGap() thr
 @MainActor
 @Test
 func subtitleFocusOversizedTextStartsAtHeadAndClipsTrailingLines() throws {
-    let text = "first\nsecond\nthird"
+    let text = "first\nsecond\nthird\nfourth"
     let cue = focusLayoutCue(ordinal: 0, content: text)
     let layout = PlaybackSubtitleFocusNativeTextLayout()
     let fitRects = layout.visibleLineRects(
@@ -298,9 +298,9 @@ func subtitleFocusOversizedTextStartsAtHeadAndClipsTrailingLines() throws {
 
     let first = try #require(visibleRects.first)
     let fitFirst = try #require(fitRects.first)
-    #expect(first.minY >= 12)
+    #expect(first.minY >= 8)
     #expect(abs(first.minY - fitFirst.minY) < 0.001)
-    #expect(visibleRects.count < 3)
+    #expect(visibleRects.count < 4)
     #expect(visibleRects.allSatisfy { cueRect.contains($0) })
     #expect(cue.text == text)
 }
@@ -319,6 +319,19 @@ private func assertStrictPlaybackVisualLineGaps(
     }
 }
 
+private func subtitleFocusMaximumLocalItemCount(
+    viewportHeight: CGFloat
+) -> Int {
+    let minimumItemStep = PlaybackSubtitleFocusMetrics.minimumNaturalCueHeight
+        + PlaybackSubtitleFocusMetrics.cueGap
+    let visibleItemCount = Int(ceil(
+        max(0, viewportHeight) / max(1, minimumItemStep)
+    ))
+    return visibleItemCount
+        + PlaybackVirtualReelLayout.overscanItemCount * 2
+        + 2
+}
+
 @MainActor
 @Test
 func subtitleFocusMeasurementClampsOnlyResolvedHeight() {
@@ -330,7 +343,7 @@ func subtitleFocusMeasurementClampsOnlyResolvedHeight() {
     )
 
     #expect(measurement.visualLineCount == 3)
-    #expect(measurement.naturalHeight == 180)
+    #expect(measurement.naturalHeight == 112)
     #expect(measurement.resolvedHeight == 100)
     #expect(measurement.isOversized)
 }
@@ -346,11 +359,11 @@ func subtitleFocusVirtualGeometryUsesDocumentedPlacementDistances() {
 
     #expect(layout.focusAnchorY == 328)
     #expect(layout.contentWidth == 960)
-    #expect(layout.acceptedTop(forResolvedHeight: 76) == 290)
+    #expect(layout.acceptedTop(forResolvedHeight: 48) == 304)
     #expect(layout.acceptedTop(forResolvedHeight: 656) == 0)
-    #expect(layout.adjacentCenterDistance(from: 76, to: 76) == 84)
-    #expect(layout.adjacentCenterDistance(from: 76, to: 128) == 110)
-    #expect(layout.adjacentCenterDistance(from: 128, to: 180) == 162)
+    #expect(layout.adjacentCenterDistance(from: 48, to: 48) == 56)
+    #expect(layout.adjacentCenterDistance(from: 48, to: 80) == 72)
+    #expect(layout.adjacentCenterDistance(from: 80, to: 112) == 104)
 }
 
 @Test
@@ -363,12 +376,12 @@ func subtitleFocusVirtualGeometryInterpolatesFractionalOrdinals() {
     )
 
     let lowerTop = layout.lowerCueTop(
-        lowerResolvedHeight: 76,
-        upperResolvedHeight: 128
+        lowerResolvedHeight: 48,
+        upperResolvedHeight: 80
     )
-    let upperTop = lowerTop + 76 + PlaybackSubtitleFocusMetrics.cueGap
-    #expect(lowerTop == 235)
-    #expect(upperTop == 319)
+    let upperTop = lowerTop + 48 + PlaybackSubtitleFocusMetrics.cueGap
+    #expect(lowerTop == 268)
+    #expect(upperTop == 324)
     #expect(layout.nearestOrdinal == 13)
 }
 
@@ -413,7 +426,7 @@ func subtitleFocusReelCentersFitCueAndPinsOversizedCueToTop() throws {
     let fit = try #require(
         fitView.placementsForTesting.first { $0.ordinal == 12 }
     )
-    #expect(fit.measurement.resolvedHeight == 76)
+    #expect(fit.measurement.resolvedHeight == 48)
     #expect(abs(fit.rect.midY - 328) < 0.001)
     fitView.invalidate()
 
@@ -437,7 +450,7 @@ func subtitleFocusReelCentersFitCueAndPinsOversizedCueToTop() throws {
     let oversized = try #require(
         oversizedView.placementsForTesting.first { $0.ordinal == 12 }
     )
-    #expect(oversized.measurement.naturalHeight == 180)
+    #expect(oversized.measurement.naturalHeight == 112)
     #expect(oversized.measurement.resolvedHeight == 100)
     #expect(oversized.rect.minY == 0)
     oversizedView.invalidate()
@@ -485,10 +498,13 @@ func subtitleFocusDirectFiftyThousandCueTargetStaysLocallyVirtualized() {
     view.layoutSubtreeIfNeeded()
 
     #expect(view.placementsForTesting.contains { $0.ordinal == 25_000 })
-    #expect(view.placementsForTesting.count <= 18)
-    #expect(view.measuredOrdinalsForTesting.count <= 18)
+    let maximumLocalItemCount = subtitleFocusMaximumLocalItemCount(
+        viewportHeight: view.frame.height
+    )
+    #expect(view.placementsForTesting.count <= maximumLocalItemCount)
+    #expect(view.measuredOrdinalsForTesting.count <= maximumLocalItemCount)
     #expect(view.measuredOrdinalsForTesting.allSatisfy {
-        abs($0 - 25_000) <= 9
+        abs($0 - 25_000) <= maximumLocalItemCount / 2
     })
     #expect(view.measurementCacheCountForTesting <= 64)
     view.invalidate()
@@ -522,7 +538,11 @@ func subtitleFocusViewportWorkIsIndependentOfFiveHundredOrFiftyThousandCues() {
     let fiftyThousand = counts(totalCount: 50_000, selectedOrdinal: 25_000)
     #expect(fiveHundred.0 == fiftyThousand.0)
     #expect(fiveHundred.1 == fiftyThousand.1)
-    #expect(fiftyThousand.0 <= 18)
+    #expect(
+        fiftyThousand.0 <= subtitleFocusMaximumLocalItemCount(
+            viewportHeight: 656
+        )
+    )
 }
 
 @MainActor
@@ -2565,7 +2585,7 @@ func subtitleFocusMiddleCueTextReplacementInvalidatesMeasurement() throws {
 
     #expect(before.measurement.visualLineCount == 1)
     #expect(after.measurement.visualLineCount == 3)
-    #expect(after.measurement.naturalHeight == 180)
+    #expect(after.measurement.naturalHeight == 112)
     view.invalidate()
 }
 
@@ -2724,7 +2744,7 @@ func subtitleFocusPreciseWheelUsesContentDependentDistanceAndNearestSettlement()
     )
     view.layoutSubtreeIfNeeded()
 
-    let oneLineDistance = CGFloat(84)
+    let oneLineDistance = CGFloat(56)
     view.applyPreciseWheelDeltaForTesting(-oneLineDistance * 0.49)
     #expect(abs(view.fractionalOrdinalForTesting - 12.49) < 0.001)
     view.settlePreciseWheelForTesting()
