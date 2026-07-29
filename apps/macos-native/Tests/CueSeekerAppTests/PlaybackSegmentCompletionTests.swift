@@ -256,7 +256,10 @@ func newPlaylistIndexReinitializesBehaviorsAfterSeekInterruption() async throws 
         )
         let items = [first, second]
         let source = PlaybackPlaylistSource(
-            origin: .search(resultListGeneration: 1),
+            origin: .search(
+                resultListGeneration: 1,
+                usesFacetProjection: false
+            ),
             totalCount: items.count
         ) { ordinal in
             guard items.indices.contains(ordinal) else {
@@ -372,7 +375,10 @@ func invalidatedPlaylistPositionClearsCueRuntimeBeforeLateCompletion() async thr
         let first = segmentCompletionSearchResult(entryID: 1)
         let replacement = segmentCompletionSearchResult(entryID: 2)
         let source = PlaybackPlaylistSource(
-            origin: .search(resultListGeneration: 1),
+            origin: .search(
+                resultListGeneration: 1,
+                usesFacetProjection: false
+            ),
             totalCount: 1
         ) { ordinal in
             ordinal == 0

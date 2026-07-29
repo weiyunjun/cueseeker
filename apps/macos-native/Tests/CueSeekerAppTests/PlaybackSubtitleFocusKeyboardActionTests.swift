@@ -363,6 +363,78 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
 
 @MainActor
 @Test
+func playbackCommandPanelDatabaseSearchOpensCompletePlaylistOverlay() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media")]
+        app.search.updateSearchFacetFilter(CueFacetFilter(
+            durations: [.fiveSecondsOrMore]
+        ))
+        app.ensurePlayerInitialized()
+        app.playback.isPlaybackSurfaceExpanded = true
+
+        #expect(app.presentPlaybackCommandPanelSearch(
+            query: "keyboard action",
+            startsSearch: true
+        ))
+        await app.search.searchTask?.value
+        await app.search.exactCompletionTask?.value
+        app.synchronizePlaybackCommandPanelSearchResults()
+
+        #expect(app.search.searchResults.count == 30)
+        #expect(app.search.projectedSearchResults.isEmpty)
+        let selectedResult = try #require(
+            app.search.searchResults.dropFirst().first
+        )
+        #expect(app.requestPlaybackCommandPanelSearchAction(
+            .playFromThisCue,
+            ordinal: 1
+        ))
+        app.search.deactivatePlaybackTemporaryFilter()
+        app.refreshSearchPlaybackPlaylistSource(
+            resultListGeneration: app.search.resultListGeneration
+        )
+
+        app.playback.playbackStatus = .paused
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 36,
+            modifierFlagsRawValue: 0
+        ))
+        let session = try #require(app.playback.subtitleFocusSession)
+        #expect(session.availableModules == [.current, .playlist])
+        await app.playbackSubtitleFocusInitialLoadTask?.value
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 48,
+            modifierFlagsRawValue: 0
+        ))
+
+        let playlistWindow = try #require(session.playlistWindow)
+        #expect(playlistWindow.snapshot.totalCount == 30)
+        #expect(playlistWindow.selectedOrdinal == 1)
+        #expect(
+            playlistWindow.item(at: 1)?.identity
+                == .search(selectedResult.entryID)
+        )
+
+        for expectedOrdinal in 2...3 {
+            #expect(session.requestKeyboardNavigation(.forward))
+            let request = try #require(session.keyboardNavigationRequest)
+            #expect(request.targetOrdinal == expectedOrdinal)
+            let datasetID = try #require(playlistWindow.reelDatasetID)
+            #expect(session.commitVirtualReelSelection(
+                PlaybackVirtualReelSelectionCommit(
+                    datasetID: AnyHashable(datasetID),
+                    generation: playlistWindow.snapshot.generation,
+                    ordinal: expectedOrdinal
+                ),
+                module: .playlist
+            ))
+            #expect(playlistWindow.selectedOrdinal == expectedOrdinal)
+        }
+    }
+}
+
+@MainActor
+@Test
 func playbackCommandPanelSearchSavesSelectedCue() async throws {
     try await withKeyboardActionApp { app, _ in
         let source = keyboardActionSource()

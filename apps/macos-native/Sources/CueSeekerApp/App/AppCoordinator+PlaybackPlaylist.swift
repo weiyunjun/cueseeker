@@ -132,19 +132,23 @@ extension AppCoordinator {
         seed result: SubtitleSearchResult
     ) {
         let resultListGeneration = search.resultListGeneration
+        let usesFacetProjection = !search.isPlaybackTemporaryFilterActive
         let origin = PlaybackPlaylistSourceOrigin.search(
-            resultListGeneration: resultListGeneration
+            resultListGeneration: resultListGeneration,
+            usesFacetProjection: usesFacetProjection
         )
-        let projectedResults = search.projectedSearchResults
-        let selectedOrdinal = projectedResults.firstIndex {
+        let playlistResults = usesFacetProjection
+            ? search.projectedSearchResults
+            : search.searchResults
+        let selectedOrdinal = playlistResults.firstIndex {
             $0.entryID == result.entryID
         }
         if let source = playback.playlistSource,
            source.origin == origin {
             _ = source.replaceResidentItems(
-                totalCount: projectedResults.count,
+                totalCount: playlistResults.count,
                 itemProvider: Self.searchPlaylistItemProvider(
-                    results: projectedResults
+                    results: playlistResults
                 )
             )
             playback.setPlaylistSource(
@@ -156,9 +160,9 @@ extension AppCoordinator {
 
         let source = PlaybackPlaylistSource(
             origin: origin,
-            totalCount: projectedResults.count,
+            totalCount: playlistResults.count,
             itemProvider: Self.searchPlaylistItemProvider(
-                results: projectedResults
+                results: playlistResults
             )
         )
         playback.setPlaylistSource(
@@ -184,20 +188,23 @@ extension AppCoordinator {
     func refreshSearchPlaybackPlaylistSource(
         resultListGeneration: UInt64
     ) {
-        let origin = PlaybackPlaylistSourceOrigin.search(
-            resultListGeneration: resultListGeneration
-        )
         guard let source = playback.playlistSource,
-              source.origin == origin
+              case .search(
+                let sourceGeneration,
+                let usesFacetProjection
+              ) = source.origin,
+              sourceGeneration == resultListGeneration
         else {
             return
         }
 
-        let projectedResults = search.projectedSearchResults
+        let playlistResults = usesFacetProjection
+            ? search.projectedSearchResults
+            : search.searchResults
         _ = source.replaceResidentItems(
-            totalCount: projectedResults.count,
+            totalCount: playlistResults.count,
             itemProvider: Self.searchPlaylistItemProvider(
-                results: projectedResults
+                results: playlistResults
             )
         )
     }
