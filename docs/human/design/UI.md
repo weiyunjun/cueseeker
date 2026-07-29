@@ -191,11 +191,11 @@
 - `--font-size-player-speed-menu-check`: `11px`
 - `--font-size-player-speed-menu-item`: `13px`
 - `--font-size-player-topbar-title`: `13px`
-- `--font-size-subtitle-focus-cue`: `40px`
-- `--line-height-subtitle-focus-cue`: `52px`
+- `--font-size-subtitle-focus-cue`: `24px`
+- `--line-height-subtitle-focus-cue`: `32px`
 - `--font-weight-subtitle-focus-cue`: `600`
-- `--font-size-subtitle-focus-cue-group`: `28px`
-- `--line-height-subtitle-focus-cue-group`: `38px`
+- `--font-size-subtitle-focus-cue-group`: `20px`
+- `--line-height-subtitle-focus-cue-group`: `28px`
 - `--font-weight-subtitle-focus-cue-group`: `500`
 - `--font-size-section-title`: `18px`
 - `--font-size-library-title`: `14px`
@@ -284,7 +284,7 @@
 - `--spacing-6`: `24px`
 - `--spacing-8`: `32px`
 - `--gap-subtitle-focus-cue`: `8px`
-- `--gap-subtitle-focus-internal-line`: `5px`
+- `--gap-subtitle-focus-internal-line`: `3px`
 - `--gap-app-topbar-title-after-toggle`: `12px`
 - `--gap-player-bottom-left-controls`: `8px`
 - `--gap-player-bottom-right-controls`: `6px`
@@ -310,7 +310,7 @@
 - `--padding-table-row-y`: `8px`
 - `--padding-table-cell-leading`: `12px`
 - `--padding-table-cell-trailing`: `14px`
-- `--padding-subtitle-focus-cue-y`: `12px`
+- `--padding-subtitle-focus-cue-y`: `8px`
 - `--padding-app-sidebar-x`: `12px`
 - `--padding-app-sidebar-y`: `12px`
 - `--padding-app-sidebar-item-x`: `10px`
@@ -2302,11 +2302,11 @@
   - Visual Line 的测量和排列遵循 Subtitle Focus Cue
   - Nominal Content Height：
 
-    `52 × Visual Line Count`
+    `Visual Line Count × --line-height-subtitle-focus-cue`
 
   - Base Natural Height：
 
-    `max(Nominal Content Height, Visual Line Stack Height) + 24px`
+    `max(Nominal Content Height, Visual Line Stack Height) + 2 × --padding-subtitle-focus-cue-y`
 
   - 每个 Cue 显示信息行：
 
@@ -2318,9 +2318,9 @@
 
     `min(Natural Height, Cue Reel Viewport Height)`
 
-  - 当前字体度量下，一行 Cue Base Natural Height：`76px`
-  - 当前字体度量下，两行 Cue Base Natural Height：`128px`
-  - 当前字体度量下，三行 Cue Base Natural Height：`180px`
+  - 当前字体度量下，一行 Cue Base Natural Height：`48px`
+  - 当前字体度量下，两行 Cue Base Natural Height：`80px`
+  - 当前字体度量下，三行 Cue Base Natural Height：`112px`
   - Playback Cue Information Badge 使用固定高度，不参与字幕 Base Natural Height 测量；选择变化只改变配色，不改变 Cue Geometry
   - Fit Cue 显示全部内容
   - Oversized Cue 从信息行和第一视觉行开始显示，只裁剪底部超出内容
