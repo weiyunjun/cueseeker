@@ -15,7 +15,6 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     private var isActive = true
 
     private(set) var showsCueGroup: Bool
-    private(set) var selectedOrdinal: Int?
 
     init(
         windowStore: PlaybackCueResultSessionWindowStore,
@@ -24,7 +23,6 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     ) {
         self.windowStore = windowStore
         self.showsCueGroup = showsCueGroup
-        selectedOrdinal = windowStore.selectedOrdinal
         let resolvedCapacity = max(1, measurementCacheCapacity)
         self.measurementCacheCapacity = resolvedCapacity
         measurementCache = PlaybackCueResultMeasurementCache(
@@ -64,17 +62,6 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         return true
     }
 
-    @discardableResult
-    func setSelectedOrdinal(_ selectedOrdinal: Int?) -> Bool {
-        guard isActive, self.selectedOrdinal != selectedOrdinal else {
-            return false
-        }
-        self.selectedOrdinal = selectedOrdinal
-        presentationRevision &+= 1
-        invalidateMeasurements()
-        return true
-    }
-
     func item(at ordinal: Int) -> PlaybackCueResultItem? {
         guard isActive else {
             return nil
@@ -97,6 +84,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
 
     func extent(
         at ordinal: Int,
+        isSelected: Bool,
         contentWidth: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String?
@@ -108,7 +96,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         return measurementCache.extent(
             for: result,
             showsCueGroup: showsCueGroup,
-            isSelected: ordinal == selectedOrdinal,
+            isSelected: isSelected,
             width: contentWidth,
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope

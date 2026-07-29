@@ -184,7 +184,6 @@ private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         adapter: PlaybackCueResultReelAdapter
     ) {
         _ = adapter.setShowsCueGroup(showsCueGroup)
-        _ = adapter.setSelectedOrdinal(selectedOrdinal)
         view.uiProbeScope = uiProbeScope
         view.onCommitVirtualReelSelection = onCommitSelection
         view.allowsNativeWheelInput = allowsNativeWheelInput

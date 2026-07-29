@@ -12,6 +12,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   and show independent context Badges only on the selected Cue. Current shows
   Display Title and Time Range while suppressing Cue Group; Cue Playlist adds
   `[x/y]` and shows Cue Group below every result when that setting is enabled.
+  Badge height is a fixed selection decoration; selection changes preserve the
+  resident Cue/Cue Group measurement cache and the Reel's continuous wheel,
+  keyboard, and scrollbar geometry.
 - Unified Recent presentation across Workbench overview, Workbench detail, and
   Playback Command Panel. Recent Videos now uses one adaptive watching-card
   Grid in all three surfaces, including Command Panel selection, scrolling, and

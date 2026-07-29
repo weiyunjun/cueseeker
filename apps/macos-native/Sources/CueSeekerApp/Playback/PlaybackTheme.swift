@@ -300,6 +300,11 @@ enum PlaybackSubtitleFocusMetrics {
     /// --padding-chip-y
     static let informationBadgeVerticalPadding =
         WorkbenchControlMetrics.redesignChipVerticalPadding
+    /// --height-playback-cue-information-badge
+    static let informationBadgeRowHeight: CGFloat = 23
+    static var selectedInformationHeight: CGFloat {
+        informationBadgeRowHeight + informationCueGap
+    }
     /// --duration-subtitle-focus-scroll
     static let reelTransitionDuration = 0.22
     static func resolvedReelTransitionDuration(

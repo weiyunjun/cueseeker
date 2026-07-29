@@ -250,7 +250,9 @@ final class PlaybackCueResultLayout {
                 width: safeWidth
             )
             : []
-        let informationRowHeight = informationBadges.first?.frame.height ?? 0
+        let informationRowHeight = informationBadges.isEmpty
+            ? 0
+            : PlaybackSubtitleFocusMetrics.informationBadgeRowHeight
         let informationOffset = informationBadges.isEmpty
             ? 0
             : informationRowHeight
@@ -305,11 +307,8 @@ final class PlaybackCueResultLayout {
         let font = informationBadgeFont
         let horizontalPadding = PlaybackSubtitleFocusMetrics
             .informationBadgeHorizontalPadding
-        let verticalPadding = PlaybackSubtitleFocusMetrics
-            .informationBadgeVerticalPadding
         let gap = PlaybackSubtitleFocusMetrics.informationBadgeGap
-        let rowHeight = ceil(font.ascender - font.descender)
-            + verticalPadding * 2
+        let rowHeight = PlaybackSubtitleFocusMetrics.informationBadgeRowHeight
         let availableBadgeWidth = max(
             0,
             width - CGFloat(resolvedTexts.count - 1) * gap
@@ -408,9 +407,7 @@ final class PlaybackCueResultMeasurementCache {
         let primaryCueIdentity: AnyHashable
         let primaryCueText: String
         let additionalCueTexts: [String]
-        let informationBadges: [String]
         let showsCueGroup: Bool
-        let isSelected: Bool
         let width: CGFloat
         let viewportHeight: CGFloat
         let styleRevision: Int
@@ -449,38 +446,54 @@ final class PlaybackCueResultMeasurementCache {
             primaryCueIdentity: result.primaryCueIdentity,
             primaryCueText: result.primaryCueText,
             additionalCueTexts: result.additionalCueTexts,
-            informationBadges: result.informationBadges,
             showsCueGroup: showsCueGroup,
-            isSelected: isSelected,
             width: width,
             viewportHeight: viewportHeight,
             styleRevision: 1
         )
+        let baseExtent: PlaybackVirtualReelItemExtent
         if var entry = entries[key] {
             entry.lastAccess = accessSequence
             entries[key] = entry
-            return entry.extent
+            baseExtent = entry.extent
+        } else {
+            baseExtent = layout.prepare(
+                result: result,
+                showsCueGroup: showsCueGroup,
+                isSelected: false,
+                width: width,
+                viewportHeight: viewportHeight
+            ).extent
+            measurementCount += 1
+            UIInvalidationProbe.count(
+                "playback.cue_result.measurement",
+                scope: uiProbeScope,
+                details: "item=\(String(describing: result.itemID))"
+            )
+            entries[key] = Entry(
+                extent: baseExtent,
+                lastAccess: accessSequence
+            )
+            evictIfNeeded()
         }
-
-        let extent = layout.prepare(
-            result: result,
-            showsCueGroup: showsCueGroup,
-            isSelected: isSelected,
-            width: width,
-            viewportHeight: viewportHeight
-        ).extent
-        measurementCount += 1
-        UIInvalidationProbe.count(
-            "playback.cue_result.measurement",
-            scope: uiProbeScope,
-            details: "item=\(String(describing: result.itemID))"
+        guard isSelected,
+              result.informationBadges.contains(where: {
+                  !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+              })
+        else {
+            return baseExtent
+        }
+        let selectedHeight = PlaybackSubtitleFocusMetrics.selectedInformationHeight
+        let naturalHeight = baseExtent.naturalHeight + selectedHeight
+        return PlaybackVirtualReelItemExtent(
+            visualLineCount: baseExtent.visualLineCount,
+            visualLineStackHeight: baseExtent.visualLineStackHeight,
+            resolvedContentHeight:
+                baseExtent.resolvedContentHeight + selectedHeight,
+            naturalHeight: naturalHeight,
+            resolvedHeight: min(naturalHeight, max(0, viewportHeight)),
+            isOversized: naturalHeight > max(0, viewportHeight)
         )
-        entries[key] = Entry(
-            extent: extent,
-            lastAccess: accessSequence
-        )
-        evictIfNeeded()
-        return extent
     }
 
     func removeAll() {

@@ -55,7 +55,6 @@ func playbackCurrentUsesSharedCueResultWithTwoInformationBadges() throws {
     adapter.update(
         cues: [cue],
         totalCount: 1,
-        selectedOrdinal: 0,
         displayTitle: "Ave Mujica - 01",
         generation: 1
     )
@@ -2988,6 +2987,7 @@ private final class PlaybackVirtualReelTestAdapter:
 
     func extent(
         at ordinal: Int,
+        isSelected: Bool,
         contentWidth: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String?

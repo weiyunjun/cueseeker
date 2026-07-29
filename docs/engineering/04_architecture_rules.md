@@ -501,6 +501,12 @@ Presentation virtualization rules:
   provides `[x/y]` and may show Cue Group text below every Primary Cue. The
   existing Reel and Session owners remain the only selection and scrolling
   state sources.
+- Cue Result base extent depends only on Primary Cue, optional resident Cue
+  Group content, presentation width, and style. Selection must not enter that
+  base measurement key, advance the dataset revision, or clear the measurement
+  cache. The Reel supplies its current visual selection directly when applying
+  the fixed-height information Badge decoration so drawing and placement use
+  the same selection during wheel, keyboard, and scrollbar motion.
 
 Playback-specific differences are limited to:
 

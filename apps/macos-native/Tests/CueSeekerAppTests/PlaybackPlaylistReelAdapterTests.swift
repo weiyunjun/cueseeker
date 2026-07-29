@@ -81,6 +81,85 @@ func playbackCueResultReelRapidScrollbarDragUsesResidentDataset() async throws {
     #expect(adapter.measuredOrdinalsForTesting.count <= 64)
     #expect(view.placementsForTesting.count < 50)
 
+    let selectedOrdinal = try #require(dataset.selectedOrdinal)
+    let nextOrdinal = selectedOrdinal + 1
+    let selectedBefore = try #require(
+        view.placementsForTesting.first { $0.ordinal == selectedOrdinal }
+    )
+    let nextBefore = try #require(
+        view.placementsForTesting.first { $0.ordinal == nextOrdinal }
+    )
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: nextOrdinal,
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    let selectedAfter = try #require(
+        view.placementsForTesting.first { $0.ordinal == selectedOrdinal }
+    )
+    let nextAfter = try #require(
+        view.placementsForTesting.first { $0.ordinal == nextOrdinal }
+    )
+    #expect(view.displayedSelectedOrdinalForTesting == nextOrdinal)
+    #expect(adapter.measuredOrdinalsForTesting.contains(selectedOrdinal))
+    #expect(adapter.measuredOrdinalsForTesting.contains(nextOrdinal))
+    #expect(
+        selectedBefore.extent.naturalHeight
+            - selectedAfter.extent.naturalHeight
+            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
+    )
+    #expect(
+        nextAfter.extent.naturalHeight
+            - nextBefore.extent.naturalHeight
+            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
+    )
+    #expect(
+        abs(
+            (nextBefore.rect.midY - selectedBefore.rect.midY)
+                - (nextAfter.rect.midY - selectedAfter.rect.midY)
+        ) < 0.000_001
+    )
+    #expect(
+        adapter.cueResult(at: selectedOrdinal)?.additionalCueTexts
+            == ["context-\(selectedOrdinal)"]
+    )
+    #expect(
+        adapter.cueResult(at: nextOrdinal)?.additionalCueTexts
+            == ["context-\(nextOrdinal)"]
+    )
+
+    let keyboardTarget = nextOrdinal + 1
+    let keyboardDatasetID = try #require(
+        adapter.snapshot.datasetID.base as? String
+    )
+    view.update(
+        contentAdapter: adapter,
+        selectedOrdinal: nextOrdinal,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: keyboardTarget,
+            contentDatasetID: keyboardDatasetID,
+            contentGeneration: adapter.snapshot.generation
+        ),
+        reducesMotion: true,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    await Task.yield()
+    await Task.yield()
+    #expect(dataset.selectedOrdinal == keyboardTarget)
+    #expect(view.displayedSelectedOrdinalForTesting == keyboardTarget)
+    #expect(
+        adapter.cueResult(at: keyboardTarget)?.additionalCueTexts
+            == ["context-\(keyboardTarget)"]
+    )
+
     view.invalidate()
     dataset.invalidate()
     source.invalidate()
@@ -100,18 +179,34 @@ func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() thr
 
     let primaryOnlyExtent = try #require(adapter.extent(
         at: 0,
+        isSelected: false,
         contentWidth: 600,
         viewportHeight: 400,
         uiProbeScope: nil
     ))
+    let selectedPrimaryOnlyExtent = try #require(adapter.extent(
+        at: 0,
+        isSelected: true,
+        contentWidth: 600,
+        viewportHeight: 400,
+        uiProbeScope: nil
+    ))
+    #expect(adapter.measurementCacheCountForTesting == 1)
+    #expect(
+        selectedPrimaryOnlyExtent.naturalHeight
+            - primaryOnlyExtent.naturalHeight
+            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
+    )
     _ = adapter.extent(
         at: 1,
+        isSelected: false,
         contentWidth: 600,
         viewportHeight: 400,
         uiProbeScope: nil
     )
     _ = adapter.extent(
         at: 2,
+        isSelected: false,
         contentWidth: 600,
         viewportHeight: 400,
         uiProbeScope: nil
@@ -133,6 +228,7 @@ func playbackPlaylistReelAdapterCueGroupRevisionAndMeasurementsStayBounded() thr
 
     let cueGroupExtent = try #require(adapter.extent(
         at: 0,
+        isSelected: false,
         contentWidth: 600,
         viewportHeight: 400,
         uiProbeScope: nil

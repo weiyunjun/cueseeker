@@ -19,6 +19,8 @@ func playbackCueResultMetricsMatchDocumentedTokens() {
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeRadius == 6)
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeHorizontalPadding == 10)
     #expect(PlaybackSubtitleFocusMetrics.informationBadgeVerticalPadding == 4)
+    #expect(PlaybackSubtitleFocusMetrics.informationBadgeRowHeight == 23)
+    #expect(PlaybackSubtitleFocusMetrics.selectedInformationHeight == 31)
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueSelectedNative
@@ -423,15 +425,33 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
         informationBadges: ["Display Title", "21:33 - 21:40"]
     )
 
-    _ = cache.extent(
+    let unselectedExtent = cache.extent(
         for: base,
         showsCueGroup: true,
+        isSelected: false,
         width: 800,
         viewportHeight: 600
     )
-    _ = cache.extent(
+    let selectedExtent = cache.extent(
         for: base,
         showsCueGroup: true,
+        isSelected: true,
+        width: 800,
+        viewportHeight: 600
+    )
+    #expect(cache.measurementCount == 1)
+    #expect(cache.count == 1)
+    #expect(
+        selectedExtent.naturalHeight - unselectedExtent.naturalHeight
+            == PlaybackSubtitleFocusMetrics.selectedInformationHeight
+    )
+
+    _ = cache.extent(
+        for: playbackCueResult(
+            informationBadges: ["Changed Title", "00:00 - 00:01"]
+        ),
+        showsCueGroup: true,
+        isSelected: true,
         width: 800,
         viewportHeight: 600
     )
@@ -481,7 +501,7 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
         width: 700,
         viewportHeight: 500
     )
-    #expect(cache.measurementCount == 7)
+    #expect(cache.measurementCount == 6)
     #expect(cache.count == 2)
 
     _ = cache.extent(
@@ -494,7 +514,7 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
         width: 700,
         viewportHeight: 600
     )
-    #expect(cache.measurementCount == 8)
+    #expect(cache.measurementCount == 7)
     #expect(cache.count == 2)
     cache.removeAll()
     #expect(cache.count == 0)
@@ -633,6 +653,7 @@ private final class PlaybackCueResultTestAdapter:
 
     func extent(
         at ordinal: Int,
+        isSelected: Bool,
         contentWidth: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String?
@@ -644,7 +665,7 @@ private final class PlaybackCueResultTestAdapter:
         return cache.extent(
             for: result(at: ordinal),
             showsCueGroup: true,
-            isSelected: ordinal == 25_000,
+            isSelected: isSelected,
             width: contentWidth,
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope

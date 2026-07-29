@@ -117,6 +117,7 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
     func itemID(at ordinal: Int) -> AnyHashable?
     func extent(
         at ordinal: Int,
+        isSelected: Bool,
         contentWidth: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String?
@@ -719,7 +720,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
     private var signature: SnapshotSignature?
     private var revision: UInt64 = 0
     private var displayTitle = ""
-    private var selectedOrdinal: Int?
     private var measurementAccessSequence: UInt64 = 0
     private var measuredOrdinalAccess: [Int: UInt64] = [:]
     private(set) var snapshot = PlaybackVirtualReelSnapshot(
@@ -743,7 +743,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
     func update(
         cues: [SubtitleFocusCue],
         totalCount: Int,
-        selectedOrdinal: Int,
         displayTitle: String,
         generation: UInt64
     ) {
@@ -755,15 +754,11 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         if snapshot.generation != generation {
             revision = 0
             invalidateMeasurements()
-        } else if signature != nextSignature
-                    || self.selectedOrdinal != selectedOrdinal
-                    || self.displayTitle != displayTitle {
+        } else if signature != nextSignature || self.displayTitle != displayTitle {
             revision &+= 1
-            invalidateMeasurements()
         }
         signature = nextSignature
         self.cues = cues
-        self.selectedOrdinal = selectedOrdinal
         self.displayTitle = displayTitle
         firstLoadedOrdinal = cues.first?.ordinal ?? 0
         let loadedOrdinalRange: Range<Int>
@@ -791,6 +786,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
 
     func extent(
         at ordinal: Int,
+        isSelected: Bool,
         contentWidth: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String?
@@ -803,7 +799,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         let extent = measurementCache.extent(
             for: cueResult(for: cue),
             showsCueGroup: false,
-            isSelected: ordinal == selectedOrdinal,
+            isSelected: isSelected,
             width: contentWidth,
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope
@@ -836,7 +832,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         cues.removeAll(keepingCapacity: false)
         firstLoadedOrdinal = 0
         signature = nil
-        selectedOrdinal = nil
         displayTitle = ""
         invalidateMeasurements()
     }
@@ -1400,7 +1395,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         currentCueAdapter.update(
             cues: cues,
             totalCount: totalCount,
-            selectedOrdinal: selectedOrdinal,
             displayTitle: displayTitle,
             generation: contentGeneration
         )
@@ -2854,6 +2848,8 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         if let selectedOrdinal {
             invalidateRow(selectedOrdinal)
         }
+        resolveLocalPlacementsIfNeeded()
+        needsDisplay = true
     }
 
     func updateLocalLayout(_ layout: PlaybackSubtitleFocusVirtualReelLayout) {
@@ -3153,6 +3149,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     ) -> PlaybackSubtitleFocusCueMeasurement? {
         contentAdapter?.extent(
             at: ordinal,
+            isSelected: ordinal == selectedOrdinal,
             contentWidth: layout.contentWidth,
             viewportHeight: layout.viewportSize.height,
             uiProbeScope: uiProbeScope
