@@ -43,7 +43,6 @@
 - `--color-text-muted`: Light `#667085`; Dark `#A1A1AA`
 - `--color-text-placeholder`: Light `#98A2B3`; Dark `#71717A`
 - `--color-text-disabled`: Light `#98A2B3`; Dark `#71717A`
-- `--color-text-readonly`: Light `#808080`; Dark `#A1A1AA`
 
 #### Icon
 
@@ -57,7 +56,6 @@
 - `--color-bg-surface`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-bg-hover`: Light `#F3F4F6`; Dark `#27272A`
 - `--color-bg-disabled`: Light `#F3F4F6`; Dark `#202024`
-- `--color-bg-readonly`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-bg-popover`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-app-sidebar-bg`: Light `#F6F7F9`; Dark `#202024`
 - `--color-app-sidebar-item-selected-bg`: Light `#FFFFFF`; Dark `#303036`
@@ -70,7 +68,6 @@
 - `--color-border-muted`: Light `#E5E7EB`; Dark `#3F3F46`
 - `--color-border-divider`: Light `#E5E7EB`; Dark `#303036`
 - `--color-border-disabled`: Light `#E5E7EB`; Dark `#303036`
-- `--color-border-readonly`: Light `#E5E7EB`; Dark `#3F3F46`
 - `--color-border-checkbox`: Light `#D0D5DD`; Dark `#52525B`
 
 #### Accent
@@ -183,7 +180,6 @@
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
 - `--font-size-caption`: `12px`
-- `--font-size-filter-count-badge`: `10px`
 - `--line-height-table-cue-primary`: `24px`
 - `--line-height-table-cue-secondary`: `20px`
 - `--font-size-app-sidebar-item`: `13px`
@@ -210,7 +206,6 @@
 
 - `--width-interactive-text-underline`: `1px`
 - `--offset-interactive-text-underline`: `2px`
-- `--offset-filter-count-badge-y`: `1px`
 
 ### 1.3 尺寸
 
@@ -242,7 +237,7 @@
 #### Size
 
 - `--size-checkbox`: `16px`
-- `--size-filter-count-badge`: `16px`
+- `--min-width-filter-data-card`: `200px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
 - `--size-inline-clear-symbol-font-size-macos`: `11pt`
@@ -302,7 +297,6 @@
 #### Padding
 
 - `--padding-control-x`: `14px`
-- `--padding-filter-count-badge-x`: `4px`
 - `--padding-field-x`: `16px`
 - `--padding-menu-item`: `12px 16px`
 - `--padding-header-trigger-x`: `12px`
@@ -336,7 +330,6 @@
 #### Radius
 
 - `--radius-control`: `8px`
-- `--radius-filter-count-badge`: `9999px`
 - `--radius-field`: `8px`
 - `--radius-search`: `9999px`
 - `--radius-inline-clear-button`: `9999px`
@@ -396,7 +389,13 @@
 - Playlist: `list.bullet`
 - Search: `magnifyingglass`
 - Inline Clear: `xmark`, bold
-- Filter: existing filter symbol
+- Filter: `line.3.horizontal.decrease`
+- Filter Data Card Duration: `clock`
+- Filter Data Card Character: `textformat`
+- Filter Data Card Language: `globe`
+- Filter Data Card Watch Status: `eye`
+- Filter Data Card Option Unchecked: `circle`
+- Filter Data Card Option Checked: `checkmark.circle.fill`
 - Select Indicator: `chevrons-up-down`
 - Sort Unsorted: `chevrons-up-down`
 - Sort Ascending: `arrow-up`
@@ -443,7 +442,6 @@
 - Disabled 不响应点击、Hover 或键盘操作，也不进入键盘焦点顺序。
 - Disabled 控件使用对应的 disabled Token。
 - Read-only 内容不可编辑，但仍可按所属界面规则选择和复制。
-- `No value needed` 属于 Read-only，不属于 Disabled。
 - Read-only 不显示 caret，也不使用 `not-allowed` Cursor。
 
 ### 2.3 Focus 与键盘导航
@@ -451,7 +449,7 @@
 - 键盘焦点必须可见。
 - 有边框控件使用 `--color-border-focus` 和 `--color-focus-ring`。
 - 无边框控件使用 `--color-focus-ring`、`--focus-ring-width` 和 `--focus-ring-offset`。
-- Search Box、Value Input Field、Form Text Field 和 Form Text Area 通过点击或键盘获得焦点时都显示 Focused 状态。
+- Search Box、Form Text Field 和 Form Text Area 通过点击或键盘获得焦点时都显示 Focused 状态。
 - Form Text Field 和 Form Text Area 处于 Error 时保留错误边框；获得焦点时同时显示 Focus Ring。
 - Command Panel Search Box 获得输入焦点时不显示额外 Focus Ring、边框色或背景变化，只显示 Caret。
 - Caret 只在可编辑输入区域获得焦点时出现。
@@ -519,8 +517,8 @@
 - 内容：Search 图标、输入文字、Placeholder、可选 Result Count Text、Inline Clear Button。
 - 文字使用 `--font-family-base`、`--font-size-control`、`--color-text-primary`、`--color-text-placeholder`。
 - Result Count Text 使用 `--font-size-control` 和 `--color-text-muted`，位于 Inline Clear Button 左侧。
-- 只有 Search exact 结果完整计算完成后才显示 Result Count Text。
-- Result Count Text 使用 `1 result` 和 `{N} results`，不在 Shiori 中显示。
+- 只有 Search exact 结果和当前 Filter Data Panel 的筛选投影完整计算完成后才显示 Result Count Text。
+- Result Count Text 使用 `1 result` 和 `{N} results`，显示当前 Filter Data Panel 筛选后的结果数量，不在 Shiori 中显示。
 - 状态：Empty、Focused Empty、Typing / Focused Filled、Filled、Clear Button Hover、Disabled。
 - 只有 Focused 或 Typing 状态显示 caret。
 - 有内容时显示 Inline Clear Button。
@@ -552,25 +550,6 @@
 - 状态：Default、Hover、Menu Open、Disabled。
 - Menu Open 时不把 Indicator 替换成单个 chevron。
 
-#### Form Select Field
-
-- 用途：在筛选编辑器中选择字段、运算符或其他枚举值。
-- Token：`--height-field`、`--radius-field`、`--padding-field-x`、`--color-bg-surface`、`--color-bg-hover`、`--color-bg-disabled`、`--color-border-control`、`--color-border-control-hover`、`--color-border-focus`、`--color-border-disabled`。
-- 内容：Label、可选 Leading Icon、`chevrons-up-down`。
-- 状态：Default、Hover、Menu Open、Disabled。
-- Menu Open 与 Hover 使用相同背景。
-- Disabled 不打开菜单。
-
-#### Value Input Field
-
-- 用途：输入筛选值，或显示无需输入的只读说明。
-- Token：`--height-field`、`--radius-field`、`--padding-field-x`、`--color-bg-surface`、`--color-bg-readonly`、`--color-bg-disabled`、`--color-border-control`、`--color-border-focus`、`--color-border-disabled`。
-- 文字使用 `--font-family-base`、`--font-size-control`、`--color-text-primary`、`--color-text-placeholder`、`--color-text-readonly`、`--color-text-disabled`。
-- 状态：Empty、Focused Empty、Typing、Filled、Read-only / No Value Needed、Disabled。
-- 只有 Focused 或 Typing 状态显示 caret。
-- Read-only 可以选择复制，但不能编辑。
-- Disabled 不响应输入。
-
 #### Form Text Field
 
 - 用途：输入名称等单行表单内容。
@@ -597,16 +576,6 @@
 - 状态：Empty、Focused Empty、Typing、Filled、Error、Focused Error、Disabled。
 - Text Area 支持原生文字选择、`Cmd+A`、`Cmd+C` 和 `Cmd+V`。
 
-#### Logic Connector
-
-- 用途：表达筛选规则之间的 `Where`、`and`、`or` 关系。
-- 静态文字使用 `--font-family-base`、`--font-size-body`、`--color-text-primary`。
-- 可交互选择器复用 Form Select Field 的 Token。
-- 第一条规则显示静态 `Where`。
-- 第二条规则显示可选择的 `and / or`。
-- 后续规则继承第二条逻辑并显示静态 Label。
-- 可交互选择器固定使用 `chevrons-up-down`。
-
 #### Tag Composer Field
 
 - 用途：在同一流式区域中显示已关联标签，并输入、搜索或创建新标签。
@@ -618,6 +587,32 @@
 - 状态：Empty、Focused Empty、Typing、Filled With Tags、Filled With Tags And Typing、Disabled。
 - 点击 Composer 空白区域聚焦输入框。
 - 标签删除按钮只执行删除，不触发标签主体动作。
+
+#### Filter Data Card
+
+- 用途：显示一类筛选条件、各选项的分布数量和当前选择状态。
+- Filter Data Card 是 Search 与 Shiori 共用的 Component，不绑定固定的数据卡片数量或页面位置。
+- Card 使用 `--color-bg-surface`、`--color-border-control`、`--radius-control` 和 `--spacing-3`。
+- Card Border 为 `1px`。
+- Card 内容纵向排列，内部间距使用 `--spacing-2`。
+- Card Title Row 由 Title Icon 和 Title 组成，两者间距使用 `--spacing-2`。
+- Card Title Icon 使用 `--size-checkbox` 和 `--color-text-secondary`。
+- Card Title 使用 `--font-size-control`、Font Weight `600` 和 `--color-text-secondary`。
+- Card Title Row 底部额外使用 `--spacing-1`。
+- Option Row 由 Checkbox、Option Label 和 Option Count 组成。
+- Checkbox 与 Option Label 的间距使用 `--spacing-2`。
+- Option Label 使用 `--font-size-body` 和 `--color-text-muted`。
+- Option Count 使用 `--font-size-caption` 和 `--color-text-muted`，在 Card 尾部右对齐。
+- Card Title Icon 与 Option Checkbox 占用相同宽度的 Leading Control Column，并保持水平中心线一致。
+- Card Title 与 Option Label 从 Leading Control Column 后的同一水平位置开始。
+- Unchecked Checkbox 使用 `circle`、`--size-checkbox`、`--color-bg-checkbox-unchecked` 和 `--color-border-checkbox`。
+- Checked Checkbox 使用 `checkmark.circle.fill` 和 `--size-checkbox`；背景使用 `--color-text-muted`，Checkmark 使用 `--color-checkbox-icon`。
+- 整个 Option Row 都是 Checkbox 的点击区域。
+- 点击 Option Row 只切换 Checked 状态，不显示额外 Hover、Pressed、Click 动画或背景。
+- 状态：Default、Calculating、Disabled。
+- Calculating 状态下，Option Count 显示 `Calculating`；全部 Option 禁止交互，但保持原有 Checked 或 Unchecked 视觉，不使用 Disabled Token。
+- Disabled 状态下，Card Title Icon 和全部 Checkbox 使用 `--color-icon-disabled`，Card Title、Option Label 和 Option Count 使用 `--color-text-disabled`。
+- Disabled 状态不改变 Card Surface 和 Border。
 
 ### 3.2 操作按钮
 
@@ -634,14 +629,12 @@
 
 #### Filter Button
 
-- 用途：打开或关闭当前 Search 或 Shiori 的 Filter Editor。
+- 用途：在 Search 或 Shiori 中显示或隐藏当前 Filter Data Panel。
 - Token：`--height-filter-bar-control`、`--radius-control`、`--padding-control-x`、`--spacing-2`、`--color-bg-surface`、`--color-bg-hover`、`--color-bg-disabled`、`--color-border-control`、`--color-border-control-hover`、`--color-border-disabled`。
-- 内容顺序：Filter Icon、`Filter`、可选 Filter Count Badge、Select Indicator。
+- 内容顺序：Filter Icon、`Filter`、Select Indicator。
 - Filter Icon、文字和 Select Indicator 使用普通中性按钮颜色，不使用 Active Accent 颜色。
-- Filter Count Badge 使用 `--size-filter-count-badge`、`--padding-filter-count-badge-x`、`--radius-filter-count-badge`、`--offset-filter-count-badge-y` 和 `--font-size-filter-count-badge`。
-- Filter Count Badge 背景使用 `--color-text-muted`，文字使用 `--color-checkbox-icon`。
-- Filter Rule Count 为 `0` 时不显示 Badge。
-- Filter Rule Count 为一位数时视觉上为圆形；两位数或更多时按内容扩展为胶囊形。
+- 不显示数字或 Filter Count Badge。
+- Filter Data Panel 可见时，Filter Button 进入 Open 状态并复用 Hover 视觉。
 - Disabled 使用 `--color-bg-disabled`、`--color-border-disabled`、`--color-text-disabled` 和 `--color-icon-disabled`。
 - 状态：Default、Hover / Open、Disabled。
 - 不显示 Trailing Clear。
@@ -663,7 +656,7 @@
 
 #### Inline Add Button
 
-- 用途：添加筛选条件、筛选集或其他内联项目。
+- 用途：添加列表或其他内联项目。
 - Token：`--height-control`、`--radius-control`、`--padding-control-x`、`--color-bg-hover`、`--size-control-icon`、`--size-inline-add-symbol-font-size-macos`。
 - 使用 medium `plus`。
 - 默认背景透明，始终无边框。
@@ -1540,17 +1533,20 @@
 
 - App Topbar Title 保持为 `Shiori`。
 - 只显示当前 Shiori List 中的 Shiori。
-- 完整保留现有：
+- 完整复用：
   - Search / Shiori Toolbar Layout
+  - Filter Data Panel Layout
+  - Filter Data Card
   - Selection Action Overlay Layout
   - Search / Shiori / Context Table Layout
+- Filter Data Panel 的数据范围限定为当前 Shiori List。
 - 本需求不增加当前列表身份 Header。
 - 当前列表没有 Shiori 时继续使用现有 Shiori Empty Hint。
 
 #### Search / Shiori Toolbar Layout
 
 - 使用单行水平 Toolbar。
-- Toolbar 和其下方 Table Viewport 使用 `--spacing-8` 作为左右页面留白，并保持左右边界对齐。
+- Toolbar 和其下方内容使用 `--spacing-8` 作为左右页面留白，并保持左右边界对齐。
 - 子项垂直居中。
 - 间距使用 `--spacing-3`。
 - Search Box 为主要 Flexible 区域。
@@ -1561,26 +1557,63 @@
 
 - Select 使用 Edit Icon `square.and.pencil`。
 - 进入 Select 状态后，Select 的 Label 改为 `Exit Select`。
-- Search 中只有 exact 结果完整计算完成后 Select 才可用；其余计算阶段为 Disabled。
-- Filter Editor 作为二级界面打开。
-- Filter Editor 可以组合：
-  - Logic Connector
-  - Form Select Field
-  - Value Input Field
-  - Inline Add Button
-  - Neutral Button
-- Filter Editor 不提供 Filter 命名、复用或保存功能，也不显示 `Save Filter Set`。
-- Search 与 Shiori 分别保留彼此独立的当前会话 Filter Rule。
-- Filter Rule 不进行全局保存，App 重启后不恢复。
-- 打开 Filter Editor 时不自动创建 Filter Rule；只有点击 `New Filter` 才创建第一条 Filter Rule。
-- 每条 Filter Rule 均可删除；删除最后一条规则后回到 `0` 条规则。
+- Search 中只有 exact 结果和当前 Filter Data Panel 的筛选投影完整计算完成后 Select 才可用；其余计算阶段为 Disabled。
+- Search 与 Shiori 的 Filter Button 均用于显示或隐藏当前 Filter Data Panel。
+- Search 与 Shiori 的 Filter Button 均不显示数字或 Filter Count Badge。
 - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果。
 - Query 后续发生变化时，以最新输入内容更新结果。
 - Enter 不用于提交 Search。
-- Filter Button 负责打开或关闭 Filter Editor。
 - View Menu 控制列显示。
 - Cues 始终显示，不允许隐藏。
 - 不显示独立的结果数量栏或 Shiori 数量。
+
+#### Filter Data Panel Layout
+
+- Search 与 Shiori 二级页面从上到下排列：
+  1. Search / Shiori Toolbar
+  2. 可选 Filter Data Panel
+  3. Search / Shiori / Context Table
+- Toolbar、Filter Data Panel 和 Table Viewport 保持相同左右边界。
+- Toolbar、Filter Data Panel 和 Table Viewport 之间使用 `--spacing-3`。
+- Filter Data Panel 不绘制独立背景或边框，不设置固定高度，也不使用横向滚动。
+- Search 的 Filter Data Panel 默认显示；Shiori 二级页面的 Filter Data Panel 默认隐藏。
+- Filter Data Panel 的显示或隐藏状态不持久化。
+- 隐藏 Filter Data Panel 不清除 Filter Data Card 的选择，也不改变筛选结果。
+- Filter Data Card 的选择状态持久化。
+- Search 使用一份独立的持久化选择状态；每个 Shiori List 分别使用自己的持久化选择状态，彼此互不影响。
+- 没有已保存状态时，所有 Option 默认不选中。
+- Filter Data Card 内部允许单选、多选、全部选中或全部取消，不显示 `All` Option。
+- 没有选中任何 Option 与选中全部可用 Option 时，该 Filter Data Card 均不限制结果。
+- 勾选一个或多个但未覆盖全部可用 Option 时，该 Filter Data Card 只保留已勾选的分类。
+- 同一 Filter Data Card 内的多个 Option 使用 OR；不同 Filter Data Card 之间使用 AND。
+- 持久化保存实际 Checked 集合，不在未选中与全部选中之间转换显示状态。
+- 当前数据范围中不存在的 Option 不参与筛选；没有已保存状态的新可用 Option 默认不选中。
+- 当前内置 Filter Data Card 顺序为：
+  1. Duration
+  2. Character
+  3. Language
+  4. Watch Status
+- Duration Options：`<1s`、`1–2.999s`、`3–4.999s`、`≥5s`。
+- Character Options：`1–10`、`11–20`、`21–30`、`31+`。
+- Search 的 Language 显示当前数据库中存在的单个语言以及 `Unknown`。
+- Shiori 的 Language 只显示当前 Shiori List 中实际存在的语言；`Unknown` 仅在当前列表存在 Unknown Cue 时显示。
+- 多语言 Cue 可以同时计入多个 Language Option，因此 Language Option Count 之和可以大于 Cue 总数。
+- Watch Status Options：`Finished`、`Watching`、`Unwatched`。
+- Watch Status 直接读取观看状态，不根据观看进度推导。
+- Search 的 Option Count 基于当前 Search Term exact 命中的完整结果计算。
+- Shiori 的 Option Count 基于当前 Shiori List 的完整结果计算。
+- 每张 Filter Data Card 的 Option Count 忽略所属卡片自身的选择，只应用其他 Filter Data Card 的选择；因此不随本卡片的选择变化，但会随其他卡片的选择变化。
+- Search Term 为空时，所有 Option Count 固定显示 `0`，且不显示结果表格。
+- 输入 Search Term 后到 exact 完成前，Search 的全部 Filter Data Card 进入 Calculating 状态。
+- Shiori 当前列表的分布快照尚未完成时，Shiori 的全部 Filter Data Card 进入 Calculating 状态。
+- Calculating 状态下全部 Option 禁止交互和修改，但保持原有 Checked 或 Unchecked 视觉，不显示 Disabled 视觉。
+- Select 状态下，已显示的全部 Filter Data Card 进入 Disabled 状态。
+- Filter Data Panel 使用基于可用宽度的响应式 Grid，不假设 Filter Data Card 数量固定为 `4`。
+- Filter Data Card 最小宽度使用 `--min-width-filter-data-card`。
+- Grid 的水平和垂直间距使用 `--spacing-3`。
+- Grid 最少保持 `2` 列，允许 `3` 列及更多列。
+- 同一行使用等宽列；末行不足当前列数时保持相同列宽。
+- 同一行 Filter Data Card 使用该行自然内容高度最高 Card 的高度；不同行分别计算高度。
 
 #### Selection Action Overlay Layout
 
@@ -1718,7 +1751,7 @@
 - Table Row 的垂直几何遵循 Table Row Component。
 
 - Show Cue Group：
-  - 设置位置：Settings / Search，紧接 Search Scope
+  - 设置位置：Settings / Search
   - Control：macOS native switch
   - Label：`Show Cue Group`
   - Default：Off
@@ -1854,16 +1887,14 @@
   - Selection Column 是 `#` / Checkbox 状态列，不出现在 View Menu 中。
 
 - Search Empty Hint：
-  - 文案：`Enter a search term or add filters to show cues.`
-  - 条件：没有 Search Term，也没有 Effective Filter Condition。
+  - 文案：`Enter a search term to show cues.`
+  - 条件：没有 Search Term。
+  - Filter Data Card 的选择状态不改变 Search Empty Hint。
+  - Search Filter Data Panel 继续显示，所有 Option Count 固定显示 `0`。
 
 - Shiori Empty Hint：
   - 文案：`Save cues from playback to collect Shiori.`
   - 条件：没有已保存的 Shiori Row。
-
-- Effective Filter Condition：
-  - 具有非空 Value 的规则。
-  - 不需要 Value 的 Presence-style 规则，例如 `Cues is not empty`。
 
 ### 4.4 Dialogs 与 Popovers
 
