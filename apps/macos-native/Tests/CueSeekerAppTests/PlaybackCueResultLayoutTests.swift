@@ -13,8 +13,12 @@ func playbackCueResultMetricsMatchDocumentedTokens() {
     #expect(PlaybackSubtitleFocusMetrics.cueGroupFontSize == 28)
     #expect(PlaybackSubtitleFocusMetrics.cueGroupLineHeight == 38)
     #expect(PlaybackSubtitleFocusMetrics.cueGroupFontWeight == .medium)
-    #expect(PlaybackSubtitleFocusMetrics.playlistSequenceWidth == 48)
-    #expect(PlaybackSubtitleFocusMetrics.playlistSequenceFontSize == 14)
+    #expect(PlaybackSubtitleFocusMetrics.informationBadgeGap == 8)
+    #expect(PlaybackSubtitleFocusMetrics.informationCueGap == 8)
+    #expect(PlaybackSubtitleFocusMetrics.informationBadgeFontSize == 12)
+    #expect(PlaybackSubtitleFocusMetrics.informationBadgeRadius == 6)
+    #expect(PlaybackSubtitleFocusMetrics.informationBadgeHorizontalPadding == 10)
+    #expect(PlaybackSubtitleFocusMetrics.informationBadgeVerticalPadding == 4)
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueSelectedNative
@@ -73,12 +77,6 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
     #expect(
         playbackCueResultHex(
             PlaybackTheme.playbackModuleSidebarUnselectedNative,
-            appearanceName: .aqua
-        ) == "#667085"
-    )
-    #expect(
-        playbackCueResultHex(
-            PlaybackTheme.playbackPlaylistSequenceNative,
             appearanceName: .aqua
         ) == "#667085"
     )
@@ -164,9 +162,9 @@ func playbackCueResultFlattensMixedCueGroupIntoOneStrictStack() {
     )
 
     #expect(plan.visualLines.map(\.role) == [
+        .primaryCue,
         .additionalCue(index: 0),
         .additionalCue(index: 1),
-        .primaryCue,
     ])
     #expect(plan.visualLinePlan.nominalContentHeight == CGFloat(38 + 38 + 52))
     #expect(plan.extent.naturalHeight == 152)
@@ -196,7 +194,7 @@ func playbackCueResultKeepsFivePointGapAcrossGroupHardSoftAndCueBoundaries() {
         plan.visualLines.filter { $0.role == .additionalCue(index: 0) }.count > 2
     )
     #expect(plan.visualLines.contains { $0.role == .additionalCue(index: 1) })
-    #expect(plan.visualLines.last?.role == .primaryCue)
+    #expect(plan.visualLines.first?.role == .primaryCue)
     playbackCueResultExpectStrictFivePointGaps(plan)
 }
 
@@ -216,13 +214,13 @@ func playbackCueResultPreservesRoleAwareEmptyAndTrailingLines() {
     )
 
     #expect(plan.visualLines.map(\.role) == [
+        .primaryCue,
+        .primaryCue,
         .additionalCue(index: 0),
         .additionalCue(index: 0),
         .additionalCue(index: 1),
-        .primaryCue,
-        .primaryCue,
     ])
-    #expect(plan.visualLines.map(\.line.nominalLineHeight) == [38, 38, 38, 52, 52])
+    #expect(plan.visualLines.map(\.line.nominalLineHeight) == [52, 52, 38, 38, 38])
     #expect(plan.visualLinePlan.nominalContentHeight == 218)
     #expect(plan.extent.naturalHeight == 242)
     playbackCueResultExpectStrictFivePointGaps(plan)
@@ -242,7 +240,9 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
         width: 2_000,
         viewportHeight: 2_000
     )
-    let selectedGroup = try #require(selected.visualLines.first)
+    let selectedGroup = try #require(
+        selected.visualLines.first { $0.style == .cueGroup }
+    )
     let selectedPrimary = try #require(selected.primaryFirstVisualLine)
 
     #expect(selectedGroup.style == .cueGroup)
@@ -255,7 +255,7 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
     #expect(selectedPrimary.line.typographicHeight > 0)
     #expect(
         abs(
-            selectedGroup.typographicTop
+            selectedPrimary.typographicTop
                 - max(
                     0,
                     (
@@ -317,7 +317,7 @@ func playbackCueResultShowCueGroupDoesNotChangeEitherStableIdentity() {
     #expect(hidden.itemID == shown.itemID)
     #expect(hidden.primaryCueIdentity == shown.primaryCueIdentity)
     #expect(hidden.visualLines.map(\.role) == [.primaryCue])
-    #expect(shown.visualLines.map(\.role) == [.additionalCue(index: 0), .primaryCue])
+    #expect(shown.visualLines.map(\.role) == [.primaryCue, .additionalCue(index: 0)])
     #expect(shown.extent.naturalHeight > hidden.extent.naturalHeight)
 
     let duplicateOccurrence = playbackCueResult(
@@ -331,67 +331,53 @@ func playbackCueResultShowCueGroupDoesNotChangeEitherStableIdentity() {
 
 @MainActor
 @Test
-func playbackCueResultSequenceUsesFixedLaneAndPrimaryBaseline() throws {
+func playbackCueResultShowsSelectedInformationBadgesAbovePrimaryCue() throws {
     let layout = PlaybackCueResultLayout()
-    let numbered = playbackCueResult(
+    let result = playbackCueResult(
         primaryText: Array(repeating: "wide", count: 12).joined(separator: " "),
         additionalTexts: ["context"],
-        sequenceNumber: 7
+        informationBadges: [
+            "[7/1000]",
+            "A Very Long Display Title",
+            "21:33 - 21:40",
+        ]
     )
     let plan = layout.prepare(
-        result: numbered,
+        result: result,
         showsCueGroup: true,
         isSelected: true,
         width: 240,
         viewportHeight: 2_000
     )
-    let sequence = try #require(plan.sequence)
-    let primary = try #require(plan.primaryFirstVisualLine)
+    let badgeRects = plan.informationBadgeRects(
+        in: CGRect(x: 0, y: 0, width: 240, height: plan.extent.naturalHeight)
+    )
 
-    #expect(plan.cueTextWidth == 192)
-    #expect(sequence.value == 7)
-    #expect(sequence.laneWidth == 48)
-    #expect(sequence.font.pointSize == 14)
-    #expect(playbackCueResultAlpha(sequence.color) == 0.34)
-    #expect(sequence.primaryFirstLineBaseline == primary.baseline)
-    #expect(sequence.primaryFirstLineBaseline > plan.visualLines[0].baseline)
+    #expect(plan.cueTextWidth == 240)
+    #expect(plan.informationBadges.map(\.text) == [
+        "[7/1000]",
+        "A Very Long Display Title",
+        "21:33 - 21:40",
+    ])
+    #expect(badgeRects.count == 3)
+    #expect(badgeRects.first?.minY == PlaybackSubtitleFocusMetrics.cueVerticalPadding)
+    #expect(badgeRects.last?.maxX ?? .infinity <= 240)
+    #expect(plan.cueTextRect(
+        in: CGRect(x: 0, y: 0, width: 240, height: plan.extent.naturalHeight)
+    ).minY == PlaybackSubtitleFocusMetrics.cueVerticalPadding
+        + plan.informationRowHeight
+        + PlaybackSubtitleFocusMetrics.informationCueGap)
+    #expect(plan.visualLines.first?.role == .primaryCue)
 
-    let renumbered = layout.prepare(
-        result: playbackCueResult(
-            itemID: numbered.itemID,
-            primaryIdentity: numbered.primaryCueIdentity,
-            primaryText: numbered.primaryCueText,
-            additionalTexts: numbered.additionalCueTexts,
-            sequenceNumber: 1_000
-        ),
+    let unselected = layout.prepare(
+        result: result,
         showsCueGroup: true,
         isSelected: false,
         width: 240,
         viewportHeight: 2_000
     )
-    #expect(renumbered.itemID == plan.itemID)
-    #expect(renumbered.primaryCueIdentity == plan.primaryCueIdentity)
-    #expect(renumbered.extent == plan.extent)
-    #expect(playbackCueResultAlpha(renumbered.sequence!.color) == 0.34)
-
-    let withoutNumber = layout.prepare(
-        result: playbackCueResult(
-            itemID: numbered.itemID,
-            primaryIdentity: numbered.primaryCueIdentity,
-            primaryText: numbered.primaryCueText,
-            additionalTexts: numbered.additionalCueTexts
-        ),
-        showsCueGroup: true,
-        isSelected: true,
-        width: 240,
-        viewportHeight: 2_000
-    )
-    #expect(withoutNumber.sequence == nil)
-    #expect(withoutNumber.cueTextWidth == 240)
-    #expect(
-        plan.visualLinePlan.visualLineCount
-            >= withoutNumber.visualLinePlan.visualLineCount
-    )
+    #expect(unselected.informationBadges.isEmpty)
+    #expect(unselected.extent.naturalHeight < plan.extent.naturalHeight)
 }
 
 @MainActor
@@ -402,7 +388,7 @@ func playbackCueResultOversizedExtentStartsAtFirstLineAndClipsOnlyBottom() throw
         result: playbackCueResult(
             primaryText: "primary",
             additionalTexts: [(1...12).map { "line \($0)" }.joined(separator: "\n")],
-            sequenceNumber: 3
+            informationBadges: ["Display Title", "21:33 - 21:40"]
         ),
         showsCueGroup: true,
         isSelected: true,
@@ -418,21 +404,24 @@ func playbackCueResultOversizedExtentStartsAtFirstLineAndClipsOnlyBottom() throw
     #expect(plan.extent.naturalHeight > 100)
     #expect(plan.extent.resolvedHeight == 100)
     #expect(plan.extent.isOversized)
-    #expect(firstFull.minY >= 12)
+    #expect(
+        firstFull.minY >= PlaybackSubtitleFocusMetrics.cueVerticalPadding
+            + plan.informationRowHeight
+            + PlaybackSubtitleFocusMetrics.informationCueGap
+    )
     #expect(firstVisible.minY == firstFull.minY)
     #expect(visibleRects.count < fullRects.count)
     #expect(visibleRects.allSatisfy { resultRect.contains($0) })
-    #expect(
-        plan.sequence!.primaryFirstLineBaseline
-            + PlaybackSubtitleFocusMetrics.cueVerticalPadding > resultRect.maxY
-    )
+    #expect(plan.informationBadges.count == 2)
 }
 
 @MainActor
 @Test
 func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
     let cache = PlaybackCueResultMeasurementCache(capacity: 2)
-    let base = playbackCueResult(sequenceNumber: 1)
+    let base = playbackCueResult(
+        informationBadges: ["Display Title", "21:33 - 21:40"]
+    )
 
     _ = cache.extent(
         for: base,
@@ -441,7 +430,7 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
         viewportHeight: 600
     )
     _ = cache.extent(
-        for: playbackCueResult(sequenceNumber: 999),
+        for: base,
         showsCueGroup: true,
         width: 800,
         viewportHeight: 600
@@ -471,15 +460,14 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
         viewportHeight: 500
     )
     _ = cache.extent(
-        for: playbackCueResult(sequenceNumber: nil),
+        for: playbackCueResult(),
         showsCueGroup: true,
         width: 700,
         viewportHeight: 500
     )
     _ = cache.extent(
         for: playbackCueResult(
-            primaryText: "replacement",
-            sequenceNumber: nil
+            primaryText: "replacement"
         ),
         showsCueGroup: true,
         width: 700,
@@ -487,8 +475,7 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
     )
     _ = cache.extent(
         for: playbackCueResult(
-            additionalTexts: ["replacement context"],
-            sequenceNumber: nil
+            additionalTexts: ["replacement context"]
         ),
         showsCueGroup: true,
         width: 700,
@@ -545,14 +532,14 @@ private func playbackCueResult(
     primaryIdentity: AnyHashable = "cue-1",
     primaryText: String = "primary",
     additionalTexts: [String] = ["context"],
-    sequenceNumber: Int? = nil
+    informationBadges: [String] = []
 ) -> PlaybackCueResult {
     PlaybackCueResult(
         itemID: itemID,
         primaryCueIdentity: primaryIdentity,
         primaryCueText: primaryText,
         additionalCueTexts: additionalTexts,
-        sequenceNumber: sequenceNumber
+        informationBadges: informationBadges
     )
 }
 
@@ -657,6 +644,7 @@ private final class PlaybackCueResultTestAdapter:
         return cache.extent(
             for: result(at: ordinal),
             showsCueGroup: true,
+            isSelected: ordinal == 25_000,
             width: contentWidth,
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope
@@ -694,7 +682,11 @@ private final class PlaybackCueResultTestAdapter:
             additionalCueTexts: ordinal.isMultiple(of: 3)
                 ? ["context \(ordinal)"]
                 : [],
-            sequenceNumber: ordinal + 1
+            informationBadges: [
+                "[\(ordinal + 1)/\(snapshot.totalCount)]",
+                "Display Title \(ordinal)",
+                "00:00 - 00:01",
+            ]
         )
     }
 }

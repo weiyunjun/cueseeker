@@ -28,16 +28,45 @@ func subtitleFocusMetricsMatchDocumentedDynamicGeometry() {
 }
 
 @Test
-func playbackOverlayCurrentAndPlaylistLayoutMatchesDocumentedGeometry() {
+func playbackOverlayCurrentAndPlaylistShareFullWidthCueGeometry() {
     #expect(PlaybackOverlayMetrics.tabBarHeight == 54)
     #expect(PlaybackOverlayMetrics.tabIndicatorHeight == 2)
-    #expect(PlaybackOverlayMetrics.currentContextWidthFraction == 0.2)
-    #expect(PlaybackOverlayMetrics.currentCoverMaxWidth == 220)
     #expect(PlaybackOverlayModule.standardModules == [.current])
     #expect(
         PlaybackOverlayModule.modules(hasPlaylist: true)
             == [.current, .playlist]
     )
+}
+
+@MainActor
+@Test
+func playbackCurrentUsesSharedCueResultWithTwoInformationBadges() throws {
+    let cue = SubtitleFocusCue(
+        id: 42,
+        cueGroupID: 142,
+        ordinal: 0,
+        eventIndex: 0,
+        displayOrder: 0,
+        startMilliseconds: 1_293_000,
+        endMilliseconds: 1_300_000,
+        content: "Primary Cue"
+    )
+    let adapter = PlaybackSubtitleFocusCueReelAdapter()
+    adapter.update(
+        cues: [cue],
+        totalCount: 1,
+        selectedOrdinal: 0,
+        displayTitle: "Ave Mujica - 01",
+        generation: 1
+    )
+
+    let result = try #require(adapter.cueResult(at: 0))
+    #expect(result.primaryCueText == "Primary Cue")
+    #expect(result.additionalCueTexts.isEmpty)
+    #expect(result.informationBadges == [
+        "Ave Mujica - 01",
+        "21:33 - 21:40",
+    ])
 }
 
 @MainActor

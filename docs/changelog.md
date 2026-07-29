@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified Playback Current and Cue Playlist presentation through one Cue Result
+  layout. Both modules now use full-width Cue Reels without a left cover or
+  Playlist sequence lane, place the Primary Cue above optional Cue Group text,
+  and show independent context Badges only on the selected Cue. Current shows
+  Display Title and Time Range while suppressing Cue Group; Cue Playlist adds
+  `[x/y]` and shows Cue Group below every result when that setting is enabled.
 - Unified Recent presentation across Workbench overview, Workbench detail, and
   Playback Command Panel. Recent Videos now uses one adaptive watching-card
   Grid in all three surfaces, including Command Panel selection, scrolling, and

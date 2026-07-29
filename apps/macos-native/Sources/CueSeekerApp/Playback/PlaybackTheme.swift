@@ -101,11 +101,6 @@ public enum PlaybackTheme {
         Color(nsColor: playbackModuleSidebarUnselectedNative)
     }
 
-    /// --color-playback-playlist-sequence
-    public static var playbackPlaylistSequence: Color {
-        Color(nsColor: playbackPlaylistSequenceNative)
-    }
-
     static let playbackModuleSidebarSelectedNative = subtitleFocusDynamicColor(
         light: NSColor(
             red: 17 / 255,
@@ -128,18 +123,6 @@ public enum PlaybackTheme {
             CGFloat(subtitleFocusCueUnselectedOpacity)
         )
     )
-    static let playbackPlaylistSequenceNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 102 / 255,
-            green: 112 / 255,
-            blue: 133 / 255,
-            alpha: 1
-        ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(subtitleFocusCueUnselectedOpacity)
-        )
-    )
-
     // MARK: - Player Chrome Colors
 
     /// --color-player-stage-bg
@@ -303,10 +286,20 @@ enum PlaybackSubtitleFocusMetrics {
     static let cueGroupLineHeight: CGFloat = 38
     /// --font-weight-subtitle-focus-cue-group
     static let cueGroupFontWeight = NSFont.Weight.medium
-    /// --width-playback-playlist-sequence
-    static let playlistSequenceWidth: CGFloat = 48
-    /// --font-size-body
-    static let playlistSequenceFontSize = WorkbenchControlMetrics.redesignFontSizeBody
+    /// --spacing-2
+    static let informationBadgeGap = WorkbenchControlMetrics.redesignSpacing2
+    /// --spacing-2
+    static let informationCueGap = WorkbenchControlMetrics.redesignSpacing2
+    /// --font-size-caption
+    static let informationBadgeFontSize = WorkbenchControlMetrics.redesignFontSizeCaption
+    /// --radius-chip
+    static let informationBadgeRadius = WorkbenchControlMetrics.redesignChipRadius
+    /// --padding-chip-x
+    static let informationBadgeHorizontalPadding =
+        WorkbenchControlMetrics.redesignChipHorizontalPadding
+    /// --padding-chip-y
+    static let informationBadgeVerticalPadding =
+        WorkbenchControlMetrics.redesignChipVerticalPadding
     /// --duration-subtitle-focus-scroll
     static let reelTransitionDuration = 0.22
     static func resolvedReelTransitionDuration(
@@ -324,12 +317,6 @@ enum PlaybackOverlayMetrics {
     static let tabFontSize = WorkbenchControlMetrics.redesignFontSizeBody
     static let tabIndicatorWidth: CGFloat = 24
     static let tabIndicatorHeight: CGFloat = 2
-    static let currentContextWidthFraction: CGFloat = 0.2
-    static let currentContextHorizontalPadding =
-        WorkbenchControlMetrics.redesignSpacing4
-    static let currentCoverMaxWidth =
-        WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth
-    static let currentInfoTopGap = WorkbenchControlMetrics.redesignSpacing3
 }
 
 enum PlaybackChromeMetrics {

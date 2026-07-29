@@ -9,21 +9,42 @@ struct PlaybackCueResult: Equatable {
     let primaryCueIdentity: AnyHashable
     let primaryCueText: String
     let additionalCueTexts: [String]
-    /// Playlist supplies its own internal number. Other modules leave this nil.
-    let sequenceNumber: Int?
+    /// Selected-only context rendered as independent Badges above the Cue.
+    let informationBadges: [String]
 
     init(
         itemID: AnyHashable,
         primaryCueIdentity: AnyHashable,
         primaryCueText: String,
         additionalCueTexts: [String] = [],
-        sequenceNumber: Int? = nil
+        informationBadges: [String] = []
     ) {
         self.itemID = itemID
         self.primaryCueIdentity = primaryCueIdentity
         self.primaryCueText = primaryCueText
         self.additionalCueTexts = additionalCueTexts
-        self.sequenceNumber = sequenceNumber
+        self.informationBadges = informationBadges
+    }
+}
+
+enum PlaybackCueInformationText {
+    static func timeRange(
+        startMilliseconds: Int,
+        endMilliseconds: Int
+    ) -> String {
+        "\(timestamp(milliseconds: startMilliseconds)) - "
+            + timestamp(milliseconds: endMilliseconds)
+    }
+
+    private static func timestamp(milliseconds: Int) -> String {
+        let totalSeconds = max(0, milliseconds) / 1_000
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
 
@@ -92,13 +113,10 @@ struct PlaybackCueResultVisualLine {
     }
 }
 
-struct PlaybackCueResultSequencePlan {
-    let value: Int
-    let laneWidth: CGFloat
-    let font: NSFont
-    let color: NSColor
-    /// Relative to the top of the Result's resolved content region.
-    let primaryFirstLineBaseline: CGFloat
+struct PlaybackCueInformationBadgePlan: Equatable {
+    let text: String
+    /// Relative to the Result content width and top padding.
+    let frame: CGRect
 }
 
 struct PlaybackCueResultLayoutPlan {
@@ -107,7 +125,8 @@ struct PlaybackCueResultLayoutPlan {
     let showsCueGroup: Bool
     let visualLinePlan: PlaybackVisualLineStackPlan
     let visualLines: [PlaybackCueResultVisualLine]
-    let sequence: PlaybackCueResultSequencePlan?
+    let informationBadges: [PlaybackCueInformationBadgePlan]
+    let informationRowHeight: CGFloat
     let resultWidth: CGFloat
     let cueTextWidth: CGFloat
     let extent: PlaybackVirtualReelItemExtent
@@ -143,36 +162,39 @@ struct PlaybackCueResultLayoutPlan {
     }
 
     func cueTextRect(in resultRect: CGRect) -> CGRect {
-        let sequenceWidth = sequence?.laneWidth ?? 0
+        let informationOffset = informationBadges.isEmpty
+            ? 0
+            : informationRowHeight + PlaybackSubtitleFocusMetrics.informationCueGap
         return CGRect(
-            x: resultRect.minX + sequenceWidth,
-            y: resultRect.minY + PlaybackSubtitleFocusMetrics.cueVerticalPadding,
-            width: max(0, resultRect.width - sequenceWidth),
+            x: resultRect.minX,
+            y: resultRect.minY
+                + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                + informationOffset,
+            width: resultRect.width,
             height: max(
                 0,
                 resultRect.height
                     - PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
+                    - informationOffset
             )
         )
+    }
+
+    func informationBadgeRects(in resultRect: CGRect) -> [CGRect] {
+        informationBadges.map { badge in
+            badge.frame.offsetBy(
+                dx: resultRect.minX,
+                dy: resultRect.minY
+                    + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+            )
+        }
     }
 }
 
 @MainActor
 final class PlaybackCueResultLayout {
     private let visualLineLayout = PlaybackVisualLineStackLayout()
-    private let sequenceTextStorage = NSTextStorage()
-    private let sequenceLayoutManager = NSLayoutManager()
-    private let sequenceTextContainer = NSTextContainer()
     private(set) var plan: PlaybackCueResultLayoutPlan?
-
-    init() {
-        sequenceTextContainer.lineFragmentPadding = 0
-        sequenceTextContainer.maximumNumberOfLines = 1
-        sequenceTextContainer.lineBreakMode = .byClipping
-        sequenceLayoutManager.usesFontLeading = false
-        sequenceLayoutManager.addTextContainer(sequenceTextContainer)
-        sequenceTextStorage.addLayoutManager(sequenceLayoutManager)
-    }
 
     @discardableResult
     func prepare(
@@ -183,23 +205,20 @@ final class PlaybackCueResultLayout {
         viewportHeight: CGFloat
     ) -> PlaybackCueResultLayoutPlan {
         let safeWidth = max(0, width)
-        let sequenceLaneWidth = result.sequenceNumber == nil
-            ? 0
-            : PlaybackSubtitleFocusMetrics.playlistSequenceWidth
-        let cueTextWidth = max(0, safeWidth - sequenceLaneWidth)
+        let cueTextWidth = safeWidth
         let visibleAdditionalCues = showsCueGroup
             ? result.additionalCueTexts
             : []
 
-        var roles = visibleAdditionalCues.indices.map {
+        let roles = [PlaybackCueResultLineRole.primaryCue]
+            + visibleAdditionalCues.indices.map {
             PlaybackCueResultLineRole.additionalCue(index: $0)
         }
-        roles.append(.primaryCue)
-        let styles = Array(
+        let styles = [PlaybackCueResultTextStyle.primary] + Array(
             repeating: PlaybackCueResultTextStyle.cueGroup,
             count: visibleAdditionalCues.count
-        ) + [.primary]
-        let texts = visibleAdditionalCues + [result.primaryCueText]
+        )
+        let texts = [result.primaryCueText] + visibleAdditionalCues
         let segments = zip(texts, styles).map { text, style in
             PlaybackVisualLineStackSegment(
                 text: text,
@@ -225,39 +244,38 @@ final class PlaybackCueResultLayout {
                 line: line
             )
         }
-        let naturalHeight = visualLinePlan.resolvedContentHeight
+        let informationBadges = isSelected
+            ? makeInformationBadges(
+                texts: result.informationBadges,
+                width: safeWidth
+            )
+            : []
+        let informationRowHeight = informationBadges.first?.frame.height ?? 0
+        let informationOffset = informationBadges.isEmpty
+            ? 0
+            : informationRowHeight
+                + PlaybackSubtitleFocusMetrics.informationCueGap
+        let resolvedContentHeight = informationOffset
+            + visualLinePlan.resolvedContentHeight
+        let naturalHeight = resolvedContentHeight
             + PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
         let safeViewportHeight = max(0, viewportHeight)
         let extent = PlaybackVirtualReelItemExtent(
             visualLineCount: visualLinePlan.visualLineCount,
             visualLineStackHeight: visualLinePlan.stackHeight,
-            resolvedContentHeight: visualLinePlan.resolvedContentHeight,
+            resolvedContentHeight: resolvedContentHeight,
             naturalHeight: naturalHeight,
             resolvedHeight: min(naturalHeight, safeViewportHeight),
             isOversized: naturalHeight > safeViewportHeight
         )
-        let firstPrimaryLine = visualLines.first { $0.role == .primaryCue }
-        let sequencePlan = result.sequenceNumber.flatMap { value in
-            firstPrimaryLine.map { line in
-                PlaybackCueResultSequencePlan(
-                    value: value,
-                    laneWidth: sequenceLaneWidth,
-                    font: NSFont.systemFont(
-                        ofSize: PlaybackSubtitleFocusMetrics.playlistSequenceFontSize,
-                        weight: .regular
-                    ),
-                    color: PlaybackTheme.playbackPlaylistSequenceNative,
-                    primaryFirstLineBaseline: line.baseline
-                )
-            }
-        }
         let resolvedPlan = PlaybackCueResultLayoutPlan(
             itemID: result.itemID,
             primaryCueIdentity: result.primaryCueIdentity,
             showsCueGroup: showsCueGroup,
             visualLinePlan: visualLinePlan,
             visualLines: visualLines,
-            sequence: sequencePlan,
+            informationBadges: informationBadges,
+            informationRowHeight: informationRowHeight,
             resultWidth: safeWidth,
             cueTextWidth: cueTextWidth,
             extent: extent
@@ -270,77 +288,116 @@ final class PlaybackCueResultLayout {
         guard let plan else {
             return
         }
+        drawInformationBadges(plan, in: resultRect)
         visualLineLayout.drawPreparedPlan(in: plan.cueTextRect(in: resultRect))
-        guard let sequence = plan.sequence else {
-            return
-        }
-        draw(sequence: sequence, in: resultRect)
     }
 
-    private func draw(
-        sequence: PlaybackCueResultSequencePlan,
+    private func makeInformationBadges(
+        texts: [String],
+        width: CGFloat
+    ) -> [PlaybackCueInformationBadgePlan] {
+        let resolvedTexts = texts.filter {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !resolvedTexts.isEmpty, width > 0 else {
+            return []
+        }
+        let font = informationBadgeFont
+        let horizontalPadding = PlaybackSubtitleFocusMetrics
+            .informationBadgeHorizontalPadding
+        let verticalPadding = PlaybackSubtitleFocusMetrics
+            .informationBadgeVerticalPadding
+        let gap = PlaybackSubtitleFocusMetrics.informationBadgeGap
+        let rowHeight = ceil(font.ascender - font.descender)
+            + verticalPadding * 2
+        let availableBadgeWidth = max(
+            0,
+            width - CGFloat(resolvedTexts.count - 1) * gap
+        )
+        let desiredWidths = resolvedTexts.map { text in
+            ceil((text as NSString).size(withAttributes: [
+                .font: font,
+            ]).width) + horizontalPadding * 2
+        }
+        let minimumWidth = min(
+            horizontalPadding * 2 + 1,
+            availableBadgeWidth / CGFloat(resolvedTexts.count)
+        )
+        let flexibleTotal = desiredWidths.reduce(0) {
+            $0 + max(0, $1 - minimumWidth)
+        }
+        let availableFlexibleWidth = max(
+            0,
+            availableBadgeWidth
+                - minimumWidth * CGFloat(resolvedTexts.count)
+        )
+        let scale = flexibleTotal > 0
+            ? min(1, availableFlexibleWidth / flexibleTotal)
+            : 0
+        var nextX: CGFloat = 0
+        return zip(resolvedTexts, desiredWidths).map { text, desiredWidth in
+            let badgeWidth = minimumWidth
+                + max(0, desiredWidth - minimumWidth) * scale
+            defer { nextX += badgeWidth + gap }
+            return PlaybackCueInformationBadgePlan(
+                text: text,
+                frame: CGRect(
+                    x: nextX,
+                    y: 0,
+                    width: badgeWidth,
+                    height: rowHeight
+                )
+            )
+        }
+    }
+
+    private func drawInformationBadges(
+        _ plan: PlaybackCueResultLayoutPlan,
         in resultRect: CGRect
     ) {
-        guard resultRect.width > 0,
-              resultRect.height > 0,
-              let context = NSGraphicsContext.current
-        else {
-            return
-        }
+        let font = informationBadgeFont
+        let horizontalPadding = PlaybackSubtitleFocusMetrics
+            .informationBadgeHorizontalPadding
+        let verticalPadding = PlaybackSubtitleFocusMetrics
+            .informationBadgeVerticalPadding
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .right
-        paragraphStyle.lineBreakMode = .byClipping
-        sequenceTextStorage.setAttributedString(NSAttributedString(
-            string: String(sequence.value),
-            attributes: [
-                .font: sequence.font,
-                .foregroundColor: sequence.color,
-                .paragraphStyle: paragraphStyle,
-            ]
-        ))
-        sequenceTextContainer.size = CGSize(
-            width: sequence.laneWidth,
-            height: max(1, sequence.font.ascender - sequence.font.descender)
-        )
-        sequenceLayoutManager.ensureLayout(for: sequenceTextContainer)
-        let glyphRange = sequenceLayoutManager.glyphRange(
-            for: sequenceTextContainer
-        )
-        guard glyphRange.length > 0 else {
-            return
-        }
-        let lineRect = sequenceLayoutManager.lineFragmentRect(
-            forGlyphAt: glyphRange.location,
-            effectiveRange: nil
-        )
-        let originalBaseline = lineRect.minY
-            + sequenceLayoutManager.location(
-                forGlyphAt: glyphRange.location
-            ).y
-        let targetBaseline = resultRect.minY
-            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            + sequence.primaryFirstLineBaseline
-        let sequenceClipRect = CGRect(
-            x: resultRect.minX,
-            y: resultRect.minY + PlaybackSubtitleFocusMetrics.cueVerticalPadding,
-            width: sequence.laneWidth,
-            height: max(
-                0,
-                resultRect.height
-                    - PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
-            )
-        )
+        paragraphStyle.lineBreakMode = .byTruncatingTail
 
-        context.saveGraphicsState()
-        NSBezierPath(rect: sequenceClipRect).addClip()
-        sequenceLayoutManager.drawGlyphs(
-            forGlyphRange: glyphRange,
-            at: CGPoint(
-                x: resultRect.minX,
-                y: targetBaseline - originalBaseline
+        for (badge, frame) in zip(
+            plan.informationBadges,
+            plan.informationBadgeRects(in: resultRect)
+        ) {
+            guard frame.width > 0, frame.height > 0 else {
+                continue
+            }
+            WorkbenchRedesignColors.NS.bgHover.setFill()
+            NSBezierPath(
+                roundedRect: frame,
+                xRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius,
+                yRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius
+            ).fill()
+            NSAttributedString(
+                string: badge.text,
+                attributes: [
+                    .font: font,
+                    .foregroundColor: WorkbenchRedesignColors.NS.textSecondary,
+                    .paragraphStyle: paragraphStyle,
+                ]
+            ).draw(
+                with: frame.insetBy(
+                    dx: horizontalPadding,
+                    dy: verticalPadding
+                ),
+                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
             )
+        }
+    }
+
+    private var informationBadgeFont: NSFont {
+        NSFont.systemFont(
+            ofSize: PlaybackSubtitleFocusMetrics.informationBadgeFontSize,
+            weight: .semibold
         )
-        context.restoreGraphicsState()
     }
 }
 
@@ -351,8 +408,9 @@ final class PlaybackCueResultMeasurementCache {
         let primaryCueIdentity: AnyHashable
         let primaryCueText: String
         let additionalCueTexts: [String]
+        let informationBadges: [String]
         let showsCueGroup: Bool
-        let hasSequenceNumber: Bool
+        let isSelected: Bool
         let width: CGFloat
         let viewportHeight: CGFloat
         let styleRevision: Int
@@ -380,6 +438,7 @@ final class PlaybackCueResultMeasurementCache {
     func extent(
         for result: PlaybackCueResult,
         showsCueGroup: Bool,
+        isSelected: Bool = false,
         width: CGFloat,
         viewportHeight: CGFloat,
         uiProbeScope: String? = nil
@@ -390,8 +449,9 @@ final class PlaybackCueResultMeasurementCache {
             primaryCueIdentity: result.primaryCueIdentity,
             primaryCueText: result.primaryCueText,
             additionalCueTexts: result.additionalCueTexts,
+            informationBadges: result.informationBadges,
             showsCueGroup: showsCueGroup,
-            hasSequenceNumber: result.sequenceNumber != nil,
+            isSelected: isSelected,
             width: width,
             viewportHeight: viewportHeight,
             styleRevision: 1
@@ -405,7 +465,7 @@ final class PlaybackCueResultMeasurementCache {
         let extent = layout.prepare(
             result: result,
             showsCueGroup: showsCueGroup,
-            isSelected: false,
+            isSelected: isSelected,
             width: width,
             viewportHeight: viewportHeight
         ).extent

@@ -100,6 +100,12 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
     static let redesignFontSizeCaption: CGFloat = 12
+    /// --radius-chip
+    static let redesignChipRadius: CGFloat = 6
+    /// --padding-chip-x
+    static let redesignChipHorizontalPadding: CGFloat = 10
+    /// --padding-chip-y
+    static let redesignChipVerticalPadding: CGFloat = 4
     /// --height-app-sidebar-item: 32px
     static let redesignAppSidebarItemHeight: CGFloat = 32
     /// --height-app-topbar: 45px

@@ -9,23 +9,22 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     private let measurementCache: PlaybackCueResultMeasurementCache
     private let layout = PlaybackCueResultLayout()
     private let measurementCacheCapacity: Int
-    private let showsSequenceNumber: Bool
     private var presentationRevision: UInt64 = 0
     private var measurementAccessSequence: UInt64 = 0
     private var measuredOrdinalAccess: [Int: UInt64] = [:]
     private var isActive = true
 
     private(set) var showsCueGroup: Bool
+    private(set) var selectedOrdinal: Int?
 
     init(
         windowStore: PlaybackCueResultSessionWindowStore,
         showsCueGroup: Bool,
-        showsSequenceNumber: Bool = true,
         measurementCacheCapacity: Int = 64
     ) {
         self.windowStore = windowStore
         self.showsCueGroup = showsCueGroup
-        self.showsSequenceNumber = showsSequenceNumber
+        selectedOrdinal = windowStore.selectedOrdinal
         let resolvedCapacity = max(1, measurementCacheCapacity)
         self.measurementCacheCapacity = resolvedCapacity
         measurementCache = PlaybackCueResultMeasurementCache(
@@ -65,6 +64,17 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         return true
     }
 
+    @discardableResult
+    func setSelectedOrdinal(_ selectedOrdinal: Int?) -> Bool {
+        guard isActive, self.selectedOrdinal != selectedOrdinal else {
+            return false
+        }
+        self.selectedOrdinal = selectedOrdinal
+        presentationRevision &+= 1
+        invalidateMeasurements()
+        return true
+    }
+
     func item(at ordinal: Int) -> PlaybackCueResultItem? {
         guard isActive else {
             return nil
@@ -77,7 +87,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
             return nil
         }
         return item.cueResult(
-            sequenceNumber: showsSequenceNumber ? ordinal + 1 : nil
+            positionText: "[\(ordinal + 1)/\(snapshot.totalCount)]"
         )
     }
 
@@ -98,6 +108,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         return measurementCache.extent(
             for: result,
             showsCueGroup: showsCueGroup,
+            isSelected: ordinal == selectedOrdinal,
             width: contentWidth,
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope

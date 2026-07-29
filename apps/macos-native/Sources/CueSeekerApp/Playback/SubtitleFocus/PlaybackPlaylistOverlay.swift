@@ -4,7 +4,6 @@ struct PlaybackCueResultOverlay: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
     let module: PlaybackOverlayModule
-    let showsSequenceNumber: Bool
     var contentTopInset = PlaybackSubtitleFocusMetrics.contentInset
     var contentBottomInset = PlaybackSubtitleFocusMetrics.contentInset
     let uiProbeScope: String?
@@ -31,7 +30,6 @@ struct PlaybackCueResultOverlay: View {
                 PlaybackCueResultReelRepresentable(
                     windowStore: windowStore,
                     showsCueGroup: cueGroupPresentation.isEnabled,
-                    showsSequenceNumber: showsSequenceNumber,
                     selectedOrdinal: windowStore.selectedOrdinal,
                     uiProbeScope: uiProbeScope,
                     keyboardNavigationRequest: session.keyboardNavigationRequest,
@@ -122,20 +120,17 @@ private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
 
         init(
             windowStore: PlaybackCueResultSessionWindowStore,
-            showsCueGroup: Bool,
-            showsSequenceNumber: Bool
+            showsCueGroup: Bool
         ) {
             adapter = PlaybackCueResultReelAdapter(
                 windowStore: windowStore,
-                showsCueGroup: showsCueGroup,
-                showsSequenceNumber: showsSequenceNumber
+                showsCueGroup: showsCueGroup
             )
         }
     }
 
     let windowStore: PlaybackCueResultSessionWindowStore
     let showsCueGroup: Bool
-    let showsSequenceNumber: Bool
     let selectedOrdinal: Int?
     let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
@@ -152,8 +147,7 @@ private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             windowStore: windowStore,
-            showsCueGroup: showsCueGroup,
-            showsSequenceNumber: showsSequenceNumber
+            showsCueGroup: showsCueGroup
         )
     }
 
@@ -190,6 +184,7 @@ private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         adapter: PlaybackCueResultReelAdapter
     ) {
         _ = adapter.setShowsCueGroup(showsCueGroup)
+        _ = adapter.setSelectedOrdinal(selectedOrdinal)
         view.uiProbeScope = uiProbeScope
         view.onCommitVirtualReelSelection = onCommitSelection
         view.allowsNativeWheelInput = allowsNativeWheelInput

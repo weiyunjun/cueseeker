@@ -6,17 +6,12 @@ struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
-    let resolveVideoPresentation: (String) -> CompleteLibraryVideoPresentation?
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
         onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
-        resolveVideoPresentation:
-            @escaping (String) -> CompleteLibraryVideoPresentation? = {
-                _ in nil
-            },
         onOpenLibraryEpisode:
             @escaping (CompleteLibraryVideoPresentation) -> Bool = {
                 _ in false
@@ -27,7 +22,6 @@ struct PlaybackSubtitleFocusLayer: View {
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
-        self.resolveVideoPresentation = resolveVideoPresentation
         self.onOpenLibraryEpisode = onOpenLibraryEpisode
     }
 
@@ -42,7 +36,6 @@ struct PlaybackSubtitleFocusLayer: View {
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction,
-                resolveVideoPresentation: resolveVideoPresentation,
                 onOpenLibraryEpisode: onOpenLibraryEpisode
             )
         }
@@ -55,7 +48,6 @@ struct PlaybackOverlay: View {
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
-    let resolveVideoPresentation: (String) -> CompleteLibraryVideoPresentation?
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     var body: some View {
@@ -83,45 +75,33 @@ struct PlaybackOverlay: View {
     @ViewBuilder
     private var moduleContent: some View {
         if session.selectedModule == .current {
-            GeometryReader { geometry in
-                HStack(spacing: 0) {
-                    PlaybackCurrentVideoContext(
-                        openSnapshot: session.openSnapshot
+            PlaybackSubtitleFocusOverlay(
+                snapshot: snapshot,
+                cues: cues,
+                displayTitle: currentDisplayTitle,
+                contentGeneration: session.token.sessionGeneration,
+                uiProbeScope: uiProbeScope,
+                keyboardNavigationRequest: session.keyboardNavigationRequest,
+                blocksNewNavigation: session.pendingKeyboardAction != nil
+                    || session.activeKeyboardAction != nil,
+                onCommitKeyboardNavigation: session.commitKeyboardNavigation,
+                onCommitNativeReelSelection: session.commitNativeReelSelection,
+                allowsNativeWheelInput: session.allowsNativeWheelInput,
+                allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
+                consumeDeferredAction: {
+                    session.consumeDeferredKeyboardActionIfReady(
+                        module: .current
                     )
-                    .frame(
-                        width: geometry.size.width
-                            * PlaybackOverlayMetrics.currentContextWidthFraction
-                    )
-                    .frame(maxHeight: .infinity)
-
-                    PlaybackSubtitleFocusOverlay(
-                        snapshot: snapshot,
-                        cues: cues,
-                        contentGeneration: session.token.sessionGeneration,
-                        uiProbeScope: uiProbeScope,
-                        keyboardNavigationRequest: session.keyboardNavigationRequest,
-                        blocksNewNavigation: session.pendingKeyboardAction != nil
-                            || session.activeKeyboardAction != nil,
-                        onCommitKeyboardNavigation: session.commitKeyboardNavigation,
-                        onCommitNativeReelSelection: session.commitNativeReelSelection,
-                        allowsNativeWheelInput: session.allowsNativeWheelInput,
-                        allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
-                        consumeDeferredAction: {
-                            session.consumeDeferredKeyboardActionIfReady(
-                                module: .current
-                            )
-                        },
-                        onScrollbarDraggingChanged: {
-                            session.noteScrollbarDragging($0, module: .current)
-                        },
-                        onCueReelMotionChanged: {
-                            session.noteCueReelMotion($0, module: .current)
-                        },
-                        onExecuteAction: onExecuteAction
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
+                },
+                onScrollbarDraggingChanged: {
+                    session.noteScrollbarDragging($0, module: .current)
+                },
+                onCueReelMotionChanged: {
+                    session.noteCueReelMotion($0, module: .current)
+                },
+                onExecuteAction: onExecuteAction
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if session.selectedModule == .playlist {
             if let libraryStore = session.libraryStore {
                 PlaybackLibraryOverlay(
@@ -132,7 +112,6 @@ struct PlaybackOverlay: View {
                 PlaybackSubtitlePlaylist(
                     session: session,
                     windowStore: playlistWindow,
-                    resolveVideoPresentation: resolveVideoPresentation,
                     uiProbeScope: uiProbeScope,
                     onExecuteAction: onExecuteAction
                 )
@@ -144,6 +123,13 @@ struct PlaybackOverlay: View {
             PlaybackTheme.subtitleFocusOverlayBackground
                 .contentShape(Rectangle())
         }
+    }
+
+    private var currentDisplayTitle: String {
+        session.openSnapshot.videoPresentation?.displayTitle
+            ?? URL(fileURLWithPath: session.openSnapshot.source.videoPath)
+                .deletingPathExtension()
+                .lastPathComponent
     }
 }
 
@@ -196,164 +182,28 @@ private struct PlaybackViewTabs: View {
     }
 }
 
-private struct PlaybackCurrentVideoContext: View {
-    let openSnapshot: PlaybackSubtitleFocusOpenSnapshot
-
-    var body: some View {
-        PlaybackVideoContext(
-            videoPresentation: openSnapshot.videoPresentation,
-            fallbackTitle: URL(fileURLWithPath: openSnapshot.source.videoPath)
-                .deletingPathExtension()
-                .lastPathComponent
-        )
-    }
-}
-
 private struct PlaybackSubtitlePlaylist: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     @ObservedObject var windowStore: PlaybackPlaylistSessionWindowStore
-    let resolveVideoPresentation: (String) -> CompleteLibraryVideoPresentation?
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
-    @State private var videoPresentation:
-        CompleteLibraryVideoPresentation?
-
-    private var selectedItem: PlaybackPlaylistItem? {
-        guard let selectedOrdinal = windowStore.selectedOrdinal else {
-            return nil
-        }
-        return windowStore.item(at: selectedOrdinal)
-    }
-
     var body: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 0) {
-                PlaybackVideoContext(
-                    videoPresentation: videoPresentation,
-                    fallbackTitle: selectedItem?.displayTitle ?? ""
-                )
-                .frame(
-                    width: geometry.size.width
-                        * PlaybackOverlayMetrics.currentContextWidthFraction
-                )
-                .frame(maxHeight: .infinity)
-
-                PlaybackCueResultOverlay(
-                    session: session,
-                    windowStore: windowStore,
-                    module: .playlist,
-                    showsSequenceNumber: true,
-                    uiProbeScope: uiProbeScope,
-                    onExecuteAction: onExecuteAction
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .onAppear(perform: updateVideoPresentation)
-        .onChange(of: windowStore.selectedOrdinal) { _ in
-            updateVideoPresentation()
-        }
-        .onChange(of: windowStore.snapshot) { _ in
-            updateVideoPresentation()
-        }
-        .onDisappear {
-            videoPresentation = nil
-        }
-    }
-
-    private func updateVideoPresentation() {
-        guard let selectedItem else {
-            videoPresentation = nil
-            return
-        }
-        guard videoPresentation?.videoPath != selectedItem.videoPath else {
-            return
-        }
-        videoPresentation = resolveVideoPresentation(selectedItem.videoPath)
-    }
-}
-
-private struct PlaybackVideoContext: View {
-    let videoPresentation: CompleteLibraryVideoPresentation?
-    let fallbackTitle: String
-
-    var body: some View {
-        GeometryReader { geometry in
-            let coverWidth = max(
-                0,
-                min(
-                    PlaybackOverlayMetrics.currentCoverMaxWidth,
-                    geometry.size.width
-                        - PlaybackOverlayMetrics.currentContextHorizontalPadding * 2
-                )
-            )
-            let coverHeight = coverWidth
-                / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
-            let coverCenterY = geometry.size.height / 2
-            let infoTop = coverCenterY
-                + coverHeight / 2
-                + PlaybackOverlayMetrics.currentInfoTopGap
-
-            ZStack(alignment: .topLeading) {
-                LibraryCachedCoverImage(
-                    coverPath: videoPresentation?.coverPath,
-                    coverRevision: videoPresentation?.coverRevision
-                )
-                .frame(width: coverWidth, height: coverHeight)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
-                        style: .continuous
-                    )
-                )
-                .position(
-                    x: geometry.size.width / 2,
-                    y: coverCenterY
-                )
-
-                VStack(
-                    alignment: .center,
-                    spacing: WorkbenchControlMetrics.redesignSpacing2
-                ) {
-                    Text(videoPresentation?.displayTitle ?? fallbackTitle)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
-                            weight: .medium
-                        ))
-                        .foregroundStyle(PlaybackTheme.playbackModuleSidebarUnselected)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-
-                    if let videoPresentation {
-                        Text(String(
-                            format: "EP%02d",
-                            videoPresentation.episodeNumber
-                        ))
-                            .font(.system(
-                                size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
-                                weight: .regular
-                            ))
-                            .foregroundStyle(PlaybackTheme.playbackModuleSidebarUnselected)
-                            .monospacedDigit()
-                    }
-                }
-                .frame(width: coverWidth)
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .top
-                )
-                .offset(y: max(0, infoTop))
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-        }
+        PlaybackCueResultOverlay(
+            session: session,
+            windowStore: windowStore,
+            module: .playlist,
+            uiProbeScope: uiProbeScope,
+            onExecuteAction: onExecuteAction
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 struct PlaybackSubtitleFocusOverlay: View {
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
+    let displayTitle: String
     let contentGeneration: Int
     let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
@@ -372,6 +222,7 @@ struct PlaybackSubtitleFocusOverlay: View {
     init(
         snapshot: SubtitleFocusSnapshot,
         cues: [SubtitleFocusCue]? = nil,
+        displayTitle: String = "",
         contentGeneration: Int = 0,
         uiProbeScope: String? = nil,
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
@@ -389,6 +240,7 @@ struct PlaybackSubtitleFocusOverlay: View {
     ) {
         self.snapshot = snapshot
         self.cues = cues ?? snapshot.cues
+        self.displayTitle = displayTitle
         self.contentGeneration = contentGeneration
         self.uiProbeScope = uiProbeScope
         self.keyboardNavigationRequest = keyboardNavigationRequest
@@ -431,6 +283,7 @@ struct PlaybackSubtitleFocusOverlay: View {
                     cues: cues,
                     totalCount: snapshot.totalCount,
                     selectedOrdinal: snapshot.selectedOrdinal,
+                    displayTitle: displayTitle,
                     contentGeneration: contentGeneration,
                     uiProbeScope: uiProbeScope,
                     keyboardNavigationRequest: keyboardNavigationRequest,

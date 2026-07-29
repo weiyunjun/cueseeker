@@ -106,6 +106,15 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         }
     }
 
+    var timeRange: String {
+        switch target {
+        case .search(let result):
+            result.timeRange
+        case .shiori(let shiori):
+            shiori.timeRange
+        }
+    }
+
     init(searchResult: SubtitleSearchResult, ordinal: Int) {
         let resolvedOrdinal = max(0, ordinal)
         identity = .search(searchResult.entryID)
@@ -179,13 +188,13 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         }
     }
 
-    func cueResult(sequenceNumber: Int?) -> PlaybackCueResult {
+    func cueResult(positionText: String) -> PlaybackCueResult {
         PlaybackCueResult(
             itemID: AnyHashable(identity),
             primaryCueIdentity: AnyHashable(primaryCueIdentity),
             primaryCueText: primaryCueText,
             additionalCueTexts: additionalCueTexts,
-            sequenceNumber: sequenceNumber
+            informationBadges: [positionText, displayTitle, timeRange]
         )
     }
 

@@ -37,8 +37,6 @@ struct PlaybackPageView: View {
                         uiProbeScope: appState.uiProbeScope,
                         onExecuteAction:
                             appState.executePlaybackSubtitleFocusAction,
-                        resolveVideoPresentation:
-                            appState.playbackVideoPresentation,
                         onOpenLibraryEpisode:
                             appState.openPlaybackLibraryEpisodeFromOverlay
                     )

@@ -493,6 +493,14 @@ Presentation virtualization rules:
   identity, rendering, and height calculation. `Show Cue Group` remains a
   presentation-only input and must not change count, order, identity,
   selection, or Primary Cue action targets.
+- Playback Current and Cue Playlist use the same Cue Result measurement and
+  rendering layout. Primary Cue text precedes optional Cue Group text. Their
+  host adapters may provide only the documented selected-item information
+  Badges and Cue Group visibility policy: Current provides Display Title and
+  Time Range and never provides Cue Group text; Cue Playlist additionally
+  provides `[x/y]` and may show Cue Group text below every Primary Cue. The
+  existing Reel and Session owners remain the only selection and scrolling
+  state sources.
 
 Playback-specific differences are limited to:
 
@@ -504,7 +512,8 @@ Playback-specific differences are limited to:
 - the documented capability mask, including removal of batch, export, folder,
   Context, Filter-control, and table-copy entry points;
 - Playback Cue Reel layout, Focus Anchor, accepted placement, settled selection,
-  Playlist sequence number, and the Playback-only Current and Playlist modules;
+  selected-item information Badges, Cue Group visibility policy, and the
+  Playback-only Current and Playlist modules;
 - Playback Search's temporary empty-filter context, text-field focus routing,
   Up/Down Reel routing, and Enter-only Cue action;
 - Recent and Library persistent single selection, directional navigation,

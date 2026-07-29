@@ -21,7 +21,8 @@ func playbackPlaylistReelAdapterUsesResidentDatasetImmediately() throws {
     #expect(adapter.snapshot.isComplete)
     #expect(!adapter.supportsWindowRequests)
     #expect(adapter.itemID(at: 20) == AnyHashable(PlaybackPlaylistItemIdentity.search(1_020)))
-    #expect(adapter.cueResult(at: 20)?.sequenceNumber == 21)
+    #expect(adapter.cueResult(at: 20)?.informationBadges.first == "[21/40]")
+    #expect(adapter.cueResult(at: 20)?.informationBadges.count == 3)
     #expect(adapter.cueResult(at: 20)?.additionalCueTexts == ["context-20"])
 }
 
@@ -37,8 +38,7 @@ func playbackCueResultReelRapidScrollbarDragUsesResidentDataset() async throws {
     let dataset = try #require(source.makeSessionWindowStore())
     let adapter = PlaybackCueResultReelAdapter(
         windowStore: dataset,
-        showsCueGroup: true,
-        showsSequenceNumber: false
+        showsCueGroup: true
     )
     let view = PlaybackVirtualReelContainerView()
     view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
