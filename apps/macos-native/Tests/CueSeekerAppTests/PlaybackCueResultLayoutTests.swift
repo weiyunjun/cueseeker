@@ -152,6 +152,32 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
 
 @MainActor
 @Test
+func editingCollageCheckboxMatchesSearchColorsAndMonochromeRendering() throws {
+    for (isSelected, isEnabled, lightHex, darkHex) in [
+        (true, true, "#667085", "#A1A1AA"),
+        (false, true, "#D0D5DD", "#52525B"),
+        (false, false, "#98A2B3", "#71717A"),
+    ] {
+        let color = PlaybackCollageCheckboxDrawing.color(
+            isSelected: isSelected,
+            isEnabled: isEnabled
+        )
+        #expect(playbackCueResultHex(color, appearanceName: .aqua) == lightHex)
+        #expect(playbackCueResultHex(color, appearanceName: .darkAqua) == darkHex)
+
+        let image = try #require(PlaybackCollageCheckboxDrawing.image(
+            isSelected: isSelected,
+            isEnabled: isEnabled
+        ))
+        let expectedConfiguration = NSImage.SymbolConfiguration(
+            hierarchicalColor: color
+        ).applying(.preferringMonochrome())
+        #expect(image.symbolConfiguration.isEqual(expectedConfiguration))
+    }
+}
+
+@MainActor
+@Test
 func playbackCueResultPrimaryOnlyUsesCurrentTypographyAndEveryVisualLine() {
     let layout = PlaybackCueResultLayout()
 

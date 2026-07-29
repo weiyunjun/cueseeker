@@ -2012,6 +2012,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.toggleCollageCueForTesting(at: ordinal)
     }
 
+    func toggleCollageCueForTesting(at point: CGPoint) -> Bool {
+        documentView.toggleCollageCueForTesting(at: point)
+    }
+
     func collageCheckboxRectForTesting(at ordinal: Int) -> CGRect? {
         documentView.collageCheckboxRectForTesting(at: ordinal)
     }
@@ -3013,26 +3017,40 @@ private final class PlaybackSubtitleFocusNativeScrollbarView:
 }
 
 @MainActor
-private enum PlaybackCollageCheckboxDrawing {
+enum PlaybackCollageCheckboxDrawing {
     static func draw(
         isSelected: Bool,
         isEnabled: Bool,
         in rect: CGRect
     ) {
-        let color = !isEnabled
+        image(isSelected: isSelected, isEnabled: isEnabled)?.draw(in: rect)
+    }
+
+    static func image(
+        isSelected: Bool,
+        isEnabled: Bool
+    ) -> NSImage? {
+        let color = color(isSelected: isSelected, isEnabled: isEnabled)
+        let configuration = NSImage.SymbolConfiguration(
+            hierarchicalColor: color
+        ).applying(.preferringMonochrome())
+        return NSImage(
+            systemSymbolName: isSelected ? "checkmark.circle.fill" : "circle",
+            accessibilityDescription: nil
+        )?.withSymbolConfiguration(
+            configuration
+        )
+    }
+
+    static func color(
+        isSelected: Bool,
+        isEnabled: Bool
+    ) -> NSColor {
+        !isEnabled
             ? WorkbenchRedesignColors.NS.iconDisabled
             : isSelected
                 ? WorkbenchRedesignColors.NS.textMuted
                 : WorkbenchRedesignColors.NS.borderCheckbox
-        guard let image = NSImage(
-            systemSymbolName: isSelected ? "checkmark.circle.fill" : "circle",
-            accessibilityDescription: nil
-        )?.withSymbolConfiguration(
-            NSImage.SymbolConfiguration(hierarchicalColor: color)
-        ) else {
-            return
-        }
-        image.draw(in: rect)
     }
 }
 
@@ -3337,9 +3355,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        guard let placement = placements.first(where: {
-            collageCheckboxRect(for: $0).contains(point)
-        }) else {
+        guard let placement = collagePlacement(containing: point) else {
             return
         }
         _ = toggleCollageCue(at: placement.ordinal)
@@ -3347,6 +3363,13 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     func toggleCollageCueForTesting(at ordinal: Int) -> Bool {
         toggleCollageCue(at: ordinal)
+    }
+
+    func toggleCollageCueForTesting(at point: CGPoint) -> Bool {
+        guard let placement = collagePlacement(containing: point) else {
+            return false
+        }
+        return toggleCollageCue(at: placement.ordinal)
     }
 
     func collageCheckboxRectForTesting(at ordinal: Int) -> CGRect? {
@@ -3586,6 +3609,15 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             width: size,
             height: size
         )
+    }
+
+    private func collagePlacement(
+        containing point: CGPoint
+    ) -> PlaybackSubtitleFocusCuePlacement? {
+        guard isEditingCollage else {
+            return nil
+        }
+        return placements.first { $0.rect.contains(point) }
     }
 
     private func toggleCollageCue(at ordinal: Int) -> Bool {

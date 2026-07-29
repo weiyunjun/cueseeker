@@ -77,6 +77,28 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
     view.onToggleCollageCueSelection = { toggledOrdinal = $0 }
     #expect(view.toggleCollageCueForTesting(at: 11))
     #expect(toggledOrdinal == 11)
+
+    var toggledOrdinals: [Int] = []
+    view.onToggleCollageCueSelection = { toggledOrdinals.append($0) }
+    let badgePoint = CGPoint(
+        x: placement.rect.minX
+            + PlaybackCollageSelectionMetrics.leadingAccessoryWidth
+            + 1,
+        y: placement.rect.minY
+            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+            + 1
+    )
+    let primaryCuePoint = CGPoint(
+        x: badgePoint.x,
+        y: placement.rect.minY
+            + PlaybackSubtitleFocusMetrics.informationHeight
+            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+            + 1
+    )
+    #expect(view.toggleCollageCueForTesting(at: badgePoint))
+    #expect(view.toggleCollageCueForTesting(at: primaryCuePoint))
+    #expect(toggledOrdinals == [11, 11])
+    #expect(view.displayedSelectedOrdinalForTesting == 12)
     view.invalidate()
 }
 
@@ -105,6 +127,24 @@ func editingCollageDisablesOnlyUncheckedCuesAtSelectionLimit() {
     #expect(!view.isCollageCueEnabledForTesting(at: 11))
     #expect(!view.toggleCollageCueForTesting(at: 11))
     #expect(view.toggleCollageCueForTesting(at: 12))
+    let unselectedPlacement = view.placementsForTesting.first {
+        $0.ordinal == 11
+    }
+    let selectedPlacement = view.placementsForTesting.first {
+        $0.ordinal == 12
+    }
+    #expect(unselectedPlacement.map {
+        !view.toggleCollageCueForTesting(at: CGPoint(
+            x: $0.rect.midX,
+            y: $0.rect.midY
+        ))
+    } == true)
+    #expect(selectedPlacement.map {
+        view.toggleCollageCueForTesting(at: CGPoint(
+            x: $0.rect.midX,
+            y: $0.rect.midY
+        ))
+    } == true)
     view.invalidate()
 }
 
