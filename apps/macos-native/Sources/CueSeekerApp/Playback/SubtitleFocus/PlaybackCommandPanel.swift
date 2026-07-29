@@ -63,6 +63,13 @@ struct PlaybackCommandPanel: View {
                                     appState
                                         .synchronizePlaybackCommandPanelSelection()
                                 },
+                                onGridLayoutChange: {
+                                    appState
+                                        .updatePlaybackCommandPanelRecentVideoGridLayout(
+                                            columnCount: $0,
+                                            itemFramesByID: $1
+                                        )
+                                },
                                 onOpen: {
                                     appState.openPlaybackCommandPanelRecentVideo(
                                         at: $0
@@ -433,7 +440,11 @@ private struct PlaybackCommandPanelRecentVideos: View {
     @ObservedObject var libraryStore: LibraryStore
     let onBack: () -> Bool
     let onSynchronize: () -> Void
+    let onGridLayoutChange: (Int, [String: CGRect]) -> Void
     let onOpen: (Int) -> Void
+
+    private let coordinateSpaceName =
+        "playback-command-panel-recent-videos-scroll"
 
     private var items: [RecentLibraryWatchingPresentation] {
         libraryStore.testRecentWatchingItems
@@ -455,39 +466,57 @@ private struct PlaybackCommandPanelRecentVideos: View {
                 onBack: onBack
             )
 
-            ScrollViewReader { proxy in
-                ScrollView {
-                    RecentWatchingGrid(
-                        items: items,
-                        selectedItemID: selectedItemID
-                    ) { item in
-                        if let ordinal = items.firstIndex(where: {
-                            $0.id == item.id
-                        }) {
-                            onOpen(ordinal)
+            GeometryReader { geometry in
+                let columnCount = adaptiveColumnCount(
+                    containerWidth: max(
+                        0,
+                        geometry.size.width
+                            - PlaybackCommandPanelMetrics.contentInset * 2
+                    )
+                )
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        RecentWatchingGrid(
+                            items: items,
+                            selectedItemID: selectedItemID,
+                            itemFrameCoordinateSpace: coordinateSpaceName,
+                            onItemFramesChange: { frames in
+                                onGridLayoutChange(columnCount, frames)
+                            }
+                        ) { item in
+                            if let ordinal = items.firstIndex(where: {
+                                $0.id == item.id
+                            }) {
+                                onOpen(ordinal)
+                            }
                         }
+                        .padding(
+                            .horizontal,
+                            PlaybackCommandPanelMetrics.contentInset
+                        )
+                        .padding(
+                            .vertical,
+                            WorkbenchControlMetrics.redesignSpacing2
+                        )
                     }
-                    .padding(
-                        .horizontal,
-                        PlaybackCommandPanelMetrics.contentInset
-                    )
-                    .padding(
-                        .vertical,
-                        WorkbenchControlMetrics.redesignSpacing2
-                    )
-                }
-                .onChange(of: selectedItemID) { selectedItemID in
-                    guard let selectedItemID else {
-                        return
+                    .coordinateSpace(name: coordinateSpaceName)
+                    .onAppear {
+                        onGridLayoutChange(columnCount, [:])
                     }
-                    withAnimation(.easeOut(duration: 0.16)) {
-                        proxy.scrollTo(selectedItemID, anchor: .center)
+                    .onChange(of: columnCount) { columnCount in
+                        onGridLayoutChange(columnCount, [:])
+                        scrollToSelected(using: proxy)
+                    }
+                    .onChange(of: selectedItemID) { _ in
+                        scrollToSelected(using: proxy)
                     }
                 }
             }
 
             PlaybackCommandPanelFooter(
-                status: "\(libraryStore.testRecentWatchingItems.count) videos"
+                status: "\(libraryStore.testRecentWatchingItems.count) videos",
+                showsHorizontalNavigation: true
             )
         }
         .onAppear(perform: onSynchronize)
@@ -495,6 +524,25 @@ private struct PlaybackCommandPanelRecentVideos: View {
             of: libraryStore.testRecentWatchingItems.map(\.id)
         ) { _ in
             onSynchronize()
+        }
+    }
+
+    private func adaptiveColumnCount(containerWidth: CGFloat) -> Int {
+        let minimumWidth = WorkbenchControlMetrics
+            .redesignLibraryRecentCardMinWidth
+        let gap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
+        return max(
+            1,
+            Int((containerWidth + gap) / (minimumWidth + gap))
+        )
+    }
+
+    private func scrollToSelected(using proxy: ScrollViewProxy) {
+        guard let selectedItemID else {
+            return
+        }
+        withAnimation(.easeOut(duration: 0.16)) {
+            proxy.scrollTo(selectedItemID, anchor: .center)
         }
     }
 }
@@ -693,6 +741,7 @@ private struct PlaybackCommandPanelSearchResultRow: View {
 
 private struct PlaybackCommandPanelFooter: View {
     let status: String?
+    var showsHorizontalNavigation = false
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
@@ -708,6 +757,10 @@ private struct PlaybackCommandPanelFooter: View {
             Spacer(minLength: 0)
 
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                if showsHorizontalNavigation {
+                    PlaybackCommandPanelKeycap(symbol: "←")
+                    PlaybackCommandPanelKeycap(symbol: "→")
+                }
                 PlaybackCommandPanelKeycap(symbol: "↑")
                 PlaybackCommandPanelKeycap(symbol: "↓")
                 Text("Navigate")

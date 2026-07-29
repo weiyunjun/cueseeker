@@ -1,5 +1,5 @@
 import AppKit
-import CueSeekerCore
+@testable import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
 import Testing
@@ -305,6 +305,65 @@ func playbackCommandPanelRootNavigatesAndOpensRecentPages() async throws {
             textInputState: editableInput
         ))
         #expect(app.playback.commandPanelPresentation?.page == .recentVideos)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelRecentVideosUsesFourVisualGridDirections() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let items = (0..<7).map(keyboardActionRecentVideo)
+        app.library.testRecentWatchingItems = items
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanel())
+
+        var presentation = try #require(
+            app.playback.commandPanelPresentation
+        )
+        presentation.page = .recentVideos
+        presentation.selectedOrdinal = 0
+        app.playback.presentCommandPanel(presentation)
+        app.updatePlaybackCommandPanelRecentVideoGridLayout(
+            columnCount: 3,
+            itemFramesByID: Dictionary(uniqueKeysWithValues: items.indices.map {
+                ordinal in
+                (
+                    items[ordinal].id,
+                    CGRect(
+                        x: CGFloat(ordinal % 3) * 200,
+                        y: CGFloat(ordinal / 3) * 300,
+                        width: 180,
+                        height: 260
+                    )
+                )
+            })
+        )
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 4)
+        #expect(app.handlePlaybackKeyDown(keyCode: 123, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 3)
+        #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 123, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
+        #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))
+        #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 2)
+        #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 2)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 5)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 6)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 6)
     }
 }
 
@@ -1003,6 +1062,30 @@ private func keyboardActionPlaylistSearchResult(
         cueLines: [content],
         cueGroupLines: [content],
         searchRank: 0
+    )
+}
+
+private func keyboardActionRecentVideo(
+    _ ordinal: Int
+) -> RecentLibraryWatchingPresentation {
+    RecentLibraryWatchingPresentation(
+        videoPath: "/Media/Show/Episode-\(ordinal).mkv",
+        videoName: "Episode-\(ordinal).mkv",
+        duration: 100,
+        subtitlePath: "/Media/Show/Episode-\(ordinal).srt",
+        subtitleFormat: .srt,
+        displayTitle: "Episode \(ordinal)",
+        fileExtension: "mkv",
+        folderPath: "/Media/Show",
+        folderTitle: "Show",
+        episodeNumber: ordinal + 1,
+        positionMilliseconds: ordinal * 1_000,
+        playbackDuration: 100,
+        startedAt: "2026-07-29T00:00:00Z",
+        completedAt: nil,
+        updatedAt: "2026-07-29T00:00:00Z",
+        coverPath: nil,
+        coverRevision: nil
     )
 }
 

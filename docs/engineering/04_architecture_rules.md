@@ -432,7 +432,11 @@ Workbench Recent overview, Workbench Recent detail, and Playback Command Panel
 render one Recent Watching card Grid and one Recent Shiori resume-row list.
 Preview versus complete data limits, Command Panel selection, and scrolling are
 host inputs to those shared components; they must not create parallel card or
-row implementations.
+row implementations. Command Panel Recent Videos keeps its ordinal as the only
+selection source and combines the current adaptive column count with visible
+card frames through the shared media-grid direction rule. Four-direction
+navigation must follow visual position without wrapping and must not introduce
+a second selection store.
 
 The Playback Multi-Module Overlay owns one strictly temporary Session with
 Current, optional Playlist, Search, Recent, Library, and Shiori. Module

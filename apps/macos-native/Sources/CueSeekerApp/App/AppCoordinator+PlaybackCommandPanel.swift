@@ -151,6 +151,49 @@ extension AppCoordinator {
         return true
     }
 
+    func updatePlaybackCommandPanelRecentVideoGridLayout(
+        columnCount: Int,
+        itemFramesByID: [String: CGRect]
+    ) {
+        playback.updateCommandPanelRecentVideoGridLayout(
+            columnCount: columnCount,
+            itemFramesByID: itemFramesByID
+        )
+    }
+
+    @discardableResult
+    func movePlaybackCommandPanelRecentVideoSelection(
+        _ direction: PlaybackMediaSelectionDirection
+    ) -> Bool {
+        guard var presentation = playback.commandPanelPresentation,
+              presentation.page == .recentVideos
+        else {
+            return false
+        }
+        let items = library.testRecentWatchingItems
+        guard let selectedOrdinal = presentation.selectedOrdinal,
+              items.indices.contains(selectedOrdinal)
+        else {
+            synchronizePlaybackCommandPanelSelection()
+            return true
+        }
+        let itemIDs = items.map(\.id)
+        guard let targetOrdinal = PlaybackMediaSelectionStore.targetIndex(
+            from: selectedOrdinal,
+            direction: direction,
+            orderedItemIDs: itemIDs,
+            availableItemIDs: Set(itemIDs),
+            columnCount: playback.commandPanelRecentVideoColumnCount,
+            itemFramesByID: playback.commandPanelRecentVideoItemFramesByID
+        ) else {
+            return true
+        }
+
+        presentation.selectedOrdinal = targetOrdinal
+        playback.presentCommandPanel(presentation)
+        return true
+    }
+
     func synchronizePlaybackCommandPanelSelection() {
         guard var presentation = playback.commandPanelPresentation else {
             return

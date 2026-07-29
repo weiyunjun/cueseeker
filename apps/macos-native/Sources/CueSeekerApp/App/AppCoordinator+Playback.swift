@@ -788,10 +788,22 @@ extension AppCoordinator {
                 return true
             }
             switch keyCode {
+            case 123 where commandPanel.page == .recentVideos:
+                _ = movePlaybackCommandPanelRecentVideoSelection(.left)
+            case 124 where commandPanel.page == .recentVideos:
+                _ = movePlaybackCommandPanelRecentVideoSelection(.right)
             case 126:
-                _ = movePlaybackCommandPanelSelection(-1)
+                if commandPanel.page == .recentVideos {
+                    _ = movePlaybackCommandPanelRecentVideoSelection(.up)
+                } else {
+                    _ = movePlaybackCommandPanelSelection(-1)
+                }
             case 125:
-                _ = movePlaybackCommandPanelSelection(1)
+                if commandPanel.page == .recentVideos {
+                    _ = movePlaybackCommandPanelRecentVideoSelection(.down)
+                } else {
+                    _ = movePlaybackCommandPanelSelection(1)
+                }
             case 1:
                 if commandPanel.page == .searchResults, !isRepeat {
                     _ = requestPlaybackCommandPanelSearchAction(.shiori)

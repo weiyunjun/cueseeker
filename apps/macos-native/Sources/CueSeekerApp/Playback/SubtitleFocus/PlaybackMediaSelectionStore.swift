@@ -121,9 +121,13 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         guard isActive,
               let selectedItemID,
               let selectedIndex = orderedItemIDs.firstIndex(of: selectedItemID),
-              let targetIndex = targetIndex(
+              let targetIndex = Self.targetIndex(
                   from: selectedIndex,
-                  direction: direction
+                  direction: direction,
+                  orderedItemIDs: orderedItemIDs,
+                  availableItemIDs: availableItemIDs,
+                  columnCount: columnCount,
+                  itemFramesByID: itemFramesByID
               )
         else {
             return false
@@ -226,19 +230,30 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         )
     }
 
-    private func targetIndex(
+    static func targetIndex(
         from selectedIndex: Int,
-        direction: PlaybackMediaSelectionDirection
+        direction: PlaybackMediaSelectionDirection,
+        orderedItemIDs: [String],
+        availableItemIDs: Set<String>,
+        columnCount: Int,
+        itemFramesByID: [String: CGRect]
     ) -> Int? {
+        guard orderedItemIDs.indices.contains(selectedIndex) else {
+            return nil
+        }
+        let resolvedColumnCount = max(1, columnCount)
         if let frameTarget = frameTargetIndex(
             from: selectedIndex,
-            direction: direction
+            direction: direction,
+            orderedItemIDs: orderedItemIDs,
+            availableItemIDs: availableItemIDs,
+            itemFramesByID: itemFramesByID
         ) {
             return frameTarget
         }
 
-        let selectedRow = selectedIndex / columnCount
-        let selectedColumn = selectedIndex % columnCount
+        let selectedRow = selectedIndex / resolvedColumnCount
+        let selectedColumn = selectedIndex % resolvedColumnCount
 
         let candidates = orderedItemIDs.indices.compactMap { index -> Candidate? in
             guard index != selectedIndex,
@@ -247,8 +262,8 @@ final class PlaybackMediaSelectionStore: ObservableObject {
                 return nil
             }
 
-            let row = index / columnCount
-            let column = index % columnCount
+            let row = index / resolvedColumnCount
+            let column = index % resolvedColumnCount
             let rowDistance = abs(row - selectedRow)
             let columnDistance = abs(column - selectedColumn)
 
@@ -298,9 +313,12 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         }?.index
     }
 
-    private func frameTargetIndex(
+    private static func frameTargetIndex(
         from selectedIndex: Int,
-        direction: PlaybackMediaSelectionDirection
+        direction: PlaybackMediaSelectionDirection,
+        orderedItemIDs: [String],
+        availableItemIDs: Set<String>,
+        itemFramesByID: [String: CGRect]
     ) -> Int? {
         let selectedID = orderedItemIDs[selectedIndex]
         guard let selectedFrame = itemFramesByID[selectedID] else {

@@ -1,4 +1,5 @@
 import Combine
+import CoreGraphics
 import CueSeekerCore
 import Foundation
 
@@ -71,6 +72,8 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
     @Published private(set) var commandPanelPresentation:
         PlaybackCommandPanelPresentation?
+    private(set) var commandPanelRecentVideoColumnCount = 1
+    private(set) var commandPanelRecentVideoItemFramesByID: [String: CGRect] = [:]
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
     private(set) var playbackSearchPlaylistOrdinal: Int?
     private(set) var playlistPosition: PlaybackPlaylistPosition?
@@ -136,15 +139,35 @@ final class PlaybackStore: ObservableObject {
     }
 
     func presentCommandPanel(_ presentation: PlaybackCommandPanelPresentation) {
+        if presentation.page != .recentVideos {
+            resetCommandPanelRecentVideoGridLayout()
+        }
         commandPanelPresentation = presentation
+    }
+
+    func updateCommandPanelRecentVideoGridLayout(
+        columnCount: Int,
+        itemFramesByID: [String: CGRect]
+    ) {
+        guard commandPanelPresentation?.page == .recentVideos else {
+            return
+        }
+        commandPanelRecentVideoColumnCount = max(1, columnCount)
+        commandPanelRecentVideoItemFramesByID = itemFramesByID
     }
 
     @discardableResult
     func dismissCommandPanel() -> PlaybackCommandPanelPresentation? {
         defer {
             commandPanelPresentation = nil
+            resetCommandPanelRecentVideoGridLayout()
         }
         return commandPanelPresentation
+    }
+
+    private func resetCommandPanelRecentVideoGridLayout() {
+        commandPanelRecentVideoColumnCount = 1
+        commandPanelRecentVideoItemFramesByID = [:]
     }
 
     func setPlaylistSource(
