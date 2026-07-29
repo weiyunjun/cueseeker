@@ -129,8 +129,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var availableModules: [PlaybackOverlayModule]
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
     @Published private(set) var isEditingCollage = false
-    @Published private(set) var collageSelectionPlan =
-        SubtitleCollageSelectionPlan()
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: SearchStore?
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
@@ -408,38 +406,15 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
         if isEditingCollage {
             isEditingCollage = false
-            collageSelectionPlan = SubtitleCollageSelectionPlan()
             return true
         }
 
-        guard selectedModule == .current,
-              let selectedCue = currentSnapshot?.selectedCue
-        else {
+        guard selectedModule == .current else {
             return false
         }
         prepareReelForModuleTransition()
-        collageSelectionPlan = (try? SubtitleCollageSelectionPlan(
-            selectedCues: [selectedCue]
-        )) ?? SubtitleCollageSelectionPlan()
         isEditingCollage = true
         return true
-    }
-
-    @discardableResult
-    func toggleCollageCueSelection(
-        _ cue: SubtitleFocusCue
-    ) -> SubtitleCollageSelectionMutation {
-        guard isSessionActive,
-              isEditingCollage,
-              self.cue(at: cue.ordinal) == cue
-        else {
-            return .unchanged
-        }
-
-        if collageSelectionPlan.contains(cueID: cue.id) {
-            return collageSelectionPlan.deselect(cueID: cue.id)
-        }
-        return collageSelectionPlan.select(cue)
     }
 
     func cue(at ordinal: Int) -> SubtitleFocusCue? {
@@ -1054,7 +1029,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         let wasPlaying = openSnapshot.wasPlaying
         isSessionActive = false
         isEditingCollage = false
-        collageSelectionPlan = SubtitleCollageSelectionPlan()
         pendingKeyboardAction = nil
         activeKeyboardAction = nil
         isScrollbarDragging = false

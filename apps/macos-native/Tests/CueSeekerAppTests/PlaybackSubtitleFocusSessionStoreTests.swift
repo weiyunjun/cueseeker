@@ -126,9 +126,6 @@ func playbackOverlayEditingCollageIsExclusiveToCurrent() throws {
 
     #expect(session.toggleEditingCollage())
     #expect(session.isEditingCollage)
-    #expect(session.collageSelectionPlan.selectedCues == [
-        focusPresentationSnapshot().selectedCue,
-    ].compactMap { $0 })
     #expect(session.keyboardNavigationRequest == nil)
     #expect(!session.selectModule(.playlist))
     #expect(!session.presentModule(.playlist))
@@ -137,64 +134,12 @@ func playbackOverlayEditingCollageIsExclusiveToCurrent() throws {
 
     #expect(session.toggleEditingCollage())
     #expect(!session.isEditingCollage)
-    #expect(session.collageSelectionPlan.selectedCueCount == 0)
     #expect(session.selectModule(.playlist))
     #expect(!session.toggleEditingCollage())
     #expect(session.selectModule(.current))
     #expect(session.toggleEditingCollage())
     #expect(session.dismissByUser() == false)
     #expect(!session.isEditingCollage)
-    #expect(session.collageSelectionPlan.selectedCueCount == 0)
-}
-
-@MainActor
-@Test
-func playbackOverlayCollageSelectionEnforcesLimitAndAllowsDeselection() throws {
-    let cues = focusCues(0..<51)
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: focusOpenSnapshot(wasPlaying: false),
-        sessionGeneration: 1
-    )
-    let initial = SubtitleFocusSnapshot(
-        totalCount: cues.count,
-        selectedOrdinal: 6,
-        cues: Array(cues[0..<10])
-    )
-    #expect(session.publishInitialSnapshot(initial, token: session.token))
-    #expect(session.publishCompleteCueBatch(
-        SubtitleFocusCueBatch(totalCount: cues.count, cues: cues),
-        token: session.token
-    ))
-    #expect(session.toggleEditingCollage())
-    #expect(session.collageSelectionPlan.selectedCues == [cues[6]])
-
-    for cue in cues where cue.id != cues[6].id {
-        guard session.collageSelectionPlan.selectedCueCount
-                < SubtitleCollageSelectionPlan.maximumSelectedCueCount
-        else {
-            break
-        }
-        guard case .changed = session.toggleCollageCueSelection(cue) else {
-            Issue.record("Expected cue selection to change")
-            return
-        }
-    }
-
-    #expect(
-        session.collageSelectionPlan.selectedCueCount
-            == SubtitleCollageSelectionPlan.maximumSelectedCueCount
-    )
-    let unselectedCue = try #require(cues.first {
-        !session.collageSelectionPlan.contains(cueID: $0.id)
-    })
-    #expect(
-        session.toggleCollageCueSelection(unselectedCue)
-            == .selectionLimitReached
-    )
-    #expect(session.toggleCollageCueSelection(cues[6]) != .unchanged)
-    #expect(session.collageSelectionPlan.selectedCueCount == 49)
-    #expect(session.toggleCollageCueSelection(unselectedCue) != .unchanged)
-    #expect(session.collageSelectionPlan.selectedCueCount == 50)
 }
 
 @MainActor
