@@ -36,11 +36,12 @@ extension AppCoordinator {
             subtitlePath: URL(fileURLWithPath: subtitlePath).standardizedFileURL.path,
             subtitleFormat: subtitleFormat
         )
+        let timestampMilliseconds = Int(
+            max(0, playbackViewModel.currentTime * 1_000).rounded(.down)
+        )
         let openSnapshot = PlaybackSubtitleFocusOpenSnapshot(
             source: source,
-            timestampMilliseconds: Int(
-                max(0, playbackViewModel.currentTime * 1_000).rounded(.down)
-            ),
+            timestampMilliseconds: timestampMilliseconds,
             wasPlaying: playbackViewModel.isPlaying,
             videoPresentation: try? libraryDatabase?
                 .completeLibraryFolderDetail(
@@ -49,7 +50,14 @@ extension AppCoordinator {
                         .standardizedFileURL.path
                 )?
                 .videos
-                .first { $0.videoPath == source.videoPath }
+                .first { $0.videoPath == source.videoPath },
+            subtitleRenderSource: playbackSubtitleSource(
+                forSubtitleFile: URL(fileURLWithPath: source.subtitlePath),
+                format: source.subtitleFormat,
+                videoPath: source.videoPath,
+                startingAtMilliseconds: timestampMilliseconds,
+                fallbackEndMilliseconds: timestampMilliseconds
+            )
         )
         let libraryStore: PlaybackLibrarySessionStore?
         if case .library = activePlaybackSource {

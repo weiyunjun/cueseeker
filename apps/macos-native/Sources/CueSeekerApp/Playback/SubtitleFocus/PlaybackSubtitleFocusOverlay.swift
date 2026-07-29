@@ -1,4 +1,5 @@
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 import SwiftUI
 
@@ -78,12 +79,15 @@ struct PlaybackOverlay: View {
     private var moduleContent: some View {
         if session.selectedModule == .current {
             if session.isEditingCollage {
-                HStack(spacing: 0) {
-                    PlaybackTheme.subtitleFocusOverlayBackground
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-
+                PlaybackCollageEditor(
+                    plan: session.collageSelectionPlan,
+                    videoURL: URL(
+                        fileURLWithPath: session.openSnapshot.source.videoPath
+                    ),
+                    subtitleSource: collageSubtitleSource,
+                    uiProbeScope: uiProbeScope
+                ) {
                     currentSubtitleOverlay
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
                 currentSubtitleOverlay
@@ -150,6 +154,110 @@ struct PlaybackOverlay: View {
             ?? URL(fileURLWithPath: session.openSnapshot.source.videoPath)
                 .deletingPathExtension()
                 .lastPathComponent
+    }
+
+    private var collageSubtitleSource: PlaybackSubtitleSource {
+        if let subtitleRenderSource = session.openSnapshot.subtitleRenderSource {
+            return subtitleRenderSource
+        }
+        let source = session.openSnapshot.source
+        return PlaybackSubtitleSource(
+            url: URL(fileURLWithPath: source.subtitlePath),
+            format: source.subtitleFormat == .ass ? .ass : .srt,
+            matchedVideoURL: URL(fileURLWithPath: source.videoPath),
+            initialTimestampMilliseconds:
+                session.openSnapshot.timestampMilliseconds
+        )
+    }
+}
+
+enum PlaybackCollageEditorLayout {
+    static func columnWidth(totalWidth: CGFloat) -> CGFloat {
+        max(0, totalWidth / 2)
+    }
+}
+
+private struct PlaybackCollageEditor<SubtitleContent: View>: View {
+    let plan: SubtitleCollageSelectionPlan
+    let videoURL: URL
+    let subtitleSource: PlaybackSubtitleSource
+    let uiProbeScope: String?
+    let subtitleContent: SubtitleContent
+
+    init(
+        plan: SubtitleCollageSelectionPlan,
+        videoURL: URL,
+        subtitleSource: PlaybackSubtitleSource,
+        uiProbeScope: String?,
+        @ViewBuilder subtitleContent: () -> SubtitleContent
+    ) {
+        self.plan = plan
+        self.videoURL = videoURL
+        self.subtitleSource = subtitleSource
+        self.uiProbeScope = uiProbeScope
+        self.subtitleContent = subtitleContent()
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let columnWidth = PlaybackCollageEditorLayout.columnWidth(
+                totalWidth: geometry.size.width
+            )
+            HStack(spacing: 0) {
+                PlaybackCollagePreviewHost(
+                    plan: plan,
+                    videoURL: videoURL,
+                    subtitleSource: subtitleSource,
+                    uiProbeScope: uiProbeScope
+                )
+                .frame(width: columnWidth, height: geometry.size.height)
+
+                subtitleContent
+                    .frame(width: columnWidth, height: geometry.size.height)
+            }
+            .frame(
+                width: geometry.size.width,
+                height: geometry.size.height,
+                alignment: .leading
+            )
+        }
+    }
+}
+
+private struct PlaybackCollagePreviewHost: View {
+    let plan: SubtitleCollageSelectionPlan
+    let uiProbeScope: String?
+
+    @StateObject private var previewStore: PlaybackCollagePreviewStore
+
+    init(
+        plan: SubtitleCollageSelectionPlan,
+        videoURL: URL,
+        subtitleSource: PlaybackSubtitleSource,
+        uiProbeScope: String?
+    ) {
+        self.plan = plan
+        self.uiProbeScope = uiProbeScope
+        _previewStore = StateObject(wrappedValue: PlaybackCollagePreviewStore(
+            videoURL: videoURL,
+            subtitleSource: subtitleSource
+        ))
+    }
+
+    var body: some View {
+        PlaybackCollagePreviewPane(
+            store: previewStore,
+            uiProbeScope: uiProbeScope
+        )
+        .onAppear {
+            previewStore.update(plan: plan)
+        }
+        .onChange(of: plan) { nextPlan in
+            previewStore.update(plan: nextPlan)
+        }
+        .onDisappear {
+            previewStore.invalidate()
+        }
     }
 }
 

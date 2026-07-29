@@ -1,5 +1,6 @@
 import Combine
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 
 struct PlaybackSubtitleFocusOpenSnapshot: Equatable, Sendable {
@@ -7,17 +8,20 @@ struct PlaybackSubtitleFocusOpenSnapshot: Equatable, Sendable {
     let timestampMilliseconds: Int
     let wasPlaying: Bool
     let videoPresentation: CompleteLibraryVideoPresentation?
+    let subtitleRenderSource: PlaybackSubtitleSource?
 
     init(
         source: SubtitleFocusSourceIdentity,
         timestampMilliseconds: Int,
         wasPlaying: Bool,
-        videoPresentation: CompleteLibraryVideoPresentation? = nil
+        videoPresentation: CompleteLibraryVideoPresentation? = nil,
+        subtitleRenderSource: PlaybackSubtitleSource? = nil
     ) {
         self.source = source
         self.timestampMilliseconds = max(0, timestampMilliseconds)
         self.wasPlaying = wasPlaying
         self.videoPresentation = videoPresentation
+        self.subtitleRenderSource = subtitleRenderSource
     }
 }
 

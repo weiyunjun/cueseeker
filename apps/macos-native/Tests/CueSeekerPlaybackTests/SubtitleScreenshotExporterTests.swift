@@ -250,6 +250,16 @@ func subtitleCollageCompositionKeepsFirstFrameAndCropsLaterSubtitleBands() throw
 
     #expect(collage.width == 20)
     #expect(collage.height == 15)
+
+    let reusableCollage = try SubtitleScreenshotExporter.composeCollage([
+        SubtitleCollageRenderedGroup(image: first, subtitleBands: []),
+        SubtitleCollageRenderedGroup(
+            image: second,
+            subtitleBands: [2...4, 7...8]
+        ),
+    ])
+    #expect(reusableCollage.width == collage.width)
+    #expect(reusableCollage.height == collage.height)
 }
 
 private func subtitleScreenshotTestItem(

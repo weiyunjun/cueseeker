@@ -42,6 +42,19 @@ public struct SubtitleScreenshotExportItem: Equatable, Sendable {
     }
 }
 
+public struct SubtitleCollageRenderedGroup: @unchecked Sendable {
+    let image: CGImage
+    let subtitleBands: [ClosedRange<Int>]
+
+    public init(
+        image: CGImage,
+        subtitleBands: [ClosedRange<Int>]
+    ) {
+        self.image = image
+        self.subtitleBands = subtitleBands
+    }
+}
+
 public enum SubtitleScreenshotExportError: Error, CustomStringConvertible {
     case emptyItems
     case ffmpegNotFound
@@ -237,6 +250,23 @@ public enum SubtitleScreenshotExporter {
         guard plan.selectedCueCount > 0, !plan.groups.isEmpty else {
             throw SubtitleScreenshotExportError.emptyItems
         }
+
+        let renderedGroups = try await renderCollageGroups(
+            plan.groups,
+            videoURL: videoURL,
+            subtitleSource: subtitleSource
+        )
+        return try composeCollage(renderedGroups)
+    }
+
+    public static func renderCollageGroups(
+        _ groups: [SubtitleCollageGroup],
+        videoURL: URL,
+        subtitleSource: PlaybackSubtitleSource
+    ) async throws -> [SubtitleCollageRenderedGroup] {
+        guard !groups.isEmpty else {
+            return []
+        }
         guard let ffmpegURL = ffmpegExecutableURL() else {
             throw SubtitleScreenshotExportError.ffmpegNotFound
         }
@@ -257,10 +287,11 @@ public enum SubtitleScreenshotExporter {
         let assSourceScript = subtitleSource.format == .ass
             ? try String(contentsOf: subtitleSource.url)
             : nil
-        var renderedFrames: [RenderedSubtitleFrame] = []
-        renderedFrames.reserveCapacity(plan.groups.count)
+        var renderedGroups: [SubtitleCollageRenderedGroup] = []
+        renderedGroups.reserveCapacity(groups.count)
 
-        for group in plan.groups {
+        for group in groups {
+            try Task.checkCancellation()
             let timestampMilliseconds = group.renderTimestampMilliseconds
             let frameImage = try await videoFrame(
                 videoPath: videoURL.path,
@@ -268,17 +299,36 @@ public enum SubtitleScreenshotExporter {
                 ffmpegURL: ffmpegURL,
                 workspaceURL: workspaceURL
             )
-            renderedFrames.append(
-                try renderSelectedSubtitleFrame(
-                    group: group,
-                    source: subtitleSource,
-                    sourceScript: assSourceScript,
-                    timestampMilliseconds: timestampMilliseconds,
-                    frameImage: frameImage
-                )
+            try Task.checkCancellation()
+            let renderedFrame = try renderSelectedSubtitleFrame(
+                group: group,
+                source: subtitleSource,
+                sourceScript: assSourceScript,
+                timestampMilliseconds: timestampMilliseconds,
+                frameImage: frameImage
             )
+            renderedGroups.append(SubtitleCollageRenderedGroup(
+                image: renderedFrame.image,
+                subtitleBands: renderedFrame.subtitleBands.map {
+                    $0.y1...$0.y2
+                }
+            ))
         }
 
+        return renderedGroups
+    }
+
+    public static func composeCollage(
+        _ renderedGroups: [SubtitleCollageRenderedGroup]
+    ) throws -> CGImage {
+        let renderedFrames = renderedGroups.map { group in
+            RenderedSubtitleFrame(
+                image: group.image,
+                subtitleBands: group.subtitleBands.map {
+                    SubtitleBand(y1: $0.lowerBound, y2: $0.upperBound)
+                }
+            )
+        }
         guard let collage = collageImage(from: renderedFrames) else {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
