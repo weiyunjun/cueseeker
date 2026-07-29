@@ -55,3 +55,54 @@ Playback Current、Playback Cue Playlist和Command Panel Search的所有字幕�
 
 ## 8. 全界面回归与冗余清理
 完整验收本需求涉及的全部界面，确认共享组件、选择状态、键盘操作、滚动、播放和返回行为一致，并删除本次改动替代掉的重复实现。
+
+# UI文档改动
+
+- Core Tokens：
+  - 增加 Playback Cue Information Badge 的固定高度 Token：`23px`。
+  - 增加 Selected 与 Unselected Badge 的独立中性灰色配色 Token。
+  - 删除 Playback Playlist 独立序号区域相关的颜色和宽度 Token。
+
+- Shiori Tags：
+  - 删除 Shiori Tag、Tag Composer Field、Tag Popover、Tags Column 及相关交互规则。
+  - Chip / Tag 仅保留只读 Language Tag 语义。
+  - 更新表格文字选择、Cursor、Context Menu 和 Row Action 规则，移除 Shiori Tag 相关内容。
+
+- Workbench Search 与 Shiori：
+  - Search 与 Shiori 复用相同的 Search Box、输入即搜索和 Result Count Text。
+  - Query 只匹配 Primary Cue，不匹配 Display Title 或 Additional Cues。
+  - Enter 不用于提交搜索。
+  - Primary Cue 位于上方，Additional Cues 位于下方。
+  - Shiori Table 删除 Tags Column。
+
+- Library 与 Shiori Overview：
+  - 增加共享的 Library / Shiori Overview Layout、Adaptive Media Card Grid 和 Card Structure。
+  - Library 一级显示 Folder、Video、Subtitle 统计。
+  - Library 增加 `Add Content`，打开 Settings 的 Library 分类。
+  - Library Folder Card 与 Shiori List Card 共享结构，Shiori List Card 额外显示 Description。
+  - Workbench Library Folder Detail 与 Playback 视频型 Playlist 复用 Library Episode Grid 和 Card Layout，仅保留选择行为差异。
+
+- Recent：
+  - Workbench Recent 预览、完整二级页和 Command Panel 复用相同的 Recent Videos Card Grid 与 Recent Shiori Resume Row List。
+  - Workbench Recent Videos 不建立持久选择，也不支持键盘导航。
+  - Command Panel Recent Videos 使用视频卡片布局，支持符合实际 Grid 位置的上下左右键导航。
+  - 方向键到达边界时不循环，Selected Card 始终滚动到可见区域。
+
+- Playback Current 与 Cue Playlist：
+  - 删除 Current 和字幕型 Playlist 左侧的 Context Region、Library Cover 和视频识别区域。
+  - 删除 Cue Playlist 独立 Sequence Number 区域。
+  - Primary Cue 位于上方，Cue Group 位于下方。
+  - Current 始终不显示 Cue Group。
+  - Current 每条 Cue 显示 Display Title、Time Range 两个独立 Badge。
+  - Cue Playlist 每条 Result 显示 `[x/y]`、Display Title、Time Range 三个独立 Badge。
+  - Selected 和 Unselected 显示相同的 Badge 内容、数量和固定高度，仅配色不同。
+  - Badge 使用 Playback 专用中性灰色，不复用 Watch Status Badge 或其 Token。
+  - Selection 变化不改变 Cue 或 Result 的 Natural Height 和 Reel Geometry。
+
+- Command Panel Search：
+  - 删除左侧 Context Region、Library Cover 和独立 Result Row。
+  - 复用 Playback Cue Result Reel 的布局、选择、滚动和键盘操作。
+  - 默认选择第一条 Result。
+  - 每条 Result 显示信息 Badge，并在 Show Cue Group 开启时于 Primary Cue 下方显示 Cue Group。
+  - 保留最多 `50` 条结果预览。
+  - `[x/y]` 使用完整搜索结果数量；Enter 使用完整结果集合建立 Playlist。
