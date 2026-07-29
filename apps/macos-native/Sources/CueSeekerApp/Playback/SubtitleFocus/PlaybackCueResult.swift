@@ -119,6 +119,117 @@ struct PlaybackCueInformationBadgePlan: Equatable {
     let frame: CGRect
 }
 
+@MainActor
+enum PlaybackCueInformationBadgeLayout {
+    static func makePlans(
+        texts: [String],
+        width: CGFloat
+    ) -> [PlaybackCueInformationBadgePlan] {
+        let resolvedTexts = texts.filter {
+            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !resolvedTexts.isEmpty, width > 0 else {
+            return []
+        }
+        let horizontalPadding = PlaybackSubtitleFocusMetrics
+            .informationBadgeHorizontalPadding
+        let gap = PlaybackSubtitleFocusMetrics.informationBadgeGap
+        let rowHeight = PlaybackSubtitleFocusMetrics.informationBadgeRowHeight
+        let availableBadgeWidth = max(
+            0,
+            width - CGFloat(resolvedTexts.count - 1) * gap
+        )
+        let desiredWidths = resolvedTexts.map { text in
+            ceil((text as NSString).size(withAttributes: [
+                .font: font,
+            ]).width) + horizontalPadding * 2
+        }
+        let minimumWidth = min(
+            horizontalPadding * 2 + 1,
+            availableBadgeWidth / CGFloat(resolvedTexts.count)
+        )
+        let flexibleTotal = desiredWidths.reduce(0) {
+            $0 + max(0, $1 - minimumWidth)
+        }
+        let availableFlexibleWidth = max(
+            0,
+            availableBadgeWidth
+                - minimumWidth * CGFloat(resolvedTexts.count)
+        )
+        let scale = flexibleTotal > 0
+            ? min(1, availableFlexibleWidth / flexibleTotal)
+            : 0
+        var nextX: CGFloat = 0
+        return zip(resolvedTexts, desiredWidths).map { text, desiredWidth in
+            let badgeWidth = minimumWidth
+                + max(0, desiredWidth - minimumWidth) * scale
+            defer { nextX += badgeWidth + gap }
+            return PlaybackCueInformationBadgePlan(
+                text: text,
+                frame: CGRect(
+                    x: nextX,
+                    y: 0,
+                    width: badgeWidth,
+                    height: rowHeight
+                )
+            )
+        }
+    }
+
+    static func draw(
+        _ plans: [PlaybackCueInformationBadgePlan],
+        in resultRect: CGRect
+    ) {
+        guard !plans.isEmpty else {
+            return
+        }
+        let horizontalPadding = PlaybackSubtitleFocusMetrics
+            .informationBadgeHorizontalPadding
+        let verticalPadding = PlaybackSubtitleFocusMetrics
+            .informationBadgeVerticalPadding
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byTruncatingTail
+
+        for plan in plans {
+            let frame = plan.frame.offsetBy(
+                dx: resultRect.minX,
+                dy: resultRect.minY
+                    + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+            )
+            guard frame.width > 0, frame.height > 0 else {
+                continue
+            }
+            WorkbenchRedesignColors.NS.bgHover.setFill()
+            NSBezierPath(
+                roundedRect: frame,
+                xRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius,
+                yRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius
+            ).fill()
+            NSAttributedString(
+                string: plan.text,
+                attributes: [
+                    .font: font,
+                    .foregroundColor: WorkbenchRedesignColors.NS.textSecondary,
+                    .paragraphStyle: paragraphStyle,
+                ]
+            ).draw(
+                with: frame.insetBy(
+                    dx: horizontalPadding,
+                    dy: verticalPadding
+                ),
+                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
+            )
+        }
+    }
+
+    private static var font: NSFont {
+        NSFont.systemFont(
+            ofSize: PlaybackSubtitleFocusMetrics.informationBadgeFontSize,
+            weight: .semibold
+        )
+    }
+}
+
 struct PlaybackCueResultLayoutPlan {
     let itemID: AnyHashable
     let primaryCueIdentity: AnyHashable
@@ -245,7 +356,7 @@ final class PlaybackCueResultLayout {
             )
         }
         let informationBadges = isSelected
-            ? makeInformationBadges(
+            ? PlaybackCueInformationBadgeLayout.makePlans(
                 texts: result.informationBadges,
                 width: safeWidth
             )
@@ -290,113 +401,11 @@ final class PlaybackCueResultLayout {
         guard let plan else {
             return
         }
-        drawInformationBadges(plan, in: resultRect)
-        visualLineLayout.drawPreparedPlan(in: plan.cueTextRect(in: resultRect))
-    }
-
-    private func makeInformationBadges(
-        texts: [String],
-        width: CGFloat
-    ) -> [PlaybackCueInformationBadgePlan] {
-        let resolvedTexts = texts.filter {
-            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        guard !resolvedTexts.isEmpty, width > 0 else {
-            return []
-        }
-        let font = informationBadgeFont
-        let horizontalPadding = PlaybackSubtitleFocusMetrics
-            .informationBadgeHorizontalPadding
-        let gap = PlaybackSubtitleFocusMetrics.informationBadgeGap
-        let rowHeight = PlaybackSubtitleFocusMetrics.informationBadgeRowHeight
-        let availableBadgeWidth = max(
-            0,
-            width - CGFloat(resolvedTexts.count - 1) * gap
-        )
-        let desiredWidths = resolvedTexts.map { text in
-            ceil((text as NSString).size(withAttributes: [
-                .font: font,
-            ]).width) + horizontalPadding * 2
-        }
-        let minimumWidth = min(
-            horizontalPadding * 2 + 1,
-            availableBadgeWidth / CGFloat(resolvedTexts.count)
-        )
-        let flexibleTotal = desiredWidths.reduce(0) {
-            $0 + max(0, $1 - minimumWidth)
-        }
-        let availableFlexibleWidth = max(
-            0,
-            availableBadgeWidth
-                - minimumWidth * CGFloat(resolvedTexts.count)
-        )
-        let scale = flexibleTotal > 0
-            ? min(1, availableFlexibleWidth / flexibleTotal)
-            : 0
-        var nextX: CGFloat = 0
-        return zip(resolvedTexts, desiredWidths).map { text, desiredWidth in
-            let badgeWidth = minimumWidth
-                + max(0, desiredWidth - minimumWidth) * scale
-            defer { nextX += badgeWidth + gap }
-            return PlaybackCueInformationBadgePlan(
-                text: text,
-                frame: CGRect(
-                    x: nextX,
-                    y: 0,
-                    width: badgeWidth,
-                    height: rowHeight
-                )
-            )
-        }
-    }
-
-    private func drawInformationBadges(
-        _ plan: PlaybackCueResultLayoutPlan,
-        in resultRect: CGRect
-    ) {
-        let font = informationBadgeFont
-        let horizontalPadding = PlaybackSubtitleFocusMetrics
-            .informationBadgeHorizontalPadding
-        let verticalPadding = PlaybackSubtitleFocusMetrics
-            .informationBadgeVerticalPadding
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.lineBreakMode = .byTruncatingTail
-
-        for (badge, frame) in zip(
+        PlaybackCueInformationBadgeLayout.draw(
             plan.informationBadges,
-            plan.informationBadgeRects(in: resultRect)
-        ) {
-            guard frame.width > 0, frame.height > 0 else {
-                continue
-            }
-            WorkbenchRedesignColors.NS.bgHover.setFill()
-            NSBezierPath(
-                roundedRect: frame,
-                xRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius,
-                yRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius
-            ).fill()
-            NSAttributedString(
-                string: badge.text,
-                attributes: [
-                    .font: font,
-                    .foregroundColor: WorkbenchRedesignColors.NS.textSecondary,
-                    .paragraphStyle: paragraphStyle,
-                ]
-            ).draw(
-                with: frame.insetBy(
-                    dx: horizontalPadding,
-                    dy: verticalPadding
-                ),
-                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
-            )
-        }
-    }
-
-    private var informationBadgeFont: NSFont {
-        NSFont.systemFont(
-            ofSize: PlaybackSubtitleFocusMetrics.informationBadgeFontSize,
-            weight: .semibold
+            in: resultRect
         )
+        visualLineLayout.drawPreparedPlan(in: plan.cueTextRect(in: resultRect))
     }
 }
 

@@ -524,25 +524,32 @@ final class PlaybackVisualLineStackLayout {
 
 @MainActor
 final class PlaybackSubtitleFocusCueTextMeasurer {
-    private let cueLayout = PlaybackCueResultLayout()
+    private let visualLineLayout = PlaybackVisualLineStackLayout()
 
     func measurement(
         text: String,
         width: CGFloat,
         viewportHeight: CGFloat
     ) -> PlaybackSubtitleFocusCueMeasurement {
-        cueLayout.prepare(
-            result: PlaybackCueResult(
-                itemID: AnyHashable("measurement"),
-                primaryCueIdentity: AnyHashable("measurement"),
-                primaryCueText: text
-            ),
-            showsCueGroup: false,
-            isSelected: false,
-            width: width,
-            viewportHeight: viewportHeight
+        let plan = visualLineLayout.prepare(
+            text: text,
+            color: .white,
+            width: width
         )
-        .extent
+        let naturalHeight = max(
+            PlaybackSubtitleFocusMetrics.minimumNaturalCueHeight,
+            plan.resolvedContentHeight
+                + PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
+        )
+        let safeViewportHeight = max(0, viewportHeight)
+        return PlaybackSubtitleFocusCueMeasurement(
+            visualLineCount: plan.visualLineCount,
+            visualLineStackHeight: plan.stackHeight,
+            resolvedContentHeight: plan.resolvedContentHeight,
+            naturalHeight: naturalHeight,
+            resolvedHeight: min(naturalHeight, safeViewportHeight),
+            isOversized: naturalHeight > safeViewportHeight
+        )
     }
 
 }
@@ -687,6 +694,94 @@ struct PlaybackVirtualReelItemPlacement: Equatable {
 typealias PlaybackSubtitleFocusCuePlacement = PlaybackVirtualReelItemPlacement
 
 @MainActor
+private final class PlaybackSubtitleFocusCueMeasurementCache {
+    private struct Key: Hashable {
+        let cueID: Int64
+        let text: String
+        let width: CGFloat
+        let viewportHeight: CGFloat
+        let styleRevision: Int
+    }
+
+    private struct Entry {
+        let measurement: PlaybackSubtitleFocusCueMeasurement
+        let ordinal: Int
+        var lastAccess: UInt64
+    }
+
+    private let capacity: Int
+    private let measurer = PlaybackSubtitleFocusCueTextMeasurer()
+    private var entries: [Key: Entry] = [:]
+    private var accessSequence: UInt64 = 0
+    private(set) var measurementCount = 0
+
+    init(capacity: Int = 64) {
+        self.capacity = max(1, capacity)
+    }
+
+    var count: Int {
+        entries.count
+    }
+
+    var measuredOrdinals: Set<Int> {
+        Set(entries.values.map(\.ordinal))
+    }
+
+    func measurement(
+        for cue: SubtitleFocusCue,
+        width: CGFloat,
+        viewportHeight: CGFloat,
+        uiProbeScope: String? = nil
+    ) -> PlaybackSubtitleFocusCueMeasurement {
+        accessSequence &+= 1
+        let key = Key(
+            cueID: cue.id,
+            text: cue.text,
+            width: width,
+            viewportHeight: viewportHeight,
+            styleRevision: 2
+        )
+        if var entry = entries[key] {
+            entry.lastAccess = accessSequence
+            entries[key] = entry
+            return entry.measurement
+        }
+
+        let measurement = measurer.measurement(
+            text: cue.text,
+            width: width,
+            viewportHeight: viewportHeight
+        )
+        measurementCount += 1
+        UIInvalidationProbe.count(
+            "playback.subtitle_focus.cue_measurement",
+            scope: uiProbeScope,
+            details: "ordinal=\(cue.ordinal)"
+        )
+        entries[key] = Entry(
+            measurement: measurement,
+            ordinal: cue.ordinal,
+            lastAccess: accessSequence
+        )
+        evictIfNeeded()
+        return measurement
+    }
+
+    func removeAll() {
+        entries.removeAll(keepingCapacity: true)
+    }
+
+    private func evictIfNeeded() {
+        while entries.count > capacity,
+              let oldest = entries.min(by: {
+                  $0.value.lastAccess < $1.value.lastAccess
+              })?.key {
+            entries.removeValue(forKey: oldest)
+        }
+    }
+}
+
+@MainActor
 final class PlaybackSubtitleFocusCueReelAdapter:
     PlaybackVirtualReelContentAdapter
 {
@@ -712,16 +807,35 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         }
     }
 
+    private struct InformationBadgeKey: Equatable {
+        let cueID: Int64
+        let displayTitle: String
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+    }
+
+    private struct InformationBadgeTextCache {
+        let key: InformationBadgeKey
+        let texts: [String]
+    }
+
+    private struct InformationBadgePlanCache {
+        let key: InformationBadgeKey
+        let width: CGFloat
+        let plans: [PlaybackCueInformationBadgePlan]
+    }
+
     private let datasetID = AnyHashable("current")
-    private let measurementCache = PlaybackCueResultMeasurementCache()
-    private let cueLayout = PlaybackCueResultLayout()
+    private let measurementCache = PlaybackSubtitleFocusCueMeasurementCache()
+    private let textLayout = PlaybackSubtitleFocusNativeTextLayout()
     private var cues: [SubtitleFocusCue] = []
     private var firstLoadedOrdinal = 0
     private var signature: SnapshotSignature?
     private var revision: UInt64 = 0
     private var displayTitle = ""
-    private var measurementAccessSequence: UInt64 = 0
-    private var measuredOrdinalAccess: [Int: UInt64] = [:]
+    private var informationBadgeTextCache: InformationBadgeTextCache?
+    private var informationBadgePlanCache: InformationBadgePlanCache?
+    private(set) var informationBadgePlanPreparationCountForTesting = 0
     private(set) var snapshot = PlaybackVirtualReelSnapshot(
         datasetID: AnyHashable("current"),
         generation: 0,
@@ -737,7 +851,11 @@ final class PlaybackSubtitleFocusCueReelAdapter:
     }
 
     var measuredOrdinalsForTesting: Set<Int> {
-        Set(measuredOrdinalAccess.keys)
+        measurementCache.measuredOrdinals
+    }
+
+    var measurementCountForTesting: Int {
+        measurementCache.measurementCount
     }
 
     func update(
@@ -794,38 +912,49 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         guard let cue = cue(at: ordinal) else {
             return nil
         }
-        recordMeasuredOrdinal(ordinal)
-        let measurementCount = measurementCache.measurementCount
-        let extent = measurementCache.extent(
-            for: cueResult(for: cue),
-            showsCueGroup: false,
-            isSelected: isSelected,
+        let baseMeasurement = measurementCache.measurement(
+            for: cue,
             width: contentWidth,
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope
         )
-        if measurementCache.measurementCount > measurementCount {
-            UIInvalidationProbe.count(
-                "playback.subtitle_focus.cue_measurement",
-                scope: uiProbeScope,
-                details: "ordinal=\(ordinal)"
-            )
+        guard isSelected, !displayTitle.isEmpty else {
+            return baseMeasurement
         }
-        return extent
+        return addingSelectedInformationHeight(
+            to: baseMeasurement,
+            viewportHeight: viewportHeight
+        )
     }
 
     func drawItem(at ordinal: Int, isSelected: Bool, in rect: CGRect) {
         guard let cue = cue(at: ordinal) else {
             return
         }
-        cueLayout.prepare(
-            result: cueResult(for: cue),
-            showsCueGroup: false,
-            isSelected: isSelected,
-            width: rect.width,
-            viewportHeight: rect.height
+        let badgePlans = isSelected
+            ? informationBadgePlans(for: cue, width: rect.width)
+            : []
+        PlaybackCueInformationBadgeLayout.draw(badgePlans, in: rect)
+        let textRect = badgePlans.isEmpty
+            ? rect
+            : CGRect(
+                x: rect.minX,
+                y: rect.minY
+                    + PlaybackSubtitleFocusMetrics.selectedInformationHeight,
+                width: rect.width,
+                height: max(
+                    0,
+                    rect.height
+                        - PlaybackSubtitleFocusMetrics.selectedInformationHeight
+                )
+            )
+        textLayout.draw(
+            text: cue.text,
+            color: isSelected
+                ? PlaybackTheme.subtitleFocusCueSelectedNative
+                : PlaybackTheme.subtitleFocusCueUnselectedNative,
+            in: textRect
         )
-        cueLayout.drawPreparedPlan(in: rect)
     }
 
     func invalidate() {
@@ -833,16 +962,27 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         firstLoadedOrdinal = 0
         signature = nil
         displayTitle = ""
+        informationBadgeTextCache = nil
+        informationBadgePlanCache = nil
+        informationBadgePlanPreparationCountForTesting = 0
         invalidateMeasurements()
     }
 
     func invalidateMeasurements() {
         measurementCache.removeAll()
-        measuredOrdinalAccess.removeAll(keepingCapacity: true)
     }
 
-    func cueResult(at ordinal: Int) -> PlaybackCueResult? {
-        cue(at: ordinal).map(cueResult(for:))
+    func informationBadges(at ordinal: Int) -> [String]? {
+        cue(at: ordinal).map(informationBadges(for:))
+    }
+
+    func informationBadgePlans(
+        at ordinal: Int,
+        width: CGFloat
+    ) -> [PlaybackCueInformationBadgePlan]? {
+        cue(at: ordinal).map {
+            informationBadgePlans(for: $0, width: width)
+        }
     }
 
     private func cue(at ordinal: Int) -> SubtitleFocusCue? {
@@ -853,32 +993,80 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         return cues[index]
     }
 
-    private func cueResult(for cue: SubtitleFocusCue) -> PlaybackCueResult {
-        PlaybackCueResult(
-            itemID: AnyHashable(cue.id),
-            primaryCueIdentity: AnyHashable(cue.id),
-            primaryCueText: cue.text,
-            informationBadges: displayTitle.isEmpty
-                ? []
-                : [
-                    displayTitle,
-                    PlaybackCueInformationText.timeRange(
-                        startMilliseconds: cue.startMilliseconds,
-                        endMilliseconds: cue.endMilliseconds
-                    ),
-                ]
+    private func informationBadges(for cue: SubtitleFocusCue) -> [String] {
+        guard !displayTitle.isEmpty else {
+            return []
+        }
+        let key = informationBadgeKey(for: cue)
+        if let informationBadgeTextCache,
+           informationBadgeTextCache.key == key {
+            return informationBadgeTextCache.texts
+        }
+        let texts = [
+            displayTitle,
+            PlaybackCueInformationText.timeRange(
+                startMilliseconds: cue.startMilliseconds,
+                endMilliseconds: cue.endMilliseconds
+            ),
+        ]
+        informationBadgeTextCache = InformationBadgeTextCache(
+            key: key,
+            texts: texts
+        )
+        informationBadgePlanCache = nil
+        return texts
+    }
+
+    private func informationBadgePlans(
+        for cue: SubtitleFocusCue,
+        width: CGFloat
+    ) -> [PlaybackCueInformationBadgePlan] {
+        let key = informationBadgeKey(for: cue)
+        if let informationBadgePlanCache,
+           informationBadgePlanCache.key == key,
+           informationBadgePlanCache.width == width {
+            return informationBadgePlanCache.plans
+        }
+        let plans = PlaybackCueInformationBadgeLayout.makePlans(
+            texts: informationBadges(for: cue),
+            width: width
+        )
+        informationBadgePlanPreparationCountForTesting += 1
+        informationBadgePlanCache = InformationBadgePlanCache(
+            key: key,
+            width: width,
+            plans: plans
+        )
+        return plans
+    }
+
+    private func informationBadgeKey(
+        for cue: SubtitleFocusCue
+    ) -> InformationBadgeKey {
+        InformationBadgeKey(
+            cueID: cue.id,
+            displayTitle: displayTitle,
+            startMilliseconds: cue.startMilliseconds,
+            endMilliseconds: cue.endMilliseconds
         )
     }
 
-    private func recordMeasuredOrdinal(_ ordinal: Int) {
-        measurementAccessSequence &+= 1
-        measuredOrdinalAccess[ordinal] = measurementAccessSequence
-        while measuredOrdinalAccess.count > 64,
-              let oldestOrdinal = measuredOrdinalAccess.min(by: {
-                  $0.value < $1.value
-              })?.key {
-            measuredOrdinalAccess.removeValue(forKey: oldestOrdinal)
-        }
+    private func addingSelectedInformationHeight(
+        to base: PlaybackSubtitleFocusCueMeasurement,
+        viewportHeight: CGFloat
+    ) -> PlaybackSubtitleFocusCueMeasurement {
+        let selectedHeight = PlaybackSubtitleFocusMetrics
+            .selectedInformationHeight
+        let naturalHeight = base.naturalHeight + selectedHeight
+        let safeViewportHeight = max(0, viewportHeight)
+        return PlaybackSubtitleFocusCueMeasurement(
+            visualLineCount: base.visualLineCount,
+            visualLineStackHeight: base.visualLineStackHeight,
+            resolvedContentHeight: base.resolvedContentHeight + selectedHeight,
+            naturalHeight: naturalHeight,
+            resolvedHeight: min(naturalHeight, safeViewportHeight),
+            isOversized: naturalHeight > safeViewportHeight
+        )
     }
 }
 
@@ -3184,51 +3372,62 @@ typealias PlaybackVirtualReelDocumentView =
 
 @MainActor
 final class PlaybackSubtitleFocusNativeTextLayout {
-    private let cueLayout = PlaybackCueResultLayout()
+    private let visualLineLayout = PlaybackVisualLineStackLayout()
 
     func draw(
         text: String,
         color: NSColor,
         in rect: CGRect
     ) {
-        guard rect.width > 0, rect.height > 0 else {
+        let textRect = Self.textRect(in: rect)
+        guard textRect.width > 0, textRect.height > 0 else {
             return
         }
-        cueLayout.prepare(
-            result: result(text: text),
-            showsCueGroup: false,
-            isSelected: color != PlaybackTheme.subtitleFocusCueUnselectedNative,
-            width: rect.width,
-            viewportHeight: rect.height
+        visualLineLayout.prepare(
+            text: text,
+            color: color,
+            width: textRect.width
         )
-        cueLayout.drawPreparedPlan(in: rect)
+        visualLineLayout.drawPreparedPlan(in: textRect)
     }
 
     func visibleLineRects(
         text: String,
         in rect: CGRect
     ) -> [CGRect] {
-        guard rect.width > 0, rect.height > 0 else {
+        let textRect = Self.textRect(in: rect)
+        guard textRect.width > 0, textRect.height > 0 else {
             return []
         }
-        let plan = cueLayout.prepare(
-            result: result(text: text),
-            showsCueGroup: false,
-            isSelected: false,
-            width: rect.width,
-            viewportHeight: rect.height
+        let plan = visualLineLayout.prepare(
+            text: text,
+            color: .white,
+            width: textRect.width
         )
-        return plan.visibleTypographicRects(in: rect)
+        return plan.typographicRects(in: textRect).compactMap { lineRect in
+            let visibleRect = lineRect.intersection(textRect)
+            guard !visibleRect.isNull,
+                  visibleRect.width > 0,
+                  visibleRect.height > 0
+            else {
+                return nil
+            }
+            return visibleRect
+        }
     }
 
-    private func result(text: String) -> PlaybackCueResult {
-        PlaybackCueResult(
-            itemID: AnyHashable("native-text-layout"),
-            primaryCueIdentity: AnyHashable("native-text-layout"),
-            primaryCueText: text
+    private static func textRect(in cueRect: CGRect) -> CGRect {
+        CGRect(
+            x: cueRect.minX,
+            y: cueRect.minY + PlaybackSubtitleFocusMetrics.cueVerticalPadding,
+            width: cueRect.width,
+            height: max(
+                0,
+                cueRect.height
+                    - PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
+            )
         )
     }
-
 }
 
 @MainActor

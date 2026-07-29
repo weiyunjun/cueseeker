@@ -40,7 +40,7 @@ func playbackOverlayCurrentAndPlaylistShareFullWidthCueGeometry() {
 
 @MainActor
 @Test
-func playbackCurrentUsesSharedCueResultWithTwoInformationBadges() throws {
+func playbackCurrentUsesDedicatedCuePathWithTwoSharedInformationBadges() throws {
     let cue = SubtitleFocusCue(
         id: 42,
         cueGroupID: 142,
@@ -59,13 +59,59 @@ func playbackCurrentUsesSharedCueResultWithTwoInformationBadges() throws {
         generation: 1
     )
 
-    let result = try #require(adapter.cueResult(at: 0))
-    #expect(result.primaryCueText == "Primary Cue")
-    #expect(result.additionalCueTexts.isEmpty)
-    #expect(result.informationBadges == [
+    #expect(adapter.informationBadges(at: 0) == [
         "Ave Mujica - 01",
         "21:33 - 21:40",
     ])
+}
+
+@MainActor
+@Test
+func playbackCurrentSelectionUsesCachedBaseMeasurementAndBadgePlan() throws {
+    let cue = SubtitleFocusCue(
+        id: 42,
+        cueGroupID: 142,
+        ordinal: 0,
+        eventIndex: 0,
+        displayOrder: 0,
+        startMilliseconds: 1_293_000,
+        endMilliseconds: 1_300_000,
+        content: "Primary Cue"
+    )
+    let adapter = PlaybackSubtitleFocusCueReelAdapter()
+    adapter.update(
+        cues: [cue],
+        totalCount: 1,
+        displayTitle: "Ave Mujica - 01",
+        generation: 1
+    )
+
+    let base = try #require(adapter.extent(
+        at: 0,
+        isSelected: false,
+        contentWidth: 960,
+        viewportHeight: 656,
+        uiProbeScope: nil
+    ))
+    for _ in 0..<1_000 {
+        let selected = try #require(adapter.extent(
+            at: 0,
+            isSelected: true,
+            contentWidth: 960,
+            viewportHeight: 656,
+            uiProbeScope: nil
+        ))
+        #expect(
+            selected.naturalHeight - base.naturalHeight
+                == PlaybackSubtitleFocusMetrics.selectedInformationHeight
+        )
+    }
+    for _ in 0..<1_000 {
+        _ = adapter.informationBadgePlans(at: 0, width: 960)
+    }
+
+    #expect(adapter.measurementCountForTesting == 1)
+    #expect(adapter.informationBadgePlanPreparationCountForTesting == 1)
 }
 
 @MainActor

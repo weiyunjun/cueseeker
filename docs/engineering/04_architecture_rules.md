@@ -493,20 +493,23 @@ Presentation virtualization rules:
   identity, rendering, and height calculation. `Show Cue Group` remains a
   presentation-only input and must not change count, order, identity,
   selection, or Primary Cue action targets.
-- Playback Current and Cue Playlist use the same Cue Result measurement and
-  rendering layout. Primary Cue text precedes optional Cue Group text. Their
-  host adapters may provide only the documented selected-item information
-  Badges and Cue Group visibility policy: Current provides Display Title and
-  Time Range and never provides Cue Group text; Cue Playlist additionally
-  provides `[x/y]` and may show Cue Group text below every Primary Cue. The
-  existing Reel and Session owners remain the only selection and scrolling
-  state sources.
+- Playback Current and Cue Playlist share Cue typography, information Badge
+  layout and drawing, and the same visible presentation structure. Current
+  retains its primary-only measurement cache and native text drawing hot path;
+  Cue Playlist retains the general Cue Result layout required for optional Cue
+  Group content. Current provides Display Title and Time Range and never
+  provides Cue Group text; Cue Playlist additionally provides `[x/y]` and may
+  show Cue Group text below every Primary Cue. The existing Reel and Session
+  owners remain the only selection and scrolling state sources.
 - Cue Result base extent depends only on Primary Cue, optional resident Cue
   Group content, presentation width, and style. Selection must not enter that
   base measurement key, advance the dataset revision, or clear the measurement
   cache. The Reel supplies its current visual selection directly when applying
   the fixed-height information Badge decoration so drawing and placement use
-  the same selection during wheel, keyboard, and scrollbar motion.
+  the same selection during wheel, keyboard, and scrollbar motion. Current
+  applies that fixed height to its cached base Cue measurement without creating
+  a general Cue Result, remeasuring text, or rebuilding Badge text and width
+  plans on every frame.
 
 Playback-specific differences are limited to:
 

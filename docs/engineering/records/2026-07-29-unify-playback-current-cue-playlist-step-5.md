@@ -78,3 +78,38 @@
   individually, confirming shared-resource or timing flakiness rather than a
   Reel regression.
 - `git diff --check`: passed before the final review.
+
+## Follow-up: Restore Current Reel Performance
+
+- Replaced the over-shared Current implementation with its original
+  primary-only text measurer, bounded measurement cache, and native text
+  drawing path. Cue Playlist continues to use the general Cue Result layout
+  needed for Cue Group content.
+- Kept the accepted visual reuse at the smallest stable boundary: Current and
+  Cue Playlist share the information Badge layout and drawing implementation,
+  typography tokens, and visible presentation rules rather than the complete
+  high-frequency measurement path.
+- Applied the fixed 31-point selected information decoration to Current's
+  cached base Cue extent without constructing a Cue Result or formatting Badge
+  text during measurement.
+- Added a one-item Current Badge text and width-plan cache so repeated Reel
+  frames reuse the selected Cue's Display Title, Time Range, and Badge widths.
+  Removed the duplicate production dictionary that had tracked measurement
+  access only for tests.
+- Preserved the existing teardown path, which synchronously cancels both Reel
+  animators, pending settle and motion tasks, and the local scroll event monitor
+  before releasing the document adapter.
+
+### Verification
+
+- `swift test --filter playbackCurrent`: all 2 focused tests passed. The hot-path
+  regression test performs 1,000 selected extent reads with one text
+  measurement and 1,000 identical Badge plan requests with one plan build.
+- `swift test --filter playbackCueResult`: all 12 focused tests passed.
+- `swift test --filter playbackPlaylist`: all 13 focused tests passed.
+- `swift test --filter subtitleFocus`: all 69 focused tests passed.
+- `swift build`: passed.
+- `swift test`: all 895 tests compiled and ran; the parallel run reported 14
+  issues across 7 existing native-media timing, temporary-database action, and
+  UI refresh-scope tests. Each failed test passed when rerun individually.
+- `git diff --check`: passed before the final review.
