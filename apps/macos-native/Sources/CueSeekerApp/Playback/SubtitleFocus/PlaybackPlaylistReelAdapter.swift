@@ -15,14 +15,17 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     private var isActive = true
 
     private(set) var showsCueGroup: Bool
+    private(set) var positionTotalCount: Int?
 
     init(
         windowStore: PlaybackCueResultSessionWindowStore,
         showsCueGroup: Bool,
+        positionTotalCount: Int? = nil,
         measurementCacheCapacity: Int = 64
     ) {
         self.windowStore = windowStore
         self.showsCueGroup = showsCueGroup
+        self.positionTotalCount = positionTotalCount.map { max(0, $0) }
         let resolvedCapacity = max(1, measurementCacheCapacity)
         self.measurementCacheCapacity = resolvedCapacity
         measurementCache = PlaybackCueResultMeasurementCache(
@@ -62,6 +65,17 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         return true
     }
 
+    @discardableResult
+    func setPositionTotalCount(_ positionTotalCount: Int?) -> Bool {
+        let resolvedTotalCount = positionTotalCount.map { max(0, $0) }
+        guard isActive, self.positionTotalCount != resolvedTotalCount else {
+            return false
+        }
+        self.positionTotalCount = resolvedTotalCount
+        presentationRevision &+= 1
+        return true
+    }
+
     func item(at ordinal: Int) -> PlaybackCueResultItem? {
         guard isActive else {
             return nil
@@ -73,8 +87,12 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         guard let item = item(at: ordinal), item.ordinal == ordinal else {
             return nil
         }
+        let totalCount = max(
+            snapshot.totalCount,
+            positionTotalCount ?? 0
+        )
         return item.cueResult(
-            positionText: "[\(ordinal + 1)/\(snapshot.totalCount)]"
+            positionText: "[\(ordinal + 1)/\(totalCount)]"
         )
     }
 

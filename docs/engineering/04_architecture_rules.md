@@ -501,6 +501,13 @@ Presentation virtualization rules:
   provides Cue Group text; Cue Playlist additionally provides `[x/y]` and may
   show Cue Group text below every Primary Cue. The existing Reel and Session
   owners remain the only selection and scrolling state sources.
+- Playback Command Panel Search uses the Cue Playlist's general Cue Result
+  Adapter and Reel over a host-owned resident preview Window capped at 50
+  results. That Window is the only Command Panel Search selection source for
+  keyboard, wheel, and scrollbar input. Badge position text uses the complete
+  Search result count, and activating a preview result continues to install the
+  complete Search Playlist. Command Panel Search must not reintroduce its
+  removed cover Context, dedicated result Row, or a duplicate selection store.
 - Cue Result base extent depends only on Primary Cue, optional resident Cue
   Group content, presentation width, and style. Selection must not enter that
   base measurement key, advance the dataset revision, or clear the measurement

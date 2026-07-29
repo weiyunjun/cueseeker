@@ -386,7 +386,11 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
                 videoPath: source.videoPath,
                 subtitlePath: source.subtitlePath,
                 startMilliseconds: (ordinal + 1) * 1_000,
-                content: content
+                content: content,
+                displayTitle: "Command Episode \(ordinal)",
+                cueGroupLines: ordinal == 0
+                    ? [content, "command context"]
+                    : nil
             )
         }
         app.search.replaceResidentResults(results)
@@ -397,6 +401,48 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
         ))
         NSPasteboard.general.clearContents()
 
+        let previewWindow = try #require(
+            app.playback.commandPanelSearchWindow
+        )
+        #expect(previewWindow.snapshot.totalCount == 50)
+        #expect(previewWindow.snapshot.loadedItemCount == 50)
+        #expect(previewWindow.selectedOrdinal == 0)
+        let previewAdapter = PlaybackCueResultReelAdapter(
+            windowStore: previewWindow,
+            showsCueGroup: true,
+            positionTotalCount: results.count
+        )
+        let firstResult = try #require(previewAdapter.cueResult(at: 0))
+        #expect(firstResult.informationBadges == [
+            "[1/60]",
+            "Command Episode 0",
+            results[0].timeRange,
+        ])
+        #expect(firstResult.additionalCueTexts == ["command context"])
+        let firstPlan = PlaybackCueResultLayout().prepare(
+            result: firstResult,
+            showsCueGroup: true,
+            isSelected: true,
+            width: 800,
+            viewportHeight: 800
+        )
+        #expect(firstPlan.visualLines.map(\.role) == [
+            .primaryCue,
+            .additionalCue(index: 0),
+        ])
+
+        let previewSnapshot = previewAdapter.snapshot
+        #expect(app.commitPlaybackCommandPanelSearchReelSelection(
+            PlaybackVirtualReelSelectionCommit(
+                datasetID: previewSnapshot.datasetID,
+                generation: previewSnapshot.generation,
+                ordinal: 1
+            )
+        ))
+        #expect(previewWindow.selectedOrdinal == 1)
+        #expect(app.movePlaybackCommandPanelSelection(-1))
+        #expect(previewWindow.selectedOrdinal == 0)
+
         #expect(app.handlePlaybackKeyDown(keyCode: 8, modifierFlagsRawValue: 0))
         #expect(
             NSPasteboard.general.string(forType: .string)
@@ -404,7 +450,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
         )
 
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
-        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+        #expect(previewWindow.selectedOrdinal == 1)
         #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
         #expect(
             NSPasteboard.general.string(forType: .string)
@@ -413,6 +459,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
 
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
+        #expect(app.playback.commandPanelSearchWindow == nil)
         #expect(app.search.isPlaybackTemporaryFilterActive)
         #expect(app.search.selectedSearchResult?.entryID == 12)
         #expect(app.playback.playlistSource?.boundary.totalCount == 60)
@@ -1044,7 +1091,9 @@ private func keyboardActionPlaylistSearchResult(
     videoPath: String,
     subtitlePath: String,
     startMilliseconds: Int,
-    content: String
+    content: String,
+    displayTitle: String = "",
+    cueGroupLines: [String]? = nil
 ) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: id,
@@ -1056,11 +1105,12 @@ private func keyboardActionPlaylistSearchResult(
         subtitleFormat: .ass,
         videoPath: videoPath,
         videoName: URL(fileURLWithPath: videoPath).lastPathComponent,
+        displayTitle: displayTitle,
         startMilliseconds: startMilliseconds,
         endMilliseconds: startMilliseconds + 900,
         content: content,
         cueLines: [content],
-        cueGroupLines: [content],
+        cueGroupLines: cueGroupLines ?? [content],
         searchRank: 0
     )
 }

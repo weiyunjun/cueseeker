@@ -19,7 +19,6 @@ extension AppCoordinator {
         presentation.page = .root
         presentation.query = ""
         presentation.selectedOrdinal = 0
-        presentation.selectedVideoPresentation = nil
         playback.presentCommandPanel(presentation)
         preparePlaybackKeyboardFocus()
         return true
@@ -59,7 +58,6 @@ extension AppCoordinator {
         presentation.page = .searchResults
         presentation.query = trimmedQuery
         presentation.selectedOrdinal = nil
-        presentation.selectedVideoPresentation = nil
         playback.presentCommandPanel(presentation)
         synchronizePlaybackCommandPanelSearchResults()
         preparePlaybackKeyboardFocus()
@@ -120,7 +118,6 @@ extension AppCoordinator {
         presentation.page = page
         presentation.selectedOrdinal =
             playbackCommandPanelItemCount(for: page) > 0 ? 0 : nil
-        presentation.selectedVideoPresentation = nil
         playback.presentCommandPanel(presentation)
         preparePlaybackKeyboardFocus()
         return true
@@ -138,15 +135,16 @@ extension AppCoordinator {
             return true
         }
 
+        if presentation.page == .searchResults {
+            let current = playback.commandPanelSearchWindow?
+                .selectedOrdinal ?? 0
+            let target = min(max(0, current + offset), itemCount - 1)
+            return playback.restoreCommandPanelSearchSelection(at: target)
+        }
+
         let current = presentation.selectedOrdinal ?? 0
         let target = min(max(0, current + offset), itemCount - 1)
         presentation.selectedOrdinal = target
-        if presentation.page == .searchResults {
-            presentation.selectedVideoPresentation =
-                playbackVideoPresentation(
-                    videoPath: search.searchResults[target].videoPath
-                )
-        }
         playback.presentCommandPanel(presentation)
         return true
     }
@@ -198,31 +196,28 @@ extension AppCoordinator {
         guard var presentation = playback.commandPanelPresentation else {
             return
         }
+        if presentation.page == .searchResults {
+            synchronizePlaybackCommandPanelSearchResults()
+            return
+        }
         let itemCount = playbackCommandPanelItemCount(for: presentation.page)
         presentation.selectedOrdinal = itemCount > 0
             ? min(max(0, presentation.selectedOrdinal ?? 0), itemCount - 1)
             : nil
-        if presentation.page == .searchResults {
-            presentation.selectedVideoPresentation =
-                presentation.selectedOrdinal.flatMap {
-                    playbackVideoPresentation(
-                        videoPath: search.searchResults[$0].videoPath
-                    )
-                }
-        }
         playback.presentCommandPanel(presentation)
     }
 
     @discardableResult
     func openSelectedPlaybackCommandPanelItem() -> Bool {
-        guard let presentation = playback.commandPanelPresentation,
-              let selectedOrdinal = presentation.selectedOrdinal
-        else {
+        guard let presentation = playback.commandPanelPresentation else {
             return false
         }
 
         switch presentation.page {
         case .root:
+            guard let selectedOrdinal = presentation.selectedOrdinal else {
+                return false
+            }
             let hasQuery = !presentation.query.trimmingCharacters(
                 in: .whitespacesAndNewlines
             ).isEmpty
@@ -241,15 +236,26 @@ extension AppCoordinator {
             }
             return false
         case .searchResults:
+            guard let selectedOrdinal = playback.commandPanelSearchWindow?
+                .selectedOrdinal
+            else {
+                return false
+            }
             return requestPlaybackCommandPanelSearchAction(
                 .playFromThisCue,
                 ordinal: selectedOrdinal
             )
         case .recentVideos:
+            guard let selectedOrdinal = presentation.selectedOrdinal else {
+                return false
+            }
             return openPlaybackCommandPanelRecentVideo(
                 at: selectedOrdinal
             )
         case .recentShioris:
+            guard let selectedOrdinal = presentation.selectedOrdinal else {
+                return false
+            }
             return openPlaybackCommandPanelRecentShiori(
                 at: selectedOrdinal
             )
@@ -270,23 +276,30 @@ extension AppCoordinator {
         let selectedOrdinal: Int?
         if previewCount == 0 {
             selectedOrdinal = nil
-        } else if let current = presentation.selectedOrdinal {
+        } else if let current = playback.commandPanelSearchWindow?
+            .selectedOrdinal {
             selectedOrdinal = min(max(0, current), previewCount - 1)
         } else {
             selectedOrdinal = 0
         }
-        let selectedResult = selectedOrdinal.flatMap {
-            search.searchResults.indices.contains($0)
-                ? search.searchResults[$0]
-                : nil
-        }
-
         var updated = presentation
-        updated.selectedOrdinal = selectedOrdinal
-        updated.selectedVideoPresentation = selectedResult.flatMap {
-            playbackVideoPresentation(videoPath: $0.videoPath)
-        }
+        updated.selectedOrdinal = nil
         playback.presentCommandPanel(updated)
+        playback.synchronizeCommandPanelSearchPreview(
+            results: search.searchResults,
+            selectedOrdinal: selectedOrdinal
+        )
+    }
+
+    @discardableResult
+    func commitPlaybackCommandPanelSearchReelSelection(
+        _ commit: PlaybackVirtualReelSelectionCommit
+    ) -> Bool {
+        guard playback.commandPanelPresentation?.page == .searchResults
+        else {
+            return false
+        }
+        return playback.commitCommandPanelSearchSelection(commit)
     }
 
     @discardableResult
@@ -296,7 +309,8 @@ extension AppCoordinator {
     ) -> Bool {
         guard let presentation = playback.commandPanelPresentation,
               presentation.page == .searchResults,
-              let ordinal = requestedOrdinal ?? presentation.selectedOrdinal,
+              let ordinal = requestedOrdinal
+                ?? playback.commandPanelSearchWindow?.selectedOrdinal,
               ordinal >= 0,
               ordinal < PlaybackCommandPanelPresentation.previewLimit,
               search.searchResults.indices.contains(ordinal)
@@ -398,7 +412,6 @@ extension AppCoordinator {
         var updated = presentation
         updated.page = .root
         updated.selectedOrdinal = 0
-        updated.selectedVideoPresentation = nil
         playback.presentCommandPanel(updated)
         preparePlaybackKeyboardFocus()
         return true
@@ -522,33 +535,10 @@ extension AppCoordinator {
                 page: .root,
                 query: "",
                 selectedOrdinal: 0,
-                selectedVideoPresentation: nil,
                 resumesPlaybackOnDismiss:
                     playback.subtitleFocusSession == nil && wasPlaying
             )
         )
         return true
-    }
-
-    func playbackVideoPresentation(
-        videoPath: String
-    ) -> CompleteLibraryVideoPresentation? {
-        let standardizedVideoPath = URL(fileURLWithPath: videoPath)
-            .standardizedFileURL.path
-        for detail in library.completeLibraryFolderDetailsByPath.values {
-            if let video = detail.videos.first(
-                where: { $0.videoPath == standardizedVideoPath }
-            ) {
-                return video
-            }
-        }
-        return try? libraryDatabase?
-            .completeLibraryFolderDetail(
-                folderPath: URL(fileURLWithPath: standardizedVideoPath)
-                    .deletingLastPathComponent()
-                    .path
-            )?
-            .videos
-            .first { $0.videoPath == standardizedVideoPath }
     }
 }

@@ -16,7 +16,6 @@ struct PlaybackCommandPanelPresentation: Equatable {
     var page: PlaybackCommandPanelPage
     var query: String
     var selectedOrdinal: Int?
-    var selectedVideoPresentation: CompleteLibraryVideoPresentation?
     let resumesPlaybackOnDismiss: Bool
 }
 
@@ -72,6 +71,9 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
     @Published private(set) var commandPanelPresentation:
         PlaybackCommandPanelPresentation?
+    @Published private(set) var commandPanelSearchWindow:
+        PlaybackCueResultSessionWindowStore?
+    private var commandPanelSearchSource: PlaybackCueResultSource?
     private(set) var commandPanelRecentVideoColumnCount = 1
     private(set) var commandPanelRecentVideoItemFramesByID: [String: CGRect] = [:]
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
@@ -142,7 +144,78 @@ final class PlaybackStore: ObservableObject {
         if presentation.page != .recentVideos {
             resetCommandPanelRecentVideoGridLayout()
         }
+        if presentation.page != .searchResults {
+            releaseCommandPanelSearchPreview()
+        }
         commandPanelPresentation = presentation
+    }
+
+    func synchronizeCommandPanelSearchPreview(
+        results: [SubtitleSearchResult],
+        selectedOrdinal: Int?
+    ) {
+        guard commandPanelPresentation?.page == .searchResults else {
+            releaseCommandPanelSearchPreview()
+            return
+        }
+        let items = Array(
+            results.prefix(PlaybackCommandPanelPresentation.previewLimit)
+        ).enumerated().map { ordinal, result in
+            PlaybackCueResultItem(searchResult: result, ordinal: ordinal)
+        }
+        let itemProvider: PlaybackPlaylistSharedItemProvider = { ordinal in
+            guard items.indices.contains(ordinal) else {
+                return nil
+            }
+            return items[ordinal]
+        }
+
+        if let commandPanelSearchSource {
+            _ = commandPanelSearchSource.replaceResidentItems(
+                totalCount: items.count,
+                itemProvider: itemProvider
+            )
+        } else {
+            let source = PlaybackCueResultSource(
+                kind: .search,
+                totalCount: items.count,
+                itemProvider: itemProvider
+            )
+            commandPanelSearchSource = source
+            commandPanelSearchWindow = source.makeSessionWindowStore(
+                includingEmpty: true
+            )
+        }
+
+        guard let selectedOrdinal,
+              items.indices.contains(selectedOrdinal)
+        else {
+            return
+        }
+        _ = commandPanelSearchWindow?.restoreSelection(
+            itemIdentity: items[selectedOrdinal].identity,
+            at: selectedOrdinal
+        )
+    }
+
+    @discardableResult
+    func restoreCommandPanelSearchSelection(at ordinal: Int) -> Bool {
+        guard let itemIdentity = commandPanelSearchWindow?
+            .knownItemIdentity(at: ordinal)
+        else {
+            return false
+        }
+        return commandPanelSearchWindow?.restoreSelection(
+            itemIdentity: itemIdentity,
+            at: ordinal
+        ) == true
+    }
+
+    @discardableResult
+    func commitCommandPanelSearchSelection(
+        _ commit: PlaybackVirtualReelSelectionCommit
+    ) -> Bool {
+        commandPanelSearchWindow?.commitSelection(commit) == true
     }
 
     func updateCommandPanelRecentVideoGridLayout(
@@ -161,6 +234,7 @@ final class PlaybackStore: ObservableObject {
         defer {
             commandPanelPresentation = nil
             resetCommandPanelRecentVideoGridLayout()
+            releaseCommandPanelSearchPreview()
         }
         return commandPanelPresentation
     }
@@ -168,6 +242,13 @@ final class PlaybackStore: ObservableObject {
     private func resetCommandPanelRecentVideoGridLayout() {
         commandPanelRecentVideoColumnCount = 1
         commandPanelRecentVideoItemFramesByID = [:]
+    }
+
+    private func releaseCommandPanelSearchPreview() {
+        commandPanelSearchWindow?.invalidate()
+        commandPanelSearchSource?.invalidate()
+        commandPanelSearchWindow = nil
+        commandPanelSearchSource = nil
     }
 
     func setPlaylistSource(

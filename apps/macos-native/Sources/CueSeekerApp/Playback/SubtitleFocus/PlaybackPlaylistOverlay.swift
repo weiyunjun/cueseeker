@@ -113,24 +113,27 @@ struct PlaybackCueResultOverlay: View {
 }
 
 @MainActor
-private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
+struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     @MainActor
     final class Coordinator {
         let adapter: PlaybackCueResultReelAdapter
 
         init(
             windowStore: PlaybackCueResultSessionWindowStore,
-            showsCueGroup: Bool
+            showsCueGroup: Bool,
+            positionTotalCount: Int?
         ) {
             adapter = PlaybackCueResultReelAdapter(
                 windowStore: windowStore,
-                showsCueGroup: showsCueGroup
+                showsCueGroup: showsCueGroup,
+                positionTotalCount: positionTotalCount
             )
         }
     }
 
     let windowStore: PlaybackCueResultSessionWindowStore
     let showsCueGroup: Bool
+    var positionTotalCount: Int? = nil
     let selectedOrdinal: Int?
     let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
@@ -147,7 +150,8 @@ private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             windowStore: windowStore,
-            showsCueGroup: showsCueGroup
+            showsCueGroup: showsCueGroup,
+            positionTotalCount: positionTotalCount
         )
     }
 
@@ -184,6 +188,7 @@ private struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         adapter: PlaybackCueResultReelAdapter
     ) {
         _ = adapter.setShowsCueGroup(showsCueGroup)
+        _ = adapter.setPositionTotalCount(positionTotalCount)
         view.uiProbeScope = uiProbeScope
         view.onCommitVirtualReelSelection = onCommitSelection
         view.allowsNativeWheelInput = allowsNativeWheelInput

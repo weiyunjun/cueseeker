@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified Playback Command Panel Search with the Cue Playlist presentation.
+  Search preview now uses the shared Cue Result Adapter and Reel without a left
+  cover or Command Panel-only result Row, shows Primary Cue above optional Cue
+  Group text, and adds `[x/y]`, Display Title, and Time Range Badges to the
+  selected result. The preview remains limited to 50 resident results while
+  `[x/y]` and result activation retain the complete Search collection; opening
+  a result still installs the complete Playlist. The preview Reel Window is the
+  only Search-panel selection source for keyboard, wheel, and scrollbar input.
 - Unified Playback Current and Cue Playlist presentation through shared Cue
   typography and information Badge primitives. Both modules now use full-width
   Cue Reels without a left cover or Playlist sequence lane, place the Primary

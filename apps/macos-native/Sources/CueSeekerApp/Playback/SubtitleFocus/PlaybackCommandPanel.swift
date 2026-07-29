@@ -38,6 +38,8 @@ struct PlaybackCommandPanel: View {
                             PlaybackCommandPanelSearchResults(
                                 presentation: presentation,
                                 searchStore: searchStore,
+                                windowStore:
+                                    playback.commandPanelSearchWindow,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -45,11 +47,11 @@ struct PlaybackCommandPanel: View {
                                     appState
                                         .synchronizePlaybackCommandPanelSearchResults()
                                 },
-                                onOpen: {
-                                    appState.requestPlaybackCommandPanelSearchAction(
-                                        .playFromThisCue,
-                                        ordinal: $0
-                                    )
+                                onCommitSelection: {
+                                    appState
+                                        .commitPlaybackCommandPanelSearchReelSelection(
+                                            $0
+                                        )
                                 }
                             )
                         case .recentVideos:
@@ -144,9 +146,6 @@ private enum PlaybackCommandPanelMetrics {
     static let rowRadius: CGFloat = 10
     static let headerHeight: CGFloat = 58
     static let footerHeight: CGFloat = 48
-    static let searchResultRowMinimumHeight: CGFloat = 68
-    static let contextWidthFraction: CGFloat = 0.22
-    static let contextCoverMaximumWidth: CGFloat = 180
 }
 
 private struct PlaybackCommandPanelRoot: View {
@@ -333,26 +332,14 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
 private struct PlaybackCommandPanelSearchResults: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var searchStore: SearchStore
+    let windowStore: PlaybackCueResultSessionWindowStore?
     let onBack: () -> Bool
     let onSynchronize: () -> Void
-    let onOpen: (Int) -> Void
+    let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
 
-    private var previewResults: [SubtitleSearchResult] {
-        Array(
-            searchStore.searchResults.prefix(
-                PlaybackCommandPanelPresentation.previewLimit
-            )
-        )
-    }
-
-    private var selectedResult: SubtitleSearchResult? {
-        guard let ordinal = presentation.selectedOrdinal,
-              previewResults.indices.contains(ordinal)
-        else {
-            return nil
-        }
-        return previewResults[ordinal]
-    }
+    @EnvironmentObject private var cueGroupPresentation:
+        CueGroupPresentationStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -362,55 +349,15 @@ private struct PlaybackCommandPanelSearchResults: View {
             )
 
             GeometryReader { geometry in
-                HStack(spacing: 0) {
-                    PlaybackCommandPanelSearchContext(
-                        result: selectedResult,
-                        videoPresentation:
-                            presentation.selectedVideoPresentation
+                if let windowStore {
+                    PlaybackCommandPanelSearchReel(
+                        windowStore: windowStore,
+                        showsCueGroup: cueGroupPresentation.isEnabled,
+                        positionTotalCount: resultTotalCount,
+                        viewportSize: geometry.size,
+                        reducesMotion: reduceMotion,
+                        onCommitSelection: onCommitSelection
                     )
-                    .frame(
-                        width: geometry.size.width
-                            * PlaybackCommandPanelMetrics.contextWidthFraction
-                    )
-                    .frame(maxHeight: .infinity)
-
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(
-                                spacing: WorkbenchControlMetrics.redesignSpacing1
-                            ) {
-                                ForEach(
-                                    Array(previewResults.enumerated()),
-                                    id: \.element.entryID
-                                ) { ordinal, result in
-                                    PlaybackCommandPanelSearchResultRow(
-                                        result: result,
-                                        isSelected:
-                                            presentation.selectedOrdinal
-                                                == ordinal
-                                    ) {
-                                        onOpen(ordinal)
-                                    }
-                                    .id(ordinal)
-                                }
-                            }
-                            .padding(
-                                .horizontal,
-                                PlaybackCommandPanelMetrics.contentInset
-                            )
-                            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
-                        }
-                        .onChange(
-                            of: presentation.selectedOrdinal
-                        ) { selectedOrdinal in
-                            guard let selectedOrdinal else {
-                                return
-                            }
-                            withAnimation(.easeOut(duration: 0.16)) {
-                                proxy.scrollTo(selectedOrdinal, anchor: .center)
-                            }
-                        }
-                    }
                 }
             }
 
@@ -423,15 +370,60 @@ private struct PlaybackCommandPanelSearchResults: View {
     }
 
     private var resultStatus: String {
-        let totalCount = max(
-            searchStore.searchResultTotalCount,
-            searchStore.searchResults.count
-        )
-        if totalCount > PlaybackCommandPanelPresentation.previewLimit
+        if resultTotalCount > PlaybackCommandPanelPresentation.previewLimit
             || searchStore.hasMoreSearchResults {
             return "Showing first \(PlaybackCommandPanelPresentation.previewLimit) results"
         }
-        return "\(totalCount) results"
+        return "\(resultTotalCount) results"
+    }
+
+    private var resultTotalCount: Int {
+        max(
+            searchStore.searchResultTotalCount,
+            searchStore.searchResults.count
+        )
+    }
+}
+
+private struct PlaybackCommandPanelSearchReel: View {
+    @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
+    let showsCueGroup: Bool
+    let positionTotalCount: Int
+    let viewportSize: CGSize
+    let reducesMotion: Bool
+    let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
+
+    var body: some View {
+        let contentInset = PlaybackSubtitleFocusMetrics.contentInset
+        let reelViewportHeight = max(
+            0,
+            viewportSize.height - contentInset * 2
+        )
+
+        PlaybackCueResultReelRepresentable(
+            windowStore: windowStore,
+            showsCueGroup: showsCueGroup,
+            positionTotalCount: positionTotalCount,
+            selectedOrdinal: windowStore.selectedOrdinal,
+            uiProbeScope: nil,
+            keyboardNavigationRequest: nil,
+            reducesMotion: reducesMotion,
+            isInteractionEnabled: true,
+            cancelsWheelMotion: false,
+            onCommitSelection: onCommitSelection,
+            allowsNativeWheelInput: { true },
+            allowsNativeScrollbarInput: { true },
+            onScrollbarDraggingChanged: { _ in },
+            onNativeMotionGateChanged: { _ in },
+            onKeyboardMotionChanged: { _ in }
+        )
+        .id("command-search:\(windowStore.reelDatasetID ?? "empty")")
+        .frame(
+            width: viewportSize.width,
+            height: reelViewportHeight,
+            alignment: .top
+        )
+        .offset(y: contentInset)
     }
 }
 
@@ -613,129 +605,6 @@ private struct PlaybackCommandPanelRecentShioris: View {
         .onChange(of: shioriStore.recentListSummaries.map(\.id)) { _ in
             onSynchronize()
         }
-    }
-}
-
-private struct PlaybackCommandPanelSearchContext: View {
-    let result: SubtitleSearchResult?
-    let videoPresentation: CompleteLibraryVideoPresentation?
-
-    var body: some View {
-        GeometryReader { geometry in
-            let coverWidth = min(
-                PlaybackCommandPanelMetrics.contextCoverMaximumWidth,
-                max(
-                    0,
-                    geometry.size.width
-                        - PlaybackCommandPanelMetrics.contentInset * 2
-                )
-            )
-            let coverHeight = coverWidth
-                / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
-
-            VStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                LibraryCachedCoverImage(
-                    coverPath: videoPresentation?.coverPath,
-                    coverRevision: videoPresentation?.coverRevision
-                )
-                .frame(width: coverWidth, height: coverHeight)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius:
-                            WorkbenchControlMetrics.redesignLibraryCoverRadius,
-                        style: .continuous
-                    )
-                )
-
-                if let result {
-                    Text(
-                        videoPresentation?.displayTitle
-                            ?? result.displayTitle
-                    )
-                    .font(.system(
-                        size: WorkbenchControlMetrics
-                            .redesignFontSizeLibraryMeta,
-                        weight: .medium
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-
-                    Text(result.timeRange)
-                        .font(.system(
-                            size: WorkbenchControlMetrics
-                                .redesignFontSizeLibraryMeta,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .monospacedDigit()
-                }
-            }
-            .frame(width: geometry.size.width)
-            .position(
-                x: geometry.size.width / 2,
-                y: geometry.size.height / 2
-            )
-        }
-    }
-}
-
-private struct PlaybackCommandPanelSearchResultRow: View {
-    let result: SubtitleSearchResult
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(
-                alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing1
-            ) {
-                Text(result.content)
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(
-                        isSelected
-                            ? WorkbenchRedesignColors.textPrimary
-                            : WorkbenchRedesignColors.textMuted
-                    )
-                    .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(result.displayTitle)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .lineLimit(1)
-            }
-            .padding(
-                .horizontal,
-                WorkbenchControlMetrics.redesignSpacing4
-            )
-            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing3)
-            .frame(
-                maxWidth: .infinity,
-                minHeight:
-                    PlaybackCommandPanelMetrics.searchResultRowMinimumHeight,
-                alignment: .leading
-            )
-            .background {
-                RoundedRectangle(
-                    cornerRadius: PlaybackCommandPanelMetrics.rowRadius,
-                    style: .continuous
-                )
-                .fill(
-                    isSelected
-                        ? WorkbenchRedesignColors.rowSelected
-                        : Color.clear
-                )
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .pointerOnHover(isEnabled: true)
     }
 }
 
