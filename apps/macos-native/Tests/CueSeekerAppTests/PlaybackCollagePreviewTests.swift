@@ -101,10 +101,12 @@ func playbackCollagePreviewRejectsObsoleteAsyncResults() async throws {
     )
 
     store.update(plan: firstPlan)
+    #expect(!store.canUseCurrentResult)
     await waitForCollagePreviewCondition {
         continuations[1] != nil
     }
     store.update(plan: secondPlan)
+    #expect(!store.canUseCurrentResult)
     await waitForCollagePreviewCondition {
         continuations[2] != nil
     }
@@ -114,6 +116,9 @@ func playbackCollagePreviewRejectsObsoleteAsyncResults() async throws {
     )
     await waitForCollagePreviewToSettle(store)
     #expect(store.image?.width == 2)
+    #expect(store.canUseCurrentResult)
+    #expect(store.currentActionResult()?.plan == secondPlan)
+    #expect(store.currentActionResult()?.image.width == 2)
 
     continuations[1]?.resume(
         returning: [collagePreviewRenderedGroup()]
@@ -122,6 +127,65 @@ func playbackCollagePreviewRejectsObsoleteAsyncResults() async throws {
         await Task.yield()
     }
     #expect(store.image?.width == 2)
+    #expect(store.currentActionResult()?.plan == secondPlan)
+}
+
+@MainActor
+@Test
+func playbackCollagePreviewActionsRejectVisiblePreviousGeneration() async throws {
+    let firstPlan = try SubtitleCollageSelectionPlan(selectedCues: [
+        collagePreviewCue(
+            id: 30,
+            ordinal: 0,
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_000
+        )
+    ])
+    let secondPlan = try SubtitleCollageSelectionPlan(selectedCues: [
+        firstPlan.selectedCues[0],
+        collagePreviewCue(
+            id: 31,
+            ordinal: 1,
+            startMilliseconds: 4_000,
+            endMilliseconds: 5_000
+        ),
+    ])
+    var renderCallCount = 0
+    var pendingRender: CheckedContinuation<
+        [SubtitleCollageRenderedGroup],
+        Never
+    >?
+    let store = PlaybackCollagePreviewStore(
+        renderGroups: { groups in
+            renderCallCount += 1
+            if renderCallCount == 2 {
+                return await withCheckedContinuation { continuation in
+                    pendingRender = continuation
+                }
+            }
+            return groups.map { _ in collagePreviewRenderedGroup() }
+        },
+        compose: { groups in
+            collagePreviewImage(width: groups.count, height: 1)
+        }
+    )
+
+    store.update(plan: firstPlan)
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.currentActionResult()?.plan == firstPlan)
+    #expect(store.image?.width == 1)
+
+    store.update(plan: secondPlan)
+    await waitForCollagePreviewCondition {
+        pendingRender != nil
+    }
+    #expect(store.image?.width == 1)
+    #expect(!store.canUseCurrentResult)
+
+    pendingRender?.resume(returning: [collagePreviewRenderedGroup()])
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.currentActionResult()?.plan == secondPlan)
+    #expect(store.currentActionResult()?.image.width == 2)
 }
 
 @MainActor

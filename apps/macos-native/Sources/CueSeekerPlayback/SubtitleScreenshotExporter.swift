@@ -172,7 +172,33 @@ public enum SubtitleScreenshotExporter {
 
         let startMilliseconds = items.map(\.startMilliseconds).min() ?? first.startMilliseconds
         let endMilliseconds = items.map(\.endMilliseconds).max() ?? first.endMilliseconds
-        return "\(first.displayTitle)-\(timeString(milliseconds: startMilliseconds))-\(timeString(milliseconds: endMilliseconds))-\(items.count).png"
+        return defaultCollageFileName(
+            displayTitle: first.displayTitle,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            cueCount: items.count
+        )
+    }
+
+    public static func defaultCollageFileName(
+        displayTitle: String,
+        plan: SubtitleCollageSelectionPlan
+    ) -> String {
+        let selectedCues = plan.selectedCues
+        guard let first = selectedCues.first else {
+            return "CueSeeker-Collage-0.png"
+        }
+
+        return defaultCollageFileName(
+            displayTitle: displayTitle,
+            startMilliseconds: selectedCues
+                .map(\.startMilliseconds)
+                .min() ?? first.startMilliseconds,
+            endMilliseconds: selectedCues
+                .map(\.endMilliseconds)
+                .max() ?? first.endMilliseconds,
+            cueCount: plan.selectedCueCount
+        )
     }
 
     public static func canExportCollage(_ items: [SubtitleScreenshotExportItem]) -> Bool {
@@ -239,7 +265,14 @@ public enum SubtitleScreenshotExporter {
         guard let collage = collageImage(from: renderedFrames) else {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
-        try writePNG(collage, to: destinationURL)
+        try exportCollage(image: collage, to: destinationURL)
+    }
+
+    public static func exportCollage(
+        image: CGImage,
+        to destinationURL: URL
+    ) throws {
+        try writePNG(image, to: destinationURL)
     }
 
     public static func renderCollage(
@@ -1096,6 +1129,17 @@ public enum SubtitleScreenshotExporter {
             return String(format: "%02d.%02d.%02d", hours, minutes, seconds)
         }
         return String(format: "%02d.%02d", minutes, seconds)
+    }
+
+    private static func defaultCollageFileName(
+        displayTitle: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        cueCount: Int
+    ) -> String {
+        let start = timeString(milliseconds: startMilliseconds)
+        let end = timeString(milliseconds: endMilliseconds)
+        return "\(displayTitle)-\(start)-\(end)-\(cueCount).png"
     }
 
     private static func ffmpegExecutableURL() -> URL? {

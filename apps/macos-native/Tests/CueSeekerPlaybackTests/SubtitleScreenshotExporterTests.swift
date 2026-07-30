@@ -35,7 +35,7 @@ func subtitleScreenshotDefaultFilenameIncludesHourWhenPresent() {
 }
 
 @Test
-func subtitleScreenshotCollageFilenameUsesTimelineBoundsAndCount() {
+func subtitleScreenshotCollageFilenameUsesTimelineBoundsAndCount() throws {
     let first = SubtitleScreenshotExportItem(
         displayTitle: "Show - 01",
         videoPath: "/tmp/video.mkv",
@@ -56,6 +56,35 @@ func subtitleScreenshotCollageFilenameUsesTimelineBoundsAndCount() {
     )
 
     #expect(SubtitleScreenshotExporter.defaultCollageFileName(for: [first, second]) == "Show - 01-00.05-00.12-2.png")
+
+    let plan = try SubtitleCollageSelectionPlan(selectedCues: [
+        SubtitleFocusCue(
+            id: 1,
+            cueGroupID: 1,
+            ordinal: 0,
+            eventIndex: 0,
+            displayOrder: 0,
+            startMilliseconds: 9_000,
+            endMilliseconds: 10_000,
+            content: "First"
+        ),
+        SubtitleFocusCue(
+            id: 2,
+            cueGroupID: 2,
+            ordinal: 1,
+            eventIndex: 1,
+            displayOrder: 1,
+            startMilliseconds: 5_000,
+            endMilliseconds: 12_000,
+            content: "Second"
+        ),
+    ])
+    #expect(
+        SubtitleScreenshotExporter.defaultCollageFileName(
+            displayTitle: "Show - 01",
+            plan: plan
+        ) == "Show - 01-00.05-00.12-2.png"
+    )
 }
 
 @Test
@@ -260,6 +289,18 @@ func subtitleCollageCompositionKeepsFirstFrameAndCropsLaterSubtitleBands() throw
     ])
     #expect(reusableCollage.width == collage.width)
     #expect(reusableCollage.height == collage.height)
+
+    let destinationURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeeker-Collage-\(UUID().uuidString).png")
+    defer {
+        try? FileManager.default.removeItem(at: destinationURL)
+    }
+    try SubtitleScreenshotExporter.exportCollage(
+        image: reusableCollage,
+        to: destinationURL
+    )
+    #expect(FileManager.default.fileExists(atPath: destinationURL.path))
+    #expect(try Data(contentsOf: destinationURL).isEmpty == false)
 }
 
 private func subtitleScreenshotTestItem(

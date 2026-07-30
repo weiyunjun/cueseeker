@@ -24,6 +24,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
     private let renderGroups: RenderGroups
     private let compose: Compose
     private var requestedPlan: SubtitleCollageSelectionPlan?
+    private var committedPlan: SubtitleCollageSelectionPlan?
     private var committedGroups: [SubtitleCollageGroup] = []
     private var committedRenderedGroups: [SubtitleCollageRenderedGroup] = []
     private var requestGeneration = 0
@@ -66,6 +67,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         renderTask?.cancel()
 
         guard !plan.groups.isEmpty else {
+            committedPlan = nil
             committedGroups = []
             committedRenderedGroups = []
             image = nil
@@ -111,6 +113,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
 
                 self.committedGroups = plan.groups
                 self.committedRenderedGroups = renderedGroups
+                self.committedPlan = plan
                 self.image = renderedImage
                 self.isRendering = false
                 self.errorDescription = nil
@@ -124,6 +127,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
                 else {
                     return
                 }
+                self.committedPlan = nil
                 self.image = nil
                 self.isRendering = false
                 self.errorDescription = String(describing: error)
@@ -137,11 +141,30 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         renderTask?.cancel()
         renderTask = nil
         requestedPlan = nil
+        committedPlan = nil
         committedGroups = []
         committedRenderedGroups = []
         image = nil
         isRendering = false
         errorDescription = nil
+    }
+
+    var canUseCurrentResult: Bool {
+        currentActionResult() != nil
+    }
+
+    func currentActionResult() -> (
+        image: CGImage,
+        plan: SubtitleCollageSelectionPlan
+    )? {
+        guard !isRendering,
+              let image,
+              let committedPlan,
+              committedPlan == requestedPlan
+        else {
+            return nil
+        }
+        return (image, committedPlan)
     }
 
     private func reusableEdges(

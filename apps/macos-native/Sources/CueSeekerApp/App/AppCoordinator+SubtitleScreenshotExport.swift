@@ -118,9 +118,26 @@ extension AppCoordinator {
     }
 
     private func subtitleCollageDestinationURL(for items: [SubtitleScreenshotExportItem]) -> URL? {
+        SubtitleCollageSavePanel.destinationURL(
+            defaultFileName: SubtitleScreenshotExporter
+                .defaultCollageFileName(for: items)
+        )
+    }
+
+    private func subtitleScreenshotDisplayTitle(for result: SubtitleSearchResult) -> String {
+        guard !result.displayTitle.isEmpty else {
+            return SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
+        }
+        return result.displayTitle
+    }
+}
+
+@MainActor
+enum SubtitleCollageSavePanel {
+    static func destinationURL(defaultFileName: String) -> URL? {
         let panel = NSSavePanel()
         panel.title = "Export Collage"
-        panel.nameFieldStringValue = SubtitleScreenshotExporter.defaultCollageFileName(for: items)
+        panel.nameFieldStringValue = defaultFileName
         if let pngType = UTType(filenameExtension: "png") {
             panel.allowedContentTypes = [pngType]
         }
@@ -131,12 +148,5 @@ extension AppCoordinator {
             return nil
         }
         return panel.url
-    }
-
-    private func subtitleScreenshotDisplayTitle(for result: SubtitleSearchResult) -> String {
-        guard !result.displayTitle.isEmpty else {
-            return SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
-        }
-        return result.displayTitle
     }
 }
