@@ -104,6 +104,84 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
 
 @MainActor
 @Test
+func editingCollageSelectionInvalidatesOnlyChangedVisibleRow() {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<20)
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 640, height: 656)
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        displayTitle: "Ave Mujica - 01",
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false,
+        collageSelectedCueIDs: [cues[11].id],
+        collageCanSelectAnotherCue: true
+    )
+    view.layoutSubtreeIfNeeded()
+    let placementsBefore = view.placementsForTesting
+    let measurementsBefore = view.measurementCacheCountForTesting
+
+    let rowUpdate = UIInvalidationProbe.recordForTesting {
+        view.update(
+            cues: cues,
+            totalCount: cues.count,
+            selectedOrdinal: 12,
+            displayTitle: "Ave Mujica - 01",
+            keyboardNavigationRequest: nil,
+            reducesMotion: false,
+            isInteractionEnabled: true,
+            cancelsWheelMotion: false,
+            collageSelectedCueIDs: [cues[11].id, cues[12].id],
+            collageCanSelectAnotherCue: true
+        )
+    }.recording
+
+    #expect(rowUpdate.count(
+        "playback.subtitle_focus.collage_selection_update"
+    ) == 1)
+    #expect(rowUpdate.count(
+        "playback.subtitle_focus.collage_row_invalidation"
+    ) == 1)
+    #expect(rowUpdate.count(
+        "playback.subtitle_focus.collage_full_invalidation"
+    ) == 0)
+    #expect(view.displayedSelectedOrdinalForTesting == 12)
+    #expect(view.placementsForTesting == placementsBefore)
+    #expect(view.measurementCacheCountForTesting == measurementsBefore)
+
+    let availabilityUpdate = UIInvalidationProbe.recordForTesting {
+        view.update(
+            cues: cues,
+            totalCount: cues.count,
+            selectedOrdinal: 12,
+            displayTitle: "Ave Mujica - 01",
+            keyboardNavigationRequest: nil,
+            reducesMotion: false,
+            isInteractionEnabled: true,
+            cancelsWheelMotion: false,
+            collageSelectedCueIDs: [cues[11].id, cues[12].id],
+            collageCanSelectAnotherCue: false
+        )
+    }.recording
+
+    #expect(availabilityUpdate.count(
+        "playback.subtitle_focus.collage_full_invalidation"
+    ) == 1)
+    #expect(availabilityUpdate.count(
+        "playback.subtitle_focus.collage_row_invalidation"
+    ) == 0)
+    #expect(view.displayedSelectedOrdinalForTesting == 12)
+    #expect(view.placementsForTesting == placementsBefore)
+    #expect(view.measurementCacheCountForTesting == measurementsBefore)
+    view.invalidate()
+}
+
+@MainActor
+@Test
 func editingCollageDisablesOnlyUncheckedCuesAtSelectionLimit() {
     _ = NSApplication.shared
     let cues = focusLayoutCues(0..<20)

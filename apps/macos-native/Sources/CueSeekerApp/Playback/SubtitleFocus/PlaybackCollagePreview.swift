@@ -29,7 +29,10 @@ struct PlaybackCollagePreviewPane: View {
                 .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                 .accessibilityIdentifier("playback-collage-preview-title")
 
-            PlaybackCollagePreviewImageScrollView(image: store.image)
+            PlaybackCollagePreviewImageScrollView(
+                image: store.image,
+                uiProbeScope: uiProbeScope
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("playback-collage-preview-image")
 
@@ -102,8 +105,13 @@ struct PlaybackCollagePreviewPane: View {
 
 struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
     let image: CGImage?
+    let uiProbeScope: String?
 
     func makeNSView(context: Context) -> PlaybackCollagePreviewScrollContainerView {
+        UIInvalidationProbe.count(
+            "playback.collage_preview.native_make",
+            scope: uiProbeScope
+        )
         let view = PlaybackCollagePreviewScrollContainerView()
         view.updateImage(image)
         return view
@@ -113,6 +121,10 @@ struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
         _ nsView: PlaybackCollagePreviewScrollContainerView,
         context: Context
     ) {
+        UIInvalidationProbe.count(
+            "playback.collage_preview.native_update",
+            scope: uiProbeScope
+        )
         nsView.updateImage(image)
     }
 }

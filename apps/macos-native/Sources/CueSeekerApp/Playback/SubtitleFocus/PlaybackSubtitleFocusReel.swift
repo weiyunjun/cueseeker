@@ -3160,13 +3160,28 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         let changesAvailability = collageCanSelectAnotherCue != canSelectAnotherCue
         let changedCueIDs = (collageSelectedCueIDs ?? [])
             .symmetricDifference(selectedCueIDs ?? [])
+        UIInvalidationProbe.count(
+            "playback.subtitle_focus.collage_selection_update",
+            scope: uiProbeScope,
+            details: "changed=\(changedCueIDs.count)"
+        )
         collageSelectedCueIDs = selectedCueIDs
         collageCanSelectAnotherCue = canSelectAnotherCue
 
         if changesMode {
+            UIInvalidationProbe.count(
+                "playback.subtitle_focus.collage_full_invalidation",
+                scope: uiProbeScope,
+                details: "reason=mode"
+            )
             resolveLocalPlacementsIfNeeded()
             needsDisplay = true
         } else if changesAvailability {
+            UIInvalidationProbe.count(
+                "playback.subtitle_focus.collage_full_invalidation",
+                scope: uiProbeScope,
+                details: "reason=availability"
+            )
             needsDisplay = true
         } else {
             for placement in placements {
@@ -3175,6 +3190,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                 else {
                     continue
                 }
+                UIInvalidationProbe.count(
+                    "playback.subtitle_focus.collage_row_invalidation",
+                    scope: uiProbeScope,
+                    details: "ordinal=\(placement.ordinal)"
+                )
                 invalidateRow(placement.ordinal)
             }
         }

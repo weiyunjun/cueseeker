@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import CueSeekerCore
 import CueSeekerPlayback
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -190,6 +191,59 @@ func playbackCollagePreviewActionsRejectVisiblePreviousGeneration() async throws
 
 @MainActor
 @Test
+func playbackCollagePreviewPublicationStaysInsidePreviewBranch() async throws {
+    _ = NSApplication.shared
+    let uiProbeScope = UUID().uuidString
+    let recordingSession = UIInvalidationProbe.beginAsyncRecordingForTesting(
+        scope: uiProbeScope
+    )
+    defer { recordingSession.finish() }
+    let store = PlaybackCollagePreviewStore(
+        renderGroups: { groups in
+            groups.map { _ in collagePreviewRenderedGroup() }
+        },
+        compose: { groups in
+            collagePreviewImage(width: groups.count, height: 1)
+        }
+    )
+    let hostingView = NSHostingView(
+        rootView: PlaybackCollageRefreshBoundaryRoot(
+            store: store,
+            uiProbeScope: uiProbeScope
+        )
+        .frame(width: 800, height: 600)
+    )
+    hostingView.frame = CGRect(x: 0, y: 0, width: 800, height: 600)
+    hostingView.layoutSubtreeIfNeeded()
+    try await Task.sleep(nanoseconds: 50_000_000)
+    let recordingBefore = recordingSession.recording()
+    let plan = try SubtitleCollageSelectionPlan(selectedCues: [
+        collagePreviewCue(
+            id: 40,
+            ordinal: 0,
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_000
+        )
+    ])
+
+    store.update(plan: plan)
+    await waitForCollagePreviewToSettle(store)
+    try await Task.sleep(nanoseconds: 50_000_000)
+    hostingView.layoutSubtreeIfNeeded()
+    let recording = recordingSession.recording().delta(
+        since: recordingBefore
+    )
+
+    #expect(recording.count("UI.PlaybackCollagePreviewPane.body") > 0)
+    #expect(recording.count("playback.collage_preview.native_update") > 0)
+    #expect(recording.count("test.playback_collage.preview_owner_body") > 0)
+    #expect(recording.count("test.playback_collage.root_body") == 0)
+    #expect(recording.count("test.playback_collage.sibling_body") == 0)
+    withExtendedLifetime(hostingView) {}
+}
+
+@MainActor
+@Test
 func playbackCollagePreviewUsesEqualColumnsAndTableScrollbar() throws {
     _ = NSApplication.shared
     #expect(PlaybackCollageEditorLayout.columnWidth(totalWidth: 901) == 450.5)
@@ -245,6 +299,61 @@ private func collagePreviewImage(width: Int, height: Int) -> CGImage {
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
     )!
     return context.makeImage()!
+}
+
+private struct PlaybackCollageRefreshBoundaryRoot: View {
+    let store: PlaybackCollagePreviewStore
+    let uiProbeScope: String
+
+    var body: some View {
+        let _ = UIInvalidationProbe.count(
+            "test.playback_collage.root_body",
+            scope: uiProbeScope
+        )
+        HStack(spacing: 0) {
+            PlaybackCollageRefreshBoundaryOwner(
+                store: store,
+                uiProbeScope: uiProbeScope
+            )
+            PlaybackCollageRefreshBoundarySibling(
+                uiProbeScope: uiProbeScope
+            )
+        }
+    }
+}
+
+private struct PlaybackCollageRefreshBoundaryOwner: View {
+    @StateObject private var store: PlaybackCollagePreviewStore
+    let uiProbeScope: String
+
+    init(store: PlaybackCollagePreviewStore, uiProbeScope: String) {
+        _store = StateObject(wrappedValue: store)
+        self.uiProbeScope = uiProbeScope
+    }
+
+    var body: some View {
+        let _ = UIInvalidationProbe.count(
+            "test.playback_collage.preview_owner_body",
+            scope: uiProbeScope
+        )
+        PlaybackCollagePreviewPane(
+            store: store,
+            displayTitle: "Show - 01",
+            uiProbeScope: uiProbeScope
+        )
+    }
+}
+
+private struct PlaybackCollageRefreshBoundarySibling: View {
+    let uiProbeScope: String
+
+    var body: some View {
+        let _ = UIInvalidationProbe.count(
+            "test.playback_collage.sibling_body",
+            scope: uiProbeScope
+        )
+        Color.clear
+    }
 }
 
 @MainActor
