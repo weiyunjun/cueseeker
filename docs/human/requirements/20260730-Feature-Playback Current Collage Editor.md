@@ -45,3 +45,12 @@ Copy、Export 与实时预览共用同一代合成结果；接入剪贴板、保
 
 ## 6. 完成刷新范围与整体收尾
 检查 Checkbox、字幕列表、预览画布和 Playback Host 的刷新边界，完成相关回归、实施记录和必要的工程文档更新；不修改现有表格 Collage 和 Context 功能。
+
+# UI文档改动
+
+1. 新增 Playback Collage Checkbox 尺寸 Token。
+2. 将 Playback View Switcher 统一调整为 Playback Overlay Topbar，并补充 Editing Collage 的入口、退出状态、快捷键和 Tab 隔离规则。
+3. 新增 Subtitle Selection Region，明确复用 Current Reel、焦点交互、字幕布局和 Table Scrollbar，以及 Checkbox 的样式、点击范围、键盘交互和 50 条上限。
+4. 新增 Collage Preview Region，明确左右等宽布局、固定标题与按钮、连续 Collage 画布、图片缩放和 Table Scrollbar。
+5. 补充 Copy Collage、Export Collage 的按钮名称与图标。
+6. 将 Search Result 中遗留的 Playback View Switcher 名称同步为 Playback Overlay Topbar。
