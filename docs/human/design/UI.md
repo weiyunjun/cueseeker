@@ -241,6 +241,7 @@
 #### Size
 
 - `--size-checkbox`: `16px`
+- `--size-playback-collage-checkbox`: `24px`
 - `--min-width-filter-data-card`: `200px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
@@ -2234,24 +2235,37 @@
   - 完成返回后销毁 Playback Enter Context
 
 - 基本结构：
-  1. Playback View Switcher
+  1. Playback Overlay Topbar
   2. View Content Region
 
-- Playback View Switcher：
+- Playback Overlay Topbar：
   - 固定在 Overlay 顶部并横跨完整内容宽度
-  - 居中排列 Current 和 Playlist 两个 Playback View Tab
-  - 当前 View 使用 Selected 状态
   - 不显示独立背景、边框或 Divider
-  - 无修饰 `Tab` 在 Current 和 Playlist 之间循环切换
-  - 无修饰 `Tab` 不执行原生焦点遍历
-  - 不提供其他 View 切换按钮或快捷键
+  - 普通状态下，居中排列 Current 和 Playlist 两个 Playback View Tab
+  - 当前 View 使用 Selected 状态
+  - Current 左侧显示 Collage Neutral Button，使用 Edit Icon `square.and.pencil`
+  - Collage Button 与 Topbar 左边界的间距使用 `--spacing-4`
+  - Playlist 不显示 Collage Button
+  - 点击 Collage Button 或在 Current 按无修饰 `P` 进入 Editing Collage
+  - 普通状态下，无修饰 `Tab` 在 Current 和 Playlist 之间循环切换
+  - 普通状态下，无修饰 `Tab` 不执行原生焦点遍历
+  - Editing Collage 状态下，左侧 Collage Button 的 Label 改为 `Exit`
+  - Editing Collage 状态下，隐藏 Current 和 Playlist 两个 Playback View Tab
+  - Editing Collage 状态下，Topbar 中央显示 Edit Icon `square.and.pencil` 和 `Editing Collage`
+  - Edit Icon 与 `Editing Collage` 的间距使用 `--spacing-2`
+  - `Editing Collage` 复用 Selected Playback View Tab 的文字颜色和字体样式
+  - Editing Collage 状态下，禁止通过点击或无修饰 `Tab` 切换 Current 和 Playlist
+  - Editing Collage 状态下，无修饰 `Tab` 被当前界面消费，不执行原生焦点遍历
+  - 点击 `Exit`、按无修饰 `P` 或按 `Escape` 返回 Current 普通状态
+  - Editing Collage 状态下，其他无修饰 Playback 快捷键不执行原动作
+  - Editing Collage 状态下，`Up` 和 `Down` 保留给字幕阅读列表滚动
 
 - View Content Region：
-  - 占据 Playback View Switcher 下方的全部可用区域
+  - 占据 Playback Overlay Topbar 下方的全部可用区域
   - 内容内边距使用 `--spacing-8`
-  - Current 和 Playlist 共享同一 View Content Region
-  - View 切换只替换 View Content Region 内容
-  - View 切换不关闭 Overlay
+  - Current、Playlist 和 Editing Collage 共用同一 View Content Region
+  - 状态切换只替换 View Content Region 内容
+  - Current 和 Playlist 之间切换不关闭 Overlay
   - View Content Region 内不显示独立背景、边框或 Divider
 
 - 打开：
@@ -2267,7 +2281,9 @@
   - 每次打开 Playback Overlay 创建一个新的 Overlay Session
   - Current 和 Playlist 的切换属于同一次 Overlay Session
   - View 切换期间保留 Current 和 Playlist 各自的选择与滚动位置
-  - Escape、播放动作、关闭 Playback Page 或其他关闭 Overlay 的路径结束并销毁当前 Overlay Session
+  - Current 或 Playlist 普通状态下，Escape、播放动作、关闭 Playback Page或其他关闭 Overlay 的路径结束并销毁当前 Overlay Session
+  - Editing Collage 状态下，Escape 只退出 Editing Collage 并返回 Current，不结束 Overlay Session
+  - Overlay Session 结束时同时清除 Editing Collage 临时状态
   - Session 结束后不保留当前 View、选择位置、滚动位置或临时显示内容
   - 再次打开 Playback Overlay 时默认进入 Current，并重新初始化两个 View 的局部状态
   - Session 销毁不删除 Playlist、Playback History、Search Query、Shiori、Recent、Library 或其他持久 Feature 状态
@@ -2288,6 +2304,48 @@
   - Unselected Cue 显示相同内容和数量的信息行，并使用 Unselected Badge 配色
   - 允许顶部和底部出现部分可见的相邻 Cue
   - 不显示卡片、边框、背景或可见 Focus Marker
+
+- Editing Collage / Subtitle Selection Region：
+  - View Content Region 左右等分；左侧保留给 Collage Preview Region，右侧显示 Subtitle Selection Region
+  - Subtitle Selection Region 直接复用 Current 的 Subtitle Focus Cue Reel、虚拟化布局、焦点交互和 Table Scrollbar，不建立独立字幕列表或滚动条
+  - Cue 数据、排列顺序、Display Title 和 Time Range 继承 Current
+  - Cue Reel 在右侧 Subtitle Selection Region 中水平居中
+  - 进入 Editing Collage 时保持 Current 的焦点和滚动位置，并默认勾选焦点字幕
+  - 退出 Editing Collage 后保留退出前的焦点和滚动位置
+  - 每个 Cue 增加 Leading Checkbox Slot；Checkbox 使用 `--size-playback-collage-checkbox`，与 Cue 内容间距使用 `--spacing-4`
+  - Checkbox 与 Primary Cue 第一条视觉行垂直居中对齐
+  - Display Title 和 Time Range 继续由现有 Playback Cue Information Badge 布局统一排列，不单独定位
+  - Unchecked 使用 `circle` 和 `--color-border-checkbox`
+  - Checked 使用强制 Monochrome 的 `checkmark.circle.fill` 和 `--color-text-muted`
+  - Disabled 使用 `--color-icon-disabled`
+  - Light 和 Dark Appearance 均复用 Filter Data Card Checkbox 的对应动态颜色
+  - Checkbox 不显示 Hover、Pressed、Click 动画或 Focus Ring，也不获得独立键盘焦点
+  - 整个 Cue Placement 都是 Checkbox 的点击区域，包括 Checkbox、Display Title、Time Range 和 Primary Cue
+  - 点击 Cue Placement 只切换 Checkbox，不改变焦点
+  - 无修饰 `Enter` 切换焦点字幕的 Checkbox
+  - `Up`、`Down`、Wheel、Trackpad 和 Table Scrollbar 继续使用 Current 的焦点导航
+  - 焦点状态与 Checkbox 状态彼此独立
+  - 只有焦点决定 Subtitle Focus Cue 和 Playback Cue Information Badge 的 Selected / Unselected 样式
+  - Checkbox 的 Checked / Unchecked 变化不改变字幕或 Badge 样式
+  - 最多勾选 `50` 条；达到上限后，未勾选项进入 Disabled，已勾选项仍可取消勾选
+
+- Editing Collage / Collage Preview Region：
+  - 位于 View Content Region 左半部分，与右侧 Subtitle Selection Region 等宽
+  - 从上到下排列 Section Title `Collage Preview`、Collage Image Viewport 和 Action Row
+  - Region 内边距使用 `--spacing-8`；三个区域之间使用 `--spacing-4`
+  - `Collage Preview` 复用 Section Title
+  - Action Row 显示两个 Neutral Button，按钮间距使用 `--spacing-3`
+  - `Copy Collage` 使用 `doc.on.doc`
+  - `Export Collage` 使用表格 Anki 操作相同的 `square.and.arrow.up`
+  - Section Title 和 Action Row 固定，只有 Collage Image Viewport 可以滚动
+  - Collage 显示为一张连续画布，不按时间戳分组显示独立图片
+  - 图片保持原始宽高比并适配 Viewport 的完整可用宽度，不横向滚动
+  - 图片高度超过 Viewport 时显示纵向 Table Scrollbar；未超过时不显示滚动条
+  - 不显示 macOS 原生滚动条、外框或 Focus Ring
+  - 进入 Editing Collage 后，根据默认勾选的焦点字幕生成首张实时预览
+  - Checkbox 变化后只重新渲染受影响的时间戳分组，未变化分组复用已有渲染结果，再合成为新的连续画布
+  - 新的选择状态取代尚未完成的旧渲染任务；过期结果不得替换当前预览
+  - 预览异步渲染完成只刷新 Collage Preview Region，不再次刷新右侧 Subtitle Selection Region
 
 - Current / Focus Anchor：
   - 是不可见的 Screen-space Anchor
@@ -2537,7 +2595,7 @@
 
 - Search Result：
   - 复用 Playback Cue Result Reel 的布局、选择、滚动和键盘操作
-  - 不显示 Context Region、Library Cover 或 Playback View Switcher
+  - 不显示 Context Region、Library Cover 或 Playback Overlay Topbar
   - Result Reel 占据 Header 与 Footer 之间的完整内容区域
   - 默认选择第一条 Result
   - Show Cue Group 为 On 时，每条 Result 都在 Primary Cue 下方显示 Cue Group
