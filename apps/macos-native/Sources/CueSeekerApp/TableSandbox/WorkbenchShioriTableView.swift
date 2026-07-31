@@ -169,6 +169,11 @@ private struct WorkbenchShioriTableContent: View {
             reloadRows(resetScroll: false)
         }
         .onChange(of: shioriStore.activeListID) { _ in
+            shioriStore.tableViewportAnchor = nil
+            viewportAnchorToRestore = nil
+            tableScrollTargetRow = nil
+            didRestoreViewport = true
+            tableScrollResetToken += 1
             restoreShioriFacetFilter()
         }
         .onChange(of: canEnterSelectionMode) { canEnter in
@@ -189,6 +194,7 @@ private struct WorkbenchShioriTableContent: View {
             exitSelectionMode()
             shioriStore.setTableProjectionResponseActive(false)
             persistSelection()
+            shioriStore.tableViewportAnchor = nil
         }
         .background(
             CueGroupPresentationGate(

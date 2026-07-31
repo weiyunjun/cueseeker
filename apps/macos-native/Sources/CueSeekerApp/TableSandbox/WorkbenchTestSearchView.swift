@@ -238,6 +238,7 @@ struct WorkbenchTestSearchView: View {
             search.setTableProjectionResponseActive(false)
             persistTableControls()
             persistSelection()
+            search.tableViewportAnchor = nil
         }
         .background(
             CueGroupPresentationGate(

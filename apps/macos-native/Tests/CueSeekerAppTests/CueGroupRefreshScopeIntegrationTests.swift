@@ -194,6 +194,13 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
             try #require(didPreserveSelectedCueGroup)
 
+            coordinator.scrollToRow(100)
+            let didScrollSearch = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return coordinator.verticalScrollOffsetForTesting() > 0
+            }
+            try #require(didScrollSearch)
+
             app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
             app.workbenchLayout.selectShioriList(
                 id: ShioriListIdentity.defaultListID
@@ -224,6 +231,48 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
             try #require(didRemountSearchCueGroup)
             #expect(remountedCoordinator?.rowSelectionStateForTesting(row: 0) == false)
+            #expect(remountedCoordinator?.verticalScrollOffsetForTesting() == 0)
+        }
+    }
+
+    @MainActor
+    @Test
+    func shioriTableStartsAtTopAfterPanelRemount() async throws {
+        let uiProbeScope = UUID().uuidString
+
+        try await withMountedCueTable(
+            surface: .shiori,
+            uiProbeScope: uiProbeScope
+        ) { app, window, coordinator in
+            coordinator.scrollToRow(100)
+            let didScrollShiori = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return coordinator.verticalScrollOffsetForTesting() > 0
+                    && (app.shiori.tableViewportAnchor?.rowIndex ?? 0) > 0
+            }
+            try #require(didScrollShiori)
+
+            app.activateWorkbenchPanelMode(.search)
+            let didMountSearch = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return findSubtitleTableCoordinator(
+                    in: window.contentView,
+                    surface: .search
+                ) != nil
+            }
+            try #require(didMountSearch)
+
+            app.activateWorkbenchPanelMode(.shiori)
+            var remountedCoordinator: SubtitleTableView.Coordinator?
+            let didRemountShioriAtTop = await waitUntil(timeout: 2) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                remountedCoordinator = findSubtitleTableCoordinator(
+                    in: window.contentView,
+                    surface: .shiori
+                )
+                return remountedCoordinator?.verticalScrollOffsetForTesting() == 0
+            }
+            try #require(didRemountShioriAtTop)
         }
     }
 

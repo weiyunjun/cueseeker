@@ -4037,6 +4037,10 @@ struct SubtitleTableView: NSViewRepresentable {
             notifyVisibleRowsChanged(force: true)
         }
 
+        func verticalScrollOffsetForTesting() -> CGFloat {
+            scrollView?.contentView.bounds.origin.y ?? 0
+        }
+
         private func clampHorizontalScrollOffset(contentWidth: CGFloat) {
             guard let scrollView else { return }
             let maxX = max(0, contentWidth - scrollView.contentView.bounds.width)
