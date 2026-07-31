@@ -505,6 +505,7 @@ final class AppCoordinator: ObservableObject {
             database: openedSearchDatabase,
             uiProbeScope: uiProbeScope
         )
+        search.updateSearchFacetFilter(settings.searchFacetFilter)
         _ = search.updateFolderScope(indexing.selectedFolders)
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         self.libraryDatabase = openedLibraryDatabase

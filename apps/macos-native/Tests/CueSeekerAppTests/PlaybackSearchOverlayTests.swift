@@ -6,21 +6,33 @@ import Testing
 
 @MainActor
 @Test
-func selectedTextSearchReusesAnOpenCommandPanelAndNormalizesItsQuery() {
+func selectedTextSearchUsesPersistedFilterAndReusesAnOpenCommandPanel() throws {
     _ = NSApplication.shared
+    let suiteName = "PlaybackSelectedTextSearch-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "playback-selected-text-search-\(UUID().uuidString).sqlite"
         )
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    let persistedFilter = CueFacetFilter(languages: [.japanese])
+    SettingsStore(userDefaults: userDefaults).searchFacetFilter = persistedFilter
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
     app.search.selectResult(
         playbackSharedSearchResult(id: 9_001, rank: 0)
     )
+    app.activePlaybackSource = .search
     app.playback.isPlaybackSurfaceExpanded = true
 
     #expect(app.presentPlaybackCommandPanel())
     app.searchPlaybackSelectedText("first\r\nsecond")
+    #expect(app.search.searchFacetFilter == persistedFilter)
     #expect(app.playback.commandPanelPresentation?.page == .searchResults)
     #expect(app.playback.commandPanelPresentation?.query == "first second")
     #expect(app.search.searchQuery == "first second")
