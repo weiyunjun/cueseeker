@@ -4,12 +4,12 @@ import Testing
 
 @MainActor
 private final class ControllerRepeatTestState {
-    var allowsRepeat: Bool
     var inputs: [ControllerInput] = []
+}
 
-    init(allowsRepeat: Bool) {
-        self.allowsRepeat = allowsRepeat
-    }
+@MainActor
+func runControllerRepeatTimers(for interval: TimeInterval = 0.05) {
+    RunLoop.main.run(until: Date().addingTimeInterval(interval))
 }
 
 @Test
@@ -38,13 +38,12 @@ func thumbstickIgnoresMovementBelowActivationThreshold() {
 
 @MainActor
 @Test
-func thumbstickRepeatRequiresEligibilityAtActivationAndANewDeadzoneCycle() async throws {
-    let state = ControllerRepeatTestState(allowsRepeat: false)
+func thumbstickRepeatsUntilItReturnsToTheDeadzone() {
+    let state = ControllerRepeatTestState()
     let monitor = GameControllerInputMonitor(
         repeatDelay: 0.01,
         repeatInterval: 0.01,
-        inputEligibility: { true },
-        repeatEligibility: { _ in state.allowsRepeat }
+        inputEligibility: { true }
     ) { input in
         state.inputs.append(input)
         return true
@@ -53,29 +52,33 @@ func thumbstickRepeatRequiresEligibilityAtActivationAndANewDeadzoneCycle() async
         monitor.stop()
     }
 
-    monitor.handleThumbstick(x: 0.8, y: 0)
-    #expect(state.inputs == [
-        .direction(.right, source: .leftThumbstick, isRepeat: false),
-    ])
-
-    state.allowsRepeat = true
-    try await Task.sleep(for: .milliseconds(40))
-    #expect(state.inputs.count == 1)
+    monitor.handleThumbstick(x: 0, y: 0.8)
+    runControllerRepeatTimers()
+    #expect(state.inputs.first == .direction(
+        .up,
+        source: .leftThumbstick,
+        isRepeat: false
+    ))
+    #expect(state.inputs.contains(.direction(
+        .up,
+        source: .leftThumbstick,
+        isRepeat: true
+    )))
 
     monitor.handleThumbstick(x: 0, y: 0)
-    monitor.handleThumbstick(x: 0.8, y: 0)
-    #expect(state.inputs.count == 2)
+    let countAfterDeadzone = state.inputs.count
+    runControllerRepeatTimers(for: 0.03)
+    #expect(state.inputs.count == countAfterDeadzone)
 }
 
 @MainActor
 @Test
-func thumbstickRepeatStopsWhenTheCurrentInterfaceRejectsIt() async throws {
-    let state = ControllerRepeatTestState(allowsRepeat: true)
+func buttonsAndDirectionalPadRepeatUntilRelease() {
+    let state = ControllerRepeatTestState()
     let monitor = GameControllerInputMonitor(
-        repeatDelay: 0.02,
+        repeatDelay: 0.01,
         repeatInterval: 0.01,
-        inputEligibility: { true },
-        repeatEligibility: { _ in state.allowsRepeat }
+        inputEligibility: { true }
     ) { input in
         state.inputs.append(input)
         return true
@@ -84,16 +87,31 @@ func thumbstickRepeatStopsWhenTheCurrentInterfaceRejectsIt() async throws {
         monitor.stop()
     }
 
-    monitor.handleThumbstick(x: -0.8, y: 0)
-    state.allowsRepeat = false
-    try await Task.sleep(for: .milliseconds(50))
-    #expect(state.inputs.count == 1)
+    monitor.handleButton(.west, isPressed: true)
+    runControllerRepeatTimers()
+    #expect(state.inputs.first == .button(.west))
+    #expect(state.inputs.contains(.button(.west, isRepeat: true)))
 
-    state.allowsRepeat = true
-    try await Task.sleep(for: .milliseconds(30))
-    #expect(state.inputs.count == 1)
+    monitor.handleButton(.west, isPressed: false)
+    let countAfterButtonRelease = state.inputs.count
+    runControllerRepeatTimers(for: 0.03)
+    #expect(state.inputs.count == countAfterButtonRelease)
 
-    monitor.handleThumbstick(x: 0, y: 0)
-    monitor.handleThumbstick(x: -0.8, y: 0)
-    #expect(state.inputs.count == 2)
+    monitor.handleDirectionalPad(.down, isPressed: true)
+    runControllerRepeatTimers()
+    #expect(state.inputs.contains(.direction(
+        .down,
+        source: .directionalPad,
+        isRepeat: false
+    )))
+    #expect(state.inputs.contains(.direction(
+        .down,
+        source: .directionalPad,
+        isRepeat: true
+    )))
+
+    monitor.handleDirectionalPad(.down, isPressed: false)
+    let countAfterDirectionRelease = state.inputs.count
+    runControllerRepeatTimers(for: 0.03)
+    #expect(state.inputs.count == countAfterDirectionRelease)
 }

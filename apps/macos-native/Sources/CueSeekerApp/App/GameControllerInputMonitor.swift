@@ -4,11 +4,9 @@ import GameController
 @MainActor
 final class GameControllerInputMonitor {
     typealias InputEligibility = @MainActor () -> Bool
-    typealias RepeatEligibility = @MainActor (ControllerDirection) -> Bool
     typealias InputHandler = @MainActor (ControllerInput) -> Bool
 
     private let inputEligibility: InputEligibility
-    private let repeatEligibility: RepeatEligibility
     private let inputHandler: InputHandler
     private let repeatDelay: TimeInterval
     private let repeatInterval: TimeInterval
@@ -17,19 +15,17 @@ final class GameControllerInputMonitor {
     private var thumbstickInterpreter = ControllerThumbstickInterpreter()
     private var repeatDelayTimer: Timer?
     private var repeatTimer: Timer?
-    private var repeatingDirection: ControllerDirection?
+    private var repeatingInput: ControllerInput?
 
     init(
         repeatDelay: TimeInterval = 0.4,
         repeatInterval: TimeInterval = 0.08,
         inputEligibility: @escaping InputEligibility,
-        repeatEligibility: @escaping RepeatEligibility,
         inputHandler: @escaping InputHandler
     ) {
         self.repeatDelay = repeatDelay
         self.repeatInterval = repeatInterval
         self.inputEligibility = inputEligibility
-        self.repeatEligibility = repeatEligibility
         self.inputHandler = inputHandler
     }
 
@@ -153,11 +149,8 @@ final class GameControllerInputMonitor {
         to button: ControllerButton
     ) {
         input?.pressedChangedHandler = { [weak self] _, _, isPressed in
-            guard isPressed else {
-                return
-            }
-            _ = MainActor.assumeIsolated {
-                self?.deliver(.button(button))
+            MainActor.assumeIsolated {
+                self?.handleButton(button, isPressed: isPressed)
             }
         }
     }
@@ -167,26 +160,55 @@ final class GameControllerInputMonitor {
         to direction: ControllerDirection
     ) {
         input.pressedChangedHandler = { [weak self] _, _, isPressed in
-            guard isPressed else {
-                return
-            }
-            _ = MainActor.assumeIsolated {
-                self?.deliver(.direction(
-                    direction,
-                    source: .directionalPad,
-                    isRepeat: false
-                ))
+            MainActor.assumeIsolated {
+                self?.handleDirectionalPad(direction, isPressed: isPressed)
             }
         }
+    }
+
+    func handleButton(_ button: ControllerButton, isPressed: Bool) {
+        handleDigitalInput(.button(button), isPressed: isPressed)
+    }
+
+    func handleDirectionalPad(
+        _ direction: ControllerDirection,
+        isPressed: Bool
+    ) {
+        handleDigitalInput(
+            .direction(
+                direction,
+                source: .directionalPad,
+                isRepeat: false
+            ),
+            isPressed: isPressed
+        )
+    }
+
+    private func handleDigitalInput(
+        _ input: ControllerInput,
+        isPressed: Bool
+    ) {
+        guard isPressed else {
+            cancelInputRepeat(matching: input)
+            return
+        }
+        guard deliver(input) else {
+            return
+        }
+        startInputRepeat(input)
     }
 
     func handleThumbstick(x: Float, y: Float) {
         let previousDirection = thumbstickInterpreter.activeDirection
         let activatedDirection = thumbstickInterpreter.update(x: x, y: y)
 
-        if previousDirection != nil,
+        if let previousDirection,
            thumbstickInterpreter.activeDirection == nil {
-            cancelDirectionRepeat()
+            cancelInputRepeat(matching: .direction(
+                previousDirection,
+                source: .leftThumbstick,
+                isRepeat: false
+            ))
         }
         guard let activatedDirection else {
             return
@@ -199,29 +221,26 @@ final class GameControllerInputMonitor {
         )) else {
             return
         }
-        guard repeatEligibility(activatedDirection) else {
-            return
-        }
-        startDirectionRepeat(activatedDirection)
+        startInputRepeat(.direction(
+            activatedDirection,
+            source: .leftThumbstick,
+            isRepeat: false
+        ))
     }
 
-    private func startDirectionRepeat(_ direction: ControllerDirection) {
-        cancelDirectionRepeat()
-        repeatingDirection = direction
+    private func startInputRepeat(_ input: ControllerInput) {
+        let repeatedInput = Self.repeatedInput(for: input)
+        cancelInputRepeat()
+        repeatingInput = input
 
         let delayTimer = Timer(timeInterval: repeatDelay, repeats: false) {
             [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.repeatingDirection == direction else {
+                guard let self, self.repeatingInput == input else {
                     return
                 }
-                guard self.repeatEligibility(direction),
-                      self.deliver(.direction(
-                    direction,
-                    source: .leftThumbstick,
-                    isRepeat: true
-                )) else {
-                    self.cancelDirectionRepeat()
+                guard self.deliver(repeatedInput) else {
+                    self.cancelInputRepeat(matching: input)
                     return
                 }
                 let repeatTimer = Timer(
@@ -230,17 +249,12 @@ final class GameControllerInputMonitor {
                 ) { [weak self] _ in
                     MainActor.assumeIsolated {
                         guard let self,
-                              self.repeatingDirection == direction
+                              self.repeatingInput == input
                         else {
                             return
                         }
-                        guard self.repeatEligibility(direction),
-                              self.deliver(.direction(
-                            direction,
-                            source: .leftThumbstick,
-                            isRepeat: true
-                        )) else {
-                            self.cancelDirectionRepeat()
+                        guard self.deliver(repeatedInput) else {
+                            self.cancelInputRepeat(matching: input)
                             return
                         }
                     }
@@ -253,12 +267,24 @@ final class GameControllerInputMonitor {
         RunLoop.main.add(delayTimer, forMode: .common)
     }
 
-    private func cancelDirectionRepeat() {
+    private func cancelInputRepeat(matching input: ControllerInput? = nil) {
+        if let input, repeatingInput != input {
+            return
+        }
         repeatDelayTimer?.invalidate()
         repeatDelayTimer = nil
         repeatTimer?.invalidate()
         repeatTimer = nil
-        repeatingDirection = nil
+        repeatingInput = nil
+    }
+
+    private static func repeatedInput(for input: ControllerInput) -> ControllerInput {
+        switch input {
+        case .button(let button, _):
+            .button(button, isRepeat: true)
+        case .direction(let direction, let source, _):
+            .direction(direction, source: source, isRepeat: true)
+        }
     }
 
     private func detachActiveController() {
@@ -283,7 +309,7 @@ final class GameControllerInputMonitor {
             profile.leftThumbstick.valueChangedHandler = nil
         }
 
-        cancelDirectionRepeat()
+        cancelInputRepeat()
         thumbstickInterpreter.reset()
         activeController = nil
     }

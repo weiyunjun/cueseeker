@@ -43,10 +43,20 @@ keyboard-equivalence rule in `docs/human/design/Controller.md`:
 The controller router now preserves shared keyboard handling first and falls
 back to native first-responder text commands only when an editable control owns
 the unhandled action. Normal-video Escape explicitly exits Playback fullscreen.
-The monitor now receives the routing result and current repeat eligibility,
-starts repeat only for an accepted direction, cancels rejected repeat without
+The monitor receives the routing result, cancels rejected repeat without
 resetting the active stick, and therefore requires a new deadzone cycle before
-another activation.
+another thumbstick activation.
+
+A second physical review exposed that the original repeat model still treated
+product examples as an axis/interface whitelist and retained only the initial
+press for controller buttons and the directional pad. This prevented vertical
+left-thumbstick repeat on the normal video page and prevented Square from
+repeating native Backspace in the Command Panel root editor. The normalized
+button event now carries `isRepeat`; buttons, the directional pad, and all four
+left-thumbstick directions share one press-delay-repeat-release lifecycle. Every
+repeated event returns to the keyboard-equivalent router, while direct actions
+such as Collage Copy/Export, root paste, and previous-module selection remain
+single-shot.
 
 ## Verification
 
@@ -56,6 +66,14 @@ another activation.
 - Post-correction controller, Playback Overlay, Command Panel, fullscreen
   Escape, native text fallback, and thumbstick lifecycle selection: passed, 27
   tests.
+- Unified positive repeat verification for left-thumbstick vertical input,
+  controller buttons, directional-pad input, release cancellation, Command Panel
+  Backspace, native text insertion, and cross-interface routing: passed as part
+  of 29 related Playback and controller tests.
+- Unified-repeat unfiltered `swift test`: executed 943 tests and reported 25
+  issues. No controller test failed; reported issues remained in existing native
+  media timing/presentation, shared test-database I/O and timeouts, Library
+  folder operations, and refresh-scope instrumentation.
 - Post-correction unfiltered `swift test`: executed 941 tests and reported 19
   issues. No controller test failed; reported issues remained in existing native
   media timeline/presentation timing, shared test-database I/O, Subtitle Table

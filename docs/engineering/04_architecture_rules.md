@@ -794,11 +794,13 @@ Replacement and simplicity rules:
 - The left thumbstick uses its dominant axis, activates at `0.65`, releases at
   `0.35`, and cannot trigger another direction until it returns to the release
   deadzone. Continuous input begins after `0.4` seconds and repeats every
-  `0.08` seconds. Horizontal repeat is accepted only on the normal video page;
-  vertical repeat is accepted only in Playback Overlay, Command Panel, and
-  Collage. A repeat timer starts only when the active interface accepts that
-  direction, stops when the interface rejects it, and keeps the stick active
-  until it returns to the deadzone. The directional pad emits discrete presses.
+  `0.08` seconds. All four directions retain their keyboard-equivalent repeat
+  behavior on the normal video page, Playback Overlay, Command Panel, and
+  Collage; the additional product examples do not exclude unlisted interfaces
+  or axes. Controller buttons and the directional pad retain press and release,
+  use the same repeat lifecycle, and forward `isRepeat` so the shared keyboard
+  state machine can preserve or suppress each repeated action exactly as it does
+  for a physical keyboard.
 - The packaged App must declare controller user interaction and the Extended
   Gamepad profile. DS5 Bluetooth and USB use the same normalized mapping;
   connection transport must not enter Playback behavior code.

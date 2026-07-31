@@ -58,12 +58,7 @@ extension AppCoordinator {
             return textActionHandler(nativeTextAction)
         }
 
-        if case .direction(let direction, let source, let isRepeat) = input {
-            if source == .leftThumbstick,
-               isRepeat,
-               !allowsControllerThumbstickRepeat(direction) {
-                return false
-            }
+        if case .direction(let direction, _, let isRepeat) = input {
             return keyboardEquivalent(
                 Self.keyCode(for: direction),
                 isRepeat: isRepeat,
@@ -71,69 +66,85 @@ extension AppCoordinator {
             )
         }
 
-        guard case .button(let button) = input else {
+        guard case .button(let button, let isRepeat) = input else {
             return false
         }
         switch button {
         case .south:
             let usesConfirmation = playback.commandPanelPresentation != nil
                 || playback.subtitleFocusSession != nil
-            return keyboardEquivalent(usesConfirmation ? 36 : 49)
+            return keyboardEquivalent(
+                usesConfirmation ? 36 : 49,
+                isRepeat: isRepeat
+            )
         case .east:
-            return keyboardEquivalent(53)
+            return keyboardEquivalent(53, isRepeat: isRepeat)
         case .west:
             if let session = playback.subtitleFocusSession,
                session.isEditingCollage {
+                guard !isRepeat else {
+                    return false
+                }
                 return session.copyCurrentCollage()
             }
             if playback.commandPanelPresentation?.page == .root {
                 return textActionHandler(.deleteBackward)
             }
-            return keyboardEquivalent(8, nativeTextAction: .insertText("c"))
+            return keyboardEquivalent(
+                8,
+                isRepeat: isRepeat,
+                nativeTextAction: .insertText("c")
+            )
         case .north:
             if let session = playback.subtitleFocusSession,
                session.isEditingCollage {
+                guard !isRepeat else {
+                    return false
+                }
                 return session.exportCurrentCollage()
             }
             if playback.commandPanelPresentation?.page == .root {
+                guard !isRepeat else {
+                    return false
+                }
                 return textActionHandler(.paste)
             }
-            return keyboardEquivalent(1, nativeTextAction: .insertText("s"))
+            return keyboardEquivalent(
+                1,
+                isRepeat: isRepeat,
+                nativeTextAction: .insertText("s")
+            )
         case .auxiliaryLeft:
-            return keyboardEquivalent(35)
+            return keyboardEquivalent(35, isRepeat: isRepeat)
         case .auxiliaryRight:
-            return keyboardEquivalent(50, nativeTextAction: .insertText("`"))
+            return keyboardEquivalent(
+                50,
+                isRepeat: isRepeat,
+                nativeTextAction: .insertText("`")
+            )
         case .centerSurface:
             guard playback.commandPanelPresentation == nil,
                   playback.subtitleFocusSession == nil
             else {
                 return false
             }
-            return keyboardEquivalent(36)
+            return keyboardEquivalent(36, isRepeat: isRepeat)
         case .leftShoulder:
+            guard !isRepeat else {
+                return false
+            }
             return playback.subtitleFocusSession?.selectPreviousModule() == true
         case .rightShoulder:
-            return keyboardEquivalent(48)
+            return keyboardEquivalent(48, isRepeat: isRepeat)
         case .leftTrigger:
-            return keyboardEquivalent(0)
+            return keyboardEquivalent(0, isRepeat: isRepeat)
         case .rightTrigger:
-            return keyboardEquivalent(2)
+            return keyboardEquivalent(2, isRepeat: isRepeat)
         case .leftThumbstick:
-            return keyboardEquivalent(12)
+            return keyboardEquivalent(12, isRepeat: isRepeat)
         case .rightThumbstick:
-            return keyboardEquivalent(3)
+            return keyboardEquivalent(3, isRepeat: isRepeat)
         }
-    }
-
-    func allowsControllerThumbstickRepeat(
-        _ direction: ControllerDirection
-    ) -> Bool {
-        let hasModalPlaybackInterface = playback.commandPanelPresentation != nil
-            || playback.subtitleFocusSession != nil
-        if hasModalPlaybackInterface {
-            return direction == .up || direction == .down
-        }
-        return direction == .left || direction == .right
     }
 
     private static func keyCode(for direction: ControllerDirection) -> UInt16 {

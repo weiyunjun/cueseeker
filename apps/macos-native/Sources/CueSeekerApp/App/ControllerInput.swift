@@ -29,7 +29,7 @@ enum ControllerDirectionalSource: Equatable, Sendable {
 }
 
 enum ControllerInput: Equatable, Sendable {
-    case button(ControllerButton)
+    case button(ControllerButton, isRepeat: Bool = false)
     case direction(
         ControllerDirection,
         source: ControllerDirectionalSource,

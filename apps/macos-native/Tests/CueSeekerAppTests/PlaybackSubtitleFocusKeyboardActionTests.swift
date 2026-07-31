@@ -233,7 +233,17 @@ func playbackControllerUsesNativeTextActionsOnCommandPanelRoot() async throws {
             textActionHandler: recordAction
         ))
         #expect(app.handlePlaybackControllerInput(
+            .button(.west, isRepeat: true),
+            textInputState: editableInput,
+            textActionHandler: recordAction
+        ))
+        #expect(app.handlePlaybackControllerInput(
             .button(.north),
+            textInputState: editableInput,
+            textActionHandler: recordAction
+        ))
+        #expect(!app.handlePlaybackControllerInput(
+            .button(.north, isRepeat: true),
             textInputState: editableInput,
             textActionHandler: recordAction
         ))
@@ -256,11 +266,12 @@ func playbackControllerUsesNativeTextActionsOnCommandPanelRoot() async throws {
             textActionHandler: recordAction
         ))
         #expect(app.handlePlaybackControllerInput(
-            .button(.auxiliaryRight),
+            .button(.auxiliaryRight, isRepeat: true),
             textInputState: editableInput,
             textActionHandler: recordAction
         ))
         #expect(actions == [
+            .deleteBackward,
             .deleteBackward,
             .paste,
             .moveLeft,
@@ -300,16 +311,82 @@ func playbackControllerPreservesNativeSearchTextEntry() async throws {
         )
 
         #expect(app.handlePlaybackControllerInput(
-            .button(.west),
+            .button(.west, isRepeat: true),
             textInputState: editableInput,
             textActionHandler: recordAction
         ))
         #expect(app.handlePlaybackControllerInput(
-            .button(.north),
+            .button(.north, isRepeat: true),
             textInputState: editableInput,
             textActionHandler: recordAction
         ))
         #expect(actions == [.insertText("c"), .insertText("s")])
+    }
+}
+
+@MainActor
+@Test
+func playbackControllerRepeatsSquareBackspaceInCommandPanelRoot() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.presentPlaybackCommandPanel())
+
+        var actions: [PlaybackControllerTextAction] = []
+        let editableInput = PlaybackKeyboardTextInputState(
+            isEditableFocused: true,
+            hasMarkedText: false
+        )
+        let monitor = GameControllerInputMonitor(
+            repeatDelay: 0.01,
+            repeatInterval: 0.01,
+            inputEligibility: { true }
+        ) { input in
+            app.handlePlaybackControllerInput(
+                input,
+                textInputState: editableInput
+            ) { action in
+                actions.append(action)
+                return true
+            }
+        }
+        defer {
+            monitor.stop()
+        }
+
+        monitor.handleButton(.west, isPressed: true)
+        runControllerRepeatTimers()
+        monitor.handleButton(.west, isPressed: false)
+
+        #expect(actions.count >= 2)
+        #expect(actions.allSatisfy { $0 == .deleteBackward })
+    }
+}
+
+@MainActor
+@Test
+func playbackControllerRepeatsThumbstickUpOnNormalVideo() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        let viewModel = try #require(app.playback.playbackViewModel)
+        viewModel.adjustVolume(by: -50)
+        #expect(viewModel.volume == 50)
+
+        let monitor = GameControllerInputMonitor(
+            repeatDelay: 0.01,
+            repeatInterval: 0.01,
+            inputEligibility: { true }
+        ) { input in
+            app.handlePlaybackControllerInput(input)
+        }
+        defer {
+            monitor.stop()
+        }
+
+        monitor.handleThumbstick(x: 0, y: 0.8)
+        runControllerRepeatTimers()
+        monitor.handleThumbstick(x: 0, y: 0)
+
+        #expect(viewModel.volume > 55)
     }
 }
 
@@ -345,7 +422,7 @@ func playbackEscapeExitsNormalVideoFullscreenWithoutRepeating() {
 
 @MainActor
 @Test
-func playbackControllerLimitsThumbstickRepeatByInterface() async throws {
+func playbackControllerRoutesThumbstickRepeatThroughEveryInterface() async throws {
     try await withKeyboardActionApp { app, _ in
         let leftRepeat = ControllerInput.direction(
             .left,
@@ -361,10 +438,10 @@ func playbackControllerLimitsThumbstickRepeatByInterface() async throws {
         #expect(!app.handlePlaybackControllerInput(leftRepeat))
         app.playback.isPlaybackSurfaceExpanded = true
         #expect(app.handlePlaybackControllerInput(leftRepeat))
-        #expect(!app.handlePlaybackControllerInput(upRepeat))
+        #expect(app.handlePlaybackControllerInput(upRepeat))
 
         #expect(app.presentPlaybackCommandPanel())
-        #expect(!app.handlePlaybackControllerInput(leftRepeat))
+        #expect(app.handlePlaybackControllerInput(leftRepeat))
         #expect(app.handlePlaybackControllerInput(upRepeat))
     }
 }
