@@ -513,7 +513,7 @@ final class PlaybackCueResultLayout {
         at point: CGPoint,
         in resultRect: CGRect,
         constrainedToVisualLine visualLineIndex: Int? = nil
-    ) -> PlaybackCueTextSelectionHit? {
+    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
         guard let plan else {
             return nil
         }

@@ -104,58 +104,6 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
 
 @MainActor
 @Test
-func currentReelSelectsNonFocusedCueTextButDisablesItInCollage() throws {
-    _ = NSApplication.shared
-    let cues = focusLayoutCues(0..<20)
-    let view = PlaybackSubtitleFocusReelContainerView()
-    view.frame = CGRect(x: 0, y: 0, width: 640, height: 656)
-    view.update(
-        cues: cues,
-        totalCount: cues.count,
-        selectedOrdinal: 12,
-        keyboardNavigationRequest: nil,
-        reducesMotion: false,
-        isInteractionEnabled: true,
-        cancelsWheelMotion: false
-    )
-    view.layoutSubtreeIfNeeded()
-
-    let placement = try #require(
-        view.placementsForTesting.first { $0.ordinal == 11 }
-    )
-    let anchor = CGPoint(
-        x: placement.rect.minX + 1,
-        y: placement.rect.minY
-            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
-    )
-    let focus = CGPoint(
-        x: placement.rect.minX + 200,
-        y: anchor.y
-    )
-    #expect(
-        view.selectTextForTesting(from: anchor, to: focus) == "cue 11"
-    )
-    #expect(view.displayedSelectedOrdinalForTesting == 12)
-
-    view.update(
-        cues: cues,
-        totalCount: cues.count,
-        selectedOrdinal: 12,
-        keyboardNavigationRequest: nil,
-        reducesMotion: false,
-        isInteractionEnabled: true,
-        cancelsWheelMotion: false,
-        collageSelectedCueIDs: [],
-        collageCanSelectAnotherCue: true
-    )
-    view.layoutSubtreeIfNeeded()
-    #expect(view.selectTextForTesting(from: anchor, to: focus) == nil)
-    view.invalidate()
-}
-
-@MainActor
-@Test
 func editingCollageSelectionInvalidatesOnlyChangedVisibleRow() {
     _ = NSApplication.shared
     let cues = focusLayoutCues(0..<20)
@@ -559,47 +507,11 @@ func subtitleFocusTextSelectionStaysWithinItsStartingVisualLine() throws {
 
     #expect(anchor.visualLineIndex == 0)
     #expect(focus.visualLineIndex == anchor.visualLineIndex)
-    #expect(focus.lineUTF16Range == anchor.lineUTF16Range)
     let range = NSRange(
         location: min(anchor.utf16Offset, focus.utf16Offset),
         length: abs(focus.utf16Offset - anchor.utf16Offset)
     )
-    #expect(
-        layout.selectedText(
-            text: "first line\nsecond line",
-            range: range
-        ) == "first line"
-    )
-}
-
-@Test
-func playbackCueTextSelectionRejectsAnotherVisualLine() {
-    let selection = PlaybackCueTextSelection(
-        ordinal: 7,
-        itemID: AnyHashable("cue-7"),
-        visualLineIndex: 0,
-        lineUTF16Range: NSRange(location: 0, length: 5),
-        anchorUTF16Offset: 1,
-        focusUTF16Offset: 1
-    )
-
-    let updated = selection.updatingFocus(PlaybackCueTextSelectionHit(
-        visualLineIndex: 1,
-        lineUTF16Range: NSRange(location: 6, length: 6),
-        utf16Offset: 12
-    ))
-
-    #expect(updated == selection)
-    #expect(updated.isEmpty)
-}
-
-@Test
-func playbackSelectedTextMenuUsesRequiredActionsAndSymbols() {
-    #expect(PlaybackSelectedTextAction.allCases == [.copy, .search])
-    #expect(PlaybackSelectedTextAction.copy.title == "Copy Selected Text")
-    #expect(PlaybackSelectedTextAction.copy.systemImage == "doc.on.doc")
-    #expect(PlaybackSelectedTextAction.search.title == "Search Selected Text")
-    #expect(PlaybackSelectedTextAction.search.systemImage == "magnifyingglass")
+    #expect(layout.selectedText(range: range) == "first line")
 }
 
 @MainActor

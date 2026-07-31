@@ -23,29 +23,32 @@ unchanged.
 
 ## Implementation
 
-- Extended the shared TextKit layout with UTF-16 hit testing, composed-character
-  boundaries, line-constrained selection ranges, native selection highlighting,
-  and selected-text extraction.
+- Extended the shared TextKit layout with UTF-16 hit testing based on TextKit
+  glyph ranges, line-constrained selection, native selection highlighting, and
+  selected-text extraction.
 - Kept selection state local to the native Reel document view and keyed it by
   item identity and visual line. Selecting text does not change the focused Cue.
-- Reused `WorkbenchPopoverPanel`, `WorkbenchPopoverRow`, and the existing
-  CueSeeker menu host/overlay for `Copy Selected Text` and
-  `Search Selected Text`.
+- Reused `WorkbenchPopoverPanel` and `WorkbenchPopoverRow` in a lightweight
+  hosting view for `Copy Selected Text` and `Search Selected Text`.
 - Routed copy and search actions through `AppCoordinator`. Search reuses
   `presentPlaybackCommandPanelSearch`, including when the panel is already
   presented.
 - Added one shared `SearchInputNormalizer` and applied it at the shared search
   field plus Search, Shiori, and Command Panel state/query entry points.
-- Added focused tests for hard-line boundaries, CueResult boundaries,
-  non-focused Cue selection, Collage exclusion, menu labels/icons, copy
+- Added focused tests for hard-line boundaries, CueResult boundaries, copy
   feedback, input normalization, and open-panel search replacement.
+- Simplified the initial implementation after review by removing the menu
+  action model, full-view menu overlay, duplicated selected-text state,
+  test-only production selection APIs, redundant line-range state, and repeated
+  TextKit preparation. The follow-up reduced the implementation by 292 net
+  lines without changing the accepted behavior.
 
 ## Verification
 
 - `swift build` — passed.
-- Focused selection, menu, feedback, normalization, Collage, CueResult, and
-  Command Panel tests — passed.
-- `swift test --no-parallel` — ran 933 tests with three unrelated issues:
+- Six focused selection, feedback, normalization, CueResult, and Command Panel
+  tests — passed.
+- `swift test --no-parallel` — ran 930 tests with three unrelated issues:
   - `sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
     failed only in the full run and passed when rerun alone.
   - `subtitleTableViewCueContentRightClickOpensMenuBelowClickPosition` and

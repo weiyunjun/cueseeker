@@ -149,7 +149,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         point: CGPoint,
         in rect: CGRect,
         constrainedToVisualLine visualLineIndex: Int?
-    ) -> PlaybackCueTextSelectionHit? {
+    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
         guard let result = cueResult(at: ordinal) else {
             return nil
         }
@@ -168,16 +168,9 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     }
 
     func selectedText(at ordinal: Int, range: NSRange) -> String? {
-        guard let result = cueResult(at: ordinal) else {
+        guard cueResult(at: ordinal) != nil else {
             return nil
         }
-        layout.prepare(
-            result: result,
-            showsCueGroup: showsCueGroup,
-            isSelected: ordinal == windowStore.selectedOrdinal,
-            width: 1,
-            viewportHeight: .greatestFiniteMagnitude
-        )
         return layout.selectedText(forUTF16Range: range)
     }
 

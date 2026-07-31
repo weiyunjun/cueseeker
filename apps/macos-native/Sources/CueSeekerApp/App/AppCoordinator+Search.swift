@@ -4,12 +4,12 @@ import CueSeekerCore
 @MainActor
 extension AppCoordinator {
     func updateSearchQuery(_ query: String) {
-        let normalizedQuery = SearchInputNormalizer.singleLine(query)
+        search.updateQuery(query)
+        let normalizedQuery = search.searchQuery
         UIInvalidationProbe.mark(
             "ACTION UI.SearchQuery.changed",
             details: "length=\(normalizedQuery.count)"
         )
-        search.updateQuery(normalizedQuery)
         search.updateActiveFilterSet(SubtitleSearchFilterSet())
         startSearch(
             query: normalizedQuery,

@@ -529,10 +529,10 @@ extension AppCoordinator {
     }
 
     func updateShioriSearchQuery(_ searchText: String) {
-        let normalizedSearchText = SearchInputNormalizer.singleLine(searchText)
-        guard shiori.updateTableSearchDraft(normalizedSearchText) else {
+        guard shiori.updateTableSearchDraft(searchText) else {
             return
         }
+        let normalizedSearchText = shiori.tableSearchDraft
         UIInvalidationProbe.mark(
             "ACTION UI.ShioriSearchQuery.changed",
             scope: uiProbeScope,
