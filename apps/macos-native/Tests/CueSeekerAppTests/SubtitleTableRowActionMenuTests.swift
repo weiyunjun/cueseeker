@@ -12,6 +12,7 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
         .action(.context),
         .divider,
         .action(.copyCueText),
+        .action(.copyDeepLink),
         .action(.copyCueGroupText),
         .action(.copyTimeRange),
     ])
@@ -20,6 +21,7 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
         "Open Subtitle Folder",
         "Context",
         "Copy Cue Text",
+        "Copy Deep Link",
         "Copy Cue Group Text",
         "Copy Time Range",
     ])
@@ -34,6 +36,7 @@ func subtitleTableRowActionMenuHidesCueGroupCopyWhenCueGroupIsHidden() {
         .openSubtitleFolder,
         .context,
         .copyCueText,
+        .copyDeepLink,
         .copyTimeRange,
     ])
 }
@@ -48,6 +51,7 @@ func subtitleTableShioriRowActionMenuAddsTransferSubmenusAndDividers() {
         .action(.context),
         .divider,
         .action(.copyCueText),
+        .action(.copyDeepLink),
         .action(.copyCueGroupText),
         .action(.copyTimeRange),
         .divider,
@@ -82,6 +86,7 @@ func subtitleTableUnavailableShioriActionsFollowResourceAvailability() {
     #expect(!subtitleMissing.subtitleFileIsAvailable)
     #expect(subtitleMissing.disabledRowActions.contains(.openSubtitleFolder))
     #expect(!subtitleMissing.disabledRowActions.contains(.copyCueText))
+    #expect(!subtitleMissing.disabledRowActions.contains(.copyDeepLink))
     #expect(!subtitleMissing.disabledRowActions.contains(.copyCueGroupText))
     #expect(!subtitleMissing.disabledRowActions.contains(.copyTimeRange))
     #expect(!subtitleMissing.disabledRowActions.contains(.removeShiori))
@@ -217,12 +222,15 @@ func subtitleTableShioriSubmenuUsesTopDownItemFrameInAppKitCoordinates() {
 @Test
 func subtitleTableRowActionMetadataUsesAcceptedLabelsAndSymbols() {
     #expect(SubtitleTableRowAction.openSubtitleFolder.title == "Open Subtitle Folder")
+    #expect(SubtitleTableRowAction.copyDeepLink.title == "Copy Deep Link")
     #expect(SubtitleTableRowAction.copyTimeRange.title == "Copy Time Range")
     #expect(SubtitleTableRowAction.moveToList.title == "Move to ...")
     #expect(SubtitleTableRowAction.duplicateToList.title == "Duplicate to ...")
     #expect(SubtitleTableRowAction.moveToList.systemImage == "arrow.right")
     #expect(SubtitleTableRowAction.duplicateToList.systemImage == "copy")
-    #expect(SubtitleTableRowAction.copyCueText.systemImage == "copy")
-    #expect(SubtitleTableRowAction.copyTimeRange.systemImage == "copy")
+    #expect(SubtitleTableRowAction.copyCueText.systemImage == "doc.on.doc")
+    #expect(SubtitleTableRowAction.copyDeepLink.systemImage == "link")
+    #expect(SubtitleTableRowAction.copyCueGroupText.systemImage == "doc.on.doc")
+    #expect(SubtitleTableRowAction.copyTimeRange.systemImage == "doc.on.doc")
     #expect(SubtitleTableRowAction.removeShiori.systemImage == "bookmark.slash")
 }

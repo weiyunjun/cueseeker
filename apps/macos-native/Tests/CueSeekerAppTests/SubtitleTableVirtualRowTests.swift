@@ -922,6 +922,12 @@ func subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow() {
     fixture.coordinator.performRowActionForTesting(.copyCueText, row: 0)
     #expect(pasteboard.string(forType: .string) == "cue text")
 
+    fixture.coordinator.performRowActionForTesting(.copyDeepLink, row: 0)
+    #expect(
+        pasteboard.string(forType: .string)
+            == "[cue text](cueseeker://cue?id=1)"
+    )
+
     fixture.coordinator.performRowActionForTesting(.copyCueGroupText, row: 0)
     #expect(pasteboard.string(forType: .string) == "cue text")
 
@@ -1006,6 +1012,12 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
 
     performAfterReplacingRow(.copyCueText)
     #expect(pasteboard.string(forType: .string) == original.primaryCueText)
+
+    performAfterReplacingRow(.copyDeepLink)
+    #expect(
+        pasteboard.string(forType: .string)
+            == "[original cue](cueseeker://cue?id=101)"
+    )
 
     performAfterReplacingRow(.copyCueGroupText)
     #expect(pasteboard.string(forType: .string) == original.cueGroupCopyText)
@@ -2391,18 +2403,27 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
     )
 
     #expect(offFixture.coordinator.rowMenuItemsForTesting().map(\.title) == [
-        "Play", "Open Subtitle Folder", "Context", "Copy Cue Text", "Copy Time Range",
+        "Play", "Open Subtitle Folder", "Context", "Copy Cue Text",
+        "Copy Deep Link", "Copy Time Range",
     ])
     let onItems = onFixture.coordinator.rowMenuItemsForTesting()
     #expect(onItems.map(\.title) == [
         "Play", "Open Subtitle Folder", "Context", "Copy Cue Text",
-        "Copy Cue Group Text", "Copy Time Range", "Move to ...",
+        "Copy Deep Link", "Copy Cue Group Text", "Copy Time Range", "Move to ...",
         "Duplicate to ...", "Remove Shiori",
     ])
-    #expect(onItems[3].systemImage == onItems[4].systemImage)
+    #expect(onItems[3].systemImage == "doc.on.doc")
+    #expect(onItems[4].systemImage == "link")
+    #expect(onItems[5].systemImage == "doc.on.doc")
+    #expect(onItems[6].systemImage == "doc.on.doc")
 
     offFixture.coordinator.copyCueTextForTesting(row: 0)
     #expect(NSPasteboard.general.string(forType: .string) == "main\nline")
+    offFixture.coordinator.copyDeepLinkForTesting(row: 0)
+    #expect(
+        NSPasteboard.general.string(forType: .string)
+            == "[main line](cueseeker://cue?id=77)"
+    )
     onFixture.coordinator.copyCueGroupTextForTesting(row: 0)
     #expect(NSPasteboard.general.string(forType: .string) == "extra one\nmain\nline\nextra two")
 }
@@ -2892,12 +2913,15 @@ private func makeAttachedVirtualTableCoordinator(
 ) {
     let loadedRow = row ?? SubtitleTableRow(
         id: 1,
+        primaryCueID: 1,
         subtitlePath: "/tmp/CueSeeker/Episode 01.srt",
         dateAdded: "26-07-04 19:00",
         displayTitle: "Episode 01",
         startTime: "00:01",
         endTime: "00:02",
-        cues: "cue text",
+        primaryCueText: "cue text",
+        cueGroupTexts: ["cue text"],
+        primaryGroupIndex: 0,
         tags: []
     )
     let rowProvider = customRowProvider ?? { _ in loadedRow }

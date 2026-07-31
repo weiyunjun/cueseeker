@@ -3726,6 +3726,11 @@ struct SubtitleTableView: NSViewRepresentable {
             copyRow(row)
         }
 
+        func copyDeepLinkForTesting(row: Int) {
+            guard let model = rowProvider(row) else { return }
+            copyDeepLink(target: model)
+        }
+
         func copyCueGroupTextForTesting(row: Int) {
             copyCueGroup(row)
         }
@@ -7265,6 +7270,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 onShowContext(target)
             case .copyCueText:
                 copyRow(target: target)
+            case .copyDeepLink:
+                copyDeepLink(target: target)
             case .copyCueGroupText:
                 copyCueGroup(target: target)
             case .copyTimeRange:
@@ -7279,7 +7286,11 @@ struct SubtitleTableView: NSViewRepresentable {
         private func disabledRowActions(
             for target: SubtitleTableRow
         ) -> Set<SubtitleTableRowAction> {
-            target.cueState.disabledRowActions
+            var actions = target.cueState.disabledRowActions
+            if target.primaryCueID.map({ $0 <= 0 }) ?? true {
+                actions.insert(.copyDeepLink)
+            }
+            return actions
         }
 
         private func copyRow(_ row: Int) {
@@ -7291,6 +7302,15 @@ struct SubtitleTableView: NSViewRepresentable {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(target.primaryCueText, forType: .string)
+        }
+
+        private func copyDeepLink(target: SubtitleTableRow) {
+            guard let cueID = target.primaryCueID else { return }
+            _ = CueClipboard.copyDeepLink(
+                cueText: target.primaryCueText,
+                cueID: cueID,
+                to: .general
+            )
         }
 
         private func copyCueGroup(_ row: Int) {

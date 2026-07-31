@@ -3,6 +3,7 @@ enum SubtitleTableRowAction: Hashable, Sendable {
     case openSubtitleFolder
     case context
     case copyCueText
+    case copyDeepLink
     case copyCueGroupText
     case copyTimeRange
     case moveToList
@@ -19,6 +20,8 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return "Context"
         case .copyCueText:
             return "Copy Cue Text"
+        case .copyDeepLink:
+            return "Copy Deep Link"
         case .copyCueGroupText:
             return "Copy Cue Group Text"
         case .copyTimeRange:
@@ -41,7 +44,9 @@ enum SubtitleTableRowAction: Hashable, Sendable {
         case .context:
             return "doc.text"
         case .copyCueText, .copyCueGroupText, .copyTimeRange:
-            return "copy"
+            return "doc.on.doc"
+        case .copyDeepLink:
+            return "link"
         case .moveToList:
             return "arrow.right"
         case .duplicateToList:
@@ -76,6 +81,7 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
             .action(.context),
             .divider,
             .action(.copyCueText),
+            .action(.copyDeepLink),
         ]
         if showsCueGroup {
             elements.append(.action(.copyCueGroupText))
