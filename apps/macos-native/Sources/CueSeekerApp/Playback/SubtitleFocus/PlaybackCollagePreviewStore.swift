@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import CoreGraphics
 import CueSeekerCore
@@ -6,6 +7,10 @@ import Foundation
 
 enum PlaybackCollagePreviewError: Error {
     case renderedGroupCountMismatch
+}
+
+private struct PlaybackCollageImageActionWorkItem: @unchecked Sendable {
+    let image: CGImage
 }
 
 @MainActor
@@ -165,6 +170,56 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             return nil
         }
         return (image, committedPlan)
+    }
+
+    @discardableResult
+    func copyCurrentResult() -> Bool {
+        guard let result = currentActionResult() else {
+            return false
+        }
+        let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
+
+        Task.detached(priority: .userInitiated) {
+            do {
+                let pngData = try PlaybackScreenshotPasteboardWriter.pngData(
+                    for: workItem.image
+                )
+                try await MainActor.run {
+                    try PlaybackScreenshotPasteboardWriter.write(pngData)
+                }
+            } catch {
+                print("Failed to copy playback Collage: \(error)")
+            }
+        }
+        return true
+    }
+
+    @discardableResult
+    func exportCurrentResult(displayTitle: String) -> Bool {
+        guard let result = currentActionResult(),
+              let destinationURL = SubtitleCollageSavePanel.destinationURL(
+                defaultFileName: SubtitleScreenshotExporter
+                    .defaultCollageFileName(
+                        displayTitle: displayTitle,
+                        plan: result.plan
+                    )
+              )
+        else {
+            return false
+        }
+        let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
+
+        Task.detached(priority: .userInitiated) {
+            do {
+                try SubtitleScreenshotExporter.exportCollage(
+                    image: workItem.image,
+                    to: destinationURL
+                )
+            } catch {
+                print("Failed to export playback Collage: \(error)")
+            }
+        }
+        return true
     }
 
     private func reusableEdges(

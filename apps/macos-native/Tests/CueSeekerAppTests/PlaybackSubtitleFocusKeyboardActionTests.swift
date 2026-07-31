@@ -116,6 +116,7 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
         #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.isEditingCollage)
+        #expect(session.collagePreviewStore != nil)
         #expect(app.playback.playbackViewModel?.feedback == nil)
 
         #expect(app.handlePlaybackKeyDown(
@@ -149,6 +150,7 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
 
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
         #expect(!session.isEditingCollage)
+        #expect(session.collagePreviewStore == nil)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.selectModule(.playlist))
         #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
@@ -180,6 +182,85 @@ func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
 
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
         #expect(session.selectedModule == .current)
+    }
+}
+
+@MainActor
+@Test
+func playbackControllerShouldersCycleOverlayModules() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
+            availableModules: [.current, .playlist]
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+
+        #expect(app.handlePlaybackControllerInput(.button(.rightShoulder)))
+        #expect(session.selectedModule == .playlist)
+        #expect(app.handlePlaybackControllerInput(.button(.leftShoulder)))
+        #expect(session.selectedModule == .current)
+        #expect(app.handlePlaybackControllerInput(.button(.leftShoulder)))
+        #expect(session.selectedModule == .playlist)
+        #expect(!app.handlePlaybackControllerInput(.button(.centerSurface)))
+    }
+}
+
+@MainActor
+@Test
+func playbackControllerUsesNativeTextActionsOnCommandPanelRoot() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+
+        #expect(app.handlePlaybackControllerInput(.button(.auxiliaryRight)))
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+
+        var actions: [PlaybackControllerTextAction] = []
+        let recordAction: (PlaybackControllerTextAction) -> Bool = { action in
+            actions.append(action)
+            return true
+        }
+        #expect(app.handlePlaybackControllerInput(
+            .button(.west),
+            textActionHandler: recordAction
+        ))
+        #expect(app.handlePlaybackControllerInput(
+            .button(.north),
+            textActionHandler: recordAction
+        ))
+        #expect(actions == [.deleteBackward, .paste])
+
+        #expect(app.handlePlaybackControllerInput(.button(.east)))
+        #expect(app.playback.commandPanelPresentation == nil)
+    }
+}
+
+@MainActor
+@Test
+func playbackControllerLimitsThumbstickRepeatByInterface() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let leftRepeat = ControllerInput.direction(
+            .left,
+            source: .leftThumbstick,
+            isRepeat: true
+        )
+        let upRepeat = ControllerInput.direction(
+            .up,
+            source: .leftThumbstick,
+            isRepeat: true
+        )
+
+        #expect(!app.handlePlaybackControllerInput(leftRepeat))
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.handlePlaybackControllerInput(leftRepeat))
+        #expect(!app.handlePlaybackControllerInput(upRepeat))
+
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(!app.handlePlaybackControllerInput(leftRepeat))
+        #expect(app.handlePlaybackControllerInput(upRepeat))
     }
 }
 

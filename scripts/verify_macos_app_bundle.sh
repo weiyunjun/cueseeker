@@ -48,6 +48,18 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PLIST")" !=
     exit 1
 fi
 
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :GCSupportsControllerUserInteraction' "$PLIST")" != \
+    "true" ]; then
+    echo "error: controller user interaction support is not declared" >&2
+    exit 1
+fi
+
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :GCSupportedGameControllers:0:ProfileName' "$PLIST")" != \
+    "ExtendedGamepad" ]; then
+    echo "error: Extended Gamepad support is not declared" >&2
+    exit 1
+fi
+
 verify_macho() {
     macho="$1"
     archs="$(lipo -archs "$macho")"

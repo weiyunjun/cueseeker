@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added initial DualSense controller support throughout the video page,
+  Playback Overlay, Command Panel, and Collage. Bluetooth and USB connections
+  share one positional input adapter, keyboard-equivalent actions reuse the
+  existing Playback behavior, and Collage mouse/controller actions share the
+  same Copy and Export implementation. Directional input includes dominant-axis
+  thumbstick handling, context-specific repeat, and disconnect cancellation;
+  other controller families remain outside this initial supported scope.
 - Reduced direct-SRT playback preparation latency. Same-file Search result
   switches now reuse the loaded Cue track and deterministic layout, unchanged
   video canvases no longer trigger replacement work, and obsolete tasks stop

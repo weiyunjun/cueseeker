@@ -1,11 +1,6 @@
 import AppKit
 import CoreGraphics
-import CueSeekerPlayback
 import SwiftUI
-
-private struct PlaybackCollageImageActionWorkItem: @unchecked Sendable {
-    let image: CGImage
-}
 
 struct PlaybackCollagePreviewPane: View {
     @ObservedObject var store: PlaybackCollagePreviewStore
@@ -41,65 +36,25 @@ struct PlaybackCollagePreviewPane: View {
                     title: "Copy Collage",
                     systemImage: "doc.on.doc",
                     isRedesign: true,
-                    action: copyCollage
+                    action: {
+                        _ = store.copyCurrentResult()
+                    }
                 )
                 WorkbenchButton(
                     title: "Export Collage",
                     systemImage: "square.and.arrow.up",
                     isRedesign: true,
-                    action: exportCollage
+                    action: {
+                        _ = store.exportCurrentResult(
+                            displayTitle: displayTitle
+                        )
+                    }
                 )
             }
             .disabled(!store.canUseCurrentResult)
             .accessibilityIdentifier("playback-collage-preview-actions")
         }
         .padding(PlaybackSubtitleFocusMetrics.contentInset)
-    }
-
-    private func copyCollage() {
-        guard let result = store.currentActionResult() else {
-            return
-        }
-        let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
-
-        Task.detached(priority: .userInitiated) {
-            do {
-                let pngData = try PlaybackScreenshotPasteboardWriter.pngData(
-                    for: workItem.image
-                )
-                try await MainActor.run {
-                    try PlaybackScreenshotPasteboardWriter.write(pngData)
-                }
-            } catch {
-                print("Failed to copy playback Collage: \(error)")
-            }
-        }
-    }
-
-    private func exportCollage() {
-        guard let result = store.currentActionResult(),
-              let destinationURL = SubtitleCollageSavePanel.destinationURL(
-                defaultFileName: SubtitleScreenshotExporter
-                    .defaultCollageFileName(
-                        displayTitle: displayTitle,
-                        plan: result.plan
-                    )
-              )
-        else {
-            return
-        }
-        let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
-
-        Task.detached(priority: .userInitiated) {
-            do {
-                try SubtitleScreenshotExporter.exportCollage(
-                    image: workItem.image,
-                    to: destinationURL
-                )
-            } catch {
-                print("Failed to export playback Collage: \(error)")
-            }
-        }
     }
 }
 

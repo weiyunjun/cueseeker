@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var windowButtonsProxy: WindowButtonsProxyView?
     private var keyDownMonitor: Any?
     private var leftMouseDownMonitor: Any?
+    private var controllerInputMonitor: GameControllerInputMonitor?
     private var pendingURLSchemeCommand: URLSchemeCommand?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -51,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let launchesFromPendingURLSchemeCommand = pendingURLSchemeCommand != nil
         createMainWindow(showImmediately: !launchesFromPendingURLSchemeCommand)
         configurePlaybackKeyboardShortcuts()
+        configureControllerInput()
         configurePointerEventRouting()
         consumePendingURLSchemeCommand()
         if !launchesFromPendingURLSchemeCommand {
@@ -71,6 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             NSEvent.removeMonitor(leftMouseDownMonitor)
             self.leftMouseDownMonitor = nil
         }
+        controllerInputMonitor?.stop()
+        controllerInputMonitor = nil
         NotificationCenter.default.removeObserver(self)
         NSAppleEventManager.shared().removeEventHandler(
             forEventClass: AEEventClass(kInternetEventClass),
@@ -187,6 +191,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         ) { event in
             CueSeekerPointerEventRouter.routeLeftMouseDown(event)
         }
+    }
+
+    private func configureControllerInput() {
+        let monitor = GameControllerInputMonitor(
+            inputEligibility: { [weak self] in
+                guard let self,
+                      NSApplication.shared.isActive,
+                      self.window?.isKeyWindow == true
+                else {
+                    return false
+                }
+                return self.appState.isPlaybackPageVisible
+                    || self.appState.playbackFullscreenManager.isFullscreen
+            }
+        ) { [weak self] input in
+            self?.appState.handlePlaybackControllerInput(input)
+        }
+        controllerInputMonitor = monitor
+        monitor.start()
     }
 
     @objc private func showSettingsFromNotification(_ notification: Notification) {

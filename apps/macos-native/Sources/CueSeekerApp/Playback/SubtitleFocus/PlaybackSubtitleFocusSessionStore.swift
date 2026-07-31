@@ -134,6 +134,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
     @Published private(set) var isEditingCollage = false
     @Published private(set) var collageSelectionPlan = SubtitleCollageSelectionPlan()
+    @Published private(set) var collagePreviewStore: PlaybackCollagePreviewStore?
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: SearchStore?
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
@@ -384,6 +385,15 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     @discardableResult
     func selectNextModule() -> Bool {
+        selectAdjacentModule(offset: 1)
+    }
+
+    @discardableResult
+    func selectPreviousModule() -> Bool {
+        selectAdjacentModule(offset: -1)
+    }
+
+    private func selectAdjacentModule(offset: Int) -> Bool {
         guard isSessionActive,
               !isEditingCollage,
               let selectedModule,
@@ -393,11 +403,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
 
-        let nextIndex = availableModules.index(
-            after: currentIndex
-        ) == availableModules.endIndex
-            ? availableModules.startIndex
-            : availableModules.index(after: currentIndex)
+        let nextIndex = (
+            currentIndex + offset + availableModules.count
+        ) % availableModules.count
         return selectModule(availableModules[nextIndex])
     }
 
@@ -410,8 +418,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
 
         if isEditingCollage {
-            isEditingCollage = false
-            collageSelectionPlan = SubtitleCollageSelectionPlan()
+            clearCollageEditingState()
             return true
         }
 
@@ -424,6 +431,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         var selectionPlan = SubtitleCollageSelectionPlan()
         _ = selectionPlan.select(selectedCue)
         collageSelectionPlan = selectionPlan
+        let previewStore = makeCollagePreviewStore()
+        previewStore.update(plan: selectionPlan)
+        collagePreviewStore = previewStore
         isEditingCollage = true
         return true
     }
@@ -446,8 +456,27 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             : selectionPlan.select(cue)
         if case .changed = mutation {
             collageSelectionPlan = selectionPlan
+            collagePreviewStore?.update(plan: selectionPlan)
         }
         return mutation
+    }
+
+    @discardableResult
+    func copyCurrentCollage() -> Bool {
+        guard isEditingCollage else {
+            return false
+        }
+        return collagePreviewStore?.copyCurrentResult() == true
+    }
+
+    @discardableResult
+    func exportCurrentCollage() -> Bool {
+        guard isEditingCollage else {
+            return false
+        }
+        return collagePreviewStore?.exportCurrentResult(
+            displayTitle: collageDisplayTitle
+        ) == true
     }
 
     @discardableResult
@@ -1072,8 +1101,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private func closeSession() -> Bool {
         let wasPlaying = openSnapshot.wasPlaying
         isSessionActive = false
-        isEditingCollage = false
-        collageSelectionPlan = SubtitleCollageSelectionPlan()
+        clearCollageEditingState()
         pendingKeyboardAction = nil
         activeKeyboardAction = nil
         isScrollbarDragging = false
@@ -1107,5 +1135,35 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         availableModules = []
         state = .closed
         return wasPlaying
+    }
+
+    private var collageDisplayTitle: String {
+        openSnapshot.videoPresentation?.displayTitle
+            ?? URL(fileURLWithPath: openSnapshot.source.videoPath)
+                .deletingPathExtension()
+                .lastPathComponent
+    }
+
+    private func makeCollagePreviewStore() -> PlaybackCollagePreviewStore {
+        let source = openSnapshot.source
+        let subtitleSource = openSnapshot.subtitleRenderSource
+            ?? PlaybackSubtitleSource(
+                url: URL(fileURLWithPath: source.subtitlePath),
+                format: source.subtitleFormat == .ass ? .ass : .srt,
+                matchedVideoURL: URL(fileURLWithPath: source.videoPath),
+                initialTimestampMilliseconds:
+                    openSnapshot.timestampMilliseconds
+            )
+        return PlaybackCollagePreviewStore(
+            videoURL: URL(fileURLWithPath: source.videoPath),
+            subtitleSource: subtitleSource
+        )
+    }
+
+    private func clearCollageEditingState() {
+        collagePreviewStore?.invalidate()
+        collagePreviewStore = nil
+        isEditingCollage = false
+        collageSelectionPlan = SubtitleCollageSelectionPlan()
     }
 }
