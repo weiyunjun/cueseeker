@@ -13,55 +13,6 @@ extension AppCoordinator {
         startSearch(query: query, cursor: .start, appending: false, debounce: true)
     }
 
-    func activatePlaybackSearchHost() {
-        guard !search.isPlaybackTemporaryFilterActive else {
-            return
-        }
-
-        startSearch(
-            query: search.searchQuery,
-            cursor: .start,
-            appending: false,
-            debounce: false,
-            filterSetOverride: SubtitleSearchFilterSet()
-        )
-        search.activatePlaybackTemporaryFilter()
-    }
-
-    func updatePlaybackSearchQuery(_ query: String) {
-        UIInvalidationProbe.mark(
-            "ACTION UI.PlaybackSearchQuery.changed",
-            details: "length=\(query.count)"
-        )
-        search.updateQuery(query)
-        if search.isPlaybackTemporaryFilterActive {
-            startSearch(
-                query: query,
-                cursor: .start,
-                appending: false,
-                debounce: true,
-                filterSetOverride: SubtitleSearchFilterSet()
-            )
-        } else {
-            activatePlaybackSearchHost()
-        }
-    }
-
-    func finishPlaybackSearchHost(committingEmptyFilter: Bool) {
-        guard let restoreFilterSet = search.finishPlaybackTemporaryFilter(
-            committingEmptyFilter: committingEmptyFilter
-        ) else {
-            return
-        }
-        startSearch(
-            query: search.searchQuery,
-            cursor: .start,
-            appending: false,
-            debounce: false,
-            filterSetOverride: restoreFilterSet
-        )
-    }
-
     func updateSearchFilterSet(_ filterSet: SubtitleSearchFilterSet) {
         let previousSignature = search.activeFilterSetSignature
         search.updateActiveFilterSet(filterSet)
@@ -314,17 +265,7 @@ extension AppCoordinator {
             return
         }
 
-        if search.isPlaybackTemporaryFilterActive {
-            startSearch(
-                query: query,
-                cursor: .start,
-                appending: false,
-                debounce: false,
-                filterSetOverride: SubtitleSearchFilterSet()
-            )
-        } else {
-            refreshCurrentSearch()
-        }
+        refreshCurrentSearch()
     }
 
     func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {

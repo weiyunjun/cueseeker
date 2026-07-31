@@ -678,7 +678,6 @@ final class SearchStore: ObservableObject {
     }
 
     private(set) var resultFilterSet = SubtitleSearchFilterSet()
-    private(set) var isPlaybackTemporaryFilterActive = false
 
     func updateQuery(_ query: String) {
         guard query != searchQuery else { return }
@@ -716,32 +715,6 @@ final class SearchStore: ObservableObject {
 
     func updateActiveFilterSet(_ filterSet: SubtitleSearchFilterSet) {
         activeFilterSet = filterSet
-    }
-
-    func activatePlaybackTemporaryFilter() {
-        isPlaybackTemporaryFilterActive = true
-    }
-
-    func deactivatePlaybackTemporaryFilter() {
-        isPlaybackTemporaryFilterActive = false
-    }
-
-    func finishPlaybackTemporaryFilter(
-        committingEmptyFilter: Bool
-    ) -> SubtitleSearchFilterSet? {
-        guard isPlaybackTemporaryFilterActive else {
-            return nil
-        }
-        isPlaybackTemporaryFilterActive = false
-        if committingEmptyFilter {
-            let emptyFilterSet = SubtitleSearchFilterSet()
-            activeFilterSet = emptyFilterSet
-            resultFilterSet = emptyFilterSet
-            return nil
-        }
-        return resultFilterSetSignature == activeFilterSetSignature
-            ? nil
-            : activeFilterSet
     }
 
     func updateNavigationSnapshot(_ snapshot: SearchNavigationSnapshot?) {

@@ -367,6 +367,9 @@ private struct PlaybackCommandPanelSearchResults: View {
         .onChange(of: searchStore.resultRevision) { _ in
             onSynchronize()
         }
+        .onChange(of: searchStore.filteredSearchResultTotalCount) { _ in
+            onSynchronize()
+        }
     }
 
     private var resultStatus: String {
@@ -379,8 +382,8 @@ private struct PlaybackCommandPanelSearchResults: View {
 
     private var resultTotalCount: Int {
         max(
-            searchStore.searchResultTotalCount,
-            searchStore.searchResults.count
+            searchStore.filteredSearchResultTotalCount ?? 0,
+            searchStore.projectedSearchResults.count
         )
     }
 }

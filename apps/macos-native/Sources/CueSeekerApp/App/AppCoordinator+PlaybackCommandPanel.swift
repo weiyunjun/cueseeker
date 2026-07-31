@@ -40,15 +40,15 @@ extension AppCoordinator {
         }
 
         search.updateQuery(trimmedQuery)
+        search.updateActiveFilterSet(SubtitleSearchFilterSet())
+        search.updateContextRequest(nil)
         search.updateNavigationSnapshot(nil)
-        search.activatePlaybackTemporaryFilter()
         if startsSearch {
             startSearch(
                 query: trimmedQuery,
                 cursor: .start,
                 appending: false,
-                debounce: false,
-                filterSetOverride: SubtitleSearchFilterSet()
+                debounce: false
             )
         }
 
@@ -269,8 +269,9 @@ extension AppCoordinator {
             return
         }
 
+        let results = search.projectedSearchResults
         let previewCount = min(
-            search.searchResults.count,
+            results.count,
             PlaybackCommandPanelPresentation.previewLimit
         )
         let selectedOrdinal: Int?
@@ -286,7 +287,7 @@ extension AppCoordinator {
         updated.selectedOrdinal = nil
         playback.presentCommandPanel(updated)
         playback.synchronizeCommandPanelSearchPreview(
-            results: search.searchResults,
+            results: results,
             selectedOrdinal: selectedOrdinal
         )
     }
@@ -313,12 +314,12 @@ extension AppCoordinator {
                 ?? playback.commandPanelSearchWindow?.selectedOrdinal,
               ordinal >= 0,
               ordinal < PlaybackCommandPanelPresentation.previewLimit,
-              search.searchResults.indices.contains(ordinal)
+              search.projectedSearchResults.indices.contains(ordinal)
         else {
             return false
         }
 
-        let result = search.searchResults[ordinal]
+        let result = search.projectedSearchResults[ordinal]
         switch action {
         case .shiori:
             startPlaybackCommandPanelShioriSave(
@@ -343,9 +344,7 @@ extension AppCoordinator {
             playback.playbackViewModel?
                 .showSubtitleMarkdownLinkCopyFeedback(copied: copied)
         case .playFromThisCue:
-            guard dismissPlaybackCommandPanelForAction(
-                finishesPlaybackSearchHost: false
-            ) else {
+            guard dismissPlaybackCommandPanelForAction() else {
                 return false
             }
             openSearchResult(
@@ -422,7 +421,6 @@ extension AppCoordinator {
         guard let presentation = playback.dismissCommandPanel() else {
             return false
         }
-        finishPlaybackSearchHost(committingEmptyFilter: false)
         if presentation.resumesPlaybackOnDismiss,
            playback.subtitleFocusSession == nil {
             resumePlayback()
@@ -430,14 +428,9 @@ extension AppCoordinator {
         return true
     }
 
-    private func dismissPlaybackCommandPanelForAction(
-        finishesPlaybackSearchHost: Bool = true
-    ) -> Bool {
+    private func dismissPlaybackCommandPanelForAction() -> Bool {
         guard playback.dismissCommandPanel() != nil else {
             return false
-        }
-        if finishesPlaybackSearchHost {
-            finishPlaybackSearchHost(committingEmptyFilter: false)
         }
         return true
     }
@@ -455,7 +448,7 @@ extension AppCoordinator {
             ).isEmpty ? 2 : 3
         case .searchResults:
             return min(
-                search.searchResults.count,
+                search.projectedSearchResults.count,
                 PlaybackCommandPanelPresentation.previewLimit
             )
         case .recentVideos:

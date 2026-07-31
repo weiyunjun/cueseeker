@@ -259,9 +259,7 @@ extension AppCoordinator {
         playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
         clearCueAutoStopPlayback()
-        invalidatePlaybackSubtitleFocusForSourceReplacement(
-            finishesPlaybackSearchHost: playbackSearchPromotion == nil
-        )
+        invalidatePlaybackSubtitleFocusForSourceReplacement()
         if let playlistSourceOverride {
             playback.setPlaylistSource(playlistSourceOverride)
             if case .cue = playlistSourceOverride.origin {
@@ -319,9 +317,6 @@ extension AppCoordinator {
                 commitPlaybackReturnContext(
                     .search,
                     afterSuccessfulPlayback: didStartPlayback
-                )
-                finishPlaybackSearchHost(
-                    committingEmptyFilter: didStartPlayback
                 )
             }
         }

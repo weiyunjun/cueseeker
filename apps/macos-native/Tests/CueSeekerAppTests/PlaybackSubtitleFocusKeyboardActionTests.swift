@@ -473,7 +473,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
         #expect(app.playback.commandPanelSearchWindow == nil)
-        #expect(app.search.isPlaybackTemporaryFilterActive)
+        #expect(app.search.searchQuery == "command")
         #expect(app.search.selectedSearchResult?.entryID == 12)
         #expect(app.playback.playlistSource?.boundary.totalCount == 60)
         #expect(app.playback.playbackSearchPlaylistOrdinal == 1)
@@ -486,7 +486,7 @@ func playbackCommandPanelDatabaseSearchOpensCompletePlaylistOverlay() async thro
     try await withKeyboardActionApp { app, _ in
         app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media")]
         app.search.updateSearchFacetFilter(CueFacetFilter(
-            durations: [.fiveSecondsOrMore]
+            durations: [.underOneSecond]
         ))
         app.ensurePlayerInitialized()
         app.playback.isPlaybackSurfaceExpanded = true
@@ -500,15 +500,14 @@ func playbackCommandPanelDatabaseSearchOpensCompletePlaylistOverlay() async thro
         app.synchronizePlaybackCommandPanelSearchResults()
 
         #expect(app.search.searchResults.count == 30)
-        #expect(app.search.projectedSearchResults.isEmpty)
+        #expect(app.search.projectedSearchResults.count == 30)
         let selectedResult = try #require(
-            app.search.searchResults.dropFirst().first
+            app.search.projectedSearchResults.dropFirst().first
         )
         #expect(app.requestPlaybackCommandPanelSearchAction(
             .playFromThisCue,
             ordinal: 1
         ))
-        app.search.deactivatePlaybackTemporaryFilter()
         app.refreshSearchPlaybackPlaylistSource(
             resultListGeneration: app.search.resultListGeneration
         )

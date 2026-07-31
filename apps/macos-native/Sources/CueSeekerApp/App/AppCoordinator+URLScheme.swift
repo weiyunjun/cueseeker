@@ -193,7 +193,6 @@ extension AppCoordinator {
             return
         }
 
-        search.deactivatePlaybackTemporaryFilter()
         if !hadActivePlayback {
             search.selectResult(nil)
         }

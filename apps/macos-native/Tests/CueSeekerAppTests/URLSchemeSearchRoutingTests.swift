@@ -72,7 +72,6 @@ func urlSchemeSearchOpensCommandPanelResultsForActivePlayback() throws {
     #expect(fixture.app.isPlaybackPageVisible)
     #expect(fixture.app.search.selectedSearchResult == playingResult)
     #expect(fixture.app.search.searchQuery == "replacement")
-    #expect(fixture.app.search.isPlaybackTemporaryFilterActive)
 }
 
 @MainActor
@@ -115,7 +114,6 @@ func urlSchemeDirectPlayFallsBackToCommandPanelWhenPlaybackIsActive() throws {
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
     #expect(fixture.app.search.selectedSearchResult == originalResult)
-    #expect(fixture.app.search.isPlaybackTemporaryFilterActive)
 }
 
 @MainActor
@@ -334,7 +332,6 @@ func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
         fixture.app.playback.commandPanelPresentation?.query
             == "replacement"
     )
-    #expect(fixture.app.search.isPlaybackTemporaryFilterActive)
 }
 
 @MainActor

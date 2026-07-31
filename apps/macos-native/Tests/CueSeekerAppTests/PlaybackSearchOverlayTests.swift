@@ -1,5 +1,5 @@
 import AppKit
-import CueSeekerCore
+@testable import CueSeekerCore
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -43,102 +43,61 @@ func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async th
 
 @MainActor
 @Test
-func playbackSearchTemporaryFilterDoesNotChangeFormalFilterUntilPlay() throws {
+func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
+    throws
+{
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-shared-search-filter-\(UUID().uuidString).sqlite")
+        .appendingPathComponent(
+            "playback-formal-search-filter-\(UUID().uuidString).sqlite"
+        )
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
-    let formalFilter = SubtitleSearchFilterSet(rules: [
-        SubtitleSearchFilterRule(
-            field: .display,
-            operatorID: .contains,
-            value: "Episode"
-        ),
-    ])
-    app.search.updateActiveFilterSet(formalFilter)
-    app.search.prepareSearch(appending: false, filterSet: formalFilter)
+    let facetFilter = CueFacetFilter(
+        durations: [.underOneSecond]
+    )
+    let included = playbackSharedSearchResult(id: 8_001, rank: 0)
+    let excluded = playbackSharedSearchResult(id: 8_002, rank: 1)
+    app.search.updateSearchFacetFilter(facetFilter)
+    app.search.selectResult(included)
+    app.playback.isPlaybackSurfaceExpanded = true
+    #expect(app.presentPlaybackCommandPanelSearch(
+        query: "shared",
+        startsSearch: false
+    ))
 
-    app.activatePlaybackSearchHost()
-
-    #expect(app.search.isPlaybackTemporaryFilterActive)
-    #expect(app.search.activeFilterSet == formalFilter)
-    #expect(app.search.resultFilterSet.isEffectivelyEmpty)
-
-    app.finishPlaybackSearchHost(committingEmptyFilter: false)
-
-    #expect(!app.search.isPlaybackTemporaryFilterActive)
-    #expect(app.search.activeFilterSet == formalFilter)
-    #expect(app.search.resultFilterSet == formalFilter)
-
-    app.activatePlaybackSearchHost()
-    app.finishPlaybackSearchHost(committingEmptyFilter: true)
-
-    #expect(!app.search.isPlaybackTemporaryFilterActive)
-    #expect(app.search.activeFilterSet.isEffectivelyEmpty)
-    #expect(app.search.resultFilterSet.isEffectivelyEmpty)
-}
-
-@MainActor
-@Test
-func playbackSearchInputUpdatesTheWorkbenchQuery() {
-    _ = NSApplication.shared
-    let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-shared-search-query-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
-
-    app.updatePlaybackSearchQuery("shared query")
-
-    #expect(app.search.searchQuery == "shared query")
-    #expect(app.search.isPlaybackTemporaryFilterActive)
-    #expect(app.search.resultFilterSet.isEffectivelyEmpty)
-}
-
-@MainActor
-@Test
-func playbackSearchFailedPlayDoesNotCommitTheTemporaryFilter() async throws {
-    _ = NSApplication.shared
-    let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-shared-search-failed-play-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
-    let formalFilter = SubtitleSearchFilterSet(rules: [
-        SubtitleSearchFilterRule(
-            field: .display,
-            operatorID: .contains,
-            value: "Episode"
-        ),
-    ])
-    let result = playbackSharedSearchResult(id: 8_001, rank: 0)
-    app.search.updateActiveFilterSet(formalFilter)
-    app.search.prepareSearch(
+    let generation = app.search.prepareSearch(
         appending: false,
         filterSet: SubtitleSearchFilterSet()
     )
-    app.search.activatePlaybackTemporaryFilter()
-    app.search.updateQuery("shared")
-    app.search.replaceResidentResults([result])
-    app.playback.isPlaybackSurfaceExpanded = true
-    app.playbackReturnContext = .shiori
-
-    app.openSearchResult(
-        result,
-        returnPanelMode: .search,
-        playbackSearchPromotion: PlaybackSearchPromotion(
-            query: "shared",
-            scopePaths: [],
-            selectedOrdinal: 0
-        )
+    let snapshot = CueFacetSnapshot(
+        cueIDs: [included.entryID, excluded.entryID],
+        durationFacets: [.underOneSecond, .fiveSecondsOrMore],
+        characterFacets: [.oneToTen, .oneToTen],
+        languageFacets: [[], []],
+        watchStateFacets: [.unwatched, .unwatched]
     )
-    for _ in 0..<100 where app.search.isPlaybackTemporaryFilterActive {
-        try await Task.sleep(for: .milliseconds(10))
-    }
+    #expect(app.search.commitExactSearchPage(
+        SubtitleSearchPage(
+            results: [included, excluded],
+            cueIDs: snapshot.cueIDs,
+            totalCount: 2,
+            fileSummaries: [],
+            facetSnapshot: snapshot
+        ),
+        generation: generation
+    ))
+    app.synchronizePlaybackCommandPanelSearchResults()
 
-    #expect(!app.search.isPlaybackTemporaryFilterActive)
-    #expect(app.search.activeFilterSet == formalFilter)
-    #expect(app.search.resultFilterSet == formalFilter)
-    #expect(app.playbackReturnContext == .shiori)
+    #expect(app.search.searchQuery == "shared")
+    #expect(app.search.searchFacetFilter == facetFilter)
+    #expect(app.search.projectedSearchResults.map(\.entryID) == [8_001])
+    #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 1)
+
+    #expect(app.dismissPlaybackCommandPanelFromUser())
+    #expect(app.search.searchQuery == "shared")
+    #expect(app.search.searchFacetFilter == facetFilter)
+    #expect(app.search.projectedSearchResults.map(\.entryID) == [8_001])
 }
 
 private func playbackSharedSearchOpenSnapshot()

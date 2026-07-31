@@ -98,7 +98,6 @@ extension AppCoordinator {
 
         cancelPlaybackSubtitleFocusActionTask()
         cancelPlaybackSubtitleFocusCueLoadTasks()
-        finishPlaybackSearchHost(committingEmptyFilter: false)
         guard let shouldResume = session.dismissByUser() else {
             playback.releaseSubtitleFocusSession(session)
             return false
@@ -111,14 +110,9 @@ extension AppCoordinator {
         return true
     }
 
-    func invalidatePlaybackSubtitleFocusForSourceReplacement(
-        finishesPlaybackSearchHost: Bool = true
-    ) {
+    func invalidatePlaybackSubtitleFocusForSourceReplacement() {
         cancelPlaybackSubtitleFocusActionTask()
         cancelPlaybackSubtitleFocusCueLoadTasks()
-        if finishesPlaybackSearchHost {
-            finishPlaybackSearchHost(committingEmptyFilter: false)
-        }
         guard let session = playback.subtitleFocusSession else {
             return
         }
@@ -329,7 +323,6 @@ extension AppCoordinator {
             case .current(let context):
                 cancelPlaybackSubtitleFocusActionTask()
                 cancelPlaybackSubtitleFocusCueLoadTasks()
-                finishPlaybackSearchHost(committingEmptyFilter: false)
                 guard session.closeAfterPlay(execution) else {
                     return false
                 }

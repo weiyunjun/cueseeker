@@ -902,9 +902,9 @@ Required Playback Multi-Module Overlay coverage:
   playback-origin sequence number.
 - Playlist preserves the established Search or Shiori source count, identity,
   order, Exact progress, and navigation scope. Playback Search shares the
-  Workbench Search query, complete resident result collection, and pipeline
-  while applying a temporary empty Filter context; standalone Shiori reads the
-  shared persisted Shiori order. Virtualization is render-only.
+  Workbench Search query, current persisted facet Filter, filtered resident
+  result projection, and pipeline; standalone Shiori reads the shared
+  persisted Shiori order. Virtualization is render-only.
 - Recent and Library reuse their existing card layouts. Directional selection
   follows visible geometry, defaults to the first available item, and preserves
   exact native scroll offsets. Visible-Pointer Hover selects available items;

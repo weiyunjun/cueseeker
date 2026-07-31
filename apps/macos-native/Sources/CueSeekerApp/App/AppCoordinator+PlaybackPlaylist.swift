@@ -132,14 +132,11 @@ extension AppCoordinator {
         seed result: SubtitleSearchResult
     ) {
         let resultListGeneration = search.resultListGeneration
-        let usesFacetProjection = !search.isPlaybackTemporaryFilterActive
         let origin = PlaybackPlaylistSourceOrigin.search(
             resultListGeneration: resultListGeneration,
-            usesFacetProjection: usesFacetProjection
+            usesFacetProjection: true
         )
-        let playlistResults = usesFacetProjection
-            ? search.projectedSearchResults
-            : search.searchResults
+        let playlistResults = search.projectedSearchResults
         let selectedOrdinal = playlistResults.firstIndex {
             $0.entryID == result.entryID
         }

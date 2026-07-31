@@ -454,10 +454,10 @@ Data ownership rules:
   and retain only host-local presentation state. It must not create a second
   feature database reader, query runner, paging store, result accumulator,
   refresh task, persistence path, or full result copy.
-- Search's temporary empty-filter behavior is a host context owned and executed
-  by `SearchStore`. It may produce a separate temporary result projection, but
-  Playback must not own the query, paging, result collection, or promotion
-  lifecycle for that projection.
+- Command Panel Search is a formal Search operation. It reuses `SearchStore`'s
+  Workbench query, persisted facet Filter, filtered result projection, paging,
+  and promotion lifecycle; Playback must not create a temporary Filter context
+  or own a separate result projection.
 - Feature data may be queried in pages or batches. Playback must use the same
   paging policy and accumulated result collection as Workbench. A load-more
   signal already supported by a Workbench feature may be forwarded to that
@@ -533,8 +533,8 @@ Playback-specific differences are limited to:
 - Playback Cue Reel layout, Focus Anchor, accepted placement, settled selection,
   selection-dependent information Badge palette, Cue Group visibility policy,
   and the Playback-only Current and Playlist modules;
-- Playback Search's temporary empty-filter context, text-field focus routing,
-  Up/Down Reel routing, and Enter-only Cue action;
+- Playback Search's formal Workbench Filter projection, text-field focus
+  routing, Up/Down Reel routing, and Enter-only Cue action;
 - Recent and Library persistent single selection, directional navigation,
   session-local Library hierarchy and scroll position, Context-menu item
   suppression, and locked menu target;
