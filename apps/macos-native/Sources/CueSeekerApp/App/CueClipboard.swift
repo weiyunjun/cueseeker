@@ -26,4 +26,14 @@ enum CueClipboard {
         }
         return copy(deepLink, to: pasteboard)
     }
+
+    static func copyDeepLinks(
+        _ cues: [(cueText: String, cueID: Int64)],
+        to pasteboard: NSPasteboard
+    ) -> Bool {
+        guard let deepLinks = CueDeepLink.markdownLinks(cues) else {
+            return false
+        }
+        return copy(deepLinks, to: pasteboard)
+    }
 }

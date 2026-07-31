@@ -1,6 +1,5 @@
 import SwiftUI
 import CueSeekerCore
-import CueSeekerPlayback
 
 func workbenchSearchHasCompleteTextCopyBoundary(
     searchStatus: SearchStatus,
@@ -47,7 +46,6 @@ struct WorkbenchTestSearchView: View {
     @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var isSelectionMode = false
-    @State private var canExportSelectedRowsAsCollage = false
     @State private var suppressNextEmptySearchQueryReload = false
     @State private var hasDeferredRefreshWhileCovered = false
     @State private var isFacetPanelVisible: Bool
@@ -513,18 +511,11 @@ struct WorkbenchTestSearchView: View {
                     action: exportSelectedRowsToAnki
                 )
                 WorkbenchButton(
-                    title: "Screenshot",
-                    systemImage: "photo",
+                    title: "Copy Deep Link(s)",
+                    systemImage: "doc.on.doc",
                     isRedesign: true,
-                    action: exportSelectedRowsAsScreenshots
+                    action: copySelectedRowsAsDeepLinks
                 )
-                WorkbenchButton(
-                    title: "Collage",
-                    systemImage: "rectangle.stack",
-                    isRedesign: true,
-                    action: exportSelectedRowsAsCollage
-                )
-                .disabled(!canExportSelectedRowsAsCollage)
                 WorkbenchButton(
                     title: "Copy Table",
                     systemImage: "doc.on.doc",
@@ -568,7 +559,6 @@ struct WorkbenchTestSearchView: View {
             probeScope: appState.uiProbeScope
         )
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-        refreshSelectedCollageAvailability()
     }
 
     private func updateRowsFromResidentSearch() {
@@ -578,7 +568,6 @@ struct WorkbenchTestSearchView: View {
         }
         search.activateCurrentSearchTableProjection()
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-        refreshSelectedCollageAvailability()
     }
 
     private var searchCueContentProvider: (Int64) -> CueContent? {
@@ -602,7 +591,6 @@ struct WorkbenchTestSearchView: View {
         lastVisibleRows = nil
         rowSelection.reset()
         persistSelection()
-        resetSelectedCollageAvailability()
         rowStore.updateResidentSearchResults(
             [],
             cueContentProvider: searchCueContentProvider,
@@ -694,7 +682,6 @@ struct WorkbenchTestSearchView: View {
             tableScrollResetToken += 1
         }
         search.consumeContextTablePresentation()
-        refreshSelectedCollageAvailability()
     }
 
     private func applySearchFacetFilter(_ filter: CueFacetFilter) {
@@ -726,36 +713,6 @@ struct WorkbenchTestSearchView: View {
         }
     }
 
-    private func exportSelectedRowsAsScreenshots() {
-        let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
-        guard !selectedRows.isEmpty else {
-            return
-        }
-
-        Task { @MainActor in
-            let results = await selectedSearchResults(for: selectedRows)
-            let items = results.map { appState.subtitleScreenshotItem(for: $0) }
-            appState.exportSubtitleScreenshots(items)
-        }
-    }
-
-    private func exportSelectedRowsAsCollage() {
-        let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
-        guard !selectedRows.isEmpty else {
-            return
-        }
-
-        Task { @MainActor in
-            let results = await selectedSearchResults(for: selectedRows)
-            let items = results.map { appState.subtitleScreenshotItem(for: $0) }
-            guard SubtitleScreenshotExporter.canExportCollage(items) else {
-                refreshSelectedCollageAvailability()
-                return
-            }
-            appState.exportSubtitleCollage(items)
-        }
-    }
-
     private func copySelectedRowsAsTable() {
         let rowCount = tableSummaryTotalRowCount
         let selection = rowSelection
@@ -774,6 +731,16 @@ struct WorkbenchTestSearchView: View {
         SubtitleTableClipboard.copy(representations: builder.representations)
     }
 
+    private func copySelectedRowsAsDeepLinks() {
+        let selectedRows = rowSelection.selectedRows(
+            rowCount: tableSummaryTotalRowCount
+        )
+        guard !selectedRows.isEmpty else { return }
+        let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
+        guard rows.count == selectedRows.count else { return }
+        SubtitleTableClipboard.copyDeepLinks(rows: rows)
+    }
+
     private func selectedSearchResults(for selectedRows: [Int]) async -> [SubtitleSearchResult] {
         await hydrateRowsForExport(selectedRows)
         return selectedRows.compactMap { row in
@@ -785,37 +752,6 @@ struct WorkbenchTestSearchView: View {
         }
     }
 
-    private func selectedSearchResultsFromSnapshot(for selectedRows: [Int]) -> [SubtitleSearchResult] {
-        selectedRows.compactMap { row in
-            guard let tableRow = rowStore.snapshot.row(at: row) else {
-                return nil
-            }
-            return rowStore.snapshot.searchResult(entryID: tableRow.id)
-                ?? search.searchResults.first { Int($0.entryID) == tableRow.id }
-        }
-    }
-
-    private func refreshSelectedCollageAvailability() {
-        let selectedRows = rowSelection.selectedRows(rowCount: tableSummaryTotalRowCount)
-        guard !selectedRows.isEmpty, selectedRows.count <= 50 else {
-            setCanExportSelectedRowsAsCollage(false)
-            return
-        }
-
-        let items = selectedSearchResultsFromSnapshot(for: selectedRows)
-            .map { appState.subtitleScreenshotItem(for: $0) }
-        setCanExportSelectedRowsAsCollage(SubtitleScreenshotExporter.canExportCollage(items))
-    }
-
-    private func resetSelectedCollageAvailability() {
-        setCanExportSelectedRowsAsCollage(false)
-    }
-
-    private func setCanExportSelectedRowsAsCollage(_ canExport: Bool) {
-        guard canExportSelectedRowsAsCollage != canExport else { return }
-        canExportSelectedRowsAsCollage = canExport
-    }
-
     private func hydrateRowsForExport(_ selectedRows: [Int]) async {
         _ = selectedRows
     }
@@ -823,13 +759,11 @@ struct WorkbenchTestSearchView: View {
     private func toggleRowSelection(_ row: Int) {
         rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
         persistSelection()
-        refreshSelectedCollageAvailability()
     }
 
     private func toggleAllRowSelection() {
         rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
         persistSelection()
-        refreshSelectedCollageAvailability()
     }
 
     private func captureVisibleRows(_ visibleRows: Range<Int>) {
@@ -886,7 +820,6 @@ struct WorkbenchTestSearchView: View {
         guard canEnterSelectionMode else { return }
         rowSelection.reset()
         persistSelection()
-        resetSelectedCollageAvailability()
         isSelectionMode = true
     }
 
@@ -897,7 +830,6 @@ struct WorkbenchTestSearchView: View {
         isSelectionMode = false
         rowSelection.reset()
         persistSelection()
-        resetSelectedCollageAvailability()
     }
 
     private func restoreSelectionIfPossible() {

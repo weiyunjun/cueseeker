@@ -298,6 +298,21 @@ enum SubtitleTableClipboard {
         return pasteboard.setString(text, forType: .string)
     }
 
+    @discardableResult
+    static func copyDeepLinks(
+        rows: [SubtitleTableRow],
+        to pasteboard: NSPasteboard = .general
+    ) -> Bool {
+        let cues = rows.compactMap { row -> (cueText: String, cueID: Int64)? in
+            guard let cueID = row.primaryCueID else { return nil }
+            return (row.primaryCueText, cueID)
+        }
+        guard cues.count == rows.count else {
+            return false
+        }
+        return CueClipboard.copyDeepLinks(cues, to: pasteboard)
+    }
+
     private static func normalizedCell(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\r\n", with: "\n")

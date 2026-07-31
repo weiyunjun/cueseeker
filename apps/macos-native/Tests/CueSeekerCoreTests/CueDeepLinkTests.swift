@@ -36,3 +36,24 @@ func cueDeepLinkNormalizesLineBreaksAndEscapesMarkdownLabel() {
     )
     #expect(CueDeepLink.markdownLink(cueText: "cue", cueID: 0) == nil)
 }
+
+@Test
+func cueDeepLinksPreserveInputOrderAndRejectPartialOutput() {
+    #expect(
+        CueDeepLink.markdownLinks([
+            ("second\nline", 2),
+            ("first", 1),
+        ])
+            == """
+            [second line](cueseeker://cue?id=2)
+            [first](cueseeker://cue?id=1)
+            """
+    )
+    #expect(CueDeepLink.markdownLinks([]) == nil)
+    #expect(
+        CueDeepLink.markdownLinks([
+            ("valid", 1),
+            ("invalid", 0),
+        ]) == nil
+    )
+}

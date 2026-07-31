@@ -27,6 +27,10 @@ Architecture classification:
    Search and Shiori row menu.
 6. Reused the Settings link symbol for Deep Link and changed the three Cue copy
    actions to the existing Copy Table symbol.
+7. Added the ordered `Copy Deep Link(s)` selection action to Search and Shiori.
+8. Removed the table-selection Screenshot and Collage buttons, handlers,
+   eligibility state, and refresh paths without changing Playback screenshot or
+   Collage code.
 
 ## Verification
 
@@ -39,6 +43,15 @@ Architecture classification:
 - Passed 8 focused row-menu ordering, icon, target-retention, and clipboard
   tests: `swift test --package-path apps/macos-native --filter
   'subtitleTableSearchRowActionMenu|subtitleTableRowActionMenuHides|subtitleTableShioriRowActionMenu|subtitleTableUnavailableShioriActions|subtitleTableRowActionMetadata|subtitleTableViewUnifiedRowMenu|subtitleTableViewRowMenuActionsKeep|subtitleTableViewUnifiedRowMenuDispatches'`.
+- Passed 9 focused batch Deep Link and selection tests:
+  `swift test --package-path apps/macos-native --filter
+  'cueDeepLinks|subtitleTableClipboardCopiesPrimaryCueDeepLinks|tableSandboxRowSelection'`.
+- Confirmed by source inspection that Search and Shiori no longer expose or
+  retain table-selection Screenshot/Collage paths, while Playback screenshot
+  and Collage paths remain.
+- The full 921-test run hit unrelated parallel database I/O and media timing
+  failures. All 10 reported failing tests passed when isolated; 9 passed in the
+  grouped rerun and the remaining UI refresh-count test passed alone.
 
 ## Outcome
 
@@ -47,9 +60,10 @@ Architecture classification:
   wording.
 - Step 2 passed focused verification. Search and Shiori row actions copy the
   exact Primary Cue Deep Link and retain the triggering row target.
+- Step 3 passed focused verification. Search and Shiori selection mode now
+  orders actions as Anki, Copy Deep Link(s), and Copy Table, and copies Primary
+  Cue Deep Links in selected-row order.
 
 ## Follow-ups
 
-- Add batch `Copy Deep Link(s)` and remove table-selection Screenshot and
-  Collage actions.
 - Synchronize `docs/human/design/UI.md` after human acceptance.

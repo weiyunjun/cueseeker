@@ -28,4 +28,24 @@ public enum CueDeepLink {
         }
         return "[\(escapedLabel)](cueseeker://cue?id=\(cueID))"
     }
+
+    public static func markdownLinks(
+        _ cues: [(cueText: String, cueID: Int64)]
+    ) -> String? {
+        guard !cues.isEmpty else {
+            return nil
+        }
+        var links: [String] = []
+        links.reserveCapacity(cues.count)
+        for cue in cues {
+            guard let link = markdownLink(
+                cueText: cue.cueText,
+                cueID: cue.cueID
+            ) else {
+                return nil
+            }
+            links.append(link)
+        }
+        return links.joined(separator: "\n")
+    }
 }

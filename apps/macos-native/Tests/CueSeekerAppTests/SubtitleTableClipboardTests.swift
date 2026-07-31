@@ -235,6 +235,41 @@ func subtitleTableClipboardWritesOnePasteboardItemWithAllRepresentations() throw
 }
 
 @Test
+func subtitleTableClipboardCopiesPrimaryCueDeepLinksInRowOrder() {
+    let rows = [
+        SubtitleTableRow(
+            id: 2,
+            primaryCueID: 22,
+            displayTitle: "Second",
+            primaryCueText: "second\nline",
+            cueGroupTexts: ["group extra", "second\nline"],
+            primaryGroupIndex: 1
+        ),
+        SubtitleTableRow(
+            id: 1,
+            primaryCueID: 11,
+            displayTitle: "First",
+            primaryCueText: "first",
+            cueGroupTexts: ["first"],
+            primaryGroupIndex: 0
+        ),
+    ]
+    let pasteboard = NSPasteboard(
+        name: .init("SubtitleTableDeepLinks-\(UUID().uuidString)")
+    )
+    defer { pasteboard.clearContents() }
+
+    #expect(SubtitleTableClipboard.copyDeepLinks(rows: rows, to: pasteboard))
+    #expect(
+        pasteboard.string(forType: .string)
+            == """
+            [second line](cueseeker://cue?id=22)
+            [first](cueseeker://cue?id=11)
+            """
+    )
+}
+
+@Test
 func subtitleTableTextCopyPreservesAbsoluteColumnsForPartialCrossRowSelection() {
     let columns = [
         SubtitleTableTextCopyColumn(id: "display", title: "Display Title"),
