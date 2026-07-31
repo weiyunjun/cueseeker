@@ -35,6 +35,45 @@ func recentPlaybackNavigationPreparesSameFolderEpisodes() async throws {
 
 @MainActor
 @Test
+func recordingLibraryPlaybackStartRefreshesLoadedRecentWatching() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "CueSeekerRecentPlaybackMedia-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        defer {
+            try? FileManager.default.removeItem(at: root)
+        }
+        try FileManager.default.createDirectory(
+            at: root,
+            withIntermediateDirectories: true
+        )
+        let episode = root.appendingPathComponent("Show/Episode 1.mkv")
+        try indexRecentPlaybackVideos([episode], in: database)
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
+        app.indexing.selectedFolders = [root]
+        app.refreshRecentWatching()
+        app.refreshTestRecentWatching()
+        await app.recentWatchingTask?.value
+        await app.testRecentWatchingTask?.value
+        #expect(app.library.recentWatchingItems.isEmpty)
+        #expect(app.library.testRecentWatchingItems.isEmpty)
+
+        let video = try #require(
+            try app.libraryDatabase!.libraryVideos(under: [root]).first
+        )
+        app.recordRecentLibraryWatching(for: video)
+        await app.recentWatchingTask?.value
+        await app.testRecentWatchingTask?.value
+
+        #expect(app.library.recentWatchingItems.first?.videoPath == episode.path)
+        #expect(app.library.testRecentWatchingItems.first?.videoPath == episode.path)
+    }
+}
+
+@MainActor
+@Test
 func closingRecentLibraryPlaybackRefreshesRecentWatchingProgress() async throws {
     try await withTemporaryRecentPlaybackApp { app, database in
         let root = URL(fileURLWithPath: "/Media")

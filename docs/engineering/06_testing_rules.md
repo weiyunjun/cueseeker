@@ -376,6 +376,9 @@ Required M2 playback interaction checks:
   and write persisted resume position, while Search-result playback does not
   read, write, or overwrite that history. Removing a folder and later adding or
   reindexing the same path should not delete matching Library playback history.
+  A successfully started Library or Recent video must immediately refresh every
+  currently loaded Recent Videos projection through the shared `LibraryStore`
+  refresh path.
 - Reindex workflow checks should verify that playback using media under the
   reindexed folder is stopped or cleared before the rebuild starts, and that an
   active Search query is rerun after the rebuild completes.

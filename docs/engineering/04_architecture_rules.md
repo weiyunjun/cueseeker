@@ -450,6 +450,10 @@ Data ownership rules:
   of their feature state, database access, paging tasks, loaded result
   collections, refresh rules, and product actions. Recent is a Library
   projection and follows `LibraryStore` ownership.
+- A Library video enters Recent only after its existing playback entry point
+  successfully starts playback. That history write must refresh the currently
+  loaded Workbench Recent overview and complete Recent projection immediately;
+  Playback hosts observe those same `LibraryStore` projections.
 - Playback may observe those stores, dispatch their existing product actions,
   and retain only host-local presentation state. It must not create a second
   feature database reader, query runner, paging store, result accumulator,

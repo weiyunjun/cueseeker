@@ -941,7 +941,6 @@ extension AppCoordinator {
         if savesCurrentPlaybackHistory, case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
-        recordRecentLibraryWatching(for: video, refreshPresentation: false)
         library.selectedLibraryVideo = video
         search.selectResult(nil)
         shiori.selectedShiori = nil
@@ -958,6 +957,9 @@ extension AppCoordinator {
         Task { @MainActor in
             await Task.yield()
             let didStartPlayback = play(video)
+            if didStartPlayback {
+                recordRecentLibraryWatching(for: video)
+            }
             if let playbackReturnContextOnSuccessfulPlay {
                 commitPlaybackReturnContext(
                     playbackReturnContextOnSuccessfulPlay,
