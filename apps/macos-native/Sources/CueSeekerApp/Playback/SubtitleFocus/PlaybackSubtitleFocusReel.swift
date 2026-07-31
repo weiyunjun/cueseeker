@@ -449,7 +449,7 @@ final class PlaybackVisualLineStackLayout {
                 return (
                     constrainedLineRange,
                     constrainedLineRange.location,
-                    CGPoint(x: firstRect.minX, y: firstRect.midY)
+                    CGPoint(x: firstRect.minX, y: firstRect.minY)
                 )
             }
             let lastRect = textRect(
@@ -460,7 +460,7 @@ final class PlaybackVisualLineStackLayout {
                 return (
                     constrainedLineRange,
                     NSMaxRange(constrainedLineRange),
-                    CGPoint(x: lastRect.maxX, y: lastRect.midY)
+                    CGPoint(x: lastRect.maxX, y: lastRect.minY)
                 )
             }
             resolvedLineIndex = matchingLineIndices.min { left, right in
@@ -495,14 +495,14 @@ final class PlaybackVisualLineStackLayout {
             return (
                 lineUTF16Range,
                 selectableCharacterRange.location,
-                CGPoint(x: resolvedTextRect.minX, y: resolvedTextRect.midY)
+                CGPoint(x: resolvedTextRect.minX, y: resolvedTextRect.minY)
             )
         }
         if localX >= line.usedRect.maxX {
             return (
                 lineUTF16Range,
                 NSMaxRange(selectableCharacterRange),
-                CGPoint(x: resolvedTextRect.maxX, y: resolvedTextRect.midY)
+                CGPoint(x: resolvedTextRect.maxX, y: resolvedTextRect.minY)
             )
         }
 
@@ -548,7 +548,7 @@ final class PlaybackVisualLineStackLayout {
             CGPoint(
                 x: contentRect.minX
                     + (usesTrailingBoundary ? glyphRect.maxX : glyphRect.minX),
-                y: resolvedTextRect.midY
+                y: resolvedTextRect.minY
             )
         )
     }
@@ -2346,7 +2346,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         installSelectedTextMenuEventMonitor()
     }
 
-    private func selectedTextMenuFrame(
+    func selectedTextMenuFrame(
         anchor: CGPoint,
         size: CGSize
     ) -> CGRect {
@@ -2360,8 +2360,12 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             max(visibleRect.minX, x),
             max(visibleRect.minX, visibleRect.maxX - size.width)
         )
-        let y = min(
-            max(visibleRect.minY, anchor.y - size.height / 2),
+        var y = anchor.y
+        if y + size.height > visibleRect.maxY {
+            y = anchor.y - size.height
+        }
+        y = min(
+            max(visibleRect.minY, y),
             max(visibleRect.minY, visibleRect.maxY - size.height)
         )
         return CGRect(origin: CGPoint(x: x, y: y), size: size)

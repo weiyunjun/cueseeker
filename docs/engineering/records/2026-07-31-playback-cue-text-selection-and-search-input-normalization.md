@@ -16,7 +16,8 @@ unchanged.
   by Current, Playlist, and Command Panel Search. Visual wrapping caused by
   available width remains selectable across rows.
 - Present the existing CueSeeker popover menu after a non-empty selection,
-  anchored to the trailing boundary of the selected text.
+  anchored to the trailing boundary of the selected text and opening downward
+  without covering content above it when space permits.
 - Copy selected text with the required playback feedback.
 - Search selected text through the existing Command Panel Search operation.
 - Keep Collage editing free of text-selection interaction.
@@ -31,7 +32,9 @@ unchanged.
 - Kept selection state local to the native Reel document view and keyed it by
   item identity and source-line range. TextKit boundary points keep soft-wrapped
   rows selectable and anchor the menu to the last selected character rather
-  than the mouse-up position. Selecting text does not change the focused Cue.
+  than the mouse-up position. The boundary uses the character row's top edge;
+  the menu opens downward from it and flips upward only when bottom space is
+  insufficient. Selecting text does not change the focused Cue.
 - Reused `WorkbenchPopoverPanel` and `WorkbenchPopoverRow` in a lightweight
   hosting view for `Copy Selected Text` and `Search Selected Text`.
 - Routed copy and search actions through `AppCoordinator`. Search reuses
@@ -49,9 +52,9 @@ unchanged.
 ## Verification
 
 - `swift build` — passed.
-- Seven focused selection, feedback, normalization, CueResult, and Command Panel
-  tests — passed.
-- `swift test --no-parallel` — ran 931 tests with three unrelated issues:
+- Eight focused selection, menu placement, feedback, normalization, CueResult,
+  and Command Panel tests — passed.
+- `swift test --no-parallel` — ran 932 tests with three unrelated issues:
   - `sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
     failed only in the full run and passed when rerun alone.
   - `subtitleTableViewCueContentRightClickOpensMenuBelowClickPosition` and
@@ -65,7 +68,8 @@ unchanged.
 The three required Playback surfaces now share one source-line-local selection
 implementation and one existing-style action menu. Width-driven visual wrapping
 remains selectable, while source line breaks and Cue boundaries stop selection.
-The menu follows the final selected character. Search boxes and their query/state
-paths store and execute single-line input. Final visual and interaction
-acceptance, followed by the corresponding `UI.md` update, remains with the human
-reviewer.
+The menu follows the final selected character, opens downward without covering
+content above it, and flips upward only near the viewport bottom. Search boxes
+and their query/state paths store and execute single-line input. Final visual
+and interaction acceptance, followed by the corresponding `UI.md` update,
+remains with the human reviewer.

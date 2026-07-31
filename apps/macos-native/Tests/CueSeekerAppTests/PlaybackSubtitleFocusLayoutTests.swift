@@ -550,7 +550,28 @@ func subtitleFocusTextSelectionCrossesSoftWrapAndAnchorsAtLastGlyph() throws {
     #expect(focus.lineUTF16Range == anchor.lineUTF16Range)
     #expect(layout.selectedText(range: range) == text)
     #expect(abs(focus.boundaryPoint.x - lastLine.maxX) < 1)
-    #expect(focus.boundaryPoint.y > firstLine.maxY)
+    #expect(abs(focus.boundaryPoint.y - lastLine.minY) < 1)
+}
+
+@MainActor
+@Test
+func selectedTextMenuOpensDownwardUnlessBottomSpaceIsInsufficient() {
+    let view = PlaybackSubtitleFocusReelContainerView(
+        frame: CGRect(x: 0, y: 0, width: 800, height: 600)
+    )
+    let menuSize = CGSize(width: 240, height: 160)
+
+    let downwardFrame = view.selectedTextMenuFrame(
+        anchor: CGPoint(x: 200, y: 180),
+        size: menuSize
+    )
+    #expect(downwardFrame.minY == 180)
+
+    let upwardFrame = view.selectedTextMenuFrame(
+        anchor: CGPoint(x: 200, y: 580),
+        size: menuSize
+    )
+    #expect(upwardFrame.maxY == 580)
 }
 
 @MainActor
