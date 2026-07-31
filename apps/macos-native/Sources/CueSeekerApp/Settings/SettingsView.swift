@@ -23,7 +23,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .search:
             "Search"
         case .urlScheme:
-            "URL Scheme"
+            "Deep Link"
         case .decode:
             "Decode"
         case .maintenance:

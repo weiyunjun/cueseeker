@@ -144,7 +144,7 @@ func playbackShioriCopiesSettledPrimaryCueAsMarkdownLink() throws {
     )
     #expect(
         app.playback.playbackViewModel?.feedback?.text
-            == "Subtitle(markdown format) Copied"
+            == "Deep Link Copied"
     )
     #expect(session.activeKeyboardAction == nil)
 }

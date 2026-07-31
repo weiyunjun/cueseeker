@@ -11,9 +11,9 @@ func subtitleFocusClipboardWritesExactCueText() throws {
     defer { pasteboard.releaseGlobally() }
     let text = "  first line  \n\nthird line"
 
-    #expect(PlaybackSubtitleFocusClipboard.copy(text, to: pasteboard))
+    #expect(CueClipboard.copy(text, to: pasteboard))
     #expect(pasteboard.string(forType: .string) == text)
-    #expect(!PlaybackSubtitleFocusClipboard.copy("", to: pasteboard))
+    #expect(!CueClipboard.copy("", to: pasteboard))
 }
 
 @Test
@@ -24,7 +24,7 @@ func subtitleFocusClipboardWritesPlainMarkdownCueLinkOnly() throws {
     defer { pasteboard.releaseGlobally() }
     let cueText = "  first line  \n\nthird line"
 
-    #expect(PlaybackSubtitleFocusClipboard.copyMarkdownLink(
+    #expect(CueClipboard.copyDeepLink(
         cueText: cueText,
         cueID: 42,
         to: pasteboard
@@ -35,53 +35,11 @@ func subtitleFocusClipboardWritesPlainMarkdownCueLinkOnly() throws {
     )
     #expect(pasteboard.data(forType: .html) == nil)
     #expect(pasteboard.data(forType: .rtf) == nil)
-    #expect(!PlaybackSubtitleFocusClipboard.copyMarkdownLink(
+    #expect(!CueClipboard.copyDeepLink(
         cueText: cueText,
         cueID: 0,
         to: pasteboard
     ))
-}
-
-@Test
-func subtitleFocusMarkdownCueLinkNormalizesLineBreaksAndEscapesLabel() {
-    let lineBreakText = [
-        "  first  ",
-        "second",
-        "",
-        "third",
-        "fourth",
-        "fifth",
-        "sixth",
-        "seventh  ",
-    ].joined(separator: "\r\n")
-        + "\rthird-cr\u{000B}third-vt\u{000C}third-ff\u{0085}third-nel"
-        + "\u{2028}third-ls\u{2029}third-ps"
-
-    #expect(
-        PlaybackSubtitleFocusClipboard.markdownLink(
-            cueText: lineBreakText,
-            cueID: 42
-        )
-            == "[first second third fourth fifth sixth seventh third-cr third-vt third-ff third-nel third-ls third-ps](cueseeker://cue?id=42)"
-    )
-    #expect(
-        PlaybackSubtitleFocusClipboard.markdownLink(
-            cueText: "slash\\ brackets[] angle<> emphasis*_ code` strike~ entity& pipe|",
-            cueID: 42
-        )
-            == "[slash\\\\ brackets\\[\\] angle\\<\\> emphasis\\*\\_ code\\` strike\\~ entity\\& pipe\\|](cueseeker://cue?id=42)"
-    )
-    #expect(
-        PlaybackSubtitleFocusClipboard.markdownLink(
-            cueText: " \t\u{00A0}\r\n\u{3000} ",
-            cueID: 42
-        )
-            == "[Cue #42](cueseeker://cue?id=42)"
-    )
-    #expect(
-        PlaybackSubtitleFocusClipboard.markdownLink(cueText: "cue", cueID: 0)
-            == nil
-    )
 }
 
 @Test
@@ -645,7 +603,7 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
         #expect(session.activeKeyboardAction == nil)
         #expect(session.currentSnapshot?.selectedOrdinal == 12)
         #expect(app.playback.playbackStatus == .paused)
-        #expect(app.playback.playbackViewModel?.feedback?.text == "Subtitle Copied")
+        #expect(app.playback.playbackViewModel?.feedback?.text == "Cue Text Copied")
 
         #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
         #expect(
@@ -654,7 +612,7 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
         )
         #expect(
             app.playback.playbackViewModel?.feedback?.text
-                == "Subtitle(markdown format) Copied"
+                == "Deep Link Copied"
         )
 
         #expect(app.handlePlaybackKeyDown(
@@ -841,7 +799,7 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
             NSPasteboard.general.string(forType: .string)
                 == "  playlist first  \n\nplaylist third"
         )
-        #expect(app.playback.playbackViewModel?.feedback?.text == "Subtitle Copied")
+        #expect(app.playback.playbackViewModel?.feedback?.text == "Cue Text Copied")
 
         #expect(app.handlePlaybackKeyDown(keyCode: 7, modifierFlagsRawValue: 0))
         #expect(
@@ -850,7 +808,7 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
         )
         #expect(
             app.playback.playbackViewModel?.feedback?.text
-                == "Subtitle(markdown format) Copied"
+                == "Deep Link Copied"
         )
         #expect(app.playback.subtitleFocusSession === session)
         #expect(window.selectedOrdinal == 0)

@@ -525,7 +525,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
-                text: copied ? "Subtitle Copied" : "No Subtitle"
+                text: copied ? "Cue Text Copied" : "No Subtitle"
             ),
             durationMilliseconds: 1_000
         )
@@ -578,9 +578,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
-                text: copied
-                    ? "Subtitle(markdown format) Copied"
-                    : "No Subtitle"
+                text: copied ? "Deep Link Copied" : "No Subtitle"
             ),
             durationMilliseconds: 1_000
         )

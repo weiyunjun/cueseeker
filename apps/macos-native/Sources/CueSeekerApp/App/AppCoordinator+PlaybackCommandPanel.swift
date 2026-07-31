@@ -328,14 +328,14 @@ extension AppCoordinator {
                 )
             )
         case .copyCueText:
-            let copied = PlaybackSubtitleFocusClipboard.copy(
+            let copied = CueClipboard.copy(
                 result.content,
                 to: .general
             )
             playback.playbackViewModel?
                 .showSubtitleCopyFeedback(copied: copied)
         case .copyCueMarkdownLink:
-            let copied = PlaybackSubtitleFocusClipboard.copyMarkdownLink(
+            let copied = CueClipboard.copyDeepLink(
                 cueText: result.content,
                 cueID: result.entryID,
                 to: .general

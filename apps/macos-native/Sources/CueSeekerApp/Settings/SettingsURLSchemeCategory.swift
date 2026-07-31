@@ -6,10 +6,10 @@ struct SettingsURLSchemeCategory: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("URL Scheme")
+                Text("Deep Link")
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Choose how CueSeeker handles search links.")
+                Text("Choose how CueSeeker handles Deep Links.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

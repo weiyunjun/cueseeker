@@ -312,7 +312,7 @@ extension AppCoordinator {
         case .copyCueMarkdownLink:
             let copied: Bool
             if let cueID = execution.target.cueID {
-                copied = PlaybackSubtitleFocusClipboard.copyMarkdownLink(
+                copied = CueClipboard.copyDeepLink(
                     cueText: execution.target.primaryCueText,
                     cueID: cueID,
                     to: .general
@@ -444,7 +444,7 @@ extension AppCoordinator {
     }
 
     private func copyPlaybackSubtitleFocusCueText(_ text: String) -> Bool {
-        PlaybackSubtitleFocusClipboard.copy(text, to: .general)
+        CueClipboard.copy(text, to: .general)
     }
 
     private func playPlaybackSubtitleFocusCurrentCue(
