@@ -47,6 +47,7 @@ extension AppCoordinator {
 
         switch command {
         case let .search(keyword):
+            search.updateSearchFacetFilter(settings.searchFacetFilter)
             search.updateActiveFilterSet(SubtitleSearchFilterSet())
             search.updateContextRequest(nil)
             search.updateNavigationSnapshot(nil)
@@ -129,8 +130,18 @@ extension AppCoordinator {
             return false
         }
 
+        let firstResult: SubtitleSearchResult?
+        if search.searchFacetFilter == CueFacetFilter() {
+            firstResult = firstPageResult
+        } else {
+            guard search.searchCountState == .exact else {
+                return false
+            }
+            firstResult = search.projectedSearchResults.first
+        }
+
         pendingURLSchemeDirectPlayIntent = nil
-        guard let firstPageResult else {
+        guard let firstResult else {
             presentURLSchemeSearch(
                 keyword: intent.keyword,
                 startsSearch: false,
@@ -138,9 +149,31 @@ extension AppCoordinator {
             )
             return true
         }
-        openSearchResult(firstPageResult, returnPanelMode: .search)
+        openSearchResult(
+            firstResult,
+            playbackSearchPromotion: PlaybackSearchPromotion(
+                query: search.searchQuery,
+                scopePaths: indexing.selectedFolders.map {
+                    $0.standardizedFileURL.path
+                },
+                selectedOrdinal: 0
+            )
+        )
         intent.onPresentationReady()
         return true
+    }
+
+    func resolveURLSchemeDirectPlayFromFilteredResultsIfReady(id: UUID?) {
+        guard id != nil,
+              search.searchFacetFilter != CueFacetFilter(),
+              search.searchCountState == .exact
+        else {
+            return
+        }
+        _ = resolveURLSchemeDirectPlayIntent(
+            id: id,
+            firstPageResult: nil
+        )
     }
 
     @discardableResult

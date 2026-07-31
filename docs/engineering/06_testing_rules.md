@@ -264,8 +264,10 @@ Required M2 playback interaction checks:
   indefinitely and while waiting in the automatic-switch Gap.
 - URL Scheme tests must cover Workbench Search versus Overlay Search routing,
   direct-play first-result routing, empty-result routing with and without active
-  Playback, CueID parsing and lookup, one-item Playlist presentation, command
-  supersession, and Cue playback Return Context.
+  Playback, preservation of the persisted Workbench facet Filter, direct play
+  from the first filtered result, filtered-empty fallback, CueID parsing and
+  lookup, one-item Playlist presentation, command supersession, and Cue
+  playback Return Context.
 - Playback Search keeps native text input priority, starts work 100 milliseconds
   after the latest edit through the shared Workbench Search pipeline, keeps
   editor focus while Up and Down navigate Results, and exposes only

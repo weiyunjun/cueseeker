@@ -6,7 +6,7 @@ import CueSeekerCore
 
 @MainActor
 @Test
-func urlSchemeSearchClearsFiltersAndForcesSearchRoute() throws {
+func urlSchemeSearchPreservesFacetFilterAndForcesSearchRoute() throws {
     let suiteName = "URLSchemeSearchRoutingTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
@@ -20,6 +20,8 @@ func urlSchemeSearchClearsFiltersAndForcesSearchRoute() throws {
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let facetFilter = CueFacetFilter(languages: [.japanese])
+    app.settings.searchFacetFilter = facetFilter
     app.workbenchLayout.selectPanelMode(.shiori)
     app.search.updateActiveFilterSet(SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(
@@ -43,6 +45,8 @@ func urlSchemeSearchClearsFiltersAndForcesSearchRoute() throws {
     #expect(app.workbenchLayout.panelMode == .search)
     #expect(app.search.searchQuery == "大丈夫")
     #expect(app.search.activeFilterSet.isEffectivelyEmpty)
+    #expect(app.search.searchFacetFilter == facetFilter)
+    #expect(app.settings.searchFacetFilter == facetFilter)
     #expect(app.search.cueContextSearchRequest == nil)
 }
 
@@ -184,7 +188,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     shared pipeline first result
 
     2
-    00:00:03,000 --> 00:00:04,000
+    00:00:03,000 --> 00:00:09,000
     shared pipeline second result
 
     """.write(
@@ -217,6 +221,11 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     await app.indexingTask?.value
     await app.libraryTask?.value
     app.settings.urlSchemePlayFirstSearchResultEnabled = true
+    let longCueFilter = CueFacetFilter(
+        durations: [.fiveSecondsOrMore]
+    )
+    app.settings.searchFacetFilter = longCueFilter
+    app.search.updateSearchFacetFilter(longCueFilter)
     app.workbenchLayout.selectPanelMode(.shiori)
 
     var presentationReadyCount = 0
@@ -230,17 +239,29 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(presentationReadyCount == 0)
     #expect(app.workbenchLayout.panelMode == .shiori)
     await app.search.searchTask?.value
+    await app.search.exactCompletionTask?.value
 
     #expect(presentationReadyCount == 1)
     #expect(presentedPlayback)
     #expect(app.search.searchResults.count == 2)
-    #expect(app.search.selectedSearchResult == app.search.searchResults.first)
-    #expect(app.search.selectedSearchResult?.content == "shared pipeline first result")
+    #expect(app.search.projectedSearchResults.count == 1)
+    #expect(
+        app.search.selectedSearchResult
+            == app.search.projectedSearchResults.first
+    )
+    #expect(
+        app.search.selectedSearchResult?.content
+            == "shared pipeline second result"
+    )
+    #expect(app.search.searchFacetFilter == longCueFilter)
+    #expect(app.settings.searchFacetFilter == longCueFilter)
     #expect(app.workbenchLayout.panelMode == .search)
     #expect(app.playback.isPlaybackSurfaceExpanded)
     #expect(app.pendingURLSchemeDirectPlayIntent == nil)
 
     let originalPlaybackResult = try #require(app.search.selectedSearchResult)
+    app.settings.searchFacetFilter = CueFacetFilter()
+    app.search.updateSearchFacetFilter(CueFacetFilter())
     app.playbackReturnContext = .shiori
     var sameVideoPresentationReadyCount = 0
     app.handleURLSchemeCommand(.search(keyword: "shared pipeline")) {
@@ -276,6 +297,23 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     app.stopPlayback()
     #expect(app.workbenchLayout.panelMode == .shiori)
     #expect(app.search.searchQuery == "alternate source")
+    #expect(!app.playback.isPlaybackSurfaceExpanded)
+
+    app.settings.searchFacetFilter = longCueFilter
+    app.search.updateSearchFacetFilter(longCueFilter)
+    var filteredEmptyPresentationReadyCount = 0
+    app.handleURLSchemeCommand(.search(keyword: "alternate source")) {
+        filteredEmptyPresentationReadyCount += 1
+    }
+    await app.search.searchTask?.value
+    await app.search.exactCompletionTask?.value
+
+    #expect(filteredEmptyPresentationReadyCount == 1)
+    #expect(app.workbenchLayout.panelMode == .search)
+    #expect(app.search.searchResults.count == 1)
+    #expect(app.search.projectedSearchResults.isEmpty)
+    #expect(app.search.selectedSearchResult == nil)
+    #expect(app.search.searchFacetFilter == longCueFilter)
     #expect(!app.playback.isPlaybackSurfaceExpanded)
 }
 

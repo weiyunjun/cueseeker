@@ -57,10 +57,11 @@ Every running-state command is processed once.
 
 Every valid Search command must:
 
-1. Clear the active search filter set and any cue-context search state.
+1. Preserve and apply the current persisted Workbench facet Filter while
+   clearing any cue-context search state and its internal context rule.
 2. Put the decoded keyword in the shared Search Feature query.
 3. Submit through the existing non-debounced search pipeline.
-4. Keep Workbench Search and Playback Overlay Search synchronized through the
+4. Keep Workbench Search and Command Panel Search synchronized through the
    shared Search Feature state.
 
 The URL handler must not duplicate database search logic.
@@ -82,10 +83,12 @@ toggle. The toggle is persisted in the shared preferences suite and defaults to
 off.
 
 When on, URL Scheme search uses the same non-debounced `startSearch` pipeline
-and the same
-`searchVisiblePage` request with the standard 100-row first-page limit. It must
-not issue a separate one-row query, observe published rows to guess completion,
-or wait for the later exact-count completion task.
+and the same `searchVisiblePage` request with the standard 100-row first-page
+limit. It must not issue a separate one-row or Filter-specific query. With an
+empty Workbench facet Filter, direct play resolves from that accepted first
+visible page. With an active facet Filter, the existing exact-completion task
+produces the formal filtered projection, and direct play resolves from that
+projection's first result without adding another task or result collection.
 
 While that first page is pending, CueSeeker must not bring an intermediate
 Search page to the foreground. A cold URL launch creates the main window
@@ -96,19 +99,23 @@ remain active while the new first page is pending. A failed or empty result
 preserves that Playback source and opens Overlay Search. Without active
 Playback, the same outcome opens Workbench Search.
 
-The direct-play decision occurs only after the complete first visible page:
+The direct-play decision occurs only after the required formal Search
+projection:
 
 1. returns from the database;
 2. passes the existing cancellation, query, folder, language, watch-state, and
    active-filter stale-result guards;
-3. is assigned to `SearchStore` and grouped by the normal presentation path.
+3. is assigned to `SearchStore` and filtered by the current Workbench facet
+   Filter;
+4. exposes the first filtered result, or confirms that the filtered projection
+   is empty.
 
-If that accepted page contains rows, CueSeeker opens `page.results.first`
+If that accepted projection contains rows, CueSeeker opens its first result
 through the existing Search-result playback entry point. It first establishes
 the selected result and expanded Playback presentation, then selects Search as
 the underlying return panel, and only then presents the main window. Closing
-playback therefore returns to the populated Search page without exposing that
-page before playback.
+playback therefore returns to the populated, identically filtered Search page
+without exposing that page before playback.
 
 When Playback is already visible, the successful result must not collapse or
 recreate the Playback presentation. If the result resolves to the same

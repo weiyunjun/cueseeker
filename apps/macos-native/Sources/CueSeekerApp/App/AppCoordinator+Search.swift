@@ -195,8 +195,14 @@ extension AppCoordinator {
                 return self.indexing.selectedFolders == folders
             },
             onResultsChanged: { [weak self] generation in
-                self?.refreshSearchPlaybackPlaylistSource(
+                guard let self else {
+                    return
+                }
+                self.refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: generation
+                )
+                self.resolveURLSchemeDirectPlayFromFilteredResultsIfReady(
+                    id: urlSchemeIntentID
                 )
             },
             onFirstPageResolved: { [weak self] result in
