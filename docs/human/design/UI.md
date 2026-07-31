@@ -407,7 +407,8 @@
 - Inline Add: `plus`, medium
 - Row Action: `ellipsis`
 - Play: `play.fill`
-- Copy: `copy`
+- Copy Cue Text、Copy Cue Group Text、Copy Time Range、Copy Table、Copy Deep Link(s): `doc.on.doc`
+- Deep Link、Copy Deep Link: `link`
 - Context: `doc.text`
 - Folder: `folder`
 - Edit: `square.and.pencil`
@@ -899,7 +900,7 @@
 - 用途：在 Select 状态下显示已选择数量和批量操作。
 - Token：`--spacing-2`、`--spacing-3`、`--radius-control`、`--color-bg-popover`、`--color-border-muted`、`--shadow-popover`、`--font-size-control`、`--color-text-muted`。
 - 背景必须完全不透明。
-- 内容顺序：`{N} selected`、Anki、Screenshot、Collage、Copy Table。
+- 内容顺序：`{N} selected`、Anki、Copy Deep Link(s)、Copy Table。
 - `{N} selected` 只读，其余项目复用现有操作按钮。
 - Selected Count 大于 `0` 时显示；清空选择后隐藏。
 
@@ -1319,6 +1320,14 @@
 - 点击 Settings 打开 Settings Window。
 - Sidebar Expanded / Collapsed 状态跨 App 启动保留。
 
+#### Settings Deep Link Layout
+
+- Settings Window Sidebar Category Label 固定为 `Deep Link`，Leading Icon 使用 `link`。
+- 选中后 Page Title 固定为 `Deep Link`。
+- Page Description 固定为 `Choose how CueSeeker handles Deep Links.`。
+- 不显示 `URL Scheme` 用户可见文字。
+- 设置项 `Play First Search Result` 继续控制 Deep Link 搜索是否自动播放完整搜索第一页中的第一条结果。
+
 #### App Topbar Layout
 
 - 用于非 Playback 页面。
@@ -1664,7 +1673,12 @@
 - Checkbox Selected Count 大于 `0` 时显示。
 - 内容顺序：
 
-  `{N} selected → Anki → Screenshot → Collage → Copy Table`
+  `{N} selected → Anki → Copy Deep Link(s) → Copy Table`
+
+- `Copy Deep Link(s)` 使用 `doc.on.doc`。
+- 按当前表格顺序复制全部已选行的 Primary Cue Deep Link，每行一个。
+- 单条格式与 Row Action Menu 的 `Copy Deep Link` 相同。
+- Selection Action Overlay 不显示 Screenshot 或 Collage；Playback 内的 Screenshot 与 Editing Collage 保持不变。
 
 #### Search / Shiori / Context Table Layout
 
@@ -1832,8 +1846,9 @@
   2. `Open Subtitle Folder`
   3. `Context`
   4. `Copy Cue Text`
-  5. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
-  6. `Copy Time Range`
+  5. `Copy Deep Link`
+  6. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
+  7. `Copy Time Range`
 
 - Shiori Row Action Menu 的 Action 顺序：
 
@@ -1841,11 +1856,12 @@
   2. `Open Subtitle Folder`
   3. `Context`
   4. `Copy Cue Text`
-  5. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
-  6. `Copy Time Range`
-  7. `Move to ...`
-  8. `Duplicate to ...`
-  9. `Remove Shiori`
+  5. `Copy Deep Link`
+  6. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
+  7. `Copy Time Range`
+  8. `Move to ...`
+  9. `Duplicate to ...`
+  10. `Remove Shiori`
 
 - Normal 和 Content Changed Shiori Row 使用现有 Action 可用性。
 
@@ -1854,6 +1870,7 @@
   - `Open Subtitle Folder` 仅在当前 Subtitle File 仍可访问时可用，否则为 Disabled
   - `Context` 为 Disabled
   - `Copy Cue Text` 可用，复制最后保存的 Cue Snapshot
+  - `Copy Deep Link` 为 Disabled
   - `Copy Cue Group Text` 在显示时可用，复制最后保存的 Cue Group Snapshot
   - `Copy Time Range` 可用，复制当前行显示的 Time Range
   - `Move to ...` 为 Disabled
@@ -1879,6 +1896,11 @@
 - `Copy Cue Text`：
   - 只复制 Primary Cue 的准确文字。
   - 保留源行序和换行。
+
+- `Copy Deep Link`：
+  - 只复制 Primary Cue 的 Deep Link，不复制 Cue Group。
+  - 格式为 `[Cue text](cueseeker://cue?id={CueID})`。
+  - 只发布 Plain Text，不发布 HTML 或 RTF。
 
 - `Copy Cue Group Text`：
   - 仅 `Show Cue Group = On` 时显示。
@@ -2509,10 +2531,10 @@
   - 当前选择和位置不变
 
 - `X`：
-  - 复制 Selected Primary Cue 的 Markdown Cue Link
+  - 复制 Selected Primary Cue 的 Markdown Deep Link
   - 格式为 `[Cue text](cueseeker://cue?id={CueID})`
   - 只发布 Plain Text，不发布 HTML 或 RTF
-  - 显示 `Subtitle(markdown format) Copied`
+  - 显示 `Deep Link Copied`
   - Overlay 保持显示
   - Playback 保持暂停
   - 当前选择和位置不变
@@ -2521,7 +2543,7 @@
   - 复制 Selected Primary Cue 的完整多行文字
   - 不复制完整 Cue Group
   - 保留源行序和换行
-  - 显示 `Subtitle Copied`
+  - 显示 `Cue Text Copied`
   - Overlay 保持显示
   - Playback 保持暂停
   - 当前选择和位置不变
@@ -2563,8 +2585,8 @@
   - 文本输入状态下，`` ` `` 作为正常文本输入，不打开 Command Panel
   - 打开后暂停 Playback
   - 通过 `` ` `` 打开时，默认进入一级界面，Command Panel Search Box 默认获得输入焦点。
-  - 视频播放界面的 URL Scheme 搜索可以直接进入 Search Result 二级界面。
-  - `Play First Search Result` 关闭时，使用 URL Scheme Query 执行与一级界面 Search Action 相同的搜索。
+  - 视频播放界面的 Deep Link 搜索可以直接进入 Search Result 二级界面。
+  - `Play First Search Result` 关闭时，使用 Deep Link Query 执行与一级界面 Search Action 相同的搜索。
   - `Play First Search Result` 开启但不存在结果时，进入显示 `0 results` 的 Search Result 二级界面。
 
 - 一级界面 / Empty Query：
