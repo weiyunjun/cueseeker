@@ -249,6 +249,42 @@ func playbackCueResultFlattensMixedCueGroupIntoOneStrictStack() {
 
 @MainActor
 @Test
+func playbackCueResultSelectionCannotCrossCueOrVisualLineBoundaries() throws {
+    let layout = PlaybackCueResultLayout()
+    let resultRect = CGRect(x: 0, y: 0, width: 800, height: 160)
+    let plan = layout.prepare(
+        result: playbackCueResult(
+            primaryText: "primary",
+            additionalTexts: ["context"]
+        ),
+        showsCueGroup: true,
+        isSelected: false,
+        width: resultRect.width,
+        viewportHeight: resultRect.height
+    )
+    let lineRects = plan.visibleTypographicRects(in: resultRect)
+    let primaryRect = try #require(lineRects.first)
+    let contextRect = try #require(lineRects.last)
+    let anchor = try #require(layout.textSelectionHit(
+        at: CGPoint(x: primaryRect.minX + 1, y: primaryRect.midY),
+        in: resultRect
+    ))
+    let focus = try #require(layout.textSelectionHit(
+        at: CGPoint(x: primaryRect.maxX + 20, y: contextRect.midY),
+        in: resultRect,
+        constrainedToVisualLine: anchor.visualLineIndex
+    ))
+    let range = NSRange(
+        location: min(anchor.utf16Offset, focus.utf16Offset),
+        length: abs(focus.utf16Offset - anchor.utf16Offset)
+    )
+
+    #expect(focus.visualLineIndex == anchor.visualLineIndex)
+    #expect(layout.selectedText(forUTF16Range: range) == "primary")
+}
+
+@MainActor
+@Test
 func playbackCueResultKeepsThreePointGapAcrossGroupHardSoftAndCueBoundaries() {
     let layout = PlaybackCueResultLayout()
     let plan = layout.prepare(
@@ -776,6 +812,7 @@ private final class PlaybackCueResultTestAdapter:
         at ordinal: Int,
         isSelected: Bool,
         isEnabled _: Bool,
+        selectedTextRange _: NSRange?,
         in rect: CGRect
     ) {
         guard snapshot.loadedOrdinalRange.contains(ordinal) else {

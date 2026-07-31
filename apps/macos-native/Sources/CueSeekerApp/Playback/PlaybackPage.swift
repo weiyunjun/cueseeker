@@ -37,6 +37,10 @@ struct PlaybackPageView: View {
                         uiProbeScope: appState.uiProbeScope,
                         onExecuteAction:
                             appState.executePlaybackSubtitleFocusAction,
+                        onCopySelectedText:
+                            appState.copyPlaybackSelectedText,
+                        onSearchSelectedText:
+                            appState.searchPlaybackSelectedText,
                         onOpenLibraryEpisode:
                             appState.openPlaybackLibraryEpisodeFromOverlay
                     )

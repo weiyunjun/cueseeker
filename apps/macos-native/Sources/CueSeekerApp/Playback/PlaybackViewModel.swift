@@ -531,6 +531,17 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    func showSelectedTextCopyFeedback(copied: Bool) {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                icon: copied ? .copy : .system("exclamationmark.triangle"),
+                text: copied ? "Selected Text Copied" : "Copy Failed"
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func copyCurrentFrameScreenshot() {
         guard timelineScrubbingWasPlaying == nil,
               let presentation = player.captureScreenshotPresentation()

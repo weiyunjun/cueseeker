@@ -4,6 +4,19 @@ import Foundation
 
 @MainActor
 extension AppCoordinator {
+    func copyPlaybackSelectedText(_ text: String) {
+        let copied = CueClipboard.copy(text, to: .general)
+        playback.playbackViewModel?
+            .showSelectedTextCopyFeedback(copied: copied)
+    }
+
+    func searchPlaybackSelectedText(_ text: String) {
+        _ = presentPlaybackCommandPanelSearch(
+            query: text,
+            startsSearch: true
+        )
+    }
+
     @discardableResult
     func presentPlaybackCommandPanel() -> Bool {
         guard isPlaybackPageVisible else {
@@ -29,7 +42,8 @@ extension AppCoordinator {
         query: String,
         startsSearch: Bool
     ) -> Bool {
-        let trimmedQuery = query.trimmingCharacters(
+        let normalizedQuery = SearchInputNormalizer.singleLine(query)
+        let trimmedQuery = normalizedQuery.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
         guard isPlaybackPageVisible, !trimmedQuery.isEmpty else {
@@ -71,7 +85,7 @@ extension AppCoordinator {
             return
         }
         var updated = presentation
-        updated.query = query
+        updated.query = SearchInputNormalizer.singleLine(query)
         updated.selectedOrdinal = 0
         playback.presentCommandPanel(updated)
     }

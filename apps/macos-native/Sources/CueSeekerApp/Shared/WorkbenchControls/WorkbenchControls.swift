@@ -293,7 +293,12 @@ struct WorkbenchSearchField: View {
 
             TextField(
                 "",
-                text: $text,
+                text: Binding(
+                    get: { text },
+                    set: {
+                        text = SearchInputNormalizer.singleLine($0)
+                    }
+                ),
                 prompt: Text(placeholder)
                     .foregroundColor(isRedesign ? WorkbenchRedesignColors.textPlaceholder : WorkbenchControlColors.mutedText)
             )

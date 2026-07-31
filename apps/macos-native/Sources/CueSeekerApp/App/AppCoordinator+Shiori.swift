@@ -529,13 +529,14 @@ extension AppCoordinator {
     }
 
     func updateShioriSearchQuery(_ searchText: String) {
-        guard shiori.updateTableSearchDraft(searchText) else {
+        let normalizedSearchText = SearchInputNormalizer.singleLine(searchText)
+        guard shiori.updateTableSearchDraft(normalizedSearchText) else {
             return
         }
         UIInvalidationProbe.mark(
             "ACTION UI.ShioriSearchQuery.changed",
             scope: uiProbeScope,
-            details: "length=\(searchText.count)"
+            details: "length=\(normalizedSearchText.count)"
         )
         guard let listID = shiori.activeListID else {
             reloadShioriTableRows()
@@ -552,7 +553,7 @@ extension AppCoordinator {
         shiori.beginTableResultProjection()
         applyResidentShioriTableProjection(
             resultSnapshotID: shiori.tableResultSnapshotID,
-            searchText: searchText,
+            searchText: normalizedSearchText,
             facetFilter: shiori.tableFacetFilter,
             listID: listID,
             dataRevision: dataRevision

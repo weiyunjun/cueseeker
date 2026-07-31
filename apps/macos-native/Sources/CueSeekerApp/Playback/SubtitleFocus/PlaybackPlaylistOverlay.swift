@@ -7,6 +7,8 @@ struct PlaybackCueResultOverlay: View {
     var contentTopInset = PlaybackSubtitleFocusMetrics.contentInset
     var contentBottomInset = PlaybackSubtitleFocusMetrics.contentInset
     let uiProbeScope: String?
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
@@ -37,6 +39,8 @@ struct PlaybackCueResultOverlay: View {
                     isInteractionEnabled: !blocksInteraction,
                     cancelsWheelMotion: session.keyboardNavigationRequest != nil,
                     onCommitSelection: commitReelSelection,
+                    onCopySelectedText: onCopySelectedText,
+                    onSearchSelectedText: onSearchSelectedText,
                     allowsNativeWheelInput: session.allowsNativeWheelInput,
                     allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
                     onScrollbarDraggingChanged: { isDragging in
@@ -141,6 +145,8 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     let isInteractionEnabled: Bool
     let cancelsWheelMotion: Bool
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let onScrollbarDraggingChanged: (Bool) -> Void
@@ -191,6 +197,8 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         _ = adapter.setPositionTotalCount(positionTotalCount)
         view.uiProbeScope = uiProbeScope
         view.onCommitVirtualReelSelection = onCommitSelection
+        view.onCopySelectedText = onCopySelectedText
+        view.onSearchSelectedText = onSearchSelectedText
         view.allowsNativeWheelInput = allowsNativeWheelInput
         view.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         view.onScrollbarDraggingChanged = onScrollbarDraggingChanged

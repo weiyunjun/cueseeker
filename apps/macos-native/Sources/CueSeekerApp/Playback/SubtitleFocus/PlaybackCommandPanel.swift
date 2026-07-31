@@ -52,7 +52,11 @@ struct PlaybackCommandPanel: View {
                                         .commitPlaybackCommandPanelSearchReelSelection(
                                             $0
                                         )
-                                }
+                                },
+                                onCopySelectedText:
+                                    appState.copyPlaybackSelectedText,
+                                onSearchSelectedText:
+                                    appState.searchPlaybackSelectedText
                             )
                         case .recentVideos:
                             PlaybackCommandPanelRecentVideos(
@@ -336,6 +340,8 @@ private struct PlaybackCommandPanelSearchResults: View {
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
 
     @EnvironmentObject private var cueGroupPresentation:
         CueGroupPresentationStore
@@ -356,7 +362,9 @@ private struct PlaybackCommandPanelSearchResults: View {
                         positionTotalCount: resultTotalCount,
                         viewportSize: geometry.size,
                         reducesMotion: reduceMotion,
-                        onCommitSelection: onCommitSelection
+                        onCommitSelection: onCommitSelection,
+                        onCopySelectedText: onCopySelectedText,
+                        onSearchSelectedText: onSearchSelectedText
                     )
                 }
             }
@@ -395,6 +403,8 @@ private struct PlaybackCommandPanelSearchReel: View {
     let viewportSize: CGSize
     let reducesMotion: Bool
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
 
     var body: some View {
         let contentInset = PlaybackSubtitleFocusMetrics.contentInset
@@ -414,6 +424,8 @@ private struct PlaybackCommandPanelSearchReel: View {
             isInteractionEnabled: true,
             cancelsWheelMotion: false,
             onCommitSelection: onCommitSelection,
+            onCopySelectedText: onCopySelectedText,
+            onSearchSelectedText: onSearchSelectedText,
             allowsNativeWheelInput: { true },
             allowsNativeScrollbarInput: { true },
             onScrollbarDraggingChanged: { _ in },

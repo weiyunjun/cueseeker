@@ -126,8 +126,17 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
         at ordinal: Int,
         isSelected: Bool,
         isEnabled: Bool,
+        selectedTextRange: NSRange?,
         in rect: CGRect
     )
+    func textSelectionHit(
+        at ordinal: Int,
+        point: CGPoint,
+        in rect: CGRect,
+        constrainedToVisualLine visualLineIndex: Int?
+    ) -> PlaybackCueTextSelectionHit?
+    func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect]
+    func selectedText(at ordinal: Int, range: NSRange) -> String?
     func requestWindow(_ request: PlaybackVirtualReelWindowRequest)
     func invalidateMeasurements()
     func invalidate()
@@ -146,7 +155,110 @@ extension PlaybackVirtualReelContentAdapter {
         []
     }
 
+    func textSelectionHit(
+        at ordinal: Int,
+        point: CGPoint,
+        in rect: CGRect,
+        constrainedToVisualLine visualLineIndex: Int?
+    ) -> PlaybackCueTextSelectionHit? {
+        nil
+    }
+
+    func selectedText(at ordinal: Int, range: NSRange) -> String? {
+        nil
+    }
+
+    func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect] {
+        []
+    }
+
     func requestWindow(_ request: PlaybackVirtualReelWindowRequest) {}
+}
+
+struct PlaybackCueTextSelectionHit: Equatable {
+    let visualLineIndex: Int
+    let lineUTF16Range: NSRange
+    let utf16Offset: Int
+}
+
+struct PlaybackCueTextSelection: Equatable {
+    let ordinal: Int
+    let itemID: AnyHashable
+    let visualLineIndex: Int
+    let lineUTF16Range: NSRange
+    let anchorUTF16Offset: Int
+    let focusUTF16Offset: Int
+
+    var range: NSRange {
+        let lower = min(anchorUTF16Offset, focusUTF16Offset)
+        let upper = max(anchorUTF16Offset, focusUTF16Offset)
+        return NSRange(location: lower, length: upper - lower)
+    }
+
+    var isEmpty: Bool {
+        range.length == 0
+    }
+
+    func updatingFocus(_ hit: PlaybackCueTextSelectionHit) -> Self {
+        guard hit.visualLineIndex == visualLineIndex,
+              hit.lineUTF16Range == lineUTF16Range
+        else {
+            return self
+        }
+        return Self(
+            ordinal: ordinal,
+            itemID: itemID,
+            visualLineIndex: visualLineIndex,
+            lineUTF16Range: lineUTF16Range,
+            anchorUTF16Offset: anchorUTF16Offset,
+            focusUTF16Offset: hit.utf16Offset
+        )
+    }
+}
+
+enum PlaybackSelectedTextAction: CaseIterable, Equatable {
+    case copy
+    case search
+
+    var title: String {
+        switch self {
+        case .copy:
+            "Copy Selected Text"
+        case .search:
+            "Search Selected Text"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .copy:
+            "doc.on.doc"
+        case .search:
+            "magnifyingglass"
+        }
+    }
+}
+
+private struct PlaybackSelectedTextActionMenu: View {
+    let onAction: (PlaybackSelectedTextAction) -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel(isRedesign: true) {
+            VStack(spacing: 0) {
+                ForEach(PlaybackSelectedTextAction.allCases, id: \.self) { action in
+                    WorkbenchPopoverRow(
+                        title: action.title,
+                        systemImage: action.systemImage,
+                        isRedesign: true,
+                        showsCheckmarkSlot: false,
+                        action: {
+                            onAction(action)
+                        }
+                    )
+                }
+            }
+        }
+    }
 }
 
 struct PlaybackVisualLineStackSegment {
@@ -389,6 +501,197 @@ final class PlaybackVisualLineStackLayout {
             )
         }
         context.restoreGraphicsState()
+    }
+
+    func textSelectionHit(
+        at point: CGPoint,
+        in contentRect: CGRect,
+        constrainedToVisualLine visualLineIndex: Int? = nil
+    ) -> PlaybackCueTextSelectionHit? {
+        let resolvedLineIndex: Int
+        if let visualLineIndex {
+            guard plan.lines.indices.contains(visualLineIndex) else {
+                return nil
+            }
+            resolvedLineIndex = visualLineIndex
+        } else {
+            guard let lineIndex = plan.lines.indices.first(where: { index in
+                textRect(for: plan.lines[index], in: contentRect).contains(point)
+            }) else {
+                return nil
+            }
+            resolvedLineIndex = lineIndex
+        }
+
+        let line = plan.lines[resolvedLineIndex]
+        let lineCharacterRange = rangeWithoutLineTerminators(
+            layoutManager.characterRange(
+                forGlyphRange: line.glyphRange,
+                actualGlyphRange: nil
+            )
+        )
+        guard lineCharacterRange.length > 0 else {
+            return nil
+        }
+
+        let localX = point.x - contentRect.minX
+        if localX <= line.usedRect.minX {
+            return PlaybackCueTextSelectionHit(
+                visualLineIndex: resolvedLineIndex,
+                lineUTF16Range: lineCharacterRange,
+                utf16Offset: lineCharacterRange.location
+            )
+        }
+        if localX >= line.usedRect.maxX {
+            return PlaybackCueTextSelectionHit(
+                visualLineIndex: resolvedLineIndex,
+                lineUTF16Range: lineCharacterRange,
+                utf16Offset: NSMaxRange(lineCharacterRange)
+            )
+        }
+
+        let targetBaseline = contentRect.minY
+            + line.typographicTop
+            + line.ascent
+        let localPoint = CGPoint(
+            x: localX,
+            y: visualLineIndex == nil
+                ? point.y - (targetBaseline - line.originalBaseline)
+                : line.usedRect.midY
+        )
+        var fraction: CGFloat = 0
+        let rawGlyphIndex = layoutManager.glyphIndex(
+            for: localPoint,
+            in: textContainer,
+            fractionOfDistanceThroughGlyph: &fraction
+        )
+        let selectableGlyphRange = layoutManager.glyphRange(
+            forCharacterRange: lineCharacterRange,
+            actualCharacterRange: nil
+        )
+        guard selectableGlyphRange.length > 0 else {
+            return nil
+        }
+        let glyphIndex = min(
+            max(rawGlyphIndex, selectableGlyphRange.location),
+            NSMaxRange(selectableGlyphRange) - 1
+        )
+        let characterRange = layoutManager.characterRange(
+            forGlyphRange: NSRange(location: glyphIndex, length: 1),
+            actualGlyphRange: nil
+        )
+        let rawOffset = fraction >= 0.5
+            ? NSMaxRange(characterRange)
+            : characterRange.location
+        return PlaybackCueTextSelectionHit(
+            visualLineIndex: resolvedLineIndex,
+            lineUTF16Range: lineCharacterRange,
+            utf16Offset: composedCharacterBoundary(
+                nearestTo: min(
+                    max(rawOffset, lineCharacterRange.location),
+                    NSMaxRange(lineCharacterRange)
+                ),
+                in: lineCharacterRange
+            )
+        )
+    }
+
+    func drawSelection(
+        forUTF16Range range: NSRange,
+        in contentRect: CGRect
+    ) {
+        let safeRange = NSIntersectionRange(
+            range,
+            NSRange(location: 0, length: textStorage.length)
+        )
+        guard safeRange.length > 0,
+              let context = NSGraphicsContext.current
+        else {
+            return
+        }
+
+        context.saveGraphicsState()
+        NSBezierPath(rect: contentRect).addClip()
+        NSColor.selectedTextBackgroundColor.setFill()
+        let selectionGlyphRange = layoutManager.glyphRange(
+            forCharacterRange: safeRange,
+            actualCharacterRange: nil
+        )
+        for line in plan.lines {
+            let lineSelectionRange = NSIntersectionRange(
+                selectionGlyphRange,
+                line.glyphRange
+            )
+            guard lineSelectionRange.length > 0 else {
+                continue
+            }
+            let targetBaseline = contentRect.minY
+                + line.typographicTop
+                + line.ascent
+            layoutManager.enumerateEnclosingRects(
+                forGlyphRange: lineSelectionRange,
+                withinSelectedGlyphRange: NSRange(
+                    location: NSNotFound,
+                    length: 0
+                ),
+                in: textContainer
+            ) { rect, _ in
+                rect.offsetBy(
+                    dx: contentRect.minX,
+                    dy: targetBaseline - line.originalBaseline
+                ).fill()
+            }
+        }
+        context.restoreGraphicsState()
+    }
+
+    func selectedText(forUTF16Range range: NSRange) -> String? {
+        let safeRange = NSIntersectionRange(
+            range,
+            NSRange(location: 0, length: textStorage.length)
+        )
+        guard safeRange.length > 0 else {
+            return nil
+        }
+        return (textStorage.string as NSString).substring(with: safeRange)
+    }
+
+    private func textRect(
+        for line: PlaybackVisualLineStackLine,
+        in contentRect: CGRect
+    ) -> CGRect {
+        CGRect(
+            x: contentRect.minX + line.usedRect.minX,
+            y: contentRect.minY + line.typographicTop,
+            width: line.usedRect.width,
+            height: line.typographicHeight
+        )
+    }
+
+    private func composedCharacterBoundary(
+        nearestTo offset: Int,
+        in lineRange: NSRange
+    ) -> Int {
+        let clampedOffset = min(
+            max(offset, lineRange.location),
+            NSMaxRange(lineRange)
+        )
+        guard clampedOffset > lineRange.location,
+              clampedOffset < NSMaxRange(lineRange)
+        else {
+            return clampedOffset
+        }
+        let string = textStorage.string as NSString
+        let composedRange = string.rangeOfComposedCharacterSequence(
+            at: clampedOffset
+        )
+        if clampedOffset == composedRange.location {
+            return clampedOffset
+        }
+        return clampedOffset - composedRange.location
+            < NSMaxRange(composedRange) - clampedOffset
+            ? composedRange.location
+            : NSMaxRange(composedRange)
     }
 
     private func typographicMetrics(
@@ -942,6 +1245,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         at ordinal: Int,
         isSelected: Bool,
         isEnabled: Bool,
+        selectedTextRange: NSRange?,
         in rect: CGRect
     ) {
         guard let cue = cue(at: ordinal) else {
@@ -974,8 +1278,68 @@ final class PlaybackSubtitleFocusCueReelAdapter:
                 : isEnabled
                     ? PlaybackTheme.subtitleFocusCueUnselectedNative
                     : WorkbenchRedesignColors.NS.textDisabled,
+            selectedTextRange: selectedTextRange,
             in: textRect
         )
+    }
+
+    func textSelectionHit(
+        at ordinal: Int,
+        point: CGPoint,
+        in rect: CGRect,
+        constrainedToVisualLine visualLineIndex: Int?
+    ) -> PlaybackCueTextSelectionHit? {
+        guard let cue = cue(at: ordinal) else {
+            return nil
+        }
+        let badgePlans = informationBadgePlans(for: cue, width: rect.width)
+        let textRect = badgePlans.isEmpty
+            ? rect
+            : CGRect(
+                x: rect.minX,
+                y: rect.minY
+                    + PlaybackSubtitleFocusMetrics.informationHeight,
+                width: rect.width,
+                height: max(
+                    0,
+                    rect.height
+                        - PlaybackSubtitleFocusMetrics.informationHeight
+                )
+            )
+        return textLayout.textSelectionHit(
+            text: cue.text,
+            point: point,
+            in: textRect,
+            constrainedToVisualLine: visualLineIndex
+        )
+    }
+
+    func selectedText(at ordinal: Int, range: NSRange) -> String? {
+        guard let cue = cue(at: ordinal) else {
+            return nil
+        }
+        return textLayout.selectedText(text: cue.text, range: range)
+    }
+
+    func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect] {
+        guard let cue = cue(at: ordinal) else {
+            return []
+        }
+        let badgePlans = informationBadgePlans(for: cue, width: rect.width)
+        let textRect = badgePlans.isEmpty
+            ? rect
+            : CGRect(
+                x: rect.minX,
+                y: rect.minY
+                    + PlaybackSubtitleFocusMetrics.informationHeight,
+                width: rect.width,
+                height: max(
+                    0,
+                    rect.height
+                        - PlaybackSubtitleFocusMetrics.informationHeight
+                )
+            )
+        return textLayout.visibleLineRects(text: cue.text, in: textRect)
     }
 
     func invalidate() {
@@ -1331,6 +1695,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
     let onToggleCollageCueSelection: (Int) -> Void
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let onScrollbarDraggingChanged: (Bool) -> Void
@@ -1370,6 +1736,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
         view.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         view.onCommitNativeReelSelection = onCommitNativeReelSelection
         view.onToggleCollageCueSelection = onToggleCollageCueSelection
+        view.onCopySelectedText = onCopySelectedText
+        view.onSearchSelectedText = onSearchSelectedText
         view.allowsNativeWheelInput = allowsNativeWheelInput
         view.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         view.onScrollbarDraggingChanged = onScrollbarDraggingChanged
@@ -1457,6 +1825,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     }
     var onCommitNativeReelSelection: (Int) -> Bool = { _ in false }
     var onToggleCollageCueSelection: (Int) -> Void = { _ in }
+    var onCopySelectedText: (String) -> Void = { _ in }
+    var onSearchSelectedText: (String) -> Void = { _ in }
     var onCommitVirtualReelSelection: ((PlaybackVirtualReelSelectionCommit) -> Bool)?
     var allowsNativeWheelInput: () -> Bool = { false }
     var allowsNativeScrollbarInput: () -> Bool = { false }
@@ -1468,6 +1838,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private let documentView = PlaybackSubtitleFocusReelDocumentView()
     private let scrollbarView = PlaybackSubtitleFocusNativeScrollbarView()
     private let currentCueAdapter = PlaybackSubtitleFocusCueReelAdapter()
+    private var selectedTextMenuOverlay: SubtitleTableMenuOverlayView?
+    private var selectedTextMenuHost: SubtitleTableMenuHostingView?
+    private var selectedTextMenuEventMonitor: Any?
+    private var selectedText = ""
     private var mountedContentAdapter:
         (any PlaybackVirtualReelContentAdapter)?
     private var contentSnapshot: PlaybackVirtualReelSnapshot?
@@ -1539,6 +1913,12 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.onToggleCollageCueSelection = { [weak self] ordinal in
             self?.onToggleCollageCueSelection(ordinal)
         }
+        documentView.onPresentSelectedTextActions = { [weak self] text, point in
+            self?.presentSelectedTextActions(text: text, at: point)
+        }
+        documentView.onDismissSelectedTextActions = { [weak self] in
+            self?.dismissSelectedTextActions()
+        }
 
         scrollbarView.appearanceMode = .inherited
         scrollbarView.presentationProvider = { [weak self] in
@@ -1587,6 +1967,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         lastViewportSize = nextViewportSize
         scrollView.frame = bounds
         scrollbarView.frame = bounds
+        selectedTextMenuOverlay?.frame = bounds
         updateDocumentGeometry()
         if !hasActiveNativeMotion {
             synchronizeFractionalOrdinalIfIdle()
@@ -1598,6 +1979,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         super.viewDidMoveToWindow()
         if window == nil {
             removeEventMonitor()
+            dismissSelectedTextActions()
             resetWheelInteraction(requiresNewGesture: true)
         } else {
             installEventMonitorIfNeeded()
@@ -1940,6 +2322,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         onCommitKeyboardNavigation = { _ in false }
         onCommitNativeReelSelection = { _ in false }
         onToggleCollageCueSelection = { _ in }
+        onCopySelectedText = { _ in }
+        onSearchSelectedText = { _ in }
         onCommitVirtualReelSelection = nil
         allowsNativeWheelInput = { false }
         allowsNativeScrollbarInput = { false }
@@ -1953,6 +2337,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         wheelAnimator.cancel()
         preciseSettleTask?.cancel()
         preciseSettleTask = nil
+        dismissSelectedTextActions()
         removeEventMonitor()
         wheelState.reset()
         activeKeyboardRequest = nil
@@ -1992,6 +2377,124 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         scrollView.documentView = nil
     }
 
+    private func presentSelectedTextActions(
+        text: String,
+        at pointInDocument: CGPoint
+    ) {
+        dismissSelectedTextActions()
+        selectedText = text
+
+        let overlay = selectedTextMenuOverlay ?? {
+            let view = SubtitleTableMenuOverlayView()
+            view.onClick = { [weak self] in
+                self?.dismissSelectedTextActions()
+            }
+            selectedTextMenuOverlay = view
+            return view
+        }()
+        overlay.frame = bounds
+        overlay.isHidden = false
+        addSubview(overlay)
+
+        let menu = PlaybackSelectedTextActionMenu { [weak self] action in
+            self?.performSelectedTextAction(action)
+        }
+        let host = SubtitleTableMenuHostingView(rootView: AnyView(menu))
+        host.translatesAutoresizingMaskIntoConstraints = true
+        selectedTextMenuHost = host
+        addSubview(host)
+        host.layoutSubtreeIfNeeded()
+
+        let anchor = convert(pointInDocument, from: documentView)
+        host.frame = selectedTextMenuFrame(
+            anchor: anchor,
+            size: host.fittingSize
+        )
+        installSelectedTextMenuEventMonitor()
+    }
+
+    private func selectedTextMenuFrame(
+        anchor: CGPoint,
+        size: CGSize
+    ) -> CGRect {
+        let gap = WorkbenchControlMetrics.redesignSpacing1
+        let visibleRect = bounds
+        var x = anchor.x + gap
+        if x + size.width > visibleRect.maxX {
+            x = anchor.x - gap - size.width
+        }
+        x = min(
+            max(visibleRect.minX, x),
+            max(visibleRect.minX, visibleRect.maxX - size.width)
+        )
+        let y = min(
+            max(visibleRect.minY, anchor.y - size.height / 2),
+            max(visibleRect.minY, visibleRect.maxY - size.height)
+        )
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
+    }
+
+    private func performSelectedTextAction(
+        _ action: PlaybackSelectedTextAction
+    ) {
+        let text = selectedText
+        dismissSelectedTextActions()
+        switch action {
+        case .copy:
+            onCopySelectedText(text)
+        case .search:
+            onSearchSelectedText(text)
+        }
+    }
+
+    private func dismissSelectedTextActions() {
+        selectedText = ""
+        selectedTextMenuHost?.removeFromSuperview()
+        selectedTextMenuHost = nil
+        selectedTextMenuOverlay?.isHidden = true
+        removeSelectedTextMenuEventMonitor()
+    }
+
+    private func installSelectedTextMenuEventMonitor() {
+        removeSelectedTextMenuEventMonitor()
+        selectedTextMenuEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.keyDown, .leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
+            guard let self else {
+                return event
+            }
+            if event.type == .keyDown, event.keyCode == 53 {
+                self.dismissSelectedTextActions()
+                return nil
+            }
+            guard event.type == .leftMouseDown
+                    || event.type == .rightMouseDown
+            else {
+                return event
+            }
+            guard event.window === self.window else {
+                self.dismissSelectedTextActions()
+                return event
+            }
+            if let host = self.selectedTextMenuHost,
+               host.bounds.contains(
+                   host.convert(event.locationInWindow, from: nil)
+               ) {
+                return event
+            }
+            self.dismissSelectedTextActions()
+            return event
+        }
+    }
+
+    private func removeSelectedTextMenuEventMonitor() {
+        guard let selectedTextMenuEventMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(selectedTextMenuEventMonitor)
+        self.selectedTextMenuEventMonitor = nil
+    }
+
     var fractionalOrdinalForTesting: CGFloat {
         fractionalOrdinal
     }
@@ -2026,6 +2529,13 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     func isCollageCueEnabledForTesting(at ordinal: Int) -> Bool {
         documentView.isCollageCueEnabledForTesting(at: ordinal)
+    }
+
+    func selectTextForTesting(
+        from anchor: CGPoint,
+        to focus: CGPoint
+    ) -> String? {
+        documentView.selectTextForTesting(from: anchor, to: focus)
     }
 
     var placementsForTesting: [PlaybackSubtitleFocusCuePlacement] {
@@ -3057,6 +3567,8 @@ enum PlaybackCollageCheckboxDrawing {
 final class PlaybackSubtitleFocusReelDocumentView: NSView {
     var uiProbeScope: String?
     var onToggleCollageCueSelection: (Int) -> Void = { _ in }
+    var onPresentSelectedTextActions: (String, CGPoint) -> Void = { _, _ in }
+    var onDismissSelectedTextActions: () -> Void = {}
     private var layout = PlaybackSubtitleFocusVirtualReelLayout(
         viewportSize: .zero,
         totalCount: 0,
@@ -3068,6 +3580,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     private var selectedOrdinal: Int?
     private var collageSelectedCueIDs: Set<Int64>?
     private var collageCanSelectAnotherCue = true
+    private var textSelection: PlaybackCueTextSelection?
     private(set) var placements: [PlaybackSubtitleFocusCuePlacement] = []
 
     override var isFlipped: Bool {
@@ -3117,6 +3630,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             }
             return
         }
+        clearTextSelection()
         if let previousAdapter = self.contentAdapter,
            previousAdapter !== contentAdapter {
             previousAdapter.invalidate()
@@ -3128,6 +3642,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         self.contentAdapter = contentAdapter
         contentSnapshot = snapshot
         resolveLocalPlacementsIfNeeded()
+        window?.invalidateCursorRects(for: self)
         needsDisplay = true
     }
 
@@ -3167,8 +3682,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         )
         collageSelectedCueIDs = selectedCueIDs
         collageCanSelectAnotherCue = canSelectAnotherCue
+        window?.invalidateCursorRects(for: self)
 
         if changesMode {
+            clearTextSelection()
             UIInvalidationProbe.count(
                 "playback.subtitle_focus.collage_full_invalidation",
                 scope: uiProbeScope,
@@ -3211,6 +3728,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             details: "ordinal=\(layout.fractionalOrdinal)"
         )
         resolveLocalPlacementsIfNeeded()
+        window?.invalidateCursorRects(for: self)
         needsDisplay = true
     }
 
@@ -3221,6 +3739,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         selectedOrdinal = nil
         collageSelectedCueIDs = nil
         collageCanSelectAnotherCue = true
+        textSelection = nil
         placements.removeAll(keepingCapacity: false)
     }
 
@@ -3245,6 +3764,9 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                 at: placement.ordinal,
                 isSelected: placement.ordinal == selectedOrdinal,
                 isEnabled: canToggle,
+                selectedTextRange: textSelection?.ordinal == placement.ordinal
+                    ? textSelection?.range
+                    : nil,
                 in: cueContentRect(for: placement.rect)
             )
             if isEditingCollage {
@@ -3375,10 +3897,53 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        guard let placement = collagePlacement(containing: point) else {
+        onDismissSelectedTextActions()
+        if let placement = collagePlacement(containing: point) {
+            clearTextSelection()
+            _ = toggleCollageCue(at: placement.ordinal)
             return
         }
-        _ = toggleCollageCue(at: placement.ordinal)
+        clearTextSelection()
+        _ = beginTextSelection(at: point)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        updateTextSelection(
+            focusPoint: convert(event.locationInWindow, from: nil)
+        )
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        updateTextSelection(focusPoint: point)
+        guard let textSelection,
+              !textSelection.isEmpty,
+              let text = contentAdapter?.selectedText(
+                  at: textSelection.ordinal,
+                  range: textSelection.range
+              ),
+              !text.isEmpty
+        else {
+            clearTextSelection()
+            return
+        }
+        onPresentSelectedTextActions(text, point)
+    }
+
+    override func resetCursorRects() {
+        discardCursorRects()
+        guard !isEditingCollage, let contentAdapter else {
+            return
+        }
+        for placement in placements {
+            let cueRect = cueContentRect(for: placement.rect)
+            for rect in contentAdapter.selectableTextRects(
+                at: placement.ordinal,
+                in: cueRect
+            ) where !rect.isNull && !rect.isEmpty {
+                addCursorRect(rect, cursor: .iBeam)
+            }
+        }
     }
 
     func toggleCollageCueForTesting(at ordinal: Int) -> Bool {
@@ -3404,6 +3969,87 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         !isEditingCollage
             || isCollageCueChecked(at: ordinal)
             || collageCanSelectAnotherCue
+    }
+
+    var textSelectionForTesting: PlaybackCueTextSelection? {
+        textSelection
+    }
+
+    func selectTextForTesting(
+        from anchor: CGPoint,
+        to focus: CGPoint
+    ) -> String? {
+        guard !isEditingCollage else {
+            return nil
+        }
+        clearTextSelection()
+        guard beginTextSelection(at: anchor) else {
+            return nil
+        }
+        updateTextSelection(focusPoint: focus)
+        guard let textSelection, !textSelection.isEmpty else {
+            return nil
+        }
+        return contentAdapter?.selectedText(
+            at: textSelection.ordinal,
+            range: textSelection.range
+        )
+    }
+
+    @discardableResult
+    private func beginTextSelection(at point: CGPoint) -> Bool {
+        guard let placement = textPlacement(containing: point),
+              let itemID = contentAdapter?.itemID(at: placement.ordinal),
+              let hit = contentAdapter?.textSelectionHit(
+                  at: placement.ordinal,
+                  point: point,
+                  in: cueContentRect(for: placement.rect),
+                  constrainedToVisualLine: nil
+              )
+        else {
+            return false
+        }
+        textSelection = PlaybackCueTextSelection(
+            ordinal: placement.ordinal,
+            itemID: itemID,
+            visualLineIndex: hit.visualLineIndex,
+            lineUTF16Range: hit.lineUTF16Range,
+            anchorUTF16Offset: hit.utf16Offset,
+            focusUTF16Offset: hit.utf16Offset
+        )
+        return true
+    }
+
+    private func updateTextSelection(focusPoint: CGPoint) {
+        guard let currentSelection = textSelection,
+              let placement = placements.first(where: {
+                  $0.ordinal == currentSelection.ordinal
+                      && $0.itemID == currentSelection.itemID
+              }),
+              let hit = contentAdapter?.textSelectionHit(
+                  at: currentSelection.ordinal,
+                  point: focusPoint,
+                  in: cueContentRect(for: placement.rect),
+                  constrainedToVisualLine: currentSelection.visualLineIndex
+              )
+        else {
+            return
+        }
+        let nextSelection = currentSelection.updatingFocus(hit)
+        guard nextSelection != currentSelection else {
+            return
+        }
+        textSelection = nextSelection
+        invalidateRow(currentSelection.ordinal)
+    }
+
+    private func clearTextSelection() {
+        guard let textSelection else {
+            return
+        }
+        self.textSelection = nil
+        onDismissSelectedTextActions()
+        invalidateRow(textSelection.ordinal)
     }
 
     private func invalidateRow(_ ordinal: Int) {
@@ -3640,6 +4286,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         return placements.first { $0.rect.contains(point) }
     }
 
+    private func textPlacement(
+        containing point: CGPoint
+    ) -> PlaybackSubtitleFocusCuePlacement? {
+        placements.first {
+            cueContentRect(for: $0.rect).contains(point)
+        }
+    }
+
     private func toggleCollageCue(at ordinal: Int) -> Bool {
         guard isEditingCollage,
               placements.contains(where: { $0.ordinal == ordinal }),
@@ -3662,6 +4316,7 @@ final class PlaybackSubtitleFocusNativeTextLayout {
     func draw(
         text: String,
         color: NSColor,
+        selectedTextRange: NSRange? = nil,
         in rect: CGRect
     ) {
         let textRect = Self.textRect(in: rect)
@@ -3673,7 +4328,44 @@ final class PlaybackSubtitleFocusNativeTextLayout {
             color: color,
             width: textRect.width
         )
+        if let selectedTextRange {
+            visualLineLayout.drawSelection(
+                forUTF16Range: selectedTextRange,
+                in: textRect
+            )
+        }
         visualLineLayout.drawPreparedPlan(in: textRect)
+    }
+
+    func textSelectionHit(
+        text: String,
+        point: CGPoint,
+        in rect: CGRect,
+        constrainedToVisualLine visualLineIndex: Int? = nil
+    ) -> PlaybackCueTextSelectionHit? {
+        let textRect = Self.textRect(in: rect)
+        guard textRect.width > 0, textRect.height > 0 else {
+            return nil
+        }
+        visualLineLayout.prepare(
+            text: text,
+            color: .white,
+            width: textRect.width
+        )
+        return visualLineLayout.textSelectionHit(
+            at: point,
+            in: textRect,
+            constrainedToVisualLine: visualLineIndex
+        )
+    }
+
+    func selectedText(text: String, range: NSRange) -> String? {
+        visualLineLayout.prepare(
+            text: text,
+            color: .white,
+            width: 1
+        )
+        return visualLineLayout.selectedText(forUTF16Range: range)
     }
 
     func visibleLineRects(

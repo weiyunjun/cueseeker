@@ -6,6 +6,33 @@ import Testing
 
 @MainActor
 @Test
+func selectedTextSearchReusesAnOpenCommandPanelAndNormalizesItsQuery() {
+    _ = NSApplication.shared
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "playback-selected-text-search-\(UUID().uuidString).sqlite"
+        )
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    let app = AppCoordinator(databaseURL: databaseURL)
+    app.search.selectResult(
+        playbackSharedSearchResult(id: 9_001, rank: 0)
+    )
+    app.playback.isPlaybackSurfaceExpanded = true
+
+    #expect(app.presentPlaybackCommandPanel())
+    app.searchPlaybackSelectedText("first\r\nsecond")
+    #expect(app.playback.commandPanelPresentation?.page == .searchResults)
+    #expect(app.playback.commandPanelPresentation?.query == "first second")
+    #expect(app.search.searchQuery == "first second")
+
+    app.searchPlaybackSelectedText("replacement")
+    #expect(app.playback.commandPanelPresentation?.page == .searchResults)
+    #expect(app.playback.commandPanelPresentation?.query == "replacement")
+    #expect(app.search.searchQuery == "replacement")
+}
+
+@MainActor
+@Test
 func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async throws {
     let searchStore = SearchStore()
     let initialResults = (0..<40).map {

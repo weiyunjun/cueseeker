@@ -487,7 +487,10 @@ final class PlaybackCueResultLayout {
         return resolvedPlan
     }
 
-    func drawPreparedPlan(in resultRect: CGRect) {
+    func drawPreparedPlan(
+        in resultRect: CGRect,
+        selectedTextRange: NSRange? = nil
+    ) {
         guard let plan else {
             return
         }
@@ -496,7 +499,33 @@ final class PlaybackCueResultLayout {
             in: resultRect,
             isSelected: plan.isSelected
         )
-        visualLineLayout.drawPreparedPlan(in: plan.cueTextRect(in: resultRect))
+        let cueTextRect = plan.cueTextRect(in: resultRect)
+        if let selectedTextRange {
+            visualLineLayout.drawSelection(
+                forUTF16Range: selectedTextRange,
+                in: cueTextRect
+            )
+        }
+        visualLineLayout.drawPreparedPlan(in: cueTextRect)
+    }
+
+    func textSelectionHit(
+        at point: CGPoint,
+        in resultRect: CGRect,
+        constrainedToVisualLine visualLineIndex: Int? = nil
+    ) -> PlaybackCueTextSelectionHit? {
+        guard let plan else {
+            return nil
+        }
+        return visualLineLayout.textSelectionHit(
+            at: point,
+            in: plan.cueTextRect(in: resultRect),
+            constrainedToVisualLine: visualLineIndex
+        )
+    }
+
+    func selectedText(forUTF16Range range: NSRange) -> String? {
+        visualLineLayout.selectedText(forUTF16Range: range)
     }
 }
 

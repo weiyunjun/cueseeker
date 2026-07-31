@@ -5,6 +5,28 @@ import Testing
 @testable import CueSeekerCore
 @testable import CueSeekerApp
 
+@Test
+func searchInputNormalizerReplacesEveryLineBreakWithSpaces() {
+    #expect(
+        SearchInputNormalizer.singleLine(
+            "first\r\nsecond\nthird\rfourth\u{2028}fifth\u{2029}sixth"
+        ) == "first second third fourth fifth sixth"
+    )
+    #expect(SearchInputNormalizer.singleLine("  keep  spaces  ") == "  keep  spaces  ")
+}
+
+@MainActor
+@Test
+func searchStoresPersistOnlyNormalizedSingleLineQueries() {
+    let search = SearchStore()
+    search.updateQuery("one\r\ntwo\nthree")
+    #expect(search.searchQuery == "one two three")
+
+    let shiori = ShioriStore()
+    #expect(shiori.updateTableSearchDraft("one\r\ntwo\nthree"))
+    #expect(shiori.tableSearchDraft == "one two three")
+}
+
 @MainActor
 @Test
 func searchFacetPanelDefaultsToVisible() {

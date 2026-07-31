@@ -125,6 +125,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         at ordinal: Int,
         isSelected: Bool,
         isEnabled _: Bool,
+        selectedTextRange: NSRange?,
         in rect: CGRect
     ) {
         guard let result = cueResult(at: ordinal) else {
@@ -137,7 +138,61 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
             width: rect.width,
             viewportHeight: rect.height
         )
-        layout.drawPreparedPlan(in: rect)
+        layout.drawPreparedPlan(
+            in: rect,
+            selectedTextRange: selectedTextRange
+        )
+    }
+
+    func textSelectionHit(
+        at ordinal: Int,
+        point: CGPoint,
+        in rect: CGRect,
+        constrainedToVisualLine visualLineIndex: Int?
+    ) -> PlaybackCueTextSelectionHit? {
+        guard let result = cueResult(at: ordinal) else {
+            return nil
+        }
+        layout.prepare(
+            result: result,
+            showsCueGroup: showsCueGroup,
+            isSelected: ordinal == windowStore.selectedOrdinal,
+            width: rect.width,
+            viewportHeight: rect.height
+        )
+        return layout.textSelectionHit(
+            at: point,
+            in: rect,
+            constrainedToVisualLine: visualLineIndex
+        )
+    }
+
+    func selectedText(at ordinal: Int, range: NSRange) -> String? {
+        guard let result = cueResult(at: ordinal) else {
+            return nil
+        }
+        layout.prepare(
+            result: result,
+            showsCueGroup: showsCueGroup,
+            isSelected: ordinal == windowStore.selectedOrdinal,
+            width: 1,
+            viewportHeight: .greatestFiniteMagnitude
+        )
+        return layout.selectedText(forUTF16Range: range)
+    }
+
+    func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect] {
+        guard let result = cueResult(at: ordinal) else {
+            return []
+        }
+        let plan = layout.prepare(
+            result: result,
+            showsCueGroup: showsCueGroup,
+            isSelected: ordinal == windowStore.selectedOrdinal,
+            width: rect.width,
+            viewportHeight: rect.height
+        )
+        return plan.visibleTypographicRects(in: rect)
     }
 
     func invalidateMeasurements() {

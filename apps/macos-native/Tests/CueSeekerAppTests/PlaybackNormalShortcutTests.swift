@@ -8,6 +8,17 @@ import Testing
 
 @MainActor
 @Test
+func selectedTextCopyUsesRequiredPlaybackFeedback() {
+    let viewModel = PlaybackViewModel(player: PlaybackPlayer())
+
+    viewModel.showSelectedTextCopyFeedback(copied: true)
+
+    #expect(viewModel.feedback?.text == "Selected Text Copied")
+    #expect(viewModel.feedback?.icon == .copy)
+}
+
+@MainActor
+@Test
 func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
     try withNormalPlaybackApp { app, database in
         let shioriDatabase = try #require(app.shioriDatabase)

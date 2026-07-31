@@ -680,8 +680,9 @@ final class SearchStore: ObservableObject {
     private(set) var resultFilterSet = SubtitleSearchFilterSet()
 
     func updateQuery(_ query: String) {
-        guard query != searchQuery else { return }
-        searchQuery = query
+        let normalizedQuery = SearchInputNormalizer.singleLine(query)
+        guard normalizedQuery != searchQuery else { return }
+        searchQuery = normalizedQuery
         searchFacetSnapshot = nil
         filteredSearchFacetDistribution = nil
     }

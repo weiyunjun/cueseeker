@@ -8,11 +8,15 @@ struct PlaybackSubtitleFocusLayer: View {
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
         onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
+        onCopySelectedText: @escaping (String) -> Void = { _ in },
+        onSearchSelectedText: @escaping (String) -> Void = { _ in },
         onOpenLibraryEpisode:
             @escaping (CompleteLibraryVideoPresentation) -> Bool = {
                 _ in false
@@ -23,6 +27,8 @@ struct PlaybackSubtitleFocusLayer: View {
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
+        self.onCopySelectedText = onCopySelectedText
+        self.onSearchSelectedText = onSearchSelectedText
         self.onOpenLibraryEpisode = onOpenLibraryEpisode
     }
 
@@ -37,6 +43,8 @@ struct PlaybackSubtitleFocusLayer: View {
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction,
+                onCopySelectedText: onCopySelectedText,
+                onSearchSelectedText: onSearchSelectedText,
                 onOpenLibraryEpisode: onOpenLibraryEpisode
             )
         }
@@ -49,6 +57,8 @@ struct PlaybackOverlay: View {
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     var body: some View {
@@ -105,7 +115,9 @@ struct PlaybackOverlay: View {
                     session: session,
                     windowStore: playlistWindow,
                     uiProbeScope: uiProbeScope,
-                    onExecuteAction: onExecuteAction
+                    onExecuteAction: onExecuteAction,
+                    onCopySelectedText: onCopySelectedText,
+                    onSearchSelectedText: onSearchSelectedText
                 )
             } else {
                 PlaybackTheme.subtitleFocusOverlayBackground
@@ -133,6 +145,8 @@ struct PlaybackOverlay: View {
             onCommitKeyboardNavigation: session.commitKeyboardNavigation,
             onCommitNativeReelSelection: session.commitNativeReelSelection,
             onToggleCollageCueSelection: session.toggleCollageCueSelection,
+            onCopySelectedText: onCopySelectedText,
+            onSearchSelectedText: onSearchSelectedText,
             allowsNativeWheelInput: session.allowsNativeWheelInput,
             allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
             consumeDeferredAction: {
@@ -372,6 +386,8 @@ private struct PlaybackSubtitlePlaylist: View {
     @ObservedObject var windowStore: PlaybackPlaylistSessionWindowStore
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
 
     var body: some View {
         PlaybackCueResultOverlay(
@@ -379,6 +395,8 @@ private struct PlaybackSubtitlePlaylist: View {
             windowStore: windowStore,
             module: .playlist,
             uiProbeScope: uiProbeScope,
+            onCopySelectedText: onCopySelectedText,
+            onSearchSelectedText: onSearchSelectedText,
             onExecuteAction: onExecuteAction
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -397,6 +415,8 @@ struct PlaybackSubtitleFocusOverlay: View {
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
     let onToggleCollageCueSelection: (Int) -> SubtitleCollageSelectionMutation
+    let onCopySelectedText: (String) -> Void
+    let onSearchSelectedText: (String) -> Void
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let consumeDeferredAction: () -> PlaybackSubtitleFocusActionExecution?
@@ -421,6 +441,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         onCommitNativeReelSelection: @escaping (Int) -> Bool = { _ in false },
         onToggleCollageCueSelection:
             @escaping (Int) -> SubtitleCollageSelectionMutation = { _ in .unchanged },
+        onCopySelectedText: @escaping (String) -> Void = { _ in },
+        onSearchSelectedText: @escaping (String) -> Void = { _ in },
         allowsNativeWheelInput: @escaping () -> Bool = { false },
         allowsNativeScrollbarInput: @escaping () -> Bool = { false },
         consumeDeferredAction: @escaping () -> PlaybackSubtitleFocusActionExecution? = { nil },
@@ -439,6 +461,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         self.onCommitNativeReelSelection = onCommitNativeReelSelection
         self.onToggleCollageCueSelection = onToggleCollageCueSelection
+        self.onCopySelectedText = onCopySelectedText
+        self.onSearchSelectedText = onSearchSelectedText
         self.allowsNativeWheelInput = allowsNativeWheelInput
         self.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         self.consumeDeferredAction = consumeDeferredAction
@@ -492,6 +516,8 @@ struct PlaybackSubtitleFocusOverlay: View {
                     onToggleCollageCueSelection: {
                         _ = onToggleCollageCueSelection($0)
                     },
+                    onCopySelectedText: onCopySelectedText,
+                    onSearchSelectedText: onSearchSelectedText,
                     allowsNativeWheelInput: allowsNativeWheelInput,
                     allowsNativeScrollbarInput: allowsNativeScrollbarInput,
                     onScrollbarDraggingChanged: { isDragging in

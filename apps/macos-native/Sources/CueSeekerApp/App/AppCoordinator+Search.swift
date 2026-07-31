@@ -4,13 +4,19 @@ import CueSeekerCore
 @MainActor
 extension AppCoordinator {
     func updateSearchQuery(_ query: String) {
+        let normalizedQuery = SearchInputNormalizer.singleLine(query)
         UIInvalidationProbe.mark(
             "ACTION UI.SearchQuery.changed",
-            details: "length=\(query.count)"
+            details: "length=\(normalizedQuery.count)"
         )
-        search.updateQuery(query)
+        search.updateQuery(normalizedQuery)
         search.updateActiveFilterSet(SubtitleSearchFilterSet())
-        startSearch(query: query, cursor: .start, appending: false, debounce: true)
+        startSearch(
+            query: normalizedQuery,
+            cursor: .start,
+            appending: false,
+            debounce: true
+        )
     }
 
     func updateSearchFilterSet(_ filterSet: SubtitleSearchFilterSet) {
@@ -25,7 +31,10 @@ extension AppCoordinator {
     }
 
     func submitSearch(_ query: String) {
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedQuery = SearchInputNormalizer.singleLine(query)
+        let trimmedQuery = normalizedQuery.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
         UIInvalidationProbe.mark(
             "ACTION UI.Search.submitted",
             details: "length=\(trimmedQuery.count)"

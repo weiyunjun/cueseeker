@@ -243,8 +243,9 @@ final class ShioriStore: ObservableObject {
 
     @discardableResult
     func updateTableSearchDraft(_ searchText: String) -> Bool {
-        guard tableSearchDraft != searchText else { return false }
-        tableSearchDraft = searchText
+        let normalizedSearchText = SearchInputNormalizer.singleLine(searchText)
+        guard tableSearchDraft != normalizedSearchText else { return false }
+        tableSearchDraft = normalizedSearchText
         return true
     }
 
