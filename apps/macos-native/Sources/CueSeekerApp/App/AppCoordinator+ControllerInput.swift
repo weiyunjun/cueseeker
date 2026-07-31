@@ -3,6 +3,11 @@ import AppKit
 enum PlaybackControllerTextAction: Equatable {
     case deleteBackward
     case paste
+    case moveUp
+    case moveDown
+    case moveLeft
+    case moveRight
+    case insertText(String)
 }
 
 @MainActor
@@ -11,6 +16,7 @@ extension AppCoordinator {
     func handlePlaybackControllerInput(_ input: ControllerInput) -> Bool {
         handlePlaybackControllerInput(
             input,
+            textInputState: nil,
             textActionHandler: Self.performControllerTextAction
         )
     }
@@ -18,12 +24,39 @@ extension AppCoordinator {
     @discardableResult
     func handlePlaybackControllerInput(
         _ input: ControllerInput,
+        textInputState: PlaybackKeyboardTextInputState? = nil,
         textActionHandler: (PlaybackControllerTextAction) -> Bool
     ) -> Bool {
         guard isPlaybackPageVisible || playbackFullscreenManager.isFullscreen else {
             return false
         }
         playback.requestPointerHide()
+        let resolvedTextInputState = textInputState
+            ?? PlaybackKeyboardTextInputState(
+                isEditableFocused: Self.isEditableTextInputFocused(),
+                hasMarkedText: Self.hasMarkedTextInFocusedEditor()
+            )
+        func keyboardEquivalent(
+            _ keyCode: UInt16,
+            isRepeat: Bool = false,
+            nativeTextAction: PlaybackControllerTextAction? = nil
+        ) -> Bool {
+            let handled = handlePlaybackKeyDown(
+                keyCode: keyCode,
+                modifierFlagsRawValue: 0,
+                isRepeat: isRepeat,
+                textInputState: resolvedTextInputState
+            )
+            if handled {
+                return true
+            }
+            guard resolvedTextInputState.isEditableFocused,
+                  let nativeTextAction
+            else {
+                return false
+            }
+            return textActionHandler(nativeTextAction)
+        }
 
         if case .direction(let direction, let source, let isRepeat) = input {
             if source == .leftThumbstick,
@@ -31,10 +64,10 @@ extension AppCoordinator {
                !allowsControllerThumbstickRepeat(direction) {
                 return false
             }
-            return handlePlaybackKeyDown(
-                keyCode: Self.keyCode(for: direction),
-                modifierFlagsRawValue: 0,
-                isRepeat: isRepeat
+            return keyboardEquivalent(
+                Self.keyCode(for: direction),
+                isRepeat: isRepeat,
+                nativeTextAction: Self.textAction(for: direction)
             )
         }
 
@@ -45,11 +78,9 @@ extension AppCoordinator {
         case .south:
             let usesConfirmation = playback.commandPanelPresentation != nil
                 || playback.subtitleFocusSession != nil
-            return handleControllerKeyboardEquivalent(
-                keyCode: usesConfirmation ? 36 : 49
-            )
+            return keyboardEquivalent(usesConfirmation ? 36 : 49)
         case .east:
-            return handleControllerKeyboardEquivalent(keyCode: 53)
+            return keyboardEquivalent(53)
         case .west:
             if let session = playback.subtitleFocusSession,
                session.isEditingCollage {
@@ -58,7 +89,7 @@ extension AppCoordinator {
             if playback.commandPanelPresentation?.page == .root {
                 return textActionHandler(.deleteBackward)
             }
-            return handleControllerKeyboardEquivalent(keyCode: 8)
+            return keyboardEquivalent(8, nativeTextAction: .insertText("c"))
         case .north:
             if let session = playback.subtitleFocusSession,
                session.isEditingCollage {
@@ -67,42 +98,34 @@ extension AppCoordinator {
             if playback.commandPanelPresentation?.page == .root {
                 return textActionHandler(.paste)
             }
-            return handleControllerKeyboardEquivalent(keyCode: 1)
+            return keyboardEquivalent(1, nativeTextAction: .insertText("s"))
         case .auxiliaryLeft:
-            return handleControllerKeyboardEquivalent(keyCode: 35)
+            return keyboardEquivalent(35)
         case .auxiliaryRight:
-            return handleControllerKeyboardEquivalent(keyCode: 50)
+            return keyboardEquivalent(50, nativeTextAction: .insertText("`"))
         case .centerSurface:
             guard playback.commandPanelPresentation == nil,
                   playback.subtitleFocusSession == nil
             else {
                 return false
             }
-            return handleControllerKeyboardEquivalent(keyCode: 36)
+            return keyboardEquivalent(36)
         case .leftShoulder:
             return playback.subtitleFocusSession?.selectPreviousModule() == true
         case .rightShoulder:
-            return handleControllerKeyboardEquivalent(keyCode: 48)
+            return keyboardEquivalent(48)
         case .leftTrigger:
-            return handleControllerKeyboardEquivalent(keyCode: 0)
+            return keyboardEquivalent(0)
         case .rightTrigger:
-            return handleControllerKeyboardEquivalent(keyCode: 2)
+            return keyboardEquivalent(2)
         case .leftThumbstick:
-            return handleControllerKeyboardEquivalent(keyCode: 12)
+            return keyboardEquivalent(12)
         case .rightThumbstick:
-            return handleControllerKeyboardEquivalent(keyCode: 3)
+            return keyboardEquivalent(3)
         }
     }
 
-    private func handleControllerKeyboardEquivalent(keyCode: UInt16) -> Bool {
-        handlePlaybackKeyDown(
-            keyCode: keyCode,
-            modifierFlagsRawValue: 0,
-            isRepeat: false
-        )
-    }
-
-    private func allowsControllerThumbstickRepeat(
+    func allowsControllerThumbstickRepeat(
         _ direction: ControllerDirection
     ) -> Bool {
         let hasModalPlaybackInterface = playback.commandPanelPresentation != nil
@@ -126,6 +149,21 @@ extension AppCoordinator {
         }
     }
 
+    private static func textAction(
+        for direction: ControllerDirection
+    ) -> PlaybackControllerTextAction {
+        switch direction {
+        case .up:
+            .moveUp
+        case .down:
+            .moveDown
+        case .left:
+            .moveLeft
+        case .right:
+            .moveRight
+        }
+    }
+
     private static func performControllerTextAction(
         _ action: PlaybackControllerTextAction
     ) -> Bool {
@@ -135,6 +173,20 @@ extension AppCoordinator {
             selector = #selector(NSResponder.deleteBackward(_:))
         case .paste:
             selector = #selector(NSText.paste(_:))
+        case .moveUp:
+            selector = #selector(NSResponder.moveUp(_:))
+        case .moveDown:
+            selector = #selector(NSResponder.moveDown(_:))
+        case .moveLeft:
+            selector = #selector(NSResponder.moveLeft(_:))
+        case .moveRight:
+            selector = #selector(NSResponder.moveRight(_:))
+        case .insertText(let text):
+            return NSApplication.shared.sendAction(
+                #selector(NSText.insertText(_:)),
+                to: nil,
+                from: text as NSString
+            )
         }
         return NSApplication.shared.sendAction(selector, to: nil, from: nil)
     }

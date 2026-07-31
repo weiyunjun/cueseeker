@@ -4,9 +4,11 @@ import GameController
 @MainActor
 final class GameControllerInputMonitor {
     typealias InputEligibility = @MainActor () -> Bool
-    typealias InputHandler = @MainActor (ControllerInput) -> Void
+    typealias RepeatEligibility = @MainActor (ControllerDirection) -> Bool
+    typealias InputHandler = @MainActor (ControllerInput) -> Bool
 
     private let inputEligibility: InputEligibility
+    private let repeatEligibility: RepeatEligibility
     private let inputHandler: InputHandler
     private let repeatDelay: TimeInterval
     private let repeatInterval: TimeInterval
@@ -21,11 +23,13 @@ final class GameControllerInputMonitor {
         repeatDelay: TimeInterval = 0.4,
         repeatInterval: TimeInterval = 0.08,
         inputEligibility: @escaping InputEligibility,
+        repeatEligibility: @escaping RepeatEligibility,
         inputHandler: @escaping InputHandler
     ) {
         self.repeatDelay = repeatDelay
         self.repeatInterval = repeatInterval
         self.inputEligibility = inputEligibility
+        self.repeatEligibility = repeatEligibility
         self.inputHandler = inputHandler
     }
 
@@ -176,7 +180,7 @@ final class GameControllerInputMonitor {
         }
     }
 
-    private func handleThumbstick(x: Float, y: Float) {
+    func handleThumbstick(x: Float, y: Float) {
         let previousDirection = thumbstickInterpreter.activeDirection
         let activatedDirection = thumbstickInterpreter.update(x: x, y: y)
 
@@ -193,7 +197,9 @@ final class GameControllerInputMonitor {
             source: .leftThumbstick,
             isRepeat: false
         )) else {
-            thumbstickInterpreter.reset()
+            return
+        }
+        guard repeatEligibility(activatedDirection) else {
             return
         }
         startDirectionRepeat(activatedDirection)
@@ -209,13 +215,13 @@ final class GameControllerInputMonitor {
                 guard let self, self.repeatingDirection == direction else {
                     return
                 }
-                guard self.deliver(.direction(
+                guard self.repeatEligibility(direction),
+                      self.deliver(.direction(
                     direction,
                     source: .leftThumbstick,
                     isRepeat: true
                 )) else {
                     self.cancelDirectionRepeat()
-                    self.thumbstickInterpreter.reset()
                     return
                 }
                 let repeatTimer = Timer(
@@ -228,13 +234,13 @@ final class GameControllerInputMonitor {
                         else {
                             return
                         }
-                        guard self.deliver(.direction(
+                        guard self.repeatEligibility(direction),
+                              self.deliver(.direction(
                             direction,
                             source: .leftThumbstick,
                             isRepeat: true
                         )) else {
                             self.cancelDirectionRepeat()
-                            self.thumbstickInterpreter.reset()
                             return
                         }
                     }
@@ -287,7 +293,6 @@ final class GameControllerInputMonitor {
         guard inputEligibility() else {
             return false
         }
-        inputHandler(input)
-        return true
+        return inputHandler(input)
     }
 }

@@ -785,16 +785,20 @@ Replacement and simplicity rules:
   Disconnect and App termination must remove handlers and cancel pending
   continuous input.
 - Keyboard-equivalent controller behavior must reuse the shared Playback input
-  state machine without synthesizing system keyboard events. Native text
-  deletion and paste remain first-responder commands. Collage Copy and Export
-  belong to the shared preview Store so mouse and controller actions execute
-  the same implementation.
+  state machine without synthesizing system keyboard events. When that state
+  machine leaves an event to native text editing, controller routing must issue
+  the equivalent first-responder movement, insertion, deletion, or paste command
+  instead of dropping the unhandled result. Collage Copy and Export belong to
+  the shared preview Store so mouse and controller actions execute the same
+  implementation.
 - The left thumbstick uses its dominant axis, activates at `0.65`, releases at
   `0.35`, and cannot trigger another direction until it returns to the release
   deadzone. Continuous input begins after `0.4` seconds and repeats every
   `0.08` seconds. Horizontal repeat is accepted only on the normal video page;
   vertical repeat is accepted only in Playback Overlay, Command Panel, and
-  Collage. The directional pad emits discrete presses.
+  Collage. A repeat timer starts only when the active interface accepts that
+  direction, stops when the interface rejects it, and keeps the stick active
+  until it returns to the deadzone. The directional pad emits discrete presses.
 - The packaged App must declare controller user interaction and the Extended
   Gamepad profile. DS5 Bluetooth and USB use the same normalized mapping;
   connection transport must not enter Playback behavior code.

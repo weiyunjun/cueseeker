@@ -204,9 +204,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
                 return self.appState.isPlaybackPageVisible
                     || self.appState.playbackFullscreenManager.isFullscreen
+            },
+            repeatEligibility: { [weak self] direction in
+                guard let self else {
+                    return false
+                }
+                return self.appState.allowsControllerThumbstickRepeat(direction)
             }
         ) { [weak self] input in
-            self?.appState.handlePlaybackControllerInput(input)
+            guard let self else {
+                return false
+            }
+            return self.appState.handlePlaybackControllerInput(input)
         }
         controllerInputMonitor = monitor
         monitor.start()

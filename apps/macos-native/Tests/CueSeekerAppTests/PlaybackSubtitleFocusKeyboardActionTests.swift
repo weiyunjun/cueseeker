@@ -219,23 +219,128 @@ func playbackControllerUsesNativeTextActionsOnCommandPanelRoot() async throws {
         #expect(app.playback.commandPanelPresentation?.page == .root)
 
         var actions: [PlaybackControllerTextAction] = []
+        let editableInput = PlaybackKeyboardTextInputState(
+            isEditableFocused: true,
+            hasMarkedText: false
+        )
         let recordAction: (PlaybackControllerTextAction) -> Bool = { action in
             actions.append(action)
             return true
         }
         #expect(app.handlePlaybackControllerInput(
             .button(.west),
+            textInputState: editableInput,
             textActionHandler: recordAction
         ))
         #expect(app.handlePlaybackControllerInput(
             .button(.north),
+            textInputState: editableInput,
             textActionHandler: recordAction
         ))
-        #expect(actions == [.deleteBackward, .paste])
+        #expect(app.handlePlaybackControllerInput(
+            .direction(.left, source: .directionalPad, isRepeat: false),
+            textInputState: editableInput,
+            textActionHandler: recordAction
+        ))
+        #expect(app.handlePlaybackControllerInput(
+            .direction(.right, source: .directionalPad, isRepeat: false),
+            textInputState: editableInput,
+            textActionHandler: recordAction
+        ))
+        #expect(app.handlePlaybackControllerInput(
+            .direction(.up, source: .directionalPad, isRepeat: false),
+            textInputState: PlaybackKeyboardTextInputState(
+                isEditableFocused: true,
+                hasMarkedText: true
+            ),
+            textActionHandler: recordAction
+        ))
+        #expect(app.handlePlaybackControllerInput(
+            .button(.auxiliaryRight),
+            textInputState: editableInput,
+            textActionHandler: recordAction
+        ))
+        #expect(actions == [
+            .deleteBackward,
+            .paste,
+            .moveLeft,
+            .moveRight,
+            .moveUp,
+            .insertText("`"),
+        ])
 
         #expect(app.handlePlaybackControllerInput(.button(.east)))
         #expect(app.playback.commandPanelPresentation == nil)
     }
+}
+
+@MainActor
+@Test
+func playbackControllerPreservesNativeSearchTextEntry() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
+            availableModules: [.current, .search]
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+        #expect(session.selectModule(.search))
+
+        var actions: [PlaybackControllerTextAction] = []
+        let recordAction: (PlaybackControllerTextAction) -> Bool = { action in
+            actions.append(action)
+            return true
+        }
+        let editableInput = PlaybackKeyboardTextInputState(
+            isEditableFocused: true,
+            hasMarkedText: false
+        )
+
+        #expect(app.handlePlaybackControllerInput(
+            .button(.west),
+            textInputState: editableInput,
+            textActionHandler: recordAction
+        ))
+        #expect(app.handlePlaybackControllerInput(
+            .button(.north),
+            textInputState: editableInput,
+            textActionHandler: recordAction
+        ))
+        #expect(actions == [.insertText("c"), .insertText("s")])
+    }
+}
+
+@MainActor
+@Test
+func playbackEscapeExitsNormalVideoFullscreenWithoutRepeating() {
+    var exitCount = 0
+    let exitFullscreen = {
+        exitCount += 1
+    }
+
+    #expect(AppCoordinator.handlePlaybackFullscreenEscape(
+        keyCode: 53,
+        isRepeat: false,
+        isFullscreen: true,
+        exitFullscreen: exitFullscreen
+    ))
+    #expect(exitCount == 1)
+    #expect(AppCoordinator.handlePlaybackFullscreenEscape(
+        keyCode: 53,
+        isRepeat: true,
+        isFullscreen: true,
+        exitFullscreen: exitFullscreen
+    ))
+    #expect(exitCount == 1)
+    #expect(!AppCoordinator.handlePlaybackFullscreenEscape(
+        keyCode: 53,
+        isRepeat: false,
+        isFullscreen: false,
+        exitFullscreen: exitFullscreen
+    ))
 }
 
 @MainActor

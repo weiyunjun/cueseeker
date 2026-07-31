@@ -715,8 +715,15 @@ extension AppCoordinator {
 
         playback.requestPointerHide()
 
-        guard currentPlaybackVideoPath != nil, let viewModel = playback.playbackViewModel else {
-            return false
+        guard currentPlaybackVideoPath != nil,
+              let viewModel = playback.playbackViewModel
+        else {
+            return Self.handlePlaybackFullscreenEscape(
+                keyCode: keyCode,
+                isRepeat: isRepeat,
+                isFullscreen: playbackFullscreenManager.isFullscreen,
+                exitFullscreen: exitPlaybackFullscreenFromUser
+            )
         }
 
         let modifierFlags = NSEvent.ModifierFlags(
@@ -1032,6 +1039,15 @@ extension AppCoordinator {
             }
         }
 
+        if Self.handlePlaybackFullscreenEscape(
+            keyCode: keyCode,
+            isRepeat: isRepeat,
+            isFullscreen: playbackFullscreenManager.isFullscreen,
+            exitFullscreen: exitPlaybackFullscreenFromUser
+        ) {
+            return true
+        }
+
         guard !textInputState.isEditableFocused else {
             return false
         }
@@ -1093,6 +1109,21 @@ extension AppCoordinator {
         default:
             return false
         }
+    }
+
+    static func handlePlaybackFullscreenEscape(
+        keyCode: UInt16,
+        isRepeat: Bool,
+        isFullscreen: Bool,
+        exitFullscreen: () -> Void
+    ) -> Bool {
+        guard keyCode == 53, isFullscreen else {
+            return false
+        }
+        if !isRepeat {
+            exitFullscreen()
+        }
+        return true
     }
 
     private static func isPlaybackShortcutKey(keyCode: UInt16, hasShift: Bool) -> Bool {

@@ -27,11 +27,39 @@ the standard DualSense profile in this change.
 5. Added controller routing and thumbstick interpretation tests, and documented
    the stable platform boundary and repeat thresholds.
 
+## Post-implementation correction
+
+Initial physical review exposed three gaps between controller routing and the
+keyboard-equivalence rule in `docs/human/design/Controller.md`:
+
+1. Unhandled keyboard events normally returned to AppKit were discarded by the
+   controller path, so native text movement, marked-text movement, and character
+   insertion did not run.
+2. Circle reached the shared Escape handler, but normal-video fullscreen exit
+   still depended on AppKit receiving a physical keyboard event.
+3. The thumbstick monitor started repeat timing after application-level delivery
+   even when the active interface did not allow that directional repeat.
+
+The controller router now preserves shared keyboard handling first and falls
+back to native first-responder text commands only when an editable control owns
+the unhandled action. Normal-video Escape explicitly exits Playback fullscreen.
+The monitor now receives the routing result and current repeat eligibility,
+starts repeat only for an accepted direction, cancels rejected repeat without
+resetting the active stick, and therefore requires a new deadzone cycle before
+another activation.
+
 ## Verification
 
 - `swift build --product CueSeeker`: passed.
 - Focused controller, Collage preview, and overlay input selection: passed, 12
   tests.
+- Post-correction controller, Playback Overlay, Command Panel, fullscreen
+  Escape, native text fallback, and thumbstick lifecycle selection: passed, 27
+  tests.
+- Post-correction unfiltered `swift test`: executed 941 tests and reported 19
+  issues. No controller test failed; reported issues remained in existing native
+  media timeline/presentation timing, shared test-database I/O, Subtitle Table
+  right-click positioning, and refresh-scope instrumentation.
 - The unfiltered `swift test` run executed 937 tests and reported 12 failing
   tests with 15 issues while also logging shared test-database I/O failures.
   Ten failures passed when isolated. The remaining two are the previously
