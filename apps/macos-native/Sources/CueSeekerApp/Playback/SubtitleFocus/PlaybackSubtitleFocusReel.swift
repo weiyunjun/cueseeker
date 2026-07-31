@@ -107,6 +107,12 @@ struct PlaybackVirtualReelWindowPolicy: Equatable {
     }
 }
 
+typealias PlaybackTextSelectionHit = (
+    lineUTF16Range: NSRange,
+    utf16Offset: Int,
+    boundaryPoint: CGPoint
+)
+
 @MainActor
 protocol PlaybackVirtualReelContentAdapter: AnyObject {
     var snapshot: PlaybackVirtualReelSnapshot { get }
@@ -133,8 +139,8 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
         at ordinal: Int,
         point: CGPoint,
         in rect: CGRect,
-        constrainedToVisualLine visualLineIndex: Int?
-    ) -> (visualLineIndex: Int, utf16Offset: Int)?
+        constrainedToLine lineUTF16Range: NSRange?
+    ) -> PlaybackTextSelectionHit?
     func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect]
     func selectedText(at ordinal: Int, range: NSRange) -> String?
     func requestWindow(_ request: PlaybackVirtualReelWindowRequest)
@@ -159,8 +165,8 @@ extension PlaybackVirtualReelContentAdapter {
         at ordinal: Int,
         point: CGPoint,
         in rect: CGRect,
-        constrainedToVisualLine visualLineIndex: Int?
-    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
+        constrainedToLine lineUTF16Range: NSRange?
+    ) -> PlaybackTextSelectionHit? {
         nil
     }
 
@@ -420,14 +426,47 @@ final class PlaybackVisualLineStackLayout {
     func textSelectionHit(
         at point: CGPoint,
         in contentRect: CGRect,
-        constrainedToVisualLine visualLineIndex: Int? = nil
-    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
+        constrainedToLine constrainedLineRange: NSRange? = nil
+    ) -> PlaybackTextSelectionHit? {
         let resolvedLineIndex: Int
-        if let visualLineIndex {
-            guard plan.lines.indices.contains(visualLineIndex) else {
+        if let constrainedLineRange {
+            let matchingLineIndices = plan.lines.indices.filter { index in
+                NSIntersectionRange(
+                    characterRange(for: plan.lines[index]),
+                    constrainedLineRange
+                ).length > 0
+            }
+            guard let firstLineIndex = matchingLineIndices.first,
+                  let lastLineIndex = matchingLineIndices.last
+            else {
                 return nil
             }
-            resolvedLineIndex = visualLineIndex
+            let firstRect = textRect(
+                for: plan.lines[firstLineIndex],
+                in: contentRect
+            )
+            if point.y < firstRect.minY {
+                return (
+                    constrainedLineRange,
+                    constrainedLineRange.location,
+                    CGPoint(x: firstRect.minX, y: firstRect.midY)
+                )
+            }
+            let lastRect = textRect(
+                for: plan.lines[lastLineIndex],
+                in: contentRect
+            )
+            if point.y > lastRect.maxY {
+                return (
+                    constrainedLineRange,
+                    NSMaxRange(constrainedLineRange),
+                    CGPoint(x: lastRect.maxX, y: lastRect.midY)
+                )
+            }
+            resolvedLineIndex = matchingLineIndices.min { left, right in
+                abs(textRect(for: plan.lines[left], in: contentRect).midY - point.y)
+                    < abs(textRect(for: plan.lines[right], in: contentRect).midY - point.y)
+            } ?? firstLineIndex
         } else {
             guard let lineIndex = plan.lines.indices.first(where: { index in
                 textRect(for: plan.lines[index], in: contentRect).contains(point)
@@ -438,32 +477,38 @@ final class PlaybackVisualLineStackLayout {
         }
 
         let line = plan.lines[resolvedLineIndex]
-        let lineCharacterRange = rangeWithoutLineTerminators(
-            layoutManager.characterRange(
-                forGlyphRange: line.glyphRange,
-                actualGlyphRange: nil
-            )
+        let visualCharacterRange = characterRange(for: line)
+        let lineUTF16Range = constrainedLineRange ?? logicalLineRange(
+            containing: visualCharacterRange.location
         )
-        guard lineCharacterRange.length > 0 else {
+        let selectableCharacterRange = NSIntersectionRange(
+            visualCharacterRange,
+            lineUTF16Range
+        )
+        guard selectableCharacterRange.length > 0 else {
             return nil
         }
 
+        let resolvedTextRect = textRect(for: line, in: contentRect)
         let localX = point.x - contentRect.minX
         if localX <= line.usedRect.minX {
-            return (resolvedLineIndex, lineCharacterRange.location)
+            return (
+                lineUTF16Range,
+                selectableCharacterRange.location,
+                CGPoint(x: resolvedTextRect.minX, y: resolvedTextRect.midY)
+            )
         }
         if localX >= line.usedRect.maxX {
-            return (resolvedLineIndex, NSMaxRange(lineCharacterRange))
+            return (
+                lineUTF16Range,
+                NSMaxRange(selectableCharacterRange),
+                CGPoint(x: resolvedTextRect.maxX, y: resolvedTextRect.midY)
+            )
         }
 
-        let targetBaseline = contentRect.minY
-            + line.typographicTop
-            + line.ascent
         let localPoint = CGPoint(
             x: localX,
-            y: visualLineIndex == nil
-                ? point.y - (targetBaseline - line.originalBaseline)
-                : line.usedRect.midY
+            y: line.usedRect.midY
         )
         var fraction: CGFloat = 0
         let rawGlyphIndex = layoutManager.glyphIndex(
@@ -472,7 +517,7 @@ final class PlaybackVisualLineStackLayout {
             fractionOfDistanceThroughGlyph: &fraction
         )
         let selectableGlyphRange = layoutManager.glyphRange(
-            forCharacterRange: lineCharacterRange,
+            forCharacterRange: selectableCharacterRange,
             actualCharacterRange: nil
         )
         guard selectableGlyphRange.length > 0 else {
@@ -482,18 +527,28 @@ final class PlaybackVisualLineStackLayout {
             max(rawGlyphIndex, selectableGlyphRange.location),
             NSMaxRange(selectableGlyphRange) - 1
         )
-        let characterRange = layoutManager.characterRange(
+        let glyphCharacterRange = layoutManager.characterRange(
             forGlyphRange: NSRange(location: glyphIndex, length: 1),
             actualGlyphRange: nil
         )
-        let rawOffset = fraction >= 0.5
-            ? NSMaxRange(characterRange)
-            : characterRange.location
+        let usesTrailingBoundary = fraction >= 0.5
+        let rawOffset = usesTrailingBoundary
+            ? NSMaxRange(glyphCharacterRange)
+            : glyphCharacterRange.location
+        let glyphRect = layoutManager.boundingRect(
+            forGlyphRange: NSRange(location: glyphIndex, length: 1),
+            in: textContainer
+        )
         return (
-            resolvedLineIndex,
+            lineUTF16Range,
             min(
-                max(rawOffset, lineCharacterRange.location),
-                NSMaxRange(lineCharacterRange)
+                max(rawOffset, selectableCharacterRange.location),
+                NSMaxRange(selectableCharacterRange)
+            ),
+            CGPoint(
+                x: contentRect.minX
+                    + (usesTrailingBoundary ? glyphRect.maxX : glyphRect.minX),
+                y: resolvedTextRect.midY
             )
         )
     }
@@ -519,13 +574,14 @@ final class PlaybackVisualLineStackLayout {
             forCharacterRange: safeRange,
             actualCharacterRange: nil
         )
-        if let line = plan.lines.first(where: {
-            NSIntersectionRange(selectionGlyphRange, $0.glyphRange).length > 0
-        }) {
+        for line in plan.lines {
             let lineSelectionRange = NSIntersectionRange(
                 selectionGlyphRange,
                 line.glyphRange
             )
+            guard lineSelectionRange.length > 0 else {
+                continue
+            }
             layoutManager.boundingRect(
                 forGlyphRange: lineSelectionRange,
                 in: textContainer
@@ -560,6 +616,25 @@ final class PlaybackVisualLineStackLayout {
             y: contentRect.minY + line.typographicTop,
             width: line.usedRect.width,
             height: line.typographicHeight
+        )
+    }
+
+    private func characterRange(
+        for line: PlaybackVisualLineStackLine
+    ) -> NSRange {
+        rangeWithoutLineTerminators(
+            layoutManager.characterRange(
+                forGlyphRange: line.glyphRange,
+                actualGlyphRange: nil
+            )
+        )
+    }
+
+    private func logicalLineRange(containing offset: Int) -> NSRange {
+        let string = textStorage.string as NSString
+        let location = min(max(0, offset), max(0, string.length - 1))
+        return rangeWithoutLineTerminators(
+            string.lineRange(for: NSRange(location: location, length: 0))
         )
     }
 
@@ -1143,8 +1218,8 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         at ordinal: Int,
         point: CGPoint,
         in rect: CGRect,
-        constrainedToVisualLine visualLineIndex: Int?
-    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
+        constrainedToLine lineUTF16Range: NSRange?
+    ) -> PlaybackTextSelectionHit? {
         guard let cue = cue(at: ordinal) else {
             return nil
         }
@@ -1155,7 +1230,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
                 in: rect,
                 hasInformation: !informationBadges(for: cue).isEmpty
             ),
-            constrainedToVisualLine: visualLineIndex
+            constrainedToLine: lineUTF16Range
         )
     }
 
@@ -3404,9 +3479,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     private struct TextSelection {
         let ordinal: Int
         let itemID: AnyHashable
-        let visualLineIndex: Int
+        let lineUTF16Range: NSRange
         let anchorUTF16Offset: Int
+        let anchorPoint: CGPoint
         var focusUTF16Offset: Int
+        var focusPoint: CGPoint
 
         var range: NSRange {
             let lower = min(anchorUTF16Offset, focusUTF16Offset)
@@ -3780,7 +3857,12 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             clearTextSelection()
             return
         }
-        onPresentSelectedTextActions(text, point)
+        onPresentSelectedTextActions(
+            text,
+            textSelection.focusUTF16Offset >= textSelection.anchorUTF16Offset
+                ? textSelection.focusPoint
+                : textSelection.anchorPoint
+        )
     }
 
     override func resetCursorRects() {
@@ -3831,7 +3913,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                   at: placement.ordinal,
                   point: point,
                   in: cueContentRect(for: placement.rect),
-                  constrainedToVisualLine: nil
+                  constrainedToLine: nil
               )
         else {
             return
@@ -3839,9 +3921,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         textSelection = TextSelection(
             ordinal: placement.ordinal,
             itemID: itemID,
-            visualLineIndex: hit.visualLineIndex,
+            lineUTF16Range: hit.lineUTF16Range,
             anchorUTF16Offset: hit.utf16Offset,
-            focusUTF16Offset: hit.utf16Offset
+            anchorPoint: hit.boundaryPoint,
+            focusUTF16Offset: hit.utf16Offset,
+            focusPoint: hit.boundaryPoint
         )
     }
 
@@ -3855,14 +3939,15 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                   at: currentSelection.ordinal,
                   point: focusPoint,
                   in: cueContentRect(for: placement.rect),
-                  constrainedToVisualLine: currentSelection.visualLineIndex
+                  constrainedToLine: currentSelection.lineUTF16Range
               ),
-              hit.visualLineIndex == currentSelection.visualLineIndex,
+              hit.lineUTF16Range == currentSelection.lineUTF16Range,
               hit.utf16Offset != currentSelection.focusUTF16Offset
         else {
             return
         }
         textSelection?.focusUTF16Offset = hit.utf16Offset
+        textSelection?.focusPoint = hit.boundaryPoint
         invalidateRow(currentSelection.ordinal)
     }
 
@@ -4164,8 +4249,8 @@ final class PlaybackSubtitleFocusNativeTextLayout {
         text: String,
         point: CGPoint,
         in rect: CGRect,
-        constrainedToVisualLine visualLineIndex: Int? = nil
-    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
+        constrainedToLine lineUTF16Range: NSRange? = nil
+    ) -> PlaybackTextSelectionHit? {
         let textRect = Self.textRect(in: rect)
         guard textRect.width > 0, textRect.height > 0 else {
             return nil
@@ -4178,7 +4263,7 @@ final class PlaybackSubtitleFocusNativeTextLayout {
         return visualLineLayout.textSelectionHit(
             at: point,
             in: textRect,
-            constrainedToVisualLine: visualLineIndex
+            constrainedToLine: lineUTF16Range
         )
     }
 

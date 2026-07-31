@@ -249,7 +249,7 @@ func playbackCueResultFlattensMixedCueGroupIntoOneStrictStack() {
 
 @MainActor
 @Test
-func playbackCueResultSelectionCannotCrossCueOrVisualLineBoundaries() throws {
+func playbackCueResultSelectionCannotCrossCueOrSourceLineBreak() throws {
     let layout = PlaybackCueResultLayout()
     let resultRect = CGRect(x: 0, y: 0, width: 800, height: 160)
     let plan = layout.prepare(
@@ -272,14 +272,14 @@ func playbackCueResultSelectionCannotCrossCueOrVisualLineBoundaries() throws {
     let focus = try #require(layout.textSelectionHit(
         at: CGPoint(x: primaryRect.maxX + 20, y: contextRect.midY),
         in: resultRect,
-        constrainedToVisualLine: anchor.visualLineIndex
+        constrainedToLine: anchor.lineUTF16Range
     ))
     let range = NSRange(
         location: min(anchor.utf16Offset, focus.utf16Offset),
         length: abs(focus.utf16Offset - anchor.utf16Offset)
     )
 
-    #expect(focus.visualLineIndex == anchor.visualLineIndex)
+    #expect(focus.lineUTF16Range == anchor.lineUTF16Range)
     #expect(layout.selectedText(forUTF16Range: range) == "primary")
 }
 

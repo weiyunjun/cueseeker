@@ -512,15 +512,15 @@ final class PlaybackCueResultLayout {
     func textSelectionHit(
         at point: CGPoint,
         in resultRect: CGRect,
-        constrainedToVisualLine visualLineIndex: Int? = nil
-    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
+        constrainedToLine lineUTF16Range: NSRange? = nil
+    ) -> PlaybackTextSelectionHit? {
         guard let plan else {
             return nil
         }
         return visualLineLayout.textSelectionHit(
             at: point,
             in: plan.cueTextRect(in: resultRect),
-            constrainedToVisualLine: visualLineIndex
+            constrainedToLine: lineUTF16Range
         )
     }
 

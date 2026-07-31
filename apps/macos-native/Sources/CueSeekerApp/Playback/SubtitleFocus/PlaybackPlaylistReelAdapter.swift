@@ -148,8 +148,8 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         at ordinal: Int,
         point: CGPoint,
         in rect: CGRect,
-        constrainedToVisualLine visualLineIndex: Int?
-    ) -> (visualLineIndex: Int, utf16Offset: Int)? {
+        constrainedToLine lineUTF16Range: NSRange?
+    ) -> PlaybackTextSelectionHit? {
         guard let result = cueResult(at: ordinal) else {
             return nil
         }
@@ -163,7 +163,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         return layout.textSelectionHit(
             at: point,
             in: rect,
-            constrainedToVisualLine: visualLineIndex
+            constrainedToLine: lineUTF16Range
         )
     }
 

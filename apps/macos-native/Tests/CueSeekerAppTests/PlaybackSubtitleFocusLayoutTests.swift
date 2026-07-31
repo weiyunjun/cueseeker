@@ -484,7 +484,7 @@ func subtitleFocusNativeTextLayoutDrawsEveryFittingLineAtStrictInternalGap() thr
 
 @MainActor
 @Test
-func subtitleFocusTextSelectionStaysWithinItsStartingVisualLine() throws {
+func subtitleFocusTextSelectionStopsAtSourceLineBreak() throws {
     let layout = PlaybackSubtitleFocusNativeTextLayout()
     let cueRect = CGRect(x: 0, y: 0, width: 800, height: 128)
     let lineRects = layout.visibleLineRects(
@@ -502,16 +502,55 @@ func subtitleFocusTextSelectionStaysWithinItsStartingVisualLine() throws {
         text: "first line\nsecond line",
         point: CGPoint(x: firstLine.maxX + 40, y: secondLine.midY),
         in: cueRect,
-        constrainedToVisualLine: anchor.visualLineIndex
+        constrainedToLine: anchor.lineUTF16Range
     ))
 
-    #expect(anchor.visualLineIndex == 0)
-    #expect(focus.visualLineIndex == anchor.visualLineIndex)
+    #expect(
+        anchor.lineUTF16Range
+            == NSRange(location: 0, length: "first line".utf16.count)
+    )
+    #expect(focus.lineUTF16Range == anchor.lineUTF16Range)
     let range = NSRange(
         location: min(anchor.utf16Offset, focus.utf16Offset),
         length: abs(focus.utf16Offset - anchor.utf16Offset)
     )
     #expect(layout.selectedText(range: range) == "first line")
+}
+
+@MainActor
+@Test
+func subtitleFocusTextSelectionCrossesSoftWrapAndAnchorsAtLastGlyph() throws {
+    let text = "ええそうですわそれが素晴らしいですわ"
+    let layout = PlaybackSubtitleFocusNativeTextLayout()
+    let cueRect = CGRect(x: 0, y: 0, width: 180, height: 220)
+    let lineRects = layout.visibleLineRects(text: text, in: cueRect)
+    #expect(lineRects.count > 1)
+    let firstLine = try #require(lineRects.first)
+    let lastLine = try #require(lineRects.last)
+    let anchor = try #require(layout.textSelectionHit(
+        text: text,
+        point: CGPoint(x: firstLine.minX + 0.1, y: firstLine.midY),
+        in: cueRect
+    ))
+    let focus = try #require(layout.textSelectionHit(
+        text: text,
+        point: CGPoint(x: lastLine.maxX + 20, y: lastLine.midY),
+        in: cueRect,
+        constrainedToLine: anchor.lineUTF16Range
+    ))
+    let range = NSRange(
+        location: min(anchor.utf16Offset, focus.utf16Offset),
+        length: abs(focus.utf16Offset - anchor.utf16Offset)
+    )
+
+    #expect(anchor.lineUTF16Range == NSRange(
+        location: 0,
+        length: text.utf16.count
+    ))
+    #expect(focus.lineUTF16Range == anchor.lineUTF16Range)
+    #expect(layout.selectedText(range: range) == text)
+    #expect(abs(focus.boundaryPoint.x - lastLine.maxX) < 1)
+    #expect(focus.boundaryPoint.y > firstLine.maxY)
 }
 
 @MainActor
