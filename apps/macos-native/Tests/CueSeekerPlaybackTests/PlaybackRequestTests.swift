@@ -88,6 +88,124 @@ func playbackRenderContainerUsesDirectOverlayForSRTSource() async throws {
 }
 
 @Test
+@MainActor
+func srtOverlayReusesSameSourceAndSameCanvasLayout() async throws {
+    let subtitleURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSRTReuse-\(UUID().uuidString)")
+        .appendingPathExtension("srt")
+    defer {
+        try? FileManager.default.removeItem(at: subtitleURL)
+    }
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    First
+
+    2
+    00:00:03,000 --> 00:00:05,000
+    Second
+    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
+
+    let view = SRTSubtitleOverlayView(frame: .zero)
+    view.videoSize = CGSize(width: 640, height: 360)
+    view.currentTimeMilliseconds = 2_000
+    view.setSource(
+        PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .srt,
+            initialTimestampMilliseconds: 2_000,
+            preparationTimeWindow: PlaybackSubtitleTimeWindow(
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000
+            )
+        )
+    )
+    view.setSource(
+        PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .srt,
+            initialTimestampMilliseconds: 2_500,
+            preparationTimeWindow: PlaybackSubtitleTimeWindow(
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_000
+            )
+        )
+    )
+    #expect(view.sourceLoadCountForTesting == 1)
+    for _ in 0..<50 where view.currentPresentationImage() == nil {
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    _ = try #require(view.currentPresentationImage())
+    #expect(view.sourceLoadCountForTesting == 1)
+    #expect(view.layoutBuildCountForTesting == 1)
+
+    view.currentTimeMilliseconds = 4_000
+    view.setSource(
+        PlaybackSubtitleSource(
+            url: subtitleURL,
+            format: .srt,
+            initialTimestampMilliseconds: 4_000,
+            preparationTimeWindow: PlaybackSubtitleTimeWindow(
+                startMilliseconds: 3_000,
+                endMilliseconds: 5_000
+            )
+        )
+    )
+    view.videoSize = CGSize(width: 640, height: 360)
+
+    #expect(view.currentPresentationImage() != nil)
+    #expect(view.sourceLoadCountForTesting == 1)
+    #expect(view.layoutBuildCountForTesting == 1)
+
+    view.videoSize = CGSize(width: 1_280, height: 720)
+    for _ in 0..<50 where view.currentPresentationImage() == nil {
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    _ = try #require(view.currentPresentationImage())
+    #expect(view.sourceLoadCountForTesting == 1)
+    #expect(view.layoutBuildCountForTesting == 2)
+}
+
+@Test
+@MainActor
+func srtOverlayRejectsReplacedSourceWork() async throws {
+    let temporaryDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSRTReplace-\(UUID().uuidString)")
+    let firstURL = temporaryDirectory.appendingPathComponent("first.srt")
+    let secondURL = temporaryDirectory.appendingPathComponent("second.srt")
+    defer {
+        try? FileManager.default.removeItem(at: temporaryDirectory)
+    }
+    try FileManager.default.createDirectory(
+        at: temporaryDirectory,
+        withIntermediateDirectories: true
+    )
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    First source
+    """.write(to: firstURL, atomically: true, encoding: .utf8)
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Second source
+    """.write(to: secondURL, atomically: true, encoding: .utf8)
+
+    let view = SRTSubtitleOverlayView(frame: .zero)
+    view.videoSize = CGSize(width: 640, height: 360)
+    view.currentTimeMilliseconds = 2_000
+    view.setSource(PlaybackSubtitleSource(url: firstURL, format: .srt))
+    view.setSource(PlaybackSubtitleSource(url: secondURL, format: .srt))
+
+    for _ in 0..<50 where view.currentPresentationImage() == nil {
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    _ = try #require(view.currentPresentationImage())
+    #expect(view.sourceLoadCountForTesting == 2)
+    #expect(view.layoutBuildCountForTesting == 1)
+}
+
+@Test
 func playbackDecodeModeRawValuesMatchSettingsControlValues() {
     #expect(PlaybackDecodeMode.allCases.map(\.rawValue) == ["hardware", "software", "auto"])
     #expect(PlaybackDecodeMode.hardware.displayName == "hardware")
@@ -891,6 +1009,84 @@ func srtRendererScalesAndStacksWithoutExtraCueGap() throws {
 }
 
 @Test
+func srtRendererMeasuresOptInRealFilePerformance() throws {
+    guard let path = ProcessInfo.processInfo.environment["CUESEEKER_SRT_BENCHMARK_PATH"] else {
+        return
+    }
+
+    let sourceURL = URL(fileURLWithPath: path)
+    var startedAt = DispatchTime.now().uptimeNanoseconds
+    let data = try Data(contentsOf: sourceURL, options: .mappedIfSafe)
+    let readMilliseconds = elapsedMilliseconds(since: startedAt)
+
+    startedAt = DispatchTime.now().uptimeNanoseconds
+    let entries = try SRTParser.parseForRendering(data)
+    let parseMilliseconds = elapsedMilliseconds(since: startedAt)
+    let cues = entries.enumerated().map { ordinal, entry in
+        PlaybackSubtitleCue(
+            sourceOrdinal: ordinal,
+            startMilliseconds: entry.startMilliseconds,
+            endMilliseconds: entry.endMilliseconds,
+            text: entry.text
+        )
+    }
+
+    startedAt = DispatchTime.now().uptimeNanoseconds
+    let layout = try #require(
+        SRTSubtitleRenderer.makeLayout(
+            cues: cues,
+            canvasSize: CGSize(width: 1_920, height: 1_080)
+        )
+    )
+    let layoutMilliseconds = elapsedMilliseconds(since: startedAt)
+    let representativeCue = try #require(cues.dropFirst(cues.count / 2).first)
+
+    startedAt = DispatchTime.now().uptimeNanoseconds
+    _ = SRTSubtitleRenderer.image(
+        layout: layout,
+        atMilliseconds: representativeCue.startMilliseconds
+    )
+    let imageMilliseconds = elapsedMilliseconds(since: startedAt)
+
+    print(
+        String(
+            format: "SRT_BENCH cues=%d bytes=%d read=%.2fms parse=%.2fms layout=%.2fms image=%.2fms",
+            cues.count,
+            data.count,
+            readMilliseconds,
+            parseMilliseconds,
+            layoutMilliseconds,
+            imageMilliseconds
+        )
+    )
+}
+
+@Test
+func srtRendererStopsLayoutWhenCancelled() {
+    let cues = (0..<500).map { index in
+        PlaybackSubtitleCue(
+            sourceOrdinal: index,
+            startMilliseconds: index * 1_000,
+            endMilliseconds: index * 1_000 + 500,
+            text: "Cue \(index)"
+        )
+    }
+    var cancellationChecks = 0
+
+    let layout = SRTSubtitleRenderer.makeLayout(
+        cues: cues,
+        canvasSize: CGSize(width: 1_920, height: 1_080),
+        isCancelled: {
+            cancellationChecks += 1
+            return cancellationChecks > 5
+        }
+    )
+
+    #expect(layout == nil)
+    #expect(cancellationChecks == 6)
+}
+
+@Test
 func playbackSubtitleTrackFindsLateCueInLargeTrack() {
     let cues = (0..<10_000).map { index in
         PlaybackSubtitleCue(
@@ -903,6 +1099,10 @@ func playbackSubtitleTrackFindsLateCueInLargeTrack() {
 
     #expect(track.activeText(at: 9_876.2) == "Cue 9876")
     #expect(track.activeText(at: 9_876.6) == nil)
+}
+
+private func elapsedMilliseconds(since startedAt: UInt64) -> Double {
+    Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
 }
 
 @Test

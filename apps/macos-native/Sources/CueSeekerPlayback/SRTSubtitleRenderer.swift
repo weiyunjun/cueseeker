@@ -39,7 +39,6 @@ final class SRTSubtitleLayout: @unchecked Sendable {
 private struct SRTSubtitleItem {
     let cue: PlaybackSubtitleCue
     let frame: CTFrame
-    let outlinePath: CGPath
     let visualBounds: CGRect
     let isDrawable: Bool
 }
@@ -54,7 +53,8 @@ enum SRTSubtitleRenderer {
 
     static func makeLayout(
         cues: [PlaybackSubtitleCue],
-        canvasSize: CGSize
+        canvasSize: CGSize,
+        isCancelled: () -> Bool = { false }
     ) -> SRTSubtitleLayout? {
         guard canvasSize.width > 1, canvasSize.height > 1 else {
             return nil
@@ -71,6 +71,9 @@ enum SRTSubtitleRenderer {
         var activeItems: [SRTSubtitleItem] = []
 
         for cue in track.cues {
+            guard !isCancelled() else {
+                return nil
+            }
             activeItems.removeAll { $0.cue.endMilliseconds <= cue.startMilliseconds }
             guard let measured = measuredFrame(
                 text: cue.text,
@@ -93,7 +96,6 @@ enum SRTSubtitleRenderer {
             let item = SRTSubtitleItem(
                 cue: cue,
                 frame: measured.frame,
-                outlinePath: measured.outlinePath,
                 visualBounds: bounds,
                 isDrawable: drawable
             )
@@ -112,28 +114,46 @@ enum SRTSubtitleRenderer {
     }
 
     static func loadPlaybackCues(
-        from source: PlaybackSubtitleSource
+        from source: PlaybackSubtitleSource,
+        isCancelled: () -> Bool = { false }
     ) throws -> [PlaybackSubtitleCue] {
         guard source.format == .srt else {
             throw SRTSubtitleRenderingError(
                 errorDescription: "SRT renderer received a non-SRT source."
             )
         }
-        let data = try Data(contentsOf: source.url, options: .mappedIfSafe)
-        let entries = try SRTParser.parseForRendering(data)
+        try checkCancellation(isCancelled)
+        let data = try PlaybackPerformanceProbe.measure(
+            "SRTSubtitleRenderer.read",
+            thresholdMilliseconds: 2
+        ) {
+            try Data(contentsOf: source.url, options: .mappedIfSafe)
+        }
+        try checkCancellation(isCancelled)
+        let entries = try PlaybackPerformanceProbe.measure(
+            "SRTSubtitleRenderer.parse",
+            thresholdMilliseconds: 2
+        ) {
+            try SRTParser.parseForRendering(data)
+        }
+        try checkCancellation(isCancelled)
         guard !entries.isEmpty else {
             throw SRTSubtitleRenderingError(
                 errorDescription: "SRT renderer found no valid playback Cues."
             )
         }
-        return entries.enumerated().map { ordinal, entry in
-            return PlaybackSubtitleCue(
+        var cues: [PlaybackSubtitleCue] = []
+        cues.reserveCapacity(entries.count)
+        for (ordinal, entry) in entries.enumerated() {
+            try checkCancellation(isCancelled)
+            cues.append(PlaybackSubtitleCue(
                 sourceOrdinal: ordinal,
                 startMilliseconds: entry.startMilliseconds,
                 endMilliseconds: entry.endMilliseconds,
                 text: entry.text
-            )
+            ))
         }
+        return cues
     }
 
     static func image(
@@ -165,7 +185,15 @@ enum SRTSubtitleRenderer {
             context.setLineJoin(.round)
             context.setStrokeColor(NSColor.black.cgColor)
             context.setLineWidth(2 * layout.borderSize)
-            context.addPath(item.outlinePath)
+            context.addPath(
+                glyphPath(
+                    frame: item.frame,
+                    pathOrigin: CGPoint(
+                        x: layout.borderSize,
+                        y: layout.borderSize
+                    )
+                )
+            )
             context.strokePath()
 
             context.saveGState()
@@ -183,7 +211,7 @@ enum SRTSubtitleRenderer {
         fontSize: CGFloat,
         maximumWidth: CGFloat,
         borderSize: CGFloat
-    ) -> (frame: CTFrame, outlinePath: CGPath, size: CGSize)? {
+    ) -> (frame: CTFrame, size: CGSize)? {
         let attributedText = SRTInlineText.attributedString(
             from: text,
             fontSize: fontSize
@@ -222,10 +250,6 @@ enum SRTSubtitleRenderer {
         )
         return (
             frame,
-            glyphPath(
-                frame: frame,
-                pathOrigin: CGPoint(x: borderSize, y: borderSize)
-            ),
             CGSize(
                 width: textSize.width + (2 * borderSize),
                 height: textSize.height + (2 * borderSize)
@@ -268,6 +292,14 @@ enum SRTSubtitleRenderer {
         return result
     }
 
+    private static func checkCancellation(
+        _ isCancelled: () -> Bool
+    ) throws {
+        if isCancelled() {
+            throw CancellationError()
+        }
+    }
+
     private static func bitmapContext(size: CGSize) -> CGContext? {
         let width = Int(size.width.rounded())
         let height = Int(size.height.rounded())
@@ -306,27 +338,33 @@ private enum SRTInlineText {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.lineBreakMode = .byWordWrapping
+        let baseFont = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
+            ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
         var style = Style()
         var index = source.startIndex
+        var bufferedText = ""
 
-        func append(_ text: String) {
-            guard !text.isEmpty else { return }
+        func flushBufferedText() {
+            guard !bufferedText.isEmpty else { return }
             output.append(
                 NSAttributedString(
-                    string: text,
+                    string: bufferedText,
                     attributes: attributes(
                         style: style,
                         fontSize: fontSize,
-                        paragraph: paragraph
+                        paragraph: paragraph,
+                        baseFont: baseFont
                     )
                 )
             )
+            bufferedText.removeAll(keepingCapacity: true)
         }
 
         while index < source.endIndex {
             if source[index] == "<",
                let close = source[index...].firstIndex(of: ">") {
                 let token = String(source[index...close])
+                flushBufferedText()
                 if apply(tag: token, to: &style) {
                     index = source.index(after: close)
                     continue
@@ -352,15 +390,16 @@ private enum SRTInlineText {
 
             if source[index] == "&",
                let decoded = decodeEntity(in: source, at: index) {
-                append(decoded.value)
+                bufferedText.append(contentsOf: decoded.value)
                 index = decoded.endIndex
                 continue
             }
 
-            append(String(source[index]))
+            bufferedText.append(source[index])
             index = source.index(after: index)
         }
 
+        flushBufferedText()
         return output
     }
 
@@ -394,10 +433,9 @@ private enum SRTInlineText {
     private static func attributes(
         style: Style,
         fontSize: CGFloat,
-        paragraph: NSParagraphStyle
+        paragraph: NSParagraphStyle,
+        baseFont: CTFont
     ) -> [NSAttributedString.Key: Any] {
-        let base = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
-            ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
         var traits: CTFontSymbolicTraits = []
         if style.bold > 0 {
             traits.insert(.boldTrait)
@@ -406,8 +444,14 @@ private enum SRTInlineText {
             traits.insert(.italicTrait)
         }
         let font = traits.isEmpty
-            ? base
-            : CTFontCreateCopyWithSymbolicTraits(base, fontSize, nil, traits, traits) ?? base
+            ? baseFont
+            : CTFontCreateCopyWithSymbolicTraits(
+                baseFont,
+                fontSize,
+                nil,
+                traits,
+                traits
+            ) ?? baseFont
         var result: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: style.colors.last ?? NSColor.white,
@@ -472,6 +516,7 @@ private enum SRTInlineText {
 final class SRTSubtitleOverlayView: NSView {
     var areSubtitlesVisible = true {
         didSet {
+            guard oldValue != areSubtitlesVisible else { return }
             imageLayer.isHidden = !areSubtitlesVisible
             updateImage(force: true)
         }
@@ -481,6 +526,7 @@ final class SRTSubtitleOverlayView: NSView {
     }
     var videoSize: CGSize? {
         didSet {
+            guard oldValue != videoSize else { return }
             rebuildLayout()
             needsLayout = true
         }
@@ -490,11 +536,16 @@ final class SRTSubtitleOverlayView: NSView {
     private var source: PlaybackSubtitleSource?
     private var loadTask: Task<Void, Never>?
     private var layoutTask: Task<Void, Never>?
+    private var loadingSourceIdentity: URL?
+    private var loadedSourceIdentity: URL?
     private var cues: [PlaybackSubtitleCue] = []
     private var preparedLayout: SRTSubtitleLayout?
     private var activeOrdinals: [Int] = []
     private var renderedImage: CGImage?
     private let imageLayer = CALayer()
+
+    private(set) var sourceLoadCountForTesting = 0
+    private(set) var layoutBuildCountForTesting = 0
 
     override var isFlipped: Bool { true }
 
@@ -527,26 +578,62 @@ final class SRTSubtitleOverlayView: NSView {
     }
 
     func setSource(_ source: PlaybackSubtitleSource?) {
+        guard let source, source.format == .srt else {
+            loadTask?.cancel()
+            layoutTask?.cancel()
+            self.source = nil
+            loadingSourceIdentity = nil
+            loadedSourceIdentity = nil
+            cues = []
+            preparedLayout = nil
+            activeOrdinals = []
+            renderedImage = nil
+            imageLayer.contents = nil
+            return
+        }
+
+        let nextIdentity = Self.identity(for: source)
+        let currentIdentity = self.source.map(Self.identity(for:))
+        self.source = source
+        if nextIdentity == currentIdentity,
+           nextIdentity == loadingSourceIdentity
+            || nextIdentity == loadedSourceIdentity {
+            return
+        }
+
         loadTask?.cancel()
         layoutTask?.cancel()
-        self.source = source
+        loadingSourceIdentity = nextIdentity
+        loadedSourceIdentity = nil
         cues = []
         preparedLayout = nil
         activeOrdinals = []
         renderedImage = nil
         imageLayer.contents = nil
-        guard let source, source.format == .srt else { return }
+        sourceLoadCountForTesting += 1
 
         loadTask = Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let cues = try SRTSubtitleRenderer.loadPlaybackCues(from: source)
+                let cues = try SRTSubtitleRenderer.loadPlaybackCues(
+                    from: source,
+                    isCancelled: { Task.isCancelled }
+                )
                 guard !Task.isCancelled else { return }
-                await self?.finishLoading(cues, source: source)
+                let scheduledAt = PlaybackPerformanceProbe.now()
+                await self?.finishLoading(
+                    cues,
+                    sourceIdentity: nextIdentity,
+                    scheduledAt: scheduledAt
+                )
+            } catch is CancellationError {
+                return
             } catch {
                 guard !Task.isCancelled else { return }
+                let scheduledAt = PlaybackPerformanceProbe.now()
                 await self?.finishLoading(
                     nil,
-                    source: source,
+                    sourceIdentity: nextIdentity,
+                    scheduledAt: scheduledAt,
                     errorMessage: "SRT renderer failed to load source: \(error.localizedDescription)"
                 )
             }
@@ -555,14 +642,28 @@ final class SRTSubtitleOverlayView: NSView {
 
     private func finishLoading(
         _ cues: [PlaybackSubtitleCue]?,
-        source expectedSource: PlaybackSubtitleSource,
+        sourceIdentity expectedSourceIdentity: URL,
+        scheduledAt: UInt64,
         errorMessage: String? = nil
     ) {
-        guard source == expectedSource else { return }
+        PlaybackPerformanceProbe.logElapsed(
+            "SRTSubtitleOverlayView.loadCompletion.mainDelay",
+            since: scheduledAt,
+            thresholdMilliseconds: 8
+        )
+        guard source.map(Self.identity(for:)) == expectedSourceIdentity,
+              loadingSourceIdentity == expectedSourceIdentity
+        else {
+            return
+        }
+        loadTask = nil
+        loadingSourceIdentity = nil
         if let errorMessage {
+            loadedSourceIdentity = nil
             onRenderingFailure?(errorMessage)
             return
         }
+        loadedSourceIdentity = expectedSourceIdentity
         self.cues = cues ?? []
         rebuildLayout()
     }
@@ -575,31 +676,56 @@ final class SRTSubtitleOverlayView: NSView {
             imageLayer.contents = nil
             return
         }
+        let sourceIdentity = Self.identity(for: source)
+        guard loadedSourceIdentity == sourceIdentity, !cues.isEmpty else {
+            return
+        }
         preparedLayout = nil
         renderedImage = nil
         activeOrdinals = []
         imageLayer.contents = nil
         let cues = self.cues
+        layoutBuildCountForTesting += 1
         layoutTask = Task.detached(priority: .userInitiated) { [weak self] in
-            let layout = SRTSubtitleRenderer.makeLayout(
-                cues: cues,
-                canvasSize: videoSize
-            )
+            let layout = PlaybackPerformanceProbe.measure(
+                "SRTSubtitleRenderer.makeLayout",
+                thresholdMilliseconds: 8
+            ) {
+                SRTSubtitleRenderer.makeLayout(
+                    cues: cues,
+                    canvasSize: videoSize,
+                    isCancelled: { Task.isCancelled }
+                )
+            }
             guard !Task.isCancelled else { return }
+            let scheduledAt = PlaybackPerformanceProbe.now()
             await self?.finishLayout(
                 layout,
-                source: source,
-                videoSize: videoSize
+                sourceIdentity: sourceIdentity,
+                videoSize: videoSize,
+                scheduledAt: scheduledAt
             )
         }
     }
 
     private func finishLayout(
         _ layout: SRTSubtitleLayout?,
-        source expectedSource: PlaybackSubtitleSource,
-        videoSize expectedVideoSize: CGSize
+        sourceIdentity expectedSourceIdentity: URL,
+        videoSize expectedVideoSize: CGSize,
+        scheduledAt: UInt64
     ) {
-        guard source == expectedSource, videoSize == expectedVideoSize else { return }
+        PlaybackPerformanceProbe.logElapsed(
+            "SRTSubtitleOverlayView.layoutCompletion.mainDelay",
+            since: scheduledAt,
+            thresholdMilliseconds: 8
+        )
+        guard source.map(Self.identity(for:)) == expectedSourceIdentity,
+              loadedSourceIdentity == expectedSourceIdentity,
+              videoSize == expectedVideoSize
+        else {
+            return
+        }
+        layoutTask = nil
         preparedLayout = layout
         updateImage(force: true)
     }
@@ -615,15 +741,26 @@ final class SRTSubtitleOverlayView: NSView {
             .map(\.sourceOrdinal)
         guard force || ordinals != activeOrdinals else { return }
         activeOrdinals = ordinals
-        renderedImage = SRTSubtitleRenderer.image(
-            layout: preparedLayout,
-            atMilliseconds: currentTimeMilliseconds
-        )
+        renderedImage = PlaybackPerformanceProbe.measure(
+            "SRTSubtitleRenderer.image",
+            thresholdMilliseconds: 8
+        ) {
+            SRTSubtitleRenderer.image(
+                layout: preparedLayout,
+                atMilliseconds: currentTimeMilliseconds
+            )
+        }
         imageLayer.contents = renderedImage
     }
 
     func currentPresentationImage() -> CGImage? {
         areSubtitlesVisible ? renderedImage : nil
+    }
+
+    nonisolated private static func identity(
+        for source: PlaybackSubtitleSource
+    ) -> URL {
+        source.url.standardizedFileURL
     }
 
     private func videoRect() -> CGRect {

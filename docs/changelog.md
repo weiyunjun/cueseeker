@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Reduced direct-SRT playback preparation latency. Same-file Search result
+  switches now reuse the loaded Cue track and deterministic layout, unchanged
+  video canvases no longer trigger replacement work, and obsolete tasks stop
+  cooperatively. Continuous inline-style runs replace per-character font
+  construction, while glyph outlines are created only for active Cues; the
+  existing SRT visual semantics, Screenshot/Collage renderer, and ASS pipeline
+  remain unchanged.
 - Extended Playback information Badges to every Cue in Current, Cue Playlist,
   and Command Panel Search. All Badges use Playback-specific neutral palettes:
   settled Cues use the stronger gray background and text while other Cues use
