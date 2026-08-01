@@ -109,8 +109,10 @@ extension AppCoordinator {
                 }
                 return textActionHandler(.paste)
             }
+            let usesShioriShortcut = playback.commandPanelPresentation != nil
+                || playback.subtitleFocusSession != nil
             return keyboardEquivalent(
-                1,
+                usesShioriShortcut ? 1 : 15,
                 isRepeat: isRepeat,
                 nativeTextAction: .insertText("s")
             )

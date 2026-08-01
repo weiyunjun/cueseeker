@@ -105,6 +105,44 @@ func screenshotCopiedFeedbackUsesRequiredIconAndText() {
 
 @MainActor
 @Test
+func repeatAndAutoPauseFeedbackUseRequiredIconsAndText() {
+    let viewModel = PlaybackViewModel(player: PlaybackPlayer())
+
+    viewModel.showRepeatFeedback()
+    #expect(viewModel.feedback?.position == .center)
+    #expect(viewModel.feedback?.icon == .system("repeat"))
+    #expect(viewModel.feedback?.text == "Repeat")
+
+    viewModel.showAutoPauseFeedback()
+    #expect(viewModel.feedback?.position == .center)
+    #expect(viewModel.feedback?.icon == .system("pause.fill"))
+    #expect(viewModel.feedback?.text == "Auto Pause")
+}
+
+@MainActor
+@Test
+func normalPlaybackBareRAndTriangleConsumeUnavailableRepeatSilently() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        app.playback.isPlaybackSurfaceExpanded = true
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 15, modifierFlagsRawValue: 0))
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 15,
+            modifierFlagsRawValue: 0,
+            isRepeat: true
+        ))
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 15,
+            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
+        ))
+        #expect(app.handlePlaybackControllerInput(.button(.north)))
+        #expect(viewModel.feedback == nil)
+    }
+}
+
+@MainActor
+@Test
 func playbackPointerStartsHiddenAndOnlyMovementRestoresIt() {
     let model = PlaybackChromeVisibilityModel()
     let view = NSView()

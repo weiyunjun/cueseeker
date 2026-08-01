@@ -584,6 +584,26 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    func showAutoPauseFeedback() {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "pause.fill",
+                text: "Auto Pause"
+            )
+        )
+    }
+
+    func showRepeatFeedback() {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "repeat",
+                text: "Repeat"
+            )
+        )
+    }
+
     func showSubtitleMarkdownLinkCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(

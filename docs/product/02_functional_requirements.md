@@ -597,6 +597,14 @@ Playback Multi-Module Overlay cue action requirements:
   Search, Shiori, and CueID direct playback use this Playlist behavior; CueID
   direct playback has one item and restores Workbench Search when Playback
   closes.
+- Normal video playback exposes a one-shot Repeat command for Cue Playlist
+  playback only while Auto Switch is off and the current timestamp is inside
+  the target Cue's inclusive start/end range. The command seeks to the Cue
+  start and plays. Its bottom-player button is disabled outside that exact
+  state; `R` and DualSense Triangle use the same command and fail silently when
+  unavailable. Successful Repeat shows centered `repeat` / `Repeat` feedback,
+  and an automatic Cue pause shows centered `pause.fill` / `Auto Pause`
+  feedback.
 - Current reel items represent one Cue. Their nominal content height is `52L`,
   where `L` is the complete visual-line count after source breaks and wrapping.
   Natural height is

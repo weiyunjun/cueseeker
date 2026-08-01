@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added one-shot Cue Repeat on the video playback page. While Auto Switch is
+  off, the current Cue Playlist subtitle can be restarted from its beginning
+  whenever the playback timestamp is inside its inclusive time range. The new
+  disabled-state-aware `repeat` control sits before Screenshot and shares the
+  same command with `R` and DualSense Triangle. Repeat and automatic Cue pauses
+  now show centered playback feedback.
 - Made Playback Overlay choose its initial View from the current Playlist type.
   Video Playlists and playback without an available Playlist open Current,
   while Cue Playlists open Playlist. Every new Overlay Session reevaluates the

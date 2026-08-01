@@ -84,6 +84,7 @@ final class PlaybackStore: ObservableObject {
     @Published var isPlaybackSidePanelVisible = false
     @Published var playbackViewModel: PlaybackViewModel?
     @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
+    @Published private(set) var canRepeatCurrentCue = false
     private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 
@@ -352,6 +353,13 @@ final class PlaybackStore: ObservableObject {
 
     func clearChromeSnapshot() {
         setChromeSnapshot(.empty)
+    }
+
+    func setCanRepeatCurrentCue(_ canRepeat: Bool) {
+        guard canRepeatCurrentCue != canRepeat else {
+            return
+        }
+        canRepeatCurrentCue = canRepeat
     }
 
     func requestPointerHide() {

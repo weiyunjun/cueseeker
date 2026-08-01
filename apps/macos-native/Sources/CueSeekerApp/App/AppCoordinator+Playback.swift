@@ -174,6 +174,9 @@ extension AppCoordinator {
             currentTime: currentTime,
             duration: duration
         )
+        playback.setCanRepeatCurrentCue(
+            cueRepeatStartMilliseconds(at: currentTime) != nil
+        )
     }
 
     func initializePlaybackReturnContextIfEntering() {
@@ -503,6 +506,7 @@ extension AppCoordinator {
         currentCueAutoStopReached = true
         playback.playbackStatus = .paused
         holdCurrentCueSubtitlePresentation(matchingEndMilliseconds: endMilliseconds)
+        playback.playbackViewModel?.showAutoPauseFeedback()
 
         guard activePlaylistCueSettings?.autoPauseEnabled == true,
               activePlaylistCueSettings?.autoSwitchEnabled == true
@@ -526,6 +530,7 @@ extension AppCoordinator {
             autoSwitchGapMilliseconds: settings.autoSwitchCueSequenceGapMilliseconds
         )
         activePlaylistCuePosition = playback.playlistPosition
+        playback.setCanRepeatCurrentCue(false)
     }
 
     func clearCueAutoStopPlayback() {
@@ -537,6 +542,63 @@ extension AppCoordinator {
         player?.setAutoPauseBoundary(nil)
         activePlaylistCueSettings = nil
         activePlaylistCuePosition = nil
+        playback.setCanRepeatCurrentCue(false)
+    }
+
+    func cueRepeatStartMilliseconds(at currentTime: Double) -> Int? {
+        guard isPlaybackPageVisible,
+              currentTime.isFinite,
+              activePlaylistCueSettings?.autoSwitchEnabled == false
+        else {
+            return nil
+        }
+
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        switch activePlaybackSource {
+        case .search:
+            guard let result = search.selectedSearchResult else {
+                return nil
+            }
+            startMilliseconds = result.startMilliseconds
+            endMilliseconds = result.endMilliseconds
+        case .shiori:
+            guard let selectedShiori = shiori.selectedShiori else {
+                return nil
+            }
+            startMilliseconds = selectedShiori.startMilliseconds
+            endMilliseconds = selectedShiori.endMilliseconds
+        case .library, .none:
+            return nil
+        }
+
+        let currentMilliseconds = currentTime * 1_000
+        guard currentMilliseconds >= Double(startMilliseconds),
+              currentMilliseconds <= Double(endMilliseconds)
+        else {
+            return nil
+        }
+        return startMilliseconds
+    }
+
+    @discardableResult
+    func repeatCurrentPlaylistCue() -> Bool {
+        guard let viewModel = playback.playbackViewModel,
+              let startMilliseconds = cueRepeatStartMilliseconds(
+                  at: viewModel.currentTime
+              ),
+              viewModel.playFromCue(
+                  at: Double(startMilliseconds) / 1_000,
+                  autoPauseBoundary: activeCueAutoPauseBoundary
+              )
+        else {
+            return false
+        }
+
+        playback.playbackStatus = .playing
+        playback.setCanRepeatCurrentCue(true)
+        viewModel.showRepeatFeedback()
+        return true
     }
 
     func cancelAutoSwitchCueSequenceTask() {
@@ -1078,6 +1140,11 @@ extension AppCoordinator {
         case 12:
             viewModel.toggleSubtitles()
             return true
+        case 15 where !hasShift:
+            if !isRepeat {
+                _ = repeatCurrentPlaylistCue()
+            }
+            return true
         case 35 where !hasShift:
             viewModel.copyCurrentFrameScreenshot()
             return true
@@ -1132,7 +1199,7 @@ extension AppCoordinator {
 
     private static func isPlaybackShortcutKey(keyCode: UInt16, hasShift: Bool) -> Bool {
         switch keyCode {
-        case 0, 2, 3, 12, 36, 49, 76, 123, 124, 125, 126:
+        case 0, 2, 3, 12, 15, 36, 49, 76, 123, 124, 125, 126:
             return true
         case 35:
             return !hasShift

@@ -8,6 +8,8 @@ struct PlaybackChromeControls {
     let togglePlayPause: () -> Void
     let canGoNext: Bool
     let goNext: () -> Void
+    let canRepeatCurrentCue: Bool
+    let repeatCurrentCue: () -> Void
     let isFullscreen: Bool
     let isFullscreenToggleDisabled: Bool
     let toggleFullscreen: () -> Void
@@ -28,6 +30,8 @@ extension PlaybackChromeControls {
             togglePlayPause: appState.togglePlaybackFromUser,
             canGoNext: snapshot.canGoNext,
             goNext: { appState.goNext() },
+            canRepeatCurrentCue: appState.playback.canRepeatCurrentCue,
+            repeatCurrentCue: { appState.repeatCurrentPlaylistCue() },
             isFullscreen: isFullscreen,
             isFullscreenToggleDisabled: isFullscreenToggleDisabled,
             toggleFullscreen: fullscreenAction ?? {
@@ -196,6 +200,15 @@ struct PlaybackChromeView: View {
 
     private var rightGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.rightControlsGap) {
+            PlaybackTimelineChromeIconButton(
+                timeline: timeline,
+                systemName: "repeat",
+                kind: .transport,
+                isDisabled: !controls.canRepeatCurrentCue,
+                accessibilityLabel: "Repeat",
+                action: controls.repeatCurrentCue
+            )
+
             PlaybackTimelineChromeIconButton(
                 timeline: timeline,
                 systemName: "photo",

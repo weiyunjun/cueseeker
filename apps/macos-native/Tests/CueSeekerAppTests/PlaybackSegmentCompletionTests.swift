@@ -76,6 +76,7 @@ func playbackViewModelHoldsSubtitlePresentationAtCueInteriorTimestamp() {
 @Test
 func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
+        app.ensurePlayerInitialized()
         app.activePlaybackSource = .search
         app.playback.playbackStatus = .playing
         app.search.selectResult(SubtitleSearchResult(
@@ -102,6 +103,36 @@ func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueAutoStopReached)
         #expect(app.autoSwitchCueSequenceTask == nil)
+        #expect(app.playback.playbackViewModel?.feedback?.icon == .system("pause.fill"))
+        #expect(app.playback.playbackViewModel?.feedback?.text == "Auto Pause")
+    }
+}
+
+@MainActor
+@Test
+func cueRepeatEligibilityUsesExactClosedRangeAndAutoSwitchSetting() async throws {
+    try await withTemporarySegmentCompletionApp { app, _ in
+        let result = segmentCompletionSearchResult(entryID: 1)
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.activePlaybackSource = .search
+        app.search.selectResult(result)
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
+        app.beginCueAutoStopPlayback()
+
+        #expect(app.cueRepeatStartMilliseconds(at: 0.999) == nil)
+        #expect(app.cueRepeatStartMilliseconds(at: 1.000) == 1_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 2.500) == 1_000)
+        #expect(app.cueRepeatStartMilliseconds(at: 2.501) == nil)
+
+        app.handlePlaybackTimeUpdated(currentTime: 1.000, duration: 10)
+        #expect(app.playback.canRepeatCurrentCue)
+        app.handlePlaybackTimeUpdated(currentTime: 2.501, duration: 10)
+        #expect(!app.playback.canRepeatCurrentCue)
+
+        app.settings.autoSwitchToNextCuesInPlaylistEnabled = true
+        app.beginCueAutoStopPlayback()
+        #expect(app.cueRepeatStartMilliseconds(at: 1.500) == nil)
+        #expect(!app.playback.canRepeatCurrentCue)
     }
 }
 

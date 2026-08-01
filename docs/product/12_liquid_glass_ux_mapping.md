@@ -414,7 +414,7 @@ Rules:
 | Bottom player uses three zones: volume, transport, operations. | `.player-hud` | `LiquidGlassBottomPlayer` | Active playback state |
 | Left zone contains volume only in the active target UI. | volume control | Bottom player left cluster | Current playback volume |
 | Center zone contains five transport controls. | `.transport-controls` | Bottom player transport cluster | Playback navigation |
-| Right zone contains subtitle visibility, speed, and fullscreen. | `.right-controls` | Bottom player operations cluster | Playback and App commands |
+| Right zone contains Repeat, Screenshot, subtitle visibility, speed, and fullscreen. | `.right-controls` | Bottom player operations cluster | Playback and App commands |
 | Progress scrubber spans the bottom-player width above the control row. | `ui-slider--progress` | `LiquidGlassSlider.Kind.progress` | `PlaybackViewModel` |
 
 Rules:
@@ -445,6 +445,9 @@ Rules:
   speed menu, scrubber hover, or scrubber drag state appears.
 - Disabled buttons remain visible but clearly inactive when the command is not
   available.
+- Repeat is immediately left of Screenshot. It uses the `repeat` glyph and is
+  enabled only for Cue Playlist playback with Auto Switch off while the current
+  timestamp is inside the target Cue's inclusive time range.
 - Toggle icon controls use stable semantic glyphs with selected-state material
   and foreground contrast. Where the prototype defines matching outline and
   filled glyphs, the App should switch glyphs as part of the selected state.
@@ -467,8 +470,9 @@ Rules:
   result having no previous target.
 - Play or pause toggles current playback and must not be blocked by unavailable
   navigation commands.
-- The right operation cluster contains subtitle visibility, playback speed, and
-  fullscreen. It has no normal-playback Shiori or copy-current-subtitle control.
+- The right operation cluster contains Repeat, current-frame Screenshot,
+  subtitle visibility, playback speed, and fullscreen. It has no
+  normal-playback Shiori or copy-current-subtitle control.
 - Subtitle visibility toggles the current player's subtitle overlay without
   resizing the bottom player and uses a standalone circular button.
 - The panel toggle shows or hides the right-aligned overlay panel without moving or
@@ -929,6 +933,8 @@ Rules:
 | `Space` | Toggle play/pause | `#playBtn`, `ui-feedback-hud` | Bottom-player transport button, `LiquidGlassFeedbackOverlay` | `PlaybackViewModel.togglePlayback` | `Play` or `Pause` | Keyboard/click: none. Mouse movement follows player UI rules. |
 | Left click on visible video surface | Toggle play/pause | `.video-stage`, `.video-frame`, `ui-feedback-hud` | Video stage input layer | Playback command model | `Play` or `Pause` | Does not reveal player UI. |
 | `Q` | Toggle subtitle visibility | `#subtitleToggle`, `.subtitle-overlay`, `ui-feedback-hud` | Subtitle toggle button, feedback overlay | Playback subtitle visibility state | `Subtitles On` or `Subtitles Off` | Keyboard/click: none. Mouse movement follows player UI rules. |
+| `R` | Repeat the current Cue Playlist subtitle when available | `ui-icon-button--circle`, `ui-feedback-hud` | Repeat button, feedback overlay | Cue Repeat command | Centered `Repeat`, or no feedback when unavailable | Keyboard does not reveal player UI. |
+| `P` | Copy the current video frame Screenshot | `ui-icon-button--circle`, `ui-feedback-hud` | Screenshot button, feedback overlay | Current-frame Screenshot command | Centered `Screenshot Copied` after success | Keyboard does not reveal player UI. |
 | `F` | Enter or exit playback fullscreen | `#fullscreenButton`, prototype fullscreen class, `ui-feedback-hud` | Fullscreen button, fullscreen player UI | Existing fullscreen manager | Text-only `Enter Fullscreen` or `Exit Fullscreen` | Keyboard does not reveal player UI; fullscreen entry follows fullscreen rules. |
 | `Esc` | Exit playback fullscreen when active | Prototype fullscreen class, `ui-feedback-hud` | Fullscreen lifecycle handler | Existing fullscreen manager | Text-only `Exit Fullscreen` | Keyboard does not reveal player UI. No-op outside fullscreen. |
 | `A` | Previous Search result | `#previousResultButton`, `.sidebar-row`, `ui-feedback-hud` | Transport previous-result button | Search navigation snapshot | `Previous Result` on the leading side, or `No Result` | Keyboard/click: none. Mouse movement follows player UI rules. |

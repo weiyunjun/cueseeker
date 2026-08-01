@@ -481,6 +481,14 @@ Required behavior:
 - Search, Shiori, and CueID direct playback are Playlist-backed while playing.
   CueID direct playback supplies a one-item Playlist and closing that Playback
   returns to Workbench Search.
+- Normal video playback may repeat the target Cue Playlist subtitle only when
+  Auto Switch is off and the current playback timestamp is within the Cue's
+  inclusive start/end range. Repeat seeks to the Cue start and immediately
+  plays. The `repeat` button, bare `R`, and DualSense Triangle share this one
+  command. The button remains visible but disabled outside the allowed state;
+  keyboard and controller attempts fail silently. A successful Repeat shows a
+  centered `repeat` / `Repeat` HUD. When Auto Pause takes effect, it shows the
+  existing centered Pause treatment with `Auto Pause` text.
 - One-shot playback commands are not persisted as commands. Copying a focused
   cue to the clipboard is transient. Saving Shiori creates durable
   user-authored data and therefore remains persisted.
