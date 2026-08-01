@@ -2294,7 +2294,11 @@
   - Playback Page 活跃时按 `Enter`
   - 每次打开创建一个新的临时 Overlay Session
   - 立即暂停 Playback
-  - 默认 View 为 Current
+  - 默认 View 由当前 Playlist 类型决定：
+    - 当前为视频型 Playlist 时，默认进入 Current
+    - 当前为字幕型 Playlist 时，默认进入 Playlist
+    - 没有可用 Playlist 时，默认进入 Current
+  - 新增 Playback 入口或 Playlist Source 时，必须兼容上述默认 View 规则
   - 初始 Cue 准备期间保留暂停的视频画面
   - 不显示 Loading Spinner 或 Progress Bar
   - 初始 Cue 准备完成后显示 Overlay
@@ -2307,7 +2311,7 @@
   - Editing Collage 状态下，Escape 只退出 Editing Collage 并返回 Current，不结束 Overlay Session
   - Overlay Session 结束时同时清除 Editing Collage 临时状态
   - Session 结束后不保留当前 View、选择位置、滚动位置或临时显示内容
-  - 再次打开 Playback Overlay 时默认进入 Current，并重新初始化两个 View 的局部状态
+  - 再次打开 Playback Overlay 时，根据当前 Playlist 类型重新决定默认 View，并重新初始化两个 View 的局部状态
   - Session 销毁不删除 Playlist、Playback History、Search Query、Shiori、Recent、Library 或其他持久 Feature 状态
   - Session 生命周期以 Playback Overlay 的打开和关闭为边界，不以单个 View 的出现或消失为边界
 
