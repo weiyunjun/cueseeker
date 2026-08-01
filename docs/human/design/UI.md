@@ -407,6 +407,7 @@
 - Inline Add: `plus`, medium
 - Row Action: `ellipsis`
 - Play: `play.fill`
+- Repeat: `repeat`
 - Copy Cue Text、Copy Cue Group Text、Copy Time Range、Copy Table、Copy Deep Link(s): `doc.on.doc`
 - Deep Link、Copy Deep Link: `link`
 - Context: `doc.text`
@@ -2134,12 +2135,16 @@
 - Right Control Group：
   - Trailing 对齐
   - 间距使用 `--gap-player-bottom-right-controls`
+  - Repeat
   - Screenshot
   - Show / Hide Subtitles
   - Playback Speed
   - Fullscreen
 
 - 两组之间由 Flexible Spacer 分隔。
+- Repeat Button 使用 Player Circle Button，位于 Screenshot 左侧，图标使用 Repeat `repeat`。
+- 当且仅当位于视频播放界面、在 Cue Playlist 中、当前时间戳位于目标字幕的时间戳范围（左右都是闭区间），且 `Auto Switch to Next Cues in Playlist` 关闭时，Repeat Button 可用；否则为 Disabled。
+- 点击 Repeat Button 或按 `R`，Seek 至目标字幕 Start Time 并播放。
 - Speed Button 使用 Player Capsule Button。
 - Speed Button 宽度使用 `--width-player-speed-button`。
 - Speed Menu 与按钮间距使用 `--gap-player-speed-menu-from-button`。
@@ -2215,6 +2220,14 @@
 - Pointer 隐藏时不允许 Pointer 命中目标改变 Playback Media Selection。
 - Pointer 恢复显示后，各组件定义的 Hover 和 Cursor 规则继续生效。
 - Pointer 显示时，内容滚动导致 Pointer 命中的卡片变化，属于有效的 Hover 目标变化。
+
+#### Playback Feedback Overlay Layout
+
+- 居中显示于 Playback Stage。
+- 位于 Video、Playback Chrome 和 Playback Overlay 之上。
+- 不参与 Hit Testing。
+- Auto Pause 生效时复用 Pause 反馈的图标、样式和显示方式，仅将文案改为 `Auto Pause`。
+- Repeat 生效时显示 Repeat `repeat` 图标和文案 `Repeat`。
 
 #### Playback Overlay Layout
 
