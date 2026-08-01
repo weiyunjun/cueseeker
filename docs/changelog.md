@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the persisted `Prefill with Focused Cue` option under Settings > Search.
+  When enabled, opening Command Panel from Playback Overlay Current or Cue
+  Playlist fills its root Search field with the focused Primary Cue, focuses the
+  field, and places the insertion point at the end without starting Search.
+  Multiline Cue text follows the existing single-line normalization, while the
+  default-Off setting, Collage, other Overlay modules, and non-Overlay playback
+  preserve the empty-query behavior.
 - Added initial DualSense controller support throughout the video page,
   Playback Overlay, Command Panel, and Collage. Bluetooth and USB connections
   share one positional input adapter, keyboard-equivalent actions reuse the

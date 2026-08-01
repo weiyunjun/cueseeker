@@ -870,6 +870,12 @@ Expected behavior:
   and changes only Workbench Search, Shiori, Context, and Playback
   Playlist/Search/Shiori Cue presentation; it must not rerun queries, rebuild
   scope, mutate Shiori, alter counts or identity, or retarget actions.
+- `Search` also contains the persisted `Prefill with Focused Cue` switch,
+  defaulting to Off. When enabled, opening Command Panel from Playback Overlay
+  Current or Cue Playlist fills its root Search field with the focused Primary
+  Cue, converts line breaks to spaces, focuses the field, and places the
+  insertion point at the end without starting Search. Collage and other Overlay
+  modules retain the empty-query behavior.
 - `Decode` contains the playback decode mode selector for `hardware`,
   `software`, and `auto`.
 - `Maintenance` contains local database storage stats and the manual

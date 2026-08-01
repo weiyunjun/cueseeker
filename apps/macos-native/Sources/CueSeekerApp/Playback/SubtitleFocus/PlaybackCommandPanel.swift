@@ -165,7 +165,8 @@ private struct PlaybackCommandPanelRoot: View {
                 text: $query,
                 isRedesign: true,
                 showsFocusRing: false,
-                autofocus: true
+                autofocus: true,
+                placesInsertionPointAtEndOnAutofocus: true
             ) {
                 _ = onSubmitSearch()
             }

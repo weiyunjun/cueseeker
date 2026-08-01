@@ -1024,6 +1024,13 @@ presentation and visible-plus-overscan measurement; it must not rerun Search,
 rebuild Context, alter Shiori data, change result count or identity, or retarget
 any row action away from the Primary Cue.
 
+The `Search` category also exposes `Prefill with Focused Cue`. This native
+switch defaults to Off and persists across launches. When enabled, opening
+Command Panel from Playback Overlay Current or Cue Playlist places the focused
+Primary Cue in the root Search field, focuses the field, and positions the
+insertion point after the complete normalized text. Collage and other Overlay
+modules do not provide this prefill.
+
 The `Appearance` category should expose `Appearance Mode` as its first setting.
 The control uses the same app-drawn segmented-control pattern as `Decode >
 Decoder`, with `Light`, `Dark`, and `Auto` choices. `Auto` is the default and

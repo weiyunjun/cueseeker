@@ -299,6 +299,25 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         return snapshot
     }
 
+    var focusedCueTextForCommandPanel: String? {
+        guard !isEditingCollage else {
+            return nil
+        }
+        switch selectedModule {
+        case .current:
+            return currentSnapshot?.selectedCue?.text
+        case .playlist:
+            guard let playlistWindow,
+                  let selectedOrdinal = playlistWindow.selectedOrdinal
+            else {
+                return nil
+            }
+            return playlistWindow.item(at: selectedOrdinal)?.primaryCueText
+        case .search, .library, .shiori, .none:
+            return nil
+        }
+    }
+
     var retainedCueCount: Int {
         completeCueBatch?.cues.count ?? currentSnapshot?.cues.count ?? 0
     }

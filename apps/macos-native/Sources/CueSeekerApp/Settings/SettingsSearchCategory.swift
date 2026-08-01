@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsSearchCategory: View {
+    @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
 
     var body: some View {
@@ -28,6 +29,30 @@ struct SettingsSearchCategory: View {
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .accessibilityIdentifier("settings.search.show-cue-group")
+                }
+
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Prefill with Focused Cue")
+                            .font(.headline)
+                        Text(
+                            "Automatically fill the Command Panel with the focused cue when opened from Playback Overlay."
+                        )
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Toggle(
+                        "Prefill with Focused Cue",
+                        isOn: $settingsStore.prefillCommandPanelWithFocusedCue
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityIdentifier(
+                        "settings.search.prefill-command-panel-with-focused-cue"
+                    )
                 }
             }
 

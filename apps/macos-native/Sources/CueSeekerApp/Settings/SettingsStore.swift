@@ -81,6 +81,8 @@ final class SettingsStore: ObservableObject {
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let shioriFacetExclusionsKey = "shioriFacetExclusionsByListID"
     private static let showCueGroupKey = "showCueGroup"
+    private static let prefillCommandPanelWithFocusedCueKey =
+        "prefillCommandPanelWithFocusedCue"
     private static let playbackDecodeModeKey = "playbackDecodeMode"
     private static let legacyAutoPlayCueSequenceEnabledKey = "autoPlayCueSequenceEnabled"
     private static let legacyOnlyPlayCuesInPlaylistEnabledKey = "onlyPlayCuesInPlaylistEnabled"
@@ -113,6 +115,15 @@ final class SettingsStore: ObservableObject {
     var showCueGroup: Bool {
         get { cueGroupPresentation.isEnabled }
         set { cueGroupPresentation.set(newValue) }
+    }
+
+    @Published var prefillCommandPanelWithFocusedCue: Bool {
+        didSet {
+            userDefaults.set(
+                prefillCommandPanelWithFocusedCue,
+                forKey: Self.prefillCommandPanelWithFocusedCueKey
+            )
+        }
     }
 
     @Published var playbackDecodeMode: PlaybackDecodeMode {
@@ -221,6 +232,7 @@ final class SettingsStore: ObservableObject {
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
             Self.showCueGroupKey: false,
+            Self.prefillCommandPanelWithFocusedCueKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoSwitchCueSequenceGapDefaultMilliseconds,
             Self.searchE2ELoggingEnabledKey: true,
@@ -236,6 +248,9 @@ final class SettingsStore: ObservableObject {
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
         self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)
+        self.prefillCommandPanelWithFocusedCue = userDefaults.bool(
+            forKey: Self.prefillCommandPanelWithFocusedCueKey
+        )
         self.playbackDecodeMode = Self.loadPlaybackDecodeMode(from: userDefaults)
         self.autoPauseAfterCueFinishesEnabled = resolvedAutoPausePreference
         self.autoSwitchToNextCuesInPlaylistEnabled = resolvedAutoSwitchPreference

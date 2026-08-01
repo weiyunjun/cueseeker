@@ -58,6 +58,34 @@ func settingsStoreLoadsPersistedShowCueGroupValue() {
 
 @MainActor
 @Test
+func settingsStoreDefaultsCommandPanelFocusedCuePrefillOff() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
+
+        #expect(!store.prefillCommandPanelWithFocusedCue)
+    }
+}
+
+@MainActor
+@Test
+func settingsStorePersistsCommandPanelFocusedCuePrefillChanges() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
+
+        store.prefillCommandPanelWithFocusedCue = true
+
+        #expect(userDefaults.bool(
+            forKey: "prefillCommandPanelWithFocusedCue"
+        ))
+        #expect(
+            SettingsStore(userDefaults: userDefaults)
+                .prefillCommandPanelWithFocusedCue
+        )
+    }
+}
+
+@MainActor
+@Test
 func settingsStoreDefaultsSearchFacetsToNoOptionsSelected() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         let store = SettingsStore(userDefaults: userDefaults)

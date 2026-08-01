@@ -261,6 +261,7 @@ struct WorkbenchSearchField: View {
     var isRedesign: Bool
     var showsFocusRing: Bool
     var autofocus: Bool
+    var placesInsertionPointAtEndOnAutofocus: Bool
     var trailingStatusText: String?
     var onSubmit: (() -> Void)?
 
@@ -273,6 +274,7 @@ struct WorkbenchSearchField: View {
         isRedesign: Bool = false,
         showsFocusRing: Bool = true,
         autofocus: Bool = false,
+        placesInsertionPointAtEndOnAutofocus: Bool = false,
         trailingStatusText: String? = nil,
         onSubmit: (() -> Void)? = nil
     ) {
@@ -281,8 +283,17 @@ struct WorkbenchSearchField: View {
         self.isRedesign = isRedesign
         self.showsFocusRing = showsFocusRing
         self.autofocus = autofocus
+        self.placesInsertionPointAtEndOnAutofocus =
+            placesInsertionPointAtEndOnAutofocus
         self.trailingStatusText = trailingStatusText
         self.onSubmit = onSubmit
+    }
+
+    static func placeInsertionPointAtEnd(in editor: NSTextView) {
+        editor.setSelectedRange(NSRange(
+            location: editor.string.utf16.count,
+            length: 0
+        ))
     }
 
     var body: some View {
@@ -361,6 +372,19 @@ struct WorkbenchSearchField: View {
                 return
             }
             isFocused = true
+            guard placesInsertionPointAtEndOnAutofocus else {
+                return
+            }
+            await Task.yield()
+            guard !Task.isCancelled,
+                  let editor = NSApplication.shared.keyWindow?.firstResponder
+                    as? NSTextView,
+                  editor.isEditable,
+                  editor.string == text
+            else {
+                return
+            }
+            Self.placeInsertionPointAtEnd(in: editor)
         }
     }
 }

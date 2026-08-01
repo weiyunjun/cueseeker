@@ -101,6 +101,7 @@ func playbackOverlayEnterQueuesPlayWhileSpaceRemainsInactive() async throws {
 @Test
 func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
     try await withKeyboardActionApp { app, _ in
+        app.settings.prefillCommandPanelWithFocusedCue = true
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
             availableModules: [.current, .playlist]
@@ -451,6 +452,7 @@ func playbackControllerRoutesThumbstickRepeatThroughEveryInterface() async throw
 func playbackCommandPanelBacktickOpensRootAndEscapeCloses() async throws {
     try await withKeyboardActionApp { app, _ in
         app.playback.isPlaybackSurfaceExpanded = true
+        app.settings.prefillCommandPanelWithFocusedCue = true
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 50,
@@ -519,6 +521,81 @@ func playbackCommandPanelPreservesUnderlyingOverlay() async throws {
         ))
         #expect(app.playback.commandPanelPresentation == nil)
         #expect(app.playback.subtitleFocusSession === session)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelPrefillsFocusedCurrentCueWithoutSearching() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.settings.prefillCommandPanelWithFocusedCue = true
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(lines: ["focused first", "focused second"]),
+            token: session.token
+        ))
+        let previousSearchQuery = app.search.searchQuery
+
+        #expect(app.presentPlaybackCommandPanel())
+
+        #expect(app.playback.commandPanelPresentation?.page == .root)
+        #expect(
+            app.playback.commandPanelPresentation?.query
+                == "focused first focused second"
+        )
+        #expect(app.search.searchQuery == previousSearchQuery)
+        #expect(app.playback.subtitleFocusSession === session)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelPrefillsFocusedPlaylistCue() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let result = keyboardActionPlaylistSearchResult(
+            id: 1_001,
+            videoPath: keyboardActionSource().videoPath,
+            subtitlePath: keyboardActionSource().subtitlePath,
+            startMilliseconds: 12_000,
+            content: "playlist first\nplaylist second"
+        )
+        let item = PlaybackPlaylistItem(searchResult: result, ordinal: 0)
+        let (session, _) = try await beginKeyboardActionPlaylistSession(
+            app: app,
+            item: item
+        )
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.settings.prefillCommandPanelWithFocusedCue = true
+
+        #expect(app.presentPlaybackCommandPanel())
+
+        #expect(
+            app.playback.commandPanelPresentation?.query
+                == "playlist first playlist second"
+        )
+        #expect(app.playback.subtitleFocusSession === session)
+    }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelKeepsQueryEmptyWhenFocusedCuePrefillIsOff() async throws {
+    try await withKeyboardActionApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+
+        #expect(app.presentPlaybackCommandPanel())
+
+        #expect(app.playback.commandPanelPresentation?.query.isEmpty == true)
     }
 }
 

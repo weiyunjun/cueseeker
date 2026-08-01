@@ -994,6 +994,21 @@ Playback Multi-Module Overlay Cue geometry and selection are native-only:
   state remain overlay-local and must not invalidate Search, Shiori, Context,
   Library, or the playback render host.
 
+Command Panel focused-Cue prefill follows these rules:
+
+- Settings > Search owns the persisted `Prefill with Focused Cue` switch. It
+  defaults to Off.
+- With the switch On, opening Command Panel while Playback Overlay Current or
+  Cue Playlist is active copies the module's focused Primary Cue into the root
+  Search field. Source line breaks become spaces through the shared Search
+  input normalization rule.
+- The field receives focus with a zero-length insertion point after the complete
+  text so subsequent typing appends. Prefill alone does not start Search or
+  modify shared Search query state.
+- Collage remains exclusive and cannot open Command Panel through normal input.
+  Search, Library, Shiori, and the absence of an Overlay Session do not provide
+  focused-Cue prefill.
+
 ### 13.3 Video Surface Mouse Rules
 
 Rules:

@@ -29,8 +29,12 @@ extension AppCoordinator {
         guard var presentation = playback.commandPanelPresentation else {
             return false
         }
+        let focusedCueText = playback.subtitleFocusSession?
+            .focusedCueTextForCommandPanel
         presentation.page = .root
-        presentation.query = ""
+        presentation.query = settings.prefillCommandPanelWithFocusedCue
+            ? SearchInputNormalizer.singleLine(focusedCueText ?? "")
+            : ""
         presentation.selectedOrdinal = 0
         playback.presentCommandPanel(presentation)
         preparePlaybackKeyboardFocus()

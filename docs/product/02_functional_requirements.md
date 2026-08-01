@@ -666,6 +666,12 @@ Current Settings categories:
   remeasure visible rows plus overscan and restore the anchored Primary Cue,
   but must not rerun Search, rebuild Context scope, mutate Shiori data, change
   result counts or identity, or refresh hidden or playback-covered tables.
+- Provide a persisted `Prefill with Focused Cue` switch and default it to Off.
+  When enabled, opening Command Panel from Playback Overlay Current or Cue
+  Playlist fills its root Search field with the focused Primary Cue, normalizes
+  line breaks to spaces, focuses the field, and places the insertion point at
+  the end without starting Search. It does not apply to Collage or other
+  Playback Overlay modules.
 
 `Decode` settings requirements:
 
