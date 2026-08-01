@@ -456,6 +456,13 @@ Data ownership rules:
   successfully starts playback. That history write must refresh the currently
   loaded Workbench Recent overview and complete Recent projection immediately;
   Playback hosts observe those same `LibraryStore` projections.
+- Successful playback Modal suspension is the shared publication boundary for
+  pending Library playback-history writes and their `LibraryStore`
+  projections, whether playback was playing or already paused. Individual
+  Modal hosts must not duplicate that synchronization.
+- App termination and main-window close must wait for all queued Library
+  playback-history writes even after the active source changes. This shutdown
+  barrier persists data without refreshing presentation state.
 - Playback may observe those stores, dispatch their existing product actions,
   and retain only host-local presentation state. It must not create a second
   feature database reader, query runner, paging store, result accumulator,

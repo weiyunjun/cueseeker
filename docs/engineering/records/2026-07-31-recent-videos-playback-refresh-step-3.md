@@ -39,3 +39,39 @@ Library and Recent video entry now updates the shared Recent Videos projections
 as soon as playback starts successfully. Workbench and an already loaded
 Command Panel therefore observe the refreshed history during playback instead
 of waiting for playback close.
+
+## 2026-08-01 Acceptance Follow-Up
+
+### Cause
+
+The playback-start refresh fixed Recent Videos membership and order, but the
+Command Panel did not use the playback Modal's existing pending-history
+publication boundary. Its Recent projection could therefore retain the prior
+progress and resolve the first item to an older resume position. The synchronous
+shutdown save also returned immediately after the active source had changed,
+even when an earlier Library write was still queued.
+
+### Implementation
+
+- Made successful shared playback Modal suspension publish pending Library
+  playback history for both playing and already-paused entry.
+- Removed the duplicate Subtitle Focus publication call; Command Panel and
+  Subtitle Focus now follow the same lifecycle rule.
+- Made the existing synchronous shutdown save drain queued history writes when
+  there is no longer a current Library source, without refreshing UI state.
+- Added no timer, state source, cache, query path, or entry-specific
+  synchronization.
+
+### Verification
+
+- `swift test --no-parallel --filter RecentPlayback`: 6 tests passed.
+- Related Playback, Overlay, Recent, Library-route, URL Scheme, and playback
+  history regression selection: 188 tests passed.
+- `swift build`: passed.
+- `git diff --check`: passed.
+
+### Outcome
+
+Command Panel Recent Videos now observes the latest persisted playback progress
+before selection, and shutdown waits for queued Library progress even after a
+source change.

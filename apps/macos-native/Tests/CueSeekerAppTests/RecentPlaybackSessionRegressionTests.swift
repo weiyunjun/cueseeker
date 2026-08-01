@@ -141,6 +141,125 @@ func closingNonLibraryPlaybackFlushesPendingLibraryProgress() async throws {
     }
 }
 
+@MainActor
+@Test
+func presentingPlaybackCommandPanelPublishesPendingLibraryProgress() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = URL(fileURLWithPath: "/Media")
+        let episode = root.appendingPathComponent("Show/Episode 1.mkv")
+        try indexRecentPlaybackVideos([episode], in: database)
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
+        try app.libraryDatabase!.upsertLibraryPlaybackHistory(
+            videoFile: episode,
+            positionMilliseconds: 10_000,
+            duration: 100
+        )
+        app.indexing.selectedFolders = [root]
+        app.refreshRecentWatching()
+        app.refreshTestRecentWatching()
+        await app.recentWatchingTask?.value
+        await app.testRecentWatchingTask?.value
+        #expect(app.library.recentWatchingItems.first?.positionMilliseconds == 10_000)
+        #expect(app.library.testRecentWatchingItems.first?.positionMilliseconds == 10_000)
+
+        let video = try #require(
+            try app.libraryDatabase!.libraryVideos(under: [root]).first
+        )
+        app.library.selectedLibraryVideo = video
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.ensurePlayerInitialized()
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        app.activePlaybackSource = .library(videoPath: episode.path)
+        playbackViewModel.player(
+            player,
+            didChangeProperty: "duration",
+            value: .double(100)
+        )
+        playbackViewModel.player(
+            player,
+            didChangeProperty: "time-pos",
+            value: .double(42.5)
+        )
+        await Task.yield()
+        app.saveCurrentLibraryPlaybackHistory()
+
+        #expect(app.presentPlaybackCommandPanel())
+        let history = try #require(
+            try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: episode)
+        )
+        #expect(app.pendingLibraryPlaybackHistoryPresentationVideoPaths.isEmpty)
+        #expect(history.positionMilliseconds == 42_500)
+        #expect(app.libraryResumePositionMilliseconds(for: video) == 42_500)
+
+        await app.recentWatchingTask?.value
+        await app.testRecentWatchingTask?.value
+        #expect(
+            app.library.recentWatchingItems.first?.positionMilliseconds
+                == 42_500
+        )
+        #expect(
+            app.library.testRecentWatchingItems.first?.positionMilliseconds
+                == 42_500
+        )
+    }
+}
+
+@MainActor
+@Test
+func synchronousPlaybackHistorySaveDrainsPendingWriteAfterSourceChange() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = URL(fileURLWithPath: "/Media")
+        let episode = root.appendingPathComponent("Show/Episode 1.mkv")
+        try indexRecentPlaybackVideos([episode], in: database)
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
+        try app.libraryDatabase!.upsertLibraryPlaybackHistory(
+            videoFile: episode,
+            positionMilliseconds: 10_000,
+            duration: 100
+        )
+
+        app.ensurePlayerInitialized()
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        app.activePlaybackSource = .library(videoPath: episode.path)
+        playbackViewModel.player(
+            player,
+            didChangeProperty: "duration",
+            value: .double(100)
+        )
+        playbackViewModel.player(
+            player,
+            didChangeProperty: "time-pos",
+            value: .double(42.5)
+        )
+        await Task.yield()
+
+        let releaseWriter = DispatchSemaphore(value: 0)
+        app.libraryPlaybackHistoryWriter.queue.async {
+            releaseWriter.wait()
+        }
+        app.saveCurrentLibraryPlaybackHistory()
+        app.activePlaybackSource = .search
+        let revisionBeforeSave = app.library.libraryPlaybackHistoryRevision
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
+            releaseWriter.signal()
+        }
+
+        app.saveCurrentLibraryPlaybackHistorySynchronously()
+
+        let history = try #require(
+            try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: episode)
+        )
+        #expect(history.positionMilliseconds == 42_500)
+        #expect(
+            app.pendingLibraryPlaybackHistoryPresentationVideoPaths
+                == Set([episode.path])
+        )
+        #expect(app.library.libraryPlaybackHistoryRevision == revisionBeforeSave)
+    }
+}
+
 private func indexRecentPlaybackVideos(
     _ videoFiles: [URL],
     in database: IndexingDatabase

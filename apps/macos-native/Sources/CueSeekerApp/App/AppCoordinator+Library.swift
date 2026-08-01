@@ -1044,7 +1044,9 @@ extension AppCoordinator {
     }
 
     func saveCurrentLibraryPlaybackHistorySynchronously() {
-        saveCurrentLibraryPlaybackHistory(waitUntilFinished: true)
+        if !saveCurrentLibraryPlaybackHistory(waitUntilFinished: true) {
+            libraryPlaybackHistoryWriter.flush()
+        }
     }
 
     func markCurrentLibraryPlaybackCompletedIfNeeded(

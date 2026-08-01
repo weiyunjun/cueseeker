@@ -378,7 +378,11 @@ Required M2 playback interaction checks:
   reindexing the same path should not delete matching Library playback history.
   A successfully started Library or Recent video must immediately refresh every
   currently loaded Recent Videos projection through the shared `LibraryStore`
-  refresh path.
+  refresh path. Presenting a playback Modal must publish pending progress into
+  those projections before its actions can resolve a resume position, including
+  when playback is already paused. Shutdown checks must also cover a queued
+  Library write after the active source changes and verify that the synchronous
+  barrier persists it without refreshing presentation state.
 - Reindex workflow checks should verify that playback using media under the
   reindexed folder is stopped or cleared before the rebuild starts, and that an
   active Search query is rerun after the rebuild completes.

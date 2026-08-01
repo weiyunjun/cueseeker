@@ -465,11 +465,15 @@ extension AppCoordinator {
     }
 
     func suspendPlaybackForModalPresentation(wasPlaying: Bool) -> Bool {
-        guard wasPlaying else {
+        if wasPlaying {
+            guard pausePlayback() else {
+                return false
+            }
+        } else {
             cancelAutoSwitchCueSequenceTask()
-            return true
         }
-        return pausePlayback()
+        flushPendingLibraryPlaybackHistoryPresentations()
+        return true
     }
 
     func resumePlayback() {
