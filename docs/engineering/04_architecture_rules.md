@@ -442,7 +442,9 @@ The Playback Multi-Module Overlay owns one strictly temporary Session with
 Current, optional Playlist, Search, Recent, Library, and Shiori. Module
 switching stays inside that Session; Escape, playback, Playback Page close, and
 source replacement cancel unfinished host-local work and destroy temporary
-module presentation state. The hidden opening phase remains on Current.
+module presentation state. The hidden opening phase selects Current for a
+video Playlist and Playlist for a Cue Playlist, falling back to Current when
+no Playlist is available.
 
 Data ownership rules:
 

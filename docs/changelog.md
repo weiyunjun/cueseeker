@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Made Playback Overlay choose its initial View from the current Playlist type.
+  Video Playlists and playback without an available Playlist open Current,
+  while Cue Playlists open Playlist. Every new Overlay Session reevaluates the
+  rule and retains the existing fresh-session state reset.
 - Added the persisted `Prefill with Focused Cue` option under Settings > Search.
   When enabled, opening Command Panel from Playback Overlay Current or Cue
   Playlist fills its root Search field with the focused Primary Cue, focuses the

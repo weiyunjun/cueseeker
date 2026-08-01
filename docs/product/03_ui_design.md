@@ -842,8 +842,9 @@ Behavior:
   edge with the reel viewport top, begins at its first visual line, and clips
   only trailing content below the viewport while retaining its complete action
   value.
-- Overlay opening starts a new temporary Session on Current and selects the
-  physically bottommost Cue in the Cue Group that
+- Overlay opening starts a new temporary Session. Its initial View is Current
+  for a video Playlist or no available Playlist, and Playlist for a Cue
+  Playlist. Current selects the physically bottommost Cue in the Cue Group that
   contains the captured playback timestamp, otherwise the nearest preceding
   Cue, otherwise the first Cue. Width reflow preserves that stable Cue identity
   and restores its accepted fitting-center or oversized-top placement.

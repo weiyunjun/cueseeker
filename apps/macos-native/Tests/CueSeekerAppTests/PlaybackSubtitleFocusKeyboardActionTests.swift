@@ -860,10 +860,7 @@ func playbackCommandPanelDatabaseSearchOpensCompletePlaylistOverlay() async thro
         let session = try #require(app.playback.subtitleFocusSession)
         #expect(session.availableModules == [.current, .playlist])
         await app.playbackSubtitleFocusInitialLoadTask?.value
-        #expect(app.handlePlaybackKeyDown(
-            keyCode: 48,
-            modifierFlagsRawValue: 0
-        ))
+        #expect(session.selectedModule == .playlist)
 
         let playlistWindow = try #require(session.playlistWindow)
         #expect(playlistWindow.snapshot.totalCount == 30)
@@ -1434,7 +1431,7 @@ private func beginKeyboardActionPlaylistSession(
     ))
     let window = try #require(session.playlistWindow)
     #expect(window.snapshot.loadedItemCount == 1)
-    #expect(session.selectModule(.playlist))
+    #expect(session.selectedModule == .playlist)
     return (session, window)
 }
 

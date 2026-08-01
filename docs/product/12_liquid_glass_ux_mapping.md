@@ -984,11 +984,12 @@ Playback Multi-Module Overlay Cue geometry and selection are native-only:
 - Playback Search keeps editor focus while Results update after the latest
   edit's `100ms` debounce. Enter does not submit the query; it plays only an
   already settled selected Result.
-- Every open creates a new temporary Session on Current. Escape, playback,
-  Playback Page close, and source replacement destroy Overlay-local module
-  state and cancel unfinished presentation work; module switching itself stays
-  inside the Session. Shared Search query/results, Shiori, Recent, and Library
-  Feature state are not destroyed with the Session.
+- Every open creates a new temporary Session. Its initial View is Current for a
+  video Playlist or no available Playlist, and Playlist for a Cue Playlist.
+  Escape, playback, Playback Page close, and source replacement destroy
+  Overlay-local module state and cancel unfinished presentation work; module
+  switching itself stays inside the Session. Shared Search query/results,
+  Shiori, Recent, and Library Feature state are not destroyed with the Session.
 - Layout and drawing are limited to visible Cues plus overscan and an explicit
   navigation target. Focus selection, motion, measurement, and deferred action
   state remain overlay-local and must not invalidate Search, Shiori, Context,

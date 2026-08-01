@@ -91,6 +91,7 @@ func playbackStoreOpensPlaylistOverlayAtLogicalPlayingItem() throws {
     #expect(session.playlistWindow?.selectedOrdinal == targetOrdinal)
     #expect(session.playlistWindow?.selectedItemIdentity
         == .search(Int64(1_000 + targetOrdinal)))
+    #expect(session.selectedModule == .playlist)
     #expect(requestedOrdinals == [targetOrdinal, targetOrdinal])
     store.releaseSubtitleFocusSession(session)
 }
@@ -125,6 +126,7 @@ func playbackStoreUsesTheLibrarySessionStoreAsTheMediaPlaylistSource() throws {
         libraryStore: libraryStore
     ))
     #expect(librarySession.availableModules == [.current, .playlist])
+    #expect(librarySession.selectedModule == .current)
     #expect(librarySession.libraryStore === libraryStore)
     store.releaseSubtitleFocusSession(librarySession)
 }

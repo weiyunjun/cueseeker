@@ -1269,9 +1269,10 @@ The gate passes only if:
   the captured playback state without seeking. The cancellation prerequisites
   pass, and Playback Page close or source replacement never publishes stale
   state in the manual runs.
-- Every reopened Overlay is a new Session beginning on Current with no prior
-  query, temporary rows, hierarchy, selection, offset, task, or cache. Turning
-  Show Cue Group Off across such Sessions preserves the recorded Primary Cue
+- Every reopened Overlay is a new Session beginning on Current for a video
+  Playlist or no available Playlist, and on Playlist for a Cue Playlist, with
+  no prior query, temporary rows, hierarchy, selection, offset, task, or cache.
+  Turning Show Cue Group Off across such Sessions preserves the recorded Primary Cue
   content, identity, count, order, and action while correctly resetting the new
   Session's selection to its default.
 - No crash, stale action, duplicate playback open, pointer-region regression,

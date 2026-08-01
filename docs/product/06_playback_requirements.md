@@ -547,9 +547,10 @@ Current implementation notes and accepted fullscreen correction:
 Playback Multi-Module Overlay Cue contract:
 
 - Enter captures playback state, source identity, and the current timestamp,
-  pauses playback, and creates a temporary Overlay Session on Current. The
-  Session owns Current, optional Playlist, and only the Overlay-local
-  presentation state for Search, Recent, Library, and Shiori. Those four
+  pauses playback, and creates a temporary Overlay Session. The initial View is
+  Current for a video Playlist or no available Playlist, and Playlist for a Cue
+  Playlist. The Session owns Current, optional Playlist, and only the
+  Overlay-local presentation state for Search, Recent, Library, and Shiori. Those four
   modules host their Workbench Feature stores rather than owning another data
   source. Overlay exit destroys Session state and unfinished presentation work,
   but not shared Feature query or collections. Normal playback must not create

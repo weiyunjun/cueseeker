@@ -125,6 +125,10 @@ final class PlaybackStore: ObservableObject {
             libraryStore: libraryStore,
             shioriStore: shioriStore
         )
+        if libraryStore == nil,
+           playlistSource?.hasItems == true {
+            _ = session.presentModule(.playlist)
+        }
         subtitleFocusSession = session
         return session
     }

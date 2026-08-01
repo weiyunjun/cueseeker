@@ -19,6 +19,7 @@ func playbackStoreCreatesSubtitleFocusSessionOnlyAfterOpen() throws {
 
     #expect(playback.subtitleFocusSession === session)
     #expect(session.state == .opening)
+    #expect(session.selectedModule == .current)
     #expect(session.retainedCueCount == 0)
 }
 

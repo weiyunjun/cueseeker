@@ -105,8 +105,10 @@ feed, or media library home screen.
 ### Playback Multi-Module Overlay
 
 - Enter captures the playback timestamp, pauses playback, and creates a
-  temporary Playback Multi-Module Overlay Session on Current. Its fixed Sidebar
-  exposes Current, optional Playlist, Search, Recent, Library, and Shiori. If
+  temporary Playback Multi-Module Overlay Session. Its initial View is Current
+  for a video Playlist or no available Playlist, and Playlist for a Cue
+  Playlist. Its fixed Sidebar exposes Current, optional Playlist, Search,
+  Recent, Library, and Shiori. If
   the timestamp lies within a Cue Group, Current selects the physically
   bottommost Cue in stable source display order; otherwise it selects the
   nearest preceding Cue, or the first Cue when none precedes it.
