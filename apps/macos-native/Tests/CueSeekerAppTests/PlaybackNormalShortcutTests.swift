@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import CueSeekerCore
 import CueSeekerPlayback
@@ -126,14 +127,17 @@ func normalPlaybackBareRAndTriangleConsumeUnavailableRepeatSilently() throws {
         let viewModel = try #require(app.playback.playbackViewModel)
         app.playback.isPlaybackSurfaceExpanded = true
 
-        #expect(app.handlePlaybackKeyDown(keyCode: 15, modifierFlagsRawValue: 0))
         #expect(app.handlePlaybackKeyDown(
-            keyCode: 15,
+            keyCode: UInt16(kVK_ANSI_R),
+            modifierFlagsRawValue: 0
+        ))
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_R),
             modifierFlagsRawValue: 0,
             isRepeat: true
         ))
         #expect(!app.handlePlaybackKeyDown(
-            keyCode: 15,
+            keyCode: UInt16(kVK_ANSI_R),
             modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
         ))
         #expect(app.handlePlaybackControllerInput(.button(.north)))

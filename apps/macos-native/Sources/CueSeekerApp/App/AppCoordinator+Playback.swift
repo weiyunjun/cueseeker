@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
@@ -1140,7 +1141,7 @@ extension AppCoordinator {
         case 12:
             viewModel.toggleSubtitles()
             return true
-        case 15 where !hasShift:
+        case UInt16(kVK_ANSI_R) where !hasShift:
             if !isRepeat {
                 _ = repeatCurrentPlaylistCue()
             }
@@ -1199,7 +1200,7 @@ extension AppCoordinator {
 
     private static func isPlaybackShortcutKey(keyCode: UInt16, hasShift: Bool) -> Bool {
         switch keyCode {
-        case 0, 2, 3, 12, 15, 36, 49, 76, 123, 124, 125, 126:
+        case 0, 2, 3, 12, UInt16(kVK_ANSI_R), 36, 49, 76, 123, 124, 125, 126:
             return true
         case 35:
             return !hasShift

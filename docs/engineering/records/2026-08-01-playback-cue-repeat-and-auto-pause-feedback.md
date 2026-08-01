@@ -28,6 +28,10 @@ and add centered feedback for successful Repeat and automatic Cue pauses.
    existing accepted Auto Pause boundary callback succeeds.
 5. Updated playback requirements, Liquid Glass mappings, and the changelog for
    the accepted user-visible behavior.
+6. A follow-up review removed the raw `R` key-code literal from the new
+   implementation and tests. Keyboard and normal-video Triangle routing now use
+   the macOS symbolic key constant while retaining the shared shortcut path and
+   its existing scrubbing and key-repeat protections.
 
 ## Verification
 
@@ -44,6 +48,8 @@ and add centered feedback for successful Repeat and automatic Cue pauses.
   reported UI tests passed when rerun in isolation; the unrelated Display Title
   row-menu coordinate test remained failing.
 - `git diff --check` passed.
+- The follow-up focused test runs passed `69` tests after replacing the raw key
+  code and confirmed that unavailable `R` and Triangle input remain silent.
 
 ## Outcome
 

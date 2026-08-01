@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 enum PlaybackControllerTextAction: Equatable {
     case deleteBackward
@@ -112,7 +113,7 @@ extension AppCoordinator {
             let usesShioriShortcut = playback.commandPanelPresentation != nil
                 || playback.subtitleFocusSession != nil
             return keyboardEquivalent(
-                usesShioriShortcut ? 1 : 15,
+                usesShioriShortcut ? 1 : UInt16(kVK_ANSI_R),
                 isRepeat: isRepeat,
                 nativeTextAction: .insertText("s")
             )
