@@ -417,7 +417,6 @@
 - Move: `arrow.right`
 - Duplicate: `copy`
 - Action Submenu: `chevron.right`
-- Hide Column: `eye-off`
 - Cue Content Changed: `clock.arrow.circlepath`
 - Cue Unavailable: `questionmark.circle`
 - Remove Shiori: `bookmark.slash`; fallback `bookmark`
@@ -483,7 +482,7 @@
 - 拖拽到可视区域顶部或底部时，表格自动滚动并继续扩展选择。
 - 固定表头不随正文滚动，但仍参与文字选择和复制。
 - 表格拥有键盘上下文时，`Cmd+A` 选择当前完整结果中的全部表格文字。
-- `Cmd+A` 的范围包含表头、当前显示的列和全部结果行，不受当前滚动位置影响。
+- `Cmd+A` 的范围包含表头、当前表格定义的全部列和全部结果行，不受当前滚动位置影响。
 - 输入框拥有焦点时，`Cmd+A` 只选择该输入框的文字。
 - `Cmd+C` 复制当前文字选择。
 - 结构化复制时，列之间使用 Tab，表格行之间使用换行。
@@ -549,7 +548,7 @@
 
 #### Select Trigger Button
 
-- 用途：打开 View 等选择型菜单。
+- 用途：打开选择型菜单。
 - Token：`--height-filter-bar-control`、`--radius-control`、`--padding-control-x`、`--color-bg-surface`、`--color-bg-hover`、`--color-bg-disabled`、`--color-border-control`、`--color-border-control-hover`、`--color-border-focus`、`--color-border-disabled`。
 - 内容：可选 Leading Icon、Label、Select Indicator。
 - Select Indicator 固定使用 `chevrons-up-down`。
@@ -737,15 +736,14 @@
 
 #### Column Header Menu
 
-- 用途：为 Sortable Header Cell 提供排序和列显示命令。
+- 用途：为 Sortable Header Cell 提供排序命令。
 - Trigger 使用 `--height-field`、`--padding-header-trigger-x`、`--radius-field`、`--color-bg-hover`。
 - Menu 使用 `--color-bg-popover`、`--color-border-muted`、`--radius-menu`、`--shadow-popover`、`--spacing-1`。
 - Menu Item 使用 Action Menu Item。
-- 命令：Asc、Desc、Hide。
-- Asc、Desc、Hide 使用固定 Leading Icon。
+- 命令：Asc、Desc。
+- Asc、Desc 使用固定 Leading Icon。
 - 当前排序状态由 Header Indicator 表达，不使用 Checked Menu Item。
 - Menu Open 只强调 Trigger Surface，不强调整列或整格 Header。
-- Cues 不允许隐藏时，Hide 为 Disabled。
 
 #### Row Action Menu
 
@@ -811,7 +809,7 @@
 - 正文纵向间距统一使用 `--padding-table-row-y`。
 - 行顶部留白、Cues 内不同 Cue Item 之间的垂直间距、行底部留白相等。
 - `--padding-table-cell-hover-y` 与 `--padding-table-row-y` 使用相同值。
-- Table Row 必须在当前可见列的最终列宽确定后计算内容布局和行高。
+- Table Row 必须在当前表格固定显示列的最终列宽确定后计算内容布局和行高。
 - Display Title、Cues、Time Range 和 Date Added 按各自最终列宽自动换行，并显示完整内容。
 - Language Tags 按最终列宽使用水平换行布局，并形成完整内容块。
 - 设本行显示的 Cue Item 数量为 `N`，每个 Cue Item 的自然高度为 `Hᵢ`：
@@ -820,9 +818,9 @@
 
 - 最终行高：
 
-  `Row Height = max(--min-height-table-row, max(All Visible Column Content Block Heights) + 2 × --padding-table-row-y)`
+  `Row Height = max(--min-height-table-row, max(All Fixed Column Content Block Heights) + 2 × --padding-table-row-y)`
 
-- Table Viewport Width 或可见列发生变化时，按照新的最终列宽重新计算换行和行高。
+- Table Viewport Width 发生变化时，按照新的最终列宽重新计算换行和行高。
 - 行高更新时保留当前滚动锚点，不改变当前行或 Primary Cue 身份，不产生可见位置跳动。
 - 所有列的完整内容块在行内垂直居中。
 - Metadata 不再对齐 Primary Cue 第一视觉行。
@@ -1597,10 +1595,10 @@
 - 子项垂直居中。
 - 间距使用 `--spacing-3`。
 - Search Box 为主要 Flexible 区域。
-- Filter、View 和 Select / Exit Select 为固定内容宽度。
+- Filter 和 Select / Exit Select 为固定内容宽度。
 - 基本顺序：
 
-  `Search Box → Filter → View → Select / Exit Select`
+  `Search Box → Filter → Select / Exit Select`
 
 - Select 使用 Edit Icon `square.and.pencil`。
 - 进入 Select 状态后，Select 的 Label 改为 `Exit Select`。
@@ -1613,8 +1611,8 @@
 - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果。
 - Query 后续发生变化时，以最新输入内容更新结果。
 - Enter 不用于提交 Search。
-- View Menu 控制列显示。
-- Cues 始终显示，不允许隐藏。
+- Search、Search-hosted Context 和 Shiori 固定显示各自定义的全部列。
+- 不提供 View Button、View Menu、Column Header Hide 或其他列隐藏入口。
 - Result Count Text 只显示在 Search Box 内，不显示独立的结果数量栏或 Shiori 总数量。
 
 #### Filter Data Panel Layout
@@ -1679,6 +1677,7 @@
 - `Copy Deep Link(s)` 使用 `doc.on.doc`。
 - 按当前表格顺序复制全部已选行的 Primary Cue Deep Link，每行一个。
 - 单条格式与 Row Action Menu 的 `Copy Deep Link` 相同。
+- `Copy Table` 按当前表格列顺序复制全部已选行，并始终包含当前表格定义的全部数据列。
 - Selection Action Overlay 不显示 Screenshot 或 Collage；Playback 内的 Screenshot 与 Editing Collage 保持不变。
 
 #### Search / Shiori / Context Table Layout
@@ -1712,11 +1711,11 @@
   - `#` 使用 `--color-text-secondary`，正文序号使用 `--color-text-muted`。
   - Select 状态下，Header 和正文原位切换为 Checkbox。
   - Selection Column 始终保留固定宽度，不因进入或退出 Select 状态改变其它数据列宽度。
-  - Selection Column 不出现在 View Menu 中。
+  - Selection Column 始终显示，不允许隐藏。
 
 - Select 状态：
   - Search Box 为 Disabled，不允许编辑 Query。
-  - Filter 和 View 为 Disabled。
+  - Filter 为 Disabled。
   - Select 保持可用，Label 为 `Exit Select`。
   - Sortable Header Cell 和其它 Header Button 为 Disabled。
   - Header 和正文显示 Row Selection Checkbox。
@@ -1738,12 +1737,12 @@
   - Date Added：权重 `2`，最小 `120pt`，仅 Shiori
 
 - Column Width Resolution：
-  1. 只有当前可见的数据列参与宽度计算；隐藏列完全退出计算。
+  1. 当前表格定义的全部数据列始终参与宽度计算。
   2. 可分配宽度为 Table Viewport Width 减去 Selection Column Width。
   3. 数据列首先按照各自权重计算候选宽度。
   4. 候选宽度小于最小宽度的列固定为最小宽度。
-  5. 使用剩余宽度和剩余列权重重新计算，直到所有可见数据列均满足最小宽度。
-  6. 当 Table Viewport Width 小于全部可见列的最小宽度总和，Table Content Width 使用最小宽度总和，并启用水平滚动。
+  5. 使用剩余宽度和剩余列权重重新计算，直到全部数据列均满足最小宽度。
+  6. 当 Table Viewport Width 小于全部数据列的最小宽度总和，Table Content Width 使用最小宽度总和，并启用水平滚动。
   7. Header 和正文使用相同的最终列宽及水平滚动偏移。
 
 - Cues / Primary Cue：
@@ -1937,11 +1936,6 @@
   - 仅用于 Shiori。
   - 打开 Confirmation Dialog。
   - 不直接移除。
-
-- View Menu：
-  - Cues 始终 Checked 且 Disabled。
-  - 其他数据列可以隐藏。
-  - Selection Column 是 `#` / Checkbox 状态列，不出现在 View Menu 中。
 
 - Search Empty Hint：
   - 文案：`Enter a search term to show cues.`
