@@ -16,7 +16,7 @@
 
 - 正文使用简洁中文。
 - Token 标识符保持英文，不翻译、不添加中文别名。
-- Component、Layout、Cue、Shiori、Search、Recent、Library、Context 等名称保持英文。
+- Component、Layout、Cue、Shiori、Search、Recent、Library 等名称保持英文。
 - 快捷键、SF Symbol、菜单文案和系统名称保持原文。
 - 同一规则只定义一次，其他位置引用对应 Component 或 Layout。
 - 未特别覆盖的系统行为遵循 macOS 原生交互和无障碍行为。
@@ -410,7 +410,6 @@
 - Repeat: `repeat`
 - Copy Cue Text、Copy Cue Group Text、Copy Time Range、Copy Table、Copy Deep Link(s): `doc.on.doc`
 - Deep Link、Copy Deep Link: `link`
-- Context: `doc.text`
 - Folder: `folder`
 - Edit: `square.and.pencil`
 - Delete: `trash`
@@ -673,7 +672,7 @@
 - Token：`--size-row-action-button`、`--radius-row-action`、`--color-bg-hover`、`--size-control-icon`、`--color-icon-default`、`--color-icon-disabled`。
 - 使用 `ellipsis`。
 - 状态：Default、Hover / Menu Open、Disabled。
-- 当前 Search / Shiori / Context Table 不显示 Row Action Button。
+- 当前 Search / Shiori Table 不显示 Row Action Button。
 - 如果其他界面使用该组件，它必须打开所属目标的同一套 Context Menu，不能维护另一套命令。
 
 #### Destructive Button
@@ -755,7 +754,7 @@
 - 菜单目标始终是右键所在行的 Primary Cue，不自动扩展到已勾选行。
 - 不根据右键所在的数据列打开不同菜单。
 - 批量命令继续通过明确的 Batch Actions 入口执行。
-- 具体命令、顺序和动作语义由 Search / Shiori / Context Table Layout 定义。
+- 具体命令、顺序和动作语义由 Search / Shiori Table Layout 定义。
 
 #### Library Card Context Menu
 
@@ -768,7 +767,7 @@
 - `Change Cover` 位于 `Open Folder` 下方，Leading Icon 使用上箭头托盘图标。
 - `Change Cover` 打开 Finder；选择图片后打开 Edit Cover Dialog。
 - Workbench 中的其他 Menu Item 由所属 Card Layout 定义。
-- Playback 复用所属 Card Layout 定义的 Menu Item 和动作，但不显示 `Context` Menu Item。
+- Playback 复用所属 Card Layout 定义的 Menu Item 和动作。
 - Playback 中打开 Menu 后，锁定右键所在卡片为动作目标，直到 Menu 关闭。
 - 菜单锚定右键位置并限制在可见区域内。
 - 点击菜单外关闭。
@@ -1380,7 +1379,6 @@
   - Mark as Finished
   - Mark as Unwatched
   - Mark as Watching
-  - Context
 - 文件缺失或 Disabled 时降低透明度并禁用点击。
 
 #### Recent Overview Layout
@@ -1540,8 +1538,7 @@
 - 点击 Back Button 返回 Library 一级界面。
 - Title 只读。
 
-### 4.3 Search、Shiori 与 Context
-
+### 4.3 Search 与 Shiori
 #### Shiori List Overview Layout
 
 - 完整复用 Library / Shiori Overview Layout。
@@ -1583,7 +1580,7 @@
   - Filter Data Panel Layout
   - Filter Data Card
   - Selection Action Overlay Layout
-  - Search / Shiori / Context Table Layout
+  - Search / Shiori Table Layout
 - Filter Data Panel 的数据范围限定为当前 Shiori List。
 - 本需求不增加当前列表身份 Header。
 - 当前列表没有 Shiori 时继续使用现有 Shiori Empty Hint。
@@ -1611,7 +1608,7 @@
 - 输入 Query 后，在最后一次输入变化的 `100ms` 后自动更新结果。
 - Query 后续发生变化时，以最新输入内容更新结果。
 - Enter 不用于提交 Search。
-- Search、Search-hosted Context 和 Shiori 固定显示各自定义的全部列。
+- Search 和 Shiori 固定显示各自定义的全部列。
 - 不提供 View Button、View Menu、Column Header Hide 或其他列隐藏入口。
 - Result Count Text 只显示在 Search Box 内，不显示独立的结果数量栏或 Shiori 总数量。
 
@@ -1620,7 +1617,7 @@
 - Search 与 Shiori 二级页面从上到下排列：
   1. Search / Shiori Toolbar
   2. 可选 Filter Data Panel
-  3. Search / Shiori / Context Table
+  3. Search / Shiori Table
 - Toolbar、Filter Data Panel 和 Table Viewport 保持相同左右边界。
 - Toolbar、Filter Data Panel 和 Table Viewport 之间使用 `--spacing-3`。
 - Filter Data Panel 不绘制独立背景或边框，不设置固定高度，也不使用横向滚动。
@@ -1680,9 +1677,9 @@
 - `Copy Table` 按当前表格列顺序复制全部已选行，并始终包含当前表格定义的全部数据列。
 - Selection Action Overlay 不显示 Screenshot 或 Collage；Playback 内的 Screenshot 与 Editing Collage 保持不变。
 
-#### Search / Shiori / Context Table Layout
+#### Search / Shiori Table Layout
 
-- 适用于 Search、Shiori 和 Search-hosted Context。
+- 适用于 Search 和 Shiori。
 - Header 固定，正文独立滚动。
 - Header 和正文保持相同水平偏移。
 - Table 不绘制外部框线。
@@ -1692,7 +1689,7 @@
 - 不为 Header 增加独立 Tint。
 - Header 文字使用 `--color-text-secondary`。
 
-- Search / Context 列顺序：
+- Search 列顺序：
   1. Selection
   2. Cues
   3. Display Title
@@ -1803,9 +1800,9 @@
   - Label：`Show Cue Group`
   - Default：Off
   - 跨 App 启动保留
-  - 适用于 Workbench Search、Workbench Shiori 和 Context
+  - 适用于 Workbench Search 和 Workbench Shiori
   - 同一设置同时适用于字幕型 Playlist 和 Command Panel Search Result
-  - Workbench Search、Workbench Shiori 和 Context：
+  - Workbench Search 和 Workbench Shiori：
     - Off：只显示 Primary Cue
     - On：在 Primary Cue 下方显示全部 Additional Cues
   - 字幕型 Playlist 和 Command Panel Search Result：
@@ -1840,35 +1837,32 @@
 
 - 行右键交互使用 Row Action Menu。
 
-- Search / Context Row Action Menu 的 Action 顺序：
+- Search Row Action Menu 的 Action 顺序：
 
   1. `Play`
   2. `Open Subtitle Folder`
-  3. `Context`
-  4. `Copy Cue Text`
-  5. `Copy Deep Link`
-  6. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
-  7. `Copy Time Range`
+  3. `Copy Cue Text`
+  4. `Copy Deep Link`
+  5. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
+  6. `Copy Time Range`
 
 - Shiori Row Action Menu 的 Action 顺序：
 
   1. `Play`
   2. `Open Subtitle Folder`
-  3. `Context`
-  4. `Copy Cue Text`
-  5. `Copy Deep Link`
-  6. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
-  7. `Copy Time Range`
-  8. `Move to ...`
-  9. `Duplicate to ...`
-  10. `Remove Shiori`
+  3. `Copy Cue Text`
+  4. `Copy Deep Link`
+  5. `Copy Cue Group Text`，仅 `Show Cue Group = On` 时显示
+  6. `Copy Time Range`
+  7. `Move to ...`
+  8. `Duplicate to ...`
+  9. `Remove Shiori`
 
 - Normal 和 Content Changed Shiori Row 使用现有 Action 可用性。
 
 - Unavailable Shiori Row：
   - `Play` 为 Disabled
   - `Open Subtitle Folder` 仅在当前 Subtitle File 仍可访问时可用，否则为 Disabled
-  - `Context` 为 Disabled
   - `Copy Cue Text` 可用，复制最后保存的 Cue Snapshot
   - `Copy Deep Link` 为 Disabled
   - `Copy Cue Group Text` 在显示时可用，复制最后保存的 Cue Group Snapshot
@@ -1878,7 +1872,7 @@
   - `Remove Shiori` 可用
 
 - Divider：
-  - `Context` 与 `Copy Cue Text` 之间显示 Divider。
+  - `Open Subtitle Folder` 与 `Copy Cue Text` 之间显示 Divider。
   - Shiori 的 `Copy Time Range` 与 `Move to ...` 之间显示 Divider。
   - Shiori 的 `Duplicate to ...` 与 `Remove Shiori` 之间显示 Divider。
 
@@ -1888,10 +1882,6 @@
 - `Open Subtitle Folder`：
   - 打开 Subtitle File 所在文件夹。
   - 在文件夹中选中对应 Subtitle File。
-
-- `Context`：
-  - 打开 Primary Cue 的 Context。
-  - 当前已位于 Context 时，以右键所在行的 Primary Cue 更新 Context 目标。
 
 - `Copy Cue Text`：
   - 只复制 Primary Cue 的准确文字。
@@ -2243,7 +2233,7 @@
   - Playlist 可以来源于 Search Result、Shiori 或 Library
   - 通过 Recent Videos 或 Library 入口播放视频时，均使用当前视频所在文件夹对应的 Library Playlist
   - Playlist 复用对应 Workbench Feature 的数据顺序和正式操作结果
-  - Playback 不提供 Checkbox 批量操作、导出、添加文件夹、Context、Filter 控件或复制表格入口
+  - Playback 不提供 Checkbox 批量操作、导出、添加文件夹、Filter 控件或复制表格入口
   - Playback 只提供 Current 和当前 Playlist Source 在本 Layout 中明确列出的操作
   - Current 不属于 Workbench Feature Host，只显示当前视频及其完整 Cue 集合
 
