@@ -326,7 +326,7 @@ func subtitleTableExternalTextSelectionMonitorRoutesWindowCoordinatesWithoutTaki
     monitor.addSubview(countSummary)
     let actionTarget = SubtitleTableExternalTextSelectionControlTarget()
     let actionButton = NSButton(
-        title: "View",
+        title: "Filter",
         target: actionTarget,
         action: #selector(SubtitleTableExternalTextSelectionControlTarget.activate)
     )

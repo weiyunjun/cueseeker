@@ -99,7 +99,6 @@ final class SearchStore: ObservableObject {
     @Published private(set) var cueContextSearchRequest: CueContextSearchRequest?
     @Published private(set) var tableLoadRevision: UInt64 = 0
     @Published var tableSearchDraft = ""
-    @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
     var tableSelectionEntryIDs: [Int] = []

@@ -18,7 +18,6 @@ final class ShioriStore: ObservableObject {
     @Published var listEditorSession: ShioriListEditorSession?
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
-    @Published var tableVisibleColumnIDs = SchemaWorkbenchSearchDefaults.initialVisibleShioriColumnIDs
     @Published var tableTotalSavedRowCount = 0
     @Published var tableResultRowCount = 0
     @Published var tableHasLoadedInitialPage = false

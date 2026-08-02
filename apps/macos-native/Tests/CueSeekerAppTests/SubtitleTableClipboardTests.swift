@@ -117,7 +117,7 @@ func subtitleTableClipboardPreservesMultilineNonCueCell() {
 }
 
 @Test
-func subtitleTableClipboardCopiesVisibleLanguageColumnAsText() {
+func subtitleTableClipboardCopiesLanguageColumnAsText() {
     let columns = SubtitleTableClipboard.columns(from: [
         WorkbenchTableColumn(id: "language", title: "Language", kind: .text, width: .fixed(160)),
     ])

@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed the View and column-hiding controls from Search, Search-hosted
+  Context, and Shiori tables. Each surface now always shows its complete
+  defined column set, narrow layouts use the existing horizontal scrolling
+  behavior, Copy Table always includes every data column, and column header
+  menus contain sorting commands only.
 - Added one-shot Cue Repeat on the video playback page. While Auto Switch is
   off, the current Cue Playlist subtitle can be restarted from its beginning
   whenever the playback timestamp is inside its inclusive time range. The new

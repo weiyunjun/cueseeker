@@ -992,7 +992,6 @@ func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
 func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     let store = ShioriStore()
     store.tableSearchDraft = "tomori"
-    store.tableVisibleColumnIDs = ["display", "cues"]
     store.tableRowStore.hydrateShioriRows(
         [
             shioriSource(id: 1, content: "cached shiori", languages: [.japanese]),
@@ -1010,7 +1009,6 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     store.markTableRowsLoaded(totalSavedRowCount: 1)
 
     #expect(store.tableSearchDraft == "tomori")
-    #expect(store.tableVisibleColumnIDs == ["display", "cues"])
     #expect(store.tableHasLoadedInitialPage)
     #expect(store.tableTotalSavedRowCount == 1)
     #expect(store.tableResultRowCount == 37)
@@ -1025,7 +1023,6 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
 func shioriStoreInvalidatesTableRowsWithoutResettingControls() {
     let store = ShioriStore()
     store.tableSearchDraft = "soyo"
-    store.tableVisibleColumnIDs = ["dateAdded", "cues"]
     store.tableRowStore.hydrateShioriRows(
         [
             shioriSource(id: 1, content: "old shiori", languages: [.japanese]),
@@ -1040,7 +1037,6 @@ func shioriStoreInvalidatesTableRowsWithoutResettingControls() {
     store.invalidateTableRows()
 
     #expect(store.tableSearchDraft == "soyo")
-    #expect(store.tableVisibleColumnIDs == ["dateAdded", "cues"])
     #expect(!store.tableHasLoadedInitialPage)
     #expect(store.tableTotalSavedRowCount == 0)
     #expect(store.tableResultRowCount == 0)

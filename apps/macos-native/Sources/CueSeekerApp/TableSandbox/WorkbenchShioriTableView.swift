@@ -55,7 +55,6 @@ private struct WorkbenchShioriTableContent: View {
         let textCopySource = tableTextCopySource
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
-            visibleColumnIDs: $shioriStore.tableVisibleColumnIDs,
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
             isRedesign: true,
             tableSummary: tableSummary,
@@ -82,7 +81,7 @@ private struct WorkbenchShioriTableContent: View {
                 }
                 isFacetPanelVisible.toggle()
             }
-        ) { visibleColumns in
+        ) { tableColumns in
             ZStack {
                 SubtitleTableView(
                     tableName: "shiori",
@@ -92,16 +91,16 @@ private struct WorkbenchShioriTableContent: View {
                     rowProvider: { rowStore.snapshot.row(at: $0) },
                     rowsVersion: rowStore.snapshot.version,
                     rowsUpdate: rowStore.snapshot.update,
-                    dateAddedHeader: columnTitle("dateAdded", in: visibleColumns, fallback: "Date Added"),
-                    displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
-                    timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time Range"),
-                    cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
-                    languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
-                    columnOrder: visibleColumns.map(\.id),
-                    showsDateAddedColumn: isColumnVisible("dateAdded", in: visibleColumns),
-                    showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
-                    showsTimeColumn: isColumnVisible("time", in: visibleColumns),
-                    showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
+                    dateAddedHeader: columnTitle("dateAdded", in: tableColumns, fallback: "Date Added"),
+                    displayTitleHeader: columnTitle("display", in: tableColumns, fallback: "Display Title"),
+                    timeHeader: columnTitle("time", in: tableColumns, fallback: "Time Range"),
+                    cuesHeader: columnTitle("cues", in: tableColumns, fallback: "Cues"),
+                    languageHeader: columnTitle("language", in: tableColumns, fallback: "Language"),
+                    columnOrder: tableColumns.map(\.id),
+                    showsDateAddedColumn: containsColumn("dateAdded", in: tableColumns),
+                    showsDisplayTitleColumn: containsColumn("display", in: tableColumns),
+                    showsTimeColumn: containsColumn("time", in: tableColumns),
+                    showsLanguageColumn: containsColumn("language", in: tableColumns),
                     showsCueGroup: appliedShowCueGroup
                         ?? (allowsTableResponse && settingsStore.showCueGroup),
                     scrollResetToken: tableScrollResetToken,
@@ -272,19 +271,12 @@ private struct WorkbenchShioriTableContent: View {
         )
     }
 
-    private var visibleColumnsForCopy: [WorkbenchTableColumn] {
-        SchemaWorkbenchSearchDefaults.shioriColumns.filter {
-            shioriStore.tableVisibleColumnIDs.contains($0.id) ||
-                SchemaWorkbenchColumnVisibilityMenu.isLocked($0.id)
-        }
+    private func containsColumn(_ id: String, in tableColumns: [WorkbenchTableColumn]) -> Bool {
+        tableColumns.contains { $0.id == id }
     }
 
-    private func isColumnVisible(_ id: String, in visibleColumns: [WorkbenchTableColumn]) -> Bool {
-        visibleColumns.contains { $0.id == id }
-    }
-
-    private func columnTitle(_ id: String, in visibleColumns: [WorkbenchTableColumn], fallback: String) -> String {
-        visibleColumns.first { $0.id == id }?.title ?? fallback
+    private func columnTitle(_ id: String, in tableColumns: [WorkbenchTableColumn], fallback: String) -> String {
+        tableColumns.first { $0.id == id }?.title ?? fallback
     }
 
     private var allowsTableResponse: Bool {
@@ -525,7 +517,9 @@ private struct WorkbenchShioriTableContent: View {
             return
         }
 
-        let columns = SubtitleTableClipboard.columns(from: visibleColumnsForCopy)
+        let columns = SubtitleTableClipboard.columns(
+            from: SchemaWorkbenchSearchDefaults.shioriColumns
+        )
         let selectedRows = selection.selectedRows(rowCount: rowCount)
         guard !selectedRows.isEmpty else {
             return

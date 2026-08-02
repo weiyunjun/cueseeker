@@ -7545,20 +7545,6 @@ struct ColumnHeaderMenu: View {
                     isEnabled: true,
                     action: onSortDescending
                 )
-                Rectangle()
-                    .fill(WorkbenchRedesignColors.borderDivider)
-                    .frame(height: WorkbenchControlMetrics.hairlineWidth)
-                    .padding(.vertical, WorkbenchControlMetrics.redesignSpacing1)
-                WorkbenchPopoverRow(
-                    title: "Hide Column",
-                    isSelected: false,
-                    isHighlighted: false,
-                    systemImage: "eye.slash",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: false,
-                    action: nil
-                )
             }
         }
     }

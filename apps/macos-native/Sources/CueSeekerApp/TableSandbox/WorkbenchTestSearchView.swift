@@ -37,7 +37,6 @@ struct WorkbenchTestSearchView: View {
     private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
-    @State private var visibleColumnIDs: Set<String>
     @State private var lastVisibleRows: Range<Int>?
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
@@ -60,7 +59,6 @@ struct WorkbenchTestSearchView: View {
         self.rowStore = rowStore
         self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
-        _visibleColumnIDs = State(initialValue: SchemaWorkbenchSearchDefaults.initialVisibleColumnIDs)
         _isFacetPanelVisible = State(initialValue: Self.defaultFacetPanelVisibility)
     }
 
@@ -72,7 +70,6 @@ struct WorkbenchTestSearchView: View {
         let textCopySource = tableTextCopySource
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
-            visibleColumnIDs: $visibleColumnIDs,
             columns: SchemaWorkbenchSearchDefaults.columns,
             isRedesign: true,
             tableSummary: tableSummary,
@@ -94,7 +91,7 @@ struct WorkbenchTestSearchView: View {
             onToggleFilterPanel: {
                 isFacetPanelVisible.toggle()
             }
-        ) { visibleColumns in
+        ) { tableColumns in
             WorkbenchSearchTableRowsObserver(rowStore: rowStore) { snapshot in
                 ZStack {
                     SubtitleTableView(
@@ -105,14 +102,14 @@ struct WorkbenchTestSearchView: View {
                         rowProvider: { snapshot.row(at: $0) },
                         rowsVersion: snapshot.version,
                         rowsUpdate: snapshot.update,
-                        displayTitleHeader: columnTitle("display", in: visibleColumns, fallback: "Display Title"),
-                        timeHeader: columnTitle("time", in: visibleColumns, fallback: "Time Range"),
-                        cuesHeader: columnTitle("cues", in: visibleColumns, fallback: "Cues"),
-                        languageHeader: columnTitle("language", in: visibleColumns, fallback: "Language"),
-                        columnOrder: visibleColumns.map(\.id),
-                        showsDisplayTitleColumn: isColumnVisible("display", in: visibleColumns),
-                        showsTimeColumn: isColumnVisible("time", in: visibleColumns),
-                        showsLanguageColumn: isColumnVisible("language", in: visibleColumns),
+                        displayTitleHeader: columnTitle("display", in: tableColumns, fallback: "Display Title"),
+                        timeHeader: columnTitle("time", in: tableColumns, fallback: "Time Range"),
+                        cuesHeader: columnTitle("cues", in: tableColumns, fallback: "Cues"),
+                        languageHeader: columnTitle("language", in: tableColumns, fallback: "Language"),
+                        columnOrder: tableColumns.map(\.id),
+                        showsDisplayTitleColumn: containsColumn("display", in: tableColumns),
+                        showsTimeColumn: containsColumn("time", in: tableColumns),
+                        showsLanguageColumn: containsColumn("language", in: tableColumns),
                         showsCueGroup: appliedShowCueGroup
                             ?? (allowsTableResponse && settingsStore.showCueGroup),
                         scrollResetToken: tableScrollResetToken,
@@ -149,7 +146,6 @@ struct WorkbenchTestSearchView: View {
             searchFacetFilter = persistedFacetFilter
             search.updateSearchFacetFilter(persistedFacetFilter)
             prepareViewportRestoration()
-            restoreTableControls()
             if let request = search.cueContextSearchRequest,
                applyCueContextSearchRequest(request) {
                 return
@@ -166,9 +162,6 @@ struct WorkbenchTestSearchView: View {
             }
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
-        }
-        .onChange(of: visibleColumnIDs) { newValue in
-            search.tableVisibleColumnIDs = newValue
         }
         .onChange(of: search.searchQuery) { newValue in
             exitSelectionMode()
@@ -234,7 +227,7 @@ struct WorkbenchTestSearchView: View {
         .onDisappear {
             exitSelectionMode()
             search.setTableProjectionResponseActive(false)
-            persistTableControls()
+            persistSearchDraft()
             persistSelection()
             search.tableViewportAnchor = nil
         }
@@ -247,12 +240,12 @@ struct WorkbenchTestSearchView: View {
         )
     }
 
-    private func isColumnVisible(_ id: String, in visibleColumns: [WorkbenchTableColumn]) -> Bool {
-        visibleColumns.contains { $0.id == id }
+    private func containsColumn(_ id: String, in tableColumns: [WorkbenchTableColumn]) -> Bool {
+        tableColumns.contains { $0.id == id }
     }
 
-    private func columnTitle(_ id: String, in visibleColumns: [WorkbenchTableColumn], fallback: String) -> String {
-        visibleColumns.first { $0.id == id }?.title ?? fallback
+    private func columnTitle(_ id: String, in tableColumns: [WorkbenchTableColumn], fallback: String) -> String {
+        tableColumns.first { $0.id == id }?.title ?? fallback
     }
 
     private var showsSearchEmptyHint: Bool {
@@ -526,13 +519,6 @@ struct WorkbenchTestSearchView: View {
         )
     }
 
-    private var visibleColumnsForCopy: [WorkbenchTableColumn] {
-        SchemaWorkbenchSearchDefaults.columns.filter {
-            visibleColumnIDs.contains($0.id) ||
-                SchemaWorkbenchColumnVisibilityMenu.isLocked($0.id)
-        }
-    }
-
     private func updateSearchDraft(_ newValue: String) {
         guard newValue != search.searchQuery else {
             return
@@ -720,7 +706,9 @@ struct WorkbenchTestSearchView: View {
             return
         }
 
-        let columns = SubtitleTableClipboard.columns(from: visibleColumnsForCopy)
+        let columns = SubtitleTableClipboard.columns(
+            from: SchemaWorkbenchSearchDefaults.columns
+        )
         let selectedRows = selection.selectedRows(rowCount: rowCount)
         guard !selectedRows.isEmpty else {
             return
@@ -839,13 +827,8 @@ struct WorkbenchTestSearchView: View {
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
 
-    private func restoreTableControls() {
-        visibleColumnIDs = search.tableVisibleColumnIDs
-    }
-
-    private func persistTableControls() {
+    private func persistSearchDraft() {
         search.tableSearchDraft = searchDraft
-        search.tableVisibleColumnIDs = visibleColumnIDs
     }
 }
 

@@ -1,9 +1,5 @@
 import SwiftUI
 
-enum SchemaWorkbenchPopover: Equatable {
-    case columnVisibility
-}
-
 struct SchemaWorkbenchTableSummary: Equatable {
     let totalRowCount: Int
     let selectedRowCount: Int
@@ -82,17 +78,12 @@ enum SchemaWorkbenchSearchDefaults {
             width: .weighted(weight: 2, min: 120)
         ),
     ]
-
-    static let initialVisibleColumnIDs = Set(columns.map(\.id))
-    static let initialVisibleShioriColumnIDs = Set(shioriColumns.map(\.id))
-
 }
 
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Environment(\.isWorkbenchPopupLayerOpen) private var isParentWorkbenchPopupLayerOpen
 
     @Binding var searchDraft: String
-    @Binding var visibleColumnIDs: Set<String>
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
@@ -109,14 +100,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
-    @State private var openPopover: SchemaWorkbenchPopover?
-    @State private var shellDropdownFrames: [String: CGRect] = [:]
-    @State private var openPopoverWidth: CGFloat = 0
     @StateObject private var externalTextSelectionSession = SubtitleTableExternalTextSelectionSession()
 
     init(
         searchDraft: Binding<String>,
-        visibleColumnIDs: Binding<Set<String>>,
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
@@ -133,7 +120,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
         _searchDraft = searchDraft
-        _visibleColumnIDs = visibleColumnIDs
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
@@ -171,16 +157,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         searchResultCountText: searchResultCountText,
                         isSelectionMode: isSelectionMode,
                         isFilterPanelOpen: isFilterPanelVisible,
-                        isViewMenuOpen: openPopover == .columnVisibility,
                         canEnterSelectionMode: canEnterSelectionMode,
                         onSubmit: onSearchSubmit,
-                        onFilter: {
-                            openPopover = nil
-                            onToggleFilterPanel()
-                        },
-                        onViewMenu: {
-                            togglePopover(.columnVisibility)
-                        },
+                        onFilter: onToggleFilterPanel,
                         onToggleSelectionMode: onToggleSelectionMode
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
@@ -190,11 +169,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     SchemaWorkbenchLegacySearchCommandBar(
                         placeholder: searchPlaceholder,
                         searchDraft: $searchDraft,
-                        isViewMenuOpen: openPopover == .columnVisibility,
-                        onSubmit: onSearchSubmit,
-                        onViewMenu: {
-                            togglePopover(.columnVisibility)
-                        }
+                        onSubmit: onSearchSubmit
                     )
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
@@ -216,7 +191,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 }
 
                 ZStack(alignment: .bottom) {
-                    tableContent(visibleColumns)
+                    tableContent(columns)
 
                     if isRedesign,
                        let tableSummary,
@@ -233,23 +208,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .padding(.bottom, SchemaWorkbenchStyle.pageBottomPadding)
                     .frame(maxHeight: .infinity)
             }
-
-            overlayLayer
         }
-        .environment(\.isWorkbenchPopupLayerOpen, isAnyWorkbenchPopupLayerOpen)
         .environment(\.subtitleTableExternalTextSelectionSession, externalTextSelectionSession)
-        .coordinateSpace(name: "SearchShellSpace")
-        .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { frames in
-            self.shellDropdownFrames = frames
-        }
-        .onChange(of: openPopover) { _ in
-            self.openPopoverWidth = 0
-        }
-        .onChange(of: isSelectionMode) { isSelecting in
-            if isSelecting {
-                openPopover = nil
-            }
-        }
         .onChange(of: externalTextSelectionIsBlocked) { isBlocked in
             if isBlocked {
                 externalTextSelectionSession.cancel()
@@ -261,10 +221,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var isAnyWorkbenchPopupLayerOpen: Bool {
-        isParentWorkbenchPopupLayerOpen || openPopover != nil
-    }
-
     private var externalTextSelectionIsBlocked: Bool {
         !isRedesign || isParentWorkbenchPopupLayerOpen || isSelectionMode
     }
@@ -274,95 +230,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             isBlocked: externalTextSelectionIsBlocked
         )
     }
-
-    @ViewBuilder
-    private var overlayLayer: some View {
-        if let openPopover {
-            GeometryReader { geometry in
-                ZStack(alignment: .topLeading) {
-                    Button {
-                        self.openPopover = nil
-                    } label: {
-                        Color.clear
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .subtitleTableTextSelectionInteractiveRegion()
-
-                    popoverView(openPopover, geometry: geometry)
-                }
-            }
-            .zIndex(10)
-        }
-    }
-
-    @ViewBuilder
-    private func popoverView(
-        _ popover: SchemaWorkbenchPopover,
-        geometry: GeometryProxy
-    ) -> some View {
-        switch popover {
-        case .columnVisibility:
-            SchemaWorkbenchColumnVisibilityPopover(
-                columns: columns,
-                visibleColumnIDs: visibleColumnIDs,
-                isRedesign: isRedesign,
-                onToggleColumn: toggleColumnVisibility
-            )
-            .frame(
-                minWidth: isRedesign ? max(220, shellDropdownFrames["view"]?.width ?? 220) : 220,
-                alignment: .topLeading
-            )
-            .fixedSize(horizontal: isRedesign, vertical: false)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear {
-                            self.openPopoverWidth = geo.size.width
-                        }
-                        .onChange(of: geo.size.width) { newWidth in
-                            self.openPopoverWidth = newWidth
-                        }
-                }
-            )
-            .offset(
-                x: isRedesign ? {
-                    let triggerMinX = shellDropdownFrames["view"]?.minX ?? (geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220)
-                    let popoverWidth = self.openPopoverWidth > 0 ? self.openPopoverWidth : max(220, shellDropdownFrames["view"]?.width ?? 220)
-                    let rightLimit = geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding
-                    return max(SchemaWorkbenchStyle.pageHorizontalPadding, min(triggerMinX, rightLimit - popoverWidth))
-                }() : max(
-                    SchemaWorkbenchStyle.pageHorizontalPadding,
-                    geometry.size.width - SchemaWorkbenchStyle.pageHorizontalPadding - 220
-                ),
-                y: isRedesign ? ((shellDropdownFrames["view"]?.maxY ?? 0) + 4) : SchemaWorkbenchStyle.viewPopoverTop(isRedesign: isRedesign)
-            )
-        }
-    }
-
-    private func togglePopover(_ popover: SchemaWorkbenchPopover) {
-        openPopover = openPopover == popover ? nil : popover
-    }
-
-    private var visibleColumns: [WorkbenchTableColumn] {
-        columns.filter {
-            visibleColumnIDs.contains($0.id) ||
-                SchemaWorkbenchColumnVisibilityMenu.isLocked($0.id)
-        }
-    }
-
-    private func toggleColumnVisibility(_ columnID: String) {
-        guard !SchemaWorkbenchColumnVisibilityMenu.isLocked(columnID) else {
-            visibleColumnIDs.insert(columnID)
-            return
-        }
-        if visibleColumnIDs.contains(columnID) {
-            visibleColumnIDs.remove(columnID)
-        } else {
-            visibleColumnIDs.insert(columnID)
-        }
-    }
-
 }
 
 enum SchemaWorkbenchStyle {
@@ -371,12 +238,6 @@ enum SchemaWorkbenchStyle {
     static let pageBottomPadding: CGFloat = 14
     static let tableCornerRadius: CGFloat = 8
     static let hairlineWidth: CGFloat = 0.5
-
-    static func viewPopoverTop(isRedesign: Bool) -> CGFloat {
-        let searchHeight = isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight
-        return pageTopPadding + searchHeight + 8
-    }
-
 }
 
 struct SchemaWorkbenchSearchToolbar: View {
@@ -385,11 +246,9 @@ struct SchemaWorkbenchSearchToolbar: View {
     let searchResultCountText: String?
     var isSelectionMode: Bool = false
     var isFilterPanelOpen: Bool = false
-    var isViewMenuOpen: Bool = false
     var canEnterSelectionMode: Bool = false
     var onSubmit: (() -> Void)?
     var onFilter: () -> Void
-    var onViewMenu: () -> Void
     var onToggleSelectionMode: () -> Void
 
     var body: some View {
@@ -412,17 +271,6 @@ struct SchemaWorkbenchSearchToolbar: View {
                 isMenuOpen: isFilterPanelOpen,
                 action: onFilter
             )
-            .disabled(isSelectionMode)
-
-            WorkbenchToolbarButton(
-                title: "View",
-                systemImage: "slider.horizontal.3",
-                showsChevron: true,
-                isRedesign: true,
-                isMenuOpen: isViewMenuOpen,
-                action: onViewMenu
-            )
-            .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
             .disabled(isSelectionMode)
 
             WorkbenchToolbarButton(
@@ -483,9 +331,7 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
 struct SchemaWorkbenchLegacySearchCommandBar: View {
     let placeholder: String
     @Binding var searchDraft: String
-    var isViewMenuOpen: Bool = false
     var onSubmit: (() -> Void)?
-    var onViewMenu: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -495,15 +341,6 @@ struct SchemaWorkbenchLegacySearchCommandBar: View {
                 onSubmit: onSubmit
             )
             .frame(maxWidth: .infinity)
-
-            WorkbenchToolbarButton(
-                title: "View",
-                systemImage: "slider.horizontal.3",
-                showsChevron: true,
-                isMenuOpen: isViewMenuOpen,
-                action: onViewMenu
-            )
-            .workbenchDropdownAnchor(id: "view", in: "SearchShellSpace")
         }
         .frame(height: WorkbenchControlMetrics.searchFieldHeight)
     }
@@ -526,69 +363,5 @@ struct SchemaWorkbenchLegacyFilterControlBar: View {
             Spacer(minLength: 0)
         }
         .frame(height: WorkbenchControlMetrics.controlHeight)
-    }
-}
-
-struct SchemaWorkbenchColumnVisibilityMenuItem: Identifiable, Equatable {
-    let id: String
-    let title: String
-    let isSelected: Bool
-    let isEnabled: Bool
-}
-
-enum SchemaWorkbenchColumnVisibilityMenu {
-    static let lockedColumnIDs: Set<String> = ["cues"]
-
-    static func isLocked(_ columnID: String) -> Bool {
-        lockedColumnIDs.contains(columnID)
-    }
-
-    static func items(
-        columns: [WorkbenchTableColumn],
-        visibleColumnIDs: Set<String>
-    ) -> [SchemaWorkbenchColumnVisibilityMenuItem] {
-        columns
-            .filter { $0.kind != .rowNumber }
-            .map { column in
-                let locked = isLocked(column.id)
-                return SchemaWorkbenchColumnVisibilityMenuItem(
-                    id: column.id,
-                    title: column.title,
-                    isSelected: locked || visibleColumnIDs.contains(column.id),
-                    isEnabled: !locked
-                )
-            }
-    }
-}
-
-struct SchemaWorkbenchColumnVisibilityPopover: View {
-    let columns: [WorkbenchTableColumn]
-    let visibleColumnIDs: Set<String>
-    var isRedesign: Bool = false
-    var onToggleColumn: (String) -> Void
-
-    var body: some View {
-        WorkbenchPopoverPanel(isRedesign: isRedesign) {
-            VStack(spacing: 0) {
-                ForEach(menuItems) { item in
-                    WorkbenchPopoverRow(
-                        title: item.title,
-                        isSelected: item.isSelected,
-                        isRedesign: isRedesign,
-                        isEnabled: item.isEnabled,
-                        action: item.isEnabled ? {
-                            onToggleColumn(item.id)
-                        } : nil
-                    )
-                }
-            }
-        }
-    }
-
-    private var menuItems: [SchemaWorkbenchColumnVisibilityMenuItem] {
-        SchemaWorkbenchColumnVisibilityMenu.items(
-            columns: columns,
-            visibleColumnIDs: visibleColumnIDs
-        )
     }
 }
