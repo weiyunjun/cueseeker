@@ -69,7 +69,6 @@ struct CueGroupRefreshScopeIntegrationTests {
             #expect(recording.count("UI.WorkbenchMainContent.body") == 0)
             #expect(recording.count("UI.AppSidebar.body") == 0)
             #expect(recording.count("table.shiori.surface_body") == 0)
-            #expect(recording.count("table.context.surface_body") == 0)
         }
     }
 
@@ -113,7 +112,6 @@ struct CueGroupRefreshScopeIntegrationTests {
             #expect(recording.count("UI.WorkbenchMainContent.body") == 0)
             #expect(recording.count("UI.AppSidebar.body") == 0)
             #expect(recording.count("table.shiori.surface_body") == 0)
-            #expect(recording.count("table.context.surface_body") == 0)
         }
     }
 
@@ -121,12 +119,6 @@ struct CueGroupRefreshScopeIntegrationTests {
     @Test
     func showCueGroupInvalidationIsScopedToMountedSearch() async throws {
         try await verifyShowCueGroupInvalidation(surface: .search)
-    }
-
-    @MainActor
-    @Test
-    func showCueGroupInvalidationIsScopedToMountedContext() async throws {
-        try await verifyShowCueGroupInvalidation(surface: .context)
     }
 
     @MainActor
@@ -441,18 +433,6 @@ struct CueGroupRefreshScopeIntegrationTests {
             surface: surface,
             uiProbeScope: uiProbeScope
         ) { app, window, coordinator in
-                if surface == .context {
-                    let mountedRecording = session.recording()
-                    #expect(mountedRecording.count(
-                        surface.counterName("row_hydration_requested")
-                    ) > 0)
-                    #expect(mountedRecording.count(
-                        surface.counterName("snapshot_rebuild")
-                    ) > 0)
-                    #expect(mountedRecording.count(
-                        surface.counterName("row_hydration_applied")
-                    ) > 0)
-                }
                 let targetRow = min(150, coordinator.numberOfRowsForTesting() / 2)
                 coordinator.scrollToRow(targetRow)
                 let didResolveAnchor = await waitUntil(timeout: 1) {
@@ -525,27 +505,6 @@ struct CueGroupRefreshScopeIntegrationTests {
                 for counter in forbiddenRefreshScopeCounters(activeSurface: surface) {
                     #expect(recording.count(counter) == 0, "Unexpected refresh: \(counter)")
                 }
-        }
-    }
-
-    @MainActor
-    @Test
-    func contextHydrationRequestIsRecordedWhenNoSnapshotCanBeApplied() async throws {
-        let uiProbeScope = UUID().uuidString
-        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
-            scope: uiProbeScope
-        )
-        defer { session.finish() }
-        let recordingBefore = session.recording()
-        try await withMountedCueTable(
-            surface: .context,
-            usesMissingContextTarget: true,
-            uiProbeScope: uiProbeScope
-        ) { _, _, _ in
-            let recording = session.recording()
-                .delta(since: recordingBefore)
-            #expect(recording.count("table.context.row_hydration_requested") > 0)
-            #expect(recording.count("table.context.row_hydration_applied") == 0)
         }
     }
 
@@ -814,7 +773,6 @@ private func nativeSwitchDescendant(in root: NSView) -> NSView? {
 @MainActor
 private func withMountedCueTable(
     surface: SubtitleTableProbeSurface,
-    usesMissingContextTarget: Bool = false,
     initialShowCueGroup: Bool = false,
     libraryFolderRemovalExecutor: (any LibraryFolderRemovalExecuting)? = nil,
     uiProbeScope: String,
@@ -823,7 +781,6 @@ private func withMountedCueTable(
     _ = NSApplication.shared
     let harness = try CueGroupRefreshScopeMountedHarness(
         surface: surface,
-        usesMissingContextTarget: usesMissingContextTarget,
         initialShowCueGroup: initialShowCueGroup,
         libraryFolderRemovalExecutor: libraryFolderRemovalExecutor,
         uiProbeScope: uiProbeScope
@@ -831,30 +788,14 @@ private func withMountedCueTable(
     defer { harness.tearDown() }
     let window = try #require(harness.window)
 
-    if usesMissingContextTarget {
-        let didMountContext = await waitUntil(timeout: 2) {
-            findSubtitleTableCoordinator(
-                in: window.contentView,
-                surface: .context
-            ) != nil
-        }
-        try #require(didMountContext)
-        try await Task.sleep(nanoseconds: 100_000_000)
-        harness.coordinator = findSubtitleTableCoordinator(
-            in: window.contentView,
-            surface: .context
-        )
-        try #require(harness.coordinator != nil)
-    } else {
-        harness.coordinator = await waitForSubtitleTable(
-            in: window,
-            surface: surface,
-            minimumRowCount: 200,
-            timeout: 3
-        )
-        _ = try #require(harness.coordinator)
-        try await Task.sleep(nanoseconds: 100_000_000)
-    }
+    harness.coordinator = await waitForSubtitleTable(
+        in: window,
+        surface: surface,
+        minimumRowCount: 200,
+        timeout: 3
+    )
+    _ = try #require(harness.coordinator)
+    try await Task.sleep(nanoseconds: 100_000_000)
     try await body(
         try #require(harness.app),
         window,
@@ -875,7 +816,6 @@ private final class CueGroupRefreshScopeMountedHarness {
 
     init(
         surface: SubtitleTableProbeSurface,
-        usesMissingContextTarget: Bool,
         initialShowCueGroup: Bool,
         libraryFolderRemovalExecutor: (any LibraryFolderRemovalExecuting)?,
         uiProbeScope: String
@@ -892,7 +832,6 @@ private final class CueGroupRefreshScopeMountedHarness {
         let videoURL = root.appendingPathComponent("Episode.mkv")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
-        let firstCueID: Int64
         do {
             try DatabaseBootstrap.prepare(at: databaseURL)
             let database = try IndexingDatabase(path: databaseURL)
@@ -901,9 +840,6 @@ private final class CueGroupRefreshScopeMountedHarness {
                 videoFile: videoURL,
                 format: .ass,
                 cueGroups: cueGroupRefreshScopeGroups(groupCount: 200)
-            )
-            firstCueID = try #require(
-                try SearchDatabase(path: databaseURL).firstCueID(forSubtitleFile: subtitleURL)
             )
         }
         userDefaults.set([root.path], forKey: "selectedFolderPaths")
@@ -943,13 +879,6 @@ private final class CueGroupRefreshScopeMountedHarness {
                 knownFileCount: 0,
                 hasMore: false
             )
-            app.activateWorkbenchPanelMode(.search)
-        case .context:
-            app.search.updateContextRequest(CueContextSearchRequest(
-                displayTitle: "Episode",
-                subtitlePath: subtitleURL.path,
-                targetCueID: usesMissingContextTarget ? Int64.max : firstCueID
-            ))
             app.activateWorkbenchPanelMode(.search)
         case .shiori:
             let sources = cueGroupRefreshScopeShioriSources(

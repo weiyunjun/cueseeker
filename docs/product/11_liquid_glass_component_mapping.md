@@ -32,7 +32,7 @@ Included App surfaces:
 
 - Main workbench shell (info page only; hidden on the video page).
 - Topbar Library, Shiori, and Search controls (info page only).
-- Search results and Search-hosted Context use the native AppKit Cue table.
+- Search results use the native AppKit Cue table.
 - Library grouped episode grid.
 - Shiori uses the native AppKit Cue table.
 - Playback Multi-Module Overlay uses the native Current Cue reel and the shared
@@ -56,8 +56,8 @@ Out of scope for this mapping pass:
 
 Current Cue-centric override: older prototype mappings for grouped Search or
 Shiori cards, disclosure headers, and `Collapse All` are **Superseded**. They
-remain useful only as historical Liquid Glass references. Search, Shiori, and
-Context now share `SubtitleTableView` with native dynamic Cue rows; Playback
+remain useful only as historical Liquid Glass references. Search and Shiori
+share `SubtitleTableView` with native dynamic Cue rows; Playback
 Subtitle Focus is a native virtual reel. These native-only surfaces take
 precedence over conflicting `ui-selectable-card` prototype mappings.
 
@@ -97,7 +97,7 @@ Expected SwiftUI building blocks:
 | `LiquidGlassSegmentedControl` | Two or more compact segmented options. |
 | `LiquidGlassSelectableCard` | Selectable result-style card surface. |
 | `LiquidGlassSelectableRow` | Selectable sidebar/list row surface. |
-| `SubtitleTableView` | Native AppKit virtual table shared by Search, Shiori, and Search-hosted Context; owns dynamic Cue row measurement, drawing, scroll anchoring, and table-local interaction. |
+| `SubtitleTableView` | Native AppKit virtual table shared by Search and Shiori; owns dynamic Cue row measurement, drawing, scroll anchoring, and table-local interaction. |
 | `PlaybackSubtitleFocusReelRepresentable` | Native AppKit virtual Cue reel; owns visible-plus-overscan measurement and accepted fitting/oversized Focus placement. |
 | `LiquidGlassSlider` | Playback progress and volume slider family. |
 | `LiquidGlassPopupMenu` | Rounded-rectangle popup menu and menu item family. |
@@ -130,7 +130,7 @@ live in that owner, not in individual call sites.
 | `ui-segmented-control` | Segmented control container | `LiquidGlassSegmentedControl` | Playback side-panel tabs. |
 | `ui-segmented-control__option` | Segmented control option | `LiquidGlassSegmentedControl.Option` | Search Results and Subtitles tab buttons. |
 | `ui-selectable-card` | Selectable card | `LiquidGlassSelectableCard` | Current production use is Library episode-card styling only. Search and Shiori `result-card` mappings are Superseded by the native Cue table. The Library episode card may draw the shared card tokens directly so its Library-launched playing treatment remains distinct from selection state. |
-| Native-only Cue table row | Content-driven primary-Cue row | `SubtitleTableView` | Search, Shiori, and Context. Height is `16 + 24P + 20S`; all Cue lines render; optional additional Cues appear above the unchanged primary Cue identity. Width and `Show Cue Group` reflow affect visible rows plus overscan only. |
+| Native-only Cue table row | Content-driven primary-Cue row | `SubtitleTableView` | Search and Shiori. Height is `16 + 24P + 20S`; all Cue lines render; optional additional Cues appear above the unchanged primary Cue identity. Width and `Show Cue Group` reflow affect visible rows plus overscan only. |
 | Native-only Current Cue | Content-driven Cue reel item | `PlaybackSubtitleFocusReelRepresentable` | One exact Cue per item. Nominal content height is `52L`; natural height is `max(52L, visual-line stack height) + 24`; resolved height is viewport-clamped; fitting Cues center on the Focus Anchor and oversized Cues use head-first top placement. |
 | `ui-selectable-row` | Selectable sidebar row | `LiquidGlassSelectableRow` | Playback side-panel result and subtitle rows. |
 | `ui-popup-menu` | Rounded-rectangle popup menu | `LiquidGlassPopupMenu` | Playback speed menu. |
@@ -143,7 +143,7 @@ live in that owner, not in individual call sites.
 | `ui-feedback-hud--text-capsule` | Text-only feedback capsule modifier | `LiquidGlassFeedbackOverlay.HUD.Kind.textCapsule` | Independent compact capsule HUD for text-only feedback such as fullscreen enter and exit. No icon slot or icon spacing is reserved. |
 | `ui-feedback-icon` | Feedback icon | `LiquidGlassFeedbackOverlay.Icon` | Command icon inside the transient video feedback HUD; omitted for text-only fullscreen enter and exit feedback. |
 | `ui-feedback-label` | Feedback label | `LiquidGlassFeedbackOverlay.Label` | Short command or state label inside the transient video feedback HUD. |
-| `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Playback side-panel rows, selected toggles, and selected menu items. Native Search/Shiori/Context Cue tables use their declared checkbox/focus state rather than retained card selection. Library's playing indicator is a separate ongoing-playback treatment. |
+| `ui-is-selected` | Selected state marker | `LiquidGlassControlState.selected` | Playback side-panel rows, selected toggles, and selected menu items. Native Search/Shiori Cue tables use their declared checkbox/focus state rather than retained card selection. Library's playing indicator is a separate ongoing-playback treatment. |
 | `ui-is-active` | Active state marker | `LiquidGlassControlState.active` | Active segmented option and active transient control states. |
 
 ### 5.1 Video-page top bar anchors (v6)
@@ -183,7 +183,6 @@ Retired active-target components:
 | Topbar mode buttons | `ui-icon-button--topbar` | `LiquidGlassIconButton.Kind.topbar` | `activateWorkbenchPanelMode`. |
 | Topbar Search | `ui-input-capsule`, `ui-icon-button--embedded` | `LiquidGlassSearchField` | `TopbarSearchInputState`, latest-edit-wins live Search with a `100ms` debounce; Return is not a submit command. |
 | Search page | Native-only Cue table; grouped-card prototype is Superseded | Search page shell plus `SubtitleTableView` | Individual-Cue query/pages/counts and stable row identity. Dynamic measurement, `Show Cue Group`, and scroll-anchor correction are table-presentation concerns only. |
-| Search-hosted Context | Native-only Cue table | Context mode plus `SubtitleTableView` | Exact primary-Cue Context scope, Search columns, dynamic geometry, and primary-Cue return identity. |
 | Library page | `.library-state`, episode cards | Library page view plus disclosure and episode card components | Existing Library folder grouping, collapse state, open video behavior. |
 | Shiori page | Native-only Cue table; grouped-card prototype is Superseded | Shiori page shell plus `SubtitleTableView` | One-Cue Shiori/tag identity, dynamic geometry, exact-Cue open/remove actions, and presentation-only optional Cue Group context. |
 | Info-page empty / loading / failed / no-results states | State demo `.state-view`, `.state-spinner`, `.load-more` (separate `ui/state-demos/info-page-card-states/` prototype, outside `ui/prototypes/`) | Shared info-page state views (`SearchStatus`-driven Search states; Library `selectedFolders`/`libraryStatus`; Shiori empty) | `SearchStore` / `LibraryStore` / `ShioriStore` status; see doc 12 §6.1/§7.1/§8. Provisional state authority only (condition→state + whether it animates), not final visual. |
@@ -218,7 +217,7 @@ SwiftUI must represent the same state vocabulary as the HTML prototype.
 | `[disabled]` | `Environment(\.isEnabled)` | Disabled visual treatment must be owned by the component style. |
 | `aria-pressed="true"` | Boolean binding such as `isSelected` | Used by toggle controls. It does not imply `ui-is-selected` unless the component mapping explicitly uses selected visual styling. |
 | `aria-expanded="true"` | Boolean binding such as `isExpanded` | Used by menus and disclosure controls. The retired source/title capsule must not be reintroduced as the expanded-playback toggle. |
-| `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state for playback side-panel rows and selected controls only. Native Search/Shiori/Context tables do not inherit the retired main-page card selection treatment. |
+| `ui-is-selected` | `LiquidGlassControlState.selected` | Persistent selected state for playback side-panel rows and selected controls only. Native Search/Shiori tables do not inherit the retired main-page card selection treatment. |
 | `ui-is-active` | `LiquidGlassControlState.active` | Active tab or active transient selection. |
 | `.is-dragging` | `@GestureState` or local drag state | Sliders should use this for thumb and track emphasis. |
 | `body[data-theme]` | `AppAppearanceMode` / color scheme | Theme tokens should derive from App appearance mode, not prototype-only controls. |
@@ -269,8 +268,8 @@ role, not by copying CSS names mechanically.
 | `--hairline`, `--hairline-soft` | `LiquidGlassTokens.hairline` | Borders and separators. |
 | `--text`, `--text-2`, `--text-3`, `--text-4` | `LiquidGlassTokens.text` | Primary through quaternary text roles. |
 | `--accent`, `--accent-soft` | `LiquidGlassTokens.accent` | App accent emphasis and soft selected treatment. |
-| `--card-*`, `--card-selected-*`, `--row-*` | `LiquidGlassTokens.selectableCardSurface` | Library cards, playback-side-panel rows, and historical prototype references. They do not define native Search/Shiori/Context Cue-table geometry or selection. |
-| Native Table Row tokens | `SubtitleTableCueGeometry` plus table drawing tokens | Search/Shiori/Context row padding, 24-point primary line height, 20-point additional line height, dynamic measurement, and scoped hover/menu drawing. |
+| `--card-*`, `--card-selected-*`, `--row-*` | `LiquidGlassTokens.selectableCardSurface` | Library cards, playback-side-panel rows, and historical prototype references. They do not define native Search/Shiori Cue-table geometry or selection. |
+| Native Table Row tokens | `SubtitleTableCueGeometry` plus table drawing tokens | Search/Shiori row padding, 24-point primary line height, 20-point additional line height, dynamic measurement, and scoped hover/menu drawing. |
 | Native Playback Multi-Module Overlay tokens | `PlaybackSubtitleFocusMetrics`, `PlaybackMultiModuleOverlayMetrics`, `PlaybackCueResultMetrics` | Current 52-point nominal line height, measured font-run typographic bounds, 5-pixel internal line gap, 12-point vertical padding, and 8-point Cue gap; fixed Sidebar; Cue Result Primary/Cue Group typography, equal internal line spacing, dynamic height, viewport-clamped placement, and shared virtual-reel behavior. |
 | `--highlight`, `--highlight-text` | `LiquidGlassTokens.searchHighlight` | Search match highlighting. |
 | `--search-page-*` | Page-specific semantic tokens | Info-page (Search / Library / Shiori) surface; page background light `#f4f4f6` / dark `#1f2027`. Concrete confirmed values: proposal "P5.2-B Confirmed Pixel Spec". |
@@ -344,7 +343,7 @@ Open questions before this document becomes accepted:
 - Superseded (Cue-centric UI, 2026-07): the v6 decision that
   `ui-selectable-card` covered Search, Shiori, and Library now applies only to
   historical prototypes and current Library styling. Search and Shiori use the
-  native Cue table; Context shares that table contract.
+  native Cue table.
 - Should topbar Library and Shiori buttons be modeled as `topbar` plus
   `toggle`, or as a distinct topbar-toggle variant?
 - Should fullscreen playback chrome use the exact bottom-player component with

@@ -58,7 +58,7 @@ Normal non-diagnostic app runs should not emit `com.cueseeker.perf` logs.
 The cross-domain Library, Playback, and Search isolation goals in this procedure
 remain current. Its older grouped Search-card and `Collapse All` actions are
 Superseded and must be skipped or replaced by the native Cue-table actions in
-section 6. Use section 6 for Search, Shiori, Context, dynamic row geometry, and
+section 6. Use section 6 for Search, Shiori, dynamic row geometry, and
 `Show Cue Group` refresh-scope acceptance; retain the other isolation checks
 below.
 
@@ -640,7 +640,7 @@ The gate passes only if:
 
 ### Goal
 
-Verify that Search, Shiori, and Search-hosted Context present individual Cues
+Verify that Search and Shiori present individual Cues
 through the shared native virtual table, render complete dynamic-height content,
 and isolate `Show Cue Group` and width reflow from query/data and unrelated UI.
 
@@ -664,7 +664,6 @@ The relevant scoped counters use these families:
 
 ```text
 table.search.*
-table.context.*
 table.shiori.*
 playback.render_host_*
 ```
@@ -681,8 +680,7 @@ Within each table family, inspect `native_make`, `native_update`,
   the same Cue Group, plus one-line and multi-line primary Cues.
 - Include enough rows to scroll, with source line breaks and text that wraps
   when the window narrows.
-- Save at least one fixture Cue to Shiori and ensure it can be opened in
-  Search-hosted Context.
+- Save at least one fixture Cue to Shiori.
 - In Settings / Search, confirm `Show Cue Group` exists immediately below
   Search Scope as a native switch.
 - Record the short commit hash with `git rev-parse --short HEAD`.
@@ -703,24 +701,21 @@ After each action, wait two seconds and preserve the corresponding log block.
    Confirm additional Cues appear below each primary Cue in smaller, more muted
    text while the same primary Cue remains the row and action identity.
 5. With `Show Cue Group` On, left-click and right-click additional Cue text.
-   Confirm the shared interaction region uses the primary Cue for Play,
-   Context, and Copy Cue Text; confirm Copy Cue Group Text is additionally
-   available. Turn the switch Off and confirm only the extra menu item and
-   additional text disappear.
-6. Open Context from the distinctive primary Cue and repeat the width and
-   `Show Cue Group` checks. Confirm Context uses the same dynamic table contract
-   and returns to the exact primary Cue.
-7. Open Shiori and type a query one character at a time. Confirm results and the
+   Confirm the shared interaction region uses the primary Cue for Play and Copy
+   Cue Text, Copy Cue Group Text is additionally available, and no menu item is
+   named `Context`. Turn the switch Off and confirm only the extra menu item
+   and additional text disappear.
+6. Open Shiori and type a query one character at a time. Confirm results and the
    exact result count update without Return, only Primary Cue text matches, and
    a Display Title-only query returns no rows. Repeat the Cue presentation checks
    on a saved Cue; confirm its Cue, time, and date identity remain unchanged and
    the table is not reloaded merely because presentation changed. Confirm no
    Shiori Tags column or interaction is present.
-8. Set `Show Cue Group` On and quit. Start the performance log before relaunch,
+7. Set `Show Cue Group` On and quit. Start the performance log before relaunch,
    then open the same table for its first mount. Confirm its first visible
    presentation is already On, with no intermediate Off frame and no redundant
    owner update caused solely by initial preference hydration.
-9. Cover that On table with the playback page and turn `Show Cue Group` Off.
+8. Cover that On table with the playback page and turn `Show Cue Group` Off.
    Confirm no covered-table work occurs. Close playback and confirm the newly
    visible table applies Off exactly once without rebuilding the playback render
    host. Quit and relaunch once more to confirm Off persisted.
@@ -728,8 +723,8 @@ After each action, wait two seconds and preserve the corresponding log block.
 ### Evidence To Paste Back
 
 - The short commit hash and pass/fail for each numbered action.
-- Before/after screenshots for width reflow and `Show Cue Group` on Search,
-  Context, and Shiori.
+- Before/after screenshots for width reflow and `Show Cue Group` on Search and
+  Shiori.
 - The scoped counter deltas for each action, including any
   `playback.render_host_*` changes.
 - The visible result count and stable primary Cue identity used for the anchor
@@ -739,7 +734,7 @@ After each action, wait two seconds and preserve the corresponding log block.
 
 The gate passes only if:
 
-- Search count, pagination, selection, Context return, and actions are based on
+- Search count, pagination, selection, and actions are based on
   individual Cues; sibling matches from one Cue Group remain distinct.
 - Every primary and displayed additional Cue line is visible. Row geometry
   follows `16 + 24P + 20S`, including width wrapping and source line breaks.
@@ -747,12 +742,12 @@ The gate passes only if:
   presentation-only. It changes neither query execution, row identity snapshot,
   result count, sorting, selection, primary Cue identity, nor action target.
 - Width and preference changes remeasure only visible rows plus overscan for the
-  currently eligible surface. Search, Context, and Shiori counters remain
+  currently eligible surface. Search and Shiori counters remain
   independently scoped; hidden surfaces may defer work until visible.
 - Reflow preserves the anchored primary Cue and its first visual line's
   screen-space position instead of preserving only a raw scroll offset.
 - No table presentation action rebuilds Library, recreates the playback render
-  host, reruns Search, rebuilds Context scope, or reloads Shiori data.
+  host, reruns Search, or reloads Shiori data.
 - No rainbow cursor, scroll jump, stale row, duplicate row, clipped Cue, or
   action retargeting occurs.
 
@@ -1075,7 +1070,7 @@ pbpaste
     Hide Pointer with a key and confirm Hover cannot change Selected; reveal it
     by movement, then scroll a new card under the stationary Pointer and confirm
     the new Hover target becomes Selected. Exercise the card context menu and
-    confirm it has the Workbench actions except `Context`, and that its actions
+    confirm it has the accepted actions, no item named `Context`, and its actions
     remain locked to the right-clicked card until close. Click another Sidebar
     module and then click Recent; take
     Recent-after and confirm the selected identity and named card's top-edge
@@ -1095,7 +1090,7 @@ pbpaste
     the first available Folder is selected, use all four arrows, scroll, and
     take Library-Folder-before.
     Before entering, verify Folder Hover and its shared card context menu with
-    no `Context` item. Selected Folder must reuse the full-card Hover visual;
+    no item named `Context`. Selected Folder must reuse the full-card Hover visual;
     Selected Episode must reuse only the Cover Region Hover visual. Neither may
     add a Focus Ring, border, or independent selected fill. Press Enter
     once to open the selected Folder and confirm a held/repeating Enter does not

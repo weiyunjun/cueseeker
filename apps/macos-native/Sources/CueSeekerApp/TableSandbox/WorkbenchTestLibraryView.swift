@@ -513,7 +513,6 @@ struct RecentWatchingGrid: View {
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHoverSelection = false
     var onHoverSelection: (RecentLibraryWatchingPresentation) -> Void = { _ in }
-    var showsContextMenuItem = true
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
     private var columns: [GridItem] {
@@ -539,8 +538,7 @@ struct RecentWatchingGrid: View {
                         actions: .appState(appState),
                         openContextMenu: openContextMenu,
                         allowsHoverSelection: allowsHoverSelection,
-                        onHoverSelection: { onHoverSelection(item) },
-                        showsContextMenuItem: showsContextMenuItem
+                        onHoverSelection: { onHoverSelection(item) }
                     ) {
                         onOpen(item)
                     }
@@ -591,7 +589,6 @@ private struct LibraryCardActionHandlers {
     let changeCover: (LibraryUserCoverTarget) -> Void
     let markVideo: (LibraryVideo, LibraryWatchState) -> Void
     let markFolder: (String, LibraryWatchState) -> Void
-    let openVideoContext: (LibraryVideo, String) -> Void
 
     static func appState(_ appState: AppCoordinator) -> LibraryCardActionHandlers {
         LibraryCardActionHandlers(
@@ -599,8 +596,7 @@ private struct LibraryCardActionHandlers {
             openFolder: { appState.openFolder(atPath: $0) },
             changeCover: { appState.beginChangingLibraryCover(target: $0) },
             markVideo: { appState.markLibraryVideo($0, as: $1) },
-            markFolder: { appState.markCompleteLibraryFolder(folderPath: $0, as: $1) },
-            openVideoContext: { appState.openLibraryVideoContext($0, displayTitle: $1) }
+            markFolder: { appState.markCompleteLibraryFolder(folderPath: $0, as: $1) }
         )
     }
 }
@@ -612,7 +608,6 @@ private struct RecentWatchingCard: View {
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let allowsHoverSelection: Bool
     let onHoverSelection: () -> Void
-    let showsContextMenuItem: Bool
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -699,7 +694,7 @@ private struct RecentWatchingCard: View {
     }
 
     private var recentContextMenuItems: [LibraryCardContextMenuItem] {
-        var items = [
+        [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 actions.revealFile(item.videoPath)
             },
@@ -719,14 +714,6 @@ private struct RecentWatchingCard: View {
                 actions.markVideo(item.libraryVideo, .watching)
             }
         ]
-        if showsContextMenuItem {
-            items.append(
-                LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
-                    actions.openVideoContext(item.libraryVideo, contextDisplayTitle)
-                }
-            )
-        }
-        return items
     }
 
     private var episodeLabel: String {
@@ -737,13 +724,6 @@ private struct RecentWatchingCard: View {
         LibraryWatchStatus(item.watchState)
     }
 
-    private var contextDisplayTitle: String {
-        let trimmedDisplayTitle = item.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedDisplayTitle.isEmpty {
-            return trimmedDisplayTitle
-        }
-        return item.folderTitle
-    }
 }
 
 struct CompleteLibraryFolderGrid: View {
@@ -925,9 +905,6 @@ enum CompleteLibraryEpisodeGridMode: Equatable {
         self == .playback
     }
 
-    var showsContextMenuItem: Bool {
-        self == .workbench
-    }
 }
 
 struct CompleteLibraryEpisodeGrid: View {
@@ -956,8 +933,7 @@ struct CompleteLibraryEpisodeGrid: View {
                             openContextMenu: openContextMenu,
                             allowsHoverSelection: mode.displaysPersistentSelection
                                 && allowsHoverSelection,
-                            onHoverSelection: { onHoverSelection(video) },
-                            showsContextMenuItem: mode.showsContextMenuItem
+                            onHoverSelection: { onHoverSelection(video) }
                         ) {
                             onOpen(video)
                         }
@@ -1003,7 +979,6 @@ private struct LibraryEpisodeCard: View {
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let allowsHoverSelection: Bool
     let onHoverSelection: () -> Void
-    let showsContextMenuItem: Bool
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -1122,7 +1097,7 @@ private struct LibraryEpisodeCard: View {
     }
 
     private var episodeContextMenuItems: [LibraryCardContextMenuItem] {
-        var items = [
+        [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
                 actions.revealFile(video.videoPath)
             },
@@ -1142,14 +1117,6 @@ private struct LibraryEpisodeCard: View {
                 actions.markVideo(video.libraryVideo, .watching)
             }
         ]
-        if showsContextMenuItem {
-            items.append(
-                LibraryCardContextMenuItem(title: "Context", systemImage: "doc.text") {
-                    actions.openVideoContext(video.libraryVideo, displayTitle)
-                }
-            )
-        }
-        return items
     }
 
     private var displayTitle: String {

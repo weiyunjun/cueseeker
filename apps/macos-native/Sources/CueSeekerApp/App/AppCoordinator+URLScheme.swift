@@ -49,7 +49,6 @@ extension AppCoordinator {
         case let .search(keyword):
             search.updateSearchFacetFilter(settings.searchFacetFilter)
             search.updateActiveFilterSet(SubtitleSearchFilterSet())
-            search.updateContextRequest(nil)
             search.updateNavigationSnapshot(nil)
             guard settings.urlSchemePlayFirstSearchResultEnabled else {
                 presentURLSchemeSearch(

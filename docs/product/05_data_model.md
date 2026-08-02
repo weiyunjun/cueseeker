@@ -248,7 +248,7 @@ Notes:
   identity are resolved per cue line.
 - Cue Group context may be loaded for presentation and `Copy Cue Group Text`,
   but it must not replace the primary Cue identity used by selection, playback,
-  Context, Shiori, copy-Cue, or export actions.
+  Shiori, copy-Cue, or export actions.
 - Playback should resolve the target media file through the active subtitle-to-video match, not through subtitle path naming assumptions.
 - The current native schema uses first-class subtitle files, video files,
   subtitle-to-video matches, cue groups, and cue lines. The older M1
@@ -261,7 +261,7 @@ A subtitle cue line represents one displayable/searchable line inside a cue
 group.
 
 The cue line is the product-level Cue and the base unit for Search, Shiori,
-Context, Playback Multi-Module Overlay Cue results, copy actions, and exports.
+Playback Multi-Module Overlay Cue results, copy actions, and exports.
 
 One source SRT block remains one Cue even when its text contains explicit line
 breaks. One searchable ASS `Dialogue` event is one Cue. Visual wrapping and

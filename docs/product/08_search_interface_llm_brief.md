@@ -12,8 +12,8 @@ without needing to infer everything from source code.
 
 CueSeeker is a native macOS subtitle search and playback tool. Search accepts a
 query, presents individual Cue rows in a native virtual table, and opens or
-seeks playback from the exact selected Cue timestamp. Search, Shiori, and
-Search-hosted Context share the same Cue-centric table model.
+seeks playback from the exact selected Cue timestamp. Search and Shiori share
+the same Cue-centric table model.
 
 This brief originally described a grouped-card Search workspace. The current
 normative contract is the section immediately below. Sections explicitly
@@ -38,15 +38,14 @@ feed, or media library home screen.
 
 - Search results are a flat ordered sequence of individual primary Cues.
   Result count, row identity, selection, pagination, sorting, playback,
-  Context, Shiori, copy, and export actions all use that Cue identity.
-- Search, Shiori, and Search-hosted Context use the same native AppKit virtual
+  Shiori, copy, and export actions all use that Cue identity.
+- Search and Shiori use the same native AppKit virtual
   table. They do not use grouped cards, subtitle-file group headers, disclosure
   rails, or `Collapse All`.
-- Search and Context columns are Selection, Display Title, Cues, and Time.
+- Search columns are Selection, Display Title, Cues, and Time.
   Shiori columns are Selection, Display Title, Cues, Tags, Time, and Date Added.
 - Search query highlighting may emphasize matches inside the primary Cue text.
-  Context and the complete-subtitle playback list do not apply Search query
-  highlighting.
+  The complete-subtitle playback list does not apply Search query highlighting.
 
 ### Dynamic Row Geometry
 
@@ -72,8 +71,8 @@ feed, or media library home screen.
 - Off renders only the primary Cue. On renders every additional Cue from the
   same Cue Group above it with smaller, more muted typography and a `20pt` line
   height.
-- The setting is presentation-only. It must not rerun Search, rebuild Context,
-  mutate Shiori, change result count, reorder rows, change selection identity,
+- The setting is presentation-only. It must not rerun Search, mutate Shiori,
+  change result count, reorder rows, change selection identity,
   replace the primary Cue, or retarget actions.
 - When On, the complete displayed Cue Group shares one hover, pointer, click,
   and context-menu region. Additional Cues never become independent action
@@ -90,7 +89,7 @@ feed, or media library home screen.
 - Query, filter, page, and ordering changes may rebuild the Search row
   snapshot. Hover, width reflow, and `Show Cue Group` must not rerun Search or
   rebuild row identity.
-- Hidden Search, Shiori, and Context surfaces may defer data presentation work
+- Hidden Search and Shiori surfaces may defer data presentation work
   until visible. Table-only interaction must not invalidate Library, playback
   render hosting, the App topbar, or unrelated surfaces.
 
@@ -98,8 +97,7 @@ feed, or media library home screen.
 
 - Clicking the Cues interaction region plays from the primary Cue's own start
   time. Displaying additional Cue Group context cannot change that target.
-- Context opens around the exact primary Cue. Shiori saves that Cue, and tags
-  attach to that Cue.
+- Shiori saves the exact primary Cue, and tags attach to that Cue.
 - The video-page Results list follows the same stable individual-Cue order.
 
 ### Playback Multi-Module Overlay
@@ -963,8 +961,8 @@ Use this when asking another AI to discuss the Search UI:
 ```text
 You are reviewing CueSeeker, a native macOS subtitle search and playback app.
 Users type a query and scan a native virtual table of individual Cue rows.
-Search and Context use Selection, Display Title, Cues, and Time; Shiori adds
-Tags and Date Added. Rows show all subtitle text with content-driven height
+Search uses Selection, Display Title, Cues, and Time; Shiori adds Tags and Date
+Added. Rows show all subtitle text with content-driven height
 16 + 24P + 20S. Show Cue Group defaults Off and only adds muted context above
 the primary Cue; it never changes identity or action targets. There are no
 grouped cards, disclosure headers, or Collapse All. Selecting a row plays from

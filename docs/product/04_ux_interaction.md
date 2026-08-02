@@ -115,12 +115,12 @@ Accepted topbar Search transition:
 
 Current Cue-centric table behavior:
 
-- Search, Shiori, and Search-hosted Context use the same native virtual table.
+- Search and Shiori use the same native virtual table.
   Every row, result count, selection identity, default action, and pagination
   position represents one primary Cue rather than a Cue Group or subtitle-file
   group.
-- Search and Context show Selection, Display Title, Cues, and Time. Shiori adds
-  Tags and Date Added.
+- Search shows Selection, Display Title, Cues, and Time. Shiori adds Tags and
+  Date Added.
 - The table has no subtitle-file disclosure headers, grouped cards, or
   `Collapse All` interaction. Search pagination loads 100 individual Cues per
   page.
@@ -134,8 +134,8 @@ Current Cue-centric table behavior:
 - Settings > Search places `Show Cue Group` below Search Scope. It is a native
   persistent switch that defaults to Off. Off shows only the primary Cue. On
   adds the remaining Cue Group content above it using smaller, more muted text.
-- `Show Cue Group` is presentation-only. It must not rerun Search, rebuild
-  Context, alter Shiori data, change counts, ordering, selection, or action
+- `Show Cue Group` is presentation-only. It must not rerun Search, alter Shiori
+  data, change counts, ordering, selection, or action
   targets. When On, all displayed Cue text shares one interaction region while
   the primary Cue remains the action target.
 - `Copy Cue Text` always copies the exact primary Cue. `Copy Cue Group Text`
@@ -182,7 +182,7 @@ behavior above take precedence.
 ### Legacy Grouped Result And Row Rules (Superseded)
 
 The following historical rules are retained only to explain the former Search
-implementation. They must not guide current Search, Shiori, or Context UI;
+implementation. They must not guide current Search or Shiori UI;
 the Cue-centric table contract above has precedence.
 
 - Search results should be grouped by subtitle file in a single flat level.
@@ -380,7 +380,7 @@ Responsiveness boundaries:
 
 When the user selects a result:
 
-- Search, Shiori, and Context resolve the selected row as one exact primary
+- Search and Shiori resolve the selected row as one exact primary
   Cue. Optional displayed Cue Group context never becomes the selection or
   playback target.
 - The visible selected-row treatment belongs to the playback side panel. Right
@@ -530,7 +530,7 @@ Playback Multi-Module Overlay interaction:
   `Show Cue Group` is presentation-only across Playlist, Search, and Shiori;
   `S`, `C`, and Enter continue to target only the selected Primary Cue.
 - Recent and Library preserve their existing card primary actions and shared
-  context menus, except Playback omits the Workbench-only `Context` item.
+  context menus.
   Recent starts on the first available item. Library starts on the first
   available Folder, Enter opens that Folder in the same Session, Back restores
   the Folder selection and offset, and Detail starts on the first available
@@ -698,7 +698,7 @@ Library behavior:
   collapse. The chevron sits on the left of the folder row as a visual
   indicator and rotates between `0°` (collapsed) and `90°` (expanded) over
   `160ms` with an ease curve when toggled. This is a Library-only disclosure
-  pattern; Search, Shiori, and Context use the ungrouped native Cue table.
+  pattern; Search and Shiori use the ungrouped native Cue table.
 - Videos inside a folder should be sorted with the same Finder-like natural
   ordering used to derive the row rank.
 - Expanded folders should show a numbered episode-button grid where each
@@ -867,7 +867,7 @@ Expected behavior:
   selected folders, remove folders with confirmation, and show indexing status.
 - `Search` contains Search Scope and, immediately below it, the native
   `Show Cue Group` switch. The switch defaults to Off, persists across launches,
-  and changes only Workbench Search, Shiori, Context, and Playback
+  and changes only Workbench Search, Shiori, and Playback
   Playlist/Search/Shiori Cue presentation; it must not rerun queries, rebuild
   scope, mutate Shiori, alter counts or identity, or retarget actions.
 - `Search` also contains the persisted `Prefill with Focused Cue` switch,

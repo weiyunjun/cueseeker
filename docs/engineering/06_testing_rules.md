@@ -276,8 +276,7 @@ Required M2 playback interaction checks:
 - Overlay action feedback renders above the Overlay. Cue Result hover and click
   do nothing; Up, Down, wheel, trackpad, and scrollbar navigation still work.
   Recent and Library reuse their existing pointer, hover, and context-menu
-  regions; Playback omits only the Workbench `Context` menu item. Selected
-  reuses Hover visuals and adds no Focus Ring.
+  regions. Selected reuses Hover visuals and adds no Focus Ring.
 - A Cue action accepted during reel motion executes once against the final
   settled target. Module switching preserves each module's Session state;
   Escape, playback actions, Playback Page close, source replacement, and stop
@@ -849,7 +848,7 @@ Required renderer checks:
 
 ## 19. Cue-Centric Table And Playback Multi-Module Overlay Coverage
 
-Search, Shiori, Context, and the Playback Multi-Module Overlay are complete only
+Search, Shiori, and the Playback Multi-Module Overlay are complete only
 when their individual-Cue identity, dynamic geometry, module state, and
 invalidation boundaries are verified together.
 
@@ -858,8 +857,8 @@ Required Cue-table coverage:
 - Search pagination and exact result counts use individual Cues. Multiple
   matching Cues from one Cue Group remain separate rows with separate stable
   identities and action targets.
-- Search and Search-hosted Context use the Search table columns; Shiori uses its
-  declared Cue, time, and date columns. All three surfaces use the same
+- Search uses its declared columns; Shiori uses its declared Cue, time, and
+  date columns. Both surfaces use the same
   native virtual Cue-table geometry and interaction contract.
 - Shiori search updates from each input change, reuses Search's Primary Cue
   matcher without matching Display Title, and exposes its exact result count
@@ -876,11 +875,11 @@ Required Cue-table coverage:
   the primary Cue.
 - Toggling `Show Cue Group` or changing the Cues-column width remeasures only
   visible rows plus overscan. It must not rerun Search, rebuild the row identity
-  snapshot, change Context scope, reload Shiori data, change counts, reorder
+  snapshot, reload Shiori data, change counts, reorder
   rows, retarget actions, or recreate the playback render host.
 - Dynamic reflow preserves a stable scroll anchor consisting of the primary Cue
   identity and its first visual line's screen-space position. Probe tests must
-  distinguish Search, Context, and Shiori measurement, draw, owner-update, and
+  distinguish Search and Shiori measurement, draw, owner-update, and
   anchor-correction counters.
 
 Required Playback Multi-Module Overlay coverage:

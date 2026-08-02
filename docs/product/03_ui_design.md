@@ -51,9 +51,9 @@ First implementation requirements:
 - Show live Search results in the main content area.
 - Render Search results as individual Cue rows in the shared native virtual
   table described in section 4.1.
-- Render Shiori and Context with the same Cue-row table geometry and interaction
-  model as Search, with Shiori-only Tags and Date Added columns.
-- Search, Shiori, and Context rows must show the complete Cue text without
+- Render Shiori with the same Cue-row table geometry and interaction model as
+  Search, with Shiori-only Tags and Date Added columns.
+- Search and Shiori rows must show the complete Cue text without
   clipping, truncation, ellipsis, or a line-count cap.
 - Row height is content-driven rather than equalized across neighboring rows.
 - Table metadata uses Display Title, Time, and the surface-specific columns
@@ -131,12 +131,12 @@ Stable design snapshot:
   The expanded playback state shows the video-page bottom player while
   replacing the main results area with a video surface and optional right side
   panel.
-- Search, Shiori, and Context use an ungrouped native virtual table whose row
+- Search and Shiori use an ungrouped native virtual table whose row
   identity and default action target are one primary Cue. They have no
   subtitle-file disclosure header or `Collapse All` action.
 - Search query matches may remain highlighted inside the primary Cue text.
   Library can continue to use its accepted card and disclosure presentation;
-  that Library pattern does not define Search, Shiori, or Context.
+  that Library pattern does not define Search or Shiori.
 - Export actions operate on selected Cue rows rather than on subtitle-file
   group headers.
 - The expanded video surface is a black playback frame with a subtitle overlay.
@@ -210,7 +210,7 @@ Stable design snapshot:
   prototype and are not part of the native App layout.
 - Prototype interactions include historical group disclosure and global group
   collapse controls for visual comparison only; those two interactions are
-  superseded for Search, Shiori, and Context. Subtitle overlay toggling,
+  superseded for Search and Shiori. Subtitle overlay toggling,
   side-panel visibility toggling, Shiori stateful command feedback, transport
   feedback, playback close, fullscreen feedback, and speed-menu selection
   remain useful prototype references.
@@ -227,8 +227,8 @@ Current component classification:
 | Topbar Search input | Search field capsule |
 | Topbar Search clear action | Embedded circular icon button |
 | Search results summary row | Status summary row |
-| Search / Shiori / Context results | Native virtual table |
-| Search / Context row | Individual primary Cue table row |
+| Search / Shiori results | Native virtual table |
+| Search row | Individual primary Cue table row |
 | Shiori row | Individual saved-Cue table row |
 | Legacy `Collapse All`, result group, and result card | Superseded prototype-only components |
 | Search match highlight | Inline text highlight |
@@ -431,9 +431,9 @@ Accepted first Library panel direction:
   normal left padding.
 - A single chevron on the left of the folder row indicates expand or
   collapse state. The chevron rotates between `0°` (collapsed) and `90°`
-  (expanded) over `160ms` with an ease curve when toggled. Search, Shiori, and
-  Context no longer share this disclosure pattern because their current
-  presentation is an ungrouped Cue table.
+  (expanded) over `160ms` with an ease curve when toggled. Search and Shiori no
+  longer share this disclosure pattern because their current presentation is
+  an ungrouped Cue table.
   The full folder row is the click target that toggles expand or collapse.
 - Expanded folders show a numbered button grid using each video's one-based
   natural-sort sibling rank. The grid does not display file names, durations,
@@ -459,20 +459,20 @@ Accepted first Library panel direction:
   Search results, Shiori, or any other surface must not toggle these Library
   indicators.
 
-## 4.1 Cue-Centric Search, Shiori, And Context Table
+## 4.1 Cue-Centric Search And Shiori Table
 
-This section is the current normative presentation for Search, Shiori, and
-Search-hosted Context. It supersedes every grouped-card, subtitle-file group,
+This section is the current normative presentation for Search and Shiori. It
+supersedes every grouped-card, subtitle-file group,
 disclosure-rail, and `Collapse All` description elsewhere in this document for
-those three surfaces. Library's own card and folder-disclosure design is not
+those two surfaces. Library's own card and folder-disclosure design is not
 affected.
 
-The three surfaces share one native AppKit virtual table model:
+The two surfaces share one native AppKit virtual table model:
 
 - Every row represents one primary Cue. Pagination, result counts, sorting,
   selection identity, default actions, Shiori identity, and export identity are
   all Cue-based.
-- Search and Context columns are Selection, Display Title, Cues, and Time.
+- Search columns are Selection, Display Title, Cues, and Time.
 - Shiori columns are Selection, Display Title, Cues, Tags, Time, and Date Added.
 - Display Title uses the subtitle file's immediate parent folder plus its
   one-based Finder-like natural-sort rank among same-extension siblings, with a
@@ -498,8 +498,8 @@ Search Scope. It defaults to Off and persists across launches:
 - Off shows only the primary Cue.
 - On adds every other Cue from that Cue Group above the primary Cue using the
   smaller, more muted secondary style and `20pt` line height.
-- This setting is presentation-only. It must not rerun Search, rebuild Context,
-  alter Shiori data, change result count, reorder rows, change selection, or
+- This setting is presentation-only. It must not rerun Search, alter Shiori
+  data, change result count, reorder rows, change selection, or
   retarget actions.
 - When On, all displayed Cue text shares one hover, click, and context-menu
   region, but the primary Cue remains the only default action target.
@@ -602,7 +602,7 @@ Legacy M1 search presentation (superseded and non-normative for result layout):
 ## 6. Legacy Search Result Group (Superseded, Non-Normative)
 
 This section is retained only as historical context for the former grouped
-Search design. It must not guide current Search, Shiori, or Context work; use
+Search design. It must not guide current Search or Shiori work; use
 section 4.1 instead.
 
 Each subtitle-file group should be compact and scannable. Search mode groups
@@ -799,13 +799,6 @@ Shiori mode required content:
 - Individual saved-Cue native virtual table using section 4.1.
 - Empty and error states.
 
-Context mode required content:
-
-- The Search-hosted Context scope for the requested primary Cue.
-- Individual-Cue native virtual table using the Search columns and section 4.1
-  geometry.
-- Complete Cue text and the same default action identity as Search.
-
 Future Search mode actions may include hover buttons and contextual menus on
 result rows. A result-level `Add to Queue` action is an accepted future
 direction for building playback queues from Search.
@@ -960,7 +953,7 @@ Panel visibility and list lifetime:
   like reopening the workbench. Library, Timeline, Shiori, Search, Queue, and
   Learning Session should preserve local scroll, collapse, selection, and draft
   state where practical.
-- Search, Shiori, and Context use a native virtual table that lays out visible
+- Search and Shiori use a native virtual table that lays out visible
   rows plus overscan rather than constructing the complete result set as
   SwiftUI row views.
 - Dense row lists should prefer lightweight row interactions. Hover buttons,
@@ -1019,10 +1012,10 @@ Required `Library` elements:
 
 The `Search` category exposes Search Scope and places a native macOS
 `Show Cue Group` switch immediately below it. The switch defaults to Off,
-persists across launches, and applies to Workbench Search, Shiori, and Context
+persists across launches, and applies to Workbench Search and Shiori
 and to Playback Playlist, Search, and Shiori. Changing it updates only Cue
 presentation and visible-plus-overscan measurement; it must not rerun Search,
-rebuild Context, alter Shiori data, change result count or identity, or retarget
+alter Shiori data, change result count or identity, or retarget
 any row action away from the Primary Cue.
 
 The `Search` category also exposes `Prefill with Focused Cue`. This native

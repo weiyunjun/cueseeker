@@ -30,12 +30,6 @@ func urlSchemeSearchPreservesFacetFilterAndForcesSearchRoute() throws {
             value: "old filter"
         )
     ]))
-    app.search.updateContextRequest(CueContextSearchRequest(
-        displayTitle: "Old context",
-        subtitlePath: "/tmp/old.ass",
-        targetCueID: 42
-    ))
-
     var presentationReadyCount = 0
     app.handleURLSchemeCommand(.search(keyword: "大丈夫")) {
         presentationReadyCount += 1
@@ -47,7 +41,6 @@ func urlSchemeSearchPreservesFacetFilterAndForcesSearchRoute() throws {
     #expect(app.search.activeFilterSet.isEffectivelyEmpty)
     #expect(app.search.searchFacetFilter == facetFilter)
     #expect(app.settings.searchFacetFilter == facetFilter)
-    #expect(app.search.cueContextSearchRequest == nil)
 }
 
 @MainActor

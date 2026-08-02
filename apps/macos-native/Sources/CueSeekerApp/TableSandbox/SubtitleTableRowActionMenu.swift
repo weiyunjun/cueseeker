@@ -1,7 +1,6 @@
 enum SubtitleTableRowAction: Hashable, Sendable {
     case play
     case openSubtitleFolder
-    case context
     case copyCueText
     case copyDeepLink
     case copyCueGroupText
@@ -16,8 +15,6 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return "Play"
         case .openSubtitleFolder:
             return "Open Subtitle Folder"
-        case .context:
-            return "Context"
         case .copyCueText:
             return "Copy Cue Text"
         case .copyDeepLink:
@@ -41,8 +38,6 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return "play.fill"
         case .openSubtitleFolder:
             return "folder"
-        case .context:
-            return "doc.text"
         case .copyCueText, .copyCueGroupText, .copyTimeRange:
             return "doc.on.doc"
         case .copyDeepLink:
@@ -78,7 +73,6 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
         var elements: [SubtitleTableRowActionMenuElement] = [
             .action(.play),
             .action(.openSubtitleFolder),
-            .action(.context),
             .divider,
             .action(.copyCueText),
             .action(.copyDeepLink),

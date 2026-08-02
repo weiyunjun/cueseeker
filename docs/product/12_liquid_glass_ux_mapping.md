@@ -35,7 +35,7 @@ Surfaces covered by this UX mapping:
 
 - Main workbench shell (info page only; hidden on the video page).
 - Topbar Library, Shiori, and Search controls (info page only).
-- Search results and Search-hosted Context in the native Cue table.
+- Search results in the native Cue table.
 - Library grouped episode grid.
 - Shiori in the native Cue table.
 - Playback Multi-Module Overlay with the native Current Cue reel, shared
@@ -169,7 +169,7 @@ The native App contract below supersedes conflicting grouped-card,
 subtitle-file disclosure, and `Collapse All` behavior retained from the v6 HTML
 prototype in sections 6.3-6.4:
 
-- Search and Search-hosted Context use `SubtitleTableView`; Shiori uses the same
+- Search uses `SubtitleTableView`; Shiori uses the same
   native virtual table contract with its additional Tags and Date Added cells.
 - Each row has one stable primary Cue identity. Search pages and exact counts
   use individual Cues, so two matching sibling Cues remain two rows.
@@ -177,14 +177,14 @@ prototype in sections 6.3-6.4:
   automatic wrapping visible. No Cue text may be truncated or line-limited.
 - `Show Cue Group` is a persisted native switch below Search Scope. Off renders
   only the primary Cue; On renders additional Cues above it in secondary type,
-  while selection, playback, Context, copy-Cue, and export targets remain the
+  while selection, playback, copy-Cue, and export targets remain the
   primary Cue.
 - While Show Cue Group is On, all displayed Cue text shares one hover, click,
   and context-menu region. `Copy Cue Text` still targets only the primary Cue;
   `Copy Cue Group Text` appears only while On and copies the displayed group.
 - Cues-column width and `Show Cue Group` changes may remeasure visible rows plus
   overscan only. They preserve the primary Cue plus first-line screen anchor
-  and must not rerun Search, rebuild Context scope, reload Shiori, change
+  and must not rerun Search, reload Shiori, change
   counts/ordering/identity, or recreate the playback render host.
 
 ### 6.1 Live Search Query And Page States
@@ -736,7 +736,7 @@ Rules:
 - If the current source is Search or Shiori, close must not read, write, or
   overwrite Library playback resume history.
 - Close must clear the selected overlay-panel row because there is no longer an
-  active playback identity. Native Search/Shiori/Context tables have no
+  active playback identity. Native Search/Shiori tables have no
   playback-derived card selection visual; Library's documented playing
   indicator is a separate source-specific state.
 - Close must not clear the active Workbench Search query, Search result list, database
@@ -998,7 +998,7 @@ Playback Multi-Module Overlay Cue geometry and selection are native-only:
   Shiori, Recent, and Library Feature state are not destroyed with the Session.
 - Layout and drawing are limited to visible Cues plus overscan and an explicit
   navigation target. Focus selection, motion, measurement, and deferred action
-  state remain overlay-local and must not invalidate Search, Shiori, Context,
+  state remain overlay-local and must not invalidate Search, Shiori,
   Library, or the playback render host.
 
 Command Panel focused-Cue prefill follows these rules:
@@ -1090,7 +1090,7 @@ Rules:
 - Switching modes changes visible surfaces, not the underlying data model.
 - Collapsing, expanding, hiding, or restoring panels changes layout state, not
   data state.
-- Search, Shiori, and Context use the native virtual Cue table so row view,
+- Search and Shiori use the native virtual Cue table so row view,
   measurement, and drawing work stays proportional to the visible range plus
   overscan rather than total Cue count.
 - Playback Multi-Module Overlay uses native virtual Cue documents. Current and

@@ -17,14 +17,12 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
         return
     }
 
-    let database = try #require(fixture.app.indexingDatabase)
     let searchDatabase = try #require(fixture.app.search.database)
-    let indexedSubtitle = try #require(try database.subtitleFiles().first)
-    let subtitleURL = URL(fileURLWithPath: indexedSubtitle.subtitlePath)
     let cueID = try #require(
-        try searchDatabase.firstCueID(
-            forSubtitleFile: subtitleURL
-        )
+        try searchDatabase.allCuesVisiblePage(
+            limit: 1,
+            cursor: .start
+        ).results.first?.entryID
     )
     let resolvedResult = try #require(try searchDatabase.cuePlaybackResult(cueID: cueID))
     #expect(resolvedResult.entryID == cueID)

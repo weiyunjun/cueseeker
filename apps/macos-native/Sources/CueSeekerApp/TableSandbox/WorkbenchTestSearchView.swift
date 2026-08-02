@@ -14,12 +14,8 @@ func workbenchSearchHasCompleteTextCopyBoundary(
 }
 
 private struct WorkbenchSearchTableTextCopySource {
-    enum Mode {
-        case search(query: String, cueIDs: [Int64])
-        case context(CueContextSearchRequest)
-    }
-
-    let mode: Mode
+    let query: String
+    let cueIDs: [Int64]
     let resultRowCount: Int
     let folderPaths: [String]
     let filterSignature: String
@@ -37,7 +33,6 @@ struct WorkbenchTestSearchView: View {
     private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
-    @State private var lastVisibleRows: Range<Int>?
     @State private var tableScrollResetToken = 0
     @State private var tableScrollTargetRow: Int?
     @State private var didRestoreViewport = false
@@ -45,12 +40,9 @@ struct WorkbenchTestSearchView: View {
     @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var isSelectionMode = false
-    @State private var suppressNextEmptySearchQueryReload = false
     @State private var hasDeferredRefreshWhileCovered = false
     @State private var isFacetPanelVisible: Bool
     @State private var searchFacetFilter = CueFacetFilter()
-
-    private static let continuousPageSize = 1_000
 
     init(
         rowStore: TableSandboxRowModelStore,
@@ -64,7 +56,7 @@ struct WorkbenchTestSearchView: View {
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
-            tableProbeSurface.counterName("surface_body"),
+            SubtitleTableProbeSurface.search.counterName("surface_body"),
             scope: appState.uiProbeScope
         )
         let textCopySource = tableTextCopySource
@@ -96,7 +88,7 @@ struct WorkbenchTestSearchView: View {
                 ZStack {
                     SubtitleTableView(
                         tableName: "test-search",
-                        probeSurface: tableProbeSurface,
+                        probeSurface: .search,
                         probeScope: appState.uiProbeScope,
                         rowCount: snapshot.totalRowCount,
                         rowProvider: { snapshot.row(at: $0) },
@@ -126,7 +118,6 @@ struct WorkbenchTestSearchView: View {
                             return await loadRowsForTextCopy(range: range, source: textCopySource)
                         },
                         onPlay: play,
-                        onShowContext: showContext,
                         isRedesign: true
                     )
 
@@ -146,11 +137,6 @@ struct WorkbenchTestSearchView: View {
             searchFacetFilter = persistedFacetFilter
             search.updateSearchFacetFilter(persistedFacetFilter)
             prepareViewportRestoration()
-            if let request = search.cueContextSearchRequest,
-               applyCueContextSearchRequest(request) {
-                return
-            }
-
             searchDraft = search.tableSearchDraft.isEmpty
                 ? search.searchQuery
                 : search.tableSearchDraft
@@ -171,17 +157,11 @@ struct WorkbenchTestSearchView: View {
             search.tableViewportAnchor = nil
             viewportAnchorToRestore = nil
             didRestoreViewport = true
-            lastVisibleRows = nil
             if !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 search.activateResidentSearchTableProjection()
                 tableScrollTargetRow = nil
-                search.cancelContextTableLoad()
             }
             if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                if suppressNextEmptySearchQueryReload {
-                    suppressNextEmptySearchQueryReload = false
-                    return
-                }
                 search.clearTableProjectionSource()
                 clearTableRows(resetScroll: true)
             }
@@ -195,27 +175,12 @@ struct WorkbenchTestSearchView: View {
                 exitSelectionMode()
             }
         }
-        .onChange(of: search.tableLoadRevision) { _ in
-            handleContextTablePresentation()
-            appState.refreshSearchPlaybackPlaylistSource(
-                resultListGeneration: search.resultListGeneration
-            )
-        }
-        .onChange(of: search.cueContextSearchRequest) { request in
-            exitSelectionMode()
-            guard let request else {
-                return
-            }
-            _ = applyCueContextSearchRequest(request)
-        }
         .onChange(of: isTableResponseActive) { isActive in
             if !isActive {
                 exitSelectionMode()
             }
             search.setTableProjectionResponseActive(isActive)
-            if !isActive {
-                resetCoveredTableLoading()
-            } else {
+            if isActive {
                 resumeDeferredTableResponse()
             }
         }
@@ -249,8 +214,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var showsSearchEmptyHint: Bool {
-        search.cueContextSearchRequest == nil
-            && search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -302,34 +266,23 @@ struct WorkbenchTestSearchView: View {
         isTableResponseActive
     }
 
-    private var tableProbeSurface: SubtitleTableProbeSurface {
-        search.cueContextSearchRequest == nil ? .search : .context
-    }
-
     private var tableTextCopySource: WorkbenchSearchTableTextCopySource? {
-        let mode: WorkbenchSearchTableTextCopySource.Mode
-        let resultRowCount: Int
-        if let request = search.cueContextSearchRequest {
-            mode = .context(request)
-            resultRowCount = search.contextTotalRowCount
-        } else {
-            let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-            let cueIDs = search.filteredSearchResultCueIDs
-            resultRowCount = search.filteredSearchResultTotalCount ?? -1
-            guard !query.isEmpty,
-                  workbenchSearchHasCompleteTextCopyBoundary(
-                      searchStatus: search.searchStatus,
-                      countState: search.searchCountState,
-                      cueIDs: cueIDs,
-                      resultRowCount: resultRowCount
-                  )
-            else {
-                return nil
-            }
-            mode = .search(query: query, cueIDs: cueIDs)
+        let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cueIDs = search.filteredSearchResultCueIDs
+        let resultRowCount = search.filteredSearchResultTotalCount ?? -1
+        guard !query.isEmpty,
+              workbenchSearchHasCompleteTextCopyBoundary(
+                  searchStatus: search.searchStatus,
+                  countState: search.searchCountState,
+                  cueIDs: cueIDs,
+                  resultRowCount: resultRowCount
+              )
+        else {
+            return nil
         }
         return WorkbenchSearchTableTextCopySource(
-            mode: mode,
+            query: query,
+            cueIDs: cueIDs,
             resultRowCount: max(0, resultRowCount),
             folderPaths: appState.indexing.selectedFolders.map(\.path),
             filterSignature: search.activeFilterSetSignature,
@@ -350,30 +303,14 @@ struct WorkbenchTestSearchView: View {
             return nil
         }
 
-        let page: TableSandboxSearchHydrationPage?
         let folders = source.folderPaths.map(URL.init(fileURLWithPath:))
-        switch source.mode {
-        case .search:
-            page = await search.loadSearchRows(
-                range: range,
-                folders: folders,
-                languageFilter: source.languageFilter,
-                watchStateFilter: source.watchStateFilter,
-                orderedCueIDs: {
-                    guard case .search(_, let cueIDs) = source.mode else {
-                        return nil
-                    }
-                    return cueIDs
-                }()
-            )
-        case .context(let request):
-            page = await search.loadContextRows(
-                request: request,
-                range: range,
-                folders: folders,
-                anchorsInitialPage: false
-            )
-        }
+        let page = await search.loadSearchRows(
+            range: range,
+            folders: folders,
+            languageFilter: source.languageFilter,
+            watchStateFilter: source.watchStateFilter,
+            orderedCueIDs: source.cueIDs
+        )
 
         guard let page,
               textCopySourceStillMatches(source, range: range),
@@ -395,66 +332,18 @@ struct WorkbenchTestSearchView: View {
         else {
             return false
         }
-        switch source.mode {
-        case .search(let query, let cueIDs):
-            guard search.cueContextSearchRequest == nil,
-                  search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query,
-                  search.activeFilterSetSignature == source.filterSignature,
-                  workbenchSearchHasCompleteTextCopyBoundary(
-                      searchStatus: search.searchStatus,
-                      countState: search.searchCountState,
-                      cueIDs: search.filteredSearchResultCueIDs,
-                      resultRowCount: search.filteredSearchResultTotalCount ?? -1
-                  ),
-                  search.filteredSearchResultTotalCount == source.resultRowCount,
-                  search.filteredSearchResultCueIDs == cueIDs
-            else {
-                return false
-            }
-            return true
-        case .context(let request):
-            return search.cueContextSearchRequest?.id == request.id
-                && search.cueContextSearchRequest?.id == request.id
-                && search.contextTotalRowCount == source.resultRowCount
-        }
-    }
-
-    @discardableResult
-    private func applyCueContextSearchRequest(_ request: CueContextSearchRequest) -> Bool {
-        guard allowsTableResponse else {
-            hasDeferredRefreshWhileCovered = true
+        guard search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == source.query,
+              search.activeFilterSetSignature == source.filterSignature,
+              workbenchSearchHasCompleteTextCopyBoundary(
+                  searchStatus: search.searchStatus,
+                  countState: search.searchCountState,
+                  cueIDs: search.filteredSearchResultCueIDs,
+                  resultRowCount: search.filteredSearchResultTotalCount ?? -1
+              ),
+              search.filteredSearchResultTotalCount == source.resultRowCount,
+              search.filteredSearchResultCueIDs == source.cueIDs
+        else {
             return false
-        }
-        let displayTitle = request.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !displayTitle.isEmpty else {
-            return false
-        }
-
-        let filterSet = SubtitleSearchFilterSet(rules: [
-            SubtitleSearchFilterRule(
-                field: .display,
-                operatorID: .contains,
-                value: displayTitle
-            ),
-        ])
-        if !search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            suppressNextEmptySearchQueryReload = true
-        }
-
-        searchDraft = ""
-        search.updateQuery("")
-        search.updateNavigationSnapshot(nil)
-        appState.updateSearchFilterSet(filterSet)
-        let didBeginLoad = search.beginContextTableLoad(
-            request: request,
-            folders: appState.indexing.selectedFolders,
-            initialPageSize: TableSandboxHydrationPaging.pageSize,
-            continuationPageSize: Self.continuousPageSize
-        )
-        if didBeginLoad {
-            tableScrollTargetRow = nil
-            tableScrollResetToken += 1
-            clearTableRows(resetScroll: false, cancelContextLoad: false)
         }
         return true
     }
@@ -483,9 +372,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var exactSearchResultCountText: String? {
-        guard let source = tableTextCopySource,
-              case .search = source.mode
-        else {
+        guard let source = tableTextCopySource else {
             return nil
         }
         return schemaWorkbenchResultCountText(source.resultRowCount)
@@ -524,27 +411,8 @@ struct WorkbenchTestSearchView: View {
             return
         }
         search.tableSearchDraft = newValue
-        search.updateContextRequest(nil)
-        suppressNextEmptySearchQueryReload = false
         tableScrollTargetRow = nil
-        search.cancelContextTableLoad()
         appState.updateSearchQuery(newValue)
-    }
-
-    private func updateRows(_ results: [SubtitleSearchResult]) {
-        guard allowsTableResponse else {
-            hasDeferredRefreshWhileCovered = true
-            return
-        }
-        rowStore.updateResidentSearchResults(
-            results,
-            cueContentProvider: searchCueContentProvider,
-            cueContentRevision: appState.cueContent.revision,
-            tableName: "test-search",
-            probeSurface: tableProbeSurface,
-            probeScope: appState.uiProbeScope
-        )
-        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
 
     private func updateRowsFromResidentSearch() {
@@ -561,20 +429,12 @@ struct WorkbenchTestSearchView: View {
         return { cueID in store.content(for: cueID) }
     }
 
-    private func clearTableRows(
-        resetScroll: Bool,
-        cancelContextLoad: Bool = true
-    ) {
+    private func clearTableRows(resetScroll: Bool) {
         guard allowsTableResponse else {
             hasDeferredRefreshWhileCovered = true
-            resetCoveredTableLoading()
             return
         }
         let releasedRows = max(rowStore.snapshot.loadedReferenceCount, rowStore.snapshot.totalRowCount)
-        if cancelContextLoad {
-            search.cancelContextTableLoad()
-        }
-        lastVisibleRows = nil
         rowSelection.reset()
         persistSelection()
         rowStore.updateResidentSearchResults(
@@ -582,7 +442,7 @@ struct WorkbenchTestSearchView: View {
             cueContentProvider: searchCueContentProvider,
             cueContentRevision: appState.cueContent.revision,
             tableName: "test-search",
-            probeSurface: tableProbeSurface,
+            probeSurface: .search,
             probeScope: appState.uiProbeScope
         )
         if resetScroll {
@@ -604,70 +464,24 @@ struct WorkbenchTestSearchView: View {
         appState.openSearchResult(result, displayTitle: row.displayTitle)
     }
 
-    private func showContext(_ row: SubtitleTableRow) {
-        guard let result = rowStore.snapshot.searchResult(entryID: row.id)
-            ?? search.searchResults.first(where: { Int($0.entryID) == row.id })
-        else {
-            return
-        }
-
-        appState.openSearchResultContext(result)
-    }
-
     private func hydrateVisibleRows(_ visibleRows: Range<Int>) {
         guard allowsTableResponse else { return }
-        lastVisibleRows = visibleRows
         captureVisibleRows(visibleRows)
-        if search.cueContextSearchRequest != nil {
-            search.loadAdjacentContextRows(
-                visibleRows: visibleRows,
-                folders: appState.indexing.selectedFolders,
-                pageSize: Self.continuousPageSize
-            )
-        }
-    }
-
-    private func resetCoveredTableLoading() {
-        search.cancelContextTableLoad()
     }
 
     private func resumeDeferredTableResponse() {
         guard allowsTableResponse else { return }
-        let isStandardSearch = search.cueContextSearchRequest == nil
-        guard hasDeferredRefreshWhileCovered || isStandardSearch else { return }
+        guard hasDeferredRefreshWhileCovered else { return }
         hasDeferredRefreshWhileCovered = false
         refreshTableForCurrentState()
     }
 
     private func refreshTableForCurrentState() {
-        if let request = search.cueContextSearchRequest,
-           applyCueContextSearchRequest(request) {
-            return
-        }
-
         if showsSearchEmptyHint {
             clearTableRows(resetScroll: false)
         } else {
             updateRowsFromResidentSearch()
         }
-    }
-
-    private func handleContextTablePresentation() {
-        let prepended = search.contextPrependedRowCount
-        if prepended > 0 {
-            rowSelection.shiftRows(by: prepended)
-        }
-        rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
-        if let sourceIndex = search.contextScrollTargetSourceIndex,
-           let loadedRange = search.contextLoadedSourceRange {
-            tableScrollTargetRow = cueContextDisplayRow(
-                forSourceIndex: sourceIndex,
-                loadedSourceRange: loadedRange,
-                loadedRowCount: rowStore.snapshot.totalRowCount
-            )
-            tableScrollResetToken += 1
-        }
-        search.consumeContextTablePresentation()
     }
 
     private func applySearchFacetFilter(_ filter: CueFacetFilter) {
@@ -682,7 +496,6 @@ struct WorkbenchTestSearchView: View {
         viewportAnchorToRestore = nil
         tableScrollTargetRow = nil
         didRestoreViewport = true
-        lastVisibleRows = nil
         tableScrollResetToken += 1
         search.updateSearchFacetFilter(filter)
     }
@@ -771,7 +584,6 @@ struct WorkbenchTestSearchView: View {
 
     private func restoreViewportIfPossible() {
         guard !didRestoreViewport,
-              search.cueContextSearchRequest == nil,
               rowStore.snapshot.totalRowCount > 0,
               let anchor = viewportAnchorToRestore
         else {
@@ -839,23 +651,4 @@ private struct WorkbenchSearchTableRowsObserver<Content: View>: View {
     var body: some View {
         content(rowStore.snapshot)
     }
-}
-
-func resolvedCueContextTargetSourceIndex(
-    in page: TableSandboxSearchHydrationPage,
-    targetCueID: Int64
-) -> Int {
-    page.results.first { $0.entryID == targetCueID }?.searchRank ?? page.range.lowerBound
-}
-
-func cueContextDisplayRow(
-    forSourceIndex sourceIndex: Int,
-    loadedSourceRange: Range<Int>,
-    loadedRowCount: Int
-) -> Int {
-    guard loadedRowCount > 0 else { return 0 }
-    return min(
-        max(0, sourceIndex - loadedSourceRange.lowerBound),
-        max(0, loadedRowCount - 1)
-    )
 }

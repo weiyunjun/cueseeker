@@ -7,11 +7,9 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
-func libraryEpisodeGridModesPreserveSurfaceSelectionRules() {
+func libraryEpisodeGridModesPreserveSelectionRules() {
     #expect(!CompleteLibraryEpisodeGridMode.workbench.displaysPersistentSelection)
-    #expect(CompleteLibraryEpisodeGridMode.workbench.showsContextMenuItem)
     #expect(CompleteLibraryEpisodeGridMode.playback.displaysPersistentSelection)
-    #expect(!CompleteLibraryEpisodeGridMode.playback.showsContextMenuItem)
 }
 
 @MainActor

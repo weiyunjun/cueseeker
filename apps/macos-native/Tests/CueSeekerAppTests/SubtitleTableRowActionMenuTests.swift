@@ -9,7 +9,6 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
     #expect(model.elements == [
         .action(.play),
         .action(.openSubtitleFolder),
-        .action(.context),
         .divider,
         .action(.copyCueText),
         .action(.copyDeepLink),
@@ -19,7 +18,6 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
     #expect(model.actions.map(\.title) == [
         "Play",
         "Open Subtitle Folder",
-        "Context",
         "Copy Cue Text",
         "Copy Deep Link",
         "Copy Cue Group Text",
@@ -34,7 +32,6 @@ func subtitleTableRowActionMenuHidesCueGroupCopyWhenCueGroupIsHidden() {
     #expect(model.actions == [
         .play,
         .openSubtitleFolder,
-        .context,
         .copyCueText,
         .copyDeepLink,
         .copyTimeRange,
@@ -48,7 +45,6 @@ func subtitleTableShioriRowActionMenuAddsTransferSubmenusAndDividers() {
     #expect(model.elements == [
         .action(.play),
         .action(.openSubtitleFolder),
-        .action(.context),
         .divider,
         .action(.copyCueText),
         .action(.copyDeepLink),
@@ -69,7 +65,6 @@ func subtitleTableUnavailableShioriActionsFollowResourceAvailability() {
     #expect(videoMissing.subtitleFileIsAvailable)
     #expect(videoMissing.disabledRowActions == [
         .play,
-        .context,
         .moveToList,
         .duplicateToList,
     ])

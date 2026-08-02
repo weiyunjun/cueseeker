@@ -416,7 +416,7 @@ Search ranking and query syntax:
   line-level filtering must independently validate every returned Cue.
 - Optional Cue Group presentation loads the other lines for the same group only
   after the primary Cue identity is known. It must not change result counts,
-  ordering, selection, playback, Context, Shiori, copy-Cue, or export identity.
+  ordering, selection, playback, Shiori, copy-Cue, or export identity.
 - Matched cue lines must map deterministically to their source group and stable
   source order. Multiple matching Cues in the same time window remain distinct
   results.

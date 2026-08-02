@@ -188,7 +188,7 @@ Style rules:
 
 Active App surface reference mapping:
 
-Current Cue-centric precedence rule: Search, Shiori, Search-hosted Context, and
+Current Cue-centric precedence rule: Search, Shiori, and
 Playback Multi-Module Overlay are native-only accepted surfaces. The grouped Search /
 Shiori card and `Collapse All` behaviors in older HTML prototypes are
 **Superseded** and must not be used to regress the App. Native AppKit table
@@ -211,7 +211,6 @@ the table below until the user accepts it.
 | --- | --- | --- | --- |
 | Main workbench shell | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current Liquid Glass visual baseline for the search-state shell and active-playback bottom player | Native titlebar, traffic lights, full-screen transition behavior, system materials, font rendering, and accessibility focus behavior remain App-native |
 | Search results | Native App; older grouped-card HTML is Superseded | Current native virtual Cue table with dynamic rows; one primary Cue per row, optional Cue Group context above it | AppKit virtualization, exact Cue counts/pages, complete text, `16 + 24P + 20S` row geometry, stable-anchor reflow, and presentation-only `Show Cue Group` are App-authoritative |
-| Search-hosted Context | Native App only | Current native Cue table using the Search columns and interaction contract | Context scope and return identity use the exact primary Cue; width and `Show Cue Group` reflow remain presentation-only |
 | Search-launched playback overlay and bottom player | `ui/prototypes/cueseeker-liquid-glass-standalone.html` | Current visual baseline for the video surface, close capsule, subtitle overlay, right playback side panel, active-playback bottom player, speed menu, and visibility toggles | App playback, seeking, close lifecycle, file access, fullscreen presentation, subtitle rendering, and persisted playback state remain native behaviors |
 | Shiori playback control | Superseded | Retired from normal playback chrome | Exact-Cue Shiori saving is available in eligible Playback Multi-Module Overlay modules through `S`; idempotence and feedback remain native behaviors |
 | Library view | Pending | Waiting for a dedicated accepted HTML prototype | Not yet documented |

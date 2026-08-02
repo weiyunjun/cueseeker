@@ -770,68 +770,7 @@ extension SearchStore {
         }
     }
 
-    func loadContextRows(
-        request: CueContextSearchRequest,
-        range: Range<Int>,
-        folders: [URL],
-        anchorWindowSize: Int = TableSandboxHydrationPaging.pageSize,
-        anchorsInitialPage: Bool = false
-    ) async -> TableSandboxSearchHydrationPage? {
-        let scopeGeneration = folderScopeGeneration
-        guard acceptsFolderScope(folders, generation: scopeGeneration),
-              database != nil,
-              let databaseURL
-        else {
-            return nil
-        }
-        let lowerBound = max(0, range.lowerBound)
-        let upperBound = max(lowerBound, range.upperBound)
-        guard lowerBound < upperBound else { return nil }
-
-        do {
-            let subtitlePath = request.subtitlePath
-            let targetCueID = request.targetCueID
-            let page = try await Self.runCancellableDetached(
-                priority: .userInitiated
-            ) {
-                let pageDatabase = try SearchDatabase(
-                    path: databaseURL,
-                    access: .readOnly
-                )
-                return try pageDatabase.cueContextSearchPage(
-                    subtitlePath: subtitlePath,
-                    targetCueID: targetCueID,
-                    limit: upperBound - lowerBound,
-                    cursor: SubtitleSearchCursor(offset: lowerBound),
-                    anchorWindowSize: anchorWindowSize,
-                    anchorsInitialPage: anchorsInitialPage,
-                    under: folders
-                )
-            }
-            guard !Task.isCancelled,
-                  let page,
-                  acceptsFolderScope(
-                    folders,
-                    generation: scopeGeneration
-                  ),
-                  cueContextSearchRequest?.id == request.id
-            else {
-                return nil
-            }
-            cacheHydratedResults(page.results)
-            return TableSandboxSearchHydrationPage(
-                range: page.appliedCursor.offset..<(page.appliedCursor.offset
-                    + page.results.count),
-                results: page.results,
-                totalRowCount: page.totalCount
-            )
-        } catch {
-            print("Failed to load Cue Context Search page: \(error)")
-            return nil
-        }
-    }
-
-    func applyAllCueSearchContext(_ page: TableSandboxSearchHydrationPage) {
+    func applyAllCueSearchPage(_ page: TableSandboxSearchHydrationPage) {
         let hasMore = page.range.upperBound < page.totalRowCount
         replaceResultState(
             results: page.results,

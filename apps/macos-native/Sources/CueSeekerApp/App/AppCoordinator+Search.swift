@@ -49,87 +49,6 @@ extension AppCoordinator {
         startSearch(query: trimmedQuery, cursor: .start, appending: false, debounce: false)
     }
 
-    func openSearchResultContext(_ result: SubtitleSearchResult) {
-        openCueContextSearch(
-            displayTitle: result.displayTitle,
-            subtitlePath: result.subtitlePath,
-            targetCueID: result.entryID
-        )
-    }
-
-    func openShioriContext(_ item: Shiori, displayTitle: String) {
-        guard item.isValid else {
-            return
-        }
-        let targetCueID = shiori.residentRelations
-            .first { $0.id == item.id }?
-            .cueID
-            ?? {
-                guard let database = shioriDatabase else { return nil }
-                do {
-                    return try database.shioriRelation(id: item.id)?.cueID
-                } catch {
-                    print("Failed to resolve Shiori context cue: \(error)")
-                    return nil
-                }
-            }()
-
-        guard let targetCueID else {
-            return
-        }
-
-        openCueContextSearch(
-            displayTitle: displayTitle,
-            subtitlePath: item.subtitlePath,
-            targetCueID: targetCueID
-        )
-    }
-
-    func openLibraryVideoContext(_ video: LibraryVideo, displayTitle: String) {
-        do {
-            guard let targetCueID = try search.firstCueID(
-                forSubtitleFile: URL(fileURLWithPath: video.subtitlePath)
-            ) else {
-                return
-            }
-            let contextTitle = displayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? video.videoName
-                : displayTitle
-            openCueContextSearch(
-                displayTitle: contextTitle,
-                subtitlePath: video.subtitlePath,
-                targetCueID: targetCueID
-            )
-        } catch {
-            print("Failed to open Library video context: \(error)")
-        }
-    }
-
-    func openCueContextSearch(
-        displayTitle: String,
-        subtitlePath: String,
-        targetCueID: Int64
-    ) {
-        let trimmedDisplayTitle = displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedDisplayTitle.isEmpty,
-              !subtitlePath.isEmpty
-        else {
-            return
-        }
-
-        UIInvalidationProbe.mark(
-            "ACTION UI.CueContext.opened",
-            details: "hasTarget=true"
-        )
-        let request = CueContextSearchRequest(
-            displayTitle: trimmedDisplayTitle,
-            subtitlePath: subtitlePath,
-            targetCueID: targetCueID
-        )
-        search.updateContextRequest(request)
-        workbenchLayout.selectPanelMode(.search)
-    }
-
     func loadMoreSearchResultsIfNeeded(currentResult result: SubtitleSearchResult) {
         guard search.hasMoreSearchResults, !search.isSearching else {
             return
@@ -392,7 +311,7 @@ extension AppCoordinator {
                 return
             }
 
-            self.search.applyAllCueSearchContext(page)
+            self.search.applyAllCueSearchPage(page)
             self.refreshSearchPlaybackPlaylistSource(
                 resultListGeneration: self.search.resultListGeneration
             )

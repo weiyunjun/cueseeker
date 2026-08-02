@@ -597,8 +597,8 @@ Playback Multi-Module Overlay Cue contract:
   complete Cue text collections remain resident in the shared Feature or
   Playlist source; keyboard and scrollbar navigation do not page text in.
 - Recent and Library reuse their existing card layouts, selection, primary
-  actions, and context menus while omitting the Workbench-only `Context` menu
-  item. Selected state reuses the existing Hover visual with no Focus Ring.
+  actions, and context menus. Selected state reuses the existing Hover visual
+  with no Focus Ring.
   Library Folder navigation remains inside the Session; Recent and Library
   Episode playback destroy the Session before the media target opens.
 - The Playback Page keeps one Return Context across Overlay Sessions. Only a

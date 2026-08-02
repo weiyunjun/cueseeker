@@ -835,15 +835,12 @@ enum SubtitleTableRowActionMenuStyle {
 
 enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
     case search
-    case context
     case shiori
 
     init(tableName: String) {
         let normalizedName = tableName.lowercased()
         if normalizedName.contains("shiori") {
             self = .shiori
-        } else if normalizedName.contains("context") {
-            self = .context
         } else {
             self = .search
         }
@@ -2374,7 +2371,6 @@ struct SubtitleTableView: NSViewRepresentable {
     var allResultsTextCopyRowCount: Int?
     var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
     var onPlay: (SubtitleTableRow) -> Void
-    var onShowContext: (SubtitleTableRow) -> Void = { _ in }
     var onOpenSubtitleFile: (String) -> Void = { path in
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
@@ -2415,7 +2411,6 @@ struct SubtitleTableView: NSViewRepresentable {
             allResultsTextCopyRowCount: allResultsTextCopyRowCount,
             loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
-            onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             rowActionDestinations: rowActionDestinations,
@@ -2548,7 +2543,6 @@ struct SubtitleTableView: NSViewRepresentable {
             allResultsTextCopyRowCount: allResultsTextCopyRowCount,
             loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
-            onShowContext: onShowContext,
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             rowActionDestinations: rowActionDestinations,
@@ -2598,7 +2592,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private var allResultsTextCopyRowCount: Int
         private var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
         private var onPlay: (SubtitleTableRow) -> Void
-        private var onShowContext: (SubtitleTableRow) -> Void
         private var onOpenSubtitleFile: (String) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
         private var rowActionDestinations: [SubtitleTableRowActionDestination]
@@ -2823,7 +2816,6 @@ struct SubtitleTableView: NSViewRepresentable {
             allResultsTextCopyRowCount: Int? = nil,
             loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
-            onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
             onOpenSubtitleFile: @escaping (String) -> Void = { path in
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             },
@@ -2861,7 +2853,6 @@ struct SubtitleTableView: NSViewRepresentable {
             self.allResultsTextCopyRowCount = max(0, allResultsTextCopyRowCount ?? rowCount)
             self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
-            self.onShowContext = onShowContext
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.rowActionDestinations = rowActionDestinations
@@ -2972,7 +2963,6 @@ struct SubtitleTableView: NSViewRepresentable {
             allResultsTextCopyRowCount: Int? = nil,
             loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
-            onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
             onOpenSubtitleFile: @escaping (String) -> Void = { path in
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             },
@@ -3051,7 +3041,6 @@ struct SubtitleTableView: NSViewRepresentable {
             self.allResultsTextCopyRowCount = max(0, allResultsTextCopyRowCount ?? rowCount)
             self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
-            self.onShowContext = onShowContext
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.rowActionDestinations = rowActionDestinations
@@ -7266,8 +7255,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 onPlay(target)
             case .openSubtitleFolder:
                 openSubtitleFile(target: target)
-            case .context:
-                onShowContext(target)
             case .copyCueText:
                 copyRow(target: target)
             case .copyDeepLink:

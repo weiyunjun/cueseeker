@@ -2,25 +2,6 @@ import Combine
 import Foundation
 import CueSeekerCore
 
-struct CueContextSearchRequest: Equatable, Identifiable {
-    let id: UUID
-    let displayTitle: String
-    let subtitlePath: String
-    let targetCueID: Int64
-
-    init(
-        id: UUID = UUID(),
-        displayTitle: String,
-        subtitlePath: String,
-        targetCueID: Int64
-    ) {
-        self.id = id
-        self.displayTitle = displayTitle
-        self.subtitlePath = subtitlePath
-        self.targetCueID = targetCueID
-    }
-}
-
 struct SearchIndexedCueMutationToken: Equatable {
     let generation: UInt64
 }
@@ -28,12 +9,6 @@ struct SearchIndexedCueMutationToken: Equatable {
 enum SearchTableProjectionSource: Equatable {
     case residentSearch(revision: UInt64)
     case facetSearch(generation: UInt64)
-    case context(requestID: UUID)
-}
-
-private enum SearchContextLoadDirection {
-    case previous
-    case next
 }
 
 @MainActor
@@ -65,17 +40,6 @@ final class SearchStore: ObservableObject {
     private(set) var filteredSearchResultCueIDs: [Int64] = []
     private var indexedCueMutationGeneration: UInt64 = 0
     private var activeIndexedCueMutationGeneration: UInt64?
-    private var contextLoadGeneration: UInt64 = 0
-    private var contextLoadTask: Task<Void, Never>?
-    private var activeContextTableRequestID: UUID?
-    private var isContextLoadInProgress = false
-    private var contextInitialPageSize = TableSandboxHydrationPaging.pageSize
-    private var contextContinuationPageSize = 1_000
-    private(set) var contextLoadedSourceRange: Range<Int>?
-    private(set) var contextTotalRowCount = 0
-    private(set) var contextTargetSourceIndex: Int?
-    private(set) var contextPrependedRowCount = 0
-    private(set) var contextScrollTargetSourceIndex: Int?
 
     @Published private(set) var indexedCueDataRevision: UInt64 = 0
     @Published private(set) var searchQuery = ""
@@ -96,8 +60,6 @@ final class SearchStore: ObservableObject {
     @Published private(set) var filteredSearchFacetDistribution: CueFacetDistribution?
     @Published private(set) var searchNavigationSnapshot: SearchNavigationSnapshot?
     @Published private(set) var selectedSearchResult: SubtitleSearchResult?
-    @Published private(set) var cueContextSearchRequest: CueContextSearchRequest?
-    @Published private(set) var tableLoadRevision: UInt64 = 0
     @Published var tableSearchDraft = ""
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
@@ -168,10 +130,6 @@ final class SearchStore: ObservableObject {
 
     var isDatabaseAvailable: Bool {
         database != nil
-    }
-
-    func firstCueID(forSubtitleFile subtitleFile: URL) throws -> Int64? {
-        try database?.firstCueID(forSubtitleFile: subtitleFile)
     }
 
     private func setLoadedSearchResults(
@@ -345,10 +303,6 @@ final class SearchStore: ObservableObject {
             synchronizeFacetSearchTableProjection()
             return
         }
-        restoreFolderScopedTableProjection(
-            tableProjectionSource,
-            folders: folderScopePaths.map { URL(fileURLWithPath: $0) }
-        )
     }
 
     private func synchronizeResidentSearchTableProjection() {
@@ -384,241 +338,8 @@ final class SearchStore: ObservableObject {
         )
     }
 
-    func activateContextTableProjection(requestID: UUID) {
-        setTableProjectionSource(.context(requestID: requestID))
-    }
-
     func clearTableProjectionSource() {
         setTableProjectionSource(nil)
-    }
-
-    @discardableResult
-    func beginContextTableLoad(
-        request: CueContextSearchRequest,
-        folders: [URL],
-        initialPageSize: Int,
-        continuationPageSize: Int
-    ) -> Bool {
-        if activeContextTableRequestID == request.id,
-           isContextLoadInProgress || contextLoadedSourceRange != nil {
-            return false
-        }
-        contextInitialPageSize = initialPageSize
-        contextContinuationPageSize = continuationPageSize
-        activeContextTableRequestID = request.id
-        contextLoadGeneration &+= 1
-        let generation = contextLoadGeneration
-        contextLoadTask?.cancel()
-        isContextLoadInProgress = true
-        contextLoadedSourceRange = nil
-        contextTotalRowCount = 0
-        contextTargetSourceIndex = nil
-        contextPrependedRowCount = 0
-        contextScrollTargetSourceIndex = nil
-        activateContextTableProjection(requestID: request.id)
-
-        contextLoadTask = Task { [weak self] in
-            guard let self else { return }
-            UIInvalidationProbe.count(
-                SubtitleTableProbeSurface.context.counterName(
-                    "row_hydration_requested"
-                ),
-                scope: self.uiProbeScope
-            )
-            guard let page = await self.loadContextRows(
-                request: request,
-                range: 0..<initialPageSize,
-                folders: folders,
-                anchorsInitialPage: true
-            ),
-                  generation == self.contextLoadGeneration,
-                  self.cueContextSearchRequest?.id == request.id
-            else {
-                guard generation == self.contextLoadGeneration else { return }
-                self.activeContextTableRequestID = nil
-                self.isContextLoadInProgress = false
-                self.tableRowStore.updateResidentSearchResults(
-                    [],
-                    cueContentProvider: { [weak self] cueID in
-                        self?.cachedCueContent(for: cueID)
-                    },
-                    cueContentRevision: self.cachedCueContentRevision,
-                    tableName: "test-search",
-                    probeSurface: .context,
-                    probeScope: self.uiProbeScope
-                )
-                self.tableLoadRevision &+= 1
-                return
-            }
-
-            self.applyAllCueSearchContext(page)
-            self.tableRowStore.updateResidentSearchResults(
-                page.results,
-                cueContentProvider: { [weak self] cueID in
-                    self?.cachedCueContent(for: cueID)
-                },
-                cueContentRevision: self.cachedCueContentRevision,
-                tableName: "test-search",
-                probeSurface: .context,
-                probeScope: self.uiProbeScope,
-                isHydration: true
-            )
-            self.contextLoadedSourceRange = page.range
-            self.contextTotalRowCount = page.totalRowCount
-            self.contextTargetSourceIndex =
-                page.results.first { $0.entryID == request.targetCueID }?
-                    .searchRank
-                ?? page.range.lowerBound
-            self.contextScrollTargetSourceIndex = self.contextTargetSourceIndex
-            self.isContextLoadInProgress = false
-            self.tableLoadRevision &+= 1
-            self.loadAdjacentContextRows(
-                visibleRows: nil,
-                folders: folders,
-                pageSize: continuationPageSize,
-                prefersPrevious: true
-            )
-        }
-        return true
-    }
-
-    func loadAdjacentContextRows(
-        visibleRows: Range<Int>?,
-        folders: [URL],
-        pageSize: Int,
-        prefersPrevious: Bool = false
-    ) {
-        guard let request = cueContextSearchRequest,
-              let sourceRange = contextLoadedSourceRange,
-              contextTotalRowCount > 0,
-              !isContextLoadInProgress
-        else {
-            return
-        }
-
-        let direction: SearchContextLoadDirection
-        let scrollSourceIndex: Int?
-        if sourceRange.lowerBound > 0,
-           prefersPrevious
-            || (visibleRows?.lowerBound ?? 0)
-                <= TableSandboxHydrationPaging.pageSize {
-            direction = .previous
-            scrollSourceIndex = prefersPrevious
-                ? contextTargetSourceIndex
-                : sourceRange.lowerBound + max(0, visibleRows?.lowerBound ?? 0)
-        } else if sourceRange.upperBound < contextTotalRowCount,
-                  (visibleRows?.upperBound
-                    ?? tableRowStore.snapshot.totalRowCount)
-                    >= tableRowStore.snapshot.totalRowCount
-                        - TableSandboxHydrationPaging.pageSize {
-            direction = .next
-            scrollSourceIndex = nil
-        } else {
-            return
-        }
-
-        let range: Range<Int>
-        switch direction {
-        case .previous:
-            let lowerBound = max(0, sourceRange.lowerBound - pageSize)
-            range = lowerBound..<sourceRange.lowerBound
-        case .next:
-            let upperBound = min(
-                contextTotalRowCount,
-                sourceRange.upperBound + pageSize
-            )
-            range = sourceRange.upperBound..<upperBound
-        }
-        guard !range.isEmpty else { return }
-
-        let generation = contextLoadGeneration
-        isContextLoadInProgress = true
-        contextLoadTask = Task { [weak self] in
-            guard let self else { return }
-            UIInvalidationProbe.count(
-                SubtitleTableProbeSurface.context.counterName(
-                    "row_hydration_requested"
-                ),
-                scope: self.uiProbeScope
-            )
-            guard let page = await self.loadContextRows(
-                request: request,
-                range: range,
-                folders: folders,
-                anchorsInitialPage: false
-            ),
-                  generation == self.contextLoadGeneration,
-                  self.cueContextSearchRequest?.id == request.id
-            else {
-                if generation == self.contextLoadGeneration {
-                    self.isContextLoadInProgress = false
-                }
-                return
-            }
-
-            switch direction {
-            case .previous:
-                guard page.range.upperBound == sourceRange.lowerBound else {
-                    self.isContextLoadInProgress = false
-                    return
-                }
-                let prepended = self.tableRowStore.prependResidentSearchResults(
-                    page.results,
-                    cueContentProvider: { [weak self] cueID in
-                        self?.cachedCueContent(for: cueID)
-                    },
-                    cueContentRevision: self.cachedCueContentRevision,
-                    tableName: "test-search",
-                    probeSurface: .context,
-                    probeScope: self.uiProbeScope
-                )
-                if prepended > 0 {
-                    self.contextLoadedSourceRange =
-                        page.range.lowerBound..<sourceRange.upperBound
-                    self.contextPrependedRowCount = prepended
-                    self.contextScrollTargetSourceIndex = scrollSourceIndex
-                }
-            case .next:
-                guard page.range.lowerBound == sourceRange.upperBound else {
-                    self.isContextLoadInProgress = false
-                    return
-                }
-                let appended = self.tableRowStore.appendResidentSearchResults(
-                    page.results,
-                    cueContentProvider: { [weak self] cueID in
-                        self?.cachedCueContent(for: cueID)
-                    },
-                    cueContentRevision: self.cachedCueContentRevision,
-                    tableName: "test-search",
-                    probeSurface: .context,
-                    probeScope: self.uiProbeScope
-                )
-                if appended > 0 {
-                    self.contextLoadedSourceRange =
-                        sourceRange.lowerBound..<page.range.upperBound
-                }
-            }
-            self.isContextLoadInProgress = false
-            self.tableLoadRevision &+= 1
-        }
-    }
-
-    func consumeContextTablePresentation() {
-        contextPrependedRowCount = 0
-        contextScrollTargetSourceIndex = nil
-    }
-
-    func cancelContextTableLoad() {
-        contextLoadGeneration &+= 1
-        contextLoadTask?.cancel()
-        contextLoadTask = nil
-        activeContextTableRequestID = nil
-        isContextLoadInProgress = false
-        contextLoadedSourceRange = nil
-        contextTotalRowCount = 0
-        contextTargetSourceIndex = nil
-        contextPrependedRowCount = 0
-        contextScrollTargetSourceIndex = nil
     }
 
     @discardableResult
@@ -628,7 +349,6 @@ final class SearchStore: ObservableObject {
             generation: indexedCueMutationGeneration
         )
         activeIndexedCueMutationGeneration = token.generation
-        cueContextSearchRequest = nil
         searchFacetSnapshot = nil
         filteredSearchFacetDistribution = nil
         if case .residentSearch = tableProjectionSource {
@@ -725,13 +445,6 @@ final class SearchStore: ObservableObject {
         selectedSearchResult = result
     }
 
-    func updateContextRequest(_ request: CueContextSearchRequest?) {
-        cueContextSearchRequest = request
-        if request == nil {
-            cancelContextTableLoad()
-        }
-    }
-
     @discardableResult
     func prepareSearch(
         appending: Bool,
@@ -798,44 +511,13 @@ final class SearchStore: ObservableObject {
             return false
         }
         let didInvalidateActiveSearch = isSearching
-        let tableProjectionToRestore = tableProjectionSource
         folderScopePaths = paths
         folderScopeGeneration &+= 1
         resultListGeneration &+= 1
         searchFacetSnapshot = nil
         filteredSearchFacetDistribution = nil
         cancelAllSearchTasks()
-        cancelContextTableLoad()
-        restoreFolderScopedTableProjection(
-            tableProjectionToRestore,
-            folders: folders
-        )
         return didInvalidateActiveSearch
-    }
-
-    private func restoreFolderScopedTableProjection(
-        _ source: SearchTableProjectionSource?,
-        folders: [URL]
-    ) {
-        guard isTableProjectionResponseActive else {
-            return
-        }
-        switch source {
-        case .context(let requestID):
-            guard let request = cueContextSearchRequest,
-                  request.id == requestID
-            else {
-                return
-            }
-            beginContextTableLoad(
-                request: request,
-                folders: folders,
-                initialPageSize: contextInitialPageSize,
-                continuationPageSize: contextContinuationPageSize
-            )
-        case .residentSearch, .facetSearch, nil:
-            return
-        }
     }
 
     func acceptsFolderScope(

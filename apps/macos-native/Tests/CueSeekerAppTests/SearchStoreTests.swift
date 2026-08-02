@@ -99,7 +99,7 @@ func folderScopeChangeRejectsStaleNavigationAcrossABA() async {
         else {
             return
         }
-        search.applyAllCueSearchContext(stalePage)
+        search.applyAllCueSearchPage(stalePage)
     }
     search.replaceNavigationTask(staleTask)
 
@@ -719,7 +719,7 @@ func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
 
 @MainActor
 @Test
-func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
+func allCuePageUpdatesSearchNavigationState() throws {
     let suiteName = "CueSeekerTableSandboxSearchContextTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
@@ -744,7 +744,7 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
         totalRowCount: 42
     )
 
-    app.search.applyAllCueSearchContext(page)
+    app.search.applyAllCueSearchPage(page)
 
     #expect(app.search.searchStatus == .completed)
     #expect(app.search.searchResults == [result])
@@ -752,277 +752,6 @@ func tableSandboxAllCueContextFeedsAllCueSearchContext() throws {
     #expect(app.search.searchKnownResultCount == 42)
     #expect(app.search.hasMoreSearchResults)
     #expect(app.search.nextGlobalCursor?.offset == 11)
-}
-
-@MainActor
-@Test
-func playbackCoveredContextLifecycleRestoresScopeCancelledInitialAndAdjacentPages() async throws {
-    let suiteName = "CueSeekerContextTableLifecycleTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-    let fixtureRoot = FileManager.default.temporaryDirectory
-        .appendingPathComponent(suiteName, isDirectory: true)
-    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
-    try FileManager.default.createDirectory(
-        at: fixtureRoot,
-        withIntermediateDirectories: true
-    )
-    defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: fixtureRoot)
-    }
-
-    _ = NSApplication.shared
-    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    app.indexing.selectedFolders = [fixtureRoot]
-    let subtitleURL = fixtureRoot.appendingPathComponent("Episode.srt")
-    let videoURL = fixtureRoot.appendingPathComponent("Episode.mkv")
-    let database = try #require(app.indexingDatabase)
-    try database.replaceEntries(
-        subtitleFile: subtitleURL,
-        videoFile: videoURL,
-        entries: (0..<300).map { index in
-            SubtitleEntry(
-                sequenceNumber: index + 1,
-                startTimecode: String(format: "00:%02d:%02d,000", index / 60, index % 60),
-                endTimecode: String(format: "00:%02d:%02d,500", index / 60, index % 60),
-                startMilliseconds: index * 1_000,
-                endMilliseconds: index * 1_000 + 500,
-                text: "Context row \(index)"
-            )
-        }
-    )
-    let targetCueID = try #require(
-        try app.search.firstCueID(forSubtitleFile: subtitleURL)
-    )
-    let request = CueContextSearchRequest(
-        displayTitle: "Episode",
-        subtitlePath: subtitleURL.path,
-        targetCueID: targetCueID
-    )
-    app.search.updateContextRequest(request)
-
-    #expect(app.search.beginContextTableLoad(
-        request: request,
-        folders: [fixtureRoot],
-        initialPageSize: 100,
-        continuationPageSize: 100
-    ))
-    app.search.setTableProjectionResponseActive(false)
-    app.search.cancelContextTableLoad()
-    let emptyFolder = fixtureRoot.appendingPathComponent(
-        "Empty Context Scope",
-        isDirectory: true
-    )
-    try FileManager.default.createDirectory(
-        at: emptyFolder,
-        withIntermediateDirectories: true
-    )
-    app.addFolder(emptyFolder)
-    await app.indexingTask?.value
-    #expect(app.search.contextLoadedSourceRange == nil)
-    app.search.setTableProjectionResponseActive(true)
-
-    let deadline = Date().addingTimeInterval(2)
-    while app.search.tableRowStore.snapshot.totalRowCount < 200,
-          Date() < deadline {
-        await Task.yield()
-        try await Task.sleep(nanoseconds: 10_000_000)
-    }
-
-    #expect(app.search.tableRowStore.snapshot.totalRowCount == 200)
-    #expect(app.search.contextLoadedSourceRange == 0..<200)
-
-    app.search.loadAdjacentContextRows(
-        visibleRows: 100..<200,
-        folders: app.indexing.selectedFolders,
-        pageSize: 100
-    )
-    app.search.setTableProjectionResponseActive(false)
-    app.search.cancelContextTableLoad()
-    let invalidFolder = fixtureRoot.appendingPathComponent(
-        "Invalid Context Scope"
-    )
-    try Data("file root".utf8).write(to: invalidFolder)
-    app.addFolder(invalidFolder)
-    await app.indexingTask?.value
-    guard case .failed = app.indexing.indexingStatus else {
-        Issue.record("Expected Context file root indexing to fail")
-        return
-    }
-    #expect(app.search.contextLoadedSourceRange == nil)
-    app.search.setTableProjectionResponseActive(true)
-
-    let recoveryDeadline = Date().addingTimeInterval(2)
-    while app.search.contextLoadedSourceRange != 0..<200,
-          Date() < recoveryDeadline {
-        await Task.yield()
-        try await Task.sleep(nanoseconds: 10_000_000)
-    }
-    #expect(app.search.contextLoadedSourceRange == 0..<200)
-
-    app.search.loadAdjacentContextRows(
-        visibleRows: 100..<200,
-        folders: app.indexing.selectedFolders,
-        pageSize: 100
-    )
-    let adjacentDeadline = Date().addingTimeInterval(2)
-    while app.search.tableRowStore.snapshot.totalRowCount < 300,
-          Date() < adjacentDeadline {
-        await Task.yield()
-        try await Task.sleep(nanoseconds: 10_000_000)
-    }
-    #expect(app.search.tableRowStore.snapshot.totalRowCount == 300)
-    #expect(app.search.contextLoadedSourceRange == 0..<300)
-}
-
-@MainActor
-@Test
-func contextEntryPointsPreserveExactCueIdentity() throws {
-    let suiteName = "CueSeekerCueContextEntryPointTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-    let fixtureRoot = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerCueContextEntryPointTests-\(UUID().uuidString)", isDirectory: true)
-    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
-    defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: fixtureRoot)
-    }
-    try FileManager.default.createDirectory(
-        at: fixtureRoot,
-        withIntermediateDirectories: true
-    )
-
-    _ = NSApplication.shared
-    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.indexingDatabase)
-    let seedSubtitleFile = fixtureRoot.appendingPathComponent("Seed.ass")
-    let seedVideoFile = fixtureRoot.appendingPathComponent("Seed.mkv")
-    let seedGroup = SubtitleCueGroup(
-        sequenceNumber: nil,
-        startTimecode: "0:00:01.00",
-        endTimecode: "0:00:02.00",
-        startMilliseconds: 1_000,
-        endMilliseconds: 2_000,
-        searchContent: "seed upper\nseed lower",
-        cueLines: [
-            SubtitleCueLine(
-                eventIndex: 0,
-                sourceFormat: .ass,
-                sourceStyle: "Top",
-                sourceLayer: 0,
-                startTimecode: "0:00:01.00",
-                endTimecode: "0:00:02.00",
-                startMilliseconds: 1_000,
-                endMilliseconds: 2_000,
-                content: "seed upper",
-                displayX: nil,
-                displayY: 100,
-                displayOrder: 0
-            ),
-            SubtitleCueLine(
-                eventIndex: 1,
-                sourceFormat: .ass,
-                sourceStyle: "Bottom",
-                sourceLayer: 0,
-                startTimecode: "0:00:01.00",
-                endTimecode: "0:00:02.00",
-                startMilliseconds: 1_000,
-                endMilliseconds: 2_000,
-                content: "seed lower",
-                displayX: nil,
-                displayY: 900,
-                displayOrder: 1
-            ),
-        ]
-    )
-    try database.replaceCueGroups(
-        subtitleFile: seedSubtitleFile,
-        videoFile: seedVideoFile,
-        format: .ass,
-        cueGroups: [seedGroup]
-    )
-    let subtitleFile = fixtureRoot.appendingPathComponent("Episode.ass")
-    let videoFile = fixtureRoot.appendingPathComponent("Episode.mkv")
-    let cueGroup = SubtitleCueGroup(
-        sequenceNumber: nil,
-        startTimecode: "0:00:01.00",
-        endTimecode: "0:00:03.00",
-        startMilliseconds: 1_000,
-        endMilliseconds: 3_000,
-        searchContent: "upper cue\nlower cue",
-        cueLines: [
-            SubtitleCueLine(
-                eventIndex: 10,
-                sourceFormat: .ass,
-                sourceStyle: "Top",
-                sourceLayer: 0,
-                startTimecode: "0:00:01.00",
-                endTimecode: "0:00:03.00",
-                startMilliseconds: 1_000,
-                endMilliseconds: 3_000,
-                content: "upper cue",
-                displayX: nil,
-                displayY: 100,
-                displayOrder: 0
-            ),
-            SubtitleCueLine(
-                eventIndex: 11,
-                sourceFormat: .ass,
-                sourceStyle: "Bottom",
-                sourceLayer: 0,
-                startTimecode: "0:00:01.00",
-                endTimecode: "0:00:03.00",
-                startMilliseconds: 1_000,
-                endMilliseconds: 3_000,
-                content: "lower cue",
-                displayX: nil,
-                displayY: 900,
-                displayOrder: 1
-            ),
-        ]
-    )
-    try database.replaceCueGroups(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        format: .ass,
-        cueGroups: [cueGroup]
-    )
-    app.indexing.selectedFolders = [fixtureRoot]
-
-    let cues = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
-    let upperCue = try #require(cues.first { $0.line.eventIndex == 10 })
-    let lowerCue = try #require(cues.first { $0.line.eventIndex == 11 })
-    #expect(upperCue.cueGroupID == lowerCue.cueGroupID)
-    #expect(upperCue.id != upperCue.cueGroupID)
-    #expect(lowerCue.id != lowerCue.cueGroupID)
-    #expect(try app.search.firstCueID(forSubtitleFile: subtitleFile) == upperCue.id)
-    #expect(try database.firstCueGroupID(forSubtitleFile: subtitleFile) == upperCue.cueGroupID)
-
-    let allCuePage = try #require(app.search.database).allCuesVisiblePage(
-        limit: 10,
-        cursor: .start,
-        under: [fixtureRoot]
-    )
-    let lowerResult = try #require(allCuePage.results.first { $0.entryID == lowerCue.id })
-    app.openSearchResultContext(lowerResult)
-    #expect(app.search.cueContextSearchRequest?.targetCueID == lowerCue.id)
-
-    let selection = try #require(try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
-        forSubtitleFile: subtitleFile,
-        atMilliseconds: 1_500
-    ))
-    let shiori = try ShioriDatabase(path: database.path).upsertShiori(
-        selection: selection
-    )
-    app.openShioriContext(shiori, displayTitle: "Episode")
-    #expect(app.search.cueContextSearchRequest?.targetCueID == lowerCue.id)
-
-    let libraryDatabase = try #require(app.libraryDatabase)
-    let libraryVideo = try #require(try libraryDatabase.libraryVideos(under: [fixtureRoot]).first {
-        $0.subtitlePath == subtitleFile.path
-    })
-    app.openLibraryVideoContext(libraryVideo, displayTitle: "Episode")
-    #expect(app.search.cueContextSearchRequest?.targetCueID == upperCue.id)
 }
 
 @MainActor
@@ -1243,66 +972,6 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     #expect(page.results.map(\.searchRank) == [110, 111])
 }
 
-@Test
-func cueContextTargetSourceIndexUsesStableSearchRankNearTail() {
-    let target = makeTableSandboxSearchResult(
-        id: 1520171,
-        content: "target cue",
-        searchRank: 2717
-    )
-    let page = TableSandboxSearchHydrationPage(
-        range: 2688..<2738,
-        results: [
-            makeTableSandboxSearchResult(
-                id: 1520169,
-                content: "preceding cue",
-                searchRank: 2715
-            ),
-            target
-        ],
-        totalRowCount: 2738
-    )
-
-    #expect(resolvedCueContextTargetSourceIndex(in: page, targetCueID: target.entryID) == 2717)
-}
-
-@Test
-func cueContextTargetSourceIndexFallsBackToLoadedRangeStartWhenTargetIsMissing() {
-    let page = TableSandboxSearchHydrationPage(
-        range: 2688..<2738,
-        results: [
-            makeTableSandboxSearchResult(
-                id: 1520169,
-                content: "preceding cue",
-                searchRank: 2715
-            )
-        ],
-        totalRowCount: 2738
-    )
-
-    #expect(resolvedCueContextTargetSourceIndex(in: page, targetCueID: 1520171) == 2688)
-}
-
-@Test
-func cueContextDisplayRowTracksPrependedSourceRows() {
-    let targetSourceIndex = 117
-
-    #expect(
-        cueContextDisplayRow(
-            forSourceIndex: targetSourceIndex,
-            loadedSourceRange: 117..<167,
-            loadedRowCount: 50
-        ) == 0
-    )
-    #expect(
-        cueContextDisplayRow(
-            forSourceIndex: targetSourceIndex,
-            loadedSourceRange: 67..<167,
-            loadedRowCount: 100
-        ) == 50
-    )
-}
-
 @MainActor
 @Test
 func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async throws {
@@ -1364,7 +1033,7 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
         under: [fixtureRoot]
     )
     let selected = try #require(page.results.first { $0.content == "selected result" })
-    app.search.applyAllCueSearchContext(
+    app.search.applyAllCueSearchPage(
         TableSandboxSearchHydrationPage(
             range: 0..<page.results.count,
             results: page.results,
@@ -1472,7 +1141,7 @@ func searchTableProjectionSurvivesViewRemountWithoutMaterializingResults() {
 
 @MainActor
 @Test
-func indexedCueMutationInvalidatesContextProjectionAndAdvancesRevision() {
+func indexedCueMutationInvalidatesUnownedProjectionAndAdvancesRevision() {
     let search = SearchStore()
     search.tableRowStore.updateResidentSearchResults(
         [makeTableSandboxSearchResult(
@@ -1483,19 +1152,10 @@ func indexedCueMutationInvalidatesContextProjectionAndAdvancesRevision() {
         cueContentProvider: { _ in nil },
         tableName: "test-search"
     )
-    let request = CueContextSearchRequest(
-        displayTitle: "Episode",
-        subtitlePath: "/Media/Episode.srt",
-        targetCueID: 42
-    )
-    search.updateContextRequest(request)
-    search.activateContextTableProjection(requestID: request.id)
-
     let mutation = search.beginIndexedCueDataMutation()
 
     #expect(search.tableProjectionSource == nil)
     #expect(search.tableRowStore.snapshot.totalRowCount == 0)
-    #expect(search.cueContextSearchRequest == nil)
     #expect(search.indexedCueDataRevision == 0)
     #expect(search.completeIndexedCueDataMutation(mutation))
     #expect(!search.completeIndexedCueDataMutation(mutation))

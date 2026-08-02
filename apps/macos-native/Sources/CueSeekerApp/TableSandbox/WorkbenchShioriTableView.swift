@@ -116,7 +116,6 @@ private struct WorkbenchShioriTableContent: View {
                         await loadRowsForTextCopy(range: range, source: textCopySource)
                     },
                     onPlay: openShiori,
-                    onShowContext: showContext,
                     rowActionMenuStyle: .shiori,
                     rowActionDestinations: rowActionDestinations,
                     onMoveShiori: moveShiori,
@@ -452,13 +451,6 @@ private struct WorkbenchShioriTableContent: View {
             ),
             displayTitle: row.displayTitle
         )
-    }
-
-    private func showContext(_ row: SubtitleTableRow) {
-        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
-            return
-        }
-        appState.openShioriContext(item, displayTitle: row.displayTitle)
     }
 
     private func requestRemoveShiori(_ row: SubtitleTableRow) {

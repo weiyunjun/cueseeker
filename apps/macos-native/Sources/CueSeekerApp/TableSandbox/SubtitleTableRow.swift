@@ -55,7 +55,6 @@ enum SubtitleTableCueState: Equatable {
         }
         var actions: Set<SubtitleTableRowAction> = [
             .play,
-            .context,
             .moveToList,
             .duplicateToList,
         ]
@@ -66,7 +65,7 @@ enum SubtitleTableCueState: Equatable {
     }
 }
 
-/// Row view-model shared by the Search, Shiori, and Context table surfaces.
+/// Row view-model shared by the Search and Shiori table surfaces.
 struct SubtitleTableRow: Identifiable, Equatable {
     let id: Int
     /// Stable identity of the primary Cue. Shiori row identity remains the

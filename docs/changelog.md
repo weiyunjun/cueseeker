@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Removed the Cue Context feature completely. Search, Shiori, Recent, and
+  Library no longer expose a `Context` action; the Search-hosted Context table,
+  paging/state machinery, database query, and dedicated tests are gone. Native
+  right-click context-menu infrastructure, Playback Return Context, and other
+  unrelated technical context models remain unchanged.
 - Removed the View and column-hiding controls from Search, Search-hosted
   Context, and Shiori tables. Each surface now always shows its complete
   defined column set, narrow layouts use the existing horizontal scrolling

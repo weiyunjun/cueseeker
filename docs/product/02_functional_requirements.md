@@ -105,7 +105,7 @@ Requirements:
 
 - Treat each stored cue line as the stable product-level Cue. A Cue Group is a
   derived indexing and optional-presentation container, not the identity used
-  by Search, Shiori, Context, playback actions, copy, or export.
+  by Search, Shiori, playback actions, copy, or export.
 - Store subtitle metadata.
 - Store video path.
 - Store subtitle path.
@@ -170,9 +170,9 @@ one primary Cue and retains its subtitle-file grouping metadata only as data;
 the older disclosure-group/card presentation described later in this section
 is superseded and non-normative.
 
-- Search and Context use Selection, `Display Title`, `Cues`, and `Time`
-  columns. Shiori uses the same Cue geometry and adds `Tags` and `Date Added`.
-- The primary Cue is the only playback, Context, Copy Cue Text, selection, and
+- Search uses Selection, `Display Title`, `Cues`, and `Time` columns. Shiori
+  uses the same Cue geometry and adds `Tags` and `Date Added`.
+- The primary Cue is the only playback, Copy Cue Text, selection, and
   export identity. Time is the primary Cue's own start time.
 - With Show Cue Group Off, Cues renders the complete primary Cue only. With it
   On, every additional Cue is rendered above the primary Cue in smaller,
@@ -192,8 +192,8 @@ is superseded and non-normative.
 
 The grouped-card container, subtitle-file headers, disclosure/collapse actions,
 group-level paging, and former fixed row visuals below are historical only.
-They must not be used to implement or review the current native Search,
-Context, or Shiori tables. Display-title derivation, thumbnail feature gating,
+They must not be used to implement or review the current native Search or
+Shiori tables. Display-title derivation, thumbnail feature gating,
 query highlighting, playback, and Finder reveal remain current only through
 the Current Supporting Search Rules restated after this legacy block.
 
@@ -370,8 +370,8 @@ When implemented, Library should support:
   line and an episode-count subtitle on the second line, with a single
   disclosure chevron on the left that rotates between `0°` (collapsed) and
   `90°` (expanded) over `160ms` with an ease curve when toggled. This is a
-  Library-only disclosure pattern; Search, Shiori, and Context use the
-  ungrouped native Cue table.
+  Library-only disclosure pattern; Search and Shiori use the ungrouped native
+  Cue table.
 - Read `N episodes` as the folder subtitle when no Library-launched playback is
   active for any video in this folder, and read `N episodes · Playing M` when
   Library-launched playback is active for a video in this folder, where `M` is
@@ -474,7 +474,7 @@ Requirements:
 
 - Open the matched local video file.
 - Seek to the subtitle start timestamp.
-- For Search, Shiori, and Context playback actions, seek to the primary Cue's
+- For Search and Shiori playback actions, seek to the primary Cue's
   own start timestamp. Showing additional Cue Group context must not change
   that target. For ASS sources, prepare source rendering asynchronously.
 - Render video inside the native app window.
@@ -570,8 +570,8 @@ Playback Multi-Module Overlay cue action requirements:
   Playlist, Playback Search, and Playback Shiori without changing count,
   ordering, identity, selection target, or Primary Cue actions.
 - Recent and Library reuse their established card layouts and directional
-  selection and omit the Workbench-only `Context` menu item. Selected state
-  reuses the existing Hover visual without a Focus Ring. Recent media actions
+  selection. Selected state reuses the existing Hover visual without a Focus
+  Ring. Recent media actions
   and Library Episode media actions destroy the Overlay Session before opening
   playback. Library Folder actions enter Detail within the same Session, and
   Back restores the prior Folder state.
@@ -666,13 +666,13 @@ Current Settings categories:
   `Watching + Finished` options.
 - Default `Search Scope` to `All`.
 - Apply `Search Scope` only to regular Search results in the Search tab.
-- Do not apply `Search Scope` to Shiori search or Cue Context search.
+- Do not apply `Search Scope` to Shiori search.
 - Present a persisted native `Show Cue Group` switch immediately below
   `Search Scope` and default it to Off.
-- Apply `Show Cue Group` to Workbench Search, Shiori, and Context and to
+- Apply `Show Cue Group` to Workbench Search and Shiori and to
   Playback Playlist, Search, and Shiori presentation only. Changing it may
   remeasure visible rows plus overscan and restore the anchored Primary Cue,
-  but must not rerun Search, rebuild Context scope, mutate Shiori data, change
+  but must not rerun Search, mutate Shiori data, change
   result counts or identity, or refresh hidden or playback-covered tables.
 - Provide a persisted `Prefill with Focused Cue` switch and default it to Off.
   When enabled, opening Command Panel from Playback Overlay Current or Cue
@@ -751,8 +751,8 @@ Initial Shiori panel behavior:
   language cannot identify a Japanese candidate may migration fall back to the
   physically bottommost Cue overall.
 - Shiori uses the shared native virtual table, not subtitle-file grouped cards.
-  Its Cue row geometry and Show Cue Group presentation match Search and
-  Context; save, delete, filter, playback, Context, copy, and export retain the
+  Its Cue row geometry and Show Cue Group presentation match Search; save,
+  delete, filter, playback, copy, and export retain the
   stable primary Cue identity.
 
 ## 13. Cue Export and Copy
@@ -774,7 +774,7 @@ Initial Anki export behavior:
 - Each card front contains the audio clip and midpoint screenshot. Its back
   contains the exact selected Cue text without language labels.
 
-Screenshot, Collage, Context, and copy behavior:
+Screenshot, Collage, and copy behavior:
 
 - Screenshot exports render the selected Cue or Cues using each Cue's own
   timing. The rendering object itself is unchanged by this requirement.
@@ -785,7 +785,6 @@ Screenshot, Collage, Context, and copy behavior:
 - `Copy Cue Text` copies exactly one primary Cue's complete text.
 - When Show Cue Group is On, `Copy Cue Group Text` copies the complete displayed
   Cue Group without changing the primary Cue action identity.
-- `Context` opens at the corresponding primary Cue, not at a Cue Group.
 
 Shiori may also feed Queue or Learning Session workflows after those workflows
 have documented placement.

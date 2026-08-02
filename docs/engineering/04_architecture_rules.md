@@ -255,7 +255,7 @@ Rules:
 - Source subtitle files remain the source of truth for indexed subtitle content.
 - The SQLite database is an indexed local cache plus local app state, not a replacement for the source files.
 - ASS indexing preserves cue groups as derived relationships while Search,
-  Context, Shiori, and playback actions use individual cue lines as their
+  Shiori, and playback actions use individual cue lines as their
   product identity.
 - SRT blocks should map to cue groups with one cue line.
 - ASS `Dialogue` events should map to cue groups and cue lines.
@@ -361,7 +361,7 @@ Rules:
   changes and the persisted `Show Cue Group` preference are presentation inputs:
   they may remeasure visible rows plus overscan, but must not rebuild the query,
   row identity snapshot, result count, selection, or primary-Cue action targets.
-- Search, Shiori, and Search-hosted Context use one native AppKit virtual Cue
+- Search and Shiori use one native AppKit virtual Cue
   table contract. Every row owns one primary Cue identity and a content-driven
   height of `16 + 24P + 20S`, where `P` is the primary Cue visual-line count and
   `S` is the visual-line count of optional additional Cue Group context shown
@@ -397,7 +397,7 @@ Rules:
 - Shiori initialization loads its complete relation collection and all
   referenced Cue content into memory before presenting the ready table.
   Arbitrary table positions must not trigger database hydration.
-- Search, Shiori, Context, and Playback must use one Cue-to-table projection for
+- Search, Shiori, and Playback must use one Cue-to-table projection for
   shared columns and Cue actions. Surface-specific relation metadata is applied
   as a lightweight overlay.
 - Workbench and Playback must not keep parallel long-lived copies of the same
@@ -424,9 +424,8 @@ existing Settings Library entry point rather than adding another folder picker.
 Workbench Library Folder Detail and Playback Video Playlist render the same
 Library Episode list and card implementation. Workbench does not create a
 persistent Episode selection; Playback keeps Session-local selection, defaults
-it to the first available Episode, and suppresses the Workbench-only `Context`
-menu item. These host differences must remain configuration of the shared list,
-not separate row implementations.
+it to the first available Episode. These host differences must remain
+configuration of the shared list, not separate row implementations.
 
 Workbench Recent overview, Workbench Recent detail, and Playback Command Panel
 render one Recent Watching card Grid and one Recent Shiori resume-row list.
@@ -523,7 +522,7 @@ Presentation virtualization rules:
   keyboard, wheel, and scrollbar input. Badge position text uses the complete
   Search result count, and activating a preview result continues to install the
   complete Search Playlist. Command Panel Search must not reintroduce its
-  removed cover Context, dedicated result Row, or a duplicate selection store.
+  dedicated result Row or a duplicate selection store.
 - Cue Result base extent depends only on Primary Cue, optional resident Cue
   Group content, fixed information Badge presence, presentation width, and
   style. Every Cue extent includes the same fixed-height Badge row; selection
@@ -542,15 +541,14 @@ Playback-specific differences are limited to:
   changing Overlay Session state;
 - temporary Overlay Session state and Playback Return Context;
 - the documented capability mask, including removal of batch, export, folder,
-  Context, Filter-control, and table-copy entry points;
+  Filter-control, and table-copy entry points;
 - Playback Cue Reel layout, Focus Anchor, accepted placement, settled selection,
   selection-dependent information Badge palette, Cue Group visibility policy,
   and the Playback-only Current and Playlist modules;
 - Playback Search's formal Workbench Filter projection, text-field focus
   routing, Up/Down Reel routing, and Enter-only Cue action;
 - Recent and Library persistent single selection, directional navigation,
-  session-local Library hierarchy and scroll position, Context-menu item
-  suppression, and locked menu target;
+  session-local Library hierarchy and scroll position, and locked menu target;
 - Playback-specific play, dismiss, resume, seek, feedback, and Return Context
   side effects.
 

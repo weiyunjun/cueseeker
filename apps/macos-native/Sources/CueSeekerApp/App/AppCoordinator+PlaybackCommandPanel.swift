@@ -59,7 +59,6 @@ extension AppCoordinator {
 
         search.updateQuery(trimmedQuery)
         search.updateActiveFilterSet(SubtitleSearchFilterSet())
-        search.updateContextRequest(nil)
         search.updateNavigationSnapshot(nil)
         if startsSearch {
             startSearch(

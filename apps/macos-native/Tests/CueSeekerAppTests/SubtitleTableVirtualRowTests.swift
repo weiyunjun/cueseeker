@@ -895,7 +895,6 @@ func subtitleTableViewOpenFolderActionUsesSubtitlePath() {
 @Test
 func subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow() {
     var playedRowID: Int?
-    var contextRowID: Int?
     var openedPath: String?
     var removedRowID: Int?
     let fixture = makeAttachedVirtualTableCoordinator(
@@ -903,7 +902,6 @@ func subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow() {
         showsCueGroup: true,
         rowActionMenuStyle: .shiori,
         onPlay: { playedRowID = $0.id },
-        onShowContext: { contextRowID = $0.id },
         onOpenSubtitleFile: { openedPath = $0 },
         onRemoveShiori: { removedRowID = $0.id }
     )
@@ -911,12 +909,10 @@ func subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow() {
 
     fixture.coordinator.performRowActionForTesting(.play, row: 0)
     fixture.coordinator.performRowActionForTesting(.openSubtitleFolder, row: 0)
-    fixture.coordinator.performRowActionForTesting(.context, row: 0)
     fixture.coordinator.performRowActionForTesting(.removeShiori, row: 0)
 
     #expect(playedRowID == 1)
     #expect(openedPath == "/tmp/CueSeeker/Episode 01.srt")
-    #expect(contextRowID == 1)
     #expect(removedRowID == 1)
 
     fixture.coordinator.performRowActionForTesting(.copyCueText, row: 0)
@@ -964,7 +960,6 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
     )
     var currentRow = original
     var playedRowIDs: [Int] = []
-    var contextRowIDs: [Int] = []
     var openedPaths: [String] = []
     var movedRows: [(rowID: Int, destinationID: Int64)] = []
     var duplicatedRows: [(rowID: Int, destinationID: Int64)] = []
@@ -975,7 +970,6 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
         showsCueGroup: true,
         rowActionMenuStyle: .shiori,
         onPlay: { playedRowIDs.append($0.id) },
-        onShowContext: { contextRowIDs.append($0.id) },
         onOpenSubtitleFile: { openedPaths.append($0) },
         rowActionDestinations: [
             SubtitleTableRowActionDestination(id: 90, title: "Destination"),
@@ -1006,9 +1000,6 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
 
     performAfterReplacingRow(.openSubtitleFolder)
     #expect(openedPaths == [original.subtitlePath])
-
-    performAfterReplacingRow(.context)
-    #expect(contextRowIDs == [original.id])
 
     performAfterReplacingRow(.copyCueText)
     #expect(pasteboard.string(forType: .string) == original.primaryCueText)
@@ -2254,7 +2245,6 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
         cueState: .unavailable(.videoMissing)
     )
     var playCount = 0
-    var contextCount = 0
     var openFolderCount = 0
     var removeCount = 0
     let fixture = makeAttachedVirtualTableCoordinator(
@@ -2263,7 +2253,6 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
         row: row,
         rowActionMenuStyle: .shiori,
         onPlay: { _ in playCount += 1 },
-        onShowContext: { _ in contextCount += 1 },
         onOpenSubtitleFile: { _ in openFolderCount += 1 },
         onRemoveShiori: { _ in removeCount += 1 }
     )
@@ -2289,11 +2278,9 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
     #expect(playCount == 0)
 
     fixture.coordinator.performRowActionForTesting(.play, row: 0)
-    fixture.coordinator.performRowActionForTesting(.context, row: 0)
     fixture.coordinator.performRowActionForTesting(.openSubtitleFolder, row: 0)
     fixture.coordinator.performRowActionForTesting(.removeShiori, row: 0)
     #expect(playCount == 0)
-    #expect(contextCount == 0)
     #expect(openFolderCount == 1)
     #expect(removeCount == 1)
 }
@@ -2403,19 +2390,19 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
     )
 
     #expect(offFixture.coordinator.rowMenuItemsForTesting().map(\.title) == [
-        "Play", "Open Subtitle Folder", "Context", "Copy Cue Text",
-        "Copy Deep Link", "Copy Time Range",
+        "Play", "Open Subtitle Folder", "Copy Cue Text", "Copy Deep Link",
+        "Copy Time Range",
     ])
     let onItems = onFixture.coordinator.rowMenuItemsForTesting()
     #expect(onItems.map(\.title) == [
-        "Play", "Open Subtitle Folder", "Context", "Copy Cue Text",
-        "Copy Deep Link", "Copy Cue Group Text", "Copy Time Range", "Move to ...",
+        "Play", "Open Subtitle Folder", "Copy Cue Text", "Copy Deep Link",
+        "Copy Cue Group Text", "Copy Time Range", "Move to ...",
         "Duplicate to ...", "Remove Shiori",
     ])
-    #expect(onItems[3].systemImage == "doc.on.doc")
-    #expect(onItems[4].systemImage == "link")
+    #expect(onItems[2].systemImage == "doc.on.doc")
+    #expect(onItems[3].systemImage == "link")
+    #expect(onItems[4].systemImage == "doc.on.doc")
     #expect(onItems[5].systemImage == "doc.on.doc")
-    #expect(onItems[6].systemImage == "doc.on.doc")
 
     offFixture.coordinator.copyCueTextForTesting(row: 0)
     #expect(NSPasteboard.general.string(forType: .string) == "main\nline")
@@ -2896,7 +2883,6 @@ private func makeAttachedVirtualTableCoordinator(
     allResultsTextCopyRowCount: Int? = nil,
     loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
-    onShowContext: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
     onOpenSubtitleFile: @escaping (String) -> Void = { _ in },
     rowActionDestinations: [SubtitleTableRowActionDestination] = [],
@@ -2942,7 +2928,6 @@ private func makeAttachedVirtualTableCoordinator(
         allResultsTextCopyRowCount: allResultsTextCopyRowCount,
         loadRowsForTextCopy: loadRowsForTextCopy,
         onPlay: onPlay,
-        onShowContext: onShowContext,
         onOpenSubtitleFile: onOpenSubtitleFile,
         rowActionMenuStyle: rowActionMenuStyle,
         rowActionDestinations: rowActionDestinations,
