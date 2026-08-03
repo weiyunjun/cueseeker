@@ -47,6 +47,41 @@ func indexesFolderIntoSQLiteSearchDatabase() throws {
 }
 
 @Test
+func indexesUTF16LEASSWithTheSameTextUsedByPlayback() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let text = "時は来た"
+    let contents = """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,\(text)
+    """
+    var data = Data([0xFF, 0xFE])
+    data.append(try #require(contents.data(using: .utf16LittleEndian)))
+    let subtitleURL = fixture.root.appendingPathComponent("Episode.ass")
+    try data.write(to: subtitleURL)
+    try fixture.writeVideo(name: "Episode.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let result = try SubtitleIndexer().index(folder: fixture.root, into: database)
+    let indexedSubtitlePath = try #require(
+        try database.subtitleFiles().first?.subtitlePath
+    )
+    let playbackEntries = try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+        .entries(forSubtitleFile: URL(fileURLWithPath: indexedSubtitlePath))
+
+    #expect(result.indexedSubtitleFiles == 1)
+    #expect(result.indexedSubtitleEntries == 1)
+    #expect(playbackEntries.first?.content == text)
+}
+
+@Test
 func indexingPrefersCompleteBasenameMatchAndStoresOneAssociation() throws {
     let fixture = try IndexingFixture()
     defer {

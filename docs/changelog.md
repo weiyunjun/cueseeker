@@ -6,6 +6,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified ASS and SRT text decoding across indexing, playback, and subtitle
+  screenshots. Unicode byte-order marks are handled first, strict UTF-8 is
+  preferred for unmarked files, and common legacy East Asian encodings use
+  lossless system detection plus subtitle-structure validation before the
+  normalized UTF-8 text reaches parsers or libass.
 - Removed the Cue Context feature completely. Search, Shiori, Recent, and
   Library no longer expose a `Context` action; the Search-hosted Context table,
   paging/state machinery, database query, and dedicated tests are gone. Native

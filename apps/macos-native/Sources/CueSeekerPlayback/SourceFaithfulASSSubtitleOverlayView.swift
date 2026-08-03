@@ -294,20 +294,14 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         }
 
         activeRenderSegmentWindow = nil
-        if let sourceScript = try? String(contentsOf: URL(fileURLWithPath: sourcePath)) {
-            let renderScript = rewriteFontAliases(in: sourceScript)
-            if renderScript != sourceScript {
-                return try SFXASSRendererSession(
-                    assScript: renderScript,
-                    sourceIdentifier: sourcePath,
-                    frameWidth: frameWidth,
-                    frameHeight: frameHeight
-                )
-            }
-        }
-
+        let sourceScript = try SubtitleTextDecoder.decode(
+            contentsOf: URL(fileURLWithPath: sourcePath),
+            format: .ass
+        )
+        let renderScript = rewriteFontAliases(in: sourceScript)
         return try SFXASSRendererSession(
-            assFileAtPath: sourcePath,
+            assScript: renderScript,
+            sourceIdentifier: sourcePath,
             frameWidth: frameWidth,
             frameHeight: frameHeight
         )

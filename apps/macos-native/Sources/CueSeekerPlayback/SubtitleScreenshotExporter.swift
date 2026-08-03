@@ -318,7 +318,10 @@ public enum SubtitleScreenshotExporter {
         }
 
         let assSourceScript = subtitleSource.format == .ass
-            ? try String(contentsOf: subtitleSource.url)
+            ? try SubtitleTextDecoder.decode(
+                contentsOf: subtitleSource.url,
+                format: .ass
+            )
             : nil
         var renderedGroups: [SubtitleCollageRenderedGroup] = []
         renderedGroups.reserveCapacity(groups.count)
@@ -824,23 +827,17 @@ public enum SubtitleScreenshotExporter {
             )
         }
 
-        if let sourceScript = try? String(contentsOf: source.url) {
-            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-                sourceScript,
-                requestedFontNames: requestedFontNames
-            )
-            if renderScript != sourceScript {
-                return try SFXASSRendererSession(
-                    assScript: renderScript,
-                    sourceIdentifier: source.url.path,
-                    frameWidth: frameWidth,
-                    frameHeight: frameHeight
-                )
-            }
-        }
-
+        let sourceScript = try SubtitleTextDecoder.decode(
+            contentsOf: source.url,
+            format: .ass
+        )
+        let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
+            sourceScript,
+            requestedFontNames: requestedFontNames
+        )
         return try SFXASSRendererSession(
-            assFileAtPath: source.url.path,
+            assScript: renderScript,
+            sourceIdentifier: source.url.path,
             frameWidth: frameWidth,
             frameHeight: frameHeight
         )

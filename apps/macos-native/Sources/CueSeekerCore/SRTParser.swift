@@ -25,19 +25,10 @@ public enum SRTParser {
     }
 
     public static func parseForRendering(_ data: Data) throws -> [SubtitleEntry] {
-        let contents: String?
-        if data.starts(with: [0xFF, 0xFE]) {
-            contents = String(data: data.dropFirst(2), encoding: .utf16LittleEndian)
-        } else if data.starts(with: [0xFE, 0xFF]) {
-            contents = String(data: data.dropFirst(2), encoding: .utf16BigEndian)
-        } else {
-            let utf8Data = data.starts(with: [0xEF, 0xBB, 0xBF])
-                ? data.dropFirst(3)
-                : data[...]
-            contents = String(data: utf8Data, encoding: .utf8)
-        }
-
-        guard let contents else {
+        let contents: String
+        do {
+            contents = try SubtitleTextDecoder.decode(data, format: .srt)
+        } catch {
             throw SRTParsingError.undecodableData
         }
         return parseForRendering(contents)

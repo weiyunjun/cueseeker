@@ -199,18 +199,21 @@ public struct SubtitleIndexer {
                 continue
             }
 
+            guard let format = SubtitleFormat(fileExtension: subtitleFile.pathExtension) else {
+                continue
+            }
+
             let contents: String
             do {
-                contents = try String(contentsOf: subtitleFile)
+                contents = try SubtitleTextDecoder.decode(
+                    contentsOf: subtitleFile,
+                    format: format
+                )
             } catch {
                 throw SubtitleIndexingError.incomplete(
                     path: subtitleFile.path,
-                    reason: "Subtitle file could not be read."
+                    reason: "Subtitle file could not be decoded: \(error.localizedDescription)"
                 )
-            }
-
-            guard let format = SubtitleFormat(fileExtension: subtitleFile.pathExtension) else {
-                continue
             }
 
             let cueGroups: [SubtitleCueGroup]

@@ -1,4 +1,5 @@
 import CASSRendering
+import CueSeekerCore
 import Foundation
 import XCTest
 
@@ -137,6 +138,37 @@ final class CASSRenderingProbeTests: XCTestCase {
 
         XCTAssertGreaterThan(output.imageCount, 0)
         XCTAssertGreaterThan(output.width, 0)
+        XCTAssertGreaterThan(nonTransparentPixelCount(in: output.rgbaData), 0)
+    }
+
+    func testUTF16LEASSDecodesToUTF8BeforeRenderingFromMemory() throws {
+        let script = """
+        [Script Info]
+        PlayResX: 640
+        PlayResY: 360
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Helvetica,32,&H00FFFFFF,&H000000FF,&H80000000,&H40000000,0,0,0,0,100,100,0,0,1,2,1,2,20,20,20,1
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Rendered UTF-16 subtitle
+        """
+        var data = Data([0xFF, 0xFE])
+        data.append(try XCTUnwrap(script.data(using: .utf16LittleEndian)))
+        let decoded = try SubtitleTextDecoder.decode(data, format: .ass)
+        let session = try SFXASSRendererSession(
+            assScript: decoded,
+            sourceIdentifier: "utf16-memory",
+            frameWidth: 640,
+            frameHeight: 360
+        )
+
+        let output = try session.renderCroppedImage(atTimestampMilliseconds: 1_500)
+
+        XCTAssertEqual(Data(decoded.utf8), Data(script.utf8))
+        XCTAssertGreaterThan(output.imageCount, 0)
         XCTAssertGreaterThan(nonTransparentPixelCount(in: output.rgbaData), 0)
     }
 
