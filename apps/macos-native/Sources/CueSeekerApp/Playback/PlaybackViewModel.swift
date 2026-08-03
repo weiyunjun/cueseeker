@@ -1005,7 +1005,8 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         _ player: PlaybackPlayer,
         didCommitPresentationAtMilliseconds milliseconds: Int,
         generation: UInt,
-        playing: Bool
+        playing: Bool,
+        videoSize: CGSize?
     ) {
         guard let pendingPresentation,
               pendingPresentation.generation == generation
@@ -1016,6 +1017,15 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         self.pendingPresentation = nil
         if let stagedSubtitleTrack = pendingPresentation.stagedSubtitleTrack {
             subtitleTrack = stagedSubtitleTrack
+        }
+        if let videoSize,
+           videoSize.width > 0,
+           videoSize.height > 0 {
+            let nextAspectRatio = Double(videoSize.width / videoSize.height)
+            if nextAspectRatio.isFinite,
+               videoAspectRatio != nextAspectRatio {
+                videoAspectRatio = nextAspectRatio
+            }
         }
         subtitlePresentationHoldMilliseconds = nil
         clearProtectedSeekTarget()

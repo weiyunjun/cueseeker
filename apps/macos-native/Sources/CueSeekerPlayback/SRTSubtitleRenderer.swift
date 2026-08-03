@@ -516,17 +516,22 @@ private enum SRTInlineText {
 final class SRTSubtitleOverlayView: NSView {
     var areSubtitlesVisible = true {
         didSet {
-            guard oldValue != areSubtitlesVisible else { return }
+            guard !isApplyingPresentation,
+                  oldValue != areSubtitlesVisible
+            else { return }
             imageLayer.isHidden = !areSubtitlesVisible
             updateImage(force: true)
         }
     }
     var currentTimeMilliseconds = 0 {
-        didSet { updateImage() }
+        didSet {
+            guard !isApplyingPresentation else { return }
+            updateImage()
+        }
     }
     var videoSize: CGSize? {
         didSet {
-            guard oldValue != videoSize else { return }
+            guard !isApplyingPresentation, oldValue != videoSize else { return }
             rebuildLayout()
             needsLayout = true
         }
@@ -542,6 +547,7 @@ final class SRTSubtitleOverlayView: NSView {
     private var preparedLayout: SRTSubtitleLayout?
     private var activeOrdinals: [Int] = []
     private var renderedImage: CGImage?
+    private var isApplyingPresentation = false
     private let imageLayer = CALayer()
 
     private(set) var sourceLoadCountForTesting = 0
@@ -637,6 +643,38 @@ final class SRTSubtitleOverlayView: NSView {
                     errorMessage: "SRT renderer failed to load source: \(error.localizedDescription)"
                 )
             }
+        }
+    }
+
+    func setPresentation(
+        source nextSource: PlaybackSubtitleSource?,
+        videoSize nextVideoSize: CGSize?,
+        milliseconds: Int,
+        isVisible: Bool
+    ) {
+        let previousVideoSize = videoSize
+        let previousIdentity = source.map(Self.identity(for:))
+
+        isApplyingPresentation = true
+        videoSize = nextVideoSize
+        currentTimeMilliseconds = max(0, milliseconds)
+        areSubtitlesVisible = isVisible
+        isApplyingPresentation = false
+        imageLayer.isHidden = !isVisible
+
+        setSource(nextSource)
+
+        guard let nextSource,
+              previousIdentity == Self.identity(for: nextSource)
+        else {
+            return
+        }
+
+        if previousVideoSize != nextVideoSize {
+            rebuildLayout()
+            needsLayout = true
+        } else {
+            updateImage(force: true)
         }
     }
 

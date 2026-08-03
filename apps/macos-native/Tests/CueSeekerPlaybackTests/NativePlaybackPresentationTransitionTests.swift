@@ -16,16 +16,25 @@ func nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits() async 
         try? FileManager.default.removeItem(at: directory)
     }
 
-    let firstMediaURL = directory.appendingPathComponent("first-red.mkv")
-    let secondMediaURL = directory.appendingPathComponent("second-blue.mkv")
+    let firstMediaURL = directory.appendingPathComponent("first-large-16x9.mkv")
+    let secondMediaURL = directory.appendingPathComponent("second-small-16x9.mkv")
+    let thirdMediaURL = directory.appendingPathComponent("third-nonstandard-aspect.mkv")
     try makePresentationTransitionMedia(
         at: firstMediaURL,
         audioFrequency: 440,
+        videoSize: "320x180",
         ffmpegURL: ffmpegURL
     )
     try makePresentationTransitionMedia(
         at: secondMediaURL,
         audioFrequency: 880,
+        videoSize: "160x90",
+        ffmpegURL: ffmpegURL
+    )
+    try makePresentationTransitionMedia(
+        at: thirdMediaURL,
+        audioFrequency: 1_320,
+        videoSize: "144x108",
         ffmpegURL: ffmpegURL
     )
 
@@ -56,10 +65,10 @@ func nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits() async 
     #expect(presentedInitialGeneration)
     #expect(player.nativePresentedVideoFrameCount > 0)
     let initialSnapshot = try #require(player.latestSubmittedVideoFrameSnapshot)
-    #expect(initialSnapshot.width == 160)
-    #expect(initialSnapshot.height == 90)
-    #expect(CVPixelBufferGetWidth(initialSnapshot.pixelBuffer) == 160)
-    #expect(CVPixelBufferGetHeight(initialSnapshot.pixelBuffer) == 90)
+    #expect(initialSnapshot.width == 320)
+    #expect(initialSnapshot.height == 180)
+    #expect(CVPixelBufferGetWidth(initialSnapshot.pixelBuffer) == 320)
+    #expect(CVPixelBufferGetHeight(initialSnapshot.pixelBuffer) == 180)
 
     let removalCountAfterInitialFrame = player.nativeDisplayImageRemovalCount
 
@@ -93,13 +102,31 @@ func nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits() async 
     #expect(openCommit.milliseconds >= 1_100)
     let openSnapshot = try #require(player.latestSubmittedVideoFrameSnapshot)
     #expect(openSnapshot !== seekSnapshot)
+    #expect(openSnapshot.width == 160)
+    #expect(openSnapshot.height == 90)
+
+    try player.openPath(thirdMediaURL.path, startMilliseconds: 1_100)
+    try player.setPaused(false)
+    let thirdGeneration = player.nativePresentationGeneration
+    #expect(thirdGeneration > openGeneration)
+    #expect(player.nativeDisplayImageRemovalCount == removalCountAfterInitialFrame)
+    let presentedThirdGeneration = await waitForPresentationGeneration(
+        thirdGeneration,
+        delegate: delegate
+    )
+    #expect(presentedThirdGeneration)
+    #expect(player.nativeDisplayImageRemovalCount == removalCountAfterInitialFrame)
+    let thirdSnapshot = try #require(player.latestSubmittedVideoFrameSnapshot)
+    #expect(thirdSnapshot !== openSnapshot)
+    #expect(thirdSnapshot.width == 144)
+    #expect(thirdSnapshot.height == 108)
 
     player.stop()
     stopped = true
     #expect(player.nativeDisplayImageRemovalCount == removalCountAfterInitialFrame + 1)
     #expect(player.latestSubmittedVideoFrameSnapshot == nil)
-    #expect(initialSnapshot.width == 160)
-    #expect(initialSnapshot.height == 90)
+    #expect(initialSnapshot.width == 320)
+    #expect(initialSnapshot.height == 180)
 }
 
 @Test
@@ -241,6 +268,7 @@ private func waitForPresentationGeneration(
 private func makePresentationTransitionMedia(
     at mediaURL: URL,
     audioFrequency: Int,
+    videoSize: String = "160x90",
     ffmpegURL: URL
 ) throws {
     try runPresentationTransitionProcess(
@@ -252,7 +280,7 @@ private func makePresentationTransitionMedia(
             "-f",
             "lavfi",
             "-i",
-            "testsrc2=duration=5:size=160x90:rate=24",
+            "testsrc2=duration=5:size=\(videoSize):rate=24",
             "-f",
             "lavfi",
             "-i",

@@ -19,6 +19,12 @@ func playbackPresentationKeepsOldSubtitleAndTimeUntilMatchingFrameCommit() async
         currentTimeMilliseconds: 1_000
     )
     viewModel.isPlaying = true
+    viewModel.player(
+        player,
+        didChangeProperty: "video-aspect-ratio",
+        value: .double(16.0 / 9.0)
+    )
+    await Task.yield()
 
     viewModel.preparePresentationTransition(
         to: 6,
@@ -28,6 +34,11 @@ func playbackPresentationKeepsOldSubtitleAndTimeUntilMatchingFrameCommit() async
 
     viewModel.player(player, didChangeProperty: "time-pos", value: .double(6.1))
     viewModel.player(player, didChangeProperty: "duration", value: .double(120))
+    viewModel.player(
+        player,
+        didChangeProperty: "video-aspect-ratio",
+        value: .double(4.0 / 3.0)
+    )
     viewModel.player(player, didChangeProperty: "pause", value: .bool(true))
     await Task.yield()
 
@@ -36,14 +47,17 @@ func playbackPresentationKeepsOldSubtitleAndTimeUntilMatchingFrameCommit() async
     #expect(viewModel.activeSubtitleText == "old")
     #expect(viewModel.isPlaying)
     #expect(viewModel.duration == 0)
+    #expect(viewModel.videoAspectRatio == 16.0 / 9.0)
     #expect(committedPlayingStates.isEmpty)
 
     viewModel.player(
         player,
         didCommitPresentationAtMilliseconds: 6_100,
         generation: 41,
-        playing: true
+        playing: true,
+        videoSize: CGSize(width: 1_440, height: 1_080)
     )
+    #expect(viewModel.videoAspectRatio == 4.0 / 3.0)
     await Task.yield()
 
     #expect(viewModel.currentTime == 6.1)
@@ -69,6 +83,7 @@ func playbackPresentationRejectsSupersededGenerationAndCommitsOnlyLatestTarget()
         currentTimeMilliseconds: 1_000
     )
     viewModel.isPlaying = true
+    let initialAspectRatio = 16.0 / 9.0
 
     viewModel.preparePresentationTransition(
         to: 6,
@@ -85,8 +100,10 @@ func playbackPresentationRejectsSupersededGenerationAndCommitsOnlyLatestTarget()
         player,
         didCommitPresentationAtMilliseconds: 6_000,
         generation: 50,
-        playing: true
+        playing: true,
+        videoSize: CGSize(width: 1_440, height: 1_080)
     )
+    #expect(viewModel.videoAspectRatio == initialAspectRatio)
     await Task.yield()
 
     #expect(viewModel.currentTime == 1)
@@ -104,8 +121,10 @@ func playbackPresentationRejectsSupersededGenerationAndCommitsOnlyLatestTarget()
         player,
         didCommitPresentationAtMilliseconds: 11_000,
         generation: 51,
-        playing: false
+        playing: false,
+        videoSize: CGSize(width: 3_840, height: 1_608)
     )
+    #expect(viewModel.videoAspectRatio == 3_840.0 / 1_608.0)
     await Task.yield()
 
     #expect(viewModel.currentTime == 11)

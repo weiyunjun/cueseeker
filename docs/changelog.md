@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Made cross-video playback presentation switching atomic. The previous frame
+  and subtitle presentation now remain intact until the current generation's
+  first frame is ready, then the frame dimensions, outer aspect ratio, and ASS
+  or SRT presentation switch together. This removes the temporary stretch,
+  layout jump, and redundant subtitle rebuild seen when moving between 4K,
+  1080p, and nonstandard resolutions.
 - Unified ASS and SRT text decoding across indexing, playback, and subtitle
   screenshots. Unicode byte-order marks are handled first, strict UTF-8 is
   preferred for unmarked files, and common legacy East Asian encodings use

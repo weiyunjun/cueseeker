@@ -14,7 +14,8 @@ public protocol PlaybackPlayerDelegate: AnyObject {
         _ player: PlaybackPlayer,
         didCommitPresentationAtMilliseconds milliseconds: Int,
         generation: UInt,
-        playing: Bool
+        playing: Bool,
+        videoSize: CGSize?
     )
 }
 
@@ -26,7 +27,8 @@ public extension PlaybackPlayerDelegate {
         _ player: PlaybackPlayer,
         didCommitPresentationAtMilliseconds milliseconds: Int,
         generation: UInt,
-        playing: Bool
+        playing: Bool,
+        videoSize: CGSize?
     ) {}
 }
 
@@ -385,11 +387,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         clearHeldSubtitlePresentationWithoutRendering()
         if Thread.isMainThread {
             MainActor.assumeIsolated {
-                activateSubtitleSourceForCommittedPresentation(nil, milliseconds: 0)
+                clearSubtitleSourceAfterStop()
             }
         } else {
             Task { @MainActor in
-                self.activateSubtitleSourceForCommittedPresentation(nil, milliseconds: 0)
+                self.clearSubtitleSourceAfterStop()
             }
         }
         emitPauseState(isPaused: true)
@@ -605,7 +607,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
 
         container.attach(nativePlayer.view)
-        container.setVideoSize(currentNativeVideoSize())
         container.setSubtitlesVisible(subtitlesVisible)
     }
 
@@ -741,6 +742,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         self.pendingPresentation = nil
         committedPresentationGeneration = generation
         heldSubtitlePresentationMilliseconds = nil
+        let videoSize = currentNativeVideoSize()
 
         switch pendingPresentation.subtitleAction {
         case .preserve:
@@ -752,7 +754,8 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         case .replace(let source):
             activateSubtitleSourceForCommittedPresentation(
                 source,
-                milliseconds: safeMilliseconds
+                milliseconds: safeMilliseconds,
+                videoSize: videoSize
             )
         }
 
@@ -761,20 +764,14 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             self,
             didCommitPresentationAtMilliseconds: safeMilliseconds,
             generation: generation,
-            playing: playing
+            playing: playing,
+            videoSize: videoSize
         )
         delegate?.player(
             self,
             didChangeProperty: "duration",
             value: .double(nativePlayer.duration)
         )
-        if let aspectRatio = currentNativeVideoAspectRatio() {
-            delegate?.player(
-                self,
-                didChangeProperty: "video-aspect-ratio",
-                value: .double(aspectRatio)
-            )
-        }
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
         delegate?.player(
             self,
@@ -784,9 +781,20 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     @MainActor
+    private func clearSubtitleSourceAfterStop() {
+        subtitleLoadTask?.cancel()
+        activeSubtitleSource = nil
+        lastRenderedASSSubtitleMilliseconds = 0
+        assSubtitleRenderTimeGate = nil
+        stopASSSubtitleRenderTicks()
+        (renderView as? PlaybackRenderContainerView)?.clearSubtitleSource()
+    }
+
+    @MainActor
     private func activateSubtitleSourceForCommittedPresentation(
         _ source: PlaybackSubtitleSource?,
-        milliseconds: Int
+        milliseconds: Int,
+        videoSize: CGSize?
     ) {
         subtitleLoadTask?.cancel()
         activeSubtitleSource = source
@@ -795,7 +803,12 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         guard let source else {
             assSubtitleRenderTimeGate = nil
             stopASSSubtitleRenderTicks()
-            (renderView as? PlaybackRenderContainerView)?.clearSubtitleSource()
+            (renderView as? PlaybackRenderContainerView)?.commitSubtitlePresentation(
+                source: nil,
+                videoSize: videoSize,
+                milliseconds: milliseconds,
+                isVisible: subtitlesVisible
+            )
             return
         }
 
@@ -814,10 +827,12 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             guard let self else { return }
             self.delegate?.player(self, didFailWithMessage: message)
         }
-        container.setVideoSize(currentNativeVideoSize())
-        container.setSubtitleTime(milliseconds: milliseconds)
-        container.setSubtitleSource(source)
-        container.setSubtitlesVisible(subtitlesVisible)
+        container.commitSubtitlePresentation(
+            source: source,
+            videoSize: videoSize,
+            milliseconds: milliseconds,
+            isVisible: subtitlesVisible
+        )
         startASSSubtitleRenderTicks()
     }
 }
@@ -985,6 +1000,42 @@ public final class PlaybackRenderContainerView: NSView {
         super.layout()
 
         synchronizeAttachedRenderFrames(logName: "PlaybackRenderContainerView.layout")
+    }
+
+    func commitSubtitlePresentation(
+        source: PlaybackSubtitleSource?,
+        videoSize: CGSize?,
+        milliseconds: Int,
+        isVisible: Bool
+    ) {
+        currentASSSubtitleSource = source
+        currentASSSubtitleTimeMilliseconds = max(0, milliseconds)
+        currentSubtitlesVisible = isVisible
+        currentVideoSize = videoSize
+
+        switch source?.format {
+        case .ass:
+            srtSubtitleOverlayView?.setSource(nil)
+            ensureSourceFaithfulASSOverlayView()
+            sourceFaithfulASSOverlayView?.setPresentation(
+                source: source,
+                videoSize: videoSize,
+                milliseconds: currentASSSubtitleTimeMilliseconds,
+                isVisible: isVisible
+            )
+        case .srt:
+            sourceFaithfulASSOverlayView?.setSource(nil)
+            ensureSRTSubtitleOverlayView()
+            srtSubtitleOverlayView?.setPresentation(
+                source: source,
+                videoSize: videoSize,
+                milliseconds: currentASSSubtitleTimeMilliseconds,
+                isVisible: isVisible
+            )
+        case nil:
+            sourceFaithfulASSOverlayView?.setSource(nil)
+            srtSubtitleOverlayView?.setSource(nil)
+        }
     }
 
     func setSourceFaithfulASSSubtitleSource(_ source: PlaybackSubtitleSource) {

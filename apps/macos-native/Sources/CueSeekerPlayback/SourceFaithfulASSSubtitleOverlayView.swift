@@ -349,7 +349,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 final class SourceFaithfulASSSubtitleOverlayView: NSView {
     var areSubtitlesVisible: Bool = true {
         didSet {
-            if oldValue != areSubtitlesVisible {
+            if !isApplyingPresentation, oldValue != areSubtitlesVisible {
                 subtitleContainerLayer.isHidden = !areSubtitlesVisible
                 if areSubtitlesVisible {
                     requestRender(force: true)
@@ -361,7 +361,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     var currentTimeMilliseconds: Int = 0 {
         didSet {
-            if oldValue != currentTimeMilliseconds {
+            if !isApplyingPresentation, oldValue != currentTimeMilliseconds {
                 requestRender()
             }
         }
@@ -369,7 +369,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     var videoSize: CGSize? {
         didSet {
-            if oldValue != videoSize {
+            if !isApplyingPresentation, oldValue != videoSize {
                 reloadRendererIfPossible()
                 needsDisplay = true
             }
@@ -386,9 +386,11 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var renderedTimestampMilliseconds: Int?
     private var renderedFrame: ASSRenderedFrame?
     private var failureMessage: String?
+    private var isApplyingPresentation = false
     private let subtitleContainerLayer = CALayer()
     private var subtitleSurfaceLayer: CALayer?
     private var rendererWorker = SourceFaithfulASSRendererWorker()
+    private(set) var rendererLoadCountForTesting = 0
 
     override var isFlipped: Bool {
         true
@@ -477,6 +479,43 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         needsDisplay = true
     }
 
+    func setPresentation(
+        source nextSource: PlaybackSubtitleSource?,
+        videoSize nextVideoSize: CGSize?,
+        milliseconds: Int,
+        isVisible: Bool
+    ) {
+        let canReuseRenderer = rendererCanBeReused(
+            for: nextSource,
+            videoSize: nextVideoSize
+        )
+
+        isApplyingPresentation = true
+        source = nextSource
+        videoSize = nextVideoSize
+        currentTimeMilliseconds = max(0, milliseconds)
+        areSubtitlesVisible = isVisible
+        isApplyingPresentation = false
+        subtitleContainerLayer.isHidden = !isVisible
+
+        guard nextSource != nil else {
+            clearPresentationState()
+            replaceRendererWorker()
+            needsDisplay = true
+            return
+        }
+
+        if canReuseRenderer {
+            failureMessage = nil
+            requestRender(force: true)
+            needsDisplay = true
+            return
+        }
+
+        reloadRendererIfPossible()
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
 
@@ -534,8 +573,28 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     }
                 })
             }
+            rendererLoadCountForTesting += 1
             generation = loadGeneration
         }
+    }
+
+    private func rendererCanBeReused(
+        for nextSource: PlaybackSubtitleSource?,
+        videoSize nextVideoSize: CGSize?
+    ) -> Bool {
+        guard let source,
+              let nextSource,
+              generation != nil,
+              failureMessage == nil,
+              videoSize == nextVideoSize
+        else {
+            return false
+        }
+
+        return source.url.standardizedFileURL == nextSource.url.standardizedFileURL
+            && source.format == nextSource.format
+            && source.renderCacheDatabaseURL?.standardizedFileURL
+                == nextSource.renderCacheDatabaseURL?.standardizedFileURL
     }
 
     private func requestRender(force: Bool = false) {

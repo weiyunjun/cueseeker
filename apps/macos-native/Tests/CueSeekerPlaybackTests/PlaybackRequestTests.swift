@@ -206,6 +206,79 @@ func srtOverlayRejectsReplacedSourceWork() async throws {
 }
 
 @Test
+@MainActor
+func srtPresentationAppliesChangedSourceAndVideoSizeOnce() async throws {
+    let temporaryDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSRTAtomicPresentation-\(UUID().uuidString)")
+    let firstURL = temporaryDirectory.appendingPathComponent("first.srt")
+    let secondURL = temporaryDirectory.appendingPathComponent("second.srt")
+    defer {
+        try? FileManager.default.removeItem(at: temporaryDirectory)
+    }
+    try FileManager.default.createDirectory(
+        at: temporaryDirectory,
+        withIntermediateDirectories: true
+    )
+    try "1\n00:00:01,000 --> 00:00:03,000\nFirst source\n".write(
+        to: firstURL,
+        atomically: true,
+        encoding: .utf8
+    )
+    try "1\n00:00:01,000 --> 00:00:03,000\nSecond source\n".write(
+        to: secondURL,
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let view = SRTSubtitleOverlayView(frame: .zero)
+    view.setPresentation(
+        source: PlaybackSubtitleSource(url: firstURL, format: .srt),
+        videoSize: CGSize(width: 3_840, height: 2_160),
+        milliseconds: 2_000,
+        isVisible: true
+    )
+    view.setPresentation(
+        source: PlaybackSubtitleSource(
+            url: firstURL,
+            format: .srt,
+            initialTimestampMilliseconds: 2_500
+        ),
+        videoSize: CGSize(width: 3_840, height: 2_160),
+        milliseconds: 2_500,
+        isVisible: true
+    )
+
+    #expect(view.sourceLoadCountForTesting == 1)
+
+    view.setPresentation(
+        source: PlaybackSubtitleSource(url: secondURL, format: .srt),
+        videoSize: CGSize(width: 1_920, height: 800),
+        milliseconds: 2_000,
+        isVisible: true
+    )
+
+    for _ in 0..<50 where view.currentPresentationImage() == nil {
+        try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    let image = try #require(view.currentPresentationImage())
+    #expect(view.sourceLoadCountForTesting == 2)
+    #expect(view.layoutBuildCountForTesting == 1)
+    #expect(image.width == 1_920)
+    #expect(image.height == 800)
+
+    view.setPresentation(
+        source: PlaybackSubtitleSource(url: secondURL, format: .srt),
+        videoSize: CGSize(width: 1_280, height: 720),
+        milliseconds: 2_000,
+        isVisible: false
+    )
+
+    #expect(view.sourceLoadCountForTesting == 2)
+    #expect(view.layoutBuildCountForTesting == 2)
+    #expect(view.currentPresentationImage() == nil)
+}
+
+@Test
 func playbackDecodeModeRawValuesMatchSettingsControlValues() {
     #expect(PlaybackDecodeMode.allCases.map(\.rawValue) == ["hardware", "software", "auto"])
     #expect(PlaybackDecodeMode.hardware.displayName == "hardware")
@@ -905,6 +978,78 @@ func sourceFaithfulASSSubtitleOverlayReplacesRendererWorkerWhenSourceChanges() t
     #expect(firstWorker != initialWorker)
     #expect(secondWorker != firstWorker)
     #expect(clearedWorker != secondWorker)
+}
+
+@Test
+@MainActor
+func sourceFaithfulASSPresentationAvoidsIntermediateRendererReloads() throws {
+    let directory = try temporaryPlaybackTestDirectory()
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let firstSubtitleURL = directory.appendingPathComponent("First.ass")
+    let secondSubtitleURL = directory.appendingPathComponent("Second.ass")
+    try minimalASSPlaybackScript(text: "First").write(
+        to: firstSubtitleURL,
+        atomically: true,
+        encoding: .utf8
+    )
+    try minimalASSPlaybackScript(text: "Second").write(
+        to: secondSubtitleURL,
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let view = SourceFaithfulASSSubtitleOverlayView(
+        frame: CGRect(x: 0, y: 0, width: 640, height: 360)
+    )
+    let firstSource = PlaybackSubtitleSource(
+        url: firstSubtitleURL,
+        format: .ass,
+        initialTimestampMilliseconds: 1_000
+    )
+    view.setPresentation(
+        source: firstSource,
+        videoSize: CGSize(width: 3_840, height: 2_160),
+        milliseconds: 1_000,
+        isVisible: true
+    )
+    let firstWorker = view.rendererWorkerIdentityForTesting
+
+    view.setPresentation(
+        source: PlaybackSubtitleSource(
+            url: firstSubtitleURL,
+            format: .ass,
+            initialTimestampMilliseconds: 2_000
+        ),
+        videoSize: CGSize(width: 3_840, height: 2_160),
+        milliseconds: 2_000,
+        isVisible: true
+    )
+
+    #expect(view.rendererLoadCountForTesting == 1)
+    #expect(view.rendererWorkerIdentityForTesting == firstWorker)
+
+    view.setPresentation(
+        source: PlaybackSubtitleSource(url: secondSubtitleURL, format: .ass),
+        videoSize: CGSize(width: 1_920, height: 800),
+        milliseconds: 3_000,
+        isVisible: true
+    )
+
+    #expect(view.rendererLoadCountForTesting == 2)
+    #expect(view.rendererWorkerIdentityForTesting != firstWorker)
+
+    view.setPresentation(
+        source: PlaybackSubtitleSource(url: secondSubtitleURL, format: .ass),
+        videoSize: CGSize(width: 1_280, height: 720),
+        milliseconds: 3_500,
+        isVisible: false
+    )
+
+    #expect(view.rendererLoadCountForTesting == 3)
+    #expect(view.currentPresentationFrame() == nil)
 }
 
 func playbackSubtitleTimeWindowDetectsOverlappingCues() {
