@@ -11,9 +11,7 @@ struct ShioriListCoverView: View {
                 .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
 
             if let loadedImage {
-                Image(decorative: loadedImage, scale: 1)
-                    .resizable()
-                    .scaledToFill()
+                LibraryCoverFillImage(image: loadedImage)
             } else {
                 Image(systemName: "bookmark")
                     .font(.system(size: 44, weight: .medium))

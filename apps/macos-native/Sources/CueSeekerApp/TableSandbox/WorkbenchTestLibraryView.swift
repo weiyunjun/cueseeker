@@ -1762,9 +1762,7 @@ struct LibraryCachedCoverImage: View {
             if let key,
                let loadedImage,
                loadedImage.key == key {
-                Image(decorative: loadedImage.image, scale: 1)
-                    .resizable()
-                    .scaledToFill()
+                LibraryCoverFillImage(image: loadedImage.image)
             } else {
                 ZStack {
                     Rectangle()

@@ -1,3 +1,4 @@
+import CoreGraphics
 import SwiftUI
 
 struct LibraryOverviewLayout<Content: View>: View {
@@ -114,6 +115,55 @@ struct LibraryCoverFrame<Content: View>: View {
                     style: .continuous
                 )
             )
+    }
+}
+
+struct LibraryCoverImageFillLayout: Equatable {
+    let renderedSize: CGSize
+    let offset: CGSize
+
+    static func resolve(
+        sourceSize: CGSize,
+        containerSize: CGSize
+    ) -> LibraryCoverImageFillLayout {
+        let scale = max(
+            containerSize.width / sourceSize.width,
+            containerSize.height / sourceSize.height
+        )
+        let renderedSize = CGSize(
+            width: sourceSize.width * scale,
+            height: sourceSize.height * scale
+        )
+        return LibraryCoverImageFillLayout(
+            renderedSize: renderedSize,
+            offset: CGSize(
+                width: (containerSize.width - renderedSize.width) / 2,
+                height: 0
+            )
+        )
+    }
+}
+
+struct LibraryCoverFillImage: View {
+    let image: CGImage
+
+    var body: some View {
+        GeometryReader { proxy in
+            let layout = LibraryCoverImageFillLayout.resolve(
+                sourceSize: CGSize(
+                    width: image.width,
+                    height: image.height
+                ),
+                containerSize: proxy.size
+            )
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .frame(
+                    width: layout.renderedSize.width,
+                    height: layout.renderedSize.height
+                )
+                .offset(layout.offset)
+        }
     }
 }
 

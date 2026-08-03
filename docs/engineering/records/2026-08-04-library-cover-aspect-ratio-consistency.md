@@ -16,19 +16,27 @@
 
 - Added one shared Library Cover frame that resolves 16:9 geometry before it
   overlays image, progress, Badge, or placeholder content.
+- Removed loaded-image intrinsic dimensions from cover-stack measurement and
+  laid out each image directly from the resolved Cover Region.
+- Filled loaded Library and Shiori images from the top center: narrower images
+  crop only at the bottom, while wider images crop equally at the leading and
+  trailing edges.
 - Reused that frame for Library folders, Library episodes, Recent Videos,
   Recent Shioris, Shiori List cards, and the Shiori List editor preview.
 - Kept the existing adaptive card widths, fixed episode-cover dimensions,
   image fill-and-crop behavior, overlays, interactions, and crop editor.
-- Added a layout regression test covering 16:9, 4:3, square, and portrait
-  image sources.
+- Added layout regression coverage for exact overlay bounds and for 16:9,
+  4:3, square, portrait, and 21:9 image geometry.
 
 ## Verification
 
 - `swift build`: passed.
 - Focused Library Cover, Shiori editor, Playback Library, media selection, and
   shared multi-module host run: 48 tests passed.
-- The new layout test passed for 16:9, 4:3, square, and portrait image sources.
+- Follow-up top-center crop run over the same shared surfaces: 50 tests passed,
+  including exact 4:3, 16:9, and 21:9 geometry plus Badge bounds.
+- The layout coverage passed for 16:9, 4:3, square, portrait, and 21:9 image
+  sources, including Badge bounds.
 - `swift test`: ran 950 tests and reported 23 issues in unrelated concurrent
   native playback timing, playback presentation, Subtitle Focus, Library
   removal, UI refresh-probe, and row-menu pointer tests.
