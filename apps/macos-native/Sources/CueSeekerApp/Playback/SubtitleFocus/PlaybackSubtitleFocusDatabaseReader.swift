@@ -16,12 +16,12 @@ actor PlaybackSubtitleFocusDatabaseReader {
     }
 
     func initialSnapshot(
-        subtitlePath: String,
+        subtitleFileID: Int64,
         timestampMilliseconds: Int
     ) throws -> SubtitleFocusSnapshot? {
         try Task.checkCancellation()
         let snapshot = try resolvedPlaybackDatabase().subtitleFocusInitialSnapshot(
-            forSubtitleFile: URL(fileURLWithPath: subtitlePath),
+            forSubtitleFileID: subtitleFileID,
             atMilliseconds: timestampMilliseconds
         )
         try Task.checkCancellation()
@@ -29,12 +29,12 @@ actor PlaybackSubtitleFocusDatabaseReader {
     }
 
     func completeCueBatch(
-        subtitlePath: String,
+        subtitleFileID: Int64,
         totalCount: Int
     ) throws -> SubtitleFocusCueBatch {
         try Task.checkCancellation()
         let batch = try resolvedPlaybackDatabase().subtitleFocusCueBatch(
-            forSubtitleFile: URL(fileURLWithPath: subtitlePath),
+            forSubtitleFileID: subtitleFileID,
             totalCount: totalCount,
             startingAtOrdinal: 0,
             limit: totalCount

@@ -339,6 +339,8 @@ private func playbackLibraryVideo(
 ) -> CompleteLibraryVideoPresentation {
     let episodeNumber = episodeIndex + 1
     return CompleteLibraryVideoPresentation(
+        videoFileID: Int64(folderIndex * 100 + episodeNumber),
+        subtitleFileID: Int64(folderIndex * 100 + episodeNumber + 10_000),
         videoPath: "/Media/Show-\(folderIndex)/Episode-\(episodeNumber).mkv",
         videoName: "Episode-\(episodeNumber).mkv",
         fileSize: nil,

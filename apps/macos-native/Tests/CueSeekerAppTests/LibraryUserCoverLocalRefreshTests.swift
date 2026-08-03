@@ -77,6 +77,8 @@ private func localRefreshRecentPresentation(
     index: Int
 ) -> RecentLibraryWatchingPresentation {
     RecentLibraryWatchingPresentation(
+        videoFileID: Int64(index),
+        subtitleFileID: Int64(index + 100),
         videoPath: "/Media/Show/Episode \(index).mkv",
         videoName: "Episode \(index).mkv",
         duration: 100,
@@ -101,6 +103,8 @@ private func localRefreshVideoPresentation(
     index: Int
 ) -> CompleteLibraryVideoPresentation {
     CompleteLibraryVideoPresentation(
+        videoFileID: Int64(index),
+        subtitleFileID: Int64(index + 100),
         videoPath: "/Media/Show/Episode \(index).mkv",
         videoName: "Episode \(index).mkv",
         fileSize: 1_024,

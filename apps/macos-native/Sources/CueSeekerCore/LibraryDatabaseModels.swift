@@ -108,6 +108,8 @@ public struct LibraryUserCover: Equatable, Sendable {
 }
 
 public struct LibraryVideoPresentation: Equatable, Sendable, Identifiable {
+    public let videoFileID: Int64
+    public let subtitleFileID: Int64
     public let videoPath: String
     public let videoName: String
     public let duration: Double?
@@ -122,6 +124,8 @@ public struct LibraryVideoPresentation: Equatable, Sendable, Identifiable {
 
     public var libraryVideo: LibraryVideo {
         LibraryVideo(
+            videoFileID: videoFileID,
+            subtitleFileID: subtitleFileID,
             videoPath: videoPath,
             videoName: videoName,
             duration: duration,
@@ -249,6 +253,8 @@ public enum SubtitleSearchWatchStateFilter: String, Equatable, Sendable {
 }
 
 public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiable {
+    public let videoFileID: Int64
+    public let subtitleFileID: Int64
     public let videoPath: String
     public let videoName: String
     public let duration: Double?
@@ -273,6 +279,8 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
 
     public var libraryVideo: LibraryVideo {
         LibraryVideo(
+            videoFileID: videoFileID,
+            subtitleFileID: subtitleFileID,
             videoPath: videoPath,
             videoName: videoName,
             duration: duration,
@@ -292,6 +300,8 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
 
     public func replacingCover(path: String, revision: String) -> Self {
         Self(
+            videoFileID: videoFileID,
+            subtitleFileID: subtitleFileID,
             videoPath: videoPath,
             videoName: videoName,
             duration: duration,
@@ -314,6 +324,8 @@ public struct RecentLibraryWatchingPresentation: Equatable, Sendable, Identifiab
 }
 
 public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiable {
+    public let videoFileID: Int64
+    public let subtitleFileID: Int64
     public let videoPath: String
     public let videoName: String
     public let fileSize: Int64?
@@ -341,6 +353,8 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
 
     public var libraryVideo: LibraryVideo {
         LibraryVideo(
+            videoFileID: videoFileID,
+            subtitleFileID: subtitleFileID,
             videoPath: videoPath,
             videoName: videoName,
             duration: duration,
@@ -360,6 +374,8 @@ public struct CompleteLibraryVideoPresentation: Equatable, Sendable, Identifiabl
 
     public func replacingCover(path: String, revision: String) -> Self {
         Self(
+            videoFileID: videoFileID,
+            subtitleFileID: subtitleFileID,
             videoPath: videoPath,
             videoName: videoName,
             fileSize: fileSize,

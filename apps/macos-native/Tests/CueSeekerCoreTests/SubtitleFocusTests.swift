@@ -48,6 +48,66 @@ func subtitleFocusDatabaseBootstrapLoadsSixBeforeAndThreeAfter() throws {
 }
 
 @Test
+func subtitleFocusDatabaseUsesPermanentIDAcrossUnicodeNormalizationForms() throws {
+    let databaseURL = subtitleFocusTemporaryDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let fixtures = [
+        (label: "Japanese", composed: "ゼ", decomposed: "セ\u{3099}"),
+        (label: "Latin", composed: "é", decomposed: "e\u{0301}"),
+        (label: "Hangul", composed: "가", decomposed: "\u{1100}\u{1161}"),
+    ]
+
+    for fixture in fixtures {
+        let storedSubtitlePath = "/Media/\(fixture.label)-\(fixture.composed).srt"
+        let alternateSubtitlePath = "/Media/\(fixture.label)-\(fixture.decomposed).srt"
+        #expect(storedSubtitlePath == alternateSubtitlePath)
+        #expect(Array(storedSubtitlePath.utf8) != Array(alternateSubtitlePath.utf8))
+
+        let videoFile = URL(fileURLWithPath: "/Media/\(fixture.label).mkv")
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: storedSubtitlePath),
+            videoFile: videoFile,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:02,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 2_000,
+                    text: fixture.label
+                )
+            ]
+        )
+
+        let libraryVideo = try #require(
+            try LibraryDatabase(path: databaseURL)
+                .libraryVideos(under: [URL(fileURLWithPath: "/Media")])
+                .first { $0.videoPath == videoFile.path }
+        )
+        let subtitleFileID = try #require(libraryVideo.subtitleFileID)
+        let playbackDatabase = try PlaybackSubtitleDatabase(path: databaseURL)
+        let snapshot = try #require(
+            try playbackDatabase.subtitleFocusInitialSnapshot(
+                forSubtitleFileID: subtitleFileID,
+                atMilliseconds: 1_500
+            )
+        )
+        #expect(snapshot.selectedCue?.text == fixture.label)
+
+        let batch = try playbackDatabase.subtitleFocusCueBatch(
+            forSubtitleFileID: subtitleFileID,
+            totalCount: snapshot.totalCount,
+            startingAtOrdinal: 0,
+            limit: snapshot.totalCount
+        )
+        #expect(batch.cues.map(\.text) == [fixture.label])
+    }
+}
+
+@Test
 func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
     defer { try? FileManager.default.removeItem(at: databaseURL) }

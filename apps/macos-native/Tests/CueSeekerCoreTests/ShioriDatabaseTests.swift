@@ -562,6 +562,7 @@ func shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws
     #expect(snapshot.relations.count == 2)
     #expect(snapshot.cueContents.map(\.cueID) == [availableCueID])
     #expect(snapshot.cueContents.map(\.content) == ["Available Cue"])
+    #expect(resolvedAvailable.subtitleFileID != nil)
     #expect(resolvedAvailable.isValid)
     #expect(resolvedAvailable.displayTitle == "Episode 1.srt")
     #expect(!resolvedUnavailable.isValid)

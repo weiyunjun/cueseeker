@@ -1468,6 +1468,8 @@ private func keyboardActionRecentVideo(
     _ ordinal: Int
 ) -> RecentLibraryWatchingPresentation {
     RecentLibraryWatchingPresentation(
+        videoFileID: Int64(ordinal + 1),
+        subtitleFileID: Int64(ordinal + 101),
         videoPath: "/Media/Show/Episode-\(ordinal).mkv",
         videoName: "Episode-\(ordinal).mkv",
         duration: 100,

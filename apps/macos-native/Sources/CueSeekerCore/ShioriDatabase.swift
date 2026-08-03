@@ -58,7 +58,8 @@ public final class ShioriDatabase: @unchecked Sendable {
                  t.display_title,
                  vf.video_name,
                  ''
-               )
+               ),
+               sf.id
         FROM shioris s
         LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
         LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
@@ -798,6 +799,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         }
         return Shiori(
             id: statement.int64Column(0),
+            subtitleFileID: statement.nullableInt64Column(16),
             subtitlePath: statement.stringColumn(1),
             subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt,
             videoPath: statement.stringColumn(3),

@@ -237,6 +237,29 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
 }
 
 extension PlaybackSubtitleDatabase {
+    private enum SubtitleFocusFileLookup {
+        case id(Int64)
+        case path(String)
+
+        var predicate: String {
+            switch self {
+            case .id:
+                "sf.id = ?"
+            case .path:
+                "sf.subtitle_path = ?"
+            }
+        }
+
+        func bind(to statement: SQLiteStatement, at index: Int32) throws {
+            switch self {
+            case .id(let id):
+                try statement.bind(id, at: index)
+            case .path(let path):
+                try statement.bind(path, at: index)
+            }
+        }
+    }
+
     public func entries(forSubtitleFile subtitleFile: URL) throws -> [PlaybackSubtitleEntry] {
         try entries(forSubtitleFile: subtitleFile, limit: Int.max, offset: 0)
     }
@@ -411,9 +434,33 @@ extension PlaybackSubtitleDatabase {
         atMilliseconds milliseconds: Int,
         policy: SubtitleFocusWindowPolicy = .standard
     ) throws -> SubtitleFocusSnapshot? {
+        try subtitleFocusInitialSnapshot(
+            for: .path(subtitleFile.path),
+            atMilliseconds: milliseconds,
+            policy: policy
+        )
+    }
+
+    public func subtitleFocusInitialSnapshot(
+        forSubtitleFileID subtitleFileID: Int64,
+        atMilliseconds milliseconds: Int,
+        policy: SubtitleFocusWindowPolicy = .standard
+    ) throws -> SubtitleFocusSnapshot? {
+        try subtitleFocusInitialSnapshot(
+            for: .id(subtitleFileID),
+            atMilliseconds: milliseconds,
+            policy: policy
+        )
+    }
+
+    private func subtitleFocusInitialSnapshot(
+        for lookup: SubtitleFocusFileLookup,
+        atMilliseconds milliseconds: Int,
+        policy: SubtitleFocusWindowPolicy
+    ) throws -> SubtitleFocusSnapshot? {
         let timestamp = max(0, milliseconds)
         let activeGroup = try activeCueGroupSelection(
-            forSubtitleFile: subtitleFile,
+            for: lookup,
             atMilliseconds: timestamp
         )
         let activeCueID = try activeGroup.flatMap { group in
@@ -421,12 +468,12 @@ extension PlaybackSubtitleDatabase {
         }
         guard let selectedCueID = try activeCueID
             ?? subtitleFocusPreviousCueLineID(
-                forSubtitleFile: subtitleFile,
+                for: lookup,
                 beforeOrAtMilliseconds: timestamp
             )
-            ?? subtitleFocusFirstCueLineID(forSubtitleFile: subtitleFile),
+            ?? subtitleFocusFirstCueLineID(for: lookup),
         let metadata = try subtitleFocusOrdinalMetadata(
-            forSubtitleFile: subtitleFile,
+            for: lookup,
             cueLineID: selectedCueID
         ) else {
             return nil
@@ -437,10 +484,11 @@ extension PlaybackSubtitleDatabase {
             selectedOrdinal: metadata.ordinal
         )
         let batch = try subtitleFocusCueBatch(
-            forSubtitleFile: subtitleFile,
+            for: lookup,
             totalCount: metadata.totalCount,
             startingAtOrdinal: range.lowerBound,
-            limit: range.count
+            limit: range.count,
+            didReadCue: nil
         )
         guard batch.cues.count == range.count,
               batch.cues.contains(where: {
@@ -462,7 +510,22 @@ extension PlaybackSubtitleDatabase {
         limit requestedLimit: Int
     ) throws -> SubtitleFocusCueBatch {
         try subtitleFocusCueBatch(
-            forSubtitleFile: subtitleFile,
+            for: .path(subtitleFile.path),
+            totalCount: requestedTotalCount,
+            startingAtOrdinal: requestedOrdinal,
+            limit: requestedLimit,
+            didReadCue: nil
+        )
+    }
+
+    public func subtitleFocusCueBatch(
+        forSubtitleFileID subtitleFileID: Int64,
+        totalCount requestedTotalCount: Int,
+        startingAtOrdinal requestedOrdinal: Int,
+        limit requestedLimit: Int
+    ) throws -> SubtitleFocusCueBatch {
+        try subtitleFocusCueBatch(
+            for: .id(subtitleFileID),
             totalCount: requestedTotalCount,
             startingAtOrdinal: requestedOrdinal,
             limit: requestedLimit,
@@ -472,6 +535,22 @@ extension PlaybackSubtitleDatabase {
 
     func subtitleFocusCueBatch(
         forSubtitleFile subtitleFile: URL,
+        totalCount requestedTotalCount: Int,
+        startingAtOrdinal requestedOrdinal: Int,
+        limit requestedLimit: Int,
+        didReadCue: ((Int) -> Void)?
+    ) throws -> SubtitleFocusCueBatch {
+        try subtitleFocusCueBatch(
+            for: .path(subtitleFile.path),
+            totalCount: requestedTotalCount,
+            startingAtOrdinal: requestedOrdinal,
+            limit: requestedLimit,
+            didReadCue: didReadCue
+        )
+    }
+
+    private func subtitleFocusCueBatch(
+        for lookup: SubtitleFocusFileLookup,
         totalCount requestedTotalCount: Int,
         startingAtOrdinal requestedOrdinal: Int,
         limit requestedLimit: Int,
@@ -492,14 +571,14 @@ extension PlaybackSubtitleDatabase {
             FROM subtitle_cue_lines l
             JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
+            WHERE \(lookup.predicate)
               AND g.end_ms > g.start_ms
             ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
                      l.display_order ASC, l.event_index ASC, l.id ASC
             LIMIT ? OFFSET ?;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try lookup.bind(to: statement, at: 1)
         try statement.bind(limit, at: 2)
         try statement.bind(startOrdinal, at: 3)
 
@@ -560,12 +639,22 @@ extension PlaybackSubtitleDatabase {
         forSubtitleFile subtitleFile: URL,
         atMilliseconds milliseconds: Int
     ) throws -> CueGroupSelection? {
+        try activeCueGroupSelection(
+            for: .path(subtitleFile.path),
+            atMilliseconds: milliseconds
+        )
+    }
+
+    private func activeCueGroupSelection(
+        for lookup: SubtitleFocusFileLookup,
+        atMilliseconds milliseconds: Int
+    ) throws -> CueGroupSelection? {
         let statement = try database.prepare(
             """
             SELECT g.id, g.start_ms, g.end_ms, g.search_content
             FROM subtitle_cue_groups g
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
+            WHERE \(lookup.predicate)
               AND g.start_ms <= ?
               AND g.end_ms > ?
               AND g.end_ms > g.start_ms
@@ -574,7 +663,7 @@ extension PlaybackSubtitleDatabase {
             LIMIT 1;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try lookup.bind(to: statement, at: 1)
         try statement.bind(milliseconds, at: 2)
         try statement.bind(milliseconds, at: 3)
         return try statement.step() ? cueGroupSelection(from: statement) : nil
@@ -603,7 +692,7 @@ extension PlaybackSubtitleDatabase {
     }
 
     private func subtitleFocusPreviousCueLineID(
-        forSubtitleFile subtitleFile: URL,
+        for lookup: SubtitleFocusFileLookup,
         beforeOrAtMilliseconds milliseconds: Int
     ) throws -> Int64? {
         let statement = try database.prepare(
@@ -612,7 +701,7 @@ extension PlaybackSubtitleDatabase {
             FROM subtitle_cue_lines l
             JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
+            WHERE \(lookup.predicate)
               AND g.start_ms <= ?
               AND g.end_ms > g.start_ms
             ORDER BY g.start_ms DESC, g.end_ms DESC, g.id DESC,
@@ -620,13 +709,13 @@ extension PlaybackSubtitleDatabase {
             LIMIT 1;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try lookup.bind(to: statement, at: 1)
         try statement.bind(milliseconds, at: 2)
         return try statement.step() ? statement.int64Column(0) : nil
     }
 
     private func subtitleFocusFirstCueLineID(
-        forSubtitleFile subtitleFile: URL
+        for lookup: SubtitleFocusFileLookup
     ) throws -> Int64? {
         let statement = try database.prepare(
             """
@@ -634,19 +723,19 @@ extension PlaybackSubtitleDatabase {
             FROM subtitle_cue_lines l
             JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            WHERE sf.subtitle_path = ?
+            WHERE \(lookup.predicate)
               AND g.end_ms > g.start_ms
             ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC,
                      l.display_order ASC, l.event_index ASC, l.id ASC
             LIMIT 1;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try lookup.bind(to: statement, at: 1)
         return try statement.step() ? statement.int64Column(0) : nil
     }
 
     private func subtitleFocusOrdinalMetadata(
-        forSubtitleFile subtitleFile: URL,
+        for lookup: SubtitleFocusFileLookup,
         cueLineID: Int64
     ) throws -> (ordinal: Int, totalCount: Int)? {
         let statement = try database.prepare(
@@ -662,13 +751,13 @@ extension PlaybackSubtitleDatabase {
                 FROM subtitle_cue_lines l
                 JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
                 JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                WHERE sf.subtitle_path = ?
+                WHERE \(lookup.predicate)
                   AND g.end_ms > g.start_ms
             ) ordered
             WHERE cue_line_id = ?;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try lookup.bind(to: statement, at: 1)
         try statement.bind(cueLineID, at: 2)
         guard try statement.step() else {
             return nil

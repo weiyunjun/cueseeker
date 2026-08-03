@@ -160,8 +160,8 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     ))
     app.startPlaybackSubtitleFocusInitialLoad(
         for: session,
-        initialSnapshotLoader: { _, _ in
-            await probe.suspend(.current)
+        initialSnapshotLoader: { subtitleFileID, _ in
+            await probe.suspend(.current, subtitleFileID: subtitleFileID)
             return playbackMultiModuleCurrentSnapshot()
         },
         completeCueBatchLoader: { _, _ in
@@ -174,6 +174,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     try await waitForPlaybackMultiModuleCondition {
         probe.started == [.current]
     }
+    #expect(probe.subtitleFileID == fixture.openSnapshot.source.subtitleFileID)
 
     app.stopPlayback()
     try await waitForPlaybackMultiModuleCondition {
@@ -202,8 +203,10 @@ private struct PlaybackMultiModuleFixture {
 
 private func playbackMultiModuleFixture() -> PlaybackMultiModuleFixture {
     let searchResults = (0..<3).map { ordinal in
-        SubtitleSearchResult(
+        let subtitleFileID = Int64(ordinal + 101)
+        return SubtitleSearchResult(
             entryID: Int64(ordinal + 1),
+            subtitleFileID: subtitleFileID,
             subtitlePath: "/Media/Show/Episode-\(ordinal).srt",
             subtitleFormat: .srt,
             videoPath: "/Media/Show/Episode-\(ordinal).mkv",
@@ -232,6 +235,8 @@ private func playbackMultiModuleFixture() -> PlaybackMultiModuleFixture {
     )
     let recentItems = videos.map { video in
         RecentLibraryWatchingPresentation(
+            videoFileID: video.videoFileID,
+            subtitleFileID: video.subtitleFileID,
             videoPath: video.videoPath,
             videoName: video.videoName,
             duration: video.duration,
@@ -253,6 +258,7 @@ private func playbackMultiModuleFixture() -> PlaybackMultiModuleFixture {
     }
     let shiori = Shiori(
         id: 9,
+        subtitleFileID: searchResults[0].subtitleFileID,
         subtitlePath: searchResults[0].subtitlePath,
         subtitleFormat: .srt,
         videoPath: searchResults[0].videoPath,
@@ -266,6 +272,7 @@ private func playbackMultiModuleFixture() -> PlaybackMultiModuleFixture {
     return PlaybackMultiModuleFixture(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
             source: SubtitleFocusSourceIdentity(
+                subtitleFileID: searchResults[0].subtitleFileID,
                 videoPath: searchResults[0].videoPath,
                 subtitlePath: searchResults[0].subtitlePath,
                 subtitleFormat: .srt
@@ -285,6 +292,8 @@ private func playbackMultiModuleVideo(
     _ ordinal: Int
 ) -> CompleteLibraryVideoPresentation {
     CompleteLibraryVideoPresentation(
+        videoFileID: Int64(ordinal + 1),
+        subtitleFileID: Int64(ordinal + 101),
         videoPath: "/Media/Show/Episode-\(ordinal).mkv",
         videoName: "Episode-\(ordinal).mkv",
         fileSize: nil,
@@ -372,8 +381,13 @@ private enum PlaybackMultiModuleCancellationOperation: Hashable {
 private final class PlaybackMultiModuleCancellationProbe {
     private(set) var started: Set<PlaybackMultiModuleCancellationOperation> = []
     private(set) var cancelled: Set<PlaybackMultiModuleCancellationOperation> = []
+    private(set) var subtitleFileID: Int64?
 
-    func suspend(_ operation: PlaybackMultiModuleCancellationOperation) async {
+    func suspend(
+        _ operation: PlaybackMultiModuleCancellationOperation,
+        subtitleFileID: Int64
+    ) async {
+        self.subtitleFileID = subtitleFileID
         started.insert(operation)
         do {
             try await Task.sleep(for: .seconds(60))

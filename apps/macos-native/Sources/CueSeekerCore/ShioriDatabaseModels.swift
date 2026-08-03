@@ -160,6 +160,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     public static let cueGroupContentSeparator = "\u{001F}"
 
     public let id: Int64
+    public let subtitleFileID: Int64?
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
     public let videoPath: String
@@ -179,6 +180,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
 
     public init(
         id: Int64,
+        subtitleFileID: Int64? = nil,
         subtitlePath: String,
         subtitleFormat: SubtitleFormat,
         videoPath: String,
@@ -197,6 +199,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         createdAt: String
     ) {
         self.id = id
+        self.subtitleFileID = subtitleFileID
         self.subtitlePath = subtitlePath
         self.subtitleFormat = subtitleFormat
         self.videoPath = videoPath
@@ -227,6 +230,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     public init(relation: ShioriRelation, cueContent: CueContent) {
         self.init(
             id: relation.id,
+            subtitleFileID: cueContent.subtitleFileID,
             subtitlePath: cueContent.subtitlePath,
             subtitleFormat: cueContent.subtitleFormat,
             videoPath: cueContent.videoPath,

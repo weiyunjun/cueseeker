@@ -60,6 +60,7 @@ public final class CueContentDatabase: @unchecked Sendable {
             contents.append(CueContent(
                 cueID: cueID,
                 cueGroupID: cueRecord.cueGroupID,
+                subtitleFileID: candidate.subtitleFileID,
                 cueEventIndex: cueRecord.line.eventIndex,
                 cueDisplayOrder: cueRecord.line.displayOrder,
                 primaryGroupIndex: groupRecords.firstIndex { $0.id == cueID } ?? 0,

@@ -3,12 +3,12 @@ import CueSeekerCore
 import Foundation
 
 typealias PlaybackSubtitleFocusInitialSnapshotLoader = @MainActor @Sendable (
-    _ subtitlePath: String,
+    _ subtitleFileID: Int64,
     _ timestampMilliseconds: Int
 ) async throws -> SubtitleFocusSnapshot?
 
 typealias PlaybackSubtitleFocusCompleteCueBatchLoader = @MainActor @Sendable (
-    _ subtitlePath: String,
+    _ subtitleFileID: Int64,
     _ totalCount: Int
 ) async throws -> SubtitleFocusCueBatch
 
@@ -25,6 +25,7 @@ extension AppCoordinator {
               player != nil,
               let videoPath = currentPlaybackVideoPath,
               let subtitlePath = currentPlaybackSubtitlePath,
+              let subtitleFileID = currentPlaybackSubtitleFileID,
               let subtitleFormat = currentPlaybackSubtitleFormat,
               playbackViewModel.currentTime.isFinite
         else {
@@ -32,6 +33,7 @@ extension AppCoordinator {
         }
 
         let source = SubtitleFocusSourceIdentity(
+            subtitleFileID: subtitleFileID,
             videoPath: URL(fileURLWithPath: videoPath).standardizedFileURL.path,
             subtitlePath: URL(fileURLWithPath: subtitlePath).standardizedFileURL.path,
             subtitleFormat: subtitleFormat
@@ -555,13 +557,20 @@ extension AppCoordinator {
         completeCueBatchLoader: PlaybackSubtitleFocusCompleteCueBatchLoader? = nil
     ) {
         playbackSubtitleFocusInitialLoadTask?.cancel()
-        let subtitlePath = session.openSnapshot.source.subtitlePath
+        guard let subtitleFileID = session.openSnapshot.source.subtitleFileID else {
+            finishPlaybackSubtitleFocusOpeningFailure(
+                session: session,
+                token: session.token,
+                error: nil
+            )
+            return
+        }
         let timestampMilliseconds = session.openSnapshot.timestampMilliseconds
         let token = session.token
         let databaseReader = playbackSubtitleFocusDatabaseReader
-        let loadInitialSnapshot = initialSnapshotLoader ?? { subtitlePath, timestamp in
+        let loadInitialSnapshot = initialSnapshotLoader ?? { subtitleFileID, timestamp in
             try await databaseReader.initialSnapshot(
-                subtitlePath: subtitlePath,
+                subtitleFileID: subtitleFileID,
                 timestampMilliseconds: timestamp
             )
         }
@@ -573,7 +582,7 @@ extension AppCoordinator {
 
             do {
                 let snapshot = try await loadInitialSnapshot(
-                    subtitlePath,
+                    subtitleFileID,
                     timestampMilliseconds
                 )
                 try Task.checkCancellation()
@@ -621,12 +630,14 @@ extension AppCoordinator {
         }
 
         playbackSubtitleFocusCompleteLoadTask?.cancel()
-        let subtitlePath = session.openSnapshot.source.subtitlePath
+        guard let subtitleFileID = session.openSnapshot.source.subtitleFileID else {
+            return
+        }
         let token = session.token
         let databaseReader = playbackSubtitleFocusDatabaseReader
-        let loadCompleteCueBatch = loader ?? { subtitlePath, totalCount in
+        let loadCompleteCueBatch = loader ?? { subtitleFileID, totalCount in
             try await databaseReader.completeCueBatch(
-                subtitlePath: subtitlePath,
+                subtitleFileID: subtitleFileID,
                 totalCount: totalCount
             )
         }
@@ -637,7 +648,7 @@ extension AppCoordinator {
 
             do {
                 let batch = try await loadCompleteCueBatch(
-                    subtitlePath,
+                    subtitleFileID,
                     totalCount
                 )
                 try Task.checkCancellation()

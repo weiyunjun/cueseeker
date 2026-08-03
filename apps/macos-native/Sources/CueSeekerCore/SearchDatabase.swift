@@ -1467,6 +1467,7 @@ public final class SearchDatabase: @unchecked Sendable {
             result: SubtitleSearchResult(
                 entryID: cue.id,
                 cueGroupID: candidate.cueGroupID,
+                subtitleFileID: candidate.subtitleFileID,
                 cueEventIndex: cue.line.eventIndex,
                 cueDisplayOrder: cue.line.displayOrder,
                 primaryGroupIndex: match.primaryGroupIndex,

@@ -1121,6 +1121,7 @@ func staleNaturalLibraryCompletionCannotAdvanceReplacementSelection() async thro
 private func segmentCompletionSearchResult(entryID: Int64) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: entryID,
+        subtitleFileID: entryID,
         subtitlePath: "/Media/Segment.srt",
         subtitleFormat: .srt,
         videoPath: "/Media/Segment.mkv",

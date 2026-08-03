@@ -128,6 +128,7 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         target = .search(searchResult)
         actionContext = PlaybackSubtitleFocusActionContext(
             source: SubtitleFocusSourceIdentity(
+                subtitleFileID: searchResult.subtitleFileID,
                 videoPath: searchResult.videoPath,
                 subtitlePath: searchResult.subtitlePath,
                 subtitleFormat: searchResult.subtitleFormat
@@ -168,6 +169,7 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
            let eventIndex = shiori.cueEventIndex {
             actionContext = PlaybackSubtitleFocusActionContext(
                 source: SubtitleFocusSourceIdentity(
+                    subtitleFileID: shiori.subtitleFileID,
                     videoPath: shiori.videoPath,
                     subtitlePath: shiori.subtitlePath,
                     subtitleFormat: shiori.subtitleFormat

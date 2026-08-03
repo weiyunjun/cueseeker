@@ -443,6 +443,7 @@ func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
         "Show 2 - 01",
         "Show 2 - 02"
     ])
+    #expect(group.videos.allSatisfy { $0.videoFileID > 0 && $0.subtitleFileID > 0 })
     #expect(group.videos[0].fileExtension == "mkv")
     #expect(group.videos[0].duration == 125.4)
     #expect(group.videos[0].subtitlePath == "/Media/Show 2/Episode 2.en.srt")

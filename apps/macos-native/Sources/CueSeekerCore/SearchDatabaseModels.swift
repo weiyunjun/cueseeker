@@ -3,6 +3,7 @@ import Foundation
 public struct CueContent: Equatable, Sendable, Identifiable {
     public let cueID: Int64
     public let cueGroupID: Int64
+    public let subtitleFileID: Int64?
     public let cueEventIndex: Int
     public let cueDisplayOrder: Int
     public let primaryGroupIndex: Int
@@ -24,6 +25,7 @@ public struct CueContent: Equatable, Sendable, Identifiable {
     public init(
         cueID: Int64,
         cueGroupID: Int64,
+        subtitleFileID: Int64? = nil,
         cueEventIndex: Int,
         cueDisplayOrder: Int,
         primaryGroupIndex: Int,
@@ -42,6 +44,7 @@ public struct CueContent: Equatable, Sendable, Identifiable {
     ) {
         self.cueID = cueID
         self.cueGroupID = cueGroupID
+        self.subtitleFileID = subtitleFileID
         self.cueEventIndex = cueEventIndex
         self.cueDisplayOrder = cueDisplayOrder
         self.primaryGroupIndex = max(0, primaryGroupIndex)
@@ -68,6 +71,7 @@ public struct CueContent: Equatable, Sendable, Identifiable {
 public struct SubtitleSearchResult: Equatable, Sendable {
     public let entryID: Int64
     public let cueGroupID: Int64
+    public let subtitleFileID: Int64?
     public let cueEventIndex: Int
     public let cueDisplayOrder: Int
     public let primaryGroupIndex: Int
@@ -96,6 +100,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public init(
         entryID: Int64,
         cueGroupID: Int64? = nil,
+        subtitleFileID: Int64? = nil,
         cueEventIndex: Int = 0,
         cueDisplayOrder: Int = 0,
         primaryGroupIndex: Int = 0,
@@ -115,6 +120,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     ) {
         self.entryID = entryID
         self.cueGroupID = cueGroupID ?? entryID
+        self.subtitleFileID = subtitleFileID
         self.cueEventIndex = cueEventIndex
         self.cueDisplayOrder = cueDisplayOrder
         self.primaryGroupIndex = max(0, primaryGroupIndex)
@@ -142,6 +148,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         self.init(
             entryID: cueContent.cueID,
             cueGroupID: cueContent.cueGroupID,
+            subtitleFileID: cueContent.subtitleFileID,
             cueEventIndex: cueContent.cueEventIndex,
             cueDisplayOrder: cueContent.cueDisplayOrder,
             primaryGroupIndex: cueContent.primaryGroupIndex,
@@ -165,6 +172,7 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         CueContent(
             cueID: entryID,
             cueGroupID: cueGroupID,
+            subtitleFileID: subtitleFileID,
             cueEventIndex: cueEventIndex,
             cueDisplayOrder: cueDisplayOrder,
             primaryGroupIndex: primaryGroupIndex,

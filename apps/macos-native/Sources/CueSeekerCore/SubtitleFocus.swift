@@ -6,15 +6,18 @@ public enum SubtitleFocusNavigationDirection: Equatable, Sendable {
 }
 
 public struct SubtitleFocusSourceIdentity: Equatable, Hashable, Sendable {
+    public let subtitleFileID: Int64?
     public let videoPath: String
     public let subtitlePath: String
     public let subtitleFormat: SubtitleFormat
 
     public init(
+        subtitleFileID: Int64? = nil,
         videoPath: String,
         subtitlePath: String,
         subtitleFormat: SubtitleFormat
     ) {
+        self.subtitleFileID = subtitleFileID
         self.videoPath = videoPath
         self.subtitlePath = subtitlePath
         self.subtitleFormat = subtitleFormat

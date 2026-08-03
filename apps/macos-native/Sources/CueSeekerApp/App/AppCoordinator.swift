@@ -124,6 +124,12 @@ final class AppCoordinator: ObservableObject {
         library.selectedLibraryVideo?.subtitlePath ?? search.selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
     }
 
+    var currentPlaybackSubtitleFileID: Int64? {
+        library.selectedLibraryVideo?.subtitleFileID
+            ?? search.selectedSearchResult?.subtitleFileID
+            ?? shiori.selectedShiori?.subtitleFileID
+    }
+
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
         library.selectedLibraryVideo?.subtitleFormat ?? search.selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
     }

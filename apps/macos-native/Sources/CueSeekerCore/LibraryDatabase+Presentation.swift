@@ -13,7 +13,8 @@ extension LibraryDatabase {
             .joined(separator: " OR ")
         let statement = try database.prepare(
             """
-            SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+            SELECT lvr.video_file_id, lvr.subtitle_file_id,
+                   lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format,
                    lvr.display_title, lvr.file_extension
             FROM library_video_rows lvr
@@ -56,23 +57,25 @@ extension LibraryDatabase {
         }
 
         while try statement.step() {
-            let folderPath = statement.stringColumn(0)
+            let folderPath = statement.stringColumn(2)
             if currentFolderPath != folderPath {
                 appendCurrentGroup()
                 currentFolderPath = folderPath
-                currentFolderTitle = statement.stringColumn(1)
+                currentFolderTitle = statement.stringColumn(3)
                 currentVideos = []
             }
 
             currentVideos.append(
                 LibraryVideoPresentation(
-                    videoPath: statement.stringColumn(2),
-                    videoName: statement.stringColumn(3),
-                    duration: statement.nullableDoubleColumn(4),
-                    subtitlePath: statement.stringColumn(5),
-                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
-                    displayTitle: statement.stringColumn(7),
-                    fileExtension: statement.stringColumn(8)
+                    videoFileID: statement.int64Column(0),
+                    subtitleFileID: statement.int64Column(1),
+                    videoPath: statement.stringColumn(4),
+                    videoName: statement.stringColumn(5),
+                    duration: statement.nullableDoubleColumn(6),
+                    subtitlePath: statement.stringColumn(7),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(8)) ?? .srt,
+                    displayTitle: statement.stringColumn(9),
+                    fileExtension: statement.stringColumn(10)
                 )
             )
         }
@@ -100,7 +103,8 @@ extension LibraryDatabase {
             .joined(separator: " OR ")
         let statement = try database.prepare(
             """
-            SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+            SELECT lvr.video_file_id, lvr.subtitle_file_id,
+                   lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
                    CASE
@@ -153,30 +157,32 @@ extension LibraryDatabase {
 
         while try statement.step(), rows.count < cappedLimit {
             try Task.checkCancellation()
-            let folderPath = statement.stringColumn(0)
+            let folderPath = statement.stringColumn(2)
             guard seenFolderPaths.insert(folderPath).inserted else {
                 continue
             }
 
             rows.append(
                 RecentLibraryWatchingPresentation(
-                    videoPath: statement.stringColumn(2),
-                    videoName: statement.stringColumn(3),
-                    duration: statement.nullableDoubleColumn(4),
-                    subtitlePath: statement.stringColumn(5),
-                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
-                    displayTitle: statement.stringColumn(7),
-                    fileExtension: statement.stringColumn(8),
+                    videoFileID: statement.int64Column(0),
+                    subtitleFileID: statement.int64Column(1),
+                    videoPath: statement.stringColumn(4),
+                    videoName: statement.stringColumn(5),
+                    duration: statement.nullableDoubleColumn(6),
+                    subtitlePath: statement.stringColumn(7),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(8)) ?? .srt,
+                    displayTitle: statement.stringColumn(9),
+                    fileExtension: statement.stringColumn(10),
                     folderPath: folderPath,
-                    folderTitle: statement.stringColumn(1),
-                    episodeNumber: max(1, statement.intColumn(9) + 1),
-                    positionMilliseconds: max(0, statement.intColumn(10)),
-                    playbackDuration: statement.nullableDoubleColumn(11),
-                    startedAt: statement.nullableStringColumn(12),
-                    completedAt: statement.nullableStringColumn(13),
-                    updatedAt: statement.stringColumn(14),
-                    coverPath: statement.nullableStringColumn(15),
-                    coverRevision: statement.nullableStringColumn(16)
+                    folderTitle: statement.stringColumn(3),
+                    episodeNumber: max(1, statement.intColumn(11) + 1),
+                    positionMilliseconds: max(0, statement.intColumn(12)),
+                    playbackDuration: statement.nullableDoubleColumn(13),
+                    startedAt: statement.nullableStringColumn(14),
+                    completedAt: statement.nullableStringColumn(15),
+                    updatedAt: statement.stringColumn(16),
+                    coverPath: statement.nullableStringColumn(17),
+                    coverRevision: statement.nullableStringColumn(18)
                 )
             )
         }
@@ -196,7 +202,8 @@ extension LibraryDatabase {
             .joined(separator: " OR ")
         let statement = try database.prepare(
             """
-            SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+            SELECT lvr.video_file_id, lvr.subtitle_file_id,
+                   lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
                    CASE
@@ -286,9 +293,9 @@ extension LibraryDatabase {
 
         func resetCurrentGroup(folderPath: String) {
             currentFolderPath = folderPath
-            currentFolderTitle = statement.stringColumn(1)
-            currentFolderCoverPath = statement.nullableStringColumn(17)
-            currentFolderCoverRevision = statement.nullableStringColumn(24)
+            currentFolderTitle = statement.stringColumn(3)
+            currentFolderCoverPath = statement.nullableStringColumn(19)
+            currentFolderCoverRevision = statement.nullableStringColumn(26)
             currentVideos = []
             currentLastWatchedEpisodeNumber = nil
             currentLastWatchedVideoPath = nil
@@ -297,16 +304,16 @@ extension LibraryDatabase {
         }
 
         while try statement.step() {
-            let folderPath = statement.stringColumn(0)
+            let folderPath = statement.stringColumn(2)
             if currentFolderPath != folderPath {
                 appendCurrentGroup()
                 resetCurrentGroup(folderPath: folderPath)
             }
 
-            let episodeNumber = max(1, statement.intColumn(9) + 1)
-            let historyUpdatedAt = statement.nullableStringColumn(14)
+            let episodeNumber = max(1, statement.intColumn(11) + 1)
+            let historyUpdatedAt = statement.nullableStringColumn(16)
             if let historyUpdatedAt {
-                let historySortValue = statement.nullableDoubleColumn(15) ?? 0
+                let historySortValue = statement.nullableDoubleColumn(17) ?? 0
                 let shouldUpdateLatest: Bool
                 if let currentLastWatchedSortValue {
                     shouldUpdateLatest = historySortValue > currentLastWatchedSortValue
@@ -320,7 +327,7 @@ extension LibraryDatabase {
 
                 if shouldUpdateLatest {
                     currentLastWatchedEpisodeNumber = episodeNumber
-                    currentLastWatchedVideoPath = statement.stringColumn(2)
+                    currentLastWatchedVideoPath = statement.stringColumn(4)
                     currentLastWatchedSortValue = historySortValue
                     currentLastWatchedUpdatedAt = historyUpdatedAt
                 }
@@ -328,26 +335,28 @@ extension LibraryDatabase {
 
             currentVideos.append(
                 CompleteLibraryVideoPresentation(
-                    videoPath: statement.stringColumn(2),
-                    videoName: statement.stringColumn(3),
-                    fileSize: statement.nullableInt64Column(18),
-                    videoCodec: statement.nullableStringColumn(19),
-                    videoWidth: statement.nullableIntColumn(20),
-                    videoHeight: statement.nullableIntColumn(21),
-                    frameRate: statement.nullableDoubleColumn(22),
-                    duration: statement.nullableDoubleColumn(4),
-                    subtitlePath: statement.stringColumn(5),
-                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
-                    displayTitle: statement.stringColumn(7),
-                    fileExtension: statement.stringColumn(8),
+                    videoFileID: statement.int64Column(0),
+                    subtitleFileID: statement.int64Column(1),
+                    videoPath: statement.stringColumn(4),
+                    videoName: statement.stringColumn(5),
+                    fileSize: statement.nullableInt64Column(20),
+                    videoCodec: statement.nullableStringColumn(21),
+                    videoWidth: statement.nullableIntColumn(22),
+                    videoHeight: statement.nullableIntColumn(23),
+                    frameRate: statement.nullableDoubleColumn(24),
+                    duration: statement.nullableDoubleColumn(6),
+                    subtitlePath: statement.stringColumn(7),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(8)) ?? .srt,
+                    displayTitle: statement.stringColumn(9),
+                    fileExtension: statement.stringColumn(10),
                     episodeNumber: episodeNumber,
-                    positionMilliseconds: max(0, statement.nullableIntColumn(10) ?? 0),
-                    playbackDuration: statement.nullableDoubleColumn(11),
-                    startedAt: statement.nullableStringColumn(12),
-                    completedAt: statement.nullableStringColumn(13),
+                    positionMilliseconds: max(0, statement.nullableIntColumn(12) ?? 0),
+                    playbackDuration: statement.nullableDoubleColumn(13),
+                    startedAt: statement.nullableStringColumn(14),
+                    completedAt: statement.nullableStringColumn(15),
                     historyUpdatedAt: historyUpdatedAt,
-                    coverPath: statement.nullableStringColumn(16),
-                    coverRevision: statement.nullableStringColumn(23)
+                    coverPath: statement.nullableStringColumn(18),
+                    coverRevision: statement.nullableStringColumn(25)
                 )
             )
         }
@@ -469,7 +478,8 @@ extension LibraryDatabase {
         try Task.checkCancellation()
         let statement = try database.prepare(
             """
-            SELECT lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+            SELECT lvr.video_file_id, lvr.subtitle_file_id,
+                   lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                    lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                    lvr.file_extension, lvr.video_order, h.position_ms, h.duration,
                    CASE
@@ -513,32 +523,34 @@ extension LibraryDatabase {
         while try statement.step() {
             try Task.checkCancellation()
             if resolvedFolderPath == nil {
-                resolvedFolderPath = statement.stringColumn(0)
-                folderTitle = statement.stringColumn(1)
+                resolvedFolderPath = statement.stringColumn(2)
+                folderTitle = statement.stringColumn(3)
             }
 
             videos.append(
                 CompleteLibraryVideoPresentation(
-                    videoPath: statement.stringColumn(2),
-                    videoName: statement.stringColumn(3),
-                    fileSize: statement.nullableInt64Column(16),
-                    videoCodec: statement.nullableStringColumn(17),
-                    videoWidth: statement.nullableIntColumn(18),
-                    videoHeight: statement.nullableIntColumn(19),
-                    frameRate: statement.nullableDoubleColumn(20),
-                    duration: statement.nullableDoubleColumn(4),
-                    subtitlePath: statement.stringColumn(5),
-                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(6)) ?? .srt,
-                    displayTitle: statement.stringColumn(7),
-                    fileExtension: statement.stringColumn(8),
-                    episodeNumber: max(1, statement.intColumn(9) + 1),
-                    positionMilliseconds: max(0, statement.nullableIntColumn(10) ?? 0),
-                    playbackDuration: statement.nullableDoubleColumn(11),
-                    startedAt: statement.nullableStringColumn(12),
-                    completedAt: statement.nullableStringColumn(13),
-                    historyUpdatedAt: statement.nullableStringColumn(14),
-                    coverPath: statement.nullableStringColumn(15),
-                    coverRevision: statement.nullableStringColumn(21)
+                    videoFileID: statement.int64Column(0),
+                    subtitleFileID: statement.int64Column(1),
+                    videoPath: statement.stringColumn(4),
+                    videoName: statement.stringColumn(5),
+                    fileSize: statement.nullableInt64Column(18),
+                    videoCodec: statement.nullableStringColumn(19),
+                    videoWidth: statement.nullableIntColumn(20),
+                    videoHeight: statement.nullableIntColumn(21),
+                    frameRate: statement.nullableDoubleColumn(22),
+                    duration: statement.nullableDoubleColumn(6),
+                    subtitlePath: statement.stringColumn(7),
+                    subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(8)) ?? .srt,
+                    displayTitle: statement.stringColumn(9),
+                    fileExtension: statement.stringColumn(10),
+                    episodeNumber: max(1, statement.intColumn(11) + 1),
+                    positionMilliseconds: max(0, statement.nullableIntColumn(12) ?? 0),
+                    playbackDuration: statement.nullableDoubleColumn(13),
+                    startedAt: statement.nullableStringColumn(14),
+                    completedAt: statement.nullableStringColumn(15),
+                    historyUpdatedAt: statement.nullableStringColumn(16),
+                    coverPath: statement.nullableStringColumn(17),
+                    coverRevision: statement.nullableStringColumn(23)
                 )
             )
         }

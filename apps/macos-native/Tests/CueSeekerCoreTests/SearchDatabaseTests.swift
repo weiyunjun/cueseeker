@@ -258,6 +258,7 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 
     let results = try SearchDatabase(path: database.path).search("world")
     #expect(results.count == 1)
+    #expect(results[0].subtitleFileID != nil)
     #expect(results[0].content == "Hello world.")
     #expect(results[0].videoPath == videoFile.path)
     #expect(results[0].startMilliseconds == 1_000)
