@@ -1023,7 +1023,12 @@
 - 用途：显示视频、文件夹或 Shiori List 封面。
 - Token：`--aspect-library-cover`、`--radius-library-cover`、`--color-library-cover-placeholder-bg`。
 - 状态：No Cover、Shiori Default、Loaded。
-- 图片填满容器并保持比例裁切。
+- Loaded 图片填满固定的 `--aspect-library-cover` 容器并保持原始比例，不拉伸、不补边。
+- Loaded 图片统一使用 Top Center 裁切锚点：
+  - 源图宽高比小于 `--aspect-library-cover` 时，顶部与容器顶部对齐，水平方向居中，只裁切底部。
+  - 源图宽高比大于 `--aspect-library-cover` 时，垂直方向完整填满，水平方向居中并等量裁切左右两端。
+  - 源图宽高比等于 `--aspect-library-cover` 时不裁切。
+- 图片裁切不得改变 Cover Region 的尺寸或所在 Layout 的排列。
 - Shiori Default 使用 Library Cover Placeholder 背景，并在中央显示现有 Shiori 图形。
 - 本组件不定义点击动作，交互由所属卡片或编辑界面决定。
 
@@ -1045,6 +1050,7 @@
 
 - 用途：在封面底部显示观看进度。
 - Token：`--height-library-progress-bar`、`--color-library-progress-track`、`--color-library-progress-fill`。
+- 以最终的 `--aspect-library-cover` Cover Region 为定位边界，并固定在其底部。
 - No Progress 和 Unknown Duration 状态隐藏。
 - In Progress 按比例显示。
 - Finished 填满。
@@ -1054,6 +1060,8 @@
 
 - 用途：在封面右下角显示时间或数量。
 - Token：`--radius-library-time-badge`、`--padding-library-time-badge`、`--color-library-time-badge-bg`、`--font-size-library-time-badge`、`--color-library-time-badge-text`。
+- 以最终的 `--aspect-library-cover` Cover Region 为定位边界，并固定在其右下角。
+- Badge 位置不随源图片宽高比或裁切后的可见内容改变。
 - 状态：Time、Count、Hidden。
 - 只读，不独立响应点击。
 
