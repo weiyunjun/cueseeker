@@ -18,19 +18,23 @@
   Overlay source projections.
 - Changed the Overlay initial-window and complete-batch database reads to bind
   `subtitle_files.id` instead of comparing the subtitle path.
+- Removed the path-based Overlay snapshot and Cue Batch overloads, so the
+  database API cannot use a filesystem path as Overlay identity.
 - Kept paths as filesystem locations for video and subtitle playback; no path
   normalization policy, matching rule, cue parsing rule, schema, or stored ID
   changed.
 - Added regression coverage for canonically equivalent Japanese dakuten,
   Latin accent, and Hangul NFC/NFD paths, plus projection and Overlay loader
   coverage.
+- Updated the existing Overlay database tests to resolve and use the permanent
+  `SubtitleID` instead of retaining a path-based compatibility route.
 
 ## Verification
 
 - `swift test --filter SubtitleFocusTests`: 10 tests passed, including all
-  three Unicode normalization fixtures.
-- Focused Library, Search, Shiori, Overlay entry, and Subtitle Focus–Shiori
-  rerun: 10 tests passed.
+  three Unicode normalization fixtures, after removal of the path API.
+- Post-removal Library, Recent, Shiori, Overlay entry, and Subtitle
+  Focus–Shiori rerun: 6 tests passed.
 - `swift test`: ran 953 tests and reported 25 issues in unrelated concurrent
   native media timing, Library removal, UI refresh-probe, row-menu, and
   Subtitle Focus–Shiori tests during disk I/O contention. All three affected

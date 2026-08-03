@@ -35,9 +35,13 @@ func subtitleFocusDatabaseBootstrapLoadsSixBeforeAndThreeAfter() throws {
             )
         }
     )
+    let subtitleFileID = try subtitleFocusFileID(
+        for: subtitleFile,
+        databaseURL: databaseURL
+    )
 
     let snapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 12_500
     ))
     #expect(snapshot.totalCount == 20)
@@ -121,16 +125,20 @@ func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() thro
         videoFile: videoFile,
         entries: focusEntries(count: 20)
     )
+    let subtitleFileID = try subtitleFocusFileID(
+        for: subtitleFile,
+        databaseURL: databaseURL
+    )
 
     let firstSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 100
     ))
     #expect(firstSnapshot.selectedOrdinal == 0)
     #expect(firstSnapshot.cues.map(\.ordinal) == Array(0..<10))
 
     let lastSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 19_500
     ))
     #expect(lastSnapshot.selectedOrdinal == 19)
@@ -142,7 +150,7 @@ func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() thro
         entries: focusEntries(count: 7)
     )
     let shortSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 3_500
     ))
     #expect(shortSnapshot.totalCount == 7)
@@ -172,15 +180,19 @@ func subtitleFocusDatabaseBootstrapUsesPreviousCueAndFallsBackToFirstCue() throw
             )
         }
     )
+    let subtitleFileID = try subtitleFocusFileID(
+        for: subtitleFile,
+        databaseURL: databaseURL
+    )
 
     let gapSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 7_900
     ))
     #expect(gapSnapshot.selectedOrdinal == 6)
     #expect(gapSnapshot.selectedCue?.text == "gap cue 6")
     let beforeFirstSnapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 500
     ))
     #expect(beforeFirstSnapshot.selectedOrdinal == 0)
@@ -221,9 +233,13 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
             )
         ]
     )
+    let subtitleFileID = try subtitleFocusFileID(
+        for: subtitleFile,
+        databaseURL: databaseURL
+    )
 
     let batch = try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         totalCount: 2,
         startingAtOrdinal: 0,
         limit: 10
@@ -239,7 +255,7 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
     #expect(batch.cues[0].id != batch.cues[1].id)
 
     let snapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 1_500
     ))
     #expect(snapshot.totalCount == 2)
@@ -263,9 +279,13 @@ func subtitleFocusDatabaseBatchReadsCompleteCurrentVideoCollection() throws {
         videoFile: videoFile,
         entries: focusEntries(count: cueCount)
     )
+    let subtitleFileID = try subtitleFocusFileID(
+        for: subtitleFile,
+        databaseURL: databaseURL
+    )
 
     let batch = try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         totalCount: cueCount,
         startingAtOrdinal: 0,
         limit: cueCount
@@ -290,7 +310,7 @@ func subtitleFocusDatabaseBatchRejectsPreCancelledTasks() async throws {
             task?.cancel()
         }
         return try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
-            forSubtitleFile: URL(fileURLWithPath: "/Media/Cancelled.srt"),
+            forSubtitleFileID: 1,
             totalCount: 1,
             startingAtOrdinal: 0,
             limit: 1
@@ -318,12 +338,16 @@ func subtitleFocusDatabaseBatchStopsAfterCancellationDuringRowIteration() async 
         videoFile: URL(fileURLWithPath: "/Media/Cancellation-Iteration.mkv"),
         entries: focusEntries(count: 2_500)
     )
+    let subtitleFileID = try subtitleFocusFileID(
+        for: subtitleFile,
+        databaseURL: databaseURL
+    )
 
     let rowReadProbe = SubtitleFocusCancellationRowReadProbe()
     let task = Task.detached { () throws -> SubtitleFocusCueBatch in
         let database = try IndexingDatabase(path: databaseURL)
         return try PlaybackSubtitleDatabase(path: database.path).subtitleFocusCueBatch(
-            forSubtitleFile: subtitleFile,
+            forSubtitleFileID: subtitleFileID,
             totalCount: 2_500,
             startingAtOrdinal: 0,
             limit: 2_500,
@@ -368,9 +392,13 @@ func subtitleFocusDatabaseUsesOneStableOrderForSelectionAndWindow() throws {
             focusGroup(start: 3_000, end: 4_000, content: "later"),
         ]
     )
+    let subtitleFileID = try subtitleFocusFileID(
+        for: subtitleFile,
+        databaseURL: databaseURL
+    )
 
     let snapshot = try #require(try PlaybackSubtitleDatabase(path: database.path).subtitleFocusInitialSnapshot(
-        forSubtitleFile: subtitleFile,
+        forSubtitleFileID: subtitleFileID,
         atMilliseconds: 1_500
     ))
     #expect(snapshot.selectedOrdinal == 0)
@@ -399,6 +427,18 @@ private func focusBatch(_ ordinals: Range<Int>, totalCount: Int) -> SubtitleFocu
 private func subtitleFocusTemporaryDatabaseURL() -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSubtitleFocusTests-\(UUID().uuidString).sqlite")
+}
+
+private func subtitleFocusFileID(
+    for subtitleFile: URL,
+    databaseURL: URL
+) throws -> Int64 {
+    let video = try #require(
+        try LibraryDatabase(path: databaseURL)
+            .libraryVideos(under: [subtitleFile.deletingLastPathComponent()])
+            .first { $0.subtitlePath == subtitleFile.path }
+    )
+    return try #require(video.subtitleFileID)
 }
 
 private final class SubtitleFocusCancellationRowReadProbe: @unchecked Sendable {
