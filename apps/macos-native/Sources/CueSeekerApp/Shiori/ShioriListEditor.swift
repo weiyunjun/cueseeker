@@ -190,17 +190,9 @@ struct ShioriListEditorDialog: View {
                 )
                 .frame(height: 250)
             } else {
-                ShioriListCoverView(coverPath: session.originalCoverPath)
-                    .aspectRatio(
-                        WorkbenchControlMetrics.redesignLibraryCoverAspectRatio,
-                        contentMode: .fit
-                    )
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
-                            style: .continuous
-                        )
-                    )
+                LibraryCoverFrame {
+                    ShioriListCoverView(coverPath: session.originalCoverPath)
+                }
             }
 
             WorkbenchButton(

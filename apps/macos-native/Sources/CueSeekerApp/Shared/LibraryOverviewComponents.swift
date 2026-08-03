@@ -91,6 +91,32 @@ struct LibraryOverviewGrid<Content: View>: View {
     }
 }
 
+struct LibraryCoverFrame<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(
+                WorkbenchControlMetrics.redesignLibraryCoverAspectRatio,
+                contentMode: .fit
+            )
+            .overlay {
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
+                    style: .continuous
+                )
+            )
+    }
+}
+
 struct LibraryOverviewCardContent<Cover: View>: View {
     let title: String
     let description: String?

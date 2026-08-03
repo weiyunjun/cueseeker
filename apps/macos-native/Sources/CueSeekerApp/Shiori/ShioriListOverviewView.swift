@@ -126,43 +126,35 @@ private struct ShioriListCard: View {
     }
 
     private var cover: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ShioriListCoverView(coverPath: summary.list.coverPath)
+        LibraryCoverFrame {
+            ZStack(alignment: .bottomTrailing) {
+                ShioriListCoverView(coverPath: summary.list.coverPath)
 
-            Text("\(summary.cueCount) Cues")
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
-                .monospacedDigit()
-                .padding(
-                    .horizontal,
-                    WorkbenchControlMetrics.redesignLibraryTimeBadgeHorizontalPadding
-                )
-                .padding(
-                    .vertical,
-                    WorkbenchControlMetrics.redesignLibraryTimeBadgeVerticalPadding
-                )
-                .background(
-                    RoundedRectangle(
-                        cornerRadius: WorkbenchControlMetrics.redesignLibraryTimeBadgeRadius,
-                        style: .continuous
+                Text("\(summary.cueCount) Cues")
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
+                    .monospacedDigit()
+                    .padding(
+                        .horizontal,
+                        WorkbenchControlMetrics.redesignLibraryTimeBadgeHorizontalPadding
                     )
-                    .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
-                )
-                .padding(8)
+                    .padding(
+                        .vertical,
+                        WorkbenchControlMetrics.redesignLibraryTimeBadgeVerticalPadding
+                    )
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignLibraryTimeBadgeRadius,
+                            style: .continuous
+                        )
+                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+                    )
+                    .padding(8)
+            }
         }
-        .aspectRatio(
-            WorkbenchControlMetrics.redesignLibraryCoverAspectRatio,
-            contentMode: .fit
-        )
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
-                style: .continuous
-            )
-        )
         .scaleEffect(
             isHovered ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
         )

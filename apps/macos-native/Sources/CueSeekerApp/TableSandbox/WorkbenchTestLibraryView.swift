@@ -198,21 +198,13 @@ struct RecentShioriResumeRow: View {
                 alignment: .center,
                 spacing: WorkbenchControlMetrics.redesignSpacing4
             ) {
-                ShioriListCoverView(coverPath: summary.list.coverPath)
-                    .aspectRatio(
-                        WorkbenchControlMetrics.redesignLibraryCoverAspectRatio,
-                        contentMode: .fill
-                    )
-                    .frame(
-                        width: WorkbenchControlMetrics.redesignLibraryListCoverWidth,
-                        height: WorkbenchControlMetrics.redesignLibraryListCoverHeight
-                    )
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
-                            style: .continuous
-                        )
-                    )
+                LibraryCoverFrame {
+                    ShioriListCoverView(coverPath: summary.list.coverPath)
+                }
+                .frame(
+                    width: WorkbenchControlMetrics.redesignLibraryListCoverWidth,
+                    height: WorkbenchControlMetrics.redesignLibraryListCoverHeight
+                )
 
                 VStack(
                     alignment: .leading,
@@ -473,8 +465,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let coverHoverScale = WorkbenchControlMetrics.redesignLibraryCoverHoverScale
     static let coverHoverDuration = WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
 
-    static let coverAspectRatio = WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
-    static let coverRadius = WorkbenchControlMetrics.redesignLibraryCoverRadius
     static let progressBarHeight = WorkbenchControlMetrics.redesignLibraryProgressBarHeight
     static let timeBadgeRadius = WorkbenchControlMetrics.redesignLibraryTimeBadgeRadius
     static let timeBadgeHorizontalPadding = WorkbenchControlMetrics.redesignLibraryTimeBadgeHorizontalPadding
@@ -1623,37 +1613,32 @@ struct LibraryCoverWithProgress: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            coverImage
+        LibraryCoverFrame {
+            ZStack(alignment: .bottomLeading) {
+                coverImage
 
-            if let progressFraction {
-                progressTrack(progressFraction: progressFraction)
-            }
+                if let progressFraction {
+                    progressTrack(progressFraction: progressFraction)
+                }
 
-            Text(timeBadgeText)
-                .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
-                .monospacedDigit()
-                .padding(.horizontal, WorkbenchTestLibraryMetrics.timeBadgeHorizontalPadding)
-                .padding(.vertical, WorkbenchTestLibraryMetrics.timeBadgeVerticalPadding)
-                .background(
-                    RoundedRectangle(
-                        cornerRadius: WorkbenchTestLibraryMetrics.timeBadgeRadius,
-                        style: .continuous
+                Text(timeBadgeText)
+                    .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
+                    .monospacedDigit()
+                    .padding(.horizontal, WorkbenchTestLibraryMetrics.timeBadgeHorizontalPadding)
+                    .padding(.vertical, WorkbenchTestLibraryMetrics.timeBadgeVerticalPadding)
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchTestLibraryMetrics.timeBadgeRadius,
+                            style: .continuous
+                        )
+                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
                     )
-                    .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
-                )
-                .padding(.trailing, WorkbenchTestLibraryMetrics.timeBadgeInset)
-                .padding(.bottom, WorkbenchTestLibraryMetrics.timeBadgeInset)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(.trailing, WorkbenchTestLibraryMetrics.timeBadgeInset)
+                    .padding(.bottom, WorkbenchTestLibraryMetrics.timeBadgeInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
         }
-        .aspectRatio(WorkbenchTestLibraryMetrics.coverAspectRatio, contentMode: .fit)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.coverRadius,
-                style: .continuous
-            )
-        )
     }
 
     private var coverImage: some View {
@@ -1733,35 +1718,30 @@ private struct LibraryCoverWithBadge: View {
     let badgeText: String
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            LibraryCachedCoverImage(
-                coverPath: coverPath,
-                coverRevision: coverRevision
-            )
-
-            Text(badgeText)
-                .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
-                .monospacedDigit()
-                .padding(.horizontal, WorkbenchTestLibraryMetrics.timeBadgeHorizontalPadding)
-                .padding(.vertical, WorkbenchTestLibraryMetrics.timeBadgeVerticalPadding)
-                .background(
-                    RoundedRectangle(
-                        cornerRadius: WorkbenchTestLibraryMetrics.timeBadgeRadius,
-                        style: .continuous
-                    )
-                    .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+        LibraryCoverFrame {
+            ZStack(alignment: .bottomTrailing) {
+                LibraryCachedCoverImage(
+                    coverPath: coverPath,
+                    coverRevision: coverRevision
                 )
-                .padding(.trailing, WorkbenchTestLibraryMetrics.timeBadgeInset)
-                .padding(.bottom, WorkbenchTestLibraryMetrics.timeBadgeInset)
+
+                Text(badgeText)
+                    .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
+                    .monospacedDigit()
+                    .padding(.horizontal, WorkbenchTestLibraryMetrics.timeBadgeHorizontalPadding)
+                    .padding(.vertical, WorkbenchTestLibraryMetrics.timeBadgeVerticalPadding)
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchTestLibraryMetrics.timeBadgeRadius,
+                            style: .continuous
+                        )
+                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+                    )
+                    .padding(.trailing, WorkbenchTestLibraryMetrics.timeBadgeInset)
+                    .padding(.bottom, WorkbenchTestLibraryMetrics.timeBadgeInset)
+            }
         }
-        .aspectRatio(WorkbenchTestLibraryMetrics.coverAspectRatio, contentMode: .fit)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.coverRadius,
-                style: .continuous
-            )
-        )
     }
 }
 
