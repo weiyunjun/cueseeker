@@ -1810,58 +1810,17 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
             }
         }
-        let matchingPath = try subtitleFileRecord(path: subtitleFile.path)
+        let matchingPath = try subtitleFileBindingRecord(path: subtitleFile.path)
 
-        let record: BoundResourceRecord?
-        if let matchingResource {
-            if let matchingPath, matchingPath.id != matchingResource.id {
-                try retireSubtitleFile(matchingPath, state: .replaced)
-            }
-            record = matchingResource
-        } else if let matchingPath,
-                  matchingPath.resourceIdentity == nil
-                    || fileIdentity.resourceIdentifier == nil
-                    || matchingPath.resourceIdentity == fileIdentity.resourceIdentifier
+        if let matchingResource,
+           matchingResource.id != matchingPath?.id
         {
-            record = matchingPath
-        } else if let pathIdentity,
-                  let fingerprint = fileIdentity.contentFingerprint
-        {
-            let candidates = try subtitleFileRecords(
-                libraryID: pathIdentity.libraryID,
-                contentFingerprint: fingerprint
-            ).filter {
-                $0.path != subtitleFile.path
-                    && !FileManager.default.fileExists(atPath: $0.path)
-            }
-
-            if candidates.count == 1, let candidate = candidates.first {
-                if let matchingPath {
-                    try retireSubtitleFile(matchingPath, state: .replaced)
-                }
-                record = candidate
-            } else {
-                if let matchingPath {
-                    try retireSubtitleFile(matchingPath, state: .replaced)
-                }
-                for candidate in candidates {
-                    try markSubtitleFileConflict(candidate)
-                    try insertBindingConflict(
-                        libraryID: pathIdentity.libraryID,
-                        resourceKind: "subtitle",
-                        existingResourceID: candidate.id,
-                        candidatePath: subtitleFile.path,
-                        reason: "Multiple missing subtitles have the same complete content fingerprint."
-                    )
-                }
-                record = nil
-            }
-        } else {
-            if let matchingPath {
-                try retireSubtitleFile(matchingPath, state: .replaced)
-            }
-            record = nil
+            try updateSubtitleResourceIdentity(
+                subtitleFileID: matchingResource.id,
+                resourceIdentity: nil
+            )
         }
+        let record = matchingPath
 
         if let record {
             let statement = try database.prepare(
@@ -1991,25 +1950,17 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
             }
         }
-        let matchingPath = try videoFileRecord(path: videoFile.path)
-        let record: BoundResourceRecord?
-        if let matchingResource {
-            if let matchingPath, matchingPath.id != matchingResource.id {
-                try retireVideoFile(matchingPath, state: .replaced)
-            }
-            record = matchingResource
-        } else if let matchingPath,
-                  matchingPath.resourceIdentity == nil
-                    || fileIdentity.resourceIdentifier == nil
-                    || matchingPath.resourceIdentity == fileIdentity.resourceIdentifier
+        let matchingPath = try videoFileBindingRecord(path: videoFile.path)
+        if let matchingResource,
+           matchingResource.id != matchingPath?.id
         {
-            record = matchingPath
-        } else {
-            if let matchingPath {
-                try retireVideoFile(matchingPath, state: .replaced)
-            }
-            record = nil
+            let releaseResourceIdentity = try database.prepare(
+                "UPDATE video_files SET resource_identity = NULL WHERE id = ?;"
+            )
+            try releaseResourceIdentity.bind(matchingResource.id, at: 1)
+            try releaseResourceIdentity.run()
         }
+        let record = matchingPath
 
         if let record {
             try updateDurableVideoPaths(videoFileID: record.id, path: videoFile.path)
@@ -2092,6 +2043,26 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
     }
 
+    private func subtitleFileBindingRecord(
+        path: String
+    ) throws -> BoundResourceRecord? {
+        if let record = try subtitleFileRecord(path: path) {
+            return record
+        }
+        return try boundResourceRecord(
+            sql: """
+                SELECT id, subtitle_path, resource_identity, content_fingerprint
+                FROM subtitle_files
+                WHERE last_known_path = ?
+                  AND binding_state != 'available'
+                ORDER BY id ASC
+                LIMIT 1;
+                """,
+            value: path,
+            includesFingerprint: true
+        )
+    }
+
     private func subtitleFileRecord(
         libraryID: Int64,
         resourceIdentity: String
@@ -2109,37 +2080,31 @@ public final class IndexingDatabase: @unchecked Sendable {
         return try readBoundResourceRecord(statement, includesFingerprint: true)
     }
 
-    private func subtitleFileRecords(
-        libraryID: Int64,
-        contentFingerprint: String
-    ) throws -> [BoundResourceRecord] {
-        let statement = try database.prepare(
-            """
-            SELECT id, subtitle_path, resource_identity, content_fingerprint
-            FROM subtitle_files
-            WHERE library_id = ? AND content_fingerprint = ?
-            ORDER BY id ASC;
-            """
-        )
-        try statement.bind(libraryID, at: 1)
-        try statement.bind(contentFingerprint, at: 2)
-
-        var records: [BoundResourceRecord] = []
-        while let record = try readBoundResourceRecord(
-            statement,
-            includesFingerprint: true
-        ) {
-            records.append(record)
-        }
-        return records
-    }
-
     private func videoFileRecord(path: String) throws -> BoundResourceRecord? {
         try boundResourceRecord(
             sql: """
                 SELECT id, path, resource_identity
                 FROM video_files
                 WHERE path = ?
+                LIMIT 1;
+                """,
+            value: path
+        )
+    }
+
+    private func videoFileBindingRecord(
+        path: String
+    ) throws -> BoundResourceRecord? {
+        if let record = try videoFileRecord(path: path) {
+            return record
+        }
+        return try boundResourceRecord(
+            sql: """
+                SELECT id, path, resource_identity
+                FROM video_files
+                WHERE last_known_path = ?
+                  AND binding_state != 'available'
+                ORDER BY id ASC
                 LIMIT 1;
                 """,
             value: path
@@ -2213,20 +2178,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(record.path, at: 2)
         try statement.bind(state.rawValue, at: 3)
         try statement.bind(record.id, at: 4)
-        try statement.run()
-    }
-
-    private func markSubtitleFileConflict(_ record: BoundResourceRecord) throws {
-        let statement = try database.prepare(
-            """
-            UPDATE subtitle_files
-            SET last_known_path = ?,
-                binding_state = 'conflict'
-            WHERE id = ?;
-            """
-        )
-        try statement.bind(record.path, at: 1)
-        try statement.bind(record.id, at: 2)
         try statement.run()
     }
 
@@ -2387,35 +2338,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         try watchState.bind(path, at: 1)
         try watchState.bind(videoFileID, at: 2)
         try watchState.run()
-    }
-
-    private func insertBindingConflict(
-        libraryID: Int64,
-        resourceKind: String,
-        existingResourceID: Int64?,
-        candidatePath: String,
-        reason: String
-    ) throws {
-        let statement = try database.prepare(
-            """
-            INSERT INTO resource_binding_conflicts(
-                library_id,
-                resource_kind,
-                existing_resource_id,
-                candidate_path,
-                reason,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?);
-            """
-        )
-        try statement.bind(libraryID, at: 1)
-        try statement.bind(resourceKind, at: 2)
-        try bindOptional(existingResourceID, to: statement, at: 3)
-        try statement.bind(candidatePath, at: 4)
-        try statement.bind(reason, at: 5)
-        try statement.bind(ISO8601DateFormatter().string(from: Date()), at: 6)
-        try statement.run()
     }
 
     private func bindMediaPathIdentity(

@@ -196,7 +196,124 @@ func unavailablePlatformIdentityUsesSamePathAsFallbackBinding() throws {
 }
 
 @Test
-func movingLibraryFolderPreservesFolderVideoAndSubtitleIDs() throws {
+func exactMediaPathsWinWhenPlatformIdentitiesAreSwapped() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerPathIdentitySwap-\(UUID().uuidString)")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let firstSubtitle = root.appendingPathComponent("First.srt")
+    let secondSubtitle = root.appendingPathComponent("Second.srt")
+    let firstVideo = root.appendingPathComponent("First.mkv")
+    let secondVideo = root.appendingPathComponent("Second.mkv")
+    try "first subtitle".write(to: firstSubtitle, atomically: false, encoding: .utf8)
+    try "second subtitle".write(to: secondSubtitle, atomically: false, encoding: .utf8)
+    try Data([0x01]).write(to: firstVideo)
+    try Data([0x02]).write(to: secondVideo)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    _ = try database.addSearchPath(root)
+    try database.replaceEntries(
+        subtitleFile: firstSubtitle,
+        videoFile: firstVideo,
+        entries: [simpleTestEntry(text: "first subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: secondSubtitle,
+        videoFile: secondVideo,
+        entries: [simpleTestEntry(text: "second subtitle")]
+    )
+
+    let firstSubtitleID = try #require(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: firstSubtitle.path,
+        databaseURL: databaseURL
+    ))
+    let secondSubtitleID = try #require(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: secondSubtitle.path,
+        databaseURL: databaseURL
+    ))
+    let firstVideoID = try #require(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: firstVideo.path,
+        databaseURL: databaseURL
+    ))
+    let secondVideoID = try #require(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: secondVideo.path,
+        databaseURL: databaseURL
+    ))
+
+    let temporarySubtitle = root.appendingPathComponent("Subtitle.swap")
+    try FileManager.default.moveItem(at: firstSubtitle, to: temporarySubtitle)
+    try FileManager.default.moveItem(at: secondSubtitle, to: firstSubtitle)
+    try FileManager.default.moveItem(at: temporarySubtitle, to: secondSubtitle)
+    let temporaryVideo = root.appendingPathComponent("Video.swap")
+    try FileManager.default.moveItem(at: firstVideo, to: temporaryVideo)
+    try FileManager.default.moveItem(at: secondVideo, to: firstVideo)
+    try FileManager.default.moveItem(at: temporaryVideo, to: secondVideo)
+
+    try database.replaceEntries(
+        subtitleFile: firstSubtitle,
+        videoFile: firstVideo,
+        entries: [simpleTestEntry(text: "second subtitle")]
+    )
+    try database.replaceEntries(
+        subtitleFile: secondSubtitle,
+        videoFile: secondVideo,
+        entries: [simpleTestEntry(text: "first subtitle")]
+    )
+
+    #expect(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: firstSubtitle.path,
+        databaseURL: databaseURL
+    ) == firstSubtitleID)
+    #expect(try sqliteRowID(
+        table: "subtitle_files",
+        pathColumn: "subtitle_path",
+        path: secondSubtitle.path,
+        databaseURL: databaseURL
+    ) == secondSubtitleID)
+    #expect(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: firstVideo.path,
+        databaseURL: databaseURL
+    ) == firstVideoID)
+    #expect(try sqliteRowID(
+        table: "video_files",
+        pathColumn: "path",
+        path: secondVideo.path,
+        databaseURL: databaseURL
+    ) == secondVideoID)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT resource_identity FROM subtitle_files WHERE id = \(firstSubtitleID);"
+        ) == FileResourceIdentityResolver.resourceIdentifier(for: firstSubtitle)
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT resource_identity FROM video_files WHERE id = \(firstVideoID);"
+        ) == FileResourceIdentityResolver.resourceIdentifier(for: firstVideo)
+    )
+}
+
+@Test
+func movingLibraryFolderCreatesNewVideoSubtitleAndCueIDs() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerBindingMove-\(UUID().uuidString)")
     let originalFolder = root.appendingPathComponent("Season")
@@ -269,17 +386,17 @@ func movingLibraryFolderPreservesFolderVideoAndSubtitleIDs() throws {
         pathColumn: "subtitle_path",
         path: movedSubtitle.path,
         databaseURL: databaseURL
-    ) == originalSubtitleID)
+    ) != originalSubtitleID)
     #expect(try sqliteRowID(
         table: "video_files",
         pathColumn: "path",
         path: movedVideo.path,
         databaseURL: databaseURL
-    ) == originalVideoID)
+    ) != originalVideoID)
     #expect(
         try PlaybackSubtitleDatabase(path: databaseURL)
             .cueLineRecords(forSubtitleFile: movedSubtitle)
-            .first?.id == originalCueID
+            .first?.id != originalCueID
     )
 }
 
@@ -364,7 +481,7 @@ func userFolderCoverFollowsFolderIDAndDoesNotLeakToReplacementPath() throws {
 }
 
 @Test
-func newFolderAtPreviousPathDoesNotInheritMovedResourceIDs() throws {
+func filesReturningToPreviousPathReusePathBoundMediaIDs() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerBindingReplacement-\(UUID().uuidString)")
     let originalFolder = root.appendingPathComponent("Season")
@@ -437,29 +554,29 @@ func newFolderAtPreviousPathDoesNotInheritMovedResourceIDs() throws {
         pathColumn: "subtitle_path",
         path: movedSubtitle.path,
         databaseURL: databaseURL
-    ) == originalSubtitleID)
+    ) != originalSubtitleID)
     #expect(try sqliteRowID(
         table: "video_files",
         pathColumn: "path",
         path: movedVideo.path,
         databaseURL: databaseURL
-    ) == originalVideoID)
+    ) != originalVideoID)
     #expect(try sqliteRowID(
         table: "subtitle_files",
         pathColumn: "subtitle_path",
         path: replacementSubtitle.path,
         databaseURL: databaseURL
-    ) != originalSubtitleID)
+    ) == originalSubtitleID)
     #expect(try sqliteRowID(
         table: "video_files",
         pathColumn: "path",
         path: replacementVideo.path,
         databaseURL: databaseURL
-    ) != originalVideoID)
+    ) == originalVideoID)
 }
 
 @Test
-func videoReplacementAtSamePathDoesNotInheritPlaybackHistory() throws {
+func samePathVideoReplacementKeepsPathBoundPlaybackHistory() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerVideoHistoryBinding-\(UUID().uuidString)")
     let databaseURL = temporaryDatabaseURL()
@@ -506,14 +623,14 @@ func videoReplacementAtSamePathDoesNotInheritPlaybackHistory() throws {
     )
 
     #expect(try LibraryDatabase(path: databaseURL)
-        .libraryPlaybackHistory(forVideoFile: video) == nil)
-    #expect(try LibraryDatabase(path: databaseURL)
-        .libraryPlaybackHistory(forVideoFile: archivedVideo)?
+        .libraryPlaybackHistory(forVideoFile: video)?
         .positionMilliseconds == 42_000)
+    #expect(try LibraryDatabase(path: databaseURL)
+        .libraryPlaybackHistory(forVideoFile: archivedVideo) == nil)
 }
 
 @Test
-func uniqueCompleteSubtitleCopyCanRebindOriginalSubtitleID() throws {
+func copiedSubtitleAtDifferentPathReceivesNewSubtitleID() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerBindingCopy-\(UUID().uuidString)")
     let databaseURL = temporaryDatabaseURL()
@@ -561,11 +678,11 @@ func uniqueCompleteSubtitleCopyCanRebindOriginalSubtitleID() throws {
         pathColumn: "subtitle_path",
         path: copiedSubtitle.path,
         databaseURL: databaseURL
-    ) == originalID)
+    ) != originalID)
 }
 
 @Test
-func ambiguousCompleteSubtitleCopiesCreateNewIDAndBindingConflicts() throws {
+func sameContentAtDifferentPathDoesNotCreateBindingConflicts() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerBindingConflict-\(UUID().uuidString)")
     let databaseURL = temporaryDatabaseURL()
@@ -639,25 +756,7 @@ func ambiguousCompleteSubtitleCopiesCreateNewIDAndBindingConflicts() throws {
     #expect(try sqliteRowCount(
         in: "resource_binding_conflicts",
         databaseURL: databaseURL
-    ) == 2)
-
-    let conflictID = try #require(try sqliteRowID(
-        table: "resource_binding_conflicts",
-        pathColumn: "candidate_path",
-        path: candidateSubtitle.path,
-        databaseURL: databaseURL
-    ))
-    let selectedOldID = try #require(oldIDs.min())
-    #expect(try database.confirmSubtitleBindingConflict(
-        conflictID: conflictID,
-        existingSubtitleID: selectedOldID
-    ) == selectedOldID)
-    #expect(try sqliteRowID(
-        table: "subtitle_files",
-        pathColumn: "subtitle_path",
-        path: candidateSubtitle.path,
-        databaseURL: databaseURL
-    ) == selectedOldID)
+    ) == 0)
 }
 
 @Test

@@ -350,7 +350,7 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
 }
 
 @Test
-func replacementSubtitleWithSameSizeAndModificationDateReindexes() throws {
+func atomicSubtitleSaveWithSameSizeAndModificationDateReusesSubtitleID() throws {
     let fixture = try IndexingFixture()
     defer {
         fixture.cleanUp()
@@ -439,7 +439,7 @@ func replacementSubtitleWithSameSizeAndModificationDateReindexes() throws {
             pathColumn: "subtitle_path",
             path: indexedSubtitlePath,
             databaseURL: fixture.databaseURL
-        ) != originalSubtitleID
+        ) == originalSubtitleID
     )
 }
 
@@ -1708,7 +1708,7 @@ func assRenderSegmenterUsesComplexityBudgetForDenseEffects() throws {
 }
 
 @Test
-func samePathResourceReplacementTombstonesReferencedOldCue() throws {
+func samePathAtomicSavePreservesSubtitleCueAndShioriIDs() throws {
     let fixture = try IndexingFixture()
     defer {
         fixture.cleanUp()
@@ -1752,7 +1752,7 @@ func samePathResourceReplacementTombstonesReferencedOldCue() throws {
 
     _ = try fixture.writeSubtitle(
         name: "Replacement.srt",
-        contents: validSRT(text: "New replacement Cue with different content.")
+        contents: validSRT(text: "Edited saved Cue.")
     )
     _ = try SubtitleIndexer().index(folder: fixture.root, into: database)
 
@@ -1766,22 +1766,24 @@ func samePathResourceReplacementTombstonesReferencedOldCue() throws {
             databaseURL: fixture.databaseURL
         )
     )
-    let newCueID = try #require(
+    let currentCueID = try #require(
         try PlaybackSubtitleDatabase(path: fixture.databaseURL)
             .cueLineRecords(forSubtitleFile: indexedSubtitle)
             .first?.id
     )
-    let unavailable = try #require(try shioriDatabase.shiori(id: saved.id))
+    let currentShiori = try #require(try shioriDatabase.shiori(id: saved.id))
 
-    #expect(newSubtitleID != originalSubtitleID)
-    #expect(newCueID != originalCueID)
-    #expect(unavailable.unavailableReason == .cueMissing)
-    #expect(unavailable.content == "Original saved Cue.")
+    #expect(newSubtitleID == originalSubtitleID)
+    #expect(currentCueID == originalCueID)
+    #expect(try shioriDatabase.cueID(forShioriID: saved.id) == originalCueID)
+    #expect(currentShiori.isValid)
+    #expect(currentShiori.unavailableReason == nil)
+    #expect(currentShiori.content == "Edited saved Cue.")
     #expect(
         try queryInt(
             at: fixture.databaseURL,
             sql: "SELECT COUNT(*) FROM cue_tombstones WHERE cue_id = \(originalCueID);"
-        ) == 1
+        ) == 0
     )
     #expect(
         try queryInt(
@@ -1793,6 +1795,85 @@ func samePathResourceReplacementTombstonesReferencedOldCue() throws {
             LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
             WHERE l.id IS NULL AND t.cue_id IS NULL;
             """
+        ) == 0
+    )
+}
+
+@Test
+func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let subtitleFile = try fixture.writeSubtitle(
+        name: "Episode.ass",
+        contents: validASS(text: "生き残ったのは…")
+    )
+    _ = try fixture.writeVideo(name: "Episode.mkv")
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let indexedSubtitleFile = URL(
+        fileURLWithPath: try #require(
+            try database.subtitleFiles().first?.subtitlePath
+        )
+    )
+
+    let originalResourceIdentity = try #require(
+        FileResourceIdentityResolver.resourceIdentifier(for: subtitleFile)
+    )
+    let originalSubtitleID = try #require(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: indexedSubtitleFile.path,
+            databaseURL: fixture.databaseURL
+        )
+    )
+    let originalCue = try #require(
+        try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+            .cueLineRecords(forSubtitleFile: indexedSubtitleFile)
+            .first
+    )
+    let shioriDatabase = try ShioriDatabase(path: fixture.databaseURL)
+    let saved = try shioriDatabase.upsertShiori(
+        selection: shioriSelection(originalCue)
+    )
+
+    _ = try fixture.writeSubtitle(
+        name: "Episode.ass",
+        contents: validASS(text: "生き残ったのは私たち…")
+    )
+    let currentResourceIdentity = try #require(
+        FileResourceIdentityResolver.resourceIdentifier(for: subtitleFile)
+    )
+    #expect(currentResourceIdentity != originalResourceIdentity)
+
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    let currentCue = try #require(
+        try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+            .cueLineRecords(forSubtitleFile: indexedSubtitleFile)
+            .first
+    )
+    let currentShiori = try #require(try shioriDatabase.shiori(id: saved.id))
+    #expect(
+        try sqliteRowID(
+            table: "subtitle_files",
+            pathColumn: "subtitle_path",
+            path: indexedSubtitleFile.path,
+            databaseURL: fixture.databaseURL
+        ) == originalSubtitleID
+    )
+    #expect(currentCue.id == originalCue.id)
+    #expect(try shioriDatabase.cueID(forShioriID: saved.id) == originalCue.id)
+    #expect(currentShiori.isValid)
+    #expect(currentShiori.content == "生き残ったのは私たち…")
+    #expect(
+        try queryInt(
+            at: fixture.databaseURL,
+            sql: "SELECT COUNT(*) FROM cue_tombstones WHERE cue_id = \(originalCue.id);"
         ) == 0
     )
 }
@@ -2032,6 +2113,17 @@ private func validSRT(text: String) -> String {
     00:00:01,000 --> 00:00:03,000
     \(text)
 
+    """
+}
+
+private func validASS(text: String) -> String {
+    """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default-JP,,0,0,0,,\(text)
     """
 }
 

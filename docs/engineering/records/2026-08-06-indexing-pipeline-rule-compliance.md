@@ -32,6 +32,11 @@ permitted parent-child Library overlap behavior or its path-prefix cleanup.
 6. Changed SRT logical deduplication and ASS Cue Group keys to normalized start
    and end milliseconds while retaining a deterministic source time string for
    format fidelity.
+7. Made the exact current path, followed by the unavailable record's
+   `last_known_path`, authoritative for SubtitleID and VideoID. Platform
+   identity conflicts now release the conflicting identity without retiring the
+   path-bound record, and platform identity or complete-content matches at a
+   different path no longer rebind an old permanent ID.
 
 ## Verification
 
@@ -42,6 +47,13 @@ permitted parent-child Library overlap behavior or its path-prefix cleanup.
   `ApplicationPersistenceTests` issue caused by shared `UserDefaults` suite
   state. That test passed when rerun alone.
 - `swift build` and `git diff --check` passed.
+- The additional same-path, last-known-path, different-path, platform-identity,
+  Cue reconciliation, Shiori, and indexing lifecycle regression set passed 58
+  tests. The focused identity regression set passed 10 tests.
+- The current aggregate run executed 966 tests. All indexing tests passed; the
+  run still reported unrelated native playback timing and UI asynchronous
+  failures while the test process also emitted temporary SQLite `disk I/O
+  error` messages under aggregate concurrency.
 
 ## Outcome
 
@@ -49,7 +61,9 @@ Every current Cue retirement entry now protects persistent references, and the
 database supplies a backstop against future dangling Shiori. Library and media
 identity changes publish only after a complete scan, per-file subtitle failures
 are isolated, video scan failures remain failures, and equivalent parsed times
-now share one logical identity.
+now share one logical identity. Same-path saves, including atomic ASS text
+updates, retain SubtitleID, VideoID, matching CueIDs, and live Shiori, while a
+different path receives a new permanent media identity.
 
 ## Follow-ups
 

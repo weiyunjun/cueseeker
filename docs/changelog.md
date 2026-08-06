@@ -7,11 +7,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 ## Unreleased
 
 - Corrected the indexing publication lifecycle across Library identity, media
-  observation, and Cue retirement. Same-path resource replacements now preserve
-  referenced old Cues as Tombstones, existing dangling Shiori receive a minimal
-  unavailable placeholder, single-file subtitle failures no longer cancel
-  successful sibling files, incomplete video scans preserve the prior Library
-  state, and SRT/ASS time equality now uses normalized milliseconds.
+  observation, and Cue retirement. Subtitle and Video identity now follows the
+  exact current or last-known path before platform identity, so atomic saves and
+  same-path content edits retain their permanent IDs while different paths use
+  new IDs. Referenced exiting Cues remain protected as Tombstones, existing
+  dangling Shiori receive a minimal unavailable placeholder, single-file
+  subtitle failures no longer cancel successful sibling files, incomplete
+  video scans preserve the prior Library state, and SRT/ASS time equality now
+  uses normalized milliseconds.
 - Made cross-video playback presentation switching atomic. The previous frame
   and subtitle presentation now remain intact until the current generation's
   first frame is ready, then the frame dimensions, outer aspect ratio, and ASS
