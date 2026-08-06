@@ -2,6 +2,28 @@ import Foundation
 import Testing
 @testable import CueSeekerCore
 
+private let cueTombstoneFixtureSchemaSQL = """
+    CREATE TABLE cue_tombstones (
+        cue_id INTEGER PRIMARY KEY,
+        subtitle_file_id INTEGER NOT NULL,
+        source_format TEXT NOT NULL,
+        source_style TEXT,
+        source_identity_remainder TEXT NOT NULL DEFAULT '',
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        start_ms INTEGER NOT NULL,
+        end_ms INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        cue_group_content TEXT NOT NULL,
+        display_title TEXT NOT NULL,
+        subtitle_path TEXT,
+        video_path TEXT,
+        unavailable_reason TEXT NOT NULL,
+        tombstoned_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    """
+
 @Test
 func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     let databaseURL = temporaryDatabaseURL()
@@ -30,6 +52,53 @@ func currentSchemaValidationDoesNotMutateStoredData() throws {
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     #expect(try sqliteRowCount(in: "search_paths", databaseURL: databaseURL) == 1)
+}
+
+@Test
+func migratesSchema41DanglingShioriToProtectedTombstone() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DROP TRIGGER protect_referenced_cue_deletion;
+        DROP TRIGGER protect_referenced_tombstone_deletion;
+        INSERT INTO shioris(id, list_id, cue_id, created_at)
+        VALUES (780, 1, 9007505, '2026-08-03T13:27:29Z');
+        PRAGMA user_version = 41;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    let repaired = try #require(
+        try ShioriDatabase(path: databaseURL).shiori(id: 780)
+    )
+    #expect(repaired.unavailableReason == .cueMissing)
+    #expect(repaired.content.isEmpty)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT unavailable_reason FROM cue_tombstones WHERE cue_id = 9007505;"
+        ) == "cue_missing"
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT source_format FROM cue_tombstones WHERE cue_id = 9007505;"
+        ) == ""
+    )
+    #expect(throws: (any Error).self) {
+        try executeDatabaseTestSQLite(
+            at: databaseURL,
+            "DELETE FROM cue_tombstones WHERE cue_id = 9007505;"
+        )
+    }
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: databaseURL) == 1)
 }
 
 @Test
@@ -142,7 +211,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(42)
+    try expectUnsupportedSchemaVersion(43)
 }
 
 @Test
@@ -222,6 +291,7 @@ func migratesSchema38ByDroppingOnlySpeakerAndAICacheStorage() throws {
             id INTEGER PRIMARY KEY,
             cue_id INTEGER NOT NULL
         );
+        \(cueTombstoneFixtureSchemaSQL)
         CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
             content,
             cue_group_id UNINDEXED
@@ -340,6 +410,14 @@ func migratesSchema37RecentShioriStateWithoutDroppingLists() throws {
             cover_path TEXT,
             created_at TEXT NOT NULL
         );
+        CREATE TABLE subtitle_cue_lines (
+            id INTEGER PRIMARY KEY
+        );
+        CREATE TABLE shioris (
+            id INTEGER PRIMARY KEY,
+            cue_id INTEGER NOT NULL
+        );
+        \(cueTombstoneFixtureSchemaSQL)
         INSERT INTO shiori_lists(
             id, name, normalized_name, description, cover_path, created_at
         )
@@ -383,11 +461,14 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
             id INTEGER PRIMARY KEY,
             binding_state TEXT NOT NULL
         );
-        CREATE TABLE cue_tombstones (
-            cue_id INTEGER PRIMARY KEY,
-            subtitle_file_id INTEGER NOT NULL,
-            unavailable_reason TEXT NOT NULL
+        CREATE TABLE subtitle_cue_lines (
+            id INTEGER PRIMARY KEY
         );
+        CREATE TABLE shioris (
+            id INTEGER PRIMARY KEY,
+            cue_id INTEGER NOT NULL
+        );
+        \(cueTombstoneFixtureSchemaSQL)
         CREATE TABLE shiori_lists (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
@@ -401,11 +482,24 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
         INSERT INTO cue_tombstones(
             cue_id,
             subtitle_file_id,
-            unavailable_reason
+            source_format,
+            source_identity_remainder,
+            start_time,
+            end_time,
+            start_ms,
+            end_ms,
+            content,
+            cue_group_content,
+            display_title,
+            unavailable_reason,
+            tombstoned_at,
+            updated_at
         )
         VALUES
-            (1, 10, 'video_and_subtitle_missing'),
-            (2, 20, 'video_and_subtitle_missing');
+            (1, 10, 'srt', '', '', '', 0, 0, '', '', '',
+             'video_and_subtitle_missing', 'created', 'created'),
+            (2, 20, 'srt', '', '', '', 0, 0, '', '', '',
+             'video_and_subtitle_missing', 'created', 'created');
         PRAGMA user_version = 36;
         """
     )

@@ -334,8 +334,6 @@ public enum ASSParser {
         func groupedCueLines() -> [SubtitleCueGroup] {
             let groups = Dictionary(grouping: parsedLines) { line in
                 CueGroupKey(
-                    startTimecode: line.startTimecode,
-                    endTimecode: line.endTimecode,
                     startMilliseconds: line.startMilliseconds,
                     endMilliseconds: line.endMilliseconds
                 )
@@ -344,6 +342,7 @@ public enum ASSParser {
             return groups
                 .map { key, lines in
                     let sortedLines = sortedCueLines(lines)
+                    let sourceTime = sortedLines[0]
                     let cueLines = sortedLines.enumerated().map { displayOrder, line in
                         SubtitleCueLine(
                             eventIndex: line.eventIndex,
@@ -364,8 +363,8 @@ public enum ASSParser {
 
                     return SubtitleCueGroup(
                         sequenceNumber: nil,
-                        startTimecode: key.startTimecode,
-                        endTimecode: key.endTimecode,
+                        startTimecode: sourceTime.startTimecode,
+                        endTimecode: sourceTime.endTimecode,
                         startMilliseconds: key.startMilliseconds,
                         endMilliseconds: key.endMilliseconds,
                         searchContent: cueLines.map(\.content).joined(separator: "\n"),
@@ -743,8 +742,6 @@ public enum ASSParser {
     }
 
     private struct CueGroupKey: Hashable {
-        let startTimecode: String
-        let endTimecode: String
         let startMilliseconds: Int
         let endMilliseconds: Int
     }

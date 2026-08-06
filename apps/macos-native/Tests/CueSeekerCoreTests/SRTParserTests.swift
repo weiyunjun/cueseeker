@@ -53,6 +53,26 @@ func filtersShortSRTCuesAndDeduplicatesCleanedEntries() {
 }
 
 @Test
+func deduplicatesSRTEntriesByNormalizedMilliseconds() {
+    let contents = """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Same logical Cue.
+
+    2
+    00:00:01.000 --> 00:00:03.000
+    Same logical Cue.
+
+    """
+
+    let entries = SRTParser.parse(contents)
+
+    #expect(entries.count == 1)
+    #expect(entries.first?.startMilliseconds == 1_000)
+    #expect(entries.first?.endMilliseconds == 3_000)
+}
+
+@Test
 func indexingSkipsOneReversedTimeRangeAndKeepsValidBlocks()
     throws
 {

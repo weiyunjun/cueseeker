@@ -36,6 +36,23 @@ func parsesASSDialogueEventsIntoExactTimeCueGroups() {
 }
 
 @Test
+func groupsASSDialogueByNormalizedMilliseconds() {
+    let contents = """
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.0,0:00:03.0,Default,,0,0,0,,First Cue
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Second Cue
+    """
+
+    let groups = ASSParser.parseCueGroups(contents)
+
+    #expect(groups.count == 1)
+    #expect(groups.first?.startMilliseconds == 1_000)
+    #expect(groups.first?.endMilliseconds == 3_000)
+    #expect(groups.first?.cueLines.map(\.content) == ["First Cue", "Second Cue"])
+}
+
+@Test
 func filtersShortASSDialogueAndDeduplicatesCleanedRetainedFields() {
     let contents = """
     [Script Info]

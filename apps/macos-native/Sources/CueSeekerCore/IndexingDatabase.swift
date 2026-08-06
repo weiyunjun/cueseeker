@@ -54,62 +54,89 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     @discardableResult
     public func addSearchPath(_ folder: URL, type: String = "local") throws -> Int64 {
+        try database.withImmediateTransaction {
+            try bindSearchPathInCurrentTransaction(folder, type: type)
+        }
+    }
+
+    private func bindSearchPathInCurrentTransaction(
+        _ folder: URL,
+        type: String = "local"
+    ) throws -> Int64 {
         let standardizedFolder = folder.standardizedFileURL
         let now = ISO8601DateFormatter().string(from: Date())
         let resourceIdentity = FileResourceIdentityResolver.resourceIdentifier(
             for: standardizedFolder
         )
 
+        let matchingResource = try resourceIdentity.flatMap {
+            try searchPathRecord(resourceIdentity: $0)
+        }
+        let matchingPath = try searchPathRecord(path: standardizedFolder.path)
+
+        let libraryID: Int64
+        if let matchingResource {
+            if let matchingPath, matchingPath.id != matchingResource.id {
+                try retireSearchPath(matchingPath, state: .replaced, updatedAt: now)
+            }
+            try activateSearchPath(
+                matchingResource,
+                path: standardizedFolder.path,
+                type: type,
+                resourceIdentity: resourceIdentity,
+                updatedAt: now
+            )
+            libraryID = matchingResource.id
+        } else if let matchingPath,
+                  matchingPath.resourceIdentity == nil || resourceIdentity == nil
+        {
+            try activateSearchPath(
+                matchingPath,
+                path: standardizedFolder.path,
+                type: type,
+                resourceIdentity: resourceIdentity,
+                updatedAt: now
+            )
+            libraryID = matchingPath.id
+        } else {
+            if let matchingPath {
+                try retireSearchPath(matchingPath, state: .replaced, updatedAt: now)
+            }
+            libraryID = try insertSearchPath(
+                path: standardizedFolder.path,
+                type: type,
+                resourceIdentity: resourceIdentity,
+                createdAt: now
+            )
+        }
+
+        try backfillMediaPathIdentities(libraryID: libraryID, rootURL: standardizedFolder)
+        return libraryID
+    }
+
+    func beginLibraryIndex(_ folder: URL) throws -> LibraryIndexLease {
+        let standardizedFolder = folder.standardizedFileURL
+        let resourceIdentity = FileResourceIdentityResolver.resourceIdentifier(
+            for: standardizedFolder
+        )
         return try database.withImmediateTransaction {
             let matchingResource = try resourceIdentity.flatMap {
                 try searchPathRecord(resourceIdentity: $0)
             }
-            let matchingPath = try searchPathRecord(path: standardizedFolder.path)
-
+            let matchingPath = try searchPathRecord(
+                path: standardizedFolder.path
+            )
             let libraryID: Int64
-            if let matchingResource {
-                if let matchingPath, matchingPath.id != matchingResource.id {
-                    try retireSearchPath(matchingPath, state: .replaced, updatedAt: now)
-                }
-                try activateSearchPath(
-                    matchingResource,
-                    path: standardizedFolder.path,
-                    type: type,
-                    resourceIdentity: resourceIdentity,
-                    updatedAt: now
-                )
-                libraryID = matchingResource.id
-            } else if let matchingPath,
-                      matchingPath.resourceIdentity == nil || resourceIdentity == nil
-            {
-                try activateSearchPath(
-                    matchingPath,
-                    path: standardizedFolder.path,
-                    type: type,
-                    resourceIdentity: resourceIdentity,
-                    updatedAt: now
-                )
-                libraryID = matchingPath.id
+            if let record = matchingResource ?? matchingPath {
+                libraryID = record.id
             } else {
-                if let matchingPath {
-                    try retireSearchPath(matchingPath, state: .replaced, updatedAt: now)
-                }
                 libraryID = try insertSearchPath(
                     path: standardizedFolder.path,
-                    type: type,
-                    resourceIdentity: resourceIdentity,
-                    createdAt: now
+                    type: "local",
+                    resourceIdentity: nil,
+                    createdAt: ISO8601DateFormatter().string(from: Date())
                 )
             }
-
-            try backfillMediaPathIdentities(libraryID: libraryID, rootURL: standardizedFolder)
-            return libraryID
-        }
-    }
-
-    func beginLibraryIndex(_ folder: URL) throws -> LibraryIndexLease {
-        let libraryID = try addSearchPath(folder)
-        return try database.withImmediateTransaction {
             let update = try database.prepare(
                 """
                 UPDATE search_paths
@@ -173,13 +200,24 @@ public final class IndexingDatabase: @unchecked Sendable {
                     token: index.lease.token
                 )
             }
+            let libraryID = try bindSearchPathInCurrentTransaction(
+                index.folder
+            )
+            if libraryID != index.lease.libraryID {
+                let transferToken = try database.prepare(
+                    "UPDATE search_paths SET latest_index_token = ? WHERE id = ?;"
+                )
+                try transferToken.bind(index.lease.token, at: 1)
+                try transferToken.bind(libraryID, at: 2)
+                try transferToken.run()
+            }
             let hadPendingPresentationRefresh =
                 try libraryPresentationRetryPending(
-                    libraryID: index.lease.libraryID
+                    libraryID: libraryID
                 )
 
             let clearedCueChangeNotices = try clearPriorCueChangeNotices(
-                libraryID: index.lease.libraryID
+                libraryID: libraryID
             )
             var changedSubtitlePaths = Set<String>()
             var affectedVideoPaths = Set<String>()
@@ -195,12 +233,13 @@ public final class IndexingDatabase: @unchecked Sendable {
                     assFontReferences: file.assFontReferences,
                     fileSize: file.fileSize,
                     modifiedAt: file.modifiedAt,
+                    fileIdentity: file.fileIdentity,
                     languageAnalysis: file.languageAnalysis,
                     playbackFinishMetadata: Self.playbackFinishMetadata(
                         format: file.format,
                         cueGroups: file.cueGroups
                     ),
-                    libraryID: index.lease.libraryID,
+                    libraryID: libraryID,
                     rebuildSearchDerivedIndex: false
                 )
                 changedSubtitlePaths.insert(mutation.subtitlePath)
@@ -233,7 +272,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 }
                 let videoFileID = try upsertVideoFile(
                     file.videoFile,
-                    libraryID: index.lease.libraryID
+                    libraryID: libraryID
                 )
                 try upsertSubtitleVideoMatch(
                     subtitleFileID: subtitleFile.id,
@@ -264,7 +303,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
             )
             let reconciledVideos = try reconcileVideoAvailability(
-                libraryID: index.lease.libraryID
+                libraryID: libraryID
             )
             affectedVideoPaths.formUnion(reconciledVideos.videoPaths)
             affectedFolderPaths.formUnion(reconciledVideos.folderPaths)
@@ -273,7 +312,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     affectedFolderPaths: affectedFolderPaths
                 )
                 try markLibraryPresentationRetryPending(
-                    libraryID: index.lease.libraryID
+                    libraryID: libraryID
                 )
             }
             try markVideoMetadataRetryPending(
@@ -281,7 +320,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             )
             let pendingVideoMetadataPaths =
                 try pendingVideoMetadataPaths(
-                    libraryID: index.lease.libraryID
+                    libraryID: libraryID
                 )
             let presentationRefreshRequest:
                 LibraryPresentationRefreshRequest
@@ -309,7 +348,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             try publish.bind(index.lease.token, at: 1)
             try publish.bind(publishedAt, at: 2)
             try publish.bind(publishedAt, at: 3)
-            try publish.bind(index.lease.libraryID, at: 4)
+            try publish.bind(libraryID, at: 4)
             try publish.bind(index.lease.token, at: 5)
             try publish.run()
             guard database.changesCount() == 1 else {
@@ -323,7 +362,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             }
 
             return PublishedLibraryIndexMutation(
-                libraryID: index.lease.libraryID,
+                libraryID: libraryID,
                 changedSubtitlePaths: changedSubtitlePaths,
                 affectedVideoPaths: affectedVideoPaths,
                 affectedFolderPaths: affectedFolderPaths,
@@ -666,6 +705,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 assFontReferences: assFontReferences,
                 fileSize: fileSize,
                 modifiedAt: modifiedAt,
+                fileIdentity: nil,
                 languageAnalysis: languageAnalysis,
                 playbackFinishMetadata: playbackFinishMetadata,
                 libraryID: nil,
@@ -686,6 +726,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         assFontReferences: [ASSFontReferenceIntent],
         fileSize: Int64?,
         modifiedAt: Date?,
+        fileIdentity: FileResourceIdentity?,
         languageAnalysis: SubtitleLanguageAnalysis?,
         playbackFinishMetadata: SubtitlePlaybackFinishMetadata,
         libraryID: Int64?,
@@ -696,6 +737,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             format: format,
             fileSize: fileSize,
             modifiedAt: modifiedAt,
+            fileIdentity: fileIdentity,
             libraryID: libraryID
         )
         let subtitleFileID = upsertedSubtitleFile.id
@@ -710,13 +752,10 @@ public final class IndexingDatabase: @unchecked Sendable {
             storedCues: storedCueStates.map(\.identity),
             newCues: newCueLines
         )
-        try snapshotReferencedCues(
-            subtitleFileID: subtitleFileID,
-            unavailableReason: .cueMissing
-        )
         try deleteIndexedSubtitlePath(
             subtitleFile.path,
-            preserveFileIdentity: true
+            preserveFileIdentity: true,
+            unavailableReason: .cueMissing
         )
 
         let videoFileID = try upsertVideoFile(videoFile, libraryID: libraryID)
@@ -1747,13 +1786,15 @@ public final class IndexingDatabase: @unchecked Sendable {
         format: SubtitleFormat,
         fileSize: Int64?,
         modifiedAt: Date?,
+        fileIdentity preparedFileIdentity: FileResourceIdentity? = nil,
         libraryID: Int64? = nil
     ) throws -> UpsertedSubtitleFile {
         let pathIdentity = try mediaPathIdentity(for: subtitleFile, preferredLibraryID: libraryID)
-        let fileIdentity = FileResourceIdentityResolver.resolve(
-            subtitleFile,
-            includesContentFingerprint: true
-        )
+        let fileIdentity = preparedFileIdentity
+            ?? FileResourceIdentityResolver.resolve(
+                subtitleFile,
+                includesContentFingerprint: true
+            )
         let folderID = try pathIdentity.flatMap {
             try upsertLibraryFolder(
                 for: subtitleFile.deletingLastPathComponent(),
@@ -2126,7 +2167,19 @@ public final class IndexingDatabase: @unchecked Sendable {
         _ record: BoundResourceRecord,
         state: ResourceBindingState
     ) throws {
-        try deleteIndexedSubtitlePath(record.path, preserveFileIdentity: true)
+        let unavailableReason: ShioriUnavailableReason = switch state {
+        case .removed:
+            .libraryUnavailable
+        case .missing:
+            .subtitleMissing
+        case .available, .replaced, .conflict:
+            .cueMissing
+        }
+        try deleteIndexedSubtitlePath(
+            record.path,
+            preserveFileIdentity: true,
+            unavailableReason: unavailableReason
+        )
         let statement = try database.prepare(
             """
             UPDATE subtitle_files
@@ -3368,8 +3421,15 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     private func deleteIndexedSubtitlePath(
         _ subtitlePath: String,
-        preserveFileIdentity: Bool = false
+        preserveFileIdentity: Bool = false,
+        unavailableReason: ShioriUnavailableReason
     ) throws {
+        if let subtitleFile = try subtitleFileRecord(path: subtitlePath) {
+            try snapshotReferencedCues(
+                subtitleFileID: subtitleFile.id,
+                unavailableReason: unavailableReason
+            )
+        }
         let deleteLanguageDetectionDistribution = try database.prepare(
             """
             DELETE FROM subtitle_language_detection_distribution
@@ -3804,7 +3864,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(type, at: 1)
         try statement.bind(path, at: 2)
         try statement.bind(path, at: 3)
-        try bindOptional(resourceIdentity ?? record.resourceIdentity, to: statement, at: 4)
+        try bindOptional(resourceIdentity, to: statement, at: 4)
         try statement.bind(updatedAt, at: 5)
         try statement.bind(updatedAt, at: 6)
         try statement.bind(record.id, at: 7)

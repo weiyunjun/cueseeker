@@ -19,7 +19,7 @@ func matchesSameDirectoryVideoByBaseName() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == video)
+    #expect(try matcher.matchingVideo(for: subtitle) == video)
 }
 
 @Test
@@ -49,7 +49,7 @@ func batchMatchingPreservesPerSubtitleMatchingRules() throws {
         try? FileManager.default.removeItem(at: root)
     }
 
-    let matches = VideoMatcher().matchingVideos(
+    let matches = try VideoMatcher().matchingVideos(
         for: [firstSubtitle, secondSubtitle, nestedSubtitle]
     )
 
@@ -75,7 +75,7 @@ func matchesVideoAfterFinalBasenameSuffixRemoval() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == video)
+    #expect(try matcher.matchingVideo(for: subtitle) == video)
 }
 
 @Test
@@ -97,7 +97,7 @@ func prefersCompleteBasenameAcrossVideoExtensions() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == exactVideo)
+    #expect(try matcher.matchingVideo(for: subtitle) == exactVideo)
 }
 
 @Test
@@ -117,7 +117,7 @@ func matchesVideoAfterVideoFinalBasenameSuffixRemoval() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == longerVideo)
+    #expect(try matcher.matchingVideo(for: subtitle) == longerVideo)
 }
 
 @Test
@@ -137,7 +137,7 @@ func matchesVideoAfterSubtitleAndVideoFinalBasenameSuffixRemoval() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == video)
+    #expect(try matcher.matchingVideo(for: subtitle) == video)
 }
 
 @Test
@@ -159,7 +159,7 @@ func prefersEarlierNameMatchBeforeVideoExtensionPriority() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == earlierNameMatch)
+    #expect(try matcher.matchingVideo(for: subtitle) == earlierNameMatch)
 }
 
 @Test
@@ -181,7 +181,7 @@ func prefersRequiredVideoExtensionOrderWithinNameMatch() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == preferredVideo)
+    #expect(try matcher.matchingVideo(for: subtitle) == preferredVideo)
     #expect(
         VideoMatcher.defaultVideoExtensions
             == ["mkv", "mp4", "webm", "flv", "avi", "mov"]
@@ -209,8 +209,8 @@ func matchesFLVAndCaseInsensitiveVideoExtension() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: flvSubtitle) == flvVideo)
-    #expect(matcher.matchingVideo(for: mkvSubtitle) == mkvVideo)
+    #expect(try matcher.matchingVideo(for: flvSubtitle) == flvVideo)
+    #expect(try matcher.matchingVideo(for: mkvSubtitle) == mkvVideo)
 }
 
 @Test
@@ -230,7 +230,7 @@ func matchesCanonicallyEquivalentUnicodeNames() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == video)
+    #expect(try matcher.matchingVideo(for: subtitle) == video)
 }
 
 @Test
@@ -257,5 +257,85 @@ func returnsNilWhenNoMatchingVideoExists() throws {
 
     let matcher = VideoMatcher()
 
-    #expect(matcher.matchingVideo(for: subtitle) == nil)
+    #expect(try matcher.matchingVideo(for: subtitle) == nil)
+}
+
+@Test
+func reportsVideoDirectoryEnumerationFailure() throws {
+    let root = URL(fileURLWithPath: "/Video Directory Failure")
+    let subtitle = root.appendingPathComponent("Episode.srt")
+    let matcher = VideoMatcher(
+        fileManager: FailingVideoFileManager(
+            directoryPath: root.path
+        )
+    )
+
+    #expect(
+        throws: VideoMatchingError.directoryEnumerationFailed(root.path)
+    ) {
+        try matcher.matchingVideos(for: [subtitle])
+    }
+}
+
+@Test
+func reportsSupportedVideoCandidateMetadataFailure() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerVideoMetadataFailure-\(UUID().uuidString)")
+    let subtitle = root.appendingPathComponent("Episode.srt")
+    let video = root.appendingPathComponent("Episode.mkv")
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+    try FileManager.default.createDirectory(
+        at: root,
+        withIntermediateDirectories: true
+    )
+    try "".write(to: subtitle, atomically: true, encoding: .utf8)
+    try Data().write(to: video)
+    let matcher = VideoMatcher(
+        fileManager: FailingVideoFileManager(
+            metadataPath: video.path
+        )
+    )
+
+    #expect(throws: VideoMatchingError.self) {
+        try matcher.matchingVideos(for: [subtitle])
+    }
+}
+
+private final class FailingVideoFileManager: FileManager, @unchecked Sendable {
+    private let directoryPath: String?
+    private let metadataPath: String?
+
+    init(directoryPath: String? = nil, metadataPath: String? = nil) {
+        self.directoryPath = directoryPath
+        self.metadataPath = metadataPath
+        super.init()
+    }
+
+    override func contentsOfDirectory(
+        at url: URL,
+        includingPropertiesForKeys keys: [URLResourceKey]?,
+        options mask: FileManager.DirectoryEnumerationOptions = []
+    ) throws -> [URL] {
+        if url.path == directoryPath {
+            throw CocoaError(.fileReadNoPermission)
+        }
+        return try super.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: keys,
+            options: mask
+        )
+    }
+
+    override func attributesOfItem(
+        atPath path: String
+    ) throws -> [FileAttributeKey: Any] {
+        if URL(fileURLWithPath: path).lastPathComponent
+            == metadataPath.map({ URL(fileURLWithPath: $0).lastPathComponent })
+        {
+            throw CocoaError(.fileReadNoPermission)
+        }
+        return try super.attributesOfItem(atPath: path)
+    }
 }

@@ -35,6 +35,106 @@ func movingLibraryRootPreservesLibraryIDButReplacementAtOldPathGetsNewID() throw
 }
 
 @Test
+func libraryIdentityFallbackClearsUnavailableIdentityAndRebindsOriginalID() throws {
+    let container = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerLibraryFallback-\(UUID().uuidString)")
+    let root = container.appendingPathComponent("Library")
+    let detached = container.appendingPathComponent("Detached")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: container)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(
+        at: root,
+        withIntermediateDirectories: true
+    )
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    let originalID = try database.addSearchPath(root)
+    let originalIdentity = try #require(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT resource_identity FROM search_paths WHERE id = \(originalID);"
+        )
+    )
+
+    try FileManager.default.moveItem(at: root, to: detached)
+    let fallbackID = try database.addSearchPath(root)
+
+    #expect(fallbackID == originalID)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT resource_identity FROM search_paths WHERE id = \(originalID);"
+        ) == nil
+    )
+
+    try FileManager.default.moveItem(at: detached, to: root)
+    let restoredID = try database.addSearchPath(root)
+
+    #expect(restoredID == originalID)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT resource_identity FROM search_paths WHERE id = \(originalID);"
+        ) == originalIdentity
+    )
+}
+
+@Test
+func beginningIndexDoesNotPublishMovedLibraryBinding() throws {
+    let container = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerLibraryLease-\(UUID().uuidString)")
+    let originalRoot = container.appendingPathComponent("Library")
+    let movedRoot = container.appendingPathComponent("Moved")
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: container)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try FileManager.default.createDirectory(
+        at: originalRoot,
+        withIntermediateDirectories: true
+    )
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    let libraryID = try database.addSearchPath(originalRoot)
+    try FileManager.default.moveItem(at: originalRoot, to: movedRoot)
+
+    let lease = try database.beginLibraryIndex(movedRoot)
+
+    #expect(lease.libraryID == libraryID)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT path FROM search_paths WHERE id = \(libraryID);"
+        ) == originalRoot.path
+    )
+
+    let mutation = try database.publishLibraryIndex(
+        PreparedLibraryIndex(
+            folder: movedRoot,
+            lease: lease,
+            changedFiles: [],
+            bindingRefreshes: [],
+            missingVideoSubtitleFiles: [],
+            keptSubtitlePaths: []
+        )
+    )
+
+    #expect(mutation.libraryID == libraryID)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT path FROM search_paths WHERE id = \(libraryID);"
+        ) == movedRoot.path
+    )
+}
+
+@Test
 func unavailablePlatformIdentityUsesSamePathAsFallbackBinding() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

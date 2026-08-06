@@ -221,15 +221,11 @@ public enum SRTParser {
     }
 
     private struct SRTEntryDeduplicationKey: Hashable {
-        let startTimecode: String
-        let endTimecode: String
         let startMilliseconds: Int
         let endMilliseconds: Int
         let text: String
 
         init(entry: SubtitleEntry) {
-            startTimecode = entry.startTimecode
-            endTimecode = entry.endTimecode
             startMilliseconds = entry.startMilliseconds
             endMilliseconds = entry.endMilliseconds
             text = entry.text

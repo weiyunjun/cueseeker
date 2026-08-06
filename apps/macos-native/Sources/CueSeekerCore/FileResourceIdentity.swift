@@ -69,7 +69,11 @@ public enum FileResourceIdentityResolver {
             return nil
         }
 
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        return hexadecimalDigest(hasher.finalize())
+    }
+
+    static func contentFingerprint(for data: Data) -> String {
+        hexadecimalDigest(SHA256.hash(data: data))
     }
 
     private static func archivedIdentifier(_ value: Any?) -> String? {
@@ -82,5 +86,10 @@ public enum FileResourceIdentityResolver {
             return nil
         }
         return data.base64EncodedString()
+    }
+
+    private static func hexadecimalDigest<D: Sequence>(_ digest: D) -> String
+    where D.Element == UInt8 {
+        digest.map { String(format: "%02x", $0) }.joined()
     }
 }

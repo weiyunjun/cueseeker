@@ -1,5 +1,10 @@
 import Foundation
 
+public enum VideoMatchingError: Error, Equatable, Sendable {
+    case directoryEnumerationFailed(String)
+    case metadataReadFailed(String)
+}
+
 public struct VideoMatcher {
     public static let defaultVideoExtensions = ["mkv", "mp4", "webm", "flv", "avi", "mov"]
 
@@ -21,17 +26,17 @@ public struct VideoMatcher {
         self.videoExtensions = videoExtensions.map { $0.lowercased() }
     }
 
-    public func matchingVideo(for subtitleFile: URL) -> URL? {
+    public func matchingVideo(for subtitleFile: URL) throws -> URL? {
         let directory = subtitleFile.deletingLastPathComponent()
         return matchingVideo(
             for: subtitleFile,
-            videoCandidates: videos(in: directory)
+            videoCandidates: try videos(in: directory)
         )
     }
 
     public func matchingVideos(
         for subtitleFiles: [URL]
-    ) -> [URL: URL] {
+    ) throws -> [URL: URL] {
         let filesByDirectory = Dictionary(
             grouping: subtitleFiles
         ) {
@@ -42,7 +47,7 @@ public struct VideoMatcher {
             guard let first = files.first else {
                 continue
             }
-            let candidates = videos(
+            let candidates = try videos(
                 in: first.deletingLastPathComponent()
             )
             for subtitleFile in files {
@@ -104,20 +109,33 @@ public struct VideoMatcher {
         )
     }
 
-    private func videos(in directory: URL) -> [VideoCandidate] {
-        let contents = try? fileManager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsSubdirectoryDescendants]
-        )
+    private func videos(in directory: URL) throws -> [VideoCandidate] {
+        let contents: [URL]
+        do {
+            contents = try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil,
+                options: [.skipsSubdirectoryDescendants]
+            )
+        } catch {
+            throw VideoMatchingError.directoryEnumerationFailed(directory.path)
+        }
 
-        return (contents ?? []).compactMap { url in
-            guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
-                  values.isRegularFile == true,
-                  let extensionPriority = videoExtensions.firstIndex(
-                      of: url.pathExtension.lowercased()
-                  )
-            else {
+        return try contents.compactMap { url in
+            guard let extensionPriority = videoExtensions.firstIndex(
+                of: url.pathExtension.lowercased()
+            ) else {
+                return nil
+            }
+            let attributes: [FileAttributeKey: Any]
+            do {
+                attributes = try fileManager.attributesOfItem(
+                    atPath: url.path
+                )
+            } catch {
+                throw VideoMatchingError.metadataReadFailed(url.path)
+            }
+            guard attributes[.type] as? FileAttributeType == .typeRegular else {
                 return nil
             }
 

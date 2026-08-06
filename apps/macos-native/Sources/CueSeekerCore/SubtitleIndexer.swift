@@ -57,8 +57,28 @@ struct PreparedSubtitleIndexFile: Sendable {
     let assFontReferences: [ASSFontReferenceIntent]
     let fileSize: Int64?
     let modifiedAt: Date?
+    let fileIdentity: FileResourceIdentity
     let languageAnalysis: SubtitleLanguageAnalysis
     let refreshVideoMetadata: Bool
+}
+
+struct SubtitleFileObservation: Equatable, Sendable {
+    let fileSize: Int64?
+    let modifiedAt: Date?
+    let resourceIdentity: String?
+
+    static func capture(_ file: URL) throws -> SubtitleFileObservation {
+        let attributes = try FileManager.default.attributesOfItem(
+            atPath: file.path
+        )
+        return SubtitleFileObservation(
+            fileSize: (attributes[.size] as? NSNumber)?.int64Value,
+            modifiedAt: attributes[.modificationDate] as? Date,
+            resourceIdentity: FileResourceIdentityResolver.resourceIdentifier(
+                for: file
+            )
+        )
+    }
 }
 
 struct PreparedSubtitleBindingRefresh: Sendable {
@@ -91,15 +111,31 @@ public struct SubtitleIndexer {
     private let scanner: SubtitleFileScanner
     private let matcher: VideoMatcher
     private let languageAnalyzer: SubtitleLanguageAnalyzer
+    private let loadSubtitleData: (URL) throws -> Data
 
     public init(
         scanner: SubtitleFileScanner = SubtitleFileScanner(),
         matcher: VideoMatcher = VideoMatcher(),
         languageAnalyzer: SubtitleLanguageAnalyzer = SubtitleLanguageAnalyzer()
     ) {
+        self.init(
+            scanner: scanner,
+            matcher: matcher,
+            languageAnalyzer: languageAnalyzer,
+            loadSubtitleData: { try Data(contentsOf: $0) }
+        )
+    }
+
+    init(
+        scanner: SubtitleFileScanner = SubtitleFileScanner(),
+        matcher: VideoMatcher = VideoMatcher(),
+        languageAnalyzer: SubtitleLanguageAnalyzer = SubtitleLanguageAnalyzer(),
+        loadSubtitleData: @escaping (URL) throws -> Data
+    ) {
         self.scanner = scanner
         self.matcher = matcher
         self.languageAnalyzer = languageAnalyzer
+        self.loadSubtitleData = loadSubtitleData
     }
 
     public func index(folder: URL, into database: IndexingDatabase) throws -> SubtitleIndexingResult {
@@ -118,7 +154,15 @@ public struct SubtitleIndexer {
             )
         }
         result.scannedSubtitleFiles = subtitleFiles.count
-        let matchingVideos = matcher.matchingVideos(for: subtitleFiles)
+        let matchingVideos: [URL: URL]
+        do {
+            matchingVideos = try matcher.matchingVideos(for: subtitleFiles)
+        } catch {
+            throw SubtitleIndexingError.incomplete(
+                path: folder.path,
+                reason: "Video matching scan did not complete: \(error)"
+            )
+        }
 
         let existingFiles = Dictionary(
             uniqueKeysWithValues: try database.subtitleFiles().map { ($0.subtitlePath, $0) }
@@ -147,21 +191,18 @@ public struct SubtitleIndexer {
                 continue
             }
 
-            let attributes: [FileAttributeKey: Any]
+            let observation: SubtitleFileObservation
             do {
-                attributes = try FileManager.default.attributesOfItem(atPath: subtitleFile.path)
+                observation = try SubtitleFileObservation.capture(subtitleFile)
             } catch {
-                throw SubtitleIndexingError.incomplete(
-                    path: subtitleFile.path,
-                    reason: "Subtitle metadata could not be read."
+                recordFileFailure(
+                    subtitleFile,
+                    reason: "Subtitle metadata could not be read.",
+                    result: &result,
+                    keptSubtitlePaths: &keptSubtitlePaths
                 )
+                continue
             }
-            let fileSize = (attributes[.size] as? NSNumber)?.int64Value
-            let modifiedAt = attributes[.modificationDate] as? Date
-            let subtitleResourceIdentity =
-                FileResourceIdentityResolver.resourceIdentifier(
-                    for: subtitleFile
-                )
 
             if let metadata = existingFiles[subtitleFile.path],
                try isSubtitleContentUnchanged(
@@ -169,15 +210,15 @@ public struct SubtitleIndexer {
                     subtitleFile: subtitleFile,
                     database: database,
                     playbackDatabase: playbackDatabase,
-                    fileSize: fileSize,
-                    modifiedAt: modifiedAt,
-                    resourceIdentity: subtitleResourceIdentity
+                    fileSize: observation.fileSize,
+                    modifiedAt: observation.modifiedAt,
+                    resourceIdentity: observation.resourceIdentity
                )
             {
                 keptSubtitlePaths.insert(subtitleFile.path)
                 let refreshesSubtitleIdentity =
                     metadata.subtitleResourceIdentity
-                        != subtitleResourceIdentity
+                        != observation.resourceIdentity
                 if refreshesSubtitleIdentity
                     || videoBindingNeedsRefresh(
                     metadata: metadata,
@@ -189,7 +230,7 @@ public struct SubtitleIndexer {
                             subtitleFile: subtitleFile,
                             videoFile: videoFile,
                             subtitleResourceIdentity:
-                                subtitleResourceIdentity,
+                                observation.resourceIdentity,
                             refreshesSubtitleIdentity:
                                 refreshesSubtitleIdentity
                         )
@@ -203,17 +244,30 @@ public struct SubtitleIndexer {
                 continue
             }
 
+            let data: Data
+            do {
+                data = try loadSubtitleData(subtitleFile)
+            } catch {
+                recordFileFailure(
+                    subtitleFile,
+                    reason: "Subtitle file could not be read: \(error.localizedDescription)",
+                    result: &result,
+                    keptSubtitlePaths: &keptSubtitlePaths
+                )
+                continue
+            }
+
             let contents: String
             do {
-                contents = try SubtitleTextDecoder.decode(
-                    contentsOf: subtitleFile,
-                    format: format
-                )
+                contents = try SubtitleTextDecoder.decode(data, format: format)
             } catch {
-                throw SubtitleIndexingError.incomplete(
-                    path: subtitleFile.path,
-                    reason: "Subtitle file could not be decoded: \(error.localizedDescription)"
+                recordFileFailure(
+                    subtitleFile,
+                    reason: "Subtitle file could not be decoded: \(error.localizedDescription)",
+                    result: &result,
+                    keptSubtitlePaths: &keptSubtitlePaths
                 )
+                continue
             }
 
             let cueGroups: [SubtitleCueGroup]
@@ -226,15 +280,45 @@ public struct SubtitleIndexer {
                 case .ass:
                     cueGroups = try ASSParser.parseCueGroupsForIndexing(contents)
                     assFontReferences = ASSFontIntentExtractor.references(from: contents)
-                    if ASSRenderSegmenter.shouldSegment(format: format, fileSize: fileSize) {
+                    if ASSRenderSegmenter.shouldSegment(
+                        format: format,
+                        fileSize: observation.fileSize
+                    ) {
                         assRenderSegments = ASSRenderSegmenter.renderSegments(from: contents)
                     }
                 }
             } catch {
-                throw SubtitleIndexingError.incomplete(
-                    path: subtitleFile.path,
-                    reason: "Subtitle parsing did not complete: \(error)"
+                recordFileFailure(
+                    subtitleFile,
+                    reason: "Subtitle parsing did not complete: \(error)",
+                    result: &result,
+                    keptSubtitlePaths: &keptSubtitlePaths
                 )
+                continue
+            }
+
+            let finalObservation: SubtitleFileObservation
+            do {
+                finalObservation = try SubtitleFileObservation.capture(
+                    subtitleFile
+                )
+            } catch {
+                recordFileFailure(
+                    subtitleFile,
+                    reason: "Subtitle metadata could not be revalidated.",
+                    result: &result,
+                    keptSubtitlePaths: &keptSubtitlePaths
+                )
+                continue
+            }
+            guard finalObservation == observation else {
+                recordFileFailure(
+                    subtitleFile,
+                    reason: "Subtitle file changed while it was being indexed.",
+                    result: &result,
+                    keptSubtitlePaths: &keptSubtitlePaths
+                )
+                continue
             }
 
             let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
@@ -246,8 +330,15 @@ public struct SubtitleIndexer {
                     cueGroups: cueGroups,
                     assRenderSegments: assRenderSegments,
                     assFontReferences: assFontReferences,
-                    fileSize: fileSize,
-                    modifiedAt: modifiedAt,
+                    fileSize: observation.fileSize,
+                    modifiedAt: observation.modifiedAt,
+                    fileIdentity: FileResourceIdentity(
+                        resourceIdentifier: observation.resourceIdentity,
+                        contentFingerprint:
+                            FileResourceIdentityResolver.contentFingerprint(
+                                for: data
+                            )
+                    ),
                     languageAnalysis: languageAnalysis,
                     refreshVideoMetadata: existingVideoMetadataByPath[
                         videoFile.path
@@ -287,6 +378,22 @@ public struct SubtitleIndexer {
             mutation.presentationRefreshRequest
 
         return result
+    }
+
+    private func recordFileFailure(
+        _ subtitleFile: URL,
+        reason: String,
+        result: inout SubtitleIndexingResult,
+        keptSubtitlePaths: inout Set<String>
+    ) {
+        keptSubtitlePaths.insert(subtitleFile.path)
+        result.skippedUnreadableSubtitle += 1
+        result.failedFiles.append(
+            SubtitleIndexingFailure(
+                path: subtitleFile.path,
+                reason: reason
+            )
+        )
     }
 
     private func isSubtitleContentUnchanged(

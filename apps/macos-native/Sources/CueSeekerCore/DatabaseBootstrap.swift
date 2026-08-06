@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 41
+    public static let currentSchemaVersion = 42
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -41,6 +41,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 38
                 || previousVersion == 39
                 || previousVersion == 40
+                || previousVersion == 41
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -101,6 +102,18 @@ private extension DatabaseBootstrap {
             || previousVersion == 40
         {
             try migrateSchema40To41(on: database)
+        }
+        if previousVersion == 33
+            || previousVersion == 34
+            || previousVersion == 35
+            || previousVersion == 36
+            || previousVersion == 37
+            || previousVersion == 38
+            || previousVersion == 39
+            || previousVersion == 40
+            || previousVersion == 41
+        {
+            try migrateSchema41To42(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -609,6 +622,8 @@ private extension DatabaseBootstrap {
 
             \(shioriSchemaSQL)
 
+            \(cueReferenceIntegrityTriggerSQL)
+
             """
             )
 
@@ -953,4 +968,83 @@ private extension DatabaseBootstrap {
         }
     }
 
+    static func migrateSchema41To42(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                INSERT INTO cue_tombstones(
+                    cue_id,
+                    subtitle_file_id,
+                    source_format,
+                    source_style,
+                    source_identity_remainder,
+                    start_time,
+                    end_time,
+                    start_ms,
+                    end_ms,
+                    content,
+                    cue_group_content,
+                    display_title,
+                    subtitle_path,
+                    video_path,
+                    unavailable_reason,
+                    tombstoned_at,
+                    updated_at
+                )
+                SELECT DISTINCT s.cue_id,
+                       0,
+                       '',
+                       NULL,
+                       '',
+                       '',
+                       '',
+                       0,
+                       0,
+                       '',
+                       '',
+                       '',
+                       NULL,
+                       NULL,
+                       'cue_missing',
+                       strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                       strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                FROM shioris s
+                LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
+                WHERE l.id IS NULL AND t.cue_id IS NULL;
+
+                \(cueReferenceIntegrityTriggerSQL)
+
+                PRAGMA user_version = 42;
+                """
+            )
+        }
+    }
+
 }
+
+private let cueReferenceIntegrityTriggerSQL = """
+    CREATE TRIGGER IF NOT EXISTS protect_referenced_cue_deletion
+    BEFORE DELETE ON subtitle_cue_lines
+    WHEN EXISTS (
+           SELECT 1 FROM shioris WHERE cue_id = OLD.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM cue_tombstones WHERE cue_id = OLD.id
+         )
+    BEGIN
+        SELECT RAISE(ABORT, 'Referenced Cue requires a Tombstone before deletion');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS protect_referenced_tombstone_deletion
+    BEFORE DELETE ON cue_tombstones
+    WHEN EXISTS (
+           SELECT 1 FROM shioris WHERE cue_id = OLD.cue_id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM subtitle_cue_lines WHERE id = OLD.cue_id
+         )
+    BEGIN
+        SELECT RAISE(ABORT, 'Referenced Tombstone cannot be deleted without a live Cue');
+    END;
+    """
