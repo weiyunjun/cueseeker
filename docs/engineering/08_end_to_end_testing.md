@@ -21,6 +21,66 @@ End-to-end testing should not rely on vague observation. If the assistant needs
 logs, counters, screenshots, or a sample file, the test procedure must say so
 before the user starts testing.
 
+## 1.1 Debug In-App UI Control
+
+Known CueSeeker-owned macOS UI flows use the Debug in-app E2E controller by
+default. It captures the app from its own view hierarchy and dispatches a left
+click at a documented window-content coordinate. It does not move the real
+pointer, request Accessibility or Screen Recording permission, inspect the
+desktop, or locate controls from screenshots.
+
+Launch from a PTY so commands can be written to the running process:
+
+```bash
+cd apps/macos-native
+swift run CueSeeker --cueseeker-debug-e2e
+```
+
+The controller is compiled only for Debug and starts only when the explicit
+argument is present. A normal Debug or Release launch does not read E2E
+commands. Read the prefixed ready record before acting:
+
+```text
+CUESEEKER_E2E {"artifactDirectory":"...","height":821,"scale":2,"status":"ready","width":1433}
+```
+
+`width` and `height` are the current main-window content size in logical
+points. Coordinates use that content view's upper-left corner as `(0, 0)`,
+increase rightward and downward, and are independent of the backing scale. A
+test procedure must state its expected content size and its pre-agreed logical
+coordinates. Stop when the ready size does not match that precondition; do not
+take a screenshot to rediscover the control.
+
+Supported commands are one JSON object per line:
+
+```json
+{"action":"click","x":80,"y":155}
+{"action":"capture","name":"after-known-click"}
+```
+
+`click` sends a left-button down/up pair through AppKit window hit testing. It
+does not call a control action or mutate product state directly. An out-of-
+bounds or non-finite coordinate returns an error without sending either event.
+
+`capture` accepts a nonempty name made from letters, numbers, hyphens, and
+underscores. It writes a PNG under the per-process temporary artifact directory
+from the ready record, then returns the absolute path and pixel dimensions. On
+Playback, the app temporarily supplies its existing current-frame-and-subtitle
+image to the view capture, so the result includes video and subtitles together
+with the visible App UI. If Playback has not submitted a frame, capture fails
+instead of falling back to a system screenshot.
+
+Every response is a single JSON record prefixed with `CUESEEKER_E2E`. A command
+is complete only after its `status` is `ok`. UI work started by a click may
+still be asynchronous, so each feature procedure must keep its existing log,
+state, or bounded-wait condition before requesting the result screenshot.
+
+Screenshots verify visible outcomes only. Logs, database state, playback state,
+timings, and other feature-specific evidence remain required where applicable.
+System permission dialogs, OS menus, physical controllers, and
+cross-application focus remain explicit manual tests when their behavior is the
+subject under test.
+
 ## 2. Log Handoff Protocol
 
 Use this protocol whenever the assistant needs the user to run a manual

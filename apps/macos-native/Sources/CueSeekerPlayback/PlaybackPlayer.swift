@@ -1101,6 +1101,26 @@ public final class PlaybackRenderContainerView: NSView {
         return srtSubtitleOverlayView?.currentPresentationImage()
     }
 
+#if DEBUG
+    public func installDebugCaptureImage(_ image: CGImage) -> () -> Void {
+        let imageView = NSImageView(frame: bounds)
+        imageView.autoresizingMask = [.width, .height]
+        imageView.image = NSImage(
+            cgImage: image,
+            size: NSSize(width: image.width, height: image.height)
+        )
+        imageView.imageScaling = .scaleAxesIndependently
+        imageView.wantsLayer = true
+        imageView.layer?.backgroundColor = NSColor.black.cgColor
+        addSubview(imageView, positioned: .above, relativeTo: nil)
+        imageView.displayIfNeeded()
+
+        return { [weak imageView] in
+            imageView?.removeFromSuperview()
+        }
+    }
+#endif
+
     private func ensureSourceFaithfulASSOverlayView() {
         if sourceFaithfulASSOverlayView == nil {
             sourceFaithfulASSOverlayView = SourceFaithfulASSSubtitleOverlayView(frame: bounds)

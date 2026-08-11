@@ -1,6 +1,9 @@
 import AppKit
 import SwiftUI
 import CueSeekerCore
+#if DEBUG
+import CueSeekerPlayback
+#endif
 
 extension Notification.Name {
     static let cueSeekerShowSettings = Notification.Name("cueSeekerShowSettings")
@@ -27,6 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var leftMouseDownMonitor: Any?
     private var controllerInputMonitor: GameControllerInputMonitor?
     private var pendingURLSchemeCommand: URLSchemeCommand?
+#if DEBUG
+    private var debugE2EController: DebugE2EController?
+#endif
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSAppleEventManager.shared().setEventHandler(
@@ -58,6 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !launchesFromPendingURLSchemeCommand {
             NSApp.activate(ignoringOtherApps: true)
         }
+#if DEBUG
+        configureDebugE2EIfRequested()
+#endif
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -214,6 +223,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controllerInputMonitor = monitor
         monitor.start()
     }
+
+#if DEBUG
+    private func configureDebugE2EIfRequested() {
+        guard DebugE2EController.isRequested(), let window else {
+            return
+        }
+
+        do {
+            let controller = try DebugE2EController(
+                window: window,
+                prepareCapture: { [weak self] in
+                    guard let self, self.appState.isPlaybackPageVisible else {
+                        return nil
+                    }
+                    guard let player = self.appState.player,
+                          let presentation = player.captureScreenshotPresentation()
+                    else {
+                        throw DebugE2EError.captureUnavailable(
+                            "Playback has no submitted video frame to capture"
+                        )
+                    }
+                    let image = try PlaybackCurrentFrameScreenshotRenderer.render(
+                        presentation
+                    )
+                    guard let renderView = player.renderView
+                        as? PlaybackRenderContainerView
+                    else {
+                        throw DebugE2EError.captureUnavailable(
+                            "The active playback render view is unavailable"
+                        )
+                    }
+                    return renderView.installDebugCaptureImage(image)
+                }
+            )
+            debugE2EController = controller
+            controller.start()
+        } catch {
+            DebugE2EController.reportStartupError(error)
+        }
+    }
+#endif
 
     @objc private func showSettingsFromNotification(_ notification: Notification) {
         showSettings(notification.object)

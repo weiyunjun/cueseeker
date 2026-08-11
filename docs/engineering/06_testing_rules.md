@@ -152,6 +152,17 @@ Detailed procedures live in `docs/engineering/08_end_to_end_testing.md`.
 
 Rules:
 
+- Known in-app macOS UI flows should use the Debug in-app E2E controller for
+  coordinate clicks and screenshots. Screenshots are result evidence, not a
+  way to locate controls or calculate coordinates.
+- A documented UI action must use its accepted window-content coordinate and
+  must stop when the actual window size differs from the procedure's stated
+  precondition.
+- External desktop screenshots, image recognition, real-pointer automation,
+  and Accessibility-driven clicks are not the default validation path for
+  CueSeeker-owned UI. OS-owned dialogs and cross-application behavior may
+  retain explicit manual procedures when the in-app controller cannot own the
+  interaction.
 - Before asking for an end-to-end test, create or update a test document under
   `docs/engineering/` that describes the exact test method, the expected log
   flow, and the acceptance criteria.
