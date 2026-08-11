@@ -857,7 +857,8 @@ The gate passes only if:
 Validate the complete Playback Multi-Module Overlay described by
 `docs/human/requirements/20260714-Feature-Playback Multi-Module Overlay.md`,
 `docs/human/requirements/20260720-Feature-Playback Multi-Module Overlay Light Mode.md`, and
-`docs/human/design/UI.md`: one temporary Session contains Current, optional
+`docs/human/design/UI Design System.md` together with
+`docs/human/design/UI Application Rules.md`: one temporary Session contains Current, optional
 Playlist, Search, Recent, Library, and Shiori; module switches retain temporary
 state, while every Overlay exit destroys that state and cancels its work.
 

@@ -816,8 +816,9 @@ Replacement and simplicity rules:
 ### 7.1 Info-page / video-page refactor (v6)
 
 This subsection reconciles §7 with the info-page / video-page refactor. The
-human-owned behavior authority is `docs/human/design/UI.md`. The derived
-implementation mapping is `docs/product/12_liquid_glass_ux_mapping.md`
+human-owned UI authorities are `docs/human/design/UI Design System.md` and
+`docs/human/design/UI Application Rules.md`. The derived implementation
+mapping is `docs/product/12_liquid_glass_ux_mapping.md`
 (§5, §10.1, §10.4, §11), supported by
 `docs/proposals/2026-05-ui-info-page-video-page-refactor.md` and ADR-0013. The
 §7 invalidation-domain and product-semantics rules above are preserved; the
