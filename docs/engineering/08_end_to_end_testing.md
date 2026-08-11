@@ -24,10 +24,11 @@ before the user starts testing.
 ## 1.1 Debug In-App UI Control
 
 Known CueSeeker-owned macOS UI flows use the Debug in-app E2E controller by
-default. It captures the app from its own view hierarchy and dispatches a left
-click at a documented window-content coordinate. It does not move the real
-pointer, request Accessibility or Screen Recording permission, inspect the
-desktop, or locate controls from screenshots.
+default. The controller captures the actual WindowServer composition of every
+visible CueSeeker-owned window with ScreenCaptureKit and dispatches a left click
+at a documented complete-scene coordinate. It does not reconstruct views, move
+the real pointer, request Accessibility permission, inspect other applications,
+or locate controls from screenshots.
 
 Launch from a PTY so commands can be written to the running process:
 
@@ -36,43 +37,60 @@ cd apps/macos-native
 swift run CueSeeker --cueseeker-debug-e2e
 ```
 
-The controller is compiled only for Debug and starts only when the explicit
-argument is present. A normal Debug or Release launch does not read E2E
-commands. Read the prefixed ready record before acting:
+The controller is compiled only for Debug, starts only when the explicit
+argument is present, and requires macOS 14 or newer. On macOS 14.4 and newer,
+ScreenCaptureKit's current-process capture does not require Screen Recording
+permission. macOS 14.0 through 14.3 uses the system Screen Recording permission
+and returns an explicit restart instruction when newly granted. A normal Debug
+or Release launch does not read E2E commands.
+
+Read the prefixed ready record before acting:
 
 ```text
-CUESEEKER_E2E {"artifactDirectory":"...","height":821,"scale":2,"status":"ready","width":1433}
+CUESEEKER_E2E {"artifactDirectory":"...","height":821,"pixelHeight":1642,"pixelWidth":2866,"scale":2,"sceneID":"...-0","status":"ready","width":1433,"windows":[...]}
 ```
 
-`width` and `height` are the current main-window content size in logical
-points. Coordinates use that content view's upper-left corner as `(0, 0)`,
-increase rightward and downward, and are independent of the backing scale. A
-test procedure must state its expected content size and its pre-agreed logical
-coordinates. Stop when the ready size does not match that precondition; do not
-take a screenshot to rediscover the control.
+`width` and `height` describe the union of the visible CueSeeker windows in
+logical points. Coordinates use that complete scene's upper-left corner as
+`(0, 0)`, increase rightward and downward, and are independent of backing scale.
+`windows` records each window's scene-relative frame, type, title, number, and
+front-to-back order; order `0` is frontmost. All included windows must be fully
+contained by the same display. A test procedure must state the expected logical
+size, window layout, and pre-agreed coordinates. Stop when they differ; do not
+use a screenshot to rediscover the control.
 
 Supported commands are one JSON object per line:
 
 ```json
-{"action":"click","x":80,"y":155}
+{"action":"inspect"}
 {"action":"capture","name":"after-known-click"}
+{"action":"click","x":80,"y":155,"sceneID":"current-scene-id"}
 ```
 
-`click` sends a left-button down/up pair through AppKit window hit testing. It
-does not call a control action or mutate product state directly. An out-of-
-bounds or non-finite coordinate returns an error without sending either event.
+`inspect` returns the current scene contract without producing an image.
+
+`click` resolves the frontmost visible CueSeeker window at the scene coordinate,
+converts the point to that window, and posts a left-button down/up pair to the
+AppKit event queue. It performs normal click activation but does not call a
+control action or mutate product state directly. A stale `sceneID`, non-finite
+coordinate, scene gap, or out-of-bounds point returns an error without posting
+either event. Every successful click returns a fresh `sceneID`, logical size,
+pixel size, scale, and window layout; the next click must use that returned ID.
 
 `capture` accepts a nonempty name made from letters, numbers, hyphens, and
 underscores. It writes a PNG under the per-process temporary artifact directory
-from the ready record, then returns the absolute path and pixel dimensions. On
-Playback, the app temporarily supplies its existing current-frame-and-subtitle
-image to the view capture, so the result includes video and subtitles together
-with the visible App UI. If Playback has not submitted a frame, capture fails
-instead of falling back to a system screenshot.
+from the ready record, then returns its absolute path and the complete scene
+metadata. The image contains the windows' actual positions, front-to-back
+occlusion, title bars, focus state, controls, video frame, and subtitles as
+composed by WindowServer. Before capture, the controller verifies that
+ScreenCaptureKit resolved every visible CueSeeker window. Permission failure,
+multiple displays, a missing window, layout changes during capture, encoding
+failure, and save failure are explicit errors; none may fall back to view
+capture, reconstruction, or an external screenshot tool.
 
 Every response is a single JSON record prefixed with `CUESEEKER_E2E`. A command
-is complete only after its `status` is `ok`. UI work started by a click may
-still be asynchronous, so each feature procedure must keep its existing log,
+is complete only after its `status` is `ok`. Feature work that continues beyond
+the controller's bounded post-click event wait must keep its existing log,
 state, or bounded-wait condition before requesting the result screenshot.
 
 Screenshots verify visible outcomes only. Logs, database state, playback state,

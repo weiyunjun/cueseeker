@@ -1,27 +1,37 @@
 #if DEBUG
 import AppKit
+import CoreGraphics
 import Foundation
+@preconcurrency import ScreenCaptureKit
 
 enum DebugE2ECommand: Equatable {
+    case inspect
     case capture(name: String)
-    case click(x: CGFloat, y: CGFloat)
+    case click(x: CGFloat, y: CGFloat, sceneID: String)
 
     init(line: String) throws {
         let payload: Payload
         do {
-            payload = try JSONDecoder().decode(
-                Payload.self,
-                from: Data(line.utf8)
-            )
+            payload = try JSONDecoder().decode(Payload.self, from: Data(line.utf8))
         } catch {
             throw DebugE2EError.invalidCommand("Command must be one JSON object")
         }
 
         switch payload.action {
+        case "inspect":
+            guard payload.name == nil,
+                  payload.x == nil,
+                  payload.y == nil,
+                  payload.sceneID == nil
+            else {
+                throw DebugE2EError.invalidCommand("inspect takes no arguments")
+            }
+            self = .inspect
         case "capture":
             guard let name = payload.name,
                   payload.x == nil,
-                  payload.y == nil
+                  payload.y == nil,
+                  payload.sceneID == nil
             else {
                 throw DebugE2EError.invalidCommand(
                     "capture requires name and no coordinates"
@@ -31,13 +41,14 @@ enum DebugE2ECommand: Equatable {
         case "click":
             guard payload.name == nil,
                   let x = payload.x,
-                  let y = payload.y
+                  let y = payload.y,
+                  let sceneID = payload.sceneID
             else {
                 throw DebugE2EError.invalidCommand(
-                    "click requires x and y and no name"
+                    "click requires x, y, and sceneID"
                 )
             }
-            self = .click(x: CGFloat(x), y: CGFloat(y))
+            self = .click(x: CGFloat(x), y: CGFloat(y), sceneID: sceneID)
         default:
             throw DebugE2EError.invalidCommand(
                 "Unsupported action: \(payload.action)"
@@ -50,17 +61,49 @@ enum DebugE2ECommand: Equatable {
         let name: String?
         let x: Double?
         let y: Double?
+        let sceneID: String?
     }
 }
 
 enum DebugE2EError: Error, CustomStringConvertible {
     case invalidCommand(String)
     case invalidCaptureName
-    case mainWindowUnavailable
+    case noVisibleWindows
+    case windowsSpanMultipleDisplays
+    case screenRecordingPermissionRequired
     case captureUnavailable(String)
     case screenshotEncodingFailed
+    case screenshotSaveFailed(String)
     case invalidClickCoordinate
+    case sceneChanged
     case eventCreationFailed
+
+    var code: String {
+        switch self {
+        case .invalidCommand:
+            "invalidCommand"
+        case .invalidCaptureName:
+            "invalidCaptureName"
+        case .noVisibleWindows:
+            "noVisibleWindows"
+        case .windowsSpanMultipleDisplays:
+            "windowsSpanMultipleDisplays"
+        case .screenRecordingPermissionRequired:
+            "screenRecordingPermissionRequired"
+        case .captureUnavailable:
+            "captureUnavailable"
+        case .screenshotEncodingFailed:
+            "screenshotEncodingFailed"
+        case .screenshotSaveFailed:
+            "screenshotSaveFailed"
+        case .invalidClickCoordinate:
+            "invalidClickCoordinate"
+        case .sceneChanged:
+            "sceneChanged"
+        case .eventCreationFailed:
+            "eventCreationFailed"
+        }
+    }
 
     var description: String {
         switch self {
@@ -68,17 +111,223 @@ enum DebugE2EError: Error, CustomStringConvertible {
             message
         case .invalidCaptureName:
             "Capture name must contain only letters, numbers, hyphens, or underscores"
-        case .mainWindowUnavailable:
-            "The CueSeeker main window is unavailable"
+        case .noVisibleWindows:
+            "CueSeeker has no visible windows to capture"
+        case .windowsSpanMultipleDisplays:
+            "All visible CueSeeker windows must be fully contained by one display"
+        case .screenRecordingPermissionRequired:
+            "Screen Recording permission is required; grant it in System Settings and restart CueSeeker"
         case .captureUnavailable(let message):
             message
         case .screenshotEncodingFailed:
-            "The current CueSeeker window could not be encoded as PNG"
+            "The current CueSeeker scene could not be encoded as PNG"
+        case .screenshotSaveFailed(let message):
+            "The current CueSeeker scene could not be saved: \(message)"
         case .invalidClickCoordinate:
-            "Click coordinates must be finite and inside the window content bounds"
+            "Click coordinates must be finite and hit a visible CueSeeker window"
+        case .sceneChanged:
+            "The CueSeeker window layout changed; inspect the scene before continuing"
         case .eventCreationFailed:
             "The AppKit mouse events could not be created"
         }
+    }
+}
+
+struct DebugE2EWindowLayout: Equatable {
+    let windowNumber: Int
+    let title: String
+    let kind: String
+    let order: Int
+    let frame: CGRect
+
+    var json: [String: Any] {
+        [
+            "windowNumber": windowNumber,
+            "title": title,
+            "kind": kind,
+            "order": order,
+            "x": frame.minX,
+            "y": frame.minY,
+            "width": frame.width,
+            "height": frame.height,
+        ]
+    }
+}
+
+@MainActor
+struct DebugE2EScene {
+    let windows: [NSWindow]
+    let bounds: CGRect
+    let screenFrame: CGRect
+    let displayID: CGDirectDisplayID
+    let scale: CGFloat
+    let layouts: [DebugE2EWindowLayout]
+    let id: String
+
+    var width: CGFloat { bounds.width }
+    var height: CGFloat { bounds.height }
+    var pixelWidth: Int { Int((width * scale).rounded()) }
+    var pixelHeight: Int { Int((height * scale).rounded()) }
+
+    var sourceRect: CGRect {
+        CGRect(
+            x: bounds.minX - screenFrame.minX,
+            y: screenFrame.maxY - bounds.maxY,
+            width: bounds.width,
+            height: bounds.height
+        )
+    }
+
+    var json: [String: Any] {
+        [
+            "sceneID": id,
+            "width": width,
+            "height": height,
+            "pixelWidth": pixelWidth,
+            "pixelHeight": pixelHeight,
+            "scale": scale,
+            "displayID": displayID,
+            "windows": layouts.map(\.json),
+        ]
+    }
+
+    static func current(
+        mainWindow: NSWindow,
+        application: NSApplication = .shared
+    ) throws -> DebugE2EScene {
+        let eligibleWindows = application.windows.filter {
+            $0.isVisible
+                && !$0.isMiniaturized
+                && $0.alphaValue > 0
+                && $0.windowNumber > 0
+        }
+        let windowsByNumber = Dictionary(
+            uniqueKeysWithValues: eligibleWindows.map { ($0.windowNumber, $0) }
+        )
+        var windows: [NSWindow] = []
+        var orderedWindowNumbers: Set<Int> = []
+        func append(_ window: NSWindow?) {
+            guard let window,
+                  windowsByNumber[window.windowNumber] != nil,
+                  orderedWindowNumbers.insert(window.windowNumber).inserted
+            else {
+                return
+            }
+            windows.append(window)
+        }
+
+        append(application.keyWindow)
+        application.orderedWindows.forEach(append)
+
+        let windowInfo = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] ?? []
+        let processID = ProcessInfo.processInfo.processIdentifier
+        windowInfo.forEach { info in
+            guard let ownerPID = info[kCGWindowOwnerPID as String] as? NSNumber,
+                  ownerPID.int32Value == processID,
+                  let number = info[kCGWindowNumber as String] as? NSNumber
+            else {
+                return
+            }
+            append(windowsByNumber[number.intValue])
+        }
+        eligibleWindows
+            .sorted { $0.orderedIndex < $1.orderedIndex }
+            .forEach(append)
+        guard !windows.isEmpty, windows.contains(where: { $0 === mainWindow }) else {
+            throw DebugE2EError.noVisibleWindows
+        }
+
+        let screens = try windows.map { window -> (NSScreen, CGDirectDisplayID) in
+            guard let screen = window.screen,
+                  let number = screen.deviceDescription[
+                    NSDeviceDescriptionKey("NSScreenNumber")
+                  ] as? NSNumber
+            else {
+                throw DebugE2EError.windowsSpanMultipleDisplays
+            }
+            return (screen, CGDirectDisplayID(number.uint32Value))
+        }
+        guard let firstScreen = screens.first,
+              screens.allSatisfy({ $0.1 == firstScreen.1 }),
+              windows.allSatisfy({ firstScreen.0.frame.contains($0.frame) })
+        else {
+            throw DebugE2EError.windowsSpanMultipleDisplays
+        }
+
+        let bounds = windows.dropFirst().reduce(windows[0].frame) {
+            $0.union($1.frame)
+        }
+        let layouts = windows.enumerated().map { order, window in
+            DebugE2EWindowLayout(
+                windowNumber: window.windowNumber,
+                title: window.title,
+                kind: window === mainWindow
+                    ? "main"
+                    : (window.isSheet ? "sheet" : "window"),
+                order: order,
+                frame: CGRect(
+                    x: window.frame.minX - bounds.minX,
+                    y: bounds.maxY - window.frame.maxY,
+                    width: window.frame.width,
+                    height: window.frame.height
+                )
+            )
+        }
+        let signature = layouts.map {
+            String(
+                format: "%d:%d:%.2f:%.2f:%.2f:%.2f",
+                $0.windowNumber,
+                $0.order,
+                $0.frame.minX,
+                $0.frame.minY,
+                $0.frame.width,
+                $0.frame.height
+            )
+        }.joined(separator: "|")
+
+        return DebugE2EScene(
+            windows: windows,
+            bounds: bounds,
+            screenFrame: firstScreen.0.frame,
+            displayID: firstScreen.1,
+            scale: firstScreen.0.backingScaleFactor,
+            layouts: layouts,
+            id: stableIdentifier("\(firstScreen.1)|\(signature)")
+        )
+    }
+
+    func screenPoint(x: CGFloat, y: CGFloat) throws -> NSPoint {
+        guard x.isFinite,
+              y.isFinite,
+              x >= 0,
+              y >= 0,
+              x < width,
+              y < height
+        else {
+            throw DebugE2EError.invalidClickCoordinate
+        }
+        return NSPoint(x: bounds.minX + x, y: bounds.maxY - y)
+    }
+
+    func frontmostWindow(at screenPoint: NSPoint) throws -> NSWindow {
+        guard let window = windows.first(where: {
+            !$0.ignoresMouseEvents && $0.frame.contains(screenPoint)
+        }) else {
+            throw DebugE2EError.invalidClickCoordinate
+        }
+        return window
+    }
+
+    private static func stableIdentifier(_ value: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
     }
 }
 
@@ -89,9 +338,96 @@ struct DebugE2EScreenshotResult {
 }
 
 @MainActor
+enum DebugE2ESceneCapture {
+    static var authorizationMode: String {
+        if #available(macOS 14.4, *) {
+            return "currentProcess"
+        }
+        return "screenRecording"
+    }
+
+    static func capture(scene: DebugE2EScene) async throws -> CGImage {
+        guard #available(macOS 14.0, *) else {
+            throw DebugE2EError.captureUnavailable(
+                "Real UI capture requires macOS 14 or newer"
+            )
+        }
+
+        let content: SCShareableContent
+        do {
+            if #available(macOS 14.4, *) {
+                content = try await SCShareableContent.currentProcess
+            } else {
+                guard CGPreflightScreenCaptureAccess() else {
+                    throw DebugE2EError.screenRecordingPermissionRequired
+                }
+                content = try await SCShareableContent.excludingDesktopWindows(
+                    true,
+                    onScreenWindowsOnly: true
+                )
+            }
+        } catch let error as DebugE2EError {
+            throw error
+        } catch {
+            throw DebugE2EError.captureUnavailable(String(describing: error))
+        }
+        let processID = ProcessInfo.processInfo.processIdentifier
+        guard let display = content.displays.first(where: {
+            $0.displayID == scene.displayID
+        }) else {
+            throw DebugE2EError.captureUnavailable(
+                "ScreenCaptureKit could not resolve the CueSeeker scene"
+            )
+        }
+        let requiredWindowIDs = Set(scene.windows.map {
+            CGWindowID($0.windowNumber)
+        })
+        let captureWindowsByID: [CGWindowID: SCWindow] = Dictionary(
+            uniqueKeysWithValues: content.windows.compactMap {
+                window -> (CGWindowID, SCWindow)? in
+                guard window.owningApplication?.processID == processID,
+                      window.isOnScreen,
+                      requiredWindowIDs.contains(window.windowID)
+                else {
+                    return nil
+                }
+                return (window.windowID, window)
+            }
+        )
+        let captureWindows = scene.windows.compactMap {
+            captureWindowsByID[CGWindowID($0.windowNumber)]
+        }
+        guard Set(captureWindows.map(\.windowID)) == requiredWindowIDs else {
+            throw DebugE2EError.captureUnavailable(
+                "ScreenCaptureKit could not capture every visible CueSeeker window"
+            )
+        }
+
+        let filter = SCContentFilter(
+            display: display,
+            including: captureWindows
+        )
+        let configuration = SCStreamConfiguration()
+        configuration.sourceRect = scene.sourceRect
+        configuration.width = scene.pixelWidth
+        configuration.height = scene.pixelHeight
+        configuration.showsCursor = false
+        configuration.scalesToFit = false
+
+        do {
+            return try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: configuration
+            )
+        } catch {
+            throw DebugE2EError.captureUnavailable(String(describing: error))
+        }
+    }
+}
+
 enum DebugE2EScreenshotWriter {
-    static func capture(
-        window: NSWindow,
+    static func write(
+        image: CGImage,
         directory: URL,
         name: String
     ) throws -> DebugE2EScreenshotResult {
@@ -103,77 +439,42 @@ enum DebugE2EScreenshotWriter {
         else {
             throw DebugE2EError.invalidCaptureName
         }
-        guard let contentView = window.contentView else {
-            throw DebugE2EError.mainWindowUnavailable
-        }
-
-        contentView.layoutSubtreeIfNeeded()
-        contentView.displayIfNeeded()
-        let bounds = contentView.bounds
-        guard bounds.width > 0,
-              bounds.height > 0,
-              let bitmap = contentView.bitmapImageRepForCachingDisplay(in: bounds)
-        else {
-            throw DebugE2EError.captureUnavailable(
-                "The CueSeeker window has no drawable content"
-            )
-        }
-
-        contentView.cacheDisplay(in: bounds, to: bitmap)
+        let bitmap = NSBitmapImageRep(cgImage: image)
         guard let png = bitmap.representation(using: .png, properties: [:]) else {
             throw DebugE2EError.screenshotEncodingFailed
         }
-
         let outputURL = directory
             .appendingPathComponent(name)
             .appendingPathExtension("png")
-        try png.write(to: outputURL, options: .atomic)
+        do {
+            try png.write(to: outputURL, options: .atomic)
+        } catch {
+            throw DebugE2EError.screenshotSaveFailed(String(describing: error))
+        }
         return DebugE2EScreenshotResult(
             url: outputURL,
-            pixelWidth: bitmap.pixelsWide,
-            pixelHeight: bitmap.pixelsHigh
+            pixelWidth: image.width,
+            pixelHeight: image.height
         )
     }
 }
 
 @MainActor
 enum DebugE2EClickDispatcher {
-    static func windowPoint(
-        x: CGFloat,
-        y: CGFloat,
-        contentView: NSView
-    ) throws -> NSPoint {
-        let bounds = contentView.bounds
-        guard x.isFinite,
-              y.isFinite,
-              x >= 0,
-              y >= 0,
-              x < bounds.width,
-              y < bounds.height
-        else {
-            throw DebugE2EError.invalidClickCoordinate
-        }
-
-        let localPoint = NSPoint(
-            x: bounds.minX + x,
-            y: contentView.isFlipped
-                ? bounds.minY + y
-                : bounds.maxY - y
-        )
-        return contentView.convert(localPoint, to: nil)
-    }
-
     static func click(
         x: CGFloat,
         y: CGFloat,
-        window: NSWindow,
-        routeMouseDown: (NSEvent) -> NSEvent =
-            CueSeekerPointerEventRouter.routeLeftMouseDown
-    ) throws {
-        guard let contentView = window.contentView else {
-            throw DebugE2EError.mainWindowUnavailable
+        scene: DebugE2EScene,
+        postEvents: (NSEvent, NSEvent) -> Void = { mouseDown, mouseUp in
+            NSApplication.shared.postEvent(mouseDown, atStart: false)
+            NSApplication.shared.postEvent(mouseUp, atStart: false)
         }
-        let location = try windowPoint(x: x, y: y, contentView: contentView)
+    ) throws {
+        let screenPoint = try scene.screenPoint(x: x, y: y)
+        let window = try scene.frontmostWindow(at: screenPoint)
+        let location = window.convertPoint(fromScreen: screenPoint)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
         let timestamp = ProcessInfo.processInfo.systemUptime
         guard let mouseDown = NSEvent.mouseEvent(
             with: .leftMouseDown,
@@ -200,19 +501,16 @@ enum DebugE2EClickDispatcher {
             throw DebugE2EError.eventCreationFailed
         }
 
-        window.sendEvent(routeMouseDown(mouseDown))
-        window.sendEvent(mouseUp)
+        postEvents(mouseDown, mouseUp)
     }
 }
 
 @MainActor
 final class DebugE2EController {
-    typealias CapturePreparation = @MainActor () throws -> (() -> Void)?
-
-    private weak var window: NSWindow?
+    private weak var mainWindow: NSWindow?
     private let artifactDirectory: URL
-    private let prepareCapture: CapturePreparation
     private var inputTask: Task<Void, Never>?
+    private var interactionRevision: UInt64 = 0
 
     static func isRequested(
         arguments: [String] = ProcessInfo.processInfo.arguments
@@ -220,12 +518,8 @@ final class DebugE2EController {
         arguments.contains("--cueseeker-debug-e2e")
     }
 
-    init(
-        window: NSWindow,
-        prepareCapture: @escaping CapturePreparation = { nil }
-    ) throws {
-        self.window = window
-        self.prepareCapture = prepareCapture
+    init(mainWindow: NSWindow) throws {
+        self.mainWindow = mainWindow
         artifactDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(
                 "CueSeeker-Debug-E2E-\(ProcessInfo.processInfo.processIdentifier)",
@@ -238,22 +532,39 @@ final class DebugE2EController {
     }
 
     func start() {
-        guard let window, let contentView = window.contentView else {
+        startInput()
+        guard #available(macOS 14.0, *) else {
+            Self.report(
+                error: DebugE2EError.captureUnavailable(
+                    "Real UI capture requires macOS 14 or newer"
+                )
+            )
+            return
+        }
+        if #available(macOS 14.4, *) {
+            reportScene(status: "ready")
+            return
+        }
+        guard CGPreflightScreenCaptureAccess() else {
+            let granted = CGRequestScreenCaptureAccess()
             Self.write([
                 "status": "error",
-                "message": DebugE2EError.mainWindowUnavailable.description,
+                "code": DebugE2EError.screenRecordingPermissionRequired.code,
+                "message": DebugE2EError.screenRecordingPermissionRequired.description,
+                "permissionGranted": granted,
+                "restartRequired": granted,
+                "artifactDirectory": artifactDirectory.path,
             ])
             return
         }
+        reportScene(status: "ready")
+    }
 
-        Self.write([
-            "status": "ready",
-            "width": contentView.bounds.width,
-            "height": contentView.bounds.height,
-            "scale": window.backingScaleFactor,
-            "artifactDirectory": artifactDirectory.path,
-        ])
+    static func reportStartupError(_ error: Error) {
+        report(error: error)
+    }
 
+    private func startInput() {
         inputTask = Task.detached(priority: .utility) { [weak self] in
             while !Task.isCancelled, let line = readLine() {
                 await self?.receive(line)
@@ -261,49 +572,95 @@ final class DebugE2EController {
         }
     }
 
-    static func reportStartupError(_ error: Error) {
-        write([
-            "status": "error",
-            "message": String(describing: error),
-        ])
+    private func reportScene(status: String, action: String? = nil) {
+        do {
+            guard let mainWindow else {
+                throw DebugE2EError.noVisibleWindows
+            }
+            let scene = try DebugE2EScene.current(mainWindow: mainWindow)
+            var payload = scenePayload(scene)
+            payload["status"] = status
+            payload["artifactDirectory"] = artifactDirectory.path
+            payload["captureAuthorization"] = DebugE2ESceneCapture.authorizationMode
+            payload["screenRecordingPermissionGranted"] = CGPreflightScreenCaptureAccess()
+            if let action {
+                payload["action"] = action
+            }
+            Self.write(payload)
+        } catch {
+            Self.report(error: error)
+        }
     }
 
-    private func receive(_ line: String) {
+    private func receive(_ line: String) async {
         do {
-            guard let window else {
-                throw DebugE2EError.mainWindowUnavailable
+            guard let mainWindow else {
+                throw DebugE2EError.noVisibleWindows
             }
             switch try DebugE2ECommand(line: line) {
+            case .inspect:
+                reportScene(status: "ok", action: "inspect")
             case .capture(let name):
-                let cleanup = try prepareCapture()
-                defer { cleanup?() }
-                let result = try DebugE2EScreenshotWriter.capture(
-                    window: window,
+                let scene = try DebugE2EScene.current(mainWindow: mainWindow)
+                let image = try await DebugE2ESceneCapture.capture(scene: scene)
+                let currentScene = try DebugE2EScene.current(mainWindow: mainWindow)
+                guard currentScene.id == scene.id else {
+                    throw DebugE2EError.sceneChanged
+                }
+                let result = try DebugE2EScreenshotWriter.write(
+                    image: image,
                     directory: artifactDirectory,
                     name: name
                 )
-                Self.write([
+                var payload = scenePayload(currentScene)
+                payload.merge([
                     "status": "ok",
                     "action": "capture",
                     "path": result.url.path,
                     "pixelWidth": result.pixelWidth,
                     "pixelHeight": result.pixelHeight,
-                ])
-            case .click(let x, let y):
-                try DebugE2EClickDispatcher.click(x: x, y: y, window: window)
-                Self.write([
+                ], uniquingKeysWith: { _, new in new })
+                Self.write(payload)
+            case .click(let x, let y, let sceneID):
+                let scene = try DebugE2EScene.current(mainWindow: mainWindow)
+                guard commandSceneID(for: scene) == sceneID else {
+                    throw DebugE2EError.sceneChanged
+                }
+                try DebugE2EClickDispatcher.click(x: x, y: y, scene: scene)
+                try await Task.sleep(for: .milliseconds(50))
+                interactionRevision &+= 1
+                let currentScene = try DebugE2EScene.current(mainWindow: mainWindow)
+                var payload = scenePayload(currentScene)
+                payload.merge([
                     "status": "ok",
                     "action": "click",
                     "x": x,
                     "y": y,
-                ])
+                ], uniquingKeysWith: { _, new in new })
+                Self.write(payload)
             }
         } catch {
-            Self.write([
-                "status": "error",
-                "message": String(describing: error),
-            ])
+            Self.report(error: error)
         }
+    }
+
+    private func scenePayload(_ scene: DebugE2EScene) -> [String: Any] {
+        var payload = scene.json
+        payload["sceneID"] = commandSceneID(for: scene)
+        return payload
+    }
+
+    private func commandSceneID(for scene: DebugE2EScene) -> String {
+        "\(scene.id)-\(interactionRevision)"
+    }
+
+    private static func report(error: Error) {
+        let debugError = error as? DebugE2EError
+        write([
+            "status": "error",
+            "code": debugError?.code ?? "operationFailed",
+            "message": String(describing: error),
+        ])
     }
 
     private static func write(_ payload: [String: Any]) {

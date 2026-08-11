@@ -1,9 +1,6 @@
 import AppKit
 import SwiftUI
 import CueSeekerCore
-#if DEBUG
-import CueSeekerPlayback
-#endif
 
 extension Notification.Name {
     static let cueSeekerShowSettings = Notification.Name("cueSeekerShowSettings")
@@ -231,32 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         do {
-            let controller = try DebugE2EController(
-                window: window,
-                prepareCapture: { [weak self] in
-                    guard let self, self.appState.isPlaybackPageVisible else {
-                        return nil
-                    }
-                    guard let player = self.appState.player,
-                          let presentation = player.captureScreenshotPresentation()
-                    else {
-                        throw DebugE2EError.captureUnavailable(
-                            "Playback has no submitted video frame to capture"
-                        )
-                    }
-                    let image = try PlaybackCurrentFrameScreenshotRenderer.render(
-                        presentation
-                    )
-                    guard let renderView = player.renderView
-                        as? PlaybackRenderContainerView
-                    else {
-                        throw DebugE2EError.captureUnavailable(
-                            "The active playback render view is unavailable"
-                        )
-                    }
-                    return renderView.installDebugCaptureImage(image)
-                }
-            )
+            let controller = try DebugE2EController(mainWindow: window)
             debugE2EController = controller
             controller.start()
         } catch {

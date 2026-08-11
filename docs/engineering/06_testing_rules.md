@@ -155,9 +155,13 @@ Rules:
 - Known in-app macOS UI flows should use the Debug in-app E2E controller for
   coordinate clicks and screenshots. Screenshots are result evidence, not a
   way to locate controls or calculate coordinates.
-- A documented UI action must use its accepted window-content coordinate and
-  must stop when the actual window size differs from the procedure's stated
-  precondition.
+- A documented UI action must use its accepted complete-scene coordinate and
+  current `sceneID`. It must stop when the logical size or window layout differs
+  from the procedure's stated precondition.
+- Debug E2E screenshots must come from the actual WindowServer composition of
+  all visible CueSeeker-owned windows. View reconstruction, per-window evidence
+  substituted for the complete scene, and incomplete fallback captures are not
+  valid evidence.
 - External desktop screenshots, image recognition, real-pointer automation,
   and Accessibility-driven clicks are not the default validation path for
   CueSeeker-owned UI. OS-owned dialogs and cross-application behavior may
