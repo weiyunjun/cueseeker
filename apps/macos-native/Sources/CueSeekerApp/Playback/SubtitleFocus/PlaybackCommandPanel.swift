@@ -164,7 +164,6 @@ private struct PlaybackCommandPanelRoot: View {
                 placeholder: "Search",
                 text: $query,
                 isRedesign: true,
-                showsFocusRing: false,
                 autofocus: true,
                 placesInsertionPointAtEndOnAutofocus: true
             ) {

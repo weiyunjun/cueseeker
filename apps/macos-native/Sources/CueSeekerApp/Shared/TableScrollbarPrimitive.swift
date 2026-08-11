@@ -221,6 +221,12 @@ class TableScrollbarOverlayView: NSView {
             needsDisplay = true
         }
     }
+    var showsInteractiveThumb = false {
+        didSet {
+            guard showsInteractiveThumb != oldValue else { return }
+            needsDisplay = true
+        }
+    }
     var isPresented = false {
         didSet {
             guard isPresented != oldValue else {
@@ -546,7 +552,9 @@ class TableScrollbarOverlayView: NSView {
         guard let rect = geometry.thumbRect(for: axis, in: bounds) else {
             return
         }
-        let isInteractive = hoveredAxis == axis || draggingAxis == axis
+        let isInteractive = showsInteractiveThumb
+            || hoveredAxis == axis
+            || draggingAxis == axis
         let color = isInteractive
             ? WorkbenchRedesignColors.NS.scrollbarThumbInteractive
             : WorkbenchRedesignColors.NS.scrollbarThumbDefault

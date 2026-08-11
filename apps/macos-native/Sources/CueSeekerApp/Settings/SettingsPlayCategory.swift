@@ -42,21 +42,13 @@ struct SettingsPlayCategory: View {
 
                 Spacer()
 
-                HStack(spacing: 6) {
-                    TextField(
-                        "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
-                        text: $gapDraft
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: 86)
-                    .focused($isGapFieldFocused)
-
-                    Text("ms")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
+                WorkbenchNumberField(
+                    placeholder: "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
+                    text: $gapDraft,
+                    unit: "ms",
+                    focus: $isGapFieldFocused
+                )
+                .frame(width: 114)
             }
 
             Spacer()

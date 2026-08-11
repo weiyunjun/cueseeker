@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Aligned Text Field, Text Area, Search Field, and Number Field focus treatment
+  around a single accent border with no outer ring. The New List description
+  now shares one origin for placeholder, caret, and typed text and uses the
+  project custom overlay scrollbar without a native gutter; Auto Switch Gap is
+  now a 40-point Number Field with trailing monospaced digits and `ms` inside
+  the same control.
 - Corrected the indexing publication lifecycle across Library identity, media
   observation, and Cue retirement. Subtitle and Video identity now follows the
   exact current or last-known path before platform identity, so atomic saves and

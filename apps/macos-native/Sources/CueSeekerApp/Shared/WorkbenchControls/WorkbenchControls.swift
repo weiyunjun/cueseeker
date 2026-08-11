@@ -259,7 +259,6 @@ struct WorkbenchSearchField: View {
     let placeholder: String
     @Binding var text: String
     var isRedesign: Bool
-    var showsFocusRing: Bool
     var autofocus: Bool
     var placesInsertionPointAtEndOnAutofocus: Bool
     var trailingStatusText: String?
@@ -272,7 +271,6 @@ struct WorkbenchSearchField: View {
         placeholder: String,
         text: Binding<String>,
         isRedesign: Bool = false,
-        showsFocusRing: Bool = true,
         autofocus: Bool = false,
         placesInsertionPointAtEndOnAutofocus: Bool = false,
         trailingStatusText: String? = nil,
@@ -281,7 +279,6 @@ struct WorkbenchSearchField: View {
         self.placeholder = placeholder
         _text = text
         self.isRedesign = isRedesign
-        self.showsFocusRing = showsFocusRing
         self.autofocus = autofocus
         self.placesInsertionPointAtEndOnAutofocus =
             placesInsertionPointAtEndOnAutofocus
@@ -352,15 +349,6 @@ struct WorkbenchSearchField: View {
                     isRedesign ? (isFocused ? WorkbenchRedesignColors.borderFocus : WorkbenchRedesignColors.borderControl) : WorkbenchControlColors.border,
                     lineWidth: isRedesign ? 1.0 : WorkbenchControlMetrics.hairlineWidth
                 )
-        )
-        .overlay(
-            Group {
-                if isRedesign && showsFocusRing && isFocused {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
-                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                }
-            }
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .task {

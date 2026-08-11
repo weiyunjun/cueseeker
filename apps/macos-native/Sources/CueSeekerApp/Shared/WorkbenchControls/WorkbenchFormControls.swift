@@ -37,41 +37,99 @@ struct WorkbenchFormTextArea: View {
     let validationMessage: String?
     let focus: FocusState<Bool>.Binding
 
+    @State private var isFocused = false
+
     var body: some View {
         WorkbenchFormFieldContainer(
             label: label,
             validationMessage: validationMessage
         ) {
-            ZStack(alignment: .topLeading) {
-                if text.isEmpty {
-                    Text(placeholder)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeControl,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPlaceholder)
-                        .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-                        .padding(.vertical, 10)
-                        .allowsHitTesting(false)
-                }
+            WorkbenchTextAreaInput(
+                text: $text,
+                placeholder: placeholder,
+                focus: focus,
+                onFocusChange: { isFocused = $0 }
+            )
+            .frame(height: WorkbenchControlMetrics.redesignFormTextAreaHeight)
+            .workbenchFormFieldChrome(
+                hasError: validationMessage != nil,
+                isFocused: isFocused
+            )
+        }
+    }
+}
 
-                TextEditor(text: $text)
-                    .scrollContentBackground(.hidden)
+struct WorkbenchNumberField: View {
+    let placeholder: String
+    @Binding var text: String
+    let unit: String?
+    let focus: FocusState<Bool>.Binding
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            TextField(
+                "",
+                text: $text,
+                prompt: Text(placeholder)
+                    .foregroundColor(WorkbenchRedesignColors.textPlaceholder)
+            )
+            .textFieldStyle(.plain)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeControl,
+                weight: .regular
+            ))
+            .foregroundStyle(
+                isEnabled
+                    ? WorkbenchRedesignColors.textPrimary
+                    : WorkbenchRedesignColors.textDisabled
+            )
+            .multilineTextAlignment(.trailing)
+            .monospacedDigit()
+            .focused(focus)
+
+            if let unit {
+                Text(unit)
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeControl,
                         weight: .regular
                     ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX - 5)
-                    .padding(.vertical, 2)
-                    .focused(focus)
+                    .foregroundStyle(
+                        isEnabled
+                            ? WorkbenchRedesignColors.textMuted
+                            : WorkbenchRedesignColors.textDisabled
+                    )
+                    .fixedSize()
             }
-            .frame(height: WorkbenchControlMetrics.redesignFormTextAreaHeight)
-            .workbenchFormFieldChrome(
-                hasError: validationMessage != nil,
-                isFocused: focus.wrappedValue
-            )
         }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+        .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                style: .continuous
+            )
+            .fill(
+                isEnabled
+                    ? WorkbenchRedesignColors.bgSurface
+                    : WorkbenchRedesignColors.bgDisabled
+            )
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                style: .continuous
+            )
+            .strokeBorder(
+                isEnabled
+                    ? (focus.wrappedValue
+                        ? WorkbenchRedesignColors.borderFocus
+                        : WorkbenchRedesignColors.borderControl)
+                    : WorkbenchRedesignColors.borderDisabled,
+                lineWidth: 1
+            )
+        )
     }
 }
 
@@ -124,23 +182,11 @@ private extension View {
             .strokeBorder(
                 hasError
                     ? WorkbenchRedesignColors.dangerText
-                    : WorkbenchRedesignColors.borderControl,
+                    : (isFocused
+                        ? WorkbenchRedesignColors.borderFocus
+                        : WorkbenchRedesignColors.borderControl),
                 lineWidth: 1
             )
         )
-        .overlay {
-            if isFocused {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
-                        + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                    style: .continuous
-                )
-                .stroke(
-                    WorkbenchRedesignColors.focusRing,
-                    lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
-                )
-                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-            }
-        }
     }
 }
