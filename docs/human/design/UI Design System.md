@@ -366,6 +366,15 @@
 
 ## 2.1 Inputs
 
+### Shared
+
+#### Focus Treatment
+
+- Indicator：Border Color Only
+- Focus Ring：None
+- Focused Geometry：Same size, radius, padding, and layout as unfocused state
+- Error Priority：Danger Border overrides Focus Border
+
 ### Text Field
 
 #### Shared
@@ -396,15 +405,11 @@
 - Empty
 - Focused
   - Border Color：`--color-border-focus`
-  - Ring Color：`--color-focus-ring`
-  - Ring Width：`--focus-ring-width`
-  - Ring Offset：`--focus-ring-offset`
 - Filled
 - Error
   - Border Color：`--color-danger-text`
 - Focused Error
   - Border Color：`--color-danger-text`
-  - Ring Color：`--color-focus-ring`
 - Disabled
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
@@ -429,27 +434,29 @@
   - Color：`--color-text-primary`
 - Placeholder
   - Color：`--color-text-placeholder`
-- Vertical Scrollbar：Scrollbar / Vertical
+- Text Content Origin
+  - Applies To：Placeholder, Insertion Point, First Text Line
+  - Rule：Shared
+- Vertical Scrollbar
+  - Component：Scrollbar / Vertical
+  - Visibility：Inherit Scrollbar Visibility
 
 ##### Sizes
 
 - Height：`--height-form-text-area`
 - Padding Inline：`--padding-field-x`
+- Padding Block：`10px`
 
 ##### States
 
 - Empty
 - Focused
   - Border Color：`--color-border-focus`
-  - Ring Color：`--color-focus-ring`
-  - Ring Width：`--focus-ring-width`
-  - Ring Offset：`--focus-ring-offset`
 - Filled
 - Error
   - Border Color：`--color-danger-text`
 - Focused Error
   - Border Color：`--color-danger-text`
-  - Ring Color：`--color-focus-ring`
 - Disabled
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
@@ -481,12 +488,6 @@
 - Clear Action
   - Presence：Optional
   - Component：Icon Button
-- Focus Decoration
-  - Presence：Optional
-  - Border Color：`--color-border-focus`
-  - Ring Color：`--color-focus-ring`
-  - Ring Width：`--focus-ring-width`
-  - Ring Offset：`--focus-ring-offset`
 - Content Gap：`--spacing-2`
 
 ##### Sizes
@@ -498,10 +499,10 @@
 
 - Empty
 - Focused Empty
-  - Focus Decoration：Visible when present
+  - Border Color：`--color-border-focus`
 - Filled
 - Focused Filled
-  - Focus Decoration：Visible when present
+  - Border Color：`--color-border-focus`
 - Disabled
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
@@ -522,30 +523,37 @@
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-control`
   - Color：`--color-text-primary`
+  - Text Alignment：Trailing
+  - Digit Style：Monospaced
 - Unit Label
   - Presence：Optional
+  - Placement：Inside Container
   - Current Value：`ms`
-- Decrement Action
-  - Presence：Optional
-  - Component：Icon Button
-- Increment Action
-  - Presence：Optional
-  - Component：Icon Button
 - Placeholder
   - Color：`--color-text-placeholder`
+- Increment / Decrement / Spinner
+  - Presence：None
 
 ##### Sizes
 
 - Height：`--height-field`
 - Padding Inline：`--padding-field-x`
+- Content Gap：`--spacing-2`
 
 ##### States
 
 - Empty
 - Focused
+  - Border Color：`--color-border-focus`
 - Filled
 - Error
+  - Border Color：`--color-danger-text`
+- Focused Error
+  - Border Color：`--color-danger-text`
 - Disabled
+  - Background：`--color-bg-disabled`
+  - Border Color：`--color-border-disabled`
+  - Text Color：`--color-text-disabled`
 
 ## 2.2 Selection Controls
 
@@ -1308,6 +1316,14 @@
 
 - Implementation：Custom Drawn
 - Platform Native Scrollbar：None
+- Layout：Overlay
+- Reserved Gutter：None
+
+##### Interaction
+
+- Mouse Wheel：Supported
+- Trackpad Scroll：Supported
+- Thumb Drag：Supported
 
 ##### Sizes
 
