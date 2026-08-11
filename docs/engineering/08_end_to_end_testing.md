@@ -25,10 +25,11 @@ before the user starts testing.
 
 Known CueSeeker-owned macOS UI flows use the Debug in-app E2E controller by
 default. The controller captures the actual WindowServer composition of every
-visible CueSeeker-owned window with ScreenCaptureKit and dispatches a left click
-at a documented complete-scene coordinate. It does not reconstruct views, move
-the real pointer, request Accessibility permission, inspect other applications,
-or locate controls from screenshots.
+visible CueSeeker-owned window with ScreenCaptureKit, dispatches a left click at
+a documented complete-scene coordinate, and posts documented keyboard events
+inside the app. It does not reconstruct views, move the real pointer, request
+Accessibility or Input Monitoring permission, inspect other applications, or
+locate controls from screenshots.
 
 Launch from a PTY so commands can be written to the running process:
 
@@ -65,6 +66,7 @@ Supported commands are one JSON object per line:
 {"action":"inspect"}
 {"action":"capture","name":"after-known-click"}
 {"action":"click","x":80,"y":155,"sceneID":"current-scene-id"}
+{"action":"keyPress","key":"enter","modifiers":[],"sceneID":"current-scene-id"}
 ```
 
 `inspect` returns the current scene contract without producing an image.
@@ -76,6 +78,17 @@ control action or mutate product state directly. A stale `sceneID`, non-finite
 coordinate, scene gap, or out-of-bounds point returns an error without posting
 either event. Every successful click returns a fresh `sceneID`, logical size,
 pixel size, scale, and window layout; the next click must use that returned ID.
+
+`keyPress` posts one non-repeating AppKit key-down/key-up pair to the current
+CueSeeker key window and first responder. Supported `key` values are letters,
+digits, `enter`, `escape`, `tab`, `space`, `leftArrow`, `rightArrow`, `upArrow`,
+and `downArrow`. Supported modifiers are `command`, `option`, `control`, `shift`,
+and `function`; use an empty array for an unmodified key. The command requires
+an active CueSeeker app, a visible key window in the current scene, and a current
+`sceneID`. It never posts a system-wide event and never calls the shortcut's
+product action directly. Success returns a fresh `sceneID`; stale state,
+unsupported keys or modifiers, unavailable key windows, and event-construction
+failure are explicit errors.
 
 `capture` accepts a nonempty name made from letters, numbers, hyphens, and
 underscores. It writes a PNG under the per-process temporary artifact directory
@@ -90,7 +103,7 @@ capture, reconstruction, or an external screenshot tool.
 
 Every response is a single JSON record prefixed with `CUESEEKER_E2E`. A command
 is complete only after its `status` is `ok`. Feature work that continues beyond
-the controller's bounded post-click event wait must keep its existing log,
+the controller's bounded post-interaction event wait must keep its existing log,
 state, or bounded-wait condition before requesting the result screenshot.
 
 Screenshots verify visible outcomes only. Logs, database state, playback state,

@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import Carbon.HIToolbox
 import ImageIO
 import Testing
 @testable import CueSeekerApp
@@ -18,11 +19,58 @@ struct DebugE2EControllerTests {
                 line: #"{"action":"click","x":120.5,"y":84,"sceneID":"abc"}"#
             ) == .click(x: 120.5, y: 84, sceneID: "abc")
         )
+        #expect(
+            try DebugE2ECommand(
+                line: #"{"action":"keyPress","key":"enter","modifiers":[],"sceneID":"abc"}"#
+            ) == .keyPress(key: "enter", modifiers: [], sceneID: "abc")
+        )
         #expect(throws: DebugE2EError.self) {
             try DebugE2ECommand(line: #"{"action":"click","x":120,"y":84}"#)
         }
         #expect(throws: DebugE2EError.self) {
+            try DebugE2ECommand(
+                line: #"{"action":"keyPress","key":"enter","sceneID":"abc"}"#
+            )
+        }
+        #expect(throws: DebugE2EError.self) {
             try DebugE2ECommand(line: #"{"action":"unknown"}"#)
+        }
+    }
+
+    @Test
+    func keyStrokeResolvesSupportedKeysAndModifiers() throws {
+        let letter = try DebugE2EKeyStroke(
+            key: "A",
+            modifiers: ["shift", "command", "shift"]
+        )
+        #expect(letter.key == "a")
+        #expect(letter.keyCode == UInt16(kVK_ANSI_A))
+        #expect(letter.characters == "A")
+        #expect(letter.charactersIgnoringModifiers == "A")
+        #expect(letter.modifiers == ["command", "shift"])
+        #expect(letter.modifierFlags == [.command, .shift])
+
+        let digit = try DebugE2EKeyStroke(key: "1", modifiers: ["shift"])
+        #expect(digit.keyCode == UInt16(kVK_ANSI_1))
+        #expect(digit.characters == "!")
+
+        let enter = try DebugE2EKeyStroke(key: "enter", modifiers: [])
+        #expect(enter.keyCode == UInt16(kVK_Return))
+        #expect(enter.characters == "\r")
+
+        let arrow = try DebugE2EKeyStroke(
+            key: "leftArrow",
+            modifiers: ["function"]
+        )
+        #expect(arrow.key == "leftArrow")
+        #expect(arrow.keyCode == UInt16(kVK_LeftArrow))
+        #expect(arrow.modifierFlags == [.function])
+
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EKeyStroke(key: "f1", modifiers: [])
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EKeyStroke(key: "a", modifiers: ["capsLock"])
         }
     }
 
@@ -122,6 +170,42 @@ struct DebugE2EControllerTests {
     }
 
     @Test
+    @MainActor
+    func keyPressTravelsThroughWindowFirstResponder() throws {
+        let view = DebugE2EKeyRecordingView(
+            frame: NSRect(x: 0, y: 0, width: 200, height: 120)
+        )
+        let window = makeWindow(
+            frame: NSRect(x: 100, y: 100, width: 200, height: 120),
+            styleMask: [.titled],
+            contentView: view
+        )
+        window.makeKeyAndOrderFront(nil)
+        #expect(window.makeFirstResponder(view))
+        defer { window.orderOut(nil) }
+        let keyStroke = try DebugE2EKeyStroke(
+            key: "q",
+            modifiers: ["command"]
+        )
+
+        try DebugE2EKeyboardDispatcher.keyPress(
+            keyStroke,
+            window: window,
+            postEvents: { keyDown, keyUp in
+                window.sendEvent(keyDown)
+                window.sendEvent(keyUp)
+            }
+        )
+
+        #expect(view.keyDownEvents.count == 1)
+        #expect(view.keyUpEvents.count == 1)
+        #expect(view.keyDownEvents[0].keyCode == UInt16(kVK_ANSI_Q))
+        #expect(view.keyDownEvents[0].charactersIgnoringModifiers == "q")
+        #expect(view.keyDownEvents[0].modifierFlags.contains(.command))
+        #expect(!view.keyDownEvents[0].isARepeat)
+    }
+
+    @Test
     func screenshotWriterProducesReadablePNG() throws {
         let image = try #require(makeImage(width: 40, height: 30))
         let directory = FileManager.default.temporaryDirectory
@@ -166,11 +250,12 @@ struct DebugE2EControllerTests {
     @MainActor
     private func makeWindow(
         frame: NSRect,
+        styleMask: NSWindow.StyleMask = [.borderless],
         contentView: NSView? = nil
     ) -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: frame.size),
-            styleMask: [.borderless],
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
@@ -211,6 +296,21 @@ private final class DebugE2EClickRecordingView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         mouseUpLocations.append(convert(event.locationInWindow, from: nil))
+    }
+}
+
+private final class DebugE2EKeyRecordingView: NSView {
+    private(set) var keyDownEvents: [NSEvent] = []
+    private(set) var keyUpEvents: [NSEvent] = []
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        keyDownEvents.append(event)
+    }
+
+    override func keyUp(with event: NSEvent) {
+        keyUpEvents.append(event)
     }
 }
 #endif

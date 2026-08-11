@@ -1,5 +1,6 @@
 #if DEBUG
 import AppKit
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 @preconcurrency import ScreenCaptureKit
@@ -8,6 +9,7 @@ enum DebugE2ECommand: Equatable {
     case inspect
     case capture(name: String)
     case click(x: CGFloat, y: CGFloat, sceneID: String)
+    case keyPress(key: String, modifiers: [String], sceneID: String)
 
     init(line: String) throws {
         let payload: Payload
@@ -22,6 +24,8 @@ enum DebugE2ECommand: Equatable {
             guard payload.name == nil,
                   payload.x == nil,
                   payload.y == nil,
+                  payload.key == nil,
+                  payload.modifiers == nil,
                   payload.sceneID == nil
             else {
                 throw DebugE2EError.invalidCommand("inspect takes no arguments")
@@ -31,6 +35,8 @@ enum DebugE2ECommand: Equatable {
             guard let name = payload.name,
                   payload.x == nil,
                   payload.y == nil,
+                  payload.key == nil,
+                  payload.modifiers == nil,
                   payload.sceneID == nil
             else {
                 throw DebugE2EError.invalidCommand(
@@ -42,6 +48,8 @@ enum DebugE2ECommand: Equatable {
             guard payload.name == nil,
                   let x = payload.x,
                   let y = payload.y,
+                  payload.key == nil,
+                  payload.modifiers == nil,
                   let sceneID = payload.sceneID
             else {
                 throw DebugE2EError.invalidCommand(
@@ -49,6 +57,23 @@ enum DebugE2ECommand: Equatable {
                 )
             }
             self = .click(x: CGFloat(x), y: CGFloat(y), sceneID: sceneID)
+        case "keyPress":
+            guard payload.name == nil,
+                  payload.x == nil,
+                  payload.y == nil,
+                  let key = payload.key,
+                  let modifiers = payload.modifiers,
+                  let sceneID = payload.sceneID
+            else {
+                throw DebugE2EError.invalidCommand(
+                    "keyPress requires key, modifiers, and sceneID"
+                )
+            }
+            self = .keyPress(
+                key: key,
+                modifiers: modifiers,
+                sceneID: sceneID
+            )
         default:
             throw DebugE2EError.invalidCommand(
                 "Unsupported action: \(payload.action)"
@@ -61,6 +86,8 @@ enum DebugE2ECommand: Equatable {
         let name: String?
         let x: Double?
         let y: Double?
+        let key: String?
+        let modifiers: [String]?
         let sceneID: String?
     }
 }
@@ -77,6 +104,10 @@ enum DebugE2EError: Error, CustomStringConvertible {
     case invalidClickCoordinate
     case sceneChanged
     case eventCreationFailed
+    case unsupportedKey(String)
+    case unsupportedModifier(String)
+    case keyWindowUnavailable
+    case keyboardEventCreationFailed
 
     var code: String {
         switch self {
@@ -102,6 +133,14 @@ enum DebugE2EError: Error, CustomStringConvertible {
             "sceneChanged"
         case .eventCreationFailed:
             "eventCreationFailed"
+        case .unsupportedKey:
+            "unsupportedKey"
+        case .unsupportedModifier:
+            "unsupportedModifier"
+        case .keyWindowUnavailable:
+            "keyWindowUnavailable"
+        case .keyboardEventCreationFailed:
+            "keyboardEventCreationFailed"
         }
     }
 
@@ -126,9 +165,17 @@ enum DebugE2EError: Error, CustomStringConvertible {
         case .invalidClickCoordinate:
             "Click coordinates must be finite and hit a visible CueSeeker window"
         case .sceneChanged:
-            "The CueSeeker window layout changed; inspect the scene before continuing"
+            "The CueSeeker scene changed; inspect the scene before continuing"
         case .eventCreationFailed:
             "The AppKit mouse events could not be created"
+        case .unsupportedKey(let key):
+            "Unsupported key: \(key)"
+        case .unsupportedModifier(let modifier):
+            "Unsupported modifier: \(modifier)"
+        case .keyWindowUnavailable:
+            "CueSeeker must be active with a visible key window in the current scene"
+        case .keyboardEventCreationFailed:
+            "The AppKit keyboard events could not be created"
         }
     }
 }
@@ -505,6 +552,243 @@ enum DebugE2EClickDispatcher {
     }
 }
 
+struct DebugE2EKeyStroke: Equatable {
+    let key: String
+    let modifiers: [String]
+    let modifierFlags: NSEvent.ModifierFlags
+    let keyCode: UInt16
+    let characters: String
+    let charactersIgnoringModifiers: String
+
+    init(key: String, modifiers: [String]) throws {
+        let definition = try Self.definition(for: key)
+        var requestedModifiers: Set<String> = []
+        var flags: NSEvent.ModifierFlags = []
+        for modifier in modifiers {
+            let normalized = modifier.lowercased()
+            guard let flag = Self.modifierFlags[normalized] else {
+                throw DebugE2EError.unsupportedModifier(modifier)
+            }
+            requestedModifiers.insert(normalized)
+            flags.insert(flag)
+        }
+
+        let characters = flags.contains(.shift)
+            ? definition.shiftedCharacters
+            : definition.characters
+        self.key = definition.key
+        self.modifiers = Self.modifierOrder.filter(
+            requestedModifiers.contains
+        )
+        modifierFlags = flags
+        keyCode = definition.keyCode
+        self.characters = characters
+        charactersIgnoringModifiers = characters
+    }
+
+    private struct Definition {
+        let key: String
+        let keyCode: UInt16
+        let characters: String
+        let shiftedCharacters: String
+    }
+
+    private static let modifierOrder = [
+        "command",
+        "option",
+        "control",
+        "shift",
+        "function",
+    ]
+
+    private static let modifierFlags: [String: NSEvent.ModifierFlags] = [
+        "command": .command,
+        "option": .option,
+        "control": .control,
+        "shift": .shift,
+        "function": .function,
+    ]
+
+    private static let letterKeyCodes: [String: UInt16] = [
+        "a": UInt16(kVK_ANSI_A),
+        "b": UInt16(kVK_ANSI_B),
+        "c": UInt16(kVK_ANSI_C),
+        "d": UInt16(kVK_ANSI_D),
+        "e": UInt16(kVK_ANSI_E),
+        "f": UInt16(kVK_ANSI_F),
+        "g": UInt16(kVK_ANSI_G),
+        "h": UInt16(kVK_ANSI_H),
+        "i": UInt16(kVK_ANSI_I),
+        "j": UInt16(kVK_ANSI_J),
+        "k": UInt16(kVK_ANSI_K),
+        "l": UInt16(kVK_ANSI_L),
+        "m": UInt16(kVK_ANSI_M),
+        "n": UInt16(kVK_ANSI_N),
+        "o": UInt16(kVK_ANSI_O),
+        "p": UInt16(kVK_ANSI_P),
+        "q": UInt16(kVK_ANSI_Q),
+        "r": UInt16(kVK_ANSI_R),
+        "s": UInt16(kVK_ANSI_S),
+        "t": UInt16(kVK_ANSI_T),
+        "u": UInt16(kVK_ANSI_U),
+        "v": UInt16(kVK_ANSI_V),
+        "w": UInt16(kVK_ANSI_W),
+        "x": UInt16(kVK_ANSI_X),
+        "y": UInt16(kVK_ANSI_Y),
+        "z": UInt16(kVK_ANSI_Z),
+    ]
+
+    private static let digitKeyCodes: [String: UInt16] = [
+        "0": UInt16(kVK_ANSI_0),
+        "1": UInt16(kVK_ANSI_1),
+        "2": UInt16(kVK_ANSI_2),
+        "3": UInt16(kVK_ANSI_3),
+        "4": UInt16(kVK_ANSI_4),
+        "5": UInt16(kVK_ANSI_5),
+        "6": UInt16(kVK_ANSI_6),
+        "7": UInt16(kVK_ANSI_7),
+        "8": UInt16(kVK_ANSI_8),
+        "9": UInt16(kVK_ANSI_9),
+    ]
+
+    private static let shiftedDigits: [String: String] = [
+        "0": ")",
+        "1": "!",
+        "2": "@",
+        "3": "#",
+        "4": "$",
+        "5": "%",
+        "6": "^",
+        "7": "&",
+        "8": "*",
+        "9": "(",
+    ]
+
+    private static func definition(for key: String) throws -> Definition {
+        let normalized = key.lowercased()
+        if let keyCode = letterKeyCodes[normalized] {
+            return Definition(
+                key: normalized,
+                keyCode: keyCode,
+                characters: normalized,
+                shiftedCharacters: normalized.uppercased()
+            )
+        }
+        if let keyCode = digitKeyCodes[normalized],
+           let shiftedCharacter = shiftedDigits[normalized] {
+            return Definition(
+                key: normalized,
+                keyCode: keyCode,
+                characters: normalized,
+                shiftedCharacters: shiftedCharacter
+            )
+        }
+
+        switch normalized {
+        case "enter":
+            return Definition(
+                key: "enter",
+                keyCode: UInt16(kVK_Return),
+                characters: "\r",
+                shiftedCharacters: "\r"
+            )
+        case "escape":
+            return Definition(
+                key: "escape",
+                keyCode: UInt16(kVK_Escape),
+                characters: "\u{1b}",
+                shiftedCharacters: "\u{1b}"
+            )
+        case "tab":
+            return Definition(
+                key: "tab",
+                keyCode: UInt16(kVK_Tab),
+                characters: "\t",
+                shiftedCharacters: "\t"
+            )
+        case "space":
+            return Definition(
+                key: "space",
+                keyCode: UInt16(kVK_Space),
+                characters: " ",
+                shiftedCharacters: " "
+            )
+        case "leftarrow":
+            return Definition(
+                key: "leftArrow",
+                keyCode: UInt16(kVK_LeftArrow),
+                characters: "\u{f702}",
+                shiftedCharacters: "\u{f702}"
+            )
+        case "rightarrow":
+            return Definition(
+                key: "rightArrow",
+                keyCode: UInt16(kVK_RightArrow),
+                characters: "\u{f703}",
+                shiftedCharacters: "\u{f703}"
+            )
+        case "uparrow":
+            return Definition(
+                key: "upArrow",
+                keyCode: UInt16(kVK_UpArrow),
+                characters: "\u{f700}",
+                shiftedCharacters: "\u{f700}"
+            )
+        case "downarrow":
+            return Definition(
+                key: "downArrow",
+                keyCode: UInt16(kVK_DownArrow),
+                characters: "\u{f701}",
+                shiftedCharacters: "\u{f701}"
+            )
+        default:
+            throw DebugE2EError.unsupportedKey(key)
+        }
+    }
+}
+
+@MainActor
+enum DebugE2EKeyboardDispatcher {
+    static func keyPress(
+        _ keyStroke: DebugE2EKeyStroke,
+        window: NSWindow,
+        postEvents: (NSEvent, NSEvent) -> Void = { keyDown, keyUp in
+            NSApplication.shared.postEvent(keyDown, atStart: false)
+            NSApplication.shared.postEvent(keyUp, atStart: false)
+        }
+    ) throws {
+        let timestamp = ProcessInfo.processInfo.systemUptime
+        guard let keyDown = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: keyStroke.modifierFlags,
+            timestamp: timestamp,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: keyStroke.characters,
+            charactersIgnoringModifiers: keyStroke.charactersIgnoringModifiers,
+            isARepeat: false,
+            keyCode: keyStroke.keyCode
+        ),
+        let keyUp = NSEvent.keyEvent(
+            with: .keyUp,
+            location: .zero,
+            modifierFlags: keyStroke.modifierFlags,
+            timestamp: timestamp + 0.001,
+            windowNumber: window.windowNumber,
+            context: nil,
+            characters: keyStroke.characters,
+            charactersIgnoringModifiers: keyStroke.charactersIgnoringModifiers,
+            isARepeat: false,
+            keyCode: keyStroke.keyCode
+        ) else {
+            throw DebugE2EError.keyboardEventCreationFailed
+        }
+
+        postEvents(keyDown, keyUp)
+    }
+}
+
 @MainActor
 final class DebugE2EController {
     private weak var mainWindow: NSWindow?
@@ -636,6 +920,40 @@ final class DebugE2EController {
                     "action": "click",
                     "x": x,
                     "y": y,
+                ], uniquingKeysWith: { _, new in new })
+                Self.write(payload)
+            case .keyPress(let key, let modifiers, let sceneID):
+                let scene = try DebugE2EScene.current(mainWindow: mainWindow)
+                guard commandSceneID(for: scene) == sceneID else {
+                    throw DebugE2EError.sceneChanged
+                }
+                guard NSApplication.shared.isActive,
+                      let keyWindow = NSApplication.shared.keyWindow,
+                      keyWindow.isVisible,
+                      !keyWindow.isMiniaturized,
+                      scene.windows.contains(where: { $0 === keyWindow })
+                else {
+                    throw DebugE2EError.keyWindowUnavailable
+                }
+                let keyStroke = try DebugE2EKeyStroke(
+                    key: key,
+                    modifiers: modifiers
+                )
+                try DebugE2EKeyboardDispatcher.keyPress(
+                    keyStroke,
+                    window: keyWindow
+                )
+                try await Task.sleep(for: .milliseconds(50))
+                interactionRevision &+= 1
+                let currentScene = try DebugE2EScene.current(
+                    mainWindow: mainWindow
+                )
+                var payload = scenePayload(currentScene)
+                payload.merge([
+                    "status": "ok",
+                    "action": "keyPress",
+                    "key": keyStroke.key,
+                    "modifiers": keyStroke.modifiers,
                 ], uniquingKeysWith: { _, new in new })
                 Self.write(payload)
             }
