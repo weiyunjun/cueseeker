@@ -9,7 +9,7 @@ struct SettingsDeveloperCategory: View {
     @EnvironmentObject private var search: SearchStore
 
     var body: some View {
-        ScrollView {
+        WorkbenchScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Developer")

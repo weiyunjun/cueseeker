@@ -140,7 +140,7 @@ struct WorkbenchDataTable: View {
             VStack(spacing: 0) {
                 header(layout: layout)
 
-                ScrollView {
+                WorkbenchScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(rows) { row in
                             WorkbenchDataTableRow(
@@ -152,7 +152,6 @@ struct WorkbenchDataTable: View {
                     .frame(width: layout.contentWidth, alignment: .topLeading)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .scrollIndicators(.visible)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }

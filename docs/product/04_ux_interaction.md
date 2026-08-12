@@ -359,15 +359,17 @@ Responsiveness boundaries:
   Manual divider dragging remains a direct resize interaction.
 - Search field focus is Search mode interaction state. Changing focus should not
   invalidate Library content, Shiori content, or playback content.
-- Side-panel scrollable lists must reserve room for the macOS scrollbar
-  on the trailing edge so that list content keeps equal visual left and
-  right margins when the scrollbar appears. The reservation rule is
-  applied uniformly to the Library list and to the Search and Shiori result
-  lists: each scrollable container uses an additional
-  `16pt` trailing inset on top of its own row padding, and each pane's
-  header uses a matching `28pt` total trailing padding (`12pt` content
-  margin plus the same `16pt` reserve) so headers align with the list
-  rows below them.
+- App-owned scroll areas use the project custom-drawn overlay scrollbar and do
+  not expose platform-native scrollers. In the current stage, a thumb remains
+  visible whenever its direction overflows and is omitted otherwise; automatic
+  visibility behavior remains deferred. Ordinary scroll areas derive their
+  thumb from the real viewport, content size, and content offset, while Table
+  and Playback Overlay retain their existing virtual mappings.
+- The Library list and the Search and Shiori side-panel lists keep a `16pt`
+  trailing content inset so the custom overlay thumb does not cover row
+  content. This inset is content collision clearance, not a reserved scrollbar
+  gutter. Each pane header keeps matching `28pt` total trailing padding (`12pt`
+  content margin plus the same `16pt` clearance) so it aligns with the rows.
 - The visible playback clock used by SwiftUI controls may update at a lower
   frequency than the native video playback clock. This must not affect native
   video playback smoothness or seek accuracy.

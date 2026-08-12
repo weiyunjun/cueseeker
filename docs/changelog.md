@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified App-owned scroll areas on the project custom-drawn overlay
+  scrollbar. Ordinary pages now derive the thumb directly from their real
+  viewport, content size, and content offset, while Table and Playback Overlay
+  retain their virtual mappings. Platform-native scrollers are disabled; in
+  this stage the thumb remains visible while overflow exists and is omitted
+  without overflow.
 - Aligned Text Field, Text Area, Search Field, and Number Field focus treatment
   around a single accent border with no outer ring. The New List description
   now shares one origin for placeholder, caret, and typed text and uses the

@@ -98,6 +98,103 @@ func workbenchScrollViewOmitsThumbWithoutRealOverflow() async throws {
 }
 
 @MainActor
+@Test
+func workbenchScrollViewUsesIndependentRealMetricsForBothAxes() async throws {
+    let host = NSHostingView(
+        rootView: WorkbenchScrollView([.vertical, .horizontal]) {
+            Color.clear.frame(width: 900, height: 700)
+        }
+        .frame(width: 300, height: 200)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchScrollView(host)
+
+    let overlay = try #require(
+        firstWorkbenchSubview(
+            of: WorkbenchScrollViewOverlayView.self,
+            in: host
+        )
+    )
+    #expect(overlay.presentationProvider()?.vertical != nil)
+    #expect(overlay.presentationProvider()?.horizontal != nil)
+
+    overlay.onDrag(TableScrollbarDragEvent(
+        axis: .horizontal,
+        phase: .changed,
+        positionFraction: 0.25
+    ))
+    overlay.onDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .changed,
+        positionFraction: 0.75
+    ))
+
+    let presentation = try #require(overlay.presentationProvider())
+    let horizontal = try #require(presentation.horizontal)
+    let vertical = try #require(presentation.vertical)
+    #expect(abs(horizontal.positionFraction - 0.25) < 0.01)
+    #expect(abs(vertical.positionFraction - 0.75) < 0.01)
+}
+
+@MainActor
+@Test
+func workbenchScrollViewPreservesScrollViewReaderPositioning() async throws {
+    let host = NSHostingView(
+        rootView: WorkbenchScrollViewReaderFixture()
+            .frame(width: 300, height: 200)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchScrollView(host)
+    try? await Task.sleep(for: .milliseconds(50))
+    await settleWorkbenchScrollView(host)
+
+    let overlay = try #require(
+        firstWorkbenchSubview(
+            of: WorkbenchScrollViewOverlayView.self,
+            in: host
+        )
+    )
+    let vertical = try #require(overlay.presentationProvider()?.vertical)
+    #expect(vertical.positionFraction > 0.9)
+}
+
+private struct WorkbenchScrollViewReaderFixture: View {
+    var body: some View {
+        ScrollViewReader { proxy in
+            WorkbenchScrollView {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: 800)
+                    Color.clear
+                        .frame(height: 40)
+                        .id("target")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .task {
+                await Task.yield()
+                proxy.scrollTo("target", anchor: .bottom)
+            }
+        }
+    }
+}
+
+@MainActor
 private func settleWorkbenchScrollView(_ host: NSView) async {
     for _ in 0..<3 {
         host.layoutSubtreeIfNeeded()

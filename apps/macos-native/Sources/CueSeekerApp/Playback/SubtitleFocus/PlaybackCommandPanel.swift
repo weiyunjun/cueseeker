@@ -483,7 +483,7 @@ private struct PlaybackCommandPanelRecentVideos: View {
                 )
 
                 ScrollViewReader { proxy in
-                    ScrollView {
+                    WorkbenchScrollView {
                         RecentWatchingGrid(
                             items: items,
                             selectedItemID: selectedItemID,
@@ -582,7 +582,7 @@ private struct PlaybackCommandPanelRecentShioris: View {
             )
 
             ScrollViewReader { proxy in
-                ScrollView {
+                WorkbenchScrollView {
                     RecentShioriResumeList(
                         summaries: summaries,
                         selectedItemID: selectedItemID

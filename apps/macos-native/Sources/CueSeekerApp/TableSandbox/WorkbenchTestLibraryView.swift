@@ -10,7 +10,7 @@ struct WorkbenchRecentView: View {
     @EnvironmentObject private var shiori: ShioriStore
 
     var body: some View {
-        ScrollView {
+        WorkbenchScrollView {
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
                 switch routeState.selectedRecentSection {
                 case .videos:
@@ -280,7 +280,7 @@ struct WorkbenchTestLibraryView: View {
     var body: some View {
         Group {
             if let selectedFolder {
-                ScrollView {
+                WorkbenchScrollView {
                     folderDetailContent(for: selectedFolder)
                         .padding(
                             .horizontal,

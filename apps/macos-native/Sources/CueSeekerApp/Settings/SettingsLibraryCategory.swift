@@ -73,32 +73,41 @@ struct SettingsLibraryCategory: View {
     }
 
     private var folderList: some View {
-        List {
-            ForEach(indexing.selectedFolders, id: \.self) { folder in
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(folder.lastPathComponent)
-                            .font(.headline)
-                        Text(folder.path)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+        WorkbenchScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(indexing.selectedFolders, id: \.self) { folder in
+                    folderRow(folder)
 
-                    Spacer()
-
-                    Button {
-                        folderPendingRemoval = folder
-                    } label: {
-                        Label("Remove", systemImage: "minus.circle")
-                    }
-                    .disabled(indexing.isLibraryFolderOperationActive)
+                    Divider()
                 }
-                .padding(.vertical, 4)
             }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .listStyle(.plain)
+    }
+
+    private func folderRow(_ folder: URL) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(folder.lastPathComponent)
+                    .font(.headline)
+                Text(folder.path)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer()
+
+            Button {
+                folderPendingRemoval = folder
+            } label: {
+                Label("Remove", systemImage: "minus.circle")
+            }
+            .disabled(indexing.isLibraryFolderOperationActive)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
     }
 
     private var removalConfirmationBinding: Binding<Bool> {

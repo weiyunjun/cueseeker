@@ -333,7 +333,7 @@ private struct AppSidebar: View {
             }
 
             if isShioriExpanded {
-                ScrollView {
+                WorkbenchScrollView {
                     LazyVStack(
                         alignment: .leading,
                         spacing: WorkbenchControlMetrics.redesignSpacing1

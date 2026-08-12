@@ -237,7 +237,8 @@ Current header spacing:
 - Search Header vertical spacing: `6`.
 - Search Field leading padding: `12`.
 - Search Field trailing padding: `28`.
-- The extra trailing padding accounts for the ScrollView scrollbar width.
+- The extra trailing padding provides content clearance for the custom overlay
+  scrollbar; the scroll viewport does not reserve a native gutter.
 
 ### 6.1 Search Field
 

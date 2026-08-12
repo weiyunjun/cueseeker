@@ -133,7 +133,7 @@ struct SearchView: View {
             Spacer()
         }
         .padding(.leading, 12)
-        .padding(.trailing, 28) // 12 + 16px to account for the ScrollView scrollbar width
+        .padding(.trailing, 28) // 12pt margin + 16pt custom-scrollbar clearance
         .frame(height: 36)
     }
 
@@ -146,7 +146,7 @@ struct SearchView: View {
 
         return GeometryReader { geo in
             ScrollViewReader { proxy in
-                ScrollView {
+                WorkbenchScrollView {
                     // Content padding unified with the card search surface;
                     // groups carry their own vertical rhythm so LazyVStack
                     // spacing is 0 (P5.3 Confirmed Pixel Spec, owner decision 1).

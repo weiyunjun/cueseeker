@@ -771,8 +771,9 @@ Rules:
 - The selected Search result row uses selected state and should scroll into
   view when practical.
 - The Search Results tab does not show `Collapse All`.
-- The native scrollbar may show a fixed-width light thumb when visible, but
-  its track/gutter remains transparent.
+- The project custom-drawn overlay scrollbar shows its fixed-width thumb while
+  overflow exists and omits it otherwise. Its track is transparent and it
+  reserves no native gutter; automatic visibility behavior remains deferred.
 - The `Subtitles` tab lists the current subtitle file in timestamp order.
 - Subtitles rows do not apply keyword highlighting.
 - The current playback subtitle row uses selected state for context and should

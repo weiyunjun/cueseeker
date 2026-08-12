@@ -43,7 +43,7 @@ private struct PlaybackLibraryEpisodeList: View {
     var body: some View {
         GeometryReader { geometry in
             ScrollViewReader { scrollProxy in
-                ScrollView {
+                WorkbenchScrollView {
                     content(viewportHeight: geometry.size.height)
                         .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
                         .padding(.bottom, PlaybackSubtitleFocusMetrics.contentInset)
