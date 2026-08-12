@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CoverSummaryCardLayout: Equatable {
     let coverFrame: CGRect
+    let contentFrame: CGRect
     let blendFrame: CGRect
 
     static func resolve(containerSize: CGSize) -> CoverSummaryCardLayout {
@@ -14,12 +15,13 @@ struct CoverSummaryCardLayout: Equatable {
             width: coverWidth,
             height: height
         )
-        let contentWidth = min(
-            containerSize.width,
-            WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
+        let contentWidth = WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
+        let contentX = max(
+            0,
+            min(coverFrame.maxX, containerSize.width - contentWidth)
         )
         let contentFrame = CGRect(
-            x: containerSize.width - contentWidth,
+            x: contentX,
             y: 0,
             width: contentWidth,
             height: height
@@ -27,6 +29,7 @@ struct CoverSummaryCardLayout: Equatable {
         let overlap = coverFrame.intersection(contentFrame)
         return CoverSummaryCardLayout(
             coverFrame: coverFrame,
+            contentFrame: contentFrame,
             blendFrame: overlap.isNull ? .zero : overlap
         )
     }
@@ -57,10 +60,20 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            WorkbenchRedesignColors.bgSurface
-            coverLayer
-            content
+        GeometryReader { proxy in
+            let layout = CoverSummaryCardLayout.resolve(
+                containerSize: proxy.size
+            )
+
+            ZStack(alignment: .topLeading) {
+                coverLayer(layout: layout)
+                contentBackground(layout: layout)
+                content
+                    .position(
+                        x: layout.contentFrame.midX,
+                        y: layout.contentFrame.midY
+                    )
+            }
         }
         .frame(
             maxWidth: .infinity,
@@ -68,71 +81,87 @@ struct CoverSummaryCard<Cover: View>: View {
             maxHeight: WorkbenchControlMetrics.redesignCoverSummaryHeight,
             alignment: .leading
         )
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCoverSummaryRadius,
-                style: .continuous
-            )
-        )
+        .clipped()
     }
 
-    private var coverLayer: some View {
-        GeometryReader { proxy in
-            let layout = CoverSummaryCardLayout.resolve(
-                containerSize: proxy.size
+    private func coverLayer(layout: CoverSummaryCardLayout) -> some View {
+        cover()
+            .frame(
+                width: layout.coverFrame.width,
+                height: layout.coverFrame.height
             )
+            .clipShape(coverShape)
+            .position(
+                x: layout.coverFrame.midX,
+                y: layout.coverFrame.midY
+            )
+            .allowsHitTesting(false)
+    }
 
-            cover()
-                .frame(
-                    width: layout.coverFrame.width,
-                    height: layout.coverFrame.height
-                )
-                .clipShape(coverShape)
-                .position(
-                    x: layout.coverFrame.midX,
-                    y: layout.coverFrame.midY
-                )
+    private func contentBackground(layout: CoverSummaryCardLayout) -> some View {
+        let solidWidth = max(
+            0,
+            layout.contentFrame.width - layout.blendFrame.width
+        )
 
+        return HStack(spacing: 0) {
             if !layout.blendFrame.isEmpty {
-                LinearGradient(
-                    stops: [
-                        .init(
-                            color: WorkbenchRedesignColors.bgSurface.opacity(
-                                WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingOpacity
-                            ),
-                            location: WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingLocation
-                        ),
-                        .init(
-                            color: WorkbenchRedesignColors.bgSurface.opacity(
-                                WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity
-                            ),
-                            location: WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleLocation
-                        ),
-                        .init(
-                            color: WorkbenchRedesignColors.bgSurface.opacity(
-                                WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingOpacity
-                            ),
-                            location: WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingLocation
-                        ),
-                        .init(
-                            color: WorkbenchRedesignColors.bgSurface.opacity(0),
-                            location: 1
-                        ),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                coverBlend
                     .frame(
                         width: layout.blendFrame.width,
-                        height: layout.blendFrame.height
+                        height: layout.contentFrame.height
                     )
-                    .position(
-                        x: layout.blendFrame.midX,
-                        y: layout.blendFrame.midY
+            }
+
+            if solidWidth > 0 {
+                WorkbenchRedesignColors.bgSurface
+                    .frame(
+                        width: solidWidth,
+                        height: layout.contentFrame.height
                     )
             }
         }
+        .frame(
+            width: layout.contentFrame.width,
+            height: layout.contentFrame.height
+        )
+        .clipShape(coverShape)
+        .position(
+            x: layout.contentFrame.midX,
+            y: layout.contentFrame.midY
+        )
         .allowsHitTesting(false)
+    }
+
+    private var coverBlend: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(
+                    color: WorkbenchRedesignColors.bgSurface.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingOpacity
+                    ),
+                    location: WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingLocation
+                ),
+                .init(
+                    color: WorkbenchRedesignColors.bgSurface.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity
+                    ),
+                    location: WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleLocation
+                ),
+                .init(
+                    color: WorkbenchRedesignColors.bgSurface.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingOpacity
+                    ),
+                    location: WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingLocation
+                ),
+                .init(
+                    color: WorkbenchRedesignColors.bgSurface.opacity(0),
+                    location: 1
+                ),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     private var coverShape: RoundedRectangle {

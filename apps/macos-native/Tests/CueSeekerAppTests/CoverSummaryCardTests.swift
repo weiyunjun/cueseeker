@@ -13,6 +13,11 @@ func coverSummaryLayoutKeepsSixteenByNineCoverLeftAligned() {
         layout.coverFrame.width / layout.coverFrame.height
             == WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
     )
+    #expect(layout.contentFrame.minX == layout.coverFrame.maxX)
+    #expect(
+        layout.contentFrame.width
+            == WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
+    )
     #expect(layout.blendFrame.isEmpty)
 }
 
@@ -24,6 +29,7 @@ func coverSummaryLayoutClipsCoverFromTheRightInCompactWidth() {
 
     #expect(layout.coverFrame.minX == 0)
     #expect(layout.coverFrame.maxX > 400)
+    #expect(layout.contentFrame == CGRect(x: 0, y: 0, width: 400, height: 246))
     #expect(layout.blendFrame == CGRect(x: 0, y: 0, width: 400, height: 246))
 }
 
@@ -34,9 +40,11 @@ func coverSummaryBlendMatchesTheActualCoverAndContentOverlap() {
     )
 
     #expect(
-        layout.blendFrame.minX
+        layout.contentFrame.minX
             == 700 - WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
     )
+    #expect(layout.contentFrame.maxX == 700)
+    #expect(layout.blendFrame.minX == layout.contentFrame.minX)
     #expect(
         layout.blendFrame.maxX == layout.coverFrame.maxX
     )
