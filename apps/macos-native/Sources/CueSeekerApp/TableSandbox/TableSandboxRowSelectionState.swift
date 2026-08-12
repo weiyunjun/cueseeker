@@ -1,11 +1,5 @@
 import Foundation
 
-enum WorkbenchCheckboxState: Equatable {
-    case unchecked
-    case checked
-    case indeterminate
-}
-
 struct TableViewportAnchor: Equatable {
     let entryID: Int
     let rowIndex: Int

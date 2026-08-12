@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified Filter, Table, and Playback selection checkboxes on the same
+  monochrome SF Symbols and shared state colors. Table now uses circular
+  system-symbol controls instead of its previous custom square-era drawing;
+  Filter and Table remain 16 points, while Playback remains 24 points.
 - Unified App-owned scroll areas on the project custom-drawn overlay
   scrollbar. Ordinary pages now derive the thumb directly from their real
   viewport, content size, and content offset, while Table and Playback Overlay

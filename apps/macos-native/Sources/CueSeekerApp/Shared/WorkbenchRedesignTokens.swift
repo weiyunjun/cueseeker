@@ -98,7 +98,7 @@ enum WorkbenchRedesignColors {
 
         // Checkbox
         static let bgCheckboxUnchecked = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
-        static let bgCheckboxChecked = NSColor.dynamic(lightHex: "#111827", darkHex: "#F4F4F5")
+        static let bgCheckboxChecked = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
         static let checkboxIcon = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
 
         // Danger

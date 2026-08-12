@@ -3455,15 +3455,9 @@ enum PlaybackCollageCheckboxDrawing {
         isSelected: Bool,
         isEnabled: Bool
     ) -> NSImage? {
-        let color = color(isSelected: isSelected, isEnabled: isEnabled)
-        let configuration = NSImage.SymbolConfiguration(
-            hierarchicalColor: color
-        ).applying(.preferringMonochrome())
-        return NSImage(
-            systemSymbolName: isSelected ? "checkmark.circle.fill" : "circle",
-            accessibilityDescription: nil
-        )?.withSymbolConfiguration(
-            configuration
+        WorkbenchCheckboxStyle.appKitImage(
+            for: isSelected ? .checked : .unchecked,
+            isEnabled: isEnabled
         )
     }
 
@@ -3471,11 +3465,10 @@ enum PlaybackCollageCheckboxDrawing {
         isSelected: Bool,
         isEnabled: Bool
     ) -> NSColor {
-        !isEnabled
-            ? WorkbenchRedesignColors.NS.iconDisabled
-            : isSelected
-                ? WorkbenchRedesignColors.NS.textMuted
-                : WorkbenchRedesignColors.NS.borderCheckbox
+        WorkbenchCheckboxStyle.controlColor(
+            for: isSelected ? .checked : .unchecked,
+            isEnabled: isEnabled
+        )
     }
 }
 

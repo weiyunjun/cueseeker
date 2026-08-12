@@ -250,19 +250,11 @@ struct CueFacetCard: View {
                     option.toggle()
                 } label: {
                     HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                        Image(systemName: option.isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: WorkbenchControlMetrics.redesignCheckboxSize))
-                            .foregroundStyle(
-                                isDisabled
-                                    ? WorkbenchRedesignColors.iconDisabled
-                                    : option.isSelected
-                                        ? WorkbenchRedesignColors.textMuted
-                                        : WorkbenchRedesignColors.borderCheckbox
-                            )
-                            .frame(
-                                width: WorkbenchControlMetrics.redesignCheckboxSize,
-                                height: WorkbenchControlMetrics.redesignCheckboxSize
-                            )
+                        WorkbenchCheckboxGlyph(
+                            state: option.isSelected ? .checked : .unchecked,
+                            isEnabled: !isDisabled,
+                            size: WorkbenchControlMetrics.redesignCheckboxSize
+                        )
 
                         Text(option.title)
                             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))

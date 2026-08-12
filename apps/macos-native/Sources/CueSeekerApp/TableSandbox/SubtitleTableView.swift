@@ -37,8 +37,6 @@ enum SubtitleTableMetrics {
     static let tagHorizontalSpacing: CGFloat = 6
     static let tagVerticalSpacing: CGFloat = 4
     static let checkboxSize: CGFloat = 16
-    static let checkboxCornerRadius: CGFloat = 4
-    static let checkboxBorderWidth: CGFloat = 1.5
     static let checkboxHitSlop: CGFloat = 8
     static let tableCellHoverPaddingX = WorkbenchControlMetrics.redesignTableCellHoverPaddingX
     static let tableCellHoverPaddingY = WorkbenchControlMetrics.redesignTableCellHoverPaddingY
@@ -1291,80 +1289,27 @@ final class SubtitleTableMenuHostingView: NSHostingView<AnyView> {
 }
 
 private enum WorkbenchCheckboxDrawing {
-    static func draw(state: WorkbenchCheckboxState, in rect: CGRect, isFocused: Bool = false) {
-        let path = NSBezierPath(
-            roundedRect: rect,
-            xRadius: SubtitleTableMetrics.checkboxCornerRadius,
-            yRadius: SubtitleTableMetrics.checkboxCornerRadius
+    @MainActor
+    static func draw(
+        state: WorkbenchCheckboxState,
+        isEnabled: Bool,
+        in rect: CGRect,
+        isFocused: Bool = false
+    ) {
+        WorkbenchCheckboxStyle.appKitImage(
+            for: state,
+            isEnabled: isEnabled
+        )?.draw(in: rect)
+
+        guard isFocused, isEnabled else { return }
+        let focusRect = rect.insetBy(
+            dx: -WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+            dy: -WorkbenchControlMetrics.redesignFocusRingPathExpansion
         )
-        switch state {
-        case .unchecked:
-            WorkbenchRedesignColors.NS.bgCheckboxUnchecked.setFill()
-        case .checked, .indeterminate:
-            WorkbenchRedesignColors.NS.bgCheckboxChecked.setFill()
-        }
-        path.fill()
-
-        let borderColor: NSColor? = isFocused
-            ? WorkbenchRedesignColors.NS.borderFocus
-            : (state == .unchecked ? WorkbenchRedesignColors.NS.borderCheckbox : nil)
-        if let borderColor {
-            let borderInset = SubtitleTableMetrics.checkboxBorderWidth / 2
-            let borderPath = NSBezierPath(
-                roundedRect: rect.insetBy(dx: borderInset, dy: borderInset),
-                xRadius: SubtitleTableMetrics.checkboxCornerRadius - borderInset,
-                yRadius: SubtitleTableMetrics.checkboxCornerRadius - borderInset
-            )
-            borderColor.setStroke()
-            borderPath.lineWidth = SubtitleTableMetrics.checkboxBorderWidth
-            borderPath.stroke()
-        }
-
-        switch state {
-        case .unchecked:
-            break
-        case .checked:
-            drawCheckmark(in: rect)
-        case .indeterminate:
-            drawIndeterminate(in: rect)
-        }
-
-        if isFocused {
-            let focusRect = rect.insetBy(
-                dx: -WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                dy: -WorkbenchControlMetrics.redesignFocusRingPathExpansion
-            )
-            let focusPath = NSBezierPath(
-                roundedRect: focusRect,
-                xRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                yRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion
-            )
-            WorkbenchRedesignColors.NS.focusRing.setStroke()
-            focusPath.lineWidth = WorkbenchControlMetrics.redesignFocusRingWidth
-            focusPath.stroke()
-        }
-    }
-
-    private static func drawCheckmark(in rect: CGRect) {
-        let path = NSBezierPath()
-        path.move(to: CGPoint(x: rect.minX + 4, y: rect.minY + 8.5))
-        path.line(to: CGPoint(x: rect.minX + 7, y: rect.minY + 11.5))
-        path.line(to: CGPoint(x: rect.minX + 12.5, y: rect.minY + 5))
-        WorkbenchRedesignColors.NS.checkboxIcon.setStroke()
-        path.lineWidth = 2.5
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        path.stroke()
-    }
-
-    private static func drawIndeterminate(in rect: CGRect) {
-        let path = NSBezierPath()
-        path.move(to: CGPoint(x: rect.minX + 4, y: rect.midY))
-        path.line(to: CGPoint(x: rect.maxX - 4, y: rect.midY))
-        WorkbenchRedesignColors.NS.checkboxIcon.setStroke()
-        path.lineWidth = 2.5
-        path.lineCapStyle = .round
-        path.stroke()
+        let focusPath = NSBezierPath(ovalIn: focusRect)
+        WorkbenchRedesignColors.NS.focusRing.setStroke()
+        focusPath.lineWidth = WorkbenchControlMetrics.redesignFocusRingWidth
+        focusPath.stroke()
     }
 }
 
@@ -1378,30 +1323,15 @@ private struct WorkbenchCheckboxButton: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: SubtitleTableMetrics.checkboxCornerRadius, style: .continuous)
-                    .fill(backgroundColor)
-                if let borderColor {
-                    RoundedRectangle(cornerRadius: SubtitleTableMetrics.checkboxCornerRadius, style: .continuous)
-                        .strokeBorder(
-                            borderColor,
-                            lineWidth: SubtitleTableMetrics.checkboxBorderWidth
-                        )
-                }
-                if state != .unchecked {
-                    Image(systemName: state == .checked ? "checkmark" : "minus")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(WorkbenchRedesignColors.checkboxIcon)
-                }
-            }
-            .frame(width: SubtitleTableMetrics.checkboxSize, height: SubtitleTableMetrics.checkboxSize)
+            WorkbenchCheckboxGlyph(
+                state: state,
+                isEnabled: isEnabled,
+                size: SubtitleTableMetrics.checkboxSize
+            )
             .overlay(
                 Group {
                     if showsKeyboardFocus {
-                        RoundedRectangle(
-                            cornerRadius: SubtitleTableMetrics.checkboxCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                            style: .continuous
-                        )
+                        Circle()
                         .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
                         .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
@@ -1424,22 +1354,6 @@ private struct WorkbenchCheckboxButton: View {
                 suppressFocusRingUntilBlur = false
             }
         }
-    }
-
-    private var backgroundColor: Color {
-        switch state {
-        case .unchecked:
-            return WorkbenchRedesignColors.bgCheckboxUnchecked
-        case .checked, .indeterminate:
-            return WorkbenchRedesignColors.bgCheckboxChecked
-        }
-    }
-
-    private var borderColor: Color? {
-        if showsKeyboardFocus {
-            return WorkbenchRedesignColors.borderFocus
-        }
-        return state == .unchecked ? WorkbenchRedesignColors.borderCheckbox : nil
     }
 
     private var showsKeyboardFocus: Bool {
@@ -4505,6 +4419,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
                 WorkbenchCheckboxDrawing.draw(
                     state: checkboxState,
+                    isEnabled: isEnabled,
                     in: checkboxRect(forRowRect: rowRect),
                     isFocused: isEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
                 )

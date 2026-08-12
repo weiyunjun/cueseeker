@@ -156,11 +156,18 @@ func editingCollageCheckboxMatchesSearchColorsAndMonochromeRendering() throws {
     for (isSelected, isEnabled, lightHex, darkHex) in [
         (true, true, "#667085", "#A1A1AA"),
         (false, true, "#D0D5DD", "#52525B"),
+        (true, false, "#98A2B3", "#71717A"),
         (false, false, "#98A2B3", "#71717A"),
     ] {
         let color = PlaybackCollageCheckboxDrawing.color(
             isSelected: isSelected,
             isEnabled: isEnabled
+        )
+        #expect(
+            color === WorkbenchCheckboxStyle.controlColor(
+                for: isSelected ? .checked : .unchecked,
+                isEnabled: isEnabled
+            )
         )
         #expect(playbackCueResultHex(color, appearanceName: .aqua) == lightHex)
         #expect(playbackCueResultHex(color, appearanceName: .darkAqua) == darkHex)
