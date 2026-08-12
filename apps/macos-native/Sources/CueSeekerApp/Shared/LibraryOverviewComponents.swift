@@ -23,7 +23,7 @@ struct LibraryOverviewLayout<Content: View>: View {
     }
 
     var body: some View {
-        ScrollView {
+        WorkbenchScrollView {
             VStack(
                 alignment: .leading,
                 spacing: WorkbenchControlMetrics.redesignSpacing4
