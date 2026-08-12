@@ -4,10 +4,11 @@ import Testing
 
 @Test
 func coverSummaryLayoutKeepsSixteenByNineCoverLeftAligned() {
-    let container = CGSize(width: 1_200, height: 246)
+    let container = CGSize(width: 1_200, height: 252)
     let layout = CoverSummaryCardLayout.resolve(containerSize: container)
 
     #expect(layout.coverFrame.minX == 0)
+    #expect(layout.coverFrame.size == CGSize(width: 448, height: 252))
     #expect(layout.coverFrame.height == WorkbenchControlMetrics.redesignCoverSummaryHeight)
     #expect(
         layout.coverFrame.width / layout.coverFrame.height
@@ -18,50 +19,49 @@ func coverSummaryLayoutKeepsSixteenByNineCoverLeftAligned() {
         layout.contentFrame.width
             == WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
     )
+    #expect(layout.contentFrame.size == layout.coverFrame.size)
     #expect(layout.blendFrame.isEmpty)
 }
 
 @Test
-func coverSummaryLayoutClipsCoverFromTheRightInCompactWidth() {
+func coverSummaryLayoutFullyOverlapsAtCompactWidth() {
     let layout = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 400, height: 246)
+        containerSize: CGSize(width: 700, height: 252)
     )
 
-    #expect(layout.coverFrame.minX == 0)
-    #expect(layout.coverFrame.maxX > 400)
-    #expect(layout.contentFrame == CGRect(x: 0, y: 0, width: 400, height: 246))
-    #expect(layout.blendFrame == CGRect(x: 0, y: 0, width: 400, height: 246))
+    #expect(layout.coverFrame == CGRect(x: 0, y: 0, width: 448, height: 252))
+    #expect(layout.contentFrame == layout.coverFrame)
+    #expect(layout.blendFrame == layout.coverFrame)
 }
 
 @Test
-func coverSummaryBlendMatchesTheActualCoverAndContentOverlap() {
-    let layout = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 700, height: 246)
+func coverSummaryLayoutSwitchesWithoutPartialOverlap() {
+    let separated = CoverSummaryCardLayout.resolve(
+        containerSize: CGSize(width: 896, height: 252)
+    )
+    let overlapped = CoverSummaryCardLayout.resolve(
+        containerSize: CGSize(width: 895, height: 252)
     )
 
-    #expect(
-        layout.contentFrame.minX
-            == 700 - WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
-    )
-    #expect(layout.contentFrame.maxX == 700)
-    #expect(layout.blendFrame.minX == layout.contentFrame.minX)
-    #expect(
-        layout.blendFrame.maxX == layout.coverFrame.maxX
-    )
-    #expect(layout.blendFrame.height == layout.coverFrame.height)
+    #expect(separated.contentFrame == CGRect(x: 448, y: 0, width: 448, height: 252))
+    #expect(separated.blendFrame.isEmpty)
+    #expect(overlapped.contentFrame == overlapped.coverFrame)
+    #expect(overlapped.blendFrame == overlapped.coverFrame)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity == 0.72)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingOpacity == 0.32)
 }
 
 @Test
-func coverSummarySafeContentFitsTheMinimumWindowCard() {
+func coverSummaryRegionsStayFixedAtMinimumWindowWidth() {
     let compactCardWidth = AppShellLayout.minimumWindowWidth
         - SchemaWorkbenchStyle.pageHorizontalPadding * 2
-
-    #expect(
-        WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
-            <= compactCardWidth
+    let layout = CoverSummaryCardLayout.resolve(
+        containerSize: CGSize(width: compactCardWidth, height: 252)
     )
+
+    #expect(compactCardWidth < layout.coverFrame.width)
+    #expect(layout.coverFrame.size == CGSize(width: 448, height: 252))
+    #expect(layout.contentFrame == layout.coverFrame)
 }
 
 @Test

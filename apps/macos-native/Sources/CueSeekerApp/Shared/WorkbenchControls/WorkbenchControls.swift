@@ -203,10 +203,11 @@ enum WorkbenchControlMetrics {
 
     // Cover Summary tokens are provisional until visual acceptance is folded
     // into UI Design System.md.
-    /// --height-cover-summary: 246px
-    static let redesignCoverSummaryHeight: CGFloat = 246
-    /// --width-cover-summary-content-safe: 400px
-    static let redesignCoverSummaryContentSafeWidth: CGFloat = 400
+    /// --height-cover-summary: 252px
+    static let redesignCoverSummaryHeight: CGFloat = 252
+    /// --width-cover-summary-content-safe: 448px
+    static let redesignCoverSummaryContentSafeWidth = redesignCoverSummaryHeight
+        * redesignLibraryCoverAspectRatio
     /// --cover-summary-blend-leading: 0 / 100%
     static let redesignCoverSummaryBlendLeadingLocation: CGFloat = 0
     static let redesignCoverSummaryBlendLeadingOpacity: Double = 1

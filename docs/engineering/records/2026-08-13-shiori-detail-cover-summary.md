@@ -34,9 +34,11 @@ Do not connect the component to other pages in this change.
 10. Applied the shared summary radius directly to the cover so it keeps four
     matching corners independently of the outer card clip.
 11. Anchored the fixed-width metadata card directly after the left cover when
-    space permits, then moves that card left over the cover as width contracts.
-    Both regions own their four-corner clipping, while the outer layout remains
-    transparent and borderless.
+    space permits. Both regions own their four-corner clipping, while the outer
+    layout remains transparent and borderless.
+12. Set both regions to 448 × 252 points and replaced progressive overlap with
+    two states: attached at 896 points or wider, and fully aligned below that
+    threshold.
 
 # Verification
 
@@ -57,11 +59,11 @@ Do not connect the component to other pages in this change.
 
 The Shiori detail page now presents real list metadata beside its real stored
 cover as two attached rounded regions. The cover remains 16:9 and left-aligned;
-the fixed-width metadata card overlaps it progressively at compact widths using
-the dynamic surface-to-image blend. The page now has one vertical scroll model:
-the cover leaves the viewport, the search/filter stack and table header stay
-pinned, and the unified custom scrollbar tracks the full Shiori viewport at its
-right edge.
+the matching metadata card switches directly from an attached position to full
+overlap at compact widths using the surface-to-image blend. The page now has one
+vertical scroll model: the cover leaves the viewport, the search/filter stack
+and table header stay pinned, and the unified custom scrollbar tracks the full
+Shiori viewport at its right edge.
 
 # Follow-ups
 

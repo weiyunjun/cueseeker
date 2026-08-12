@@ -16,10 +16,8 @@ struct CoverSummaryCardLayout: Equatable {
             height: height
         )
         let contentWidth = WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
-        let contentX = max(
-            0,
-            min(coverFrame.maxX, containerSize.width - contentWidth)
-        )
+        let separatedWidth = coverWidth + contentWidth
+        let contentX = containerSize.width >= separatedWidth ? coverWidth : 0
         let contentFrame = CGRect(
             x: contentX,
             y: 0,
