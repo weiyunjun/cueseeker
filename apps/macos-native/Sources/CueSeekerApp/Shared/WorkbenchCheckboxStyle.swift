@@ -37,16 +37,50 @@ enum WorkbenchCheckboxStyle {
     @MainActor
     static func appKitImage(
         for state: WorkbenchCheckboxState,
-        isEnabled: Bool
+        isEnabled: Bool,
+        size: CGFloat
     ) -> NSImage? {
         let color = controlColor(for: state, isEnabled: isEnabled)
         let configuration = NSImage.SymbolConfiguration(
-            hierarchicalColor: color
-        ).applying(.preferringMonochrome())
+            pointSize: size,
+            weight: .regular
+        )
+        .applying(NSImage.SymbolConfiguration(hierarchicalColor: color))
+        .applying(.preferringMonochrome())
         return NSImage(
             systemSymbolName: systemImageName(for: state),
             accessibilityDescription: nil
         )?.withSymbolConfiguration(configuration)
+    }
+
+    static func appKitDrawingRect(
+        imageSize: CGSize,
+        centeredIn controlRect: CGRect
+    ) -> CGRect {
+        CGRect(
+            x: controlRect.midX - imageSize.width / 2,
+            y: controlRect.midY - imageSize.height / 2,
+            width: imageSize.width,
+            height: imageSize.height
+        )
+    }
+
+    @MainActor
+    static func drawAppKitGlyph(
+        for state: WorkbenchCheckboxState,
+        isEnabled: Bool,
+        size: CGFloat,
+        in controlRect: CGRect
+    ) {
+        guard let image = appKitImage(
+            for: state,
+            isEnabled: isEnabled,
+            size: size
+        ) else { return }
+        image.draw(in: appKitDrawingRect(
+            imageSize: image.size,
+            centeredIn: controlRect
+        ))
     }
 }
 

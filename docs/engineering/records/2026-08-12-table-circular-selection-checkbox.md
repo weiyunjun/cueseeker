@@ -36,12 +36,17 @@ execution are unchanged.
 - Kept Filter and Table at 16 points and Playback at 24 points. Hit areas,
   calculating behavior, focus behavior, keyboard handling, selection behavior,
   and disabled conditions remain unchanged.
+- Corrected the Table row/header visual-size mismatch without changing the
+  Checkbox style: AppKit now requests the same explicit 16-point symbol as the
+  SwiftUI header and centers the symbol's intrinsic canvas instead of scaling
+  that canvas into a 16-point rectangle. Playback applies the same sizing rule
+  at its existing 24-point size.
 
 ## Verification
 
-- Focused shared-symbol, color, size, and monochrome tests: 3 passed.
-- Focused Checkbox and selection regression tests: 27 passed.
-- Complete Swift test run: 981 Swift Testing tests and 8 XCTest tests passed
+- Focused shared-symbol, color, size, and monochrome tests: 4 passed.
+- Focused Checkbox and selection regression tests: 28 passed.
+- Complete Swift test run: 982 Swift Testing tests and 8 XCTest tests passed
   with zero failures. The established shared-persistence migration test was
   skipped by its standard command.
 - Source inspection confirms the previous Table-only checkmark and
@@ -50,9 +55,10 @@ execution are unchanged.
 ## Outcome
 
 All three Checkbox variants now share the same system-symbol geometry and state
-colors. Only the documented Playback size and existing interaction differences
-remain. Human visual acceptance is still required before the stable UI design
-document is updated.
+colors. The Table header and rows also render the same visible 16-point symbol;
+Playback remains 24 points. Only the documented size and existing interaction
+differences remain. Human visual acceptance is still required before the stable
+UI design document is updated.
 
 ## Follow-ups
 

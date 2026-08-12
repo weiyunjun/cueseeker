@@ -1296,10 +1296,12 @@ private enum WorkbenchCheckboxDrawing {
         in rect: CGRect,
         isFocused: Bool = false
     ) {
-        WorkbenchCheckboxStyle.appKitImage(
+        WorkbenchCheckboxStyle.drawAppKitGlyph(
             for: state,
-            isEnabled: isEnabled
-        )?.draw(in: rect)
+            isEnabled: isEnabled,
+            size: SubtitleTableMetrics.checkboxSize,
+            in: rect
+        )
 
         guard isFocused, isEnabled else { return }
         let focusRect = rect.insetBy(

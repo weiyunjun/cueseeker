@@ -177,8 +177,11 @@ func editingCollageCheckboxMatchesSearchColorsAndMonochromeRendering() throws {
             isEnabled: isEnabled
         ))
         let expectedConfiguration = NSImage.SymbolConfiguration(
-            hierarchicalColor: color
-        ).applying(.preferringMonochrome())
+            pointSize: PlaybackCollageSelectionMetrics.checkboxSize,
+            weight: .regular
+        )
+        .applying(NSImage.SymbolConfiguration(hierarchicalColor: color))
+        .applying(.preferringMonochrome())
         #expect(image.symbolConfiguration.isEqual(expectedConfiguration))
     }
 }

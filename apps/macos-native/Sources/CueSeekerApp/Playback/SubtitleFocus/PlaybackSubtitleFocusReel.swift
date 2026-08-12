@@ -3448,7 +3448,12 @@ enum PlaybackCollageCheckboxDrawing {
         isEnabled: Bool,
         in rect: CGRect
     ) {
-        image(isSelected: isSelected, isEnabled: isEnabled)?.draw(in: rect)
+        WorkbenchCheckboxStyle.drawAppKitGlyph(
+            for: isSelected ? .checked : .unchecked,
+            isEnabled: isEnabled,
+            size: PlaybackCollageSelectionMetrics.checkboxSize,
+            in: rect
+        )
     }
 
     static func image(
@@ -3457,7 +3462,8 @@ enum PlaybackCollageCheckboxDrawing {
     ) -> NSImage? {
         WorkbenchCheckboxStyle.appKitImage(
             for: isSelected ? .checked : .unchecked,
-            isEnabled: isEnabled
+            isEnabled: isEnabled,
+            size: PlaybackCollageSelectionMetrics.checkboxSize
         )
     }
 
