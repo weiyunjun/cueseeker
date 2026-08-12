@@ -4,11 +4,12 @@ main
 
 # 关联设计
 
-`docs/human/design/UI Design System.md`
+- `docs/human/design/UI Design System.md`
+- `docs/human/requirements/20260812-Feature-Unified Custom Scrollbar.md`
 
 # 需求目标
 
-在 Shiori 二级界面增加可复用的封面摘要组件，强化列表信息与播放入口，同时保留现有字幕表格。
+在 Shiori 二级界面增加可复用的封面摘要组件，并调整页面滚动结构，使封面随页面滚动隐藏，搜索与筛选区域固定在顶部。
 
 # 页面布局
 
@@ -16,6 +17,7 @@ main
 2. 主区域依次为：
    - 封面摘要组件。
    - Search、Filter、Select 工具栏。
+   - 筛选卡片，未展开时不显示。
    - 字幕表格。
 3. 搜索栏不得移入顶栏或封面摘要组件。
 
@@ -32,31 +34,60 @@ main
 5. 组件为圆角矩形，不铺满整个页面。
 6. 高度固定，以验收示意图为准，不根据窗口或屏幕高度动态计算。
 7. 左侧文字与按钮区域保持稳定宽度。
-8. 窗口缩窄时，封面允许向左进入渐变区域并被组件裁切。
-9. 封面保持16:9比例并右对齐，不拉伸。
+8. 窗口缩窄时，封面允许向左进入文字区域并被组件裁切。
+9. 封面保持 16:9 比例并右对齐，不拉伸。
+
+# 页面滚动与固定区域
+
+1. Shiori 二级界面只使用一个纵向滚动上下文，不得出现嵌套纵向滚动条。
+2. 封面摘要属于滚动内容；向下滚动时逐渐离开视口，最终完全隐藏。
+3. Search、Filter、Select 工具栏到达主区域顶部后固定，不随字幕内容继续滚走。
+4. 筛选卡片展开时固定在工具栏下方；关闭后不占据固定区域。
+5. 字幕表头保持现有固定行为，并位于工具栏或筛选卡片下方。
+6. 字幕内容在固定区域下方滚动，不得被固定区域遮挡。
+7. 滚动范围包含封面摘要和完整字幕结果。
+8. Mouse Wheel、Trackpad、Scrollbar Drag、Keyboard Navigation、Programmatic Scroll 和表格位置恢复应保持一致。
+9. 保留字幕表格现有虚拟化、数据加载和逻辑位置映射。
+
+# Scrollbar
+
+1. 纵向 Scrollbar 使用统一 Custom Scrollbar。
+2. Scrollbar 位于 Shiori 二级界面主 Viewport 的最右侧，与 Library 一级界面一致。
+3. Scrollbar Overlay 绑定完整页面 Viewport，不得继续限制在字幕表格内部。
+4. Scrollbar 不保留 Gutter，不得改变内容宽度、对齐、换行或滚动范围。
+5. 存在滚动范围时持续显示，不存在滚动范围时不绘制 Thumb。
+6. 页面不得同时显示页面 Scrollbar 和表格纵向 Scrollbar。
+7. Scrollbar 的样式、尺寸、边距、Thumb 几何和交互遵循 `Unified Custom Scrollbar` 需求。
 
 # Light / Dark Mode
 
-1. Light Mode 左侧使用浅色 Surface，并向封面透明过渡。
-2. Dark Mode 左侧使用 Dark Surface，并以相同方式向封面透明过渡。
+1. Light Mode 左侧使用浅色 Surface。
+2. Dark Mode 左侧使用 Dark Surface。
 3. 文字、按钮、边框和背景均使用设计系统的动态 Token。
 
 # 设计系统约束
 
-1. 组件及其布局、颜色、尺寸、圆角和渐变规则必须能够完整定义在 `UI Design System.md` 中。
+1. 组件及其布局、颜色、尺寸、圆角和图片处理规则必须能够完整定义在 `UI Design System.md` 中。
 2. 禁止在页面内硬编码新增的视觉或布局值。
-3. 视觉验收完成后再更新 `UI Design System.md`，设计文档提交后方可实现代码。
+3. 视觉验收完成后再更新 `UI Design System.md`。
 
 # 本次范围
 
 1. 仅修改 Shiori 二级界面。
 2. 不修改 Library 一级、Library 二级或 Shiori 一级界面。
-3. 不提前实现其他页面的复用接入。
+3. 不提前接入其他页面。
+4. 不实现 Resume 按钮 Hover 字幕。
+5. 不修改统一 Scrollbar 的样式和基础交互规则。
 
 # 验收标准
 
 1. Light Mode 与 Dark Mode 均符合验收示意图。
-2. 封面摘要组件高度及页面比例保持稳定。
-3. 缩窄窗口时文字区域可读，封面裁切行为符合要求。
-4. Resume、Play 与无可播放内容状态正确。
-5. 现有搜索、筛选、选择、表格及播放行为无回归。
+2. 封面摘要高度及页面比例保持稳定。
+3. 窗口缩窄时封面裁切符合要求。
+4. 向下滚动后封面完全隐藏。
+5. 工具栏、展开的筛选卡片及字幕表头固定在正确位置。
+6. Scrollbar 位于页面最右侧，并映射完整页面滚动范围。
+7. 页面不存在第二条纵向 Scrollbar。
+8. Resume、Play 与无可播放内容状态正确。
+9. 搜索、筛选、选择、表格虚拟化、位置恢复及播放行为无回归。
+10. 最终视觉与滚动交互由项目 Owner 在真实 Debug 客户端验收。
