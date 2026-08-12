@@ -128,8 +128,8 @@ struct CoverSummaryCard<Cover: View>: View {
                             location: 1
                         ),
                     ],
-                    startPoint: .leading,
-                    endPoint: .trailing
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
                     .frame(
                         width: layout.blendFrame.width,

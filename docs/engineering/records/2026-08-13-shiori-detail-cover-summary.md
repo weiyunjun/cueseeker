@@ -29,7 +29,8 @@ Do not connect the component to other pages in this change.
    second scroll-position source.
 9. Replaced the fixed-width surface fade with a stronger tokenized surface
    gradient sized to the live intersection between the cover and the fixed
-   text-safe region; no overlap leaves the cover fully clear.
+   text-safe region. The gradient runs top-to-bottom so each text line has
+   consistent contrast; no overlap leaves the cover fully clear.
 10. Applied the shared summary radius directly to the cover so it keeps four
     matching corners independently of the outer card clip.
 
