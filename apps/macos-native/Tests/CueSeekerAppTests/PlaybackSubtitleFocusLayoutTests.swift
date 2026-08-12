@@ -698,6 +698,17 @@ func subtitleFocusScrollbarMapsOnlyFractionalCueOrdinal() throws {
     #expect(thumb.height >= 24)
 }
 
+@Test
+func subtitleFocusScrollbarOmitsThumbWithoutLogicalOverflow() {
+    let metrics = PlaybackSubtitleFocusNativeScrollbarMetrics(
+        totalCount: 5,
+        fractionalOrdinal: 0,
+        visibleCueCapacity: 5
+    )
+
+    #expect(metrics.presentation.vertical == nil)
+}
+
 @MainActor
 @Test
 func subtitleFocusReelCentersFitCueAndPinsOversizedCueToTop() throws {

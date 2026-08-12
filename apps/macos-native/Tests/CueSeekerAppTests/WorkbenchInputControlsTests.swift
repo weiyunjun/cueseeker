@@ -2,40 +2,6 @@ import AppKit
 import Testing
 @testable import CueSeekerApp
 
-@Test
-func textAreaScrollbarVisibilityMatchesInputRules() {
-    #expect(!WorkbenchTextAreaScrollbarVisibility.isVisible(
-        hasOverflow: false,
-        isHovered: true,
-        isScrolling: true,
-        isDragging: true
-    ))
-    #expect(!WorkbenchTextAreaScrollbarVisibility.isVisible(
-        hasOverflow: true,
-        isHovered: false,
-        isScrolling: false,
-        isDragging: false
-    ))
-    #expect(WorkbenchTextAreaScrollbarVisibility.isVisible(
-        hasOverflow: true,
-        isHovered: true,
-        isScrolling: false,
-        isDragging: false
-    ))
-    #expect(WorkbenchTextAreaScrollbarVisibility.isVisible(
-        hasOverflow: true,
-        isHovered: false,
-        isScrolling: true,
-        isDragging: false
-    ))
-    #expect(WorkbenchTextAreaScrollbarVisibility.isVisible(
-        hasOverflow: true,
-        isHovered: false,
-        isScrolling: false,
-        isDragging: true
-    ))
-}
-
 @MainActor
 @Test
 func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
@@ -74,7 +40,7 @@ func textAreaReportsFirstResponderChanges() {
 
 @MainActor
 @Test
-func textAreaScrollbarAppearsOnlyForOverflowAndHover() {
+func textAreaScrollbarPersistsOnlyWhileContentOverflows() {
     let view = WorkbenchTextAreaContainerView(
         frame: CGRect(x: 0, y: 0, width: 340, height: 96)
     )
@@ -87,11 +53,11 @@ func textAreaScrollbarAppearsOnlyForOverflowAndHover() {
     view.layout()
 
     #expect(view.hasVerticalOverflowForTesting)
-    #expect(!view.isScrollbarVisibleForTesting)
-
-    view.setScrollAreaHoveredForTesting(true)
     #expect(view.isScrollbarVisibleForTesting)
 
-    view.setScrollAreaHoveredForTesting(false)
+    view.setText("")
+    view.layout()
+
+    #expect(!view.hasVerticalOverflowForTesting)
     #expect(!view.isScrollbarVisibleForTesting)
 }

@@ -1406,7 +1406,7 @@ struct PlaybackSubtitleFocusNativeScrollbarMetrics: Equatable {
     }
 
     var presentation: TableScrollbarPresentation {
-        guard totalCount > 0 else {
+        guard totalCount > visibleCueCapacity else {
             return TableScrollbarPresentation()
         }
         let lastOrdinal = max(0, totalCount - 1)
@@ -2536,7 +2536,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     }
 
     private func updateScrollbarPresentation() {
-        scrollbarView.isPresented = totalCount > 0
+        scrollbarView.isPresented = scrollbarMetrics.presentation.vertical != nil
         updateScrollbarInteractionAvailability()
         scrollbarView.scrollbarMetricsDidChange()
     }
@@ -2554,7 +2554,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         guard isScrollbarDragging else {
             return
         }
-        let restoresPresentation = totalCount > 0
+        let restoresPresentation = scrollbarMetrics.presentation.vertical != nil
         scrollbarView.isPresented = false
         if isScrollbarDragging {
             handleScrollbarDrag(TableScrollbarDragEvent(

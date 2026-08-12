@@ -1,17 +1,6 @@
 import AppKit
 import SwiftUI
 
-enum WorkbenchTextAreaScrollbarVisibility {
-    static func isVisible(
-        hasOverflow: Bool,
-        isHovered: Bool,
-        isScrolling: Bool,
-        isDragging: Bool
-    ) -> Bool {
-        hasOverflow && (isHovered || isScrolling || isDragging)
-    }
-}
-
 struct WorkbenchTextAreaInput: NSViewRepresentable {
     @Binding var text: String
     let placeholder: String
@@ -105,12 +94,6 @@ final class WorkbenchTextAreaContainerView: NSView {
 
     private let scrollView = NSScrollView()
     private let scrollbarView = WorkbenchTextAreaScrollbarView()
-    private var trackingArea: NSTrackingArea?
-    private var isScrollAreaHovered = false
-    private var isScrolling = false
-    private var isScrollbarDragging = false
-    private var lastScrollOrigin = CGPoint.zero
-    private var scrollIdleTask: Task<Void, Never>?
     private var isUpdatingDocumentSize = false
 
     override init(frame frameRect: NSRect) {
@@ -128,7 +111,6 @@ final class WorkbenchTextAreaContainerView: NSView {
     }
 
     deinit {
-        scrollIdleTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -137,49 +119,12 @@ final class WorkbenchTextAreaContainerView: NSView {
         scrollView.frame = bounds
         scrollbarView.frame = bounds
         updateDocumentSize()
-        updateScrollbarVisibility()
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
-        let area = NSTrackingArea(
-            rect: .zero,
-            options: [
-                .mouseEnteredAndExited,
-                .activeInActiveApp,
-                .inVisibleRect,
-            ],
-            owner: self
-        )
-        addTrackingArea(area)
-        trackingArea = area
-    }
-
-    override func mouseEntered(with event: NSEvent) {
-        super.mouseEntered(with: event)
-        setScrollAreaHovered(true)
-    }
-
-    override func mouseExited(with event: NSEvent) {
-        super.mouseExited(with: event)
-        setScrollAreaHovered(false)
+        updateScrollbarPresentation()
     }
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         applyColors(isEnabled: textView.isEditable)
-    }
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        guard window == nil else { return }
-        scrollIdleTask?.cancel()
-        isScrolling = false
-        isScrollAreaHovered = false
-        updateScrollbarVisibility()
     }
 
     func configure(placeholder: String, isEnabled: Bool) {
@@ -209,7 +154,7 @@ final class WorkbenchTextAreaContainerView: NSView {
         textView.needsDisplay = true
         updateDocumentSize()
         scrollbarView.scrollbarMetricsDidChange()
-        updateScrollbarVisibility()
+        updateScrollbarPresentation()
     }
 
     func focusTextViewIfPossible() {
@@ -243,10 +188,6 @@ final class WorkbenchTextAreaContainerView: NSView {
 
     var isScrollbarVisibleForTesting: Bool {
         scrollbarView.isPresented
-    }
-
-    func setScrollAreaHoveredForTesting(_ isHovered: Bool) {
-        setScrollAreaHovered(isHovered)
     }
 
     private func configureViews() {
@@ -284,10 +225,6 @@ final class WorkbenchTextAreaContainerView: NSView {
         addSubview(scrollView)
 
         scrollbarView.scrollView = scrollView
-        scrollbarView.onDraggingChanged = { [weak self] isDragging in
-            self?.isScrollbarDragging = isDragging
-            self?.updateScrollbarVisibility()
-        }
         addSubview(scrollbarView)
 
         NotificationCenter.default.addObserver(
@@ -350,56 +287,18 @@ final class WorkbenchTextAreaContainerView: NSView {
             origin.y = min(maximumOffset, max(0, origin.y))
             scrollView.contentView.scroll(to: origin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
-            lastScrollOrigin = origin
         }
         scrollbarView.scrollbarMetricsDidChange()
-    }
-
-    private func setScrollAreaHovered(_ isHovered: Bool) {
-        guard isScrollAreaHovered != isHovered else { return }
-        isScrollAreaHovered = isHovered
-        updateScrollbarVisibility()
     }
 
     @objc
     private func scrollBoundsDidChange() {
-        let origin = scrollView.contentView.bounds.origin
         scrollbarView.scrollbarMetricsDidChange()
-        guard origin != lastScrollOrigin else {
-            updateScrollbarVisibility()
-            return
-        }
-        lastScrollOrigin = origin
-        isScrolling = true
-        updateScrollbarVisibility()
-        scheduleScrollIdle()
     }
 
-    private func scheduleScrollIdle() {
-        scrollIdleTask?.cancel()
-        scrollIdleTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            guard !Task.isCancelled,
-                  let self
-            else {
-                return
-            }
-            self.isScrolling = false
-            self.updateScrollbarVisibility()
-        }
-    }
-
-    private func updateScrollbarVisibility() {
-        let shouldShow = WorkbenchTextAreaScrollbarVisibility.isVisible(
-            hasOverflow: scrollbarView.hasVerticalOverflow,
-            isHovered: isScrollAreaHovered,
-            isScrolling: isScrolling,
-            isDragging: isScrollbarDragging
-        )
-        scrollbarView.showsInteractiveThumb =
-            isScrollAreaHovered || isScrollbarDragging
-        scrollbarView.isPresented = shouldShow
-        if shouldShow {
+    private func updateScrollbarPresentation() {
+        scrollbarView.isPresented = scrollbarView.hasVerticalOverflow
+        if scrollbarView.isPresented {
             scrollbarView.scrollbarMetricsDidChange()
         }
     }
@@ -479,8 +378,6 @@ private final class WorkbenchTextAreaScrollbarView: TableScrollbarOverlayView {
         }
     }
 
-    var onDraggingChanged: (Bool) -> Void = { _ in }
-
     var hasVerticalOverflow: Bool {
         presentation()?.vertical != nil
     }
@@ -492,9 +389,6 @@ private final class WorkbenchTextAreaScrollbarView: TableScrollbarOverlayView {
         }
         onDrag = { [weak self] event in
             self?.handleDrag(event)
-        }
-        onDragStateChanged = { [weak self] isDragging in
-            self?.onDraggingChanged(isDragging)
         }
         onScrollWheel = { [weak self] event in
             self?.scrollView?.scrollWheel(with: event)
