@@ -65,7 +65,7 @@
 - `--color-primary-button-bg-hover`: macOS accent color with native hover emphasis
 - `--color-primary-button-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-bg-checkbox-unchecked`: Light `#FFFFFF`; Dark `#18181B`
-- `--color-bg-checkbox-checked`: Light `#111827`; Dark `#F4F4F5`
+- `--color-bg-checkbox-checked`: Light `#667085`; Dark `#A1A1AA`
 - `--color-checkbox-icon`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
@@ -308,7 +308,7 @@
 - `--radius-field`: `8px`
 - `--radius-search`: `9999px`
 - `--radius-inline-clear-button`: `9999px`
-- `--radius-checkbox`: `4px`
+- `--radius-checkbox`: `9999px`
 - `--radius-menu`: `16px`
 - `--radius-select-menu-item`: `8px`
 - `--radius-action-menu-item`: `8px`
@@ -565,6 +565,8 @@
 
 - Control
   - Shape：Circle
+  - Rendering：SF Symbols / Monochrome
+  - Symbol Weight：Regular
   - Size：`--size-checkbox`
 - Indicator
 - Label
@@ -573,16 +575,22 @@
 ##### Sizes
 
 - Control Size：`--size-checkbox`
+- Symbol Size：Control Size
 
 ##### States
 
 - Unchecked
+  - System Symbol：`circle`
   - Background：`--color-bg-checkbox-unchecked`
   - Border Color：`--color-border-checkbox`
 - Checked
+  - System Symbol：`checkmark.circle.fill`
   - Background：`--color-bg-checkbox-checked`
   - Indicator Color：`--color-checkbox-icon`
 - Indeterminate
+  - System Symbol：`minus.circle.fill`
+  - Background：`--color-bg-checkbox-checked`
+  - Indicator Color：`--color-checkbox-icon`
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
