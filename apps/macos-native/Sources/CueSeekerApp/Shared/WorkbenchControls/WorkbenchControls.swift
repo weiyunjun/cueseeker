@@ -218,8 +218,6 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryBlendTrailingOpacity: Double = 0.32
     /// --radius-cover-summary: 16px
     static let redesignCoverSummaryRadius: CGFloat = 16
-    /// --width-cover-summary-border: 1px
-    static let redesignCoverSummaryBorderWidth: CGFloat = 1
     /// --padding-cover-summary-content: 40px
     static let redesignCoverSummaryContentPadding: CGFloat = 40
     /// --font-size-cover-summary-title: 28px

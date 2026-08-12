@@ -17,7 +17,7 @@ Do not connect the component to other pages in this change.
 3. Reused the existing recent-playback path and added the same list-level path
    for playing the first valid cue when no recent cue exists.
 4. Inserted the summary above the existing Search, Filter, and Select toolbar.
-5. Added focused tests for 16:9 geometry, right alignment, compact-width
+5. Added focused tests for 16:9 geometry, left alignment, compact-width
    clipping, and active-list recent-state projection.
 6. Kept the new dimensions in one provisional token block so visual iterations
    change one source of truth before the accepted values are documented.
@@ -33,6 +33,9 @@ Do not connect the component to other pages in this change.
    consistent contrast; no overlap leaves the cover fully clear.
 10. Applied the shared summary radius directly to the cover so it keeps four
     matching corners independently of the outer card clip.
+11. Mirrored the component so the cover anchors left and the fixed-width
+    metadata region anchors right, with the same live overlap blend at compact
+    widths, and removed the outer card border.
 
 # Verification
 
@@ -53,7 +56,7 @@ Do not connect the component to other pages in this change.
 
 The Shiori detail page now presents real list metadata and its real stored cover
 inside a fixed-height rounded summary card. The cover remains 16:9 and
-right-aligned, while compact widths crop its left edge beneath the dynamic
+left-aligned, while compact widths crop its right edge beneath the dynamic
 surface-to-image blend. The page now has one vertical scroll model: the cover
 leaves the viewport, the search/filter stack and table header stay pinned, and
 the unified custom scrollbar tracks the full Shiori viewport at its right edge.

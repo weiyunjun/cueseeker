@@ -9,18 +9,19 @@ struct CoverSummaryCardLayout: Equatable {
         let coverWidth = height
             * WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
         let coverFrame = CGRect(
-            x: containerSize.width - coverWidth,
+            x: 0,
             y: 0,
             width: coverWidth,
             height: height
         )
+        let contentWidth = min(
+            containerSize.width,
+            WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
+        )
         let contentFrame = CGRect(
-            x: 0,
+            x: containerSize.width - contentWidth,
             y: 0,
-            width: min(
-                containerSize.width,
-                WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
-            ),
+            width: contentWidth,
             height: height
         )
         let overlap = coverFrame.intersection(contentFrame)
@@ -56,7 +57,7 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     var body: some View {
-        ZStack(alignment: .leading) {
+        ZStack(alignment: .trailing) {
             WorkbenchRedesignColors.bgSurface
             coverLayer
             content
@@ -71,16 +72,6 @@ struct CoverSummaryCard<Cover: View>: View {
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.redesignCoverSummaryRadius,
                 style: .continuous
-            )
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCoverSummaryRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                WorkbenchRedesignColors.borderMuted,
-                lineWidth: WorkbenchControlMetrics.redesignCoverSummaryBorderWidth
             )
         )
     }

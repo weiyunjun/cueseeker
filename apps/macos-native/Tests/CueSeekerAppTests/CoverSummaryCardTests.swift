@@ -3,11 +3,11 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
-func coverSummaryLayoutKeepsSixteenByNineCoverRightAligned() {
+func coverSummaryLayoutKeepsSixteenByNineCoverLeftAligned() {
     let container = CGSize(width: 1_200, height: 246)
     let layout = CoverSummaryCardLayout.resolve(containerSize: container)
 
-    #expect(layout.coverFrame.maxX == container.width)
+    #expect(layout.coverFrame.minX == 0)
     #expect(layout.coverFrame.height == WorkbenchControlMetrics.redesignCoverSummaryHeight)
     #expect(
         layout.coverFrame.width / layout.coverFrame.height
@@ -17,13 +17,13 @@ func coverSummaryLayoutKeepsSixteenByNineCoverRightAligned() {
 }
 
 @Test
-func coverSummaryLayoutClipsCoverFromTheLeftInCompactWidth() {
+func coverSummaryLayoutClipsCoverFromTheRightInCompactWidth() {
     let layout = CoverSummaryCardLayout.resolve(
         containerSize: CGSize(width: 400, height: 246)
     )
 
-    #expect(layout.coverFrame.minX < 0)
-    #expect(layout.coverFrame.maxX == 400)
+    #expect(layout.coverFrame.minX == 0)
+    #expect(layout.coverFrame.maxX > 400)
     #expect(layout.blendFrame == CGRect(x: 0, y: 0, width: 400, height: 246))
 }
 
@@ -33,10 +33,12 @@ func coverSummaryBlendMatchesTheActualCoverAndContentOverlap() {
         containerSize: CGSize(width: 700, height: 246)
     )
 
-    #expect(layout.blendFrame.minX == layout.coverFrame.minX)
     #expect(
-        layout.blendFrame.maxX
-            == WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
+        layout.blendFrame.minX
+            == 700 - WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
+    )
+    #expect(
+        layout.blendFrame.maxX == layout.coverFrame.maxX
     )
     #expect(layout.blendFrame.height == layout.coverFrame.height)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity == 0.72)
