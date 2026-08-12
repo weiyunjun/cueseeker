@@ -207,8 +207,8 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryHeight: CGFloat = 246
     /// --width-cover-summary-content-safe: 400px
     static let redesignCoverSummaryContentSafeWidth: CGFloat = 400
-    /// --width-cover-summary-blend: 280px
-    static let redesignCoverSummaryBlendWidth: CGFloat = 280
+    /// --blur-cover-summary-overlap: 18px
+    static let redesignCoverSummaryBlurRadius: CGFloat = 18
     /// --radius-cover-summary: 16px
     static let redesignCoverSummaryRadius: CGFloat = 16
     /// --width-cover-summary-border: 1px

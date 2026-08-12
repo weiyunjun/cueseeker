@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CoverSummaryCardLayout: Equatable {
     let coverFrame: CGRect
-    let blendFrame: CGRect
+    let blurFrame: CGRect
 
     static func resolve(containerSize: CGSize) -> CoverSummaryCardLayout {
         let height = WorkbenchControlMetrics.redesignCoverSummaryHeight
@@ -14,14 +14,19 @@ struct CoverSummaryCardLayout: Equatable {
             width: coverWidth,
             height: height
         )
+        let contentFrame = CGRect(
+            x: 0,
+            y: 0,
+            width: min(
+                containerSize.width,
+                WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
+            ),
+            height: height
+        )
+        let overlap = coverFrame.intersection(contentFrame)
         return CoverSummaryCardLayout(
             coverFrame: coverFrame,
-            blendFrame: CGRect(
-                x: coverFrame.minX,
-                y: 0,
-                width: WorkbenchControlMetrics.redesignCoverSummaryBlendWidth,
-                height: height
-            )
+            blurFrame: overlap.isNull ? .zero : overlap
         )
     }
 }
@@ -91,29 +96,48 @@ struct CoverSummaryCard<Cover: View>: View {
                     width: layout.coverFrame.width,
                     height: layout.coverFrame.height
                 )
+                .clipShape(coverShape)
                 .position(
                     x: layout.coverFrame.midX,
                     y: layout.coverFrame.midY
                 )
 
-            LinearGradient(
-                colors: [
-                    WorkbenchRedesignColors.bgSurface,
-                    WorkbenchRedesignColors.bgSurface.opacity(0),
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(
-                width: layout.blendFrame.width,
-                height: layout.blendFrame.height
-            )
-            .position(
-                x: layout.blendFrame.midX,
-                y: layout.blendFrame.midY
-            )
+            if !layout.blurFrame.isEmpty {
+                cover()
+                    .frame(
+                        width: layout.coverFrame.width,
+                        height: layout.coverFrame.height
+                    )
+                    .blur(
+                        radius: WorkbenchControlMetrics.redesignCoverSummaryBlurRadius,
+                        opaque: true
+                    )
+                    .clipShape(coverShape)
+                    .mask(alignment: .topLeading) {
+                        Rectangle()
+                            .frame(
+                                width: layout.blurFrame.width,
+                                height: layout.blurFrame.height
+                            )
+                            .offset(
+                                x: layout.blurFrame.minX - layout.coverFrame.minX,
+                                y: layout.blurFrame.minY - layout.coverFrame.minY
+                            )
+                    }
+                    .position(
+                        x: layout.coverFrame.midX,
+                        y: layout.coverFrame.midY
+                    )
+            }
         }
         .allowsHitTesting(false)
+    }
+
+    private var coverShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignCoverSummaryRadius,
+            style: .continuous
+        )
     }
 
     private var content: some View {

@@ -27,11 +27,20 @@ Do not connect the component to other pages in this change.
 8. Moved the table scrollbar overlay to the full Shiori main viewport and
    included the cover in the existing table document extent without adding a
    second scroll-position source.
+9. Replaced the fixed-width surface fade with a duplicated cover layer whose
+   18-point blur is masked to the live intersection between the cover and the
+   fixed text-safe region; no overlap leaves the base cover fully sharp.
+10. Applied the shared summary radius directly to both cover layers so the
+    cover keeps four matching corners independently of the outer card clip.
 
 # Verification
 
 - `swift test --filter 'CoverSummaryCardTests|ShioriPresentationTests|WorkbenchControlMetricsTests|LibraryCoverFrameTests'`
 - `swift test --filter 'SubtitleTableVirtualRowTests|SubtitleTableScrollbarMetricsTests|CoverSummaryCardTests'`
+- `swift test --filter CoverSummaryCardTests`
+- Final visual acceptance for the overlap blur and four-corner cover treatment
+  is deferred to the owner; no final Debug E2E capture is required for this
+  tuning iteration.
 - Actual-app Light and Dark captures used list 5's current database name,
   description, stored cover, recent state, and 28-row result projection.
 - A full `swift test` run was also executed. The new and focused tests passed;
