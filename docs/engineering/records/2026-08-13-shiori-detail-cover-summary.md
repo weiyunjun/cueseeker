@@ -39,6 +39,9 @@ Do not connect the component to other pages in this change.
 12. Set both regions to 448 × 252 points and replaced progressive overlap with
     two states: attached at 896 points or wider, and fully aligned below that
     threshold.
+13. Composited the cover and compact-state gradient before applying one shared
+    rounded mask, preventing color from leaking through two independently
+    antialiased corner edges.
 
 # Verification
 

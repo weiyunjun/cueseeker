@@ -5,6 +5,10 @@ struct CoverSummaryCardLayout: Equatable {
     let contentFrame: CGRect
     let blendFrame: CGRect
 
+    var isFullyOverlapped: Bool {
+        contentFrame == coverFrame
+    }
+
     static func resolve(containerSize: CGSize) -> CoverSummaryCardLayout {
         let height = WorkbenchControlMetrics.redesignCoverSummaryHeight
         let coverWidth = height
@@ -64,8 +68,12 @@ struct CoverSummaryCard<Cover: View>: View {
             )
 
             ZStack(alignment: .topLeading) {
-                coverLayer(layout: layout)
-                contentBackground(layout: layout)
+                if layout.isFullyOverlapped {
+                    overlappedBackground(layout: layout)
+                } else {
+                    coverLayer(layout: layout)
+                    contentBackground(layout: layout)
+                }
                 content
                     .position(
                         x: layout.contentFrame.midX,
@@ -94,6 +102,33 @@ struct CoverSummaryCard<Cover: View>: View {
                 y: layout.coverFrame.midY
             )
             .allowsHitTesting(false)
+    }
+
+    private func overlappedBackground(layout: CoverSummaryCardLayout) -> some View {
+        ZStack {
+            cover()
+                .frame(
+                    width: layout.coverFrame.width,
+                    height: layout.coverFrame.height
+                )
+
+            coverBlend
+                .frame(
+                    width: layout.contentFrame.width,
+                    height: layout.contentFrame.height
+                )
+        }
+        .frame(
+            width: layout.coverFrame.width,
+            height: layout.coverFrame.height
+        )
+        .compositingGroup()
+        .clipShape(coverShape)
+        .position(
+            x: layout.coverFrame.midX,
+            y: layout.coverFrame.midY
+        )
+        .allowsHitTesting(false)
     }
 
     private func contentBackground(layout: CoverSummaryCardLayout) -> some View {

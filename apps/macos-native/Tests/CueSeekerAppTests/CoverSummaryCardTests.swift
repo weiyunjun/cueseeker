@@ -32,6 +32,7 @@ func coverSummaryLayoutFullyOverlapsAtCompactWidth() {
     #expect(layout.coverFrame == CGRect(x: 0, y: 0, width: 448, height: 252))
     #expect(layout.contentFrame == layout.coverFrame)
     #expect(layout.blendFrame == layout.coverFrame)
+    #expect(layout.isFullyOverlapped)
 }
 
 @Test
@@ -45,8 +46,10 @@ func coverSummaryLayoutSwitchesWithoutPartialOverlap() {
 
     #expect(separated.contentFrame == CGRect(x: 448, y: 0, width: 448, height: 252))
     #expect(separated.blendFrame.isEmpty)
+    #expect(!separated.isFullyOverlapped)
     #expect(overlapped.contentFrame == overlapped.coverFrame)
     #expect(overlapped.blendFrame == overlapped.coverFrame)
+    #expect(overlapped.isFullyOverlapped)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity == 0.72)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingOpacity == 0.32)
 }
