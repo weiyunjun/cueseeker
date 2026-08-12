@@ -207,8 +207,15 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryHeight: CGFloat = 246
     /// --width-cover-summary-content-safe: 400px
     static let redesignCoverSummaryContentSafeWidth: CGFloat = 400
-    /// --blur-cover-summary-overlap: 18px
-    static let redesignCoverSummaryBlurRadius: CGFloat = 18
+    /// --cover-summary-blend-leading: 0 / 100%
+    static let redesignCoverSummaryBlendLeadingLocation: CGFloat = 0
+    static let redesignCoverSummaryBlendLeadingOpacity: Double = 1
+    /// --cover-summary-blend-middle: 55% / 72%
+    static let redesignCoverSummaryBlendMiddleLocation: CGFloat = 0.55
+    static let redesignCoverSummaryBlendMiddleOpacity: Double = 0.72
+    /// --cover-summary-blend-trailing: 82% / 32%
+    static let redesignCoverSummaryBlendTrailingLocation: CGFloat = 0.82
+    static let redesignCoverSummaryBlendTrailingOpacity: Double = 0.32
     /// --radius-cover-summary: 16px
     static let redesignCoverSummaryRadius: CGFloat = 16
     /// --width-cover-summary-border: 1px

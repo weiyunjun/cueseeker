@@ -13,7 +13,7 @@ func coverSummaryLayoutKeepsSixteenByNineCoverRightAligned() {
         layout.coverFrame.width / layout.coverFrame.height
             == WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
     )
-    #expect(layout.blurFrame.isEmpty)
+    #expect(layout.blendFrame.isEmpty)
 }
 
 @Test
@@ -24,22 +24,23 @@ func coverSummaryLayoutClipsCoverFromTheLeftInCompactWidth() {
 
     #expect(layout.coverFrame.minX < 0)
     #expect(layout.coverFrame.maxX == 400)
-    #expect(layout.blurFrame == CGRect(x: 0, y: 0, width: 400, height: 246))
+    #expect(layout.blendFrame == CGRect(x: 0, y: 0, width: 400, height: 246))
 }
 
 @Test
-func coverSummaryBlurMatchesTheActualCoverAndContentOverlap() {
+func coverSummaryBlendMatchesTheActualCoverAndContentOverlap() {
     let layout = CoverSummaryCardLayout.resolve(
         containerSize: CGSize(width: 700, height: 246)
     )
 
-    #expect(layout.blurFrame.minX == layout.coverFrame.minX)
+    #expect(layout.blendFrame.minX == layout.coverFrame.minX)
     #expect(
-        layout.blurFrame.maxX
+        layout.blendFrame.maxX
             == WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
     )
-    #expect(layout.blurFrame.height == layout.coverFrame.height)
-    #expect(WorkbenchControlMetrics.redesignCoverSummaryBlurRadius == 18)
+    #expect(layout.blendFrame.height == layout.coverFrame.height)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity == 0.72)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingOpacity == 0.32)
 }
 
 @Test

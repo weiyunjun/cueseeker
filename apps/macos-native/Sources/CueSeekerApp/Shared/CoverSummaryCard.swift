@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CoverSummaryCardLayout: Equatable {
     let coverFrame: CGRect
-    let blurFrame: CGRect
+    let blendFrame: CGRect
 
     static func resolve(containerSize: CGSize) -> CoverSummaryCardLayout {
         let height = WorkbenchControlMetrics.redesignCoverSummaryHeight
@@ -26,7 +26,7 @@ struct CoverSummaryCardLayout: Equatable {
         let overlap = coverFrame.intersection(contentFrame)
         return CoverSummaryCardLayout(
             coverFrame: coverFrame,
-            blurFrame: overlap.isNull ? .zero : overlap
+            blendFrame: overlap.isNull ? .zero : overlap
         )
     }
 }
@@ -102,31 +102,42 @@ struct CoverSummaryCard<Cover: View>: View {
                     y: layout.coverFrame.midY
                 )
 
-            if !layout.blurFrame.isEmpty {
-                cover()
+            if !layout.blendFrame.isEmpty {
+                LinearGradient(
+                    stops: [
+                        .init(
+                            color: WorkbenchRedesignColors.bgSurface.opacity(
+                                WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingOpacity
+                            ),
+                            location: WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingLocation
+                        ),
+                        .init(
+                            color: WorkbenchRedesignColors.bgSurface.opacity(
+                                WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity
+                            ),
+                            location: WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleLocation
+                        ),
+                        .init(
+                            color: WorkbenchRedesignColors.bgSurface.opacity(
+                                WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingOpacity
+                            ),
+                            location: WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingLocation
+                        ),
+                        .init(
+                            color: WorkbenchRedesignColors.bgSurface.opacity(0),
+                            location: 1
+                        ),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
                     .frame(
-                        width: layout.coverFrame.width,
-                        height: layout.coverFrame.height
+                        width: layout.blendFrame.width,
+                        height: layout.blendFrame.height
                     )
-                    .blur(
-                        radius: WorkbenchControlMetrics.redesignCoverSummaryBlurRadius,
-                        opaque: true
-                    )
-                    .clipShape(coverShape)
-                    .mask(alignment: .topLeading) {
-                        Rectangle()
-                            .frame(
-                                width: layout.blurFrame.width,
-                                height: layout.blurFrame.height
-                            )
-                            .offset(
-                                x: layout.blurFrame.minX - layout.coverFrame.minX,
-                                y: layout.blurFrame.minY - layout.coverFrame.minY
-                            )
-                    }
                     .position(
-                        x: layout.coverFrame.midX,
-                        y: layout.coverFrame.midY
+                        x: layout.blendFrame.midX,
+                        y: layout.blendFrame.midY
                     )
             }
         }
