@@ -200,6 +200,27 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeLibraryListSubtitle: CGFloat = 13
     /// --font-size-library-list-meta: 12px
     static let redesignFontSizeLibraryListMeta: CGFloat = 12
+
+    // Cover Summary tokens are provisional until visual acceptance is folded
+    // into UI Design System.md.
+    /// --height-cover-summary: 246px
+    static let redesignCoverSummaryHeight: CGFloat = 246
+    /// --width-cover-summary-content-safe: 400px
+    static let redesignCoverSummaryContentSafeWidth: CGFloat = 400
+    /// --width-cover-summary-blend: 280px
+    static let redesignCoverSummaryBlendWidth: CGFloat = 280
+    /// --radius-cover-summary: 16px
+    static let redesignCoverSummaryRadius: CGFloat = 16
+    /// --width-cover-summary-border: 1px
+    static let redesignCoverSummaryBorderWidth: CGFloat = 1
+    /// --padding-cover-summary-content: 40px
+    static let redesignCoverSummaryContentPadding: CGFloat = 40
+    /// --font-size-cover-summary-title: 28px
+    static let redesignFontSizeCoverSummaryTitle: CGFloat = 28
+    /// --font-weight-cover-summary-title: 700
+    static let redesignFontWeightCoverSummaryTitle: Font.Weight = .bold
+    /// --gap-cover-summary-to-toolbar: 24px
+    static let redesignCoverSummaryToolbarGap: CGFloat = 24
 }
 
 enum WorkbenchControlColors {

@@ -57,6 +57,7 @@ private struct WorkbenchShioriTableContent: View {
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
             isRedesign: true,
+            summaryContent: coverSummary,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,
             selectionActions: selectedSummaryActions,
@@ -210,6 +211,23 @@ private struct WorkbenchShioriTableContent: View {
             selectedRowCount: isSelectionMode
                 ? rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
                 : 0
+        )
+    }
+
+    private var coverSummary: AnyView? {
+        guard let summary = shioriStore.activeListSummary else { return nil }
+        return AnyView(
+            CoverSummaryCard(
+                title: summary.list.name,
+                description: summary.list.description,
+                actionTitle: summary.resumeShiori == nil ? "Play" : "Resume",
+                isActionEnabled: shioriStore.activeListHasPlayableContent,
+                action: {
+                    appState.openShioriListPlayback(summary)
+                }
+            ) {
+                ShioriListCoverView(coverPath: summary.list.coverPath)
+            }
         )
     }
 

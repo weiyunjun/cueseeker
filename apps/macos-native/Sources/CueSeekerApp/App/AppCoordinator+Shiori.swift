@@ -67,11 +67,22 @@ extension AppCoordinator {
     }
 
     func openRecentShiori(_ summary: ShioriListSummary) {
-        guard let database = shioriDatabase,
-              let item = summary.resumeShiori
-        else {
-            return
-        }
+        guard let item = summary.resumeShiori else { return }
+        openShioriListPlayback(summary, preferredShioriID: item.id)
+    }
+
+    func openShioriListPlayback(_ summary: ShioriListSummary) {
+        openShioriListPlayback(
+            summary,
+            preferredShioriID: summary.resumeShiori?.id
+        )
+    }
+
+    private func openShioriListPlayback(
+        _ summary: ShioriListSummary,
+        preferredShioriID: Int64?
+    ) {
+        guard let database = shioriDatabase else { return }
         do {
             let resolvedByID = Dictionary(
                 uniqueKeysWithValues: try database.shioris(
@@ -86,9 +97,10 @@ extension AppCoordinator {
                 }
                 return relation.id
             }
-            guard let targetID = navigationScopeIDs.contains(item.id)
-                    ? item.id
-                    : navigationScopeIDs.first,
+            let preferredTargetID = preferredShioriID.flatMap { candidate in
+                navigationScopeIDs.contains(candidate) ? candidate : nil
+            }
+            guard let targetID = preferredTargetID ?? navigationScopeIDs.first,
                   let target = resolvedByID[targetID],
                   let ordinal = navigationScopeIDs.firstIndex(of: targetID)
             else {
@@ -103,7 +115,7 @@ extension AppCoordinator {
                 displayTitle: target.displayTitle
             )
         } catch {
-            print("Failed to open recent Shiori: \(error)")
+            print("Failed to open Shiori list playback: \(error)")
         }
     }
 

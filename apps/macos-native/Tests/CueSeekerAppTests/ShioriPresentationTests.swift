@@ -120,12 +120,26 @@ func shioriOverviewAndTableLoadingFollowTheSelectedList() async throws {
     try await waitForShioriTasksToFinish(app)
     #expect(app.workbenchLayout.selectedShioriListID == secondList.id)
     #expect(app.shiori.activeListID == secondList.id)
+    #expect(app.shiori.activeListSummary?.list.id == secondList.id)
+    #expect(app.shiori.activeListSummary?.list.name == secondList.name)
+    #expect(app.shiori.activeListSummary?.cueCount == 1)
+    #expect(app.shiori.activeListSummary?.resumeShiori?.id == secondItem.id)
+    #expect(app.shiori.activeListHasPlayableContent)
     #expect(app.shiori.residentRelations.map(\.id) == [secondItem.id])
 
     app.showShioriListOverview()
     try await waitForShioriTasksToFinish(app)
     #expect(app.workbenchLayout.selectedShioriListID == nil)
     #expect(app.shiori.activeListID == secondList.id)
+
+    let emptyList = try shioriDatabase.createShioriList(name: "Empty")
+    app.reloadShioriListOverview()
+    try await waitForShioriTasksToFinish(app)
+    app.openShioriList(id: emptyList.id)
+    try await waitForShioriTasksToFinish(app)
+    #expect(app.shiori.activeListSummary?.cueCount == 0)
+    #expect(app.shiori.activeListSummary?.resumeShiori == nil)
+    #expect(!app.shiori.activeListHasPlayableContent)
 }
 
 @MainActor

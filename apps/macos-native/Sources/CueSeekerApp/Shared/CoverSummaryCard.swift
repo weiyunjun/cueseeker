@@ -1,0 +1,154 @@
+import SwiftUI
+
+struct CoverSummaryCardLayout: Equatable {
+    let coverFrame: CGRect
+    let blendFrame: CGRect
+
+    static func resolve(containerSize: CGSize) -> CoverSummaryCardLayout {
+        let height = WorkbenchControlMetrics.redesignCoverSummaryHeight
+        let coverWidth = height
+            * WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+        let coverFrame = CGRect(
+            x: containerSize.width - coverWidth,
+            y: 0,
+            width: coverWidth,
+            height: height
+        )
+        return CoverSummaryCardLayout(
+            coverFrame: coverFrame,
+            blendFrame: CGRect(
+                x: coverFrame.minX,
+                y: 0,
+                width: WorkbenchControlMetrics.redesignCoverSummaryBlendWidth,
+                height: height
+            )
+        )
+    }
+}
+
+struct CoverSummaryCard<Cover: View>: View {
+    let title: String
+    let summaryDescription: String
+    let actionTitle: String
+    let isActionEnabled: Bool
+    let action: () -> Void
+    let cover: () -> Cover
+
+    init(
+        title: String,
+        description: String,
+        actionTitle: String,
+        isActionEnabled: Bool,
+        action: @escaping () -> Void,
+        @ViewBuilder cover: @escaping () -> Cover
+    ) {
+        self.title = title
+        summaryDescription = description
+        self.actionTitle = actionTitle
+        self.isActionEnabled = isActionEnabled
+        self.action = action
+        self.cover = cover
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            WorkbenchRedesignColors.bgSurface
+            coverLayer
+            content
+        }
+        .frame(
+            maxWidth: .infinity,
+            minHeight: WorkbenchControlMetrics.redesignCoverSummaryHeight,
+            maxHeight: WorkbenchControlMetrics.redesignCoverSummaryHeight,
+            alignment: .leading
+        )
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCoverSummaryRadius,
+                style: .continuous
+            )
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCoverSummaryRadius,
+                style: .continuous
+            )
+            .strokeBorder(
+                WorkbenchRedesignColors.borderMuted,
+                lineWidth: WorkbenchControlMetrics.redesignCoverSummaryBorderWidth
+            )
+        )
+    }
+
+    private var coverLayer: some View {
+        GeometryReader { proxy in
+            let layout = CoverSummaryCardLayout.resolve(
+                containerSize: proxy.size
+            )
+
+            cover()
+                .frame(
+                    width: layout.coverFrame.width,
+                    height: layout.coverFrame.height
+                )
+                .position(
+                    x: layout.coverFrame.midX,
+                    y: layout.coverFrame.midY
+                )
+
+            LinearGradient(
+                colors: [
+                    WorkbenchRedesignColors.bgSurface,
+                    WorkbenchRedesignColors.bgSurface.opacity(0),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(
+                width: layout.blendFrame.width,
+                height: layout.blendFrame.height
+            )
+            .position(
+                x: layout.blendFrame.midX,
+                y: layout.blendFrame.midY
+            )
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            Text(title)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle,
+                    weight: WorkbenchControlMetrics.redesignFontWeightCoverSummaryTitle
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .lineLimit(1)
+
+            Text(summaryDescription)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                .lineLimit(2)
+
+            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
+
+            WorkbenchButton(
+                title: actionTitle,
+                systemImage: "play.fill",
+                isRedesign: true,
+                action: action
+            )
+            .disabled(!isActionEnabled)
+        }
+        .padding(WorkbenchControlMetrics.redesignCoverSummaryContentPadding)
+        .frame(
+            width: WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth,
+            height: WorkbenchControlMetrics.redesignCoverSummaryHeight,
+            alignment: .leading
+        )
+    }
+}

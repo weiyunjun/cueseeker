@@ -48,6 +48,37 @@ final class ShioriStore: ObservableObject {
         }
     }
 
+    var activeListSummary: ShioriListSummary? {
+        guard let activeListID,
+              let overview = listOverview.lists.first(where: {
+                  $0.id == activeListID
+              })
+        else {
+            return nil
+        }
+        guard let recent = recentListSummaries.first(where: {
+            $0.id == activeListID
+        }) else {
+            return overview
+        }
+        return ShioriListSummary(
+            list: overview.list,
+            cueCount: overview.cueCount,
+            resumeShiori: recent.resumeShiori,
+            resumePosition: recent.resumePosition
+        )
+    }
+
+    var activeListHasPlayableContent: Bool {
+        guard let activeListID,
+              residentListID == activeListID,
+              residentDataRevision == tableDataRevision
+        else {
+            return activeListSummary?.resumeShiori?.isValid == true
+        }
+        return residentShiorisByID.values.contains(where: \.isValid)
+    }
+
     let tableRowStore = TableSandboxRowModelStore()
 
     init(
