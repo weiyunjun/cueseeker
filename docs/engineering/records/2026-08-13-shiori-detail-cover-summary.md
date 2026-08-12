@@ -21,10 +21,17 @@ Do not connect the component to other pages in this change.
    clipping, and active-list recent-state projection.
 6. Kept the new dimensions in one provisional token block so visual iterations
    change one source of truth before the accepted values are documented.
+7. Extended the existing virtual table scroll container to own the Shiori
+   detail page chrome, so the cover scrolls away while the toolbar, optional
+   facet panel, and table header pin as one stack.
+8. Moved the table scrollbar overlay to the full Shiori main viewport and
+   included the cover in the existing table document extent without adding a
+   second scroll-position source.
 
 # Verification
 
 - `swift test --filter 'CoverSummaryCardTests|ShioriPresentationTests|WorkbenchControlMetricsTests|LibraryCoverFrameTests'`
+- `swift test --filter 'SubtitleTableVirtualRowTests|SubtitleTableScrollbarMetricsTests|CoverSummaryCardTests'`
 - Actual-app Light and Dark captures used list 5's current database name,
   description, stored cover, recent state, and 28-row result projection.
 - A full `swift test` run was also executed. The new and focused tests passed;
@@ -37,7 +44,9 @@ Do not connect the component to other pages in this change.
 The Shiori detail page now presents real list metadata and its real stored cover
 inside a fixed-height rounded summary card. The cover remains 16:9 and
 right-aligned, while compact widths crop its left edge beneath the dynamic
-surface-to-image blend.
+surface-to-image blend. The page now has one vertical scroll model: the cover
+leaves the viewport, the search/filter stack and table header stay pinned, and
+the unified custom scrollbar tracks the full Shiori viewport at its right edge.
 
 # Follow-ups
 

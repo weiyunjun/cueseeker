@@ -221,6 +221,8 @@ enum WorkbenchControlMetrics {
     static let redesignFontWeightCoverSummaryTitle: Font.Weight = .bold
     /// --gap-cover-summary-to-toolbar: 24px
     static let redesignCoverSummaryToolbarGap: CGFloat = 24
+    /// --height-cue-facet-filter-panel-pinned: 244px
+    static let redesignCueFacetFilterPanelPinnedHeight: CGFloat = 244
 }
 
 enum WorkbenchControlColors {

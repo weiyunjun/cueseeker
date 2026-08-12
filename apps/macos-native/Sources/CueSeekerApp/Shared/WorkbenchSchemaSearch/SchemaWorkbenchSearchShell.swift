@@ -89,6 +89,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let searchPlaceholder: String
     let isRedesign: Bool
     let summaryContent: AnyView?
+    let hostsPageChromeInTable: Bool
     let tableSummary: SchemaWorkbenchTableSummary?
     let searchResultCountText: String?
     let selectionActions: AnyView?
@@ -109,6 +110,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
         summaryContent: AnyView? = nil,
+        hostsPageChromeInTable: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
         searchResultCountText: String? = nil,
         selectionActions: AnyView? = nil,
@@ -126,6 +128,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
         self.summaryContent = summaryContent
+        self.hostsPageChromeInTable = hostsPageChromeInTable
         self.tableSummary = tableSummary
         self.searchResultCountText = searchResultCountText
         self.selectionActions = selectionActions
@@ -152,64 +155,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
 
-            VStack(spacing: 0) {
-                if isRedesign {
-                    if let summaryContent {
-                        summaryContent
-                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                            .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
-                            .padding(.bottom, WorkbenchControlMetrics.redesignCoverSummaryToolbarGap)
-                    }
-
-                    SchemaWorkbenchSearchToolbar(
-                        placeholder: searchPlaceholder,
-                        searchDraft: $searchDraft,
-                        searchResultCountText: searchResultCountText,
-                        isSelectionMode: isSelectionMode,
-                        isFilterPanelOpen: isFilterPanelVisible,
-                        canEnterSelectionMode: canEnterSelectionMode,
-                        onSubmit: onSearchSubmit,
-                        onFilter: onToggleFilterPanel,
-                        onToggleSelectionMode: onToggleSelectionMode
-                    )
-                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                    .padding(
-                        .top,
-                        summaryContent == nil
-                            ? SchemaWorkbenchStyle.pageTopPadding
-                            : 0
-                    )
-                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                } else {
-                    SchemaWorkbenchLegacySearchCommandBar(
-                        placeholder: searchPlaceholder,
-                        searchDraft: $searchDraft,
-                        onSubmit: onSearchSubmit
-                    )
-                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                    .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
-                    .padding(.bottom, 12)
-
-                    SchemaWorkbenchLegacyFilterControlBar(
-                        isFilterPanelOpen: isFilterPanelVisible,
-                        onFilter: onToggleFilterPanel
-                    )
-                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                    .padding(.bottom, 12)
-                }
-
-                if isRedesign,
-                   isFilterPanelVisible {
-                    filterPanel
-                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                }
-
+            if isRedesign, summaryContent != nil, hostsPageChromeInTable {
                 ZStack(alignment: .bottom) {
                     tableContent(columns)
 
-                    if isRedesign,
-                       let tableSummary,
+                    if let tableSummary,
                        tableSummary.selectedRowCount > 0,
                        let selectionActions {
                         SchemaWorkbenchSelectionActionOverlay(
@@ -219,9 +169,57 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                VStack(spacing: 0) {
+                    if isRedesign {
+                        searchToolbar
+                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                            .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                    } else {
+                        SchemaWorkbenchLegacySearchCommandBar(
+                            placeholder: searchPlaceholder,
+                            searchDraft: $searchDraft,
+                            onSubmit: onSearchSubmit
+                        )
+                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                        .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                        .padding(.bottom, 12)
+
+                        SchemaWorkbenchLegacyFilterControlBar(
+                            isFilterPanelOpen: isFilterPanelVisible,
+                            onFilter: onToggleFilterPanel
+                        )
+                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                        .padding(.bottom, 12)
+                    }
+
+                    if isRedesign,
+                       isFilterPanelVisible {
+                        filterPanel
+                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                    }
+
+                    ZStack(alignment: .bottom) {
+                        tableContent(columns)
+
+                        if isRedesign,
+                           let tableSummary,
+                           tableSummary.selectedRowCount > 0,
+                           let selectionActions {
+                            SchemaWorkbenchSelectionActionOverlay(
+                                selectedRowCount: tableSummary.selectedRowCount,
+                                actions: selectionActions
+                            )
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                        }
+                    }
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, SchemaWorkbenchStyle.pageBottomPadding)
                     .frame(maxHeight: .infinity)
+                }
             }
         }
         .environment(\.subtitleTableExternalTextSelectionSession, externalTextSelectionSession)
@@ -245,6 +243,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             isBlocked: externalTextSelectionIsBlocked
         )
     }
+
+    private var searchToolbar: some View {
+        SchemaWorkbenchSearchToolbar(
+            placeholder: searchPlaceholder,
+            searchDraft: $searchDraft,
+            searchResultCountText: searchResultCountText,
+            isSelectionMode: isSelectionMode,
+            isFilterPanelOpen: isFilterPanelVisible,
+            canEnterSelectionMode: canEnterSelectionMode,
+            onSubmit: onSearchSubmit,
+            onFilter: onToggleFilterPanel,
+            onToggleSelectionMode: onToggleSelectionMode
+        )
+    }
+
 }
 
 enum SchemaWorkbenchStyle {

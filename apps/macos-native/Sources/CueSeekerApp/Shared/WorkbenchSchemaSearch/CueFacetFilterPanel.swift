@@ -1,6 +1,11 @@
 import SwiftUI
 import CueSeekerCore
 
+enum CueFacetFilterPanelMetrics {
+    static let pinnedHeight =
+        WorkbenchControlMetrics.redesignCueFacetFilterPanelPinnedHeight
+}
+
 struct CueFacetFilterPanel: View {
     let distribution: CueFacetDistribution?
     let availableLanguages: [SubtitleLanguageCode]

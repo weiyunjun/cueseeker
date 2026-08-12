@@ -58,6 +58,7 @@ private struct WorkbenchShioriTableContent: View {
             columns: SchemaWorkbenchSearchDefaults.shioriColumns,
             isRedesign: true,
             summaryContent: coverSummary,
+            hostsPageChromeInTable: true,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,
             selectionActions: selectedSummaryActions,
@@ -122,7 +123,8 @@ private struct WorkbenchShioriTableContent: View {
                     onMoveShiori: moveShiori,
                     onDuplicateShiori: duplicateShiori,
                     onRemoveShiori: requestRemoveShiori,
-                    isRedesign: true
+                    isRedesign: true,
+                    pageChrome: shioriDetailPageChrome
                 )
 
                 if shioriStore.tableHasLoadedInitialPage && shioriStore.tableTotalSavedRowCount == 0 {
@@ -228,6 +230,70 @@ private struct WorkbenchShioriTableContent: View {
             ) {
                 ShioriListCoverView(coverPath: summary.list.coverPath)
             }
+        )
+    }
+
+    private var shioriDetailPageChrome: SubtitleTablePageChrome? {
+        guard let coverSummary else { return nil }
+        let pinnedContent = AnyView(
+            VStack(spacing: 0) {
+                SchemaWorkbenchSearchToolbar(
+                    placeholder: "Search cues by name, lyrics, or keywords...",
+                    searchDraft: searchInputBinding,
+                    searchResultCountText: exactSearchResultCountText,
+                    isSelectionMode: isSelectionMode,
+                    isFilterPanelOpen: isFacetPanelVisible,
+                    canEnterSelectionMode: canEnterSelectionMode,
+                    onFilter: {
+                        if !isFacetPanelVisible {
+                            restoreShioriFacetFilter()
+                        }
+                        isFacetPanelVisible.toggle()
+                    },
+                    onToggleSelectionMode: toggleSelectionMode
+                )
+                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+
+                if isFacetPanelVisible {
+                    CueFacetFilterPanel(
+                        distribution:
+                            shioriStore.tableFacetDistribution
+                                ?? shioriStore.residentFacetSnapshot?.distribution,
+                        availableLanguages: availableFacetLanguages,
+                        isCalculating: shioriStore.residentFacetSnapshot == nil,
+                        isDisabled: isSelectionMode,
+                        filter: shioriFacetFilterBinding
+                    )
+                    .frame(height: CueFacetFilterPanelMetrics.pinnedHeight)
+                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                }
+            }
+            .background(WorkbenchRedesignColors.bgSurface)
+        )
+
+        return SubtitleTablePageChrome(
+            scrollableHeader: AnyView(
+                coverSummary
+                    .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
+                    .padding(
+                        .bottom,
+                        WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
+                    )
+            ),
+            pinnedHeader: pinnedContent,
+            scrollableHeaderHeight:
+                WorkbenchControlMetrics.redesignSpacing6
+                + WorkbenchControlMetrics.redesignCoverSummaryHeight
+                + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap,
+            pinnedHeaderHeight:
+                WorkbenchControlMetrics.redesignHeight
+                + WorkbenchControlMetrics.redesignSpacing3
+                + (isFacetPanelVisible
+                    ? CueFacetFilterPanelMetrics.pinnedHeight
+                        + WorkbenchControlMetrics.redesignSpacing3
+                    : 0),
+            horizontalInset: SchemaWorkbenchStyle.pageHorizontalPadding,
+            bottomInset: SchemaWorkbenchStyle.pageBottomPadding
         )
     }
 

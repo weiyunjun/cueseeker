@@ -1407,6 +1407,30 @@ final class SubtitleTableContainerView: NSView {
     }
 }
 
+final class SubtitleTablePageChromeViewportView: NSView {
+    weak var scrollView: NSScrollView?
+
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit === self ? nil : hit
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        scrollView?.scrollWheel(with: event)
+    }
+}
+
 struct SubtitleTableScrollbarMetrics {
     typealias Axis = TableScrollbarAxis
 
@@ -2253,6 +2277,75 @@ extension EnvironmentValues {
 
 typealias SubtitleTableTextCopyRowLoader = @MainActor (Range<Int>) async -> [SubtitleTableRow]?
 
+struct SubtitleTablePageChrome {
+    let scrollableHeader: AnyView
+    let pinnedHeader: AnyView
+    let scrollableHeaderHeight: CGFloat
+    let pinnedHeaderHeight: CGFloat
+    let horizontalInset: CGFloat
+    let bottomInset: CGFloat
+}
+
+struct SubtitleTablePageScrollGeometry: Equatable {
+    let scrollableHeaderHeight: CGFloat
+    let pinnedHeaderHeight: CGFloat
+    let tableHeaderHeight: CGFloat
+    let bottomInset: CGFloat
+
+    var rowsOriginY: CGFloat {
+        scrollableHeaderHeight + pinnedHeaderHeight + tableHeaderHeight
+    }
+
+    func scrollableHeaderOriginY(scrollOffset: CGFloat) -> CGFloat {
+        -max(0, scrollOffset)
+    }
+
+    func pinnedHeaderOriginY(scrollOffset: CGFloat) -> CGFloat {
+        max(0, scrollableHeaderHeight - max(0, scrollOffset))
+    }
+
+    func tableBodyVisibleRect(
+        scrollOffset: CGFloat,
+        viewportSize: CGSize
+    ) -> CGRect {
+        let bodyOrigin = max(0, scrollOffset)
+            + pinnedHeaderOriginY(scrollOffset: scrollOffset)
+            + pinnedHeaderHeight
+            + tableHeaderHeight
+        return CGRect(
+            x: 0,
+            y: bodyOrigin,
+            width: max(0, viewportSize.width),
+            height: max(
+                0,
+                viewportSize.height
+                    - pinnedHeaderOriginY(scrollOffset: scrollOffset)
+                    - pinnedHeaderHeight
+                    - tableHeaderHeight
+            )
+        )
+    }
+
+    func documentHeight(rowsHeight: CGFloat, viewportHeight: CGFloat) -> CGFloat {
+        max(1, viewportHeight, rowsOriginY + max(0, rowsHeight) + bottomInset)
+    }
+
+    func scrollOffsetForRow(localRowY: CGFloat, maximumOffset: CGFloat) -> CGFloat {
+        min(
+            max(0, maximumOffset),
+            max(0, scrollableHeaderHeight + max(0, localRowY))
+        )
+    }
+}
+
+final class SubtitleTablePageChromeHostingView: NSHostingView<AnyView> {
+    weak var scrollView: NSScrollView?
+
+    override func scrollWheel(with event: NSEvent) {
+        scrollView?.scrollWheel(with: event)
+    }
+}
+
 struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.isWorkbenchPopupLayerOpen) var isWorkbenchPopupLayerOpen
@@ -2296,6 +2389,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
     var isRedesign: Bool = false
+    var pageChrome: SubtitleTablePageChrome?
 
     func makeCoordinator() -> Coordinator {
         let coordinator = Coordinator(
@@ -2370,12 +2464,23 @@ struct SubtitleTableView: NSViewRepresentable {
         scrollView.documentView = documentView
         scrollView.contentView.postsBoundsChangedNotifications = true
 
+        let pageChromeViewport: SubtitleTablePageChromeViewportView?
+        if pageChrome != nil {
+            let viewport = SubtitleTablePageChromeViewportView()
+            viewport.translatesAutoresizingMaskIntoConstraints = false
+            viewport.scrollView = scrollView
+            pageChromeViewport = viewport
+        } else {
+            pageChromeViewport = nil
+        }
+
         context.coordinator.attach(
             container: container,
             headerView: header,
             scrollView: scrollView,
             scrollbarOverlayView: scrollbarOverlayView,
-            documentView: documentView
+            documentView: documentView,
+            pageChromeViewport: pageChromeViewport
         )
         context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         NotificationCenter.default.addObserver(
@@ -2385,8 +2490,13 @@ struct SubtitleTableView: NSViewRepresentable {
             object: scrollView.contentView
         )
 
-        container.addSubview(header)
         container.addSubview(scrollView)
+        if let pageChromeViewport {
+            container.addSubview(pageChromeViewport)
+            pageChromeViewport.addSubview(header)
+        } else {
+            container.addSubview(header)
+        }
         container.addSubview(scrollbarOverlayView)
 
         let headerHeightConstraint = header.heightAnchor.constraint(equalToConstant: context.coordinator.currentHeaderHeight)
@@ -2396,24 +2506,54 @@ struct SubtitleTableView: NSViewRepresentable {
         header.isRedesign = context.coordinator.isRedesign
         documentView.isRedesign = context.coordinator.isRedesign
 
-        NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: container.topAnchor),
-            header.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            headerHeightConstraint,
+        if let pageChrome, let pageChromeViewport {
+            header.translatesAutoresizingMaskIntoConstraints = true
+            NSLayoutConstraint.activate([
+                pageChromeViewport.topAnchor.constraint(equalTo: container.topAnchor),
+                pageChromeViewport.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                pageChromeViewport.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                pageChromeViewport.bottomAnchor.constraint(equalTo: container.bottomAnchor),
 
-            scrollView.topAnchor.constraint(equalTo: header.bottomAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+                scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+                scrollView.leadingAnchor.constraint(
+                    equalTo: container.leadingAnchor,
+                    constant: pageChrome.horizontalInset
+                ),
+                scrollView.trailingAnchor.constraint(
+                    equalTo: container.trailingAnchor,
+                    constant: -pageChrome.horizontalInset
+                ),
+                scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
 
-            scrollbarOverlayView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            scrollbarOverlayView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            scrollbarOverlayView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            scrollbarOverlayView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
-        ])
+                scrollbarOverlayView.topAnchor.constraint(equalTo: container.topAnchor),
+                scrollbarOverlayView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                scrollbarOverlayView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                scrollbarOverlayView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            ])
+        } else {
+            NSLayoutConstraint.activate([
+                header.topAnchor.constraint(equalTo: container.topAnchor),
+                header.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                header.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                headerHeightConstraint,
+
+                scrollView.topAnchor.constraint(equalTo: header.bottomAnchor),
+                scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+
+                scrollbarOverlayView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+                scrollbarOverlayView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+                scrollbarOverlayView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+                scrollbarOverlayView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            ])
+        }
 
         context.coordinator.resizeDocument()
+        if pageChrome != nil {
+            context.coordinator.scrollToTop()
+        }
+        context.coordinator.refreshPageScrollPresentation()
         context.coordinator.notifyVisibleRowsChanged()
         return container
     }
@@ -2428,6 +2568,7 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
         context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
+        context.coordinator.updatePageChrome(pageChrome)
         context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         context.coordinator.update(
             tableName: tableName,
@@ -2574,6 +2715,10 @@ struct SubtitleTableView: NSViewRepresentable {
         private weak var scrollView: NSScrollView?
         private weak var scrollbarOverlayView: SubtitleTableScrollbarOverlayView?
         private weak var documentView: SubtitleVirtualTableDocumentView?
+        private weak var pageChromeViewport: SubtitleTablePageChromeViewportView?
+        private var pageChrome: SubtitleTablePageChrome?
+        private var scrollablePageChromeHost: SubtitleTablePageChromeHostingView?
+        private var pinnedPageChromeHost: SubtitleTablePageChromeHostingView?
         private var buttonsHost: NSHostingView<CueHoverButtons>?
         fileprivate var isMenuOpen = false
         private var menuHost: SubtitleTableMenuHostingView?
@@ -2794,13 +2939,15 @@ struct SubtitleTableView: NSViewRepresentable {
             headerView: SubtitleVirtualTableHeaderView,
             scrollView: NSScrollView,
             scrollbarOverlayView: SubtitleTableScrollbarOverlayView,
-            documentView: SubtitleVirtualTableDocumentView
+            documentView: SubtitleVirtualTableDocumentView,
+            pageChromeViewport: SubtitleTablePageChromeViewportView? = nil
         ) {
             self.container = container
             self.headerView = headerView
             self.scrollView = scrollView
             self.scrollbarOverlayView = scrollbarOverlayView
             self.documentView = documentView
+            self.pageChromeViewport = pageChromeViewport
             headerView.coordinator = self
             headerView.isRedesign = isRedesign
             documentView.coordinator = self
@@ -2809,6 +2956,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 self?.setScrollbarDragging(isDragging)
             }
             configureScrollbars()
+            updatePageChromeHosts()
 
             if !isRedesign {
                 let buttonsHost = NSHostingView(rootView: CueHoverButtons(
@@ -2824,6 +2972,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             container.onLayout = { [weak self] in
                 self?.resizeDocument()
+                self?.layoutPageChrome()
                 self?.repositionOpenMenu()
             }
             NotificationCenter.default.addObserver(
@@ -2847,6 +2996,148 @@ struct SubtitleTableView: NSViewRepresentable {
         func unbindExternalTextSelectionSession() {
             externalTextSelectionSession?.unbind(self)
             externalTextSelectionSession = nil
+        }
+
+        func updatePageChrome(_ pageChrome: SubtitleTablePageChrome?) {
+            let geometryChanged = self.pageChrome?.scrollableHeaderHeight
+                != pageChrome?.scrollableHeaderHeight
+                || self.pageChrome?.pinnedHeaderHeight
+                    != pageChrome?.pinnedHeaderHeight
+                || self.pageChrome?.bottomInset != pageChrome?.bottomInset
+            let previousPinnedHeaderHeight = self.pageChrome?.pinnedHeaderHeight
+            self.pageChrome = pageChrome
+            updatePageChromeHosts()
+            if geometryChanged {
+                resizeDocument()
+                if let previousPinnedHeaderHeight,
+                   let nextPinnedHeaderHeight = pageChrome?.pinnedHeaderHeight,
+                   let scrollView {
+                    let offset = scrollView.contentView.bounds.minY
+                    let pinThreshold = pageChrome?.scrollableHeaderHeight ?? 0
+                    if offset >= pinThreshold {
+                        let delta = nextPinnedHeaderHeight - previousPinnedHeaderHeight
+                        let maximumY = max(
+                            0,
+                            (documentView?.bounds.height ?? 0)
+                                - scrollView.contentView.bounds.height
+                        )
+                        var origin = scrollView.contentView.bounds.origin
+                        origin.y = min(max(0, origin.y + delta), maximumY)
+                        scrollView.contentView.scroll(to: origin)
+                        scrollView.reflectScrolledClipView(scrollView.contentView)
+                    }
+                }
+            }
+            layoutPageChrome()
+        }
+
+        private var pageScrollGeometry: SubtitleTablePageScrollGeometry? {
+            guard let pageChrome else { return nil }
+            return SubtitleTablePageScrollGeometry(
+                scrollableHeaderHeight: pageChrome.scrollableHeaderHeight,
+                pinnedHeaderHeight: pageChrome.pinnedHeaderHeight,
+                tableHeaderHeight: currentHeaderHeight,
+                bottomInset: pageChrome.bottomInset
+            )
+        }
+
+        private var rowsOriginY: CGFloat {
+            pageScrollGeometry?.rowsOriginY ?? 0
+        }
+
+        private func updatePageChromeHosts() {
+            guard let pageChrome,
+                  let pageChromeViewport,
+                  let scrollView
+            else {
+                scrollablePageChromeHost?.removeFromSuperview()
+                pinnedPageChromeHost?.removeFromSuperview()
+                scrollablePageChromeHost = nil
+                pinnedPageChromeHost = nil
+                return
+            }
+
+            if let scrollablePageChromeHost {
+                scrollablePageChromeHost.rootView = pageChrome.scrollableHeader
+            } else {
+                let host = SubtitleTablePageChromeHostingView(
+                    rootView: pageChrome.scrollableHeader
+                )
+                host.scrollView = scrollView
+                pageChromeViewport.addSubview(host)
+                scrollablePageChromeHost = host
+            }
+
+            if let pinnedPageChromeHost {
+                pinnedPageChromeHost.rootView = pageChrome.pinnedHeader
+            } else {
+                let host = SubtitleTablePageChromeHostingView(
+                    rootView: pageChrome.pinnedHeader
+                )
+                host.scrollView = scrollView
+                pageChromeViewport.addSubview(host)
+                pinnedPageChromeHost = host
+            }
+
+            if let headerView {
+                pageChromeViewport.addSubview(headerView)
+            }
+            if let pinnedPageChromeHost, let scrollablePageChromeHost {
+                pageChromeViewport.addSubview(
+                    pinnedPageChromeHost,
+                    positioned: .above,
+                    relativeTo: nil
+                )
+                pageChromeViewport.addSubview(
+                    scrollablePageChromeHost,
+                    positioned: .below,
+                    relativeTo: pinnedPageChromeHost
+                )
+            }
+        }
+
+        private func layoutPageChrome() {
+            guard let pageChrome,
+                  let geometry = pageScrollGeometry,
+                  let container,
+                  let scrollView,
+                  let headerView,
+                  let scrollablePageChromeHost,
+                  let pinnedPageChromeHost
+            else {
+                return
+            }
+
+            let scrollOffset = scrollView.contentView.bounds.minY
+            let inset = max(0, pageChrome.horizontalInset)
+            let contentWidth = max(0, container.bounds.width - 2 * inset)
+            scrollablePageChromeHost.frame = CGRect(
+                x: inset,
+                y: geometry.scrollableHeaderOriginY(scrollOffset: scrollOffset),
+                width: contentWidth,
+                height: pageChrome.scrollableHeaderHeight
+            )
+            let pinnedOriginY = geometry.pinnedHeaderOriginY(
+                scrollOffset: scrollOffset
+            )
+            pinnedPageChromeHost.frame = CGRect(
+                x: inset,
+                y: pinnedOriginY,
+                width: contentWidth,
+                height: pageChrome.pinnedHeaderHeight
+            )
+            headerView.frame = CGRect(
+                x: inset,
+                y: pinnedOriginY + pageChrome.pinnedHeaderHeight,
+                width: contentWidth,
+                height: currentHeaderHeight
+            )
+        }
+
+        func refreshPageScrollPresentation() {
+            layoutPageChrome()
+            scrollbarOverlayView?.scrollMetricsDidChange()
+            invalidateVisibleDocument()
         }
 
         func update(
@@ -3107,7 +3398,10 @@ struct SubtitleTableView: NSViewRepresentable {
         func headerColumnLayoutForRendering(viewportWidth: CGFloat, height: CGFloat) -> SubtitleTableColumnLayout {
             let offsetX = scrollView?.contentView.bounds.origin.x ?? 0
             return tableColumnLayout(
-                contentWidth: tableContentWidth(viewportWidth: viewportWidth),
+                contentWidth: tableContentWidth(
+                    viewportWidth: scrollView?.contentView.bounds.width
+                        ?? viewportWidth
+                ),
                 height: height
             ).offsetBy(dx: -offsetX)
         }
@@ -3693,7 +3987,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func rowYOffsetForTesting(_ row: Int) -> CGFloat {
-            rowHeightCache.yOffset(for: row)
+            rowDocumentY(for: row)
         }
 
         func totalRowsHeightForTesting() -> CGFloat {
@@ -3708,6 +4002,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return nil
             }
             return rowHeightCache.yOffset(for: row)
+                + rowsOriginY
                 + measurement.primaryFirstLineOffset
                 - scrollView.contentView.bounds.minY
         }
@@ -3741,7 +4036,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func measurementRowRangeForTesting() -> Range<Int>? {
             guard let scrollView else { return nil }
-            return measurementRowRange(in: scrollView.contentView.bounds)
+            return measurementRowRange(in: tableBodyVisibleRect(for: scrollView))
         }
 
         func openSubtitleFileForTesting(row: Int) {
@@ -3764,6 +4059,27 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollbarOverlayView?.isRedesign == true &&
                 scrollView?.hasVerticalScroller == false &&
                 scrollView?.hasHorizontalScroller == false
+        }
+
+        func pageChromeFramesForTesting() -> (
+            scrollable: CGRect,
+            pinned: CGRect,
+            tableHeader: CGRect,
+            scrollbarOverlay: CGRect
+        )? {
+            guard let scrollablePageChromeHost,
+                  let pinnedPageChromeHost,
+                  let headerView,
+                  let scrollbarOverlayView
+            else {
+                return nil
+            }
+            return (
+                scrollablePageChromeHost.frame,
+                pinnedPageChromeHost.frame,
+                headerView.frame,
+                scrollbarOverlayView.frame
+            )
         }
 
         func rowActionButtonFrameForTesting(row: Int) -> CGRect? {
@@ -3867,7 +4183,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
             let nextSize = CGSize(
                 width: width,
-                height: max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
+                height: pageScrollGeometry?.documentHeight(
+                    rowsHeight: rowHeightCache.totalHeight,
+                    viewportHeight: scrollView.contentSize.height
+                ) ?? max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
             )
             scrollbarOverlayView?.needsDisplay = true
             let sizeChanged = documentView.frame.size != nextSize
@@ -3902,7 +4221,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 reflowVisibleRows()
             }
             guard let scrollView,
-                  let range = measurementRowRange(in: scrollView.contentView.bounds)
+                  let range = measurementRowRange(
+                    in: tableBodyVisibleRect(for: scrollView)
+                  )
             else { return }
             // Reflow can temporarily move the clip view while preserving a
             // primary-Cue anchor. Prune only after the visible range settles,
@@ -3918,8 +4239,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
-            scrollView.contentView.scroll(to: .zero)
+            scrollView.contentView.scroll(to: CGPoint(
+                x: 0,
+                y: 0
+            ))
             scrollView.reflectScrolledClipView(scrollView.contentView)
+            layoutPageChrome()
             invalidateVisibleDocument()
             scrollbarOverlayView?.needsDisplay = true
             invalidateDocumentCursorRects()
@@ -3936,11 +4261,16 @@ struct SubtitleTableView: NSViewRepresentable {
                 reflowVisibleRows(explicitTargetRow: clampedRow)
             }
             let maxY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
-            let y = min(rowHeightCache.yOffset(for: clampedRow), maxY)
+            let localRowY = rowHeightCache.yOffset(for: clampedRow)
+            let y = pageScrollGeometry?.scrollOffsetForRow(
+                localRowY: localRowY,
+                maximumOffset: maxY
+            ) ?? min(localRowY, maxY)
             var origin = scrollView.contentView.bounds.origin
             origin.y = y
             scrollView.contentView.scroll(to: origin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
+            layoutPageChrome()
             documentView.setNeedsDisplay(documentView.visibleRect)
             scrollbarOverlayView?.needsDisplay = true
             invalidateDocumentCursorRects()
@@ -3965,6 +4295,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @objc func scrollContentDidChange() {
             updateHoveredCueStateRow(nil)
+            layoutPageChrome()
             notifyVisibleRowsChanged()
             scrollbarOverlayView?.scrollMetricsDidChange()
             refreshHeaderForHorizontalScrollIfNeeded()
@@ -4152,7 +4483,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             guard let documentView,
-                  let visibleRows = visibleRowRange(in: documentView.visibleRect)
+                  let visibleRows = visibleRowRange()
             else {
                 return
             }
@@ -4353,7 +4684,10 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawRowsNow(in dirtyRect: CGRect) {
-            let viewportDirtyRect = dirtyRect.intersection(documentView?.visibleRect ?? .zero)
+            let tableVisibleRect = scrollView.map(tableBodyVisibleRect(for:))
+                ?? documentView?.visibleRect
+                ?? .zero
+            let viewportDirtyRect = dirtyRect.intersection(tableVisibleRect)
             guard rowCount > 0,
                   let documentView,
                   !viewportDirtyRect.isNull,
@@ -5286,7 +5620,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 else {
                     continue
                 }
-                let firstLineDocumentY = rowHeightCache.yOffset(for: row)
+                let firstLineDocumentY = rowDocumentY(for: row)
                     + measurement.primaryFirstLineOffset
                 return DynamicScrollAnchor(
                     primaryCueIdentity: model.primaryCueIdentity,
@@ -5308,7 +5642,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
-            let firstLineDocumentY = rowHeightCache.yOffset(for: anchor.row)
+            let firstLineDocumentY = rowDocumentY(for: anchor.row)
                 + measurement.primaryFirstLineOffset
             let maximumY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
             let nextY = min(
@@ -5344,7 +5678,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let resolvedAnchor = anchor ?? captureDynamicScrollAnchor()
             rowHeightCache.configure(rowCount: rowCount, defaultHeight: currentRowHeight)
             if anchor == nil,
-               let measurementRange = measurementRowRange(in: scrollView.contentView.bounds)
+               let measurementRange = measurementRowRange(
+                    in: tableBodyVisibleRect(for: scrollView)
+               )
             {
                 for row in measurementRange {
                     _ = measureRow(row, documentWidth: documentView.bounds.width)
@@ -5354,18 +5690,25 @@ struct SubtitleTableView: NSViewRepresentable {
             if let requiredTargetRow,
                requiredTargetRow >= 0,
                requiredTargetRow < rowCount,
-               measurementRowRange(in: scrollView.contentView.bounds)?.contains(requiredTargetRow) != true
+               measurementRowRange(
+                    in: tableBodyVisibleRect(for: scrollView)
+               )?.contains(requiredTargetRow) != true
             {
                 _ = measureRow(requiredTargetRow, documentWidth: documentView.bounds.width)
             }
 
-            let nextHeight = max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
+            let nextHeight = pageScrollGeometry?.documentHeight(
+                rowsHeight: rowHeightCache.totalHeight,
+                viewportHeight: scrollView.contentSize.height
+            ) ?? max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
             if abs(documentView.frame.height - nextHeight) > 0.01 {
                 documentView.setFrameSize(CGSize(width: documentView.frame.width, height: nextHeight))
             }
             restoreDynamicScrollAnchor(resolvedAnchor)
             var postRestoreHeightChanged = false
-            if let postRestoreRange = measurementRowRange(in: scrollView.contentView.bounds) {
+            if let postRestoreRange = measurementRowRange(
+                in: tableBodyVisibleRect(for: scrollView)
+            ) {
                 for row in postRestoreRange {
                     postRestoreHeightChanged = measureRow(
                         row,
@@ -5374,7 +5717,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 }
             }
             if postRestoreHeightChanged {
-                let resolvedHeight = max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
+                let resolvedHeight = pageScrollGeometry?.documentHeight(
+                    rowsHeight: rowHeightCache.totalHeight,
+                    viewportHeight: scrollView.contentSize.height
+                ) ?? max(1, scrollView.contentSize.height, rowHeightCache.totalHeight)
                 if abs(documentView.frame.height - resolvedHeight) > 0.01 {
                     documentView.setFrameSize(CGSize(
                         width: documentView.frame.width,
@@ -5399,9 +5745,13 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func rectForRow(_ row: Int, width: CGFloat) -> CGRect {
-            let y = rowHeightCache.yOffset(for: row)
+            let y = rowDocumentY(for: row)
             let height = heightForRow(row, width: width)
             return CGRect(x: 0, y: y, width: width, height: height)
+        }
+
+        private func rowDocumentY(for row: Int) -> CGFloat {
+            rowsOriginY + rowHeightCache.yOffset(for: row)
         }
 
         private func checkboxRect(forRowRect rowRect: CGRect) -> CGRect {
@@ -5423,7 +5773,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func visibleRowRange() -> Range<Int>? {
             guard let scrollView else { return nil }
-            return visibleRowRange(in: scrollView.contentView.bounds)
+            return visibleRowRange(in: tableBodyVisibleRect(for: scrollView))
         }
 
         private func visibleRowRange(in rect: CGRect) -> Range<Int>? {
@@ -5434,12 +5784,22 @@ struct SubtitleTableView: NSViewRepresentable {
             rowRange(in: rect, overscan: SubtitleTableCueGeometry.measurementOverscan)
         }
 
+        private func tableBodyVisibleRect(for scrollView: NSScrollView) -> CGRect {
+            pageScrollGeometry?.tableBodyVisibleRect(
+                scrollOffset: scrollView.contentView.bounds.minY,
+                viewportSize: scrollView.contentView.bounds.size
+            ) ?? scrollView.contentView.bounds
+        }
+
         private func rowRange(in rect: CGRect, overscan: Int) -> Range<Int>? {
             guard rowCount > 0 else { return nil }
-            let lower = rowHeightCache.rowIndex(atY: rect.minY)
+            let localMinY = rect.minY - rowsOriginY
+            let localMaxY = rect.maxY - rowsOriginY
+            guard localMaxY >= 0 else { return nil }
+            let lower = rowHeightCache.rowIndex(atY: max(0, localMinY))
             let upperY = rect.maxY > rect.minY
-                ? rect.maxY.nextDown
-                : rect.minY
+                ? max(0, localMaxY).nextDown
+                : max(0, localMinY)
             let upper = rowHeightCache.rowIndex(atY: upperY)
             let lowerBound = max(0, lower - overscan)
             let upperBound = min(rowCount, upper + overscan + 1)
@@ -5584,7 +5944,8 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
             guard rowCount > 0 else { return nil }
-            let row = rowHeightCache.rowIndex(atY: point.y)
+            guard point.y >= rowsOriginY else { return nil }
+            let row = rowHeightCache.rowIndex(atY: point.y - rowsOriginY)
             let rect = rectForRow(row, width: documentView?.bounds.width ?? 0)
             return rect.contains(point) ? row : nil
         }
@@ -5833,7 +6194,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 guard rowCount > 0 else {
                     return projectedHeaderTextPosition(forDocumentPoint: point)
                 }
-                row = rowHeightCache.rowIndex(atY: point.y)
+                row = rowHeightCache.rowIndex(
+                    atY: max(0, point.y - rowsOriginY)
+                )
             }
             let rowRect = rectForRow(row, width: documentView.bounds.width)
             let columnIDs = visibleTextColumnOrder()
@@ -6562,7 +6925,7 @@ struct SubtitleTableView: NSViewRepresentable {
             newLayout: SubtitleTableColumnLayout
         ) {
             guard let documentView,
-                  let visibleRows = visibleRowRange(in: documentView.visibleRect)
+                  let visibleRows = visibleRowRange()
             else {
                 return
             }

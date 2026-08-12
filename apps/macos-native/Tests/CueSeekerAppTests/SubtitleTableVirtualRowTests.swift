@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -507,6 +508,73 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: 1_000))
     coordinator.scrollContentDidChange()
     #expect(notifiedRanges.count == 3)
+}
+
+@MainActor
+@Test
+func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() {
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "shiori",
+        probeSurface: .shiori,
+        rowCount: 100,
+        rowProvider: { _ in nil },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: false,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    let container = SubtitleTableContainerView(
+        frame: CGRect(x: 0, y: 0, width: 1_000, height: 700)
+    )
+    let viewport = SubtitleTablePageChromeViewportView(frame: container.bounds)
+    let header = SubtitleVirtualTableHeaderView()
+    let scrollView = NSScrollView(
+        frame: CGRect(x: 32, y: 0, width: 936, height: 700)
+    )
+    let overlay = SubtitleTableScrollbarOverlayView(frame: container.bounds)
+    let documentView = SubtitleVirtualTableDocumentView(
+        frame: CGRect(x: 0, y: 0, width: 936, height: 1)
+    )
+    container.addSubview(scrollView)
+    container.addSubview(viewport)
+    viewport.addSubview(header)
+    container.addSubview(overlay)
+    scrollView.documentView = documentView
+    overlay.scrollView = scrollView
+    coordinator.attach(
+        container: container,
+        headerView: header,
+        scrollView: scrollView,
+        scrollbarOverlayView: overlay,
+        documentView: documentView,
+        pageChromeViewport: viewport
+    )
+    coordinator.updatePageChrome(SubtitleTablePageChrome(
+        scrollableHeader: AnyView(Color.clear),
+        pinnedHeader: AnyView(Color.clear),
+        scrollableHeaderHeight: 294,
+        pinnedHeaderHeight: 52,
+        horizontalInset: 32,
+        bottomInset: 14
+    ))
+    coordinator.resizeDocument()
+    var frames = coordinator.pageChromeFramesForTesting()
+    #expect(frames?.scrollable.minY == 0)
+    #expect(frames?.pinned.minY == 294)
+    #expect(frames?.tableHeader.minY == 346)
+    #expect(frames?.scrollbarOverlay == container.bounds)
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 400))
+    coordinator.scrollContentDidChange()
+    frames = coordinator.pageChromeFramesForTesting()
+    #expect(frames?.scrollable.minY == -400)
+    #expect(frames?.pinned.minY == 0)
+    #expect(frames?.tableHeader.minY == 52)
+    #expect(coordinator.usesOverlayScrollbarsForTesting())
 }
 
 @MainActor
