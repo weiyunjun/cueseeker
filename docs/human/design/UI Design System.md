@@ -601,13 +601,14 @@
 
 ##### Table Selection Checkbox
 
-- Hit Area：Checkbox Slot
+- Hit Area：Containing Row
 
 ##### Playback Selection Checkbox
 
-- Hit Area：Cue Placement
+- Hit Area：Entire Playback Cue Item
 - Hover：None
 - Focus Ring：None
+- Control Size：`--size-playback-collage-checkbox`
 
 ### Switch
 
