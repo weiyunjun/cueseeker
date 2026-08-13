@@ -18,6 +18,7 @@
 
 - Command Panel 的 Recent Videos、Recent Shiori，以及 Playback Overlay Video Playlist，均取消强制居中。
 - 已选项目可见时不得滚动；不可见时仅滚动到最近边缘以保证可见。
+- 键盘或控制器每次改变 Selected 后，Selected 项目必须完整位于滚动视口内；部分可见按不可见处理，仅滚动到最近边缘。连续操作后的最终 Selected 也必须完整可见。
 - 每个 Playback Session 首次进入 Video Playlist 时，默认选择当前播放视频；无法匹配时选择第一个可用视频。
 - 同一 Session 再次进入时，保留原有选择和滚动位置，不重新选择当前播放视频。
 
