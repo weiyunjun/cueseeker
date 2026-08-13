@@ -1397,3 +1397,89 @@ rm -f /tmp/cueseeker-playback-multi-module-overlay.log
 - The Recent and Library playback actions update normal Playback History. Use
   disposable media for this gate if those durable history updates must not
   remain in the personal Library.
+
+## 9. Library Detail Shared Cover Summary
+
+### Feature
+
+Verify that Workbench Library Folder Detail renders the shared adaptive Cover
+Summary above its existing Episode Grid, uses the current folder metadata and
+cover, and keeps both regions in one scroll context. This visual gate does not
+activate Play or Resume and therefore does not alter Playback History.
+
+### Preconditions
+
+- Use a Debug build at the requirement commit or its implementation descendant.
+- At least one current Library folder has one available Episode.
+- CueSeeker starts with one visible main window whose complete scene is exactly
+  `1433 × 821` logical points at `2×`, with the 240-point Sidebar expanded.
+- Record the active Light or Dark appearance with the evidence; repeat the gate
+  in the other appearance during final visual acceptance.
+- Recent and Shiori Sidebar groups are expanded. Under this layout, the accepted
+  complete-scene coordinates are Library `(80, 217)`, the first Library folder
+  card `(360, 160)`, the detail scroll region `(1300, 650)`, and Shiori restore
+  `(80, 253)`.
+- Stop without clicking if `inspect` reports another size, scale, window count,
+  or layout. Screenshots must not be used to recalculate coordinates.
+
+### Build And Launch
+
+Run from a PTY so the same process accepts controller commands:
+
+```bash
+cd apps/macos-native
+swift run CueSeeker --cueseeker-debug-e2e
+```
+
+No diagnostic environment variable or separate unified-log stream is required.
+The `CUESEEKER_E2E` records in this terminal are the controller log. Every
+action must return `status: ok`, and each following action must use the fresh
+`sceneID` returned by the preceding action.
+
+### Actions And Evidence
+
+1. Send `{"action":"inspect"}` and verify the complete-scene preconditions.
+2. Send a named `capture` for `library-cover-summary-before`.
+3. Click Library at `(80, 217)`, wait for the existing bounded post-click delay,
+   and capture `library-cover-summary-overview`. The overview must be loaded;
+   stop if the first card is absent or still loading.
+4. Click the first folder card at `(360, 160)` and capture
+   `library-cover-summary-detail` after the response.
+5. Verify the detail capture shows, in order, one folder title, one
+   `xx videos yy subtitles` line, the complete folder path, and one Resume or
+   Play button. The displayed counts must equal the current Episode Grid count,
+   the background must fill the rounded summary without distortion or padding,
+   and the summary and grid must have the same horizontal edges.
+6. At `(1300, 650)`, issue one `scroll` with `deltaY: -4`, then capture
+   `library-cover-summary-scrolled`. The Cover Summary and Episode Grid must
+   move in the same page viewport; no nested vertical scrollbar may appear.
+7. Issue one `scroll` at the same coordinate with `deltaY: 4`. Restore the
+   original Shiori overview with the documented Sidebar click `(80, 253)`, then
+   capture `library-cover-summary-restored`.
+
+Each named image path and the complete controller records from `inspect`
+through the restored capture are the evidence handoff. A valid failure report
+names the action and includes its last successful `sceneID`, the returned error
+or visible mismatch, and the corresponding capture path. Examples include a
+count different from the Episode Grid, metadata sharing one line, an image with
+letterboxing or stretching, unequal horizontal edges, or a second scrollbar.
+
+### Acceptance Criteria
+
+- All controller actions return `status: ok` for the unchanged complete scene.
+- Library detail contains one shared full-width Cover Summary followed by the
+  existing Episode Grid in the same viewport.
+- Title, folder-local counts, complete path, and Resume or Play are separate,
+  readable rows; the button is Disabled only when no playable content exists.
+- The cover remains aspect-fill and center-cropped, with the existing shared
+  radius, scrim, text, button, and spacing in the active appearance.
+- Scrolling moves the summary out with the grid and exposes no nested vertical
+  scrolling or horizontal-boundary mismatch.
+
+### Cleanup
+
+- Restore the starting Workbench Shiori overview before quitting so the Debug
+  run does not leave the persisted panel mode changed.
+- Quit the Debug process with Control-C after recording the final controller
+  response. The temporary E2E artifact directory may be deleted after evidence
+  review; no product data cleanup is required because playback is not opened.

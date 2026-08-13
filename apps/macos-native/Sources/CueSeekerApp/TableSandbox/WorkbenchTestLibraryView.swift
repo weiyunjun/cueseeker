@@ -306,6 +306,7 @@ struct WorkbenchTestLibraryView: View {
         .background(WorkbenchRedesignColors.bgSurface)
         .task {
             appState.hydrateCompleteLibraryAsync()
+            appState.hydrateTestRecentWatchingAsync()
         }
         .task(id: folderDetailTaskID) {
             guard let folderPath = selectedFolder?.folderPath else {
@@ -354,23 +355,103 @@ struct WorkbenchTestLibraryView: View {
         } else if case .failed(let message) = folderDetailStatus {
             LibraryEmptyHint(message)
         } else if let folderDetail, folderDetail.folderPath == folder.folderPath {
-            CompleteLibraryEpisodeGrid(
-                videos: folderDetail.videos,
-                mode: .workbench,
-                onOpen: { video in
-                    appState.prepareLibraryNavigationVideos(folderDetail.videos)
-                    appState.openLibraryVideo(
-                        video.libraryVideo,
-                        displayTitle: video.displayTitle
-                    )
-                }
-            )
+            VStack(
+                alignment: .leading,
+                spacing: WorkbenchControlMetrics.redesignSpacing6
+            ) {
+                folderCoverSummary(folder: folder, detail: folderDetail)
+
+                CompleteLibraryEpisodeGrid(
+                    videos: folderDetail.videos,
+                    mode: .workbench,
+                    onOpen: { video in
+                        appState.prepareLibraryNavigationVideos(folderDetail.videos)
+                        appState.openLibraryVideo(
+                            video.libraryVideo,
+                            displayTitle: video.displayTitle
+                        )
+                    }
+                )
+            }
         } else {
             LibraryEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
         }
+    }
+
+    private func folderCoverSummary(
+        folder: CompleteLibraryFolderSummaryPresentation,
+        detail: CompleteLibraryFolderDetailPresentation
+    ) -> some View {
+        let recentItem = recentWatchingItem(for: detail)
+        let itemCount = detail.videos.count
+
+        return CoverSummaryCard(
+            title: detail.folderTitle,
+            supportingContent: .metadata(
+                primary: "\(itemCount) videos \(itemCount) subtitles",
+                secondary: detail.folderPath
+            ),
+            actionKind: recentItem == nil ? .play : .resume,
+            isActionEnabled: isFolderSummaryPlaybackEnabled(
+                detail: detail,
+                recentItem: recentItem
+            ),
+            action: {
+                openFolderSummaryPlayback(
+                    detail: detail,
+                    recentItem: recentItem
+                )
+            }
+        ) {
+            LibraryCachedCoverImage(
+                coverPath: folder.coverPath,
+                coverRevision: folder.coverRevision,
+                imageVerticalAlignment: .center
+            )
+        }
+    }
+
+    private func isFolderSummaryPlaybackEnabled(
+        detail: CompleteLibraryFolderDetailPresentation,
+        recentItem: RecentLibraryWatchingPresentation?
+    ) -> Bool {
+        let videoPath = recentItem?.videoPath ?? detail.videos.first?.videoPath
+        guard let videoPath else {
+            return false
+        }
+        return FileManager.default.fileExists(atPath: videoPath)
+    }
+
+    private func recentWatchingItem(
+        for detail: CompleteLibraryFolderDetailPresentation
+    ) -> RecentLibraryWatchingPresentation? {
+        library.testRecentWatchingItems.first {
+            $0.folderPath == detail.folderPath
+        }
+    }
+
+    private func openFolderSummaryPlayback(
+        detail: CompleteLibraryFolderDetailPresentation,
+        recentItem: RecentLibraryWatchingPresentation?
+    ) {
+        if let recentItem {
+            Task {
+                await appState.openRecentLibraryWatching(recentItem)
+            }
+            return
+        }
+
+        guard let firstVideo = detail.videos.first else {
+            return
+        }
+        appState.prepareLibraryNavigationVideos(detail.videos)
+        appState.openLibraryVideo(
+            firstVideo.libraryVideo,
+            displayTitle: firstVideo.displayTitle
+        )
     }
 
     private var folderDetailTaskID: String {
@@ -1748,6 +1829,7 @@ private struct LibraryCoverWithBadge: View {
 struct LibraryCachedCoverImage: View {
     let coverPath: String?
     let coverRevision: String?
+    var imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
 
     @State private var loadedImage: LoadedImage?
     @State private var activeRequestID: UUID?
@@ -1762,7 +1844,10 @@ struct LibraryCachedCoverImage: View {
             if let key,
                let loadedImage,
                loadedImage.key == key {
-                LibraryCoverFillImage(image: loadedImage.image)
+                LibraryCoverFillImage(
+                    image: loadedImage.image,
+                    verticalAlignment: imageVerticalAlignment
+                )
             } else {
                 ZStack {
                     Rectangle()

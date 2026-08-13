@@ -1,5 +1,24 @@
 import SwiftUI
 
+enum CoverSummarySupportingContent: Equatable {
+    case description(String)
+    case metadata(primary: String, secondary: String)
+}
+
+enum CoverSummaryActionKind: Equatable {
+    case play
+    case resume
+
+    var title: String {
+        switch self {
+        case .play:
+            "Play"
+        case .resume:
+            "Resume"
+        }
+    }
+}
+
 struct CoverSummaryCardLayout: Equatable {
     let backgroundFrame: CGRect
     let contentFrame: CGRect
@@ -45,23 +64,23 @@ struct CoverSummaryCardLayout: Equatable {
 
 struct CoverSummaryCard<Cover: View>: View {
     let title: String
-    let summaryDescription: String
-    let actionTitle: String
+    let supportingContent: CoverSummarySupportingContent
+    let actionKind: CoverSummaryActionKind
     let isActionEnabled: Bool
     let action: () -> Void
     let cover: () -> Cover
 
     init(
         title: String,
-        description: String,
-        actionTitle: String,
+        supportingContent: CoverSummarySupportingContent,
+        actionKind: CoverSummaryActionKind,
         isActionEnabled: Bool,
         action: @escaping () -> Void,
         @ViewBuilder cover: @escaping () -> Cover
     ) {
         self.title = title
-        summaryDescription = description
-        self.actionTitle = actionTitle
+        self.supportingContent = supportingContent
+        self.actionKind = actionKind
         self.isActionEnabled = isActionEnabled
         self.action = action
         self.cover = cover
@@ -176,27 +195,50 @@ struct CoverSummaryCard<Cover: View>: View {
                 .foregroundStyle(WorkbenchRedesignColors.coverSummaryText)
                 .lineLimit(1)
 
-            Text(summaryDescription)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .regular
-                ))
-                .foregroundStyle(
-                    WorkbenchRedesignColors.coverSummaryText.opacity(
-                        WorkbenchControlMetrics.redesignCoverSummaryDescriptionOpacity
-                    )
-                )
-                .lineLimit(2)
-                .truncationMode(.tail)
+            supportingContentView
 
             Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
 
             CoverSummaryActionButton(
-                title: actionTitle,
+                title: actionKind.title,
                 action: action
             )
             .disabled(!isActionEnabled)
         }
+    }
+
+    @ViewBuilder
+    private var supportingContentView: some View {
+        switch supportingContent {
+        case .description(let description):
+            supportingText(description, lineLimit: 2)
+        case .metadata(let primary, let secondary):
+            VStack(
+                alignment: .leading,
+                spacing: WorkbenchControlMetrics.redesignSpacing2
+            ) {
+                supportingText(primary, lineLimit: 1)
+                supportingText(secondary, lineLimit: 1)
+            }
+        }
+    }
+
+    private func supportingText(
+        _ text: String,
+        lineLimit: Int
+    ) -> some View {
+        Text(text)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeBody,
+                weight: .regular
+            ))
+            .foregroundStyle(
+                WorkbenchRedesignColors.coverSummaryText.opacity(
+                    WorkbenchControlMetrics.redesignCoverSummaryDescriptionOpacity
+                )
+            )
+            .lineLimit(lineLimit)
+            .truncationMode(.tail)
     }
 }
 

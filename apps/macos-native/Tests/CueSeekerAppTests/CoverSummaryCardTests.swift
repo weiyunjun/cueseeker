@@ -3,6 +3,12 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
+func coverSummaryUsesSharedPlaybackActionTitles() {
+    #expect(CoverSummaryActionKind.play.title == "Play")
+    #expect(CoverSummaryActionKind.resume.title == "Resume")
+}
+
+@Test
 func coverSummaryLayoutUsesTheFullContainerAsItsBackground() {
     let container = CGSize(width: 1_260, height: 252)
     let layout = CoverSummaryCardLayout.resolve(containerSize: container)

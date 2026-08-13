@@ -221,8 +221,8 @@ private struct WorkbenchShioriTableContent: View {
         return AnyView(
             CoverSummaryCard(
                 title: summary.list.name,
-                description: summary.list.description,
-                actionTitle: summary.resumeShiori == nil ? "Play" : "Resume",
+                supportingContent: .description(summary.list.description),
+                actionKind: summary.resumeShiori == nil ? .play : .resume,
                 isActionEnabled: shioriStore.activeListHasPlayableContent,
                 action: {
                     appState.openShioriListPlayback(summary)
