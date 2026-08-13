@@ -1868,7 +1868,11 @@
 1. Background Cover
 2. Content
    1. Title
-   2. Description
+   2. Supporting Content
+      - Description Variant：Description
+      - Metadata Variant：
+        1. Primary Metadata
+        2. Secondary Metadata
    3. Resume or Play Action
       - Component：Button / Cover Summary
 
@@ -1878,6 +1882,7 @@
 - Height：`--height-cover-summary`
 - Content Width：`min(Padded Available Width, clamp(--min-width-cover-summary-content, --preferred-width-cover-summary-content, --max-width-cover-summary-content))`
 - Content Padding：`--padding-cover-summary-content`
+- Metadata Item Gap：`--spacing-2`
 - Radius：`--radius-cover-summary`
 
 #### Layout
@@ -1900,12 +1905,16 @@
   - Font Weight：`--font-weight-cover-summary-title`
   - Color：`--color-cover-summary-text`
   - Maximum Lines：`1`
-- Description
+- Supporting Content
   - Font Size：`--font-size-body`
   - Color：`--color-cover-summary-text` with `--opacity-cover-summary-description`
   - Text Hierarchy：Secondary
+- Description Variant
   - Maximum Lines：`2`
   - Overflow：Tail Truncation
+- Metadata Variant
+  - Each Item Maximum Lines：`1`
+  - Each Item Overflow：Tail Truncation
 
 #### States
 
@@ -2653,18 +2662,35 @@
 1. Header
    1. Back Action
    2. Folder Title
-2. Episode Grid
+2. Cover Summary
+3. Episode Grid
 
 #### Components
 
 - Icon Button
 - Section Title
+- Cover Summary / Library Variant
 - Library Episode Grid Layout
+
+#### Layout
+
+- Content Page Padding Inline 与 Shiori List Detail 相同。
+- Cover Summary 与 Episode Grid 使用相同宽度和水平边界。
+- Cover Summary 宽度跟随页面可用宽度变化，并触发其背景裁剪、Content 和 Scrim 的响应式布局。
 
 #### Spacing
 
 - Header Item Gap：`--spacing-2`
-- Header to Grid Gap：`--spacing-4`
+- Content Page Padding Inline：`--spacing-8`
+- Content Page Padding Block：`--spacing-6`
+- Cover Summary to Episode Grid Gap：`--spacing-6`
+
+#### Scrolling
+
+- Vertical Scroll Context：Single Page Viewport
+- Cover Summary：Scrollable
+- Episode Grid：Scrollable
+- Vertical Scrollbar：Page Viewport Trailing Edge
 
 ### Library Episode Grid Layout
 
