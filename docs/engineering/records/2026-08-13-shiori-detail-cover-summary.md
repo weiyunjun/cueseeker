@@ -42,21 +42,39 @@ Do not connect the component to other pages in this change.
 13. Composited the cover and compact-state gradient before applying one shared
     rounded mask, preventing color from leaking through two independently
     antialiased corner edges.
+14. Clipped virtual-row drawing to the existing table-body visible rectangle,
+    so a partially visible first row cannot paint through the pinned table
+    header. Reused that boundary for pointer, hover, cursor, text-selection, and
+    context-menu hit testing without adding a masking view or changing row
+    geometry.
 
 # Verification
 
 - `swift test --filter 'CoverSummaryCardTests|ShioriPresentationTests|WorkbenchControlMetricsTests|LibraryCoverFrameTests'`
 - `swift test --filter 'SubtitleTableVirtualRowTests|SubtitleTableScrollbarMetricsTests|CoverSummaryCardTests'`
+  passes 102 table, scrollbar, and cover-summary tests after the clipping fix.
 - `swift test --filter CoverSummaryCardTests`
+- `swift test --filter 'subtitleTablePageChromePinsAgainstTheFullViewportScrollbar|subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader|shioriDetailPageScrollPinsControlsAfterCoverLeavesViewport|shioriDetailPageScrollKeepsRowsBelowPinnedChrome'`
+  passes 4 tests, including render-level pixels above and below a partial row's
+  clipping boundary and covered-row interaction rejection.
+- A real Debug E2E run entered Shiori `列表 5`, issued 12 fresh-scene wheel
+  commands with `deltaY: -4`, and captured every step. Steps 8, 9, 10, and 12
+  keep partial rows below the pinned table header while retaining visible table
+  content; one `deltaY: 48` command restores row 1.
+- The same Debug E2E run opened Filter and issued four fresh-scene
+  `deltaY: -12` commands. The toolbar, expanded filter cards, and table header
+  remain pinned, while the partial row is clipped below the header and the
+  table body remains visible.
 - Final visual acceptance for the overlap blend and four-corner cover treatment
   is deferred to the owner; no final Debug E2E capture is required for this
   tuning iteration.
 - Actual-app Light and Dark captures used list 5's current database name,
   description, stored cover, recent state, and 28-row result projection.
-- A full `swift test` run was also executed. The new and focused tests passed;
-  the aggregate run remained red with unrelated pre-existing/global-state and
-  native-playback timing failures, including `ApplicationPersistenceTests`,
-  `DebugE2EControllerTests`, and native media timeline tests.
+- `swift test --no-parallel --skip sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`
+  executes 991 tests. It retains the two existing asynchronous integration-test
+  issues in `showCueGroupInvalidationIsScopedToMountedShiori` and
+  `shioriTableStartsAtTopAfterPanelRemount`; all table-clipping tests pass.
+- `swift build -c release --product CueSeeker` succeeds.
 
 # Outcome
 
@@ -66,7 +84,8 @@ the matching metadata card switches directly from an attached position to full
 overlap at compact widths using the surface-to-image blend. The page now has one
 vertical scroll model: the cover leaves the viewport, the search/filter stack
 and table header stay pinned, and the unified custom scrollbar tracks the full
-Shiori viewport at its right edge.
+Shiori viewport at its right edge. Partially visible virtual rows are now drawn
+and interactive only inside the table body below the pinned header.
 
 # Follow-ups
 

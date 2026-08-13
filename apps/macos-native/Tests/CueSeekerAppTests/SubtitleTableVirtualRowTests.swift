@@ -512,12 +512,20 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
 
 @MainActor
 @Test
-func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() {
+func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
+    let loadedRow = SubtitleTableRow(
+        id: 1,
+        primaryCueID: 1,
+        displayTitle: "Episode 01",
+        primaryCueText: "cue text",
+        cueGroupTexts: ["cue text"],
+        primaryGroupIndex: 0
+    )
     let coordinator = SubtitleTableView.Coordinator(
         tableName: "shiori",
         probeSurface: .shiori,
         rowCount: 100,
-        rowProvider: { _ in nil },
+        rowProvider: { _ in loadedRow },
         rowsVersion: 1,
         displayTitleHeader: "Display Title",
         showsLanguageColumn: false,
@@ -575,6 +583,140 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() {
     #expect(frames?.pinned.minY == 0)
     #expect(frames?.tableHeader.minY == 52)
     #expect(coordinator.usesOverlayScrollbarsForTesting())
+
+    let coveredCueRect = try #require(
+        coordinator.cellContentHoverDocumentRectForTesting(
+            row: 0,
+            columnID: "cues"
+        )
+    )
+    let coveredPoint = CGPoint(
+        x: coveredCueRect.midX,
+        y: coveredCueRect.midY
+    )
+    let coveredWindowPoint = documentView.convert(coveredPoint, to: nil)
+    #expect(documentView.visibleRect.contains(coveredPoint))
+    #expect(
+        !coordinator.isInteractiveCellCursorActiveForTesting(
+            documentPoint: coveredPoint
+        )
+    )
+    #expect(!coordinator.handleMouseDown(windowPoint: coveredWindowPoint))
+    #expect(!coordinator.handleRightMouseDown(windowPoint: coveredWindowPoint))
+    coordinator.handleMouseHover(windowPoint: coveredWindowPoint)
+    #expect(!coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
+}
+
+@MainActor
+@Test
+func subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader() throws {
+    let row = SubtitleTableRow(
+        id: 1,
+        primaryCueID: 1,
+        displayTitle: "Episode 01",
+        primaryCueText: "cue text",
+        cueGroupTexts: ["cue text"],
+        primaryGroupIndex: 0
+    )
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "shiori",
+        probeSurface: .shiori,
+        rowCount: 100,
+        rowProvider: { _ in row },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: false,
+        onVisibleRowsChange: { _ in },
+        isSelectionMode: true,
+        isRowSelected: { _ in true },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    let container = SubtitleTableContainerView(
+        frame: CGRect(x: 0, y: 0, width: 1_000, height: 700)
+    )
+    let viewport = SubtitleTablePageChromeViewportView(frame: container.bounds)
+    let header = SubtitleVirtualTableHeaderView()
+    let scrollView = NSScrollView(
+        frame: CGRect(x: 32, y: 0, width: 936, height: 700)
+    )
+    let overlay = SubtitleTableScrollbarOverlayView(frame: container.bounds)
+    let documentView = SubtitleVirtualTableDocumentView(
+        frame: CGRect(x: 0, y: 0, width: 936, height: 1)
+    )
+    container.addSubview(scrollView)
+    container.addSubview(viewport)
+    viewport.addSubview(header)
+    container.addSubview(overlay)
+    header.coordinator = coordinator
+    header.isRedesign = true
+    documentView.coordinator = coordinator
+    documentView.isRedesign = true
+    scrollView.documentView = documentView
+    overlay.scrollView = scrollView
+    coordinator.attach(
+        container: container,
+        headerView: header,
+        scrollView: scrollView,
+        scrollbarOverlayView: overlay,
+        documentView: documentView,
+        pageChromeViewport: viewport
+    )
+    coordinator.updatePageChrome(SubtitleTablePageChrome(
+        scrollableHeader: AnyView(Color.clear),
+        pinnedHeader: AnyView(Color.clear),
+        scrollableHeaderHeight: 294,
+        pinnedHeaderHeight: 52,
+        horizontalInset: 32,
+        bottomInset: 14
+    ))
+    coordinator.resizeDocument()
+
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 330))
+    coordinator.scrollContentDidChange()
+    let visibleRect = documentView.visibleRect
+    let pageFrames = try #require(coordinator.pageChromeFramesForTesting())
+    let bodyBoundaryY = visibleRect.minY + pageFrames.tableHeader.maxY
+    let bitmap = try #require(
+        documentView.bitmapImageRepForCachingDisplay(in: visibleRect)
+    )
+    documentView.cacheDisplay(in: visibleRect, to: bitmap)
+    let expected = try #require(
+        coordinator.rowBackgroundColorForTesting(row: 0)?.usingColorSpace(.deviceRGB)
+    )
+    let scaleX = CGFloat(bitmap.pixelsWide) / visibleRect.width
+    let scaleY = CGFloat(bitmap.pixelsHigh) / visibleRect.height
+    let sampleX = Int((visibleRect.width - 10) * scaleX)
+    let coveredLocalY = bodyBoundaryY - 12 - visibleRect.minY
+    let visibleLocalY = bodyBoundaryY + 13 - visibleRect.minY
+
+    func matchesExpected(x: Int, y: Int) -> Bool {
+        guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else {
+            return false
+        }
+        return abs(color.redComponent - expected.redComponent) < 0.02
+            && abs(color.greenComponent - expected.greenComponent) < 0.02
+            && abs(color.blueComponent - expected.blueComponent) < 0.02
+            && abs(color.alphaComponent - expected.alphaComponent) < 0.02
+    }
+
+    let orientations = [
+        (
+            covered: Int(coveredLocalY * scaleY),
+            visible: Int(visibleLocalY * scaleY)
+        ),
+        (
+            covered: bitmap.pixelsHigh - 1 - Int(coveredLocalY * scaleY),
+            visible: bitmap.pixelsHigh - 1 - Int(visibleLocalY * scaleY)
+        ),
+    ]
+    #expect(
+        orientations.contains { orientation in
+            !matchesExpected(x: sampleX, y: orientation.covered)
+                && matchesExpected(x: sampleX, y: orientation.visible)
+        }
+    )
 }
 
 @MainActor

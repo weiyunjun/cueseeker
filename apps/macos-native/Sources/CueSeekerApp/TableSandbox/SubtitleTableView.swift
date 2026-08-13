@@ -3551,7 +3551,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func interactiveCellCursorRectsForTesting() -> [CGRect] {
             guard let documentView else { return [] }
-            return interactiveCellCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width)
+            return interactiveCellCursorRects(
+                in: currentTableBodyVisibleRect,
+                documentWidth: documentView.bounds.width
+            )
         }
 
         func isInteractiveCellCursorActiveForTesting(documentPoint: CGPoint) -> Bool {
@@ -3561,7 +3564,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func selectableTextCursorRectsForTesting() -> [CGRect] {
             guard let documentView else { return [] }
             return selectableTextCursorRects(
-                in: documentView.visibleRect,
+                in: currentTableBodyVisibleRect,
                 documentWidth: documentView.bounds.width
             )
         }
@@ -4028,8 +4031,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func drawingRowRangeForTesting(dirtyRect: CGRect) -> Range<Int>? {
-            guard let documentView else { return nil }
-            let viewportDirtyRect = dirtyRect.intersection(documentView.visibleRect)
+            let viewportDirtyRect = dirtyRect.intersection(currentTableBodyVisibleRect)
             guard !viewportDirtyRect.isNull else { return nil }
             return visibleRowRange(in: viewportDirtyRect)
         }
@@ -4684,10 +4686,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawRowsNow(in dirtyRect: CGRect) {
-            let tableVisibleRect = scrollView.map(tableBodyVisibleRect(for:))
-                ?? documentView?.visibleRect
-                ?? .zero
-            let viewportDirtyRect = dirtyRect.intersection(tableVisibleRect)
+            let viewportDirtyRect = dirtyRect.intersection(currentTableBodyVisibleRect)
             guard rowCount > 0,
                   let documentView,
                   !viewportDirtyRect.isNull,
@@ -4696,6 +4695,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
+            NSBezierPath(rect: viewportDirtyRect).addClip()
             for row in range {
                 let rowRect = rectForRow(row, width: documentView.bounds.width)
                 guard rowRect.intersects(viewportDirtyRect) else { continue }
@@ -5784,11 +5784,22 @@ struct SubtitleTableView: NSViewRepresentable {
             rowRange(in: rect, overscan: SubtitleTableCueGeometry.measurementOverscan)
         }
 
+        private var currentTableBodyVisibleRect: CGRect {
+            guard let scrollView else {
+                return documentView?.visibleRect ?? .zero
+            }
+            return tableBodyVisibleRect(for: scrollView)
+        }
+
         private func tableBodyVisibleRect(for scrollView: NSScrollView) -> CGRect {
-            pageScrollGeometry?.tableBodyVisibleRect(
+            guard var visibleRect = pageScrollGeometry?.tableBodyVisibleRect(
                 scrollOffset: scrollView.contentView.bounds.minY,
                 viewportSize: scrollView.contentView.bounds.size
-            ) ?? scrollView.contentView.bounds
+            ) else {
+                return scrollView.contentView.bounds
+            }
+            visibleRect.origin.x = scrollView.contentView.bounds.minX
+            return visibleRect
         }
 
         private func rowRange(in rect: CGRect, overscan: Int) -> Range<Int>? {
@@ -5807,13 +5818,17 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func installCursorRects(in documentView: SubtitleVirtualTableDocumentView) {
+            let visibleRect = currentTableBodyVisibleRect
             for rect in selectableTextCursorRects(
-                in: documentView.visibleRect,
+                in: visibleRect,
                 documentWidth: documentView.bounds.width
             ) {
                 documentView.addCursorRect(rect, cursor: .iBeam)
             }
-            for rect in interactiveCellCursorRects(in: documentView.visibleRect, documentWidth: documentView.bounds.width) {
+            for rect in interactiveCellCursorRects(
+                in: visibleRect,
+                documentWidth: documentView.bounds.width
+            ) {
                 documentView.addCursorRect(rect, cursor: .pointingHand)
             }
         }
@@ -5821,11 +5836,15 @@ struct SubtitleTableView: NSViewRepresentable {
         func refreshDocumentCursor(windowPoint: CGPoint) {
             guard !isExternalPopupLayerOpen, let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
+            guard currentTableBodyVisibleRect.contains(point) else {
+                NSCursor.arrow.set()
+                return
+            }
             if isInteractiveCellCursorActive(at: point) {
                 NSCursor.pointingHand.set()
             } else if isSelectableTextCursorActive(at: point) {
                 NSCursor.iBeam.set()
-            } else if documentView.visibleRect.contains(point) {
+            } else {
                 NSCursor.arrow.set()
             }
         }
@@ -5875,9 +5894,13 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func isInteractiveCellCursorActive(at point: CGPoint) -> Bool {
-            guard let documentView else { return false }
+            guard let documentView,
+                  currentTableBodyVisibleRect.contains(point)
+            else {
+                return false
+            }
             return interactiveCellCursorRects(
-                in: documentView.visibleRect,
+                in: currentTableBodyVisibleRect,
                 documentWidth: documentView.bounds.width
             ).contains { $0.contains(point) }
         }
@@ -5922,7 +5945,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   !isMenuOpen,
                   !isExternalPopupLayerOpen,
                   let documentView,
-                  documentView.visibleRect.contains(point),
+                  currentTableBodyVisibleRect.contains(point),
                   let row = rowAtDocumentPoint(point)
             else {
                 return false
@@ -6262,7 +6285,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let documentView else { return nil }
             var point = documentView.convert(windowPoint, from: nil)
             if !requiresTextHit {
-                let visibleRect = documentView.visibleRect
+                let visibleRect = currentTableBodyVisibleRect
                 guard !visibleRect.isEmpty else { return nil }
                 point.x = min(max(visibleRect.minX, point.x), visibleRect.maxX.nextDown)
                 point.y = min(max(visibleRect.minY, point.y), visibleRect.maxY.nextDown)
@@ -6381,7 +6404,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             guard let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
-            guard documentView.visibleRect.contains(point) else {
+            guard currentTableBodyVisibleRect.contains(point) else {
                 clearHover()
                 return
             }
@@ -6421,7 +6444,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return false
             }
             let point = documentView.convert(windowPoint, from: nil)
-            guard documentView.visibleRect.contains(point) else {
+            guard currentTableBodyVisibleRect.contains(point) else {
                 return false
             }
             let row = rowAtDocumentPoint(point)
@@ -6596,10 +6619,10 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let point = documentView.convert(windowPoint, from: nil)
             if isSelectionMode {
-                return documentView.visibleRect.contains(point)
+                return currentTableBodyVisibleRect.contains(point)
                     && rowAtDocumentPoint(point) != nil
             }
-            guard documentView.visibleRect.contains(point),
+            guard currentTableBodyVisibleRect.contains(point),
                   let row = rowAtDocumentPoint(point),
                   let columnID = actionMenuColumnID(row: row, point: point)
             else {

@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Fixed Shiori detail scrolling so partially visible virtual rows are clipped
+  to the table body below the pinned table header. The same body boundary now
+  excludes covered rows from pointer, text-selection, hover, and context-menu
+  interaction without changing the page scroll model or hiding visible rows.
 - Extended the Debug in-app E2E controller with coordinate-targeted, line-based
   vertical mouse-wheel events. Automated UI flows can now exercise known
   scrollable regions in either direction through AppKit without moving the
