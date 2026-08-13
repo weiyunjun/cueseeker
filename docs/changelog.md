@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Extended the Debug in-app E2E controller with coordinate-targeted, line-based
+  vertical mouse-wheel events. Automated UI flows can now exercise known
+  scrollable regions in either direction through AppKit without moving the
+  pointer, posting a system-wide event, or requesting Accessibility or Input
+  Monitoring permission; each discrete event retains the existing scene-state
+  guard and returns a fresh scene identifier.
 - Unified Filter, Table, and Playback selection checkboxes on the same
   monochrome SF Symbols and shared state colors. Table now uses circular
   system-symbol controls instead of its previous custom square-era drawing;

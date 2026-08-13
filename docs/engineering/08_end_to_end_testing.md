@@ -26,7 +26,8 @@ before the user starts testing.
 Known CueSeeker-owned macOS UI flows use the Debug in-app E2E controller by
 default. The controller captures the actual WindowServer composition of every
 visible CueSeeker-owned window with ScreenCaptureKit, dispatches a left click at
-a documented complete-scene coordinate, and posts documented keyboard events
+a documented complete-scene coordinate, dispatches a discrete vertical mouse
+wheel event at a documented coordinate, and posts documented keyboard events
 inside the app. It does not reconstruct views, move the real pointer, request
 Accessibility or Input Monitoring permission, inspect other applications, or
 locate controls from screenshots.
@@ -66,6 +67,7 @@ Supported commands are one JSON object per line:
 {"action":"inspect"}
 {"action":"capture","name":"after-known-click"}
 {"action":"click","x":80,"y":155,"sceneID":"current-scene-id"}
+{"action":"scroll","x":80,"y":420,"deltaY":-3,"sceneID":"current-scene-id"}
 {"action":"keyPress","key":"enter","modifiers":[],"sceneID":"current-scene-id"}
 ```
 
@@ -78,6 +80,17 @@ control action or mutate product state directly. A stale `sceneID`, non-finite
 coordinate, scene gap, or out-of-bounds point returns an error without posting
 either event. Every successful click returns a fresh `sceneID`, logical size,
 pixel size, scale, and window layout; the next click must use that returned ID.
+
+`scroll` uses the same complete-scene coordinates and frontmost-window routing
+as `click`, then posts one non-precise, line-based AppKit scroll-wheel event.
+`deltaY` must be a nonzero signed integer: positive values scroll up toward the
+content start and negative values scroll down toward the content end. One
+command has no trackpad gesture, momentum, inertial, continuous-scroll, or
+scrollbar-drag semantics; repeat commands with each returned fresh `sceneID`
+when a procedure requires more scrolling. A stale `sceneID`, invalid coordinate,
+zero or non-integer `deltaY`, missing target window, or event-construction
+failure returns an error without posting the event. Known-coordinate automated
+scrolling should use this command instead of remaining a manual wheel action.
 
 `keyPress` posts one non-repeating AppKit key-down/key-up pair to the current
 CueSeeker key window and first responder. Supported `key` values are letters,

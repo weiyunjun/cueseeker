@@ -9,6 +9,7 @@ enum DebugE2ECommand: Equatable {
     case inspect
     case capture(name: String)
     case click(x: CGFloat, y: CGFloat, sceneID: String)
+    case scroll(x: CGFloat, y: CGFloat, deltaY: Int32, sceneID: String)
     case keyPress(key: String, modifiers: [String], sceneID: String)
 
     init(line: String) throws {
@@ -24,6 +25,7 @@ enum DebugE2ECommand: Equatable {
             guard payload.name == nil,
                   payload.x == nil,
                   payload.y == nil,
+                  payload.deltaY == nil,
                   payload.key == nil,
                   payload.modifiers == nil,
                   payload.sceneID == nil
@@ -35,6 +37,7 @@ enum DebugE2ECommand: Equatable {
             guard let name = payload.name,
                   payload.x == nil,
                   payload.y == nil,
+                  payload.deltaY == nil,
                   payload.key == nil,
                   payload.modifiers == nil,
                   payload.sceneID == nil
@@ -48,6 +51,7 @@ enum DebugE2ECommand: Equatable {
             guard payload.name == nil,
                   let x = payload.x,
                   let y = payload.y,
+                  payload.deltaY == nil,
                   payload.key == nil,
                   payload.modifiers == nil,
                   let sceneID = payload.sceneID
@@ -57,10 +61,31 @@ enum DebugE2ECommand: Equatable {
                 )
             }
             self = .click(x: CGFloat(x), y: CGFloat(y), sceneID: sceneID)
+        case "scroll":
+            guard payload.name == nil,
+                  let x = payload.x,
+                  let y = payload.y,
+                  let deltaY = payload.deltaY,
+                  deltaY != 0,
+                  payload.key == nil,
+                  payload.modifiers == nil,
+                  let sceneID = payload.sceneID
+            else {
+                throw DebugE2EError.invalidCommand(
+                    "scroll requires x, y, a nonzero integer deltaY, and sceneID"
+                )
+            }
+            self = .scroll(
+                x: CGFloat(x),
+                y: CGFloat(y),
+                deltaY: deltaY,
+                sceneID: sceneID
+            )
         case "keyPress":
             guard payload.name == nil,
                   payload.x == nil,
                   payload.y == nil,
+                  payload.deltaY == nil,
                   let key = payload.key,
                   let modifiers = payload.modifiers,
                   let sceneID = payload.sceneID
@@ -86,6 +111,7 @@ enum DebugE2ECommand: Equatable {
         let name: String?
         let x: Double?
         let y: Double?
+        let deltaY: Int32?
         let key: String?
         let modifiers: [String]?
         let sceneID: String?
@@ -102,8 +128,11 @@ enum DebugE2EError: Error, CustomStringConvertible {
     case screenshotEncodingFailed
     case screenshotSaveFailed(String)
     case invalidClickCoordinate
+    case invalidScrollCoordinate
+    case invalidScrollDelta
     case sceneChanged
     case eventCreationFailed
+    case scrollEventCreationFailed
     case unsupportedKey(String)
     case unsupportedModifier(String)
     case keyWindowUnavailable
@@ -129,10 +158,16 @@ enum DebugE2EError: Error, CustomStringConvertible {
             "screenshotSaveFailed"
         case .invalidClickCoordinate:
             "invalidClickCoordinate"
+        case .invalidScrollCoordinate:
+            "invalidScrollCoordinate"
+        case .invalidScrollDelta:
+            "invalidScrollDelta"
         case .sceneChanged:
             "sceneChanged"
         case .eventCreationFailed:
             "eventCreationFailed"
+        case .scrollEventCreationFailed:
+            "scrollEventCreationFailed"
         case .unsupportedKey:
             "unsupportedKey"
         case .unsupportedModifier:
@@ -164,10 +199,16 @@ enum DebugE2EError: Error, CustomStringConvertible {
             "The current CueSeeker scene could not be saved: \(message)"
         case .invalidClickCoordinate:
             "Click coordinates must be finite and hit a visible CueSeeker window"
+        case .invalidScrollCoordinate:
+            "Scroll coordinates must be finite and hit a visible CueSeeker window"
+        case .invalidScrollDelta:
+            "Scroll deltaY must be a nonzero integer"
         case .sceneChanged:
             "The CueSeeker scene changed; inspect the scene before continuing"
         case .eventCreationFailed:
             "The AppKit mouse events could not be created"
+        case .scrollEventCreationFailed:
+            "The AppKit scroll-wheel event could not be created"
         case .unsupportedKey(let key):
             "Unsupported key: \(key)"
         case .unsupportedModifier(let modifier):
@@ -552,6 +593,73 @@ enum DebugE2EClickDispatcher {
     }
 }
 
+@MainActor
+enum DebugE2EScrollDispatcher {
+    static func scroll(
+        x: CGFloat,
+        y: CGFloat,
+        deltaY: Int32,
+        scene: DebugE2EScene,
+        postEvent: (NSEvent) -> Void = {
+            NSApplication.shared.postEvent($0, atStart: false)
+        }
+    ) throws {
+        guard deltaY != 0 else {
+            throw DebugE2EError.invalidScrollDelta
+        }
+
+        let screenPoint: NSPoint
+        let window: NSWindow
+        do {
+            screenPoint = try scene.screenPoint(x: x, y: y)
+            window = try scene.frontmostWindow(at: screenPoint)
+        } catch DebugE2EError.invalidClickCoordinate {
+            throw DebugE2EError.invalidScrollCoordinate
+        }
+
+        let location = window.convertPoint(fromScreen: screenPoint)
+        guard let mouseEvent = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: location,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ),
+        let cgEvent = mouseEvent.cgEvent
+        else {
+            throw DebugE2EError.scrollEventCreationFailed
+        }
+        cgEvent.type = .scrollWheel
+        cgEvent.setIntegerValueField(
+            .scrollWheelEventDeltaAxis1,
+            value: Int64(deltaY)
+        )
+        cgEvent.setIntegerValueField(
+            .scrollWheelEventFixedPtDeltaAxis1,
+            value: Int64(deltaY) << 16
+        )
+        cgEvent.setIntegerValueField(
+            .scrollWheelEventPointDeltaAxis1,
+            value: Int64(deltaY)
+        )
+        cgEvent.setIntegerValueField(
+            .scrollWheelEventIsContinuous,
+            value: 0
+        )
+        guard let event = NSEvent(cgEvent: cgEvent),
+              event.window === window
+        else {
+            throw DebugE2EError.scrollEventCreationFailed
+        }
+
+        postEvent(event)
+    }
+}
+
 struct DebugE2EKeyStroke: Equatable {
     let key: String
     let modifiers: [String]
@@ -920,6 +1028,29 @@ final class DebugE2EController {
                     "action": "click",
                     "x": x,
                     "y": y,
+                ], uniquingKeysWith: { _, new in new })
+                Self.write(payload)
+            case .scroll(let x, let y, let deltaY, let sceneID):
+                let scene = try DebugE2EScene.current(mainWindow: mainWindow)
+                guard commandSceneID(for: scene) == sceneID else {
+                    throw DebugE2EError.sceneChanged
+                }
+                try DebugE2EScrollDispatcher.scroll(
+                    x: x,
+                    y: y,
+                    deltaY: deltaY,
+                    scene: scene
+                )
+                try await Task.sleep(for: .milliseconds(50))
+                interactionRevision &+= 1
+                let currentScene = try DebugE2EScene.current(mainWindow: mainWindow)
+                var payload = scenePayload(currentScene)
+                payload.merge([
+                    "status": "ok",
+                    "action": "scroll",
+                    "x": x,
+                    "y": y,
+                    "deltaY": deltaY,
                 ], uniquingKeysWith: { _, new in new })
                 Self.write(payload)
             case .keyPress(let key, let modifiers, let sceneID):

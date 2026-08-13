@@ -21,11 +21,21 @@ struct DebugE2EControllerTests {
         )
         #expect(
             try DebugE2ECommand(
+                line: #"{"action":"scroll","x":120.5,"y":84,"deltaY":-3,"sceneID":"abc"}"#
+            ) == .scroll(x: 120.5, y: 84, deltaY: -3, sceneID: "abc")
+        )
+        #expect(
+            try DebugE2ECommand(
                 line: #"{"action":"keyPress","key":"enter","modifiers":[],"sceneID":"abc"}"#
             ) == .keyPress(key: "enter", modifiers: [], sceneID: "abc")
         )
         #expect(throws: DebugE2EError.self) {
             try DebugE2ECommand(line: #"{"action":"click","x":120,"y":84}"#)
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2ECommand(
+                line: #"{"action":"scroll","x":120,"y":84,"deltaY":0,"sceneID":"abc"}"#
+            )
         }
         #expect(throws: DebugE2EError.self) {
             try DebugE2ECommand(
@@ -171,6 +181,95 @@ struct DebugE2EControllerTests {
 
     @Test
     @MainActor
+    func scrollTargetsFrontmostWindowInBothDirections() throws {
+        let screen = try #require(NSScreen.main)
+        let displayNumber = try #require(
+            screen.deviceDescription[
+                NSDeviceDescriptionKey("NSScreenNumber")
+            ] as? NSNumber
+        )
+        let backView = DebugE2EScrollRecordingView(
+            frame: NSRect(x: 0, y: 0, width: 200, height: 160)
+        )
+        let frontView = DebugE2EScrollRecordingView(
+            frame: NSRect(x: 0, y: 0, width: 140, height: 100)
+        )
+        let backWindow = makeWindow(
+            frame: NSRect(
+                x: screen.frame.minX + 100,
+                y: screen.frame.minY + 100,
+                width: 200,
+                height: 160
+            ),
+            contentView: backView
+        )
+        let frontWindow = makeWindow(
+            frame: NSRect(
+                x: screen.frame.minX + 130,
+                y: screen.frame.minY + 130,
+                width: 140,
+                height: 100
+            ),
+            contentView: frontView
+        )
+        backWindow.orderFront(nil)
+        frontWindow.orderFront(nil)
+        defer {
+            frontWindow.orderOut(nil)
+            backWindow.orderOut(nil)
+        }
+        let bounds = backWindow.frame.union(frontWindow.frame)
+        let scene = DebugE2EScene(
+            windows: [frontWindow, backWindow],
+            bounds: bounds,
+            screenFrame: screen.frame,
+            displayID: CGDirectDisplayID(displayNumber.uint32Value),
+            scale: screen.backingScaleFactor,
+            layouts: [],
+            id: "scene"
+        )
+        let scrollScreenPoint = NSPoint(
+            x: frontWindow.frame.midX,
+            y: frontWindow.frame.midY
+        )
+        let x = scrollScreenPoint.x - bounds.minX
+        let y = bounds.maxY - scrollScreenPoint.y
+
+        for deltaY: Int32 in [2, -3] {
+            try DebugE2EScrollDispatcher.scroll(
+                x: x,
+                y: y,
+                deltaY: deltaY,
+                scene: scene,
+                postEvent: { event in
+                    NSApplication.shared.sendEvent(event)
+                }
+            )
+        }
+
+        #expect(frontView.scrollEvents.map(\.scrollingDeltaY) == [2, -3])
+        #expect(frontView.scrollEvents.allSatisfy { !$0.hasPreciseScrollingDeltas })
+        #expect(backView.scrollEvents.isEmpty)
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EScrollDispatcher.scroll(
+                x: x,
+                y: y,
+                deltaY: 0,
+                scene: scene
+            )
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EScrollDispatcher.scroll(
+                x: -1,
+                y: y,
+                deltaY: 1,
+                scene: scene
+            )
+        }
+    }
+
+    @Test
+    @MainActor
     func keyPressTravelsThroughWindowFirstResponder() throws {
         let view = DebugE2EKeyRecordingView(
             frame: NSRect(x: 0, y: 0, width: 200, height: 120)
@@ -311,6 +410,14 @@ private final class DebugE2EKeyRecordingView: NSView {
 
     override func keyUp(with event: NSEvent) {
         keyUpEvents.append(event)
+    }
+}
+
+private final class DebugE2EScrollRecordingView: NSView {
+    private(set) var scrollEvents: [NSEvent] = []
+
+    override func scrollWheel(with event: NSEvent) {
+        scrollEvents.append(event)
     }
 }
 #endif
