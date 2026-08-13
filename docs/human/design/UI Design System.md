@@ -174,6 +174,8 @@
 - `--font-size-library-list-title`: `15px`
 - `--font-size-library-list-subtitle`: `13px`
 - `--font-size-library-list-meta`: `12px`
+- `--font-size-cover-summary-title`: `28px`
+- `--font-weight-cover-summary-title`: `700`
 
 ### Text Decoration
 
@@ -207,6 +209,8 @@
 - `--height-playback-cue-information-badge`: `23px`
 - `--height-library-progress-bar`: `4px`
 - `--height-library-list-cover`: `115px`
+- `--height-cover-summary`: `252px`
+- `--height-cue-facet-filter-panel-pinned`: `244px`
 - `--height-keycap`: `22px`
 
 ### Size
@@ -238,6 +242,7 @@
 - `--width-player-topbar-title-max`: `520px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
+- `--width-cover-summary-content-safe`: `448px`
 - `--width-library-recent-card-min`: `180px`
 - `--width-library-recent-card-max`: `220px`
 - `--width-library-episode-row-min`: `380px`
@@ -268,6 +273,7 @@
 - `--gap-library-list-item`: `20px`
 - `--gap-library-list-info-vertical`: `8px`
 - `--gap-library-folder-card-content`: `12px`
+- `--gap-cover-summary-to-toolbar`: `24px`
 
 ### Padding
 
@@ -299,6 +305,7 @@
 - `--padding-library-time-badge`: `2px 6px`
 - `--padding-library-media-card-hover`: `12px`
 - `--padding-library-list-card`: `12px 16px`
+- `--padding-cover-summary-content`: `40px`
 
 ## 1.5 形状与效果
 
@@ -326,6 +333,7 @@
 - `--radius-library-folder-card`: `8px`
 - `--radius-library-media-card-hover`: `20px`
 - `--radius-library-list-card`: `16px`
+- `--radius-cover-summary`: `16px`
 
 ### Shadow
 
@@ -338,6 +346,15 @@
 - `--shadow-player-topbar-title`:
   - Light: `0 1px 2px rgba(0,0,0,0.50)`
   - Dark: `0 1px 2px rgba(0,0,0,0.50)`
+
+### Cover Summary Blend
+
+- Direction：Top to Bottom
+- Surface Color：`--color-bg-surface`
+- `--cover-summary-blend-leading`: Location `0%`; Opacity `100%`
+- `--cover-summary-blend-middle`: Location `55%`; Opacity `72%`
+- `--cover-summary-blend-trailing`: Location `82%`; Opacity `32%`
+- `--cover-summary-blend-end`: Location `100%`; Opacity `0%`
 
 ## 1.6 动效
 
@@ -1811,6 +1828,38 @@
 - Loaded
 - Disabled
 
+### Cover Summary
+
+#### Structure
+
+1. Cover
+2. Content
+   1. Title
+   2. Description
+   3. Resume or Play Action
+
+#### Sizes
+
+- Cover：`--width-cover-summary-content-safe` × `--height-cover-summary`
+- Content：`--width-cover-summary-content-safe` × `--height-cover-summary`
+- Content Padding：`--padding-cover-summary-content`
+- Radius：`--radius-cover-summary`
+- Description Maximum Lines：`2`
+
+#### Layout
+
+- Separated：Cover 位于左侧，Content 紧贴其右侧。
+- Fully Overlapped：可用宽度小于两部分宽度之和时，Cover 与 Content 完全重合。
+- Separated Content Background：`--color-bg-surface`
+- Fully Overlapped Content Background：Cover Summary Blend
+- Outer Background and Border：None
+
+#### States
+
+- Resume：存在最近播放记录。
+- Play：不存在最近播放记录。
+- Disabled：没有可播放内容。
+
 ### Cover Crop Editor
 
 #### Shared
@@ -2666,23 +2715,34 @@
 
 #### Structure
 
-1. Toolbar
-2. Table Viewport
-3. Selection Action Overlay
-4. Filter Panel
+1. Cover Summary
+2. Toolbar
+3. Filter Panel
    - Presence：Optional
+4. Table
+5. Selection Action Overlay
 
 #### Components
 
+- Cover Summary
 - Search / Shiori Toolbar Layout
+- Filter Panel Layout
 - Search / Shiori Table Layout
 - Selection Action Overlay Layout
-- Filter Panel Layout
 
 #### Spacing
 
 - Page Padding Inline：`--spacing-8`
-- Toolbar to Table Gap：`--spacing-3`
+- Cover Padding Top：`--spacing-6`
+- Cover to Toolbar Gap：`--gap-cover-summary-to-toolbar`
+- Pinned Region Item Gap：`--spacing-3`
+
+#### Scrolling
+
+- Vertical Scroll Context：Single Page Viewport
+- Cover Summary：Scrollable
+- Toolbar、打开的 Filter Panel 与 Table Header：Pinned
+- Vertical Scrollbar：Page Viewport Trailing Edge
 
 ### Search / Shiori Toolbar Layout
 
@@ -2702,7 +2762,7 @@
 
 - Height：`--height-filter-bar-control`
 - Item Gap：`--spacing-3`
-- Page Padding Inline：`--spacing-8`
+- Width：Fill Parent Content Width
 
 #### States
 
