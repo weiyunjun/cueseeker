@@ -105,6 +105,11 @@
   - Light: macOS accent color with Alpha `0.08`
   - Dark: macOS accent color with Alpha `0.12`
 
+### Cover Summary
+
+- `--color-cover-summary-scrim`: Light `#000000`; Dark `#000000`
+- `--color-cover-summary-text`: Light `#FFFFFF`; Dark `#FFFFFF`
+
 ### Player Chrome
 
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
@@ -242,7 +247,9 @@
 - `--width-player-topbar-title-max`: `520px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
-- `--width-cover-summary-content-safe`: `448px`
+- `--min-width-cover-summary-content`: `448px`
+- `--max-width-cover-summary-content`: `720px`
+- `--preferred-width-cover-summary-content`: `50%`
 - `--width-library-recent-card-min`: `180px`
 - `--width-library-recent-card-max`: `220px`
 - `--width-library-episode-row-min`: `380px`
@@ -347,14 +354,23 @@
   - Light: `0 1px 2px rgba(0,0,0,0.50)`
   - Dark: `0 1px 2px rgba(0,0,0,0.50)`
 
-### Cover Summary Blend
+### Cover Summary Scrim
 
-- Direction：Top to Bottom
-- Surface Color：`--color-bg-surface`
-- `--cover-summary-blend-leading`: Location `0%`; Opacity `100%`
-- `--cover-summary-blend-middle`: Location `55%`; Opacity `72%`
-- `--cover-summary-blend-trailing`: Location `82%`; Opacity `32%`
-- `--cover-summary-blend-end`: Location `100%`; Opacity `0%`
+- Color：`--color-cover-summary-scrim`
+- Direction：Left to Right
+- `--cover-summary-scrim-leading`: Location `0%`; Opacity `62%`
+- `--cover-summary-scrim-strong`: Location `24%`; Opacity `54%`
+- `--cover-summary-scrim-middle`: Location `43%`; Opacity `34%`
+- `--cover-summary-scrim-trailing`: Location `58%`; Opacity `12%`
+- `--cover-summary-scrim-transparent`: Location `70%`; Opacity `0%`
+
+### Cover Summary Content Opacity
+
+- `--opacity-cover-summary-description`: `76%`
+- `--opacity-cover-summary-button-bg`: `14%`
+- `--opacity-cover-summary-button-bg-hover`: `24%`
+- `--opacity-cover-summary-button-border`: `35%`
+- `--opacity-cover-summary-button-disabled`: `55%`
 
 ## 1.6 动效
 
@@ -707,6 +723,23 @@
   - Border Color：`--color-border-disabled`
   - Label Color：`--color-text-disabled`
   - Icon Color：`--color-icon-disabled`
+
+##### Cover Summary
+
+- Usage：Cover Summary Resume or Play Action
+- Default
+  - Background：`--color-cover-summary-scrim` with `--opacity-cover-summary-button-bg`
+  - Border Color：`--color-cover-summary-text` with `--opacity-cover-summary-button-border`
+  - Label Color：`--color-cover-summary-text`
+  - Icon Color：`--color-cover-summary-text`
+- Hover
+  - Background：`--color-cover-summary-scrim` with `--opacity-cover-summary-button-bg-hover`
+- Focused
+  - Ring Color：`--color-focus-ring`
+  - Ring Width：`--focus-ring-width`
+  - Ring Offset：`--focus-ring-offset`
+- Disabled
+  - Opacity：`--opacity-cover-summary-button-disabled`
 
 ##### Primary
 
@@ -1832,27 +1865,47 @@
 
 #### Structure
 
-1. Cover
+1. Background Cover
 2. Content
    1. Title
    2. Description
    3. Resume or Play Action
+      - Component：Button / Cover Summary
 
 #### Sizes
 
-- Cover：`--width-cover-summary-content-safe` × `--height-cover-summary`
-- Content：`--width-cover-summary-content-safe` × `--height-cover-summary`
+- Width：Parent Available Width
+- Height：`--height-cover-summary`
+- Content Width：`min(Padded Available Width, clamp(--min-width-cover-summary-content, --preferred-width-cover-summary-content, --max-width-cover-summary-content))`
 - Content Padding：`--padding-cover-summary-content`
 - Radius：`--radius-cover-summary`
-- Description Maximum Lines：`2`
 
 #### Layout
 
-- Separated：Cover 位于左侧，Content 紧贴其右侧。
-- Fully Overlapped：可用宽度小于两部分宽度之和时，Cover 与 Content 完全重合。
-- Separated Content Background：`--color-bg-surface`
-- Fully Overlapped Content Background：Cover Summary Blend
+- Background Cover 填满组件边界，并由组件 Radius 裁切。
+- Background Cover 保持原始比例，使用 Aspect Fill 与 Center Crop。
+- 窗口宽度变化时，背景裁剪、Content 宽度和 Scrim 实时重新计算。
+- 禁止拉伸、补边、扩图、镜像、重绘或修改封面文件。
+- Content 位于左侧并保持左对齐。
+- Scrim 覆盖左侧文字区域，并按照 Cover Summary Scrim 从左向右衰减至透明。
+- Scrim 默认在 `--cover-summary-scrim-transparent` 位置完全透明。
+- 当 Content 右边缘及其 Padding 超过默认透明位置时，Scrim 终点随 Content 延伸，最大不超过组件右边缘；中间渐变位置同比例延展。
 - Outer Background and Border：None
+- Light Mode 与 Dark Mode 使用同一套 Cover Summary 视觉规则。
+
+#### Typography
+
+- Title
+  - Font Size：`--font-size-cover-summary-title`
+  - Font Weight：`--font-weight-cover-summary-title`
+  - Color：`--color-cover-summary-text`
+  - Maximum Lines：`1`
+- Description
+  - Font Size：`--font-size-body`
+  - Color：`--color-cover-summary-text` with `--opacity-cover-summary-description`
+  - Text Hierarchy：Secondary
+  - Maximum Lines：`2`
+  - Overflow：Tail Truncation
 
 #### States
 
@@ -2729,6 +2782,11 @@
 - Filter Panel Layout
 - Search / Shiori Table Layout
 - Selection Action Overlay Layout
+
+#### Layout
+
+- Cover Summary、Toolbar 与 Table Content Region 使用相同宽度和水平边界。
+- Cover Summary 宽度跟随页面可用宽度变化，并触发其背景裁剪、Content 和 Scrim 的响应式布局。
 
 #### Spacing
 
