@@ -10,6 +10,7 @@ This changelog does not replace Git history. Git records concrete file changes. 
   now shows its current folder title, video and subtitle counts, full path, and
   a Resume or Play action above the existing Episode Grid; Resume reuses the
   matching Recent Videos action, while Play starts the first current Episode.
+  Both detail pages now use the same inline Cover Summary bounds.
 - Fixed Shiori detail scrolling so partially visible virtual rows are clipped
   to the table body below the pinned table header. The same body boundary now
   excludes covered rows from pointer, text-selection, hover, and context-menu

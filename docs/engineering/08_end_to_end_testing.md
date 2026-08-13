@@ -1411,14 +1411,15 @@ activate Play or Resume and therefore does not alter Playback History.
 
 - Use a Debug build at the requirement commit or its implementation descendant.
 - At least one current Library folder has one available Episode.
+- Start on the Workbench Shiori overview with its first list visible.
 - CueSeeker starts with one visible main window whose complete scene is exactly
   `1433 × 821` logical points at `2×`, with the 240-point Sidebar expanded.
 - Record the active Light or Dark appearance with the evidence; repeat the gate
   in the other appearance during final visual acceptance.
 - Recent and Shiori Sidebar groups are expanded. Under this layout, the accepted
-  complete-scene coordinates are Library `(80, 217)`, the first Library folder
-  card `(360, 160)`, the detail scroll region `(1300, 650)`, and Shiori restore
-  `(80, 253)`.
+  complete-scene coordinates are Library `(80, 217)`, Shiori's first list
+  `(80, 289)`, the first Library folder card `(360, 160)`, the detail scroll
+  region `(1300, 650)`, and Shiori restore `(80, 253)`.
 - Stop without clicking if `inspect` reports another size, scale, window count,
   or layout. Screenshots must not be used to recalculate coordinates.
 
@@ -1440,20 +1441,25 @@ action must return `status: ok`, and each following action must use the fresh
 
 1. Send `{"action":"inspect"}` and verify the complete-scene preconditions.
 2. Send a named `capture` for `library-cover-summary-before`.
-3. Click Library at `(80, 217)`, wait for the existing bounded post-click delay,
+3. Click Shiori's first list at `(80, 289)` and capture
+   `shiori-cover-summary-reference`. Its accepted Cover Summary horizontal edges
+   are `x = 272` and `x = 1401` in the complete scene.
+4. Click Library at `(80, 217)`, wait for the existing bounded post-click delay,
    and capture `library-cover-summary-overview`. The overview must be loaded;
    stop if the first card is absent or still loading.
-4. Click the first folder card at `(360, 160)` and capture
+5. Click the first folder card at `(360, 160)` and capture
    `library-cover-summary-detail` after the response.
-5. Verify the detail capture shows, in order, one folder title, one
+6. Verify the detail capture shows, in order, one folder title, one
    `xx videos yy subtitles` line, the complete folder path, and one Resume or
    Play button. The displayed counts must equal the current Episode Grid count,
    the background must fill the rounded summary without distortion or padding,
-   and the summary and grid must have the same horizontal edges.
-6. At `(1300, 650)`, issue one `scroll` with `deltaY: -4`, then capture
+   and the summary and grid must have the same horizontal edges. The Library
+   Cover Summary edges must also equal the Shiori reference at `x = 272` and
+   `x = 1401`.
+7. At `(1300, 650)`, issue one `scroll` with `deltaY: -4`, then capture
    `library-cover-summary-scrolled`. The Cover Summary and Episode Grid must
    move in the same page viewport; no nested vertical scrollbar may appear.
-7. Issue one `scroll` at the same coordinate with `deltaY: 4`. Restore the
+8. Issue one `scroll` at the same coordinate with `deltaY: 4`. Restore the
    original Shiori overview with the documented Sidebar click `(80, 253)`, then
    capture `library-cover-summary-restored`.
 
@@ -1469,6 +1475,8 @@ letterboxing or stretching, unequal horizontal edges, or a second scrollbar.
 - All controller actions return `status: ok` for the unchanged complete scene.
 - Library detail contains one shared full-width Cover Summary followed by the
   existing Episode Grid in the same viewport.
+- Shiori and Library Cover Summary horizontal edges are both `x = 272` and
+  `x = 1401` in the accepted complete scene.
 - Title, folder-local counts, complete path, and Resume or Play are separate,
   readable rows; the button is Disabled only when no playable content exists.
 - The cover remains aspect-fill and center-cropped, with the existing shared

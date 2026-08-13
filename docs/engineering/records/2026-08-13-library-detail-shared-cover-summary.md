@@ -30,7 +30,7 @@ validity rules, or playback execution.
    `xx videos yy subtitles` line, full folder path, and action to the same
    Cover Summary component.
 4. Kept the Cover Summary and Episode Grid inside the existing single scroll
-   view with the same horizontal bounds and existing spacing tokens.
+   view and applied the same `--spacing-8` inline bounds as Shiori detail.
 5. Loaded the complete Recent Videos projection on Library entry. A matching
    folder item uses the existing Recent Videos open action; otherwise Play
    prepares the current detail videos and opens the first item. The button uses
@@ -49,11 +49,13 @@ validity rules, or playback execution.
 - `swift build -c release --product CueSeeker`
   succeeds.
 - The documented Debug in-app E2E flow passes in the real 1433 × 821-point,
-  2× Light Mode window. The current `Ave Mujica` detail shows `13 videos 13
-  subtitles`, `/Volumes/Samsung/影视/Ave Mujica`, and Resume over its current
-  folder cover. The named detail and scrolled captures verify center-crop fill,
-  shared horizontal bounds, and one page scroll context; no playback action was
-  activated and the starting Shiori route was restored.
+  2× Light Mode window. The Shiori reference and current `Ave Mujica` Library
+  detail both use `x = 272` and `x = 1401` Cover Summary edges, producing the
+  same 1129-point width. Library shows `13 videos 13 subtitles`,
+  `/Volumes/Samsung/影视/Ave Mujica`, and Resume over its current folder cover.
+  The named detail and scrolled captures verify center-crop fill and one page
+  scroll context; no playback action was activated and the starting Shiori
+  route was restored.
 - `git diff --check`
   passes.
 

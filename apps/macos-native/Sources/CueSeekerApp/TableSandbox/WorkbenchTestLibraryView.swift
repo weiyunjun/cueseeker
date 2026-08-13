@@ -284,7 +284,7 @@ struct WorkbenchTestLibraryView: View {
                     folderDetailContent(for: selectedFolder)
                         .padding(
                             .horizontal,
-                            WorkbenchTestLibraryMetrics.pageHorizontalPadding
+                            WorkbenchControlMetrics.redesignSpacing8
                         )
                         .padding(
                             .vertical,
