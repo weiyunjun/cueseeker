@@ -142,19 +142,6 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         return true
     }
 
-    @discardableResult
-    func selectFromPointer(_ itemID: String) -> Bool {
-        guard isActive,
-              availableItemIDs.contains(itemID),
-              selectedItemID != itemID
-        else {
-            return false
-        }
-        selectedItemID = itemID
-        scrollRequest = nil
-        return true
-    }
-
     func recordVisibleFrames(
         _ framesByItemID: [String: CGRect],
         viewportHeight: CGFloat

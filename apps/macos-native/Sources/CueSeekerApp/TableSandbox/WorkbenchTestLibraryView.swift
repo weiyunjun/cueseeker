@@ -577,8 +577,6 @@ struct RecentWatchingGrid: View {
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHover = true
-    var allowsHoverSelection = false
-    var onHoverSelection: (RecentLibraryWatchingPresentation) -> Void = { _ in }
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
     var body: some View {
@@ -588,9 +586,7 @@ struct RecentWatchingGrid: View {
             itemFrameCoordinateSpace: itemFrameCoordinateSpace,
             onItemFramesChange: onItemFramesChange,
             allowsHover: allowsHover,
-            allowsHoverSelection: allowsHoverSelection,
             content: LibraryVideoCardContent.init,
-            onHoverSelection: onHoverSelection,
             onOpen: onOpen
         )
     }
@@ -604,9 +600,7 @@ where Item.ID == String {
     let itemFrameCoordinateSpace: String?
     let onItemFramesChange: ([String: CGRect]) -> Void
     let allowsHover: Bool
-    let allowsHoverSelection: Bool
     let content: (Item) -> LibraryVideoCardContent
-    let onHoverSelection: (Item) -> Void
     let onOpen: (Item) -> Void
 
     private var columns: [GridItem] {
@@ -636,8 +630,6 @@ where Item.ID == String {
                         actions: .appState(appState),
                         openContextMenu: openContextMenu,
                         allowsHover: allowsHover,
-                        allowsHoverSelection: allowsHoverSelection,
-                        onHoverSelection: { onHoverSelection(item) },
                         onOpen: { onOpen(item) }
                     )
                     .background {
@@ -743,8 +735,6 @@ private struct LibraryVideoCard: View {
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let allowsHover: Bool
-    let allowsHoverSelection: Bool
-    let onHoverSelection: () -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -801,22 +791,7 @@ private struct LibraryVideoCard: View {
             }
             onOpen()
         }
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering, allowsHover, allowsHoverSelection, isAvailable {
-                onHoverSelection()
-            }
-        }
-        .onChange(of: allowsHover) { allowsHover in
-            if allowsHover, isHovered, allowsHoverSelection, isAvailable {
-                onHoverSelection()
-            }
-        }
-        .onChange(of: allowsHoverSelection) { allowsSelection in
-            if allowsSelection, isHoverActive, isAvailable {
-                onHoverSelection()
-            }
-        }
+        .onHover { isHovered = $0 }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
             isHovered: isHoverActive,
@@ -1062,8 +1037,6 @@ struct CompleteLibraryEpisodeGrid: View {
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHover = true
-    var allowsHoverSelection = false
-    var onHoverSelection: (CompleteLibraryVideoPresentation) -> Void = { _ in }
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
     var body: some View {
@@ -1078,15 +1051,12 @@ struct CompleteLibraryEpisodeGrid: View {
                 itemFrameCoordinateSpace: itemFrameCoordinateSpace,
                 onItemFramesChange: onItemFramesChange,
                 allowsHover: allowsHover,
-                allowsHoverSelection: mode.displaysPersistentSelection
-                    && allowsHoverSelection,
                 content: {
                     LibraryVideoCardContent(
                         folderTitle: folderTitle,
                         video: $0
                     )
                 },
-                onHoverSelection: onHoverSelection,
                 onOpen: onOpen
             )
         }

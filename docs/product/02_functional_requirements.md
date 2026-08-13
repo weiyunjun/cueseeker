@@ -577,7 +577,7 @@ Playback Multi-Module Overlay cue action requirements:
   Back restores the prior Folder state.
 - Playback Page initialization hides the Pointer. Only physical Pointer Move
   reveals it; Wheel does not. Any key-down hides it. Media-card Hover can
-  update Selected only while Pointer is visible.
+  appear only while Pointer is visible and never updates or clears Selected.
 - The Playback Page retains one Return Context across Overlay Sessions. A
   successful Search, Shiori, Recent, or Library Detail playback replaces it;
   closing Playback restores that Workbench target and destroys the context.

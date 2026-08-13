@@ -11,7 +11,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
   progress, time, and full-card selection treatment. Playback Playlist now
   selects the current video on first entry and preserves Session-local choice
   on return; Playlist and Command Panel media lists reveal selections without
-  forced centering, and hidden Pointer state suppresses stale Hover feedback.
+  forced centering, hidden Pointer state suppresses stale Hover feedback, and
+  card Hover remains visual-only without replacing keyboard selection.
 - Shared the adaptive Cover Summary between Shiori and Library detail. Library
   now shows its current folder title, video and subtitle counts, full path, and
   a Resume or Play action above the Video Card Grid; Resume reuses the

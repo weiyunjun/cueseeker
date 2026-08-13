@@ -122,24 +122,6 @@ func playbackMediaSelectionUsesAvailablePreferredInitialItem() {
 
 @MainActor
 @Test
-func playbackMediaPointerSelectionAcceptsOnlyAvailableItemsWithoutScrolling() {
-    let selection = PlaybackMediaSelectionStore()
-    selection.replaceItems(
-        orderedItemIDs: ["0", "1", "2"],
-        availableItemIDs: ["0", "2"],
-        resetsSelection: true
-    )
-
-    #expect(selection.selectedItemID == "0")
-    #expect(!selection.selectFromPointer("1"))
-    #expect(selection.selectedItemID == "0")
-    #expect(selection.selectFromPointer("2"))
-    #expect(selection.selectedItemID == "2")
-    #expect(selection.scrollRequest == nil)
-}
-
-@MainActor
-@Test
 func playbackMediaScrollBridgeRestoresAndObservesExactPixelOffset() async throws {
     var observedOffsetY: CGFloat = -1
     let hostingView = NSHostingView(

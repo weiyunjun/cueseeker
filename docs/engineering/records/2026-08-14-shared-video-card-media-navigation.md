@@ -19,7 +19,8 @@ and suppress mouse Hover while the Playback Pointer is hidden.
   only Playlist selection and scroll-state owner; it accepts one optional
   preferred initial identity.
 - Pointer interaction: the existing Playback Pointer visibility store gates
-  Hover visuals, Pointer selection, and Pointer cursor presentation.
+  Hover visuals and Pointer cursor presentation without writing Playlist
+  selection.
 - Product semantics, persistence, playback execution, and UI tokens remain
   unchanged. No cache, asynchronous lifecycle, dependency, or new E2E input
   capability was added.
@@ -46,14 +47,18 @@ and suppress mouse Hover while the Playback Pointer is hidden.
    available item, and does not reset on later module visits or detail refreshes.
 7. Added focused preferred-selection, asynchronous-detail, and scroll-reveal
    tests and updated the existing Session-continuity integration test.
+8. Removed the shared video card's Hover-selection callback and the Playlist
+   selection store's Pointer mutation entry point. Hover now remains visual
+   state and can coexist with keyboard selection on another card.
 
 # Verification
 
 - `swift build -c release --product CueSeeker` passes.
 - `swift test --filter 'PlaybackLibrary|playbackMedia|WorkbenchScrollView'`
-  passes 22 tests, including preloaded and asynchronous current-video
+  passes 21 tests, including preloaded and asynchronous current-video
   selection, nearest-edge reveal, and no movement for an already visible
-  target.
+  target. The obsolete Pointer-selection expectation was removed with its
+  production mutation path.
 - `swift test --filter 'playbackCommandPanel|recentShioriPlayback'` passes 13
   Command Panel navigation, recent-page, and Recent Shiori playback tests.
 - The Debug in-app E2E flow passed in the real `1433 x 821`-point, `2x` Light
@@ -75,13 +80,13 @@ Recent Videos, Library Folder Detail, and Playback Video Playlist now render one
 video-card implementation. Playlist initialization follows the current video,
 Session continuity is retained, and keyboard navigation no longer re-centers
 visible selections. Hidden Pointer state no longer leaves card or Recent Shiori
-Hover feedback active.
+Hover feedback active, and Pointer movement cannot replace Playlist selection.
 
 # Follow-ups
 
-- Pointer-hidden Hover behavior remains the owner-approved manual acceptance
-  item because the current Debug E2E controller intentionally cannot move the
-  real Pointer.
+- Pointer-hidden Hover and Hover/Selected independence remain owner-approved
+  manual acceptance items because the current Debug E2E controller
+  intentionally cannot move the real Pointer.
 - The human owner will update `docs/human/design/UI Design System.md` only after
   the visual iteration is accepted, as required by the current requirement.
 - After that acceptance, synchronize the derived component and UX mappings in

@@ -442,7 +442,8 @@ without wrapping and does not introduce a second selection store. Command Panel
 Recent Videos, Recent Shioris, and Playback Video Playlist leave an already
 visible selection stationary and reveal an offscreen selection only at its
 nearest viewport edge. Hidden Playback Pointer state suppresses mouse Hover
-visuals and Hover selection without clearing keyboard selection.
+visuals without clearing keyboard selection. Video-card Hover is visual-only;
+Pointer movement never changes the Session-local selection.
 
 The Playback Multi-Module Overlay owns one strictly temporary Session with
 Current, optional Playlist, Search, Recent, Library, and Shiori. Module

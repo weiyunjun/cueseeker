@@ -1171,10 +1171,11 @@ pbpaste
 10. Reopen playback and the Overlay. In Recent, confirm the first available card
     is selected. Use all four arrows, scroll away from the start, and take
     Recent-before. With Pointer visible, Hover another available card and
-    confirm it becomes Selected; move to blank space and confirm Selected stays.
-    Hide Pointer with a key and confirm Hover cannot change Selected; reveal it
-    by movement, then scroll a new card under the stationary Pointer and confirm
-    the new Hover target becomes Selected. Exercise the card context menu and
+    confirm Hover appears while Selected remains unchanged; move to blank space
+    and confirm Hover disappears while Selected stays. Hide Pointer with a key
+    and confirm Hover disappears without changing Selected; reveal it by
+    movement, then scroll a new card under the stationary Pointer and confirm
+    only Hover changes. Exercise the card context menu and
     confirm it has the accepted actions, no item named `Context`, and its actions
     remain locked to the right-clicked card until close. Click another Sidebar
     module and then click Recent; take
@@ -1539,6 +1540,7 @@ offscreen selection only at the nearest edge.
 ### Manual Hover Acceptance
 
 With Pointer visible, verify card and Recent Shiori Hover. Use keyboard or
-controller input to hide Pointer and confirm Hover visuals and Hover selection
-disappear while keyboard Selected remains. Move the mouse and confirm Hover
-returns. No Pointer Move automation is added for this requirement.
+controller input to hide Pointer and confirm Hover visuals disappear while
+keyboard Selected remains. Move the mouse across cards and confirm Hover
+returns and changes independently without changing or clearing Selected. No
+Pointer Move automation is added for this requirement.

@@ -537,7 +537,8 @@ Playback Multi-Module Overlay interaction:
   available Folder, Enter opens that Folder in the same Session, Back restores
   the Folder selection and offset, and Detail starts on the first available
   Episode. Selected state reuses the card Hover visual without a Focus Ring.
-  Visible-Pointer Hover updates Selected; hidden Pointer Hover does not.
+  Visible-Pointer Hover is visual-only and may coexist with Selected on a
+  different card; Pointer movement never changes or clears Selected.
   Media-card playback destroys the Session before opening its target.
 
 Keyboard interactions should not interfere with text input.
