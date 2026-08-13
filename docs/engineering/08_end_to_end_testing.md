@@ -1490,8 +1490,9 @@ letterboxing or stretching, unequal horizontal edges, or a second scrollbar.
 Verify that Library Folder Detail and Playback Video Playlist reuse the Recent
 Videos card, that a new Playlist Session selects the current video, that a
 revisited Playlist preserves Session-local selection, and that selection reveal
-does not force visible cards to the viewport center. Pointer Hover remains the
-explicit manual portion of this gate.
+keeps every keyboard-selected item fully visible without forcing visible cards
+to the viewport center. Pointer Hover remains the explicit manual portion of
+this gate.
 
 ### Automated Checks
 
@@ -1500,11 +1501,14 @@ Run:
 ```bash
 cd apps/macos-native
 swift test --filter 'PlaybackLibrary|playbackMedia|WorkbenchScrollView'
+swift test --filter 'playbackCommandPanel|recentShioriPlayback'
 ```
 
 The checks must confirm preferred-current selection with unavailable fallback,
 Session continuity, adaptive media-grid navigation, exact scroll-offset
-retention, nearest-edge reveal, and no scrolling for an already visible target.
+retention, nearest-edge reveal, no scrolling for an already fully visible
+target, and top or bottom reveal for partially visible and unmaterialized
+Command Panel Recent Video targets.
 
 ### In-App E2E Preconditions
 
@@ -1534,8 +1538,10 @@ retention, nearest-edge reveal, and no scrolling for an already visible target.
    be Selected in the new Session; the first video must not be Selected.
 
 Every command must return `status: ok` with a fresh scene identifier. The card
-Grid must keep its top edge while a visible selection changes and may reveal an
-offscreen selection only at the nearest edge.
+Grid must keep its top edge while a fully visible selection changes. Repeated
+keyboard movement must leave the final Selected card fully inside the viewport;
+a partially visible card is invalid and may be revealed only at the nearest
+edge.
 
 ### Manual Hover Acceptance
 

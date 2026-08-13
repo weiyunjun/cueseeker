@@ -2,6 +2,7 @@ import AppKit
 @testable import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -704,6 +705,44 @@ func playbackCommandPanelRecentVideosUsesFourVisualGridDirections() async throws
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 6)
     }
+}
+
+@MainActor
+@Test
+func playbackCommandPanelRecentVideosUsesNearestEdgeForPartialAndLazyTargets() {
+    let orderedItemIDs = (0..<25).map(String.init)
+    let frames = [
+        "0": CGRect(x: 0, y: -20, width: 180, height: 160),
+        "15": CGRect(x: 0, y: 560, width: 180, height: 160),
+        "19": CGRect(x: 784, y: 560, width: 180, height: 160),
+    ]
+
+    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+        for: "0",
+        orderedItemIDs: orderedItemIDs,
+        itemFramesByID: frames,
+        viewportHeight: 614
+    ) == .top)
+    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+        for: "15",
+        orderedItemIDs: orderedItemIDs,
+        itemFramesByID: frames,
+        viewportHeight: 614
+    ) == .bottom)
+    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+        for: "20",
+        orderedItemIDs: orderedItemIDs,
+        itemFramesByID: frames,
+        viewportHeight: 614
+    ) == .bottom)
+    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+        for: "10",
+        orderedItemIDs: orderedItemIDs,
+        itemFramesByID: [
+            "10": CGRect(x: 0, y: 320, width: 180, height: 160),
+        ],
+        viewportHeight: 614
+    ) == nil)
 }
 
 @MainActor

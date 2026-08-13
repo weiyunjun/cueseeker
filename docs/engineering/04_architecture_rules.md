@@ -440,8 +440,10 @@ the current adaptive column count with visible card frames through the shared
 media-grid direction rule. Four-direction navigation follows visual position
 without wrapping and does not introduce a second selection store. Command Panel
 Recent Videos, Recent Shioris, and Playback Video Playlist leave an already
-visible selection stationary and reveal an offscreen selection only at its
-nearest viewport edge. Hidden Playback Pointer state suppresses mouse Hover
+fully visible selection stationary. A partially visible selection is treated as
+offscreen and is revealed only at its nearest viewport edge; a lazy Grid target
+that has not been materialized uses the nearest leading or trailing edge from
+its ordered position. Hidden Playback Pointer state suppresses mouse Hover
 visuals without clearing keyboard selection. Video-card Hover is visual-only;
 Pointer movement never changes the Session-local selection.
 

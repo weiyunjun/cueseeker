@@ -37,9 +37,8 @@ and suppress mouse Hover while the Playback Pointer is hidden.
 3. Injected Playback Pointer visibility into Command Panel and gated Recent
    Video card and Recent Shiori row Hover without changing keyboard selection.
 4. Removed center anchors and selection animations from Command Panel Recent
-   Videos, Recent Shioris, and Playback Video Playlist. Unanchored
-   `ScrollViewReader` requests retain visible positions and reveal offscreen
-   items at the nearest edge.
+   Videos, Recent Shioris, and Playback Video Playlist. Visible selections keep
+   their positions, while offscreen selections reveal at the nearest edge.
 5. Kept the existing adaptive grid-direction algorithm for Playlist and updated
    its column count from the real viewport width.
 6. Passed the normalized current video path into the existing Library Session
@@ -50,17 +49,23 @@ and suppress mouse Hover while the Playback Pointer is hidden.
 8. Removed the shared video card's Hover-selection callback and the Playlist
    selection store's Pointer mutation entry point. Hover now remains visual
    state and can coexist with keyboard selection on another card.
+9. Kept Command Panel Recent Video frame measurements instead of clearing them
+   after appearance. Selection changes now cancel superseded work, wait for the
+   current Grid layout, and use an explicit top or bottom edge only when the
+   selected card is partial or its lazy target is not yet materialized.
 
 # Verification
 
 - `swift build -c release --product CueSeeker` passes.
 - `swift test --filter 'PlaybackLibrary|playbackMedia|WorkbenchScrollView'`
   passes 21 tests, including preloaded and asynchronous current-video
-  selection, nearest-edge reveal, and no movement for an already visible
+  selection, nearest-edge reveal, and no movement for an already fully visible
   target. The obsolete Pointer-selection expectation was removed with its
   production mutation path.
-- `swift test --filter 'playbackCommandPanel|recentShioriPlayback'` passes 13
-  Command Panel navigation, recent-page, and Recent Shiori playback tests.
+- `swift test --filter 'playbackCommandPanel|recentShioriPlayback'` passes 14
+  Command Panel navigation, recent-page, and Recent Shiori playback tests. The
+  focused edge-policy regression also covers fully visible, partially visible,
+  and unmaterialized Recent Video targets.
 - The Debug in-app E2E flow passed in the real `1433 x 821`-point, `2x` Light
   Mode window. Captures verified the shared Recent-style cards in `Ave Mujica`
   Library Detail and Playback Playlist. EP01 was selected on first entry; EP02
@@ -79,8 +84,10 @@ and suppress mouse Hover while the Playback Pointer is hidden.
 Recent Videos, Library Folder Detail, and Playback Video Playlist now render one
 video-card implementation. Playlist initialization follows the current video,
 Session continuity is retained, and keyboard navigation no longer re-centers
-visible selections. Hidden Pointer state no longer leaves card or Recent Shiori
-Hover feedback active, and Pointer movement cannot replace Playlist selection.
+visible selections. Command Panel Recent Videos also keeps every changed
+selection fully visible across lazy Grid boundaries. Hidden Pointer state no
+longer leaves card or Recent Shiori Hover feedback active, and Pointer movement
+cannot replace Playlist selection.
 
 # Follow-ups
 

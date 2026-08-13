@@ -446,7 +446,7 @@ private struct PlaybackCommandPanelSearchReel: View {
     }
 }
 
-private struct PlaybackCommandPanelRecentVideos: View {
+struct PlaybackCommandPanelRecentVideos: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var libraryStore: LibraryStore
     let allowsHover: Bool
@@ -457,6 +457,7 @@ private struct PlaybackCommandPanelRecentVideos: View {
 
     private let coordinateSpaceName =
         "playback-command-panel-recent-videos-scroll"
+    @State private var itemFramesByID: [String: CGRect] = [:]
 
     private var items: [RecentLibraryWatchingPresentation] {
         libraryStore.testRecentWatchingItems
@@ -494,6 +495,7 @@ private struct PlaybackCommandPanelRecentVideos: View {
                             selectedItemID: selectedItemID,
                             itemFrameCoordinateSpace: coordinateSpaceName,
                             onItemFramesChange: { frames in
+                                itemFramesByID = frames
                                 onGridLayoutChange(columnCount, frames)
                             },
                             allowsHover: allowsHover
@@ -514,15 +516,20 @@ private struct PlaybackCommandPanelRecentVideos: View {
                         )
                     }
                     .coordinateSpace(name: coordinateSpaceName)
-                    .onAppear {
-                        onGridLayoutChange(columnCount, [:])
-                    }
-                    .onChange(of: columnCount) { columnCount in
-                        onGridLayoutChange(columnCount, [:])
-                        scrollToSelected(using: proxy)
-                    }
-                    .onChange(of: selectedItemID) { _ in
-                        scrollToSelected(using: proxy)
+                    .task(id: selectedItemID) {
+                        await Task.yield()
+                        guard !Task.isCancelled,
+                              let selectedItemID,
+                              let anchor = Self.scrollAnchor(
+                                  for: selectedItemID,
+                                  orderedItemIDs: items.map(\.id),
+                                  itemFramesByID: itemFramesByID,
+                                  viewportHeight: geometry.size.height
+                              )
+                        else {
+                            return
+                        }
+                        proxy.scrollTo(selectedItemID, anchor: anchor)
                     }
                 }
             }
@@ -550,11 +557,37 @@ private struct PlaybackCommandPanelRecentVideos: View {
         )
     }
 
-    private func scrollToSelected(using proxy: ScrollViewProxy) {
-        guard let selectedItemID else {
-            return
+    static func scrollAnchor(
+        for itemID: String,
+        orderedItemIDs: [String],
+        itemFramesByID: [String: CGRect],
+        viewportHeight: CGFloat
+    ) -> UnitPoint? {
+        if let frame = itemFramesByID[itemID] {
+            if frame.minY < 0 {
+                return .top
+            }
+            if frame.maxY > viewportHeight {
+                return .bottom
+            }
+            return nil
         }
-        proxy.scrollTo(selectedItemID)
+
+        guard let selectedOrdinal = orderedItemIDs.firstIndex(of: itemID) else {
+            return nil
+        }
+        let measuredOrdinals = itemFramesByID.keys.compactMap { measuredID in
+            orderedItemIDs.firstIndex(of: measuredID)
+        }
+        if let firstMeasuredOrdinal = measuredOrdinals.min(),
+           selectedOrdinal < firstMeasuredOrdinal {
+            return .top
+        }
+        if let lastMeasuredOrdinal = measuredOrdinals.max(),
+           selectedOrdinal > lastMeasuredOrdinal {
+            return .bottom
+        }
+        return nil
     }
 }
 
