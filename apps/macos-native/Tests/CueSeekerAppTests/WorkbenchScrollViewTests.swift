@@ -174,6 +174,68 @@ func workbenchScrollViewPreservesScrollViewReaderPositioning() async throws {
     #expect(vertical.positionFraction > 0.9)
 }
 
+@MainActor
+@Test
+func workbenchScrollViewRevealsTargetsAtTheNearestEdgeWithoutCentering()
+    async throws
+{
+    let host = NSHostingView(
+        rootView: WorkbenchScrollViewNearestEdgeFixture()
+            .frame(width: 300, height: 200)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchScrollView(host)
+    try? await Task.sleep(for: .milliseconds(50))
+    await settleWorkbenchScrollView(host)
+
+    let overlay = try #require(
+        firstWorkbenchSubview(
+            of: WorkbenchScrollViewOverlayView.self,
+            in: host
+        )
+    )
+    let scrollView = try #require(overlay.targetScrollViewForTesting)
+    #expect(abs(scrollView.contentView.bounds.origin.y - 640) < 2)
+}
+
+@MainActor
+@Test
+func workbenchScrollViewDoesNotMoveForAnAlreadyVisibleTarget() async throws {
+    let host = NSHostingView(
+        rootView: WorkbenchScrollViewVisibleTargetFixture()
+            .frame(width: 300, height: 200)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchScrollView(host)
+    try? await Task.sleep(for: .milliseconds(80))
+    await settleWorkbenchScrollView(host)
+
+    let overlay = try #require(
+        firstWorkbenchSubview(
+            of: WorkbenchScrollViewOverlayView.self,
+            in: host
+        )
+    )
+    let scrollView = try #require(overlay.targetScrollViewForTesting)
+    #expect(abs(scrollView.contentView.bounds.origin.y - 600) < 2)
+}
+
 private struct WorkbenchScrollViewReaderFixture: View {
     var body: some View {
         ScrollViewReader { proxy in
@@ -189,6 +251,54 @@ private struct WorkbenchScrollViewReaderFixture: View {
             .task {
                 await Task.yield()
                 proxy.scrollTo("target", anchor: .bottom)
+            }
+        }
+    }
+}
+
+private struct WorkbenchScrollViewNearestEdgeFixture: View {
+    var body: some View {
+        ScrollViewReader { proxy in
+            WorkbenchScrollView {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: 800)
+                    Color.clear
+                        .frame(height: 40)
+                        .id("target")
+                    Color.clear.frame(height: 800)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .task {
+                await Task.yield()
+                proxy.scrollTo("target")
+            }
+        }
+    }
+}
+
+private struct WorkbenchScrollViewVisibleTargetFixture: View {
+    var body: some View {
+        ScrollViewReader { proxy in
+            WorkbenchScrollView {
+                VStack(spacing: 0) {
+                    Color.clear.frame(height: 600)
+                    Color.clear
+                        .frame(height: 1)
+                        .id("anchor")
+                    Color.clear.frame(height: 49)
+                    Color.clear
+                        .frame(height: 40)
+                        .id("visible")
+                    Color.clear.frame(height: 800)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .task {
+                await Task.yield()
+                proxy.scrollTo("anchor", anchor: .top)
+                try? await Task.sleep(for: .milliseconds(20))
+                proxy.scrollTo("visible")
             }
         }
     }

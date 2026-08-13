@@ -66,7 +66,8 @@ extension AppCoordinator {
             libraryStore = makePlaybackLibrarySessionStore(
                 folderPath: URL(fileURLWithPath: source.videoPath)
                     .deletingLastPathComponent()
-                    .standardizedFileURL.path
+                    .standardizedFileURL.path,
+                initialVideoPath: source.videoPath
             )
         } else {
             libraryStore = nil

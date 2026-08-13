@@ -127,6 +127,7 @@ struct WorkbenchRecentView: View {
 struct RecentShioriResumeList: View {
     let summaries: [ShioriListSummary]
     var selectedItemID: Int64? = nil
+    var allowsHover = true
     let onOpen: (ShioriListSummary) -> Void
 
     var body: some View {
@@ -134,7 +135,8 @@ struct RecentShioriResumeList: View {
             ForEach(summaries) { summary in
                 RecentShioriResumeRow(
                     summary: summary,
-                    isSelected: selectedItemID == summary.id
+                    isSelected: selectedItemID == summary.id,
+                    allowsHover: allowsHover
                 ) {
                     onOpen(summary)
                 }
@@ -189,8 +191,13 @@ private struct RecentSectionHeader: View {
 struct RecentShioriResumeRow: View {
     let summary: ShioriListSummary
     var isSelected = false
+    var allowsHover = true
     let onOpen: () -> Void
     @State private var isHovered = false
+
+    private var isHoverActive: Bool {
+        allowsHover && isHovered
+    }
 
     var body: some View {
         Button(action: onOpen) {
@@ -257,7 +264,7 @@ struct RecentShioriResumeRow: View {
                     style: .continuous
                 )
                 .fill(
-                    isHovered || isSelected
+                    isHoverActive || isSelected
                         ? WorkbenchRedesignColors.libraryMediaCardHoverBg
                         : Color.clear
                 )
@@ -266,7 +273,7 @@ struct RecentShioriResumeRow: View {
         .buttonStyle(.plain)
         .focusable(false)
         .onHover { isHovered = $0 }
-        .pointerOnHover(isEnabled: true)
+        .pointerOnHover(isEnabled: allowsHover)
         .accessibilityLabel(summary.list.name)
     }
 }
@@ -362,6 +369,7 @@ struct WorkbenchTestLibraryView: View {
                 folderCoverSummary(folder: folder, detail: folderDetail)
 
                 CompleteLibraryEpisodeGrid(
+                    folderTitle: folderDetail.folderTitle,
                     videos: folderDetail.videos,
                     mode: .workbench,
                     onOpen: { video in
@@ -533,16 +541,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let mediaCardHoverRadius = WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius
 
     static let detailHeaderGap = WorkbenchControlMetrics.redesignSpacing2
-    static let episodeGridTopPadding = WorkbenchControlMetrics.redesignSpacing2
-    static let episodeRowMinWidth = WorkbenchControlMetrics.redesignLibraryEpisodeRowMinWidth
-    static let episodeGridGap = WorkbenchControlMetrics.redesignLibraryEpisodeGridGap
-    static let episodeListItemGap = WorkbenchControlMetrics.redesignLibraryListItemGap
-    static let episodeListInfoVerticalGap = WorkbenchControlMetrics.redesignLibraryListInfoVerticalGap
-    static let episodeListCardRadius = WorkbenchControlMetrics.redesignLibraryListCardRadius
-    static let episodeListCardVerticalPadding = WorkbenchControlMetrics.redesignLibraryListCardVerticalPadding
-    static let episodeListCardHorizontalPadding = WorkbenchControlMetrics.redesignLibraryListCardHorizontalPadding
-    static let episodeListCoverWidth = WorkbenchControlMetrics.redesignLibraryListCoverWidth
-    static let episodeListCoverHeight = WorkbenchControlMetrics.redesignLibraryListCoverHeight
     static let coverHoverScale = WorkbenchControlMetrics.redesignLibraryCoverHoverScale
     static let coverHoverDuration = WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
 
@@ -555,9 +553,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let titleSize = WorkbenchControlMetrics.redesignFontSizeLibraryTitle
     static let metaSize = WorkbenchControlMetrics.redesignFontSizeLibraryMeta
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
-    static let episodeListTitleSize = WorkbenchControlMetrics.redesignFontSizeLibraryListTitle
-    static let episodeListSubtitleSize = WorkbenchControlMetrics.redesignFontSizeLibraryListSubtitle
-    static let episodeListMetaSize = WorkbenchControlMetrics.redesignFontSizeLibraryListMeta
 }
 
 struct LibrarySectionTitle: View {
@@ -577,14 +572,42 @@ struct LibrarySectionTitle: View {
 }
 
 struct RecentWatchingGrid: View {
-    @EnvironmentObject private var appState: AppCoordinator
     let items: [RecentLibraryWatchingPresentation]
     var selectedItemID: String? = nil
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
+    var allowsHover = true
     var allowsHoverSelection = false
     var onHoverSelection: (RecentLibraryWatchingPresentation) -> Void = { _ in }
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
+
+    var body: some View {
+        LibraryVideoCardGrid(
+            items: items,
+            selectedItemID: selectedItemID,
+            itemFrameCoordinateSpace: itemFrameCoordinateSpace,
+            onItemFramesChange: onItemFramesChange,
+            allowsHover: allowsHover,
+            allowsHoverSelection: allowsHoverSelection,
+            content: LibraryVideoCardContent.init,
+            onHoverSelection: onHoverSelection,
+            onOpen: onOpen
+        )
+    }
+}
+
+private struct LibraryVideoCardGrid<Item: Identifiable>: View
+where Item.ID == String {
+    @EnvironmentObject private var appState: AppCoordinator
+    let items: [Item]
+    let selectedItemID: String?
+    let itemFrameCoordinateSpace: String?
+    let onItemFramesChange: ([String: CGRect]) -> Void
+    let allowsHover: Bool
+    let allowsHoverSelection: Bool
+    let content: (Item) -> LibraryVideoCardContent
+    let onHoverSelection: (Item) -> Void
+    let onOpen: (Item) -> Void
 
     private var columns: [GridItem] {
         [
@@ -601,18 +624,22 @@ struct RecentWatchingGrid: View {
 
     var body: some View {
         LibraryCardContextMenuHost { openContextMenu in
-            LazyVGrid(columns: columns, alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentGridGap) {
+            LazyVGrid(
+                columns: columns,
+                alignment: .leading,
+                spacing: WorkbenchTestLibraryMetrics.recentGridGap
+            ) {
                 ForEach(items) { item in
-                    RecentWatchingCard(
-                        item: item,
+                    LibraryVideoCard(
+                        content: content(item),
                         isSelected: selectedItemID == item.id,
                         actions: .appState(appState),
                         openContextMenu: openContextMenu,
+                        allowsHover: allowsHover,
                         allowsHoverSelection: allowsHoverSelection,
-                        onHoverSelection: { onHoverSelection(item) }
-                    ) {
-                        onOpen(item)
-                    }
+                        onHoverSelection: { onHoverSelection(item) },
+                        onOpen: { onOpen(item) }
+                    )
                     .background {
                         if let itemFrameCoordinateSpace {
                             GeometryReader { proxy in
@@ -631,8 +658,7 @@ struct RecentWatchingGrid: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onPreferenceChange(LibraryItemFramePreferenceKey.self) {
-                frames in
+            .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
                 guard itemFrameCoordinateSpace != nil else {
                     return
                 }
@@ -672,25 +698,69 @@ private struct LibraryCardActionHandlers {
     }
 }
 
-private struct RecentWatchingCard: View {
-    let item: RecentLibraryWatchingPresentation
+private struct LibraryVideoCardContent {
+    let videoPath: String
+    let folderTitle: String
+    let episodeNumber: Int
+    let positionMilliseconds: Int
+    let duration: Double?
+    let coverPath: String?
+    let coverRevision: String?
+    let watchStatus: LibraryWatchStatus
+    let libraryVideo: LibraryVideo
+
+    init(_ item: RecentLibraryWatchingPresentation) {
+        videoPath = item.videoPath
+        folderTitle = item.folderTitle
+        episodeNumber = item.episodeNumber
+        positionMilliseconds = item.positionMilliseconds
+        duration = item.playbackDuration ?? item.duration
+        coverPath = item.coverPath
+        coverRevision = item.coverRevision
+        watchStatus = LibraryWatchStatus(item.watchState)
+        libraryVideo = item.libraryVideo
+    }
+
+    init(
+        folderTitle: String,
+        video: CompleteLibraryVideoPresentation
+    ) {
+        videoPath = video.videoPath
+        self.folderTitle = folderTitle
+        episodeNumber = video.episodeNumber
+        positionMilliseconds = video.positionMilliseconds
+        duration = video.playbackDuration ?? video.duration
+        coverPath = video.coverPath
+        coverRevision = video.coverRevision
+        watchStatus = LibraryWatchStatus(video.watchState)
+        libraryVideo = video.libraryVideo
+    }
+}
+
+private struct LibraryVideoCard: View {
+    let content: LibraryVideoCardContent
     let isSelected: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
+    let allowsHover: Bool
     let allowsHoverSelection: Bool
     let onHoverSelection: () -> Void
     let onOpen: () -> Void
     @State private var isHovered = false
 
     private var isAvailable: Bool {
-        FileManager.default.fileExists(atPath: item.videoPath)
+        FileManager.default.fileExists(atPath: content.videoPath)
+    }
+
+    private var isHoverActive: Bool {
+        allowsHover && isHovered
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentCardGap) {
             cover
 
-            Text(item.folderTitle)
+            Text(content.folderTitle)
                 .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
                 .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                 .lineLimit(1)
@@ -702,7 +772,7 @@ private struct RecentWatchingCard: View {
                     .foregroundStyle(WorkbenchRedesignColors.textMuted)
                     .monospacedDigit()
 
-                WatchStatusBadge(status: watchStatus)
+                WatchStatusBadge(status: content.watchStatus)
             }
         }
         .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
@@ -713,7 +783,7 @@ private struct RecentWatchingCard: View {
                 style: .continuous
             )
             .fill(
-                (isHovered || isSelected) && isAvailable
+                (isHoverActive || isSelected) && isAvailable
                     ? WorkbenchRedesignColors.libraryMediaCardHoverBg
                     : Color.clear
             )
@@ -733,68 +803,74 @@ private struct RecentWatchingCard: View {
         }
         .onHover { hovering in
             isHovered = hovering
-            if hovering, allowsHoverSelection, isAvailable {
+            if hovering, allowsHover, allowsHoverSelection, isAvailable {
+                onHoverSelection()
+            }
+        }
+        .onChange(of: allowsHover) { allowsHover in
+            if allowsHover, isHovered, allowsHoverSelection, isAvailable {
                 onHoverSelection()
             }
         }
         .onChange(of: allowsHoverSelection) { allowsSelection in
-            if allowsSelection, isHovered, isAvailable {
+            if allowsSelection, isHoverActive, isAvailable {
                 onHoverSelection()
             }
         }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
-            isHovered: isHovered,
-            items: recentContextMenuItems,
+            isHovered: isHoverActive,
+            items: contextMenuItems,
             openContextMenu: openContextMenu
         )
-        .libraryCardCursor(isEnabled: isAvailable)
-        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .libraryCardCursor(isEnabled: isAvailable && allowsHover)
+        .animation(
+            .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
+            value: isHoverActive
+        )
+        .accessibilityLabel(
+            "\(content.folderTitle), \(episodeLabel), \(content.watchStatus.title)"
+        )
     }
 
     private var cover: some View {
         LibraryCoverWithProgress(
-            coverPath: item.coverPath,
-            coverRevision: item.coverRevision,
-            positionMilliseconds: item.positionMilliseconds,
-            duration: item.playbackDuration ?? item.duration
+            coverPath: content.coverPath,
+            coverRevision: content.coverRevision,
+            positionMilliseconds: content.positionMilliseconds,
+            duration: content.duration
         )
         .libraryCoverHoverEffect(
-            isActive: (isHovered || isSelected) && isAvailable
+            isActive: (isHoverActive || isSelected) && isAvailable
         )
     }
 
-    private var recentContextMenuItems: [LibraryCardContextMenuItem] {
+    private var contextMenuItems: [LibraryCardContextMenuItem] {
         [
             LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
-                actions.revealFile(item.videoPath)
+                actions.revealFile(content.videoPath)
             },
             LibraryCardContextMenuItem(
                 title: LibraryCoverContextMenuItem.title,
                 systemImage: LibraryCoverContextMenuItem.systemImage
             ) {
-                actions.changeCover(.video(path: item.videoPath))
+                actions.changeCover(.video(path: content.videoPath))
             },
             LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
-                actions.markVideo(item.libraryVideo, .finished)
+                actions.markVideo(content.libraryVideo, .finished)
             },
             LibraryCardContextMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
-                actions.markVideo(item.libraryVideo, .unwatched)
+                actions.markVideo(content.libraryVideo, .unwatched)
             },
             LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
-                actions.markVideo(item.libraryVideo, .watching)
+                actions.markVideo(content.libraryVideo, .watching)
             }
         ]
     }
 
     private var episodeLabel: String {
-        String(format: "EP%02d", item.episodeNumber)
+        String(format: "EP%02d", content.episodeNumber)
     }
-
-    private var watchStatus: LibraryWatchStatus {
-        LibraryWatchStatus(item.watchState)
-    }
-
 }
 
 struct CompleteLibraryFolderGrid: View {
@@ -979,12 +1055,13 @@ enum CompleteLibraryEpisodeGridMode: Equatable {
 }
 
 struct CompleteLibraryEpisodeGrid: View {
-    @EnvironmentObject private var appState: AppCoordinator
+    let folderTitle: String
     let videos: [CompleteLibraryVideoPresentation]
     var mode: CompleteLibraryEpisodeGridMode = .workbench
     var selectedItemID: String? = nil
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
+    var allowsHover = true
     var allowsHoverSelection = false
     var onHoverSelection: (CompleteLibraryVideoPresentation) -> Void = { _ in }
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
@@ -993,264 +1070,26 @@ struct CompleteLibraryEpisodeGrid: View {
         if videos.isEmpty {
             LibraryEmptyHint("No episodes yet.")
         } else {
-            LibraryCardContextMenuHost { openContextMenu in
-                LazyVStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.episodeGridGap) {
-                    ForEach(videos) { video in
-                        LibraryEpisodeCard(
-                            video: video,
-                            isSelected: mode.displaysPersistentSelection
-                                && selectedItemID == video.id,
-                            actions: .appState(appState),
-                            openContextMenu: openContextMenu,
-                            allowsHoverSelection: mode.displaysPersistentSelection
-                                && allowsHoverSelection,
-                            onHoverSelection: { onHoverSelection(video) }
-                        ) {
-                            onOpen(video)
-                        }
-                        .frame(
-                            minWidth: WorkbenchTestLibraryMetrics.episodeRowMinWidth,
-                            maxWidth: .infinity,
-                            alignment: .leading
-                        )
-                        .background {
-                            if let itemFrameCoordinateSpace {
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: LibraryItemFramePreferenceKey.self,
-                                        value: [
-                                            video.id: proxy.frame(
-                                                in: .named(itemFrameCoordinateSpace)
-                                            )
-                                        ]
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.top, WorkbenchTestLibraryMetrics.episodeGridTopPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onPreferenceChange(LibraryItemFramePreferenceKey.self) {
-                    frames in
-                    guard itemFrameCoordinateSpace != nil else {
-                        return
-                    }
-                    onItemFramesChange(frames)
-                }
-            }
-        }
-    }
-}
-
-private struct LibraryEpisodeCard: View {
-    let video: CompleteLibraryVideoPresentation
-    let isSelected: Bool
-    let actions: LibraryCardActionHandlers
-    let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
-    let allowsHoverSelection: Bool
-    let onHoverSelection: () -> Void
-    let onOpen: () -> Void
-    @State private var isHovered = false
-
-    private var isAvailable: Bool {
-        FileManager.default.fileExists(atPath: video.videoPath)
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: WorkbenchTestLibraryMetrics.episodeListItemGap) {
-            cover
-
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Text(displayTitle)
-                        .font(.system(size: WorkbenchTestLibraryMetrics.episodeListTitleSize, weight: .semibold))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .layoutPriority(1)
-
-                    WatchStatusBadge(status: LibraryWatchStatus(video.watchState))
-                        .fixedSize()
-                }
-
-                Spacer(minLength: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap)
-
-                Text("字幕文件：\(subtitleFileName)")
-                    .font(.system(size: WorkbenchTestLibraryMetrics.episodeListSubtitleSize))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                if let metadataText {
-                    Spacer(minLength: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap)
-
-                    Text(metadataText)
-                        .font(.system(size: WorkbenchTestLibraryMetrics.episodeListMetaSize))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                } else {
-                    Spacer(minLength: WorkbenchTestLibraryMetrics.episodeListInfoVerticalGap)
-                }
-            }
-            .frame(
-                maxWidth: .infinity,
-                minHeight: WorkbenchTestLibraryMetrics.episodeListCoverHeight,
-                maxHeight: WorkbenchTestLibraryMetrics.episodeListCoverHeight,
-                alignment: .topLeading
+            LibraryVideoCardGrid(
+                items: videos,
+                selectedItemID: mode.displaysPersistentSelection
+                    ? selectedItemID
+                    : nil,
+                itemFrameCoordinateSpace: itemFrameCoordinateSpace,
+                onItemFramesChange: onItemFramesChange,
+                allowsHover: allowsHover,
+                allowsHoverSelection: mode.displaysPersistentSelection
+                    && allowsHoverSelection,
+                content: {
+                    LibraryVideoCardContent(
+                        folderTitle: folderTitle,
+                        video: $0
+                    )
+                },
+                onHoverSelection: onHoverSelection,
+                onOpen: onOpen
             )
         }
-        .padding(.vertical, WorkbenchTestLibraryMetrics.episodeListCardVerticalPadding)
-        .padding(.horizontal, WorkbenchTestLibraryMetrics.episodeListCardHorizontalPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .opacity(isAvailable ? 1 : 0.55)
-        .animation(.easeOut(duration: 0.12), value: isHovered)
-        .accessibilityLabel("\(displayTitle), \(LibraryWatchStatus(video.watchState).title)")
-    }
-
-    private var cover: some View {
-        LibraryCoverWithProgress(
-            coverPath: video.coverPath,
-            coverRevision: video.coverRevision,
-            positionMilliseconds: video.positionMilliseconds,
-            duration: video.playbackDuration ?? video.duration
-        )
-        .libraryCoverHoverEffect(
-            isActive: (isHovered || isSelected) && isAvailable
-        )
-        .frame(
-            width: WorkbenchTestLibraryMetrics.episodeListCoverWidth,
-            height: WorkbenchTestLibraryMetrics.episodeListCoverHeight
-        )
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                style: .continuous
-            )
-            .fill(
-                (isHovered || isSelected) && isAvailable
-                    ? WorkbenchRedesignColors.libraryMediaCardHoverBg
-                    : Color.clear
-            )
-            .padding(-WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
-        )
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                style: .continuous
-            )
-        )
-        .onTapGesture {
-            guard isAvailable else {
-                return
-            }
-            onOpen()
-        }
-        .onHover { hovering in
-            isHovered = hovering
-            if hovering, allowsHoverSelection, isAvailable {
-                onHoverSelection()
-            }
-        }
-        .onChange(of: allowsHoverSelection) { allowsSelection in
-            if allowsSelection, isHovered, isAvailable {
-                onHoverSelection()
-            }
-        }
-        .libraryCardContextMenuTrigger(
-            isEnabled: isAvailable,
-            isHovered: isHovered,
-            items: episodeContextMenuItems,
-            openContextMenu: openContextMenu
-        )
-        .libraryCardCursor(isEnabled: isAvailable)
-    }
-
-    private var episodeContextMenuItems: [LibraryCardContextMenuItem] {
-        [
-            LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
-                actions.revealFile(video.videoPath)
-            },
-            LibraryCardContextMenuItem(
-                title: LibraryCoverContextMenuItem.title,
-                systemImage: LibraryCoverContextMenuItem.systemImage
-            ) {
-                actions.changeCover(.video(path: video.videoPath))
-            },
-            LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
-                actions.markVideo(video.libraryVideo, .finished)
-            },
-            LibraryCardContextMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
-                actions.markVideo(video.libraryVideo, .unwatched)
-            },
-            LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
-                actions.markVideo(video.libraryVideo, .watching)
-            }
-        ]
-    }
-
-    private var displayTitle: String {
-        let trimmedDisplayTitle = video.displayTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedDisplayTitle.isEmpty {
-            return trimmedDisplayTitle
-        }
-        return String(format: "EP%02d", video.episodeNumber)
-    }
-
-    private var subtitleFileName: String {
-        URL(fileURLWithPath: video.subtitlePath).lastPathComponent
-    }
-
-    private var metadataText: String? {
-        let parts = [
-            video.fileSize.flatMap(Self.formatFileSize),
-            Self.formatResolution(width: video.videoWidth, height: video.videoHeight),
-            video.frameRate.flatMap(Self.formatFrameRate),
-            video.videoCodec.flatMap(Self.formatCodec)
-        ].compactMap { $0 }
-
-        if parts.isEmpty {
-            return nil
-        }
-        return parts.joined(separator: " ")
-    }
-
-    private static func formatFileSize(_ fileSize: Int64) -> String? {
-        guard fileSize > 0 else {
-            return nil
-        }
-        return ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file)
-    }
-
-    private static func formatResolution(width: Int?, height: Int?) -> String? {
-        guard let width, let height, width > 0, height > 0 else {
-            return nil
-        }
-        return "\(width)x\(height)"
-    }
-
-    private static func formatFrameRate(_ frameRate: Double) -> String? {
-        guard frameRate.isFinite, frameRate > 0 else {
-            return nil
-        }
-
-        let rounded = (frameRate * 100).rounded() / 100
-        if rounded.rounded() == rounded {
-            return String(format: "%.0f fps", rounded)
-        }
-        let value = String(format: "%.2f", rounded)
-            .replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\.$", with: "", options: .regularExpression)
-        return "\(value) fps"
-    }
-
-    private static func formatCodec(_ codec: String) -> String? {
-        let trimmed = codec.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-        return trimmed.uppercased()
     }
 }
 

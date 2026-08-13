@@ -1190,28 +1190,19 @@ pbpaste
     Workbench, compare Library and Shiori level one, and confirm they share the
     same Summary Row, adaptive Grid, card width, Hover, and Pressed structure;
     only Shiori cards include the Description line. Enter one Library Folder
-    and confirm its Episode list has no persistent default selection. Start
-    playback from that folder, reopen the Overlay, and enter Library. Confirm
-    the first available Folder is selected, use all four arrows, scroll, and
-    take Library-Folder-before.
-    Before entering, verify Folder Hover and its shared card context menu with
-    no item named `Context`. Selected Folder must reuse the full-card Hover visual;
-    Selected Episode must reuse only the Cover Region Hover visual. Neither may
-    add a Focus Ring, border, or independent selected fill. Press Enter
-    once to open the selected Folder and confirm a held/repeating Enter does not
-    enter twice. Verify the fixed Detail Header, first available Episode
-    selection, four-arrow navigation, Cover hover, and Cover context menu. The
-    Playback Episode rows must match the Workbench Folder Detail layout and card
-    content exactly apart from the documented selection and menu capabilities.
-    Scroll Detail and take Library-Detail-before; leave and return with Sidebar
-    clicks, then take Library-Detail-after and compare the selected identity and
-    named Episode top-edge coordinate. Use Back and take Library-Folder-after;
-    it must match the earlier Folder selection and exact offset. Enter a Folder
-    by left-clicking its card and confirm Detail starts again at its first
-    available Episode and initial offset. Then, within that Session, left-click
-    the Cover of the Episode chosen for the second unsaved Cue; each original
-    pointer action must occur once, and Episode playback must destroy the Overlay
-    and open that exact Episode.
+    and confirm its Video Card Grid has no persistent default selection. Start
+    playback from that folder, reopen the Overlay, and enter Video Playlist.
+    Confirm the current video is selected, use all four arrows, scroll, and take
+    Library-Detail-before. Selected must reuse the full-card Hover visual with
+    no Focus Ring, border, or independent selected fill. Verify four-arrow
+    navigation and the shared card context menu with no item named `Context`.
+    Playback Video Cards must match Workbench Folder Detail card layout and
+    content exactly apart from persistent selection. Leave and return with the
+    top tabs, then take Library-Detail-after and compare the selected identity
+    and named Video Card top-edge coordinate. Within that Session, left-click
+    the Video Card chosen for the second unsaved Cue; each original pointer
+    action must occur once, and video playback must destroy the Overlay and open
+    that exact video.
 12. Reopen the Overlay and enter Shiori. Confirm only subtitle Results appear.
     Select a non-first Result, scroll to a named position, and take Shiori-before.
     Click Current, navigate to the planned second unsaved Primary Cue, and save
@@ -1228,22 +1219,20 @@ pbpaste
     implicit seek and restoration of the playback state captured at Overlay
     open. Reopen with Enter and visit every available module: the new Session
     must start on Current; Playback Search must show the current shared Search
-    Query but reset its Overlay-local selection and offset; Library must start
-    at Folder level with default first selections and initial offsets. A
-    Playlist-capable origin must also reopen Playlist at its default first
-    Result.
-14. In separate fresh Sessions, execute playback Enter from Current, Playlist,
-    Playback Search, Recent, Library Detail, and Shiori. For Current, Playlist,
-    and Shiori, also verify S and C against the settled Primary Cue; use already
-    saved targets for these repeated S checks so no third test Shiori is
-    created. Search continues to treat S/C as editor input. Every playback
-    Enter must execute at most once under key repeat, destroy the Session before
-    seek or media open, and use the exact selected Primary Cue, card, or Episode
-    action. In a separate fresh Library Session, press Enter on a Folder and
-    confirm it enters Detail exactly once while the same Overlay Session stays
-    active; it must not seek, open media, or destroy the Session.
+    Query but reset its Overlay-local selection and offset. A Video Playlist
+    must select its current available video and use an initial offset that only
+    reveals that card when needed. A Cue Playlist must reopen at its default
+    first Result.
+14. In separate fresh Sessions, execute playback Enter from Current, Cue
+    Playlist, Playback Search, Recent, Video Playlist, and Shiori. For Current,
+    Cue Playlist, and Shiori, also verify S and C against the settled Primary
+    Cue; use already saved targets for these repeated S checks so no third test
+    Shiori is created. Search continues to treat S/C as editor input. Every
+    playback Enter must execute at most once under key repeat, destroy the
+    Session before seek or media open, and use the exact selected Primary Cue or
+    video-card action.
     Across separate successful runs, close Playback after playing from Search,
-    Shiori, Recent, and Library Detail. Require return to current Workbench
+    Shiori, Recent, and Video Playlist. Require return to current Workbench
     Search with its current Query, Workbench Shiori, Workbench Recent, and the
     exact Workbench Library Folder Detail respectively. Failed playback and
     module-only browsing must retain the prior Return Context; after close the
@@ -1251,9 +1240,9 @@ pbpaste
 15. Start playback from Workbench Shiori, open the Overlay, and mechanically
     compare Playlist's final count and the Primary Cue texts at Sequence 1,
     Sequence 2, and the last Sequence against the existing Shiori
-    navigation scope. Start playback from Library and then Recent; Playlist must
-    be absent, Sidebar clicks must still work, and Tab must move directly from
-    Current to Search.
+    navigation scope. Start playback from Library and then Recent; Video
+    Playlist must show only the current folder's shared Video Cards and select
+    the current video when each new Overlay Session opens.
 16. Build a `Show Cue Group = On` comparison ledger using explicit count
     bridges; Search and Shiori Overlay do not expose a numeric count of their
     own. For Playlist, use the last Sequence Number from one fixed
@@ -1276,7 +1265,7 @@ pbpaste
 17. Start a broad Playback Search and close the Playback Page immediately. The
     shared Search Query and loaded Feature results must remain visible in
     Workbench, while Overlay-local selection, offset, feedback, and pending
-    presentation work disappear. In a separate run, enter Library Detail and
+    presentation work disappear. In a separate run, enter Video Playlist and
     immediately close Playback. Wait two seconds, open a different video, and
     reopen the Overlay: no old Overlay hierarchy, selection, offset, feedback,
     error, or late presentation work may appear, while shared Workbench Feature
@@ -1403,9 +1392,10 @@ rm -f /tmp/cueseeker-playback-multi-module-overlay.log
 ### Feature
 
 Verify that Workbench Library Folder Detail renders the shared adaptive Cover
-Summary above its existing Episode Grid, uses the current folder metadata and
-cover, and keeps both regions in one scroll context. This visual gate does not
-activate Play or Resume and therefore does not alter Playback History.
+Summary above its shared Recent-style Video Card Grid, uses the current folder
+metadata and cover, and keeps both regions in one scroll context. This visual
+gate does not activate Play or Resume and therefore does not alter Playback
+History.
 
 ### Preconditions
 
@@ -1451,13 +1441,13 @@ action must return `status: ok`, and each following action must use the fresh
    `library-cover-summary-detail` after the response.
 6. Verify the detail capture shows, in order, one folder title, one
    `xx videos yy subtitles` line, the complete folder path, and one Resume or
-   Play button. The displayed counts must equal the current Episode Grid count,
+   Play button. The displayed counts must equal the current Video Card Grid count,
    the background must fill the rounded summary without distortion or padding,
    and the summary and grid must have the same horizontal edges. The Library
    Cover Summary edges must also equal the Shiori reference at `x = 272` and
    `x = 1401`.
 7. At `(1300, 650)`, issue one `scroll` with `deltaY: -4`, then capture
-   `library-cover-summary-scrolled`. The Cover Summary and Episode Grid must
+   `library-cover-summary-scrolled`. The Cover Summary and Video Card Grid must
    move in the same page viewport; no nested vertical scrollbar may appear.
 8. Issue one `scroll` at the same coordinate with `deltaY: 4`. Restore the
    original Shiori overview with the documented Sidebar click `(80, 253)`, then
@@ -1467,14 +1457,14 @@ Each named image path and the complete controller records from `inspect`
 through the restored capture are the evidence handoff. A valid failure report
 names the action and includes its last successful `sceneID`, the returned error
 or visible mismatch, and the corresponding capture path. Examples include a
-count different from the Episode Grid, metadata sharing one line, an image with
+count different from the Video Card Grid, metadata sharing one line, an image with
 letterboxing or stretching, unequal horizontal edges, or a second scrollbar.
 
 ### Acceptance Criteria
 
 - All controller actions return `status: ok` for the unchanged complete scene.
 - Library detail contains one shared full-width Cover Summary followed by the
-  existing Episode Grid in the same viewport.
+  shared Recent-style Video Card Grid in the same viewport.
 - Shiori and Library Cover Summary horizontal edges are both `x = 272` and
   `x = 1401` in the accepted complete scene.
 - Title, folder-local counts, complete path, and Resume or Play are separate,
@@ -1491,3 +1481,64 @@ letterboxing or stretching, unequal horizontal edges, or a second scrollbar.
 - Quit the Debug process with Control-C after recording the final controller
   response. The temporary E2E artifact directory may be deleted after evidence
   review; no product data cleanup is required because playback is not opened.
+
+## 10. Shared Video Card And Media Navigation
+
+### Feature
+
+Verify that Library Folder Detail and Playback Video Playlist reuse the Recent
+Videos card, that a new Playlist Session selects the current video, that a
+revisited Playlist preserves Session-local selection, and that selection reveal
+does not force visible cards to the viewport center. Pointer Hover remains the
+explicit manual portion of this gate.
+
+### Automated Checks
+
+Run:
+
+```bash
+cd apps/macos-native
+swift test --filter 'PlaybackLibrary|playbackMedia|WorkbenchScrollView'
+```
+
+The checks must confirm preferred-current selection with unavailable fallback,
+Session continuity, adaptive media-grid navigation, exact scroll-offset
+retention, nearest-edge reveal, and no scrolling for an already visible target.
+
+### In-App E2E Preconditions
+
+- Use the Debug in-app controller at `1433 x 821` logical points and `2x`.
+- Start on the Workbench Recent overview with Library at `(80, 217)`.
+- The first Library folder at `(360, 160)` has at least two available videos;
+  its first Video Card is at `(380, 390)` after detail loading.
+- Stop if `inspect` reports a different complete scene or any documented card
+  is unavailable.
+
+### In-App E2E Actions
+
+1. Capture Recent Videos, click Library, click the first folder, and capture
+   `shared-video-card-library-detail`. Confirm every Video Card uses the same
+   folder title, `EPxx`, watch-status Badge, progress, and time structure as
+   Recent Videos; the removed left-cover/right-metadata row must not appear.
+2. Click the first Video Card, press Enter to open the Overlay, press Tab to
+   enter Playlist, and capture `shared-video-card-playback-playlist-current`.
+   The current first video must be Selected with the complete card Hover visual.
+3. Press Right Arrow to select the second video and capture
+   `shared-video-card-playlist-session-before`. Press Tab twice and capture
+   `shared-video-card-playlist-session-after`; identity and pixel position must
+   match the before capture.
+4. Press Enter to play the selected second video. Reopen the Overlay with Enter,
+   enter Playlist with Tab, and capture
+   `shared-video-card-playlist-new-session-current-ep02`. The second video must
+   be Selected in the new Session; the first video must not be Selected.
+
+Every command must return `status: ok` with a fresh scene identifier. The card
+Grid must keep its top edge while a visible selection changes and may reveal an
+offscreen selection only at the nearest edge.
+
+### Manual Hover Acceptance
+
+With Pointer visible, verify card and Recent Shiori Hover. Use keyboard or
+controller input to hide Pointer and confirm Hover visuals and Hover selection
+disappear while keyboard Selected remains. Move the mouse and confirm Hover
+returns. No Pointer Move automation is added for this requirement.

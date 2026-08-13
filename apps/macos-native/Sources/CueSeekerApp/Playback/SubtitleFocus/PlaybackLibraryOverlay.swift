@@ -51,11 +51,14 @@ private struct PlaybackLibraryEpisodeList: View {
                 }
                 .coordinateSpace(name: coordinateSpaceName)
                 .onAppear {
-                    selection.updateColumnCount(1)
+                    updateGridLayout(containerWidth: geometry.size.width)
                     scheduleScroll(
                         selection.pendingScrollRequest,
                         using: scrollProxy
                     )
+                }
+                .onChange(of: geometry.size.width) { width in
+                    updateGridLayout(containerWidth: width)
                 }
                 .onChange(of: selection.scrollRequest) { request in
                     scheduleScroll(
@@ -82,6 +85,7 @@ private struct PlaybackLibraryEpisodeList: View {
             PlaybackLibraryEmptyHint(message)
         } else if let detail = store.detail {
             CompleteLibraryEpisodeGrid(
+                folderTitle: detail.folderTitle,
                 videos: detail.videos,
                 mode: .playback,
                 selectedItemID: selection.selectedItemID,
@@ -92,6 +96,7 @@ private struct PlaybackLibraryEpisodeList: View {
                         viewportHeight: viewportHeight
                     )
                 },
+                allowsHover: pointerVisibility.isVisible,
                 allowsHoverSelection: pointerVisibility.isVisible,
                 onHoverSelection: { video in
                     selection.selectFromPointer(video.id)
@@ -127,9 +132,22 @@ private struct PlaybackLibraryEpisodeList: View {
             guard !Task.isCancelled else {
                 return
             }
-            proxy.scrollTo(request.itemID, anchor: .center)
+            proxy.scrollTo(request.itemID)
             selection.markScrollRequestHandled(sequence: request.sequence)
         }
+    }
+
+    private func updateGridLayout(containerWidth: CGFloat) {
+        selection.updateAdaptiveGrid(
+            containerWidth: max(
+                0,
+                containerWidth
+                    - PlaybackSubtitleFocusMetrics.contentInset * 2
+            ),
+            minimumItemWidth: WorkbenchControlMetrics
+                .redesignLibraryRecentCardMinWidth,
+            itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
+        )
     }
 }
 

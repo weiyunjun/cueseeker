@@ -68,11 +68,13 @@ extension AppCoordinator {
     }
 
     func makePlaybackLibrarySessionStore(
-        folderPath: String
+        folderPath: String,
+        initialVideoPath: String
     ) -> PlaybackLibrarySessionStore {
         PlaybackLibrarySessionStore(
             libraryStore: library,
             folderPath: folderPath,
+            initialVideoPath: initialVideoPath,
             requestFolderDetail: { [weak self] folderPath in
                 self?.hydrateCompleteLibraryFolderDetailAsync(
                     folderPath: folderPath

@@ -49,7 +49,8 @@ final class PlaybackMediaSelectionStore: ObservableObject {
     func replaceItems(
         orderedItemIDs: [String],
         availableItemIDs: Set<String>,
-        resetsSelection: Bool
+        resetsSelection: Bool,
+        preferredSelectionID: String? = nil
     ) {
         guard isActive else {
             return
@@ -65,7 +66,11 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         if resetsSelection {
             scrollAnchorItemID = nil
             select(
-                normalizedOrder.first(where: normalizedAvailability.contains),
+                preferredSelectionID.flatMap {
+                    normalizedAvailability.contains($0) ? $0 : nil
+                } ?? normalizedOrder.first(
+                    where: normalizedAvailability.contains
+                ),
                 forcesScroll: true
             )
         } else if selectedItemID.map({ !normalizedAvailability.contains($0) }) == true {

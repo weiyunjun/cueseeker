@@ -2,6 +2,8 @@ import CueSeekerCore
 import SwiftUI
 
 struct PlaybackCommandPanel: View {
+    @EnvironmentObject private var pointerVisibility:
+        PlaybackPointerVisibilityStore
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var playback: PlaybackStore
     @ObservedObject var searchStore: SearchStore
@@ -62,6 +64,7 @@ struct PlaybackCommandPanel: View {
                             PlaybackCommandPanelRecentVideos(
                                 presentation: presentation,
                                 libraryStore: libraryStore,
+                                allowsHover: pointerVisibility.isVisible,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -86,6 +89,7 @@ struct PlaybackCommandPanel: View {
                             PlaybackCommandPanelRecentShioris(
                                 presentation: presentation,
                                 shioriStore: shioriStore,
+                                allowsHover: pointerVisibility.isVisible,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -445,6 +449,7 @@ private struct PlaybackCommandPanelSearchReel: View {
 private struct PlaybackCommandPanelRecentVideos: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var libraryStore: LibraryStore
+    let allowsHover: Bool
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int, [String: CGRect]) -> Void
@@ -490,7 +495,8 @@ private struct PlaybackCommandPanelRecentVideos: View {
                             itemFrameCoordinateSpace: coordinateSpaceName,
                             onItemFramesChange: { frames in
                                 onGridLayoutChange(columnCount, frames)
-                            }
+                            },
+                            allowsHover: allowsHover
                         ) { item in
                             if let ordinal = items.firstIndex(where: {
                                 $0.id == item.id
@@ -548,15 +554,14 @@ private struct PlaybackCommandPanelRecentVideos: View {
         guard let selectedItemID else {
             return
         }
-        withAnimation(.easeOut(duration: 0.16)) {
-            proxy.scrollTo(selectedItemID, anchor: .center)
-        }
+        proxy.scrollTo(selectedItemID)
     }
 }
 
 private struct PlaybackCommandPanelRecentShioris: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var shioriStore: ShioriStore
+    let allowsHover: Bool
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onOpen: (Int) -> Void
@@ -585,7 +590,8 @@ private struct PlaybackCommandPanelRecentShioris: View {
                 WorkbenchScrollView {
                     RecentShioriResumeList(
                         summaries: summaries,
-                        selectedItemID: selectedItemID
+                        selectedItemID: selectedItemID,
+                        allowsHover: allowsHover
                     ) { summary in
                         if let ordinal = summaries.firstIndex(where: {
                             $0.id == summary.id
@@ -606,9 +612,7 @@ private struct PlaybackCommandPanelRecentShioris: View {
                     guard let selectedItemID else {
                         return
                     }
-                    withAnimation(.easeOut(duration: 0.16)) {
-                        proxy.scrollTo(selectedItemID, anchor: .center)
-                    }
+                    proxy.scrollTo(selectedItemID)
                 }
             }
 

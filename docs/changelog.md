@@ -6,9 +6,15 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Unified Recent Videos, Library Folder Detail, and Playback Video Playlist on
+  one adaptive video-card Grid with the same folder title, Episode, watch-state,
+  progress, time, and full-card selection treatment. Playback Playlist now
+  selects the current video on first entry and preserves Session-local choice
+  on return; Playlist and Command Panel media lists reveal selections without
+  forced centering, and hidden Pointer state suppresses stale Hover feedback.
 - Shared the adaptive Cover Summary between Shiori and Library detail. Library
   now shows its current folder title, video and subtitle counts, full path, and
-  a Resume or Play action above the existing Episode Grid; Resume reuses the
+  a Resume or Play action above the Video Card Grid; Resume reuses the
   matching Recent Videos action, while Play starts the first current Episode.
   Both detail pages now use the same inline Cover Summary bounds.
 - Fixed Shiori detail scrolling so partially visible virtual rows are clipped

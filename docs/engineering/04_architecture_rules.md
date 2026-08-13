@@ -421,21 +421,28 @@ while Shiori cards represent lists with a Description. Library statistics are
 derived from the same displayed folder summaries, and `Add Content` opens the
 existing Settings Library entry point rather than adding another folder picker.
 
-Workbench Library Folder Detail and Playback Video Playlist render the same
-Library Episode list and card implementation. Workbench does not create a
-persistent Episode selection; Playback keeps Session-local selection, defaults
-it to the first available Episode. These host differences must remain
-configuration of the shared list, not separate row implementations.
+Workbench Recent overview and detail, Workbench Library Folder Detail, Playback
+Command Panel Recent Videos, and Playback Video Playlist render one adaptive
+video-card Grid and one video-card implementation. Every host keeps the Recent
+Videos card content contract: folder title, `EPxx`, watch status, cover
+progress, and time. Workbench Library Folder Detail does not create persistent
+selection. Playback Video Playlist keeps Session-local selection, initially
+prefers the current available video, falls back to the first available video,
+and preserves the user's selection and exact offset when revisiting the module
+within that Session.
 
-Workbench Recent overview, Workbench Recent detail, and Playback Command Panel
-render one Recent Watching card Grid and one Recent Shiori resume-row list.
-Preview versus complete data limits, Command Panel selection, and scrolling are
-host inputs to those shared components; they must not create parallel card or
-row implementations. Command Panel Recent Videos keeps its ordinal as the only
-selection source and combines the current adaptive column count with visible
-card frames through the shared media-grid direction rule. Four-direction
-navigation must follow visual position without wrapping and must not introduce
-a second selection store.
+Workbench Recent overview and Playback Command Panel render one Recent Shiori
+resume-row list. Preview versus complete data limits, Command Panel selection,
+Pointer Hover availability, and scrolling are host inputs to the shared card
+and row components; they must not create parallel implementations. Command
+Panel Recent Videos keeps its ordinal as the only selection source and combines
+the current adaptive column count with visible card frames through the shared
+media-grid direction rule. Four-direction navigation follows visual position
+without wrapping and does not introduce a second selection store. Command Panel
+Recent Videos, Recent Shioris, and Playback Video Playlist leave an already
+visible selection stationary and reveal an offscreen selection only at its
+nearest viewport edge. Hidden Playback Pointer state suppresses mouse Hover
+visuals and Hover selection without clearing keyboard selection.
 
 The Playback Multi-Module Overlay owns one strictly temporary Session with
 Current, optional Playlist, Search, Recent, Library, and Shiori. Module

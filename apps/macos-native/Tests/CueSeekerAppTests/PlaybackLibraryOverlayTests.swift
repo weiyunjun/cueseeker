@@ -37,13 +37,41 @@ func playbackLibraryUsesOnlyTheCurrentFolderEpisodes() throws {
 
 @MainActor
 @Test
+func playbackLibraryAsyncDetailStillSelectsTheCurrentVideo() throws {
+    let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
+    let library = LibraryStore()
+    let folderPath = fixture.folders[0].folderPath
+    let detail = try #require(fixture.detailsByFolderPath[folderPath])
+    let currentVideo = detail.videos[2]
+    let store = PlaybackLibrarySessionStore(
+        libraryStore: library,
+        folderPath: folderPath,
+        initialVideoPath: currentVideo.videoPath,
+        requestFolderDetail: { requestedFolderPath in
+            library.completeLibraryFolderDetailsByPath[requestedFolderPath]
+                = detail
+        },
+        isVideoAvailable: { _ in true }
+    )
+
+    store.activate()
+
+    #expect(store.detail == detail)
+    #expect(store.selection.selectedItemID == currentVideo.id)
+}
+
+@MainActor
+@Test
 func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData() throws {
     let fixture = playbackLibraryFixture(folderEpisodeCounts: [3])
     let library = playbackLibraryStore(fixture)
     let folderPath = fixture.folders[0].folderPath
+    let detail = try #require(fixture.detailsByFolderPath[folderPath])
+    let initialVideo = detail.videos[1]
     let store = PlaybackLibrarySessionStore(
         libraryStore: library,
         folderPath: folderPath,
+        initialVideoPath: initialVideo.videoPath,
         isVideoAvailable: { _ in true }
     )
     let session = PlaybackSubtitleFocusSessionStore(
@@ -55,6 +83,7 @@ func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData()
 
     #expect(publishPlaybackOverlayInitialTestSnapshot(session))
     #expect(session.selectModule(.library))
+    #expect(store.selection.selectedItemID == initialVideo.id)
     #expect(store.selection.move(.down))
     store.selection.recordScrollOffsetY(88.75)
     let selectedEpisodeID = store.selection.selectedItemID

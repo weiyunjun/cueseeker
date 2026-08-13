@@ -59,6 +59,7 @@ struct PlaybackPageView: View {
                         libraryStore: appState.library,
                         shioriStore: appState.shiori
                     )
+                    .environmentObject(playback.pointerVisibility)
                     .frame(
                         width: geometry.size.width,
                         height: geometry.size.height

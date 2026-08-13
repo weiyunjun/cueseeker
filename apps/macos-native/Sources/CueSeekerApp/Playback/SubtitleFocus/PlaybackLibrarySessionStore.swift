@@ -8,6 +8,7 @@ final class PlaybackLibrarySessionStore: ObservableObject {
     let folderPath: String
     let selection = PlaybackMediaSelectionStore()
 
+    private let initialVideoPath: String?
     private let requestFolderDetail: @MainActor (String) -> Void
     private let isVideoAvailable: @MainActor (String) -> Bool
     private var detailsCancellable: AnyCancellable?
@@ -17,6 +18,7 @@ final class PlaybackLibrarySessionStore: ObservableObject {
     init(
         libraryStore: LibraryStore,
         folderPath: String,
+        initialVideoPath: String? = nil,
         requestFolderDetail: @escaping @MainActor (String) -> Void = { _ in },
         isVideoAvailable: @escaping @MainActor (String) -> Bool = {
             FileManager.default.fileExists(atPath: $0)
@@ -24,6 +26,9 @@ final class PlaybackLibrarySessionStore: ObservableObject {
     ) {
         self.libraryStore = libraryStore
         self.folderPath = folderPath
+        self.initialVideoPath = initialVideoPath.map {
+            URL(fileURLWithPath: $0).standardizedFileURL.path
+        }
         self.requestFolderDetail = requestFolderDetail
         self.isVideoAvailable = isVideoAvailable
         detailsCancellable = libraryStore.$completeLibraryFolderDetailsByPath
@@ -107,7 +112,10 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         else {
             return
         }
-        applyDetail(detail, resetsSelection: false)
+        applyDetail(
+            detail,
+            resetsSelection: selection.orderedItemIDs.isEmpty
+        )
     }
 
     private func applyDetail(
@@ -122,7 +130,22 @@ final class PlaybackLibrarySessionStore: ObservableObject {
             availableItemIDs: Set(detail.videos.compactMap { video in
                 isVideoAvailable(video.videoPath) ? video.id : nil
             }),
-            resetsSelection: resetsSelection
+            resetsSelection: resetsSelection,
+            preferredSelectionID: resetsSelection
+                ? preferredInitialVideoID(in: detail)
+                : nil
         )
+    }
+
+    private func preferredInitialVideoID(
+        in detail: CompleteLibraryFolderDetailPresentation
+    ) -> String? {
+        guard let initialVideoPath else {
+            return nil
+        }
+        return detail.videos.first { video in
+            URL(fileURLWithPath: video.videoPath).standardizedFileURL.path
+                == initialVideoPath
+        }?.id
     }
 }

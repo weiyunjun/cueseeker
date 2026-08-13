@@ -97,6 +97,31 @@ func playbackMediaSelectionHasNoSelectionWhenEveryItemIsUnavailable() {
 
 @MainActor
 @Test
+func playbackMediaSelectionUsesAvailablePreferredInitialItem() {
+    let selection = PlaybackMediaSelectionStore()
+    selection.replaceItems(
+        orderedItemIDs: ["0", "1", "2"],
+        availableItemIDs: ["0", "2"],
+        resetsSelection: true,
+        preferredSelectionID: "2"
+    )
+
+    #expect(selection.selectedItemID == "2")
+    #expect(selection.scrollRequest?.itemID == "2")
+
+    selection.replaceItems(
+        orderedItemIDs: ["0", "1", "2"],
+        availableItemIDs: ["0", "2"],
+        resetsSelection: true,
+        preferredSelectionID: "1"
+    )
+
+    #expect(selection.selectedItemID == "0")
+    #expect(selection.scrollRequest?.itemID == "0")
+}
+
+@MainActor
+@Test
 func playbackMediaPointerSelectionAcceptsOnlyAvailableItemsWithoutScrolling() {
     let selection = PlaybackMediaSelectionStore()
     selection.replaceItems(
