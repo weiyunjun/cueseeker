@@ -12,7 +12,7 @@
 - Playback Overlay Video Playlist 同样复用该视频卡片。
 - 三处必须使用同一共享实现，不复制相似组件，不增加专用样式。
 - 卡片内容规则完全保持 Recent Videos 现状，包括 `folderTitle`、`EPXX`、观看状态、进度和时间；不得改用 `displayTitle`。
-- Selected 和 Hover 均作用于整张卡片，并保持 Recent Videos 现有视觉规则。
+- Selected 和 Hover 均作用于整张卡片，并保持 Recent Videos 现有视觉规则；二者状态相互独立，可以同时出现在不同卡片上。
 
 ### 2. 选择与滚动
 
@@ -23,9 +23,9 @@
 
 ### 3. Pointer 与 Hover
 
-- 键盘或控制器操作隐藏鼠标时，Command Panel 和 Video Playlist 中所有鼠标 Hover 效果及 Hover 选择必须立即失效。
-- 键盘 Selected 状态不受鼠标隐藏影响。
-- 鼠标重新移动后，恢复鼠标显示及 Hover 行为。
+- Hover 仅为鼠标视觉反馈，不得改变或清除键盘/控制器的 Selected 状态。
+- 键盘或控制器操作隐藏鼠标时，Command Panel 和 Video Playlist 中所有鼠标 Hover 效果必须立即失效，Selected 状态保持不变。
+- 鼠标重新移动后，恢复鼠标显示及 Hover 效果；鼠标跨卡片移动只能改变 Hover，不得改变 Selected。
 
 ### 4. UI 约束
 
@@ -34,5 +34,5 @@
 
 ## 验收
 
-- Pointer 隐藏、Hover 消失及鼠标恢复 Hover 使用人工验收。
+- Pointer 隐藏、Hover 消失、鼠标恢复 Hover，以及鼠标跨卡片移动不改变 Selected，使用人工验收。
 - 其余需求必须使用现有自动化端到端测试覆盖，不为本需求新增 Pointer Move 自动化能力。
