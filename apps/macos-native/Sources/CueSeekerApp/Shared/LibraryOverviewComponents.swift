@@ -119,12 +119,18 @@ struct LibraryCoverFrame<Content: View>: View {
 }
 
 struct LibraryCoverImageFillLayout: Equatable {
+    enum VerticalAlignment {
+        case top
+        case center
+    }
+
     let renderedSize: CGSize
     let offset: CGSize
 
     static func resolve(
         sourceSize: CGSize,
-        containerSize: CGSize
+        containerSize: CGSize,
+        verticalAlignment: VerticalAlignment = .top
     ) -> LibraryCoverImageFillLayout {
         let scale = max(
             containerSize.width / sourceSize.width,
@@ -138,7 +144,9 @@ struct LibraryCoverImageFillLayout: Equatable {
             renderedSize: renderedSize,
             offset: CGSize(
                 width: (containerSize.width - renderedSize.width) / 2,
-                height: 0
+                height: verticalAlignment == .center
+                    ? (containerSize.height - renderedSize.height) / 2
+                    : 0
             )
         )
     }
@@ -146,6 +154,7 @@ struct LibraryCoverImageFillLayout: Equatable {
 
 struct LibraryCoverFillImage: View {
     let image: CGImage
+    var verticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
 
     var body: some View {
         GeometryReader { proxy in
@@ -154,7 +163,8 @@ struct LibraryCoverFillImage: View {
                     width: image.width,
                     height: image.height
                 ),
-                containerSize: proxy.size
+                containerSize: proxy.size,
+                verticalAlignment: verticalAlignment
             )
             Image(decorative: image, scale: 1)
                 .resizable()

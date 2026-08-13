@@ -228,7 +228,10 @@ private struct WorkbenchShioriTableContent: View {
                     appState.openShioriListPlayback(summary)
                 }
             ) {
-                ShioriListCoverView(coverPath: summary.list.coverPath)
+                ShioriListCoverView(
+                    coverPath: summary.list.coverPath,
+                    imageVerticalAlignment: .center
+                )
             }
         )
     }

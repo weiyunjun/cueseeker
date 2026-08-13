@@ -205,18 +205,36 @@ enum WorkbenchControlMetrics {
     // into UI Design System.md.
     /// --height-cover-summary: 252px
     static let redesignCoverSummaryHeight: CGFloat = 252
-    /// --width-cover-summary-content-safe: 448px
-    static let redesignCoverSummaryContentSafeWidth = redesignCoverSummaryHeight
-        * redesignLibraryCoverAspectRatio
-    /// --cover-summary-blend-leading: 0 / 100%
-    static let redesignCoverSummaryBlendLeadingLocation: CGFloat = 0
-    static let redesignCoverSummaryBlendLeadingOpacity: Double = 1
-    /// --cover-summary-blend-middle: 55% / 72%
-    static let redesignCoverSummaryBlendMiddleLocation: CGFloat = 0.55
-    static let redesignCoverSummaryBlendMiddleOpacity: Double = 0.72
-    /// --cover-summary-blend-trailing: 82% / 32%
-    static let redesignCoverSummaryBlendTrailingLocation: CGFloat = 0.82
-    static let redesignCoverSummaryBlendTrailingOpacity: Double = 0.32
+    /// --min-width-cover-summary-content: 448px
+    static let redesignCoverSummaryContentMinWidth: CGFloat = 448
+    /// --max-width-cover-summary-content: 720px
+    static let redesignCoverSummaryContentMaxWidth: CGFloat = 720
+    /// --preferred-width-cover-summary-content: 50%
+    static let redesignCoverSummaryContentPreferredFraction: CGFloat = 0.5
+    /// --cover-summary-scrim-leading: 0% / 62%
+    static let redesignCoverSummaryScrimLeadingLocation: CGFloat = 0
+    static let redesignCoverSummaryScrimLeadingOpacity: Double = 0.62
+    /// --cover-summary-scrim-strong: 24% / 54%
+    static let redesignCoverSummaryScrimStrongLocation: CGFloat = 0.24
+    static let redesignCoverSummaryScrimStrongOpacity: Double = 0.54
+    /// --cover-summary-scrim-middle: 43% / 34%
+    static let redesignCoverSummaryScrimMiddleLocation: CGFloat = 0.43
+    static let redesignCoverSummaryScrimMiddleOpacity: Double = 0.34
+    /// --cover-summary-scrim-trailing: 58% / 12%
+    static let redesignCoverSummaryScrimTrailingLocation: CGFloat = 0.58
+    static let redesignCoverSummaryScrimTrailingOpacity: Double = 0.12
+    /// --cover-summary-scrim-transparent: 70% / 0%
+    static let redesignCoverSummaryScrimTransparentLocation: CGFloat = 0.70
+    /// --opacity-cover-summary-description: 76%
+    static let redesignCoverSummaryDescriptionOpacity: Double = 0.76
+    /// --opacity-cover-summary-button-bg: 14%
+    static let redesignCoverSummaryButtonBackgroundOpacity: Double = 0.14
+    /// --opacity-cover-summary-button-bg-hover: 24%
+    static let redesignCoverSummaryButtonHoverBackgroundOpacity: Double = 0.24
+    /// --opacity-cover-summary-button-border: 35%
+    static let redesignCoverSummaryButtonBorderOpacity: Double = 0.35
+    /// --opacity-cover-summary-button-disabled: 55%
+    static let redesignCoverSummaryButtonDisabledOpacity: Double = 0.55
     /// --radius-cover-summary: 16px
     static let redesignCoverSummaryRadius: CGFloat = 16
     /// --padding-cover-summary-content: 40px

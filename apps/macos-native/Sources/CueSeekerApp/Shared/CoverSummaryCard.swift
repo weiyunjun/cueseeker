@@ -1,38 +1,44 @@
 import SwiftUI
 
 struct CoverSummaryCardLayout: Equatable {
-    let coverFrame: CGRect
+    let backgroundFrame: CGRect
     let contentFrame: CGRect
-    let blendFrame: CGRect
-
-    var isFullyOverlapped: Bool {
-        contentFrame == coverFrame
-    }
+    let scrimEndLocation: CGFloat
 
     static func resolve(containerSize: CGSize) -> CoverSummaryCardLayout {
+        let width = max(0, containerSize.width)
         let height = WorkbenchControlMetrics.redesignCoverSummaryHeight
-        let coverWidth = height
-            * WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
-        let coverFrame = CGRect(
-            x: 0,
-            y: 0,
-            width: coverWidth,
-            height: height
+        let padding = WorkbenchControlMetrics.redesignCoverSummaryContentPadding
+        let availableWidth = max(0, width - padding * 2)
+        let preferredWidth = width
+            * WorkbenchControlMetrics.redesignCoverSummaryContentPreferredFraction
+        let boundedWidth = min(
+            WorkbenchControlMetrics.redesignCoverSummaryContentMaxWidth,
+            max(
+                WorkbenchControlMetrics.redesignCoverSummaryContentMinWidth,
+                preferredWidth
+            )
         )
-        let contentWidth = WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth
-        let separatedWidth = coverWidth + contentWidth
-        let contentX = containerSize.width >= separatedWidth ? coverWidth : 0
+        let contentWidth = min(availableWidth, boundedWidth)
         let contentFrame = CGRect(
-            x: contentX,
-            y: 0,
+            x: padding,
+            y: padding,
             width: contentWidth,
-            height: height
+            height: max(0, height - padding * 2)
         )
-        let overlap = coverFrame.intersection(contentFrame)
+        let protectedWidth = contentFrame.maxX + padding
+        let contentFraction = width > 0 ? protectedWidth / width : 1
+
         return CoverSummaryCardLayout(
-            coverFrame: coverFrame,
+            backgroundFrame: CGRect(x: 0, y: 0, width: width, height: height),
             contentFrame: contentFrame,
-            blendFrame: overlap.isNull ? .zero : overlap
+            scrimEndLocation: min(
+                1,
+                max(
+                    WorkbenchControlMetrics.redesignCoverSummaryScrimTransparentLocation,
+                    contentFraction
+                )
+            )
         )
     }
 }
@@ -68,18 +74,32 @@ struct CoverSummaryCard<Cover: View>: View {
             )
 
             ZStack(alignment: .topLeading) {
-                if layout.isFullyOverlapped {
-                    overlappedBackground(layout: layout)
-                } else {
-                    coverLayer(layout: layout)
-                    contentBackground(layout: layout)
-                }
+                cover()
+                    .frame(
+                        width: layout.backgroundFrame.width,
+                        height: layout.backgroundFrame.height
+                    )
+                    .allowsHitTesting(false)
+
+                coverScrim(endLocation: layout.scrimEndLocation)
+                    .frame(
+                        width: layout.backgroundFrame.width,
+                        height: layout.backgroundFrame.height
+                    )
+                    .allowsHitTesting(false)
+
                 content
+                    .frame(
+                        width: layout.contentFrame.width,
+                        height: layout.contentFrame.height,
+                        alignment: .leading
+                    )
                     .position(
                         x: layout.contentFrame.midX,
                         y: layout.contentFrame.midY
                     )
             }
+            .clipShape(coverShape)
         }
         .frame(
             maxWidth: .infinity,
@@ -90,110 +110,52 @@ struct CoverSummaryCard<Cover: View>: View {
         .clipped()
     }
 
-    private func coverLayer(layout: CoverSummaryCardLayout) -> some View {
-        cover()
-            .frame(
-                width: layout.coverFrame.width,
-                height: layout.coverFrame.height
-            )
-            .clipShape(coverShape)
-            .position(
-                x: layout.coverFrame.midX,
-                y: layout.coverFrame.midY
-            )
-            .allowsHitTesting(false)
-    }
+    private func coverScrim(endLocation: CGFloat) -> LinearGradient {
+        let baseEnd = WorkbenchControlMetrics
+            .redesignCoverSummaryScrimTransparentLocation
+        let locationScale = endLocation / baseEnd
 
-    private func overlappedBackground(layout: CoverSummaryCardLayout) -> some View {
-        ZStack {
-            cover()
-                .frame(
-                    width: layout.coverFrame.width,
-                    height: layout.coverFrame.height
-                )
-
-            coverBlend
-                .frame(
-                    width: layout.contentFrame.width,
-                    height: layout.contentFrame.height
-                )
-        }
-        .frame(
-            width: layout.coverFrame.width,
-            height: layout.coverFrame.height
-        )
-        .compositingGroup()
-        .clipShape(coverShape)
-        .position(
-            x: layout.coverFrame.midX,
-            y: layout.coverFrame.midY
-        )
-        .allowsHitTesting(false)
-    }
-
-    private func contentBackground(layout: CoverSummaryCardLayout) -> some View {
-        let solidWidth = max(
-            0,
-            layout.contentFrame.width - layout.blendFrame.width
-        )
-
-        return HStack(spacing: 0) {
-            if !layout.blendFrame.isEmpty {
-                coverBlend
-                    .frame(
-                        width: layout.blendFrame.width,
-                        height: layout.contentFrame.height
-                    )
-            }
-
-            if solidWidth > 0 {
-                WorkbenchRedesignColors.bgSurface
-                    .frame(
-                        width: solidWidth,
-                        height: layout.contentFrame.height
-                    )
-            }
-        }
-        .frame(
-            width: layout.contentFrame.width,
-            height: layout.contentFrame.height
-        )
-        .clipShape(coverShape)
-        .position(
-            x: layout.contentFrame.midX,
-            y: layout.contentFrame.midY
-        )
-        .allowsHitTesting(false)
-    }
-
-    private var coverBlend: LinearGradient {
-        LinearGradient(
+        return LinearGradient(
             stops: [
                 .init(
-                    color: WorkbenchRedesignColors.bgSurface.opacity(
-                        WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingOpacity
+                    color: WorkbenchRedesignColors.coverSummaryScrim.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryScrimLeadingOpacity
                     ),
-                    location: WorkbenchControlMetrics.redesignCoverSummaryBlendLeadingLocation
+                    location: WorkbenchControlMetrics
+                        .redesignCoverSummaryScrimLeadingLocation
                 ),
                 .init(
-                    color: WorkbenchRedesignColors.bgSurface.opacity(
-                        WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleOpacity
+                    color: WorkbenchRedesignColors.coverSummaryScrim.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryScrimStrongOpacity
                     ),
-                    location: WorkbenchControlMetrics.redesignCoverSummaryBlendMiddleLocation
+                    location: WorkbenchControlMetrics
+                        .redesignCoverSummaryScrimStrongLocation * locationScale
                 ),
                 .init(
-                    color: WorkbenchRedesignColors.bgSurface.opacity(
-                        WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingOpacity
+                    color: WorkbenchRedesignColors.coverSummaryScrim.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryScrimMiddleOpacity
                     ),
-                    location: WorkbenchControlMetrics.redesignCoverSummaryBlendTrailingLocation
+                    location: WorkbenchControlMetrics
+                        .redesignCoverSummaryScrimMiddleLocation * locationScale
                 ),
                 .init(
-                    color: WorkbenchRedesignColors.bgSurface.opacity(0),
+                    color: WorkbenchRedesignColors.coverSummaryScrim.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryScrimTrailingOpacity
+                    ),
+                    location: WorkbenchControlMetrics
+                        .redesignCoverSummaryScrimTrailingLocation * locationScale
+                ),
+                .init(
+                    color: WorkbenchRedesignColors.coverSummaryScrim.opacity(0),
+                    location: endLocation
+                ),
+                .init(
+                    color: WorkbenchRedesignColors.coverSummaryScrim.opacity(0),
                     location: 1
                 ),
             ],
-            startPoint: .top,
-            endPoint: .bottom
+            startPoint: .leading,
+            endPoint: .trailing
         )
     }
 
@@ -211,7 +173,7 @@ struct CoverSummaryCard<Cover: View>: View {
                     size: WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle,
                     weight: WorkbenchControlMetrics.redesignFontWeightCoverSummaryTitle
                 ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .foregroundStyle(WorkbenchRedesignColors.coverSummaryText)
                 .lineLimit(1)
 
             Text(summaryDescription)
@@ -219,24 +181,104 @@ struct CoverSummaryCard<Cover: View>: View {
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
                     weight: .regular
                 ))
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                .foregroundStyle(
+                    WorkbenchRedesignColors.coverSummaryText.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryDescriptionOpacity
+                    )
+                )
                 .lineLimit(2)
+                .truncationMode(.tail)
 
             Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
 
-            WorkbenchButton(
+            CoverSummaryActionButton(
                 title: actionTitle,
-                systemImage: "play.fill",
-                isRedesign: true,
                 action: action
             )
             .disabled(!isActionEnabled)
         }
-        .padding(WorkbenchControlMetrics.redesignCoverSummaryContentPadding)
-        .frame(
-            width: WorkbenchControlMetrics.redesignCoverSummaryContentSafeWidth,
-            height: WorkbenchControlMetrics.redesignCoverSummaryHeight,
-            alignment: .leading
+    }
+}
+
+private struct CoverSummaryActionButton: View {
+    let title: String
+    let action: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                Image(systemName: "play.fill")
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignButtonIconSize,
+                        weight: WorkbenchControlMetrics.redesignButtonIconWeight
+                    ))
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignButtonIconSize,
+                        height: WorkbenchControlMetrics.redesignButtonIconSize
+                    )
+
+                Text(title)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeControl,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .foregroundStyle(WorkbenchRedesignColors.coverSummaryText)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+            .frame(height: WorkbenchControlMetrics.redesignHeight)
+            .background(buttonShape.fill(buttonBackground))
+            .overlay {
+                buttonShape.strokeBorder(
+                    WorkbenchRedesignColors.coverSummaryText.opacity(
+                        WorkbenchControlMetrics.redesignCoverSummaryButtonBorderOpacity
+                    ),
+                    lineWidth: 1
+                )
+            }
+            .overlay {
+                if isFocused && isEnabled {
+                    buttonShape
+                        .stroke(
+                            WorkbenchRedesignColors.focusRing,
+                            lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                        )
+                        .padding(
+                            -WorkbenchControlMetrics.redesignFocusRingPathExpansion
+                        )
+                }
+            }
+            .opacity(
+                isEnabled
+                    ? 1
+                    : WorkbenchControlMetrics.redesignCoverSummaryButtonDisabledOpacity
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
+        .focused($isFocused)
+        .disableFocusEffect()
+        .onHover { isHovered = $0 }
+    }
+
+    private var buttonBackground: Color {
+        WorkbenchRedesignColors.coverSummaryScrim.opacity(
+            isHovered && isEnabled
+                ? WorkbenchControlMetrics.redesignCoverSummaryButtonHoverBackgroundOpacity
+                : WorkbenchControlMetrics.redesignCoverSummaryButtonBackgroundOpacity
+        )
+    }
+
+    private var buttonShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+            style: .continuous
         )
     }
 }

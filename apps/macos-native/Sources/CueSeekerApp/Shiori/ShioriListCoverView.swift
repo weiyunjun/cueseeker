@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ShioriListCoverView: View {
     let coverPath: String?
+    var imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
     @State private var loadedImage: CGImage?
 
     var body: some View {
@@ -11,7 +12,10 @@ struct ShioriListCoverView: View {
                 .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
 
             if let loadedImage {
-                LibraryCoverFillImage(image: loadedImage)
+                LibraryCoverFillImage(
+                    image: loadedImage,
+                    verticalAlignment: imageVerticalAlignment
+                )
             } else {
                 Image(systemName: "bookmark")
                     .font(.system(size: 44, weight: .medium))

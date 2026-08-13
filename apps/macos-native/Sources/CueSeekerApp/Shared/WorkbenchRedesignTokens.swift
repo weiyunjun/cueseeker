@@ -132,6 +132,10 @@ enum WorkbenchRedesignColors {
         static let libraryCoverCropMask = NSColor.shadowColor.withAlphaComponent(0.55)
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
 
+        // Cover Summary
+        static let coverSummaryScrim = NSColor.black
+        static let coverSummaryText = NSColor.white
+
         // Shadow Color
         static let shadowPopover = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.12, darkHex: "#000000", darkAlpha: 0.36)
     }
@@ -158,6 +162,10 @@ enum WorkbenchRedesignColors {
     static let appSidebarBg = Color(nsColor: NS.appSidebarBg)
     static let appSidebarItemSelectedBg = Color(nsColor: NS.appSidebarItemSelectedBg)
     static let appTopbarBg = Color(nsColor: NS.appTopbarBg)
+
+    // Cover Summary
+    static let coverSummaryScrim = Color(nsColor: NS.coverSummaryScrim)
+    static let coverSummaryText = Color(nsColor: NS.coverSummaryText)
 
     // Border
     static let borderControl = Color(nsColor: NS.borderControl)

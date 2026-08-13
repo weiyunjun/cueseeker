@@ -79,6 +79,14 @@ func libraryCoverImageFillLayoutCropsOnlyTheExpectedEdges() {
     )
     #expect(sixteenByNine.renderedSize == containerSize)
     #expect(sixteenByNine.offset == .zero)
+
+    let centeredFourByThree = LibraryCoverImageFillLayout.resolve(
+        sourceSize: CGSize(width: 4, height: 3),
+        containerSize: containerSize,
+        verticalAlignment: .center
+    )
+    #expect(centeredFourByThree.renderedSize == CGSize(width: 160, height: 120))
+    #expect(centeredFourByThree.offset == CGSize(width: 0, height: -15))
 }
 
 @MainActor
