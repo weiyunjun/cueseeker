@@ -1990,6 +1990,8 @@
 - Default
 - Hover
   - Background：`--color-library-media-card-hover-bg`
+- Selected
+  - Background：`--color-library-media-card-hover-bg`
 - Disabled
 
 ## 2.12 Player Controls
@@ -2558,8 +2560,13 @@
 #### Structure
 
 1. Cover Region
-2. Folder Name
+   1. Cover
+   2. Playback Progress
+   3. Elapsed / Duration
+2. Folder Name：`folderTitle`
 3. Meta Row
+   1. `EPXX`
+   2. Watch Status
 
 #### Components
 
@@ -2577,6 +2584,7 @@
 #### States
 
 - Default
+- Hover
 - Selected
 - Disabled
 
@@ -2696,51 +2704,16 @@
 
 #### Structure
 
-1. Episode Row List
+1. Recent Watching Card Grid
 
 #### Components
 
-- Library Episode Card Layout
-- Scrollbar / Vertical
+- Recent Watching Card Layout
 
 #### Sizes
 
-- Row Minimum Width：`--width-library-episode-row-min`
-- Row Gap：`--gap-library-episode-grid`
-
-### Library Episode Card Layout
-
-#### Structure
-
-1. Cover Region
-2. Info Region
-   1. Title Row
-   2. Subtitle File Row
-   3. Media Metadata Row
-
-#### Components
-
-- Cover
-- Cover Progress
-- Information Badge / Cover Badge
-- Watch Status Badge
-
-#### Sizes
-
-- Cover Width：`--width-library-list-cover`
-- Cover Height：`--height-library-list-cover`
-- Region Gap：`--gap-library-list-item`
-- Card Padding：`--padding-library-list-card`
-- Card Radius：`--radius-library-list-card`
-- Info Row Gap：`--gap-library-list-info-vertical`
-
-#### States
-
-- Default
-- Cover Hover
-  - Background：`--color-library-media-card-hover-bg`
-- Cover Selected
-- Disabled
+- Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Grid Gap：`--gap-library-recent-grid`
 
 ## 3.5 Search and Shiori
 
@@ -3356,7 +3329,7 @@
 - Information Badge / Playback Information Badge
 - Scrollbar / Vertical
 - Library Episode Grid Layout
-- Library Episode Card Layout
+- Recent Watching Card Layout
 
 #### Information Badge Order / Subtitle Playlist
 
@@ -3473,9 +3446,9 @@
 #### Variants
 
 - Recent Videos
-  - Content：Recent Videos Section Layout
+  - Content：Recent Watching Card Grid
 - Recent Shioris
-  - Content：Recent Shioris Section Layout
+  - Content：Recent Shiori Resume Row List
 - Search Results
   - Content：Command Panel Search Results Layout
 
