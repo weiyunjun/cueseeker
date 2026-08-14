@@ -11,3 +11,6 @@ main
    - 主窗口始终显示为 CueSeeker，不因 Workbench 或视频播放状态改变。
    - Settings 窗口打开时显示为 Settings，关闭后不显示。
    - 当前获得焦点的窗口显示勾选标记。
+6. Settings 窗口的 Sidebar 延伸至窗口顶部，原生窗口控制按钮位于 Sidebar 区域。右侧不显示可见的 Settings 窗口标题，仅保留当前分类自身的标题；Dock 窗口名称仍为 Settings。
+7. 本需求涉及的 UI 必须使用可映射到 UI Design System 的共享或语义 Token，禁止在具体 View 中硬编码颜色、尺寸、间距和圆角。
+8. 本需求允许在验收前反复调整需求文档与代码；UI Design System 在最终 UI 验收后同步最终 Token、组件和布局规则。
