@@ -173,6 +173,8 @@
 - `--line-height-subtitle-focus-cue-group`: `28px`
 - `--font-weight-subtitle-focus-cue-group`: `500`
 - `--font-size-section-title`: `18px`
+- `--font-size-page-title`: `28px`
+- `--font-weight-page-title`: `700`
 - `--font-size-library-title`: `14px`
 - `--font-size-library-meta`: `12px`
 - `--font-size-library-time-badge`: `10px`
@@ -269,7 +271,6 @@
 - `--spacing-8`: `32px`
 - `--gap-subtitle-focus-cue`: `8px`
 - `--gap-subtitle-focus-internal-line`: `3px`
-- `--gap-app-topbar-title-after-toggle`: `12px`
 - `--gap-player-bottom-left-controls`: `8px`
 - `--gap-player-bottom-right-controls`: `6px`
 - `--gap-player-time-label`: `4px`
@@ -299,7 +300,6 @@
 - `--padding-app-sidebar-x`: `12px`
 - `--padding-app-sidebar-y`: `12px`
 - `--padding-app-sidebar-item-x`: `10px`
-- `--padding-app-topbar-title-x`: `24px`
 - `--padding-player-chrome-x`: `24px`
 - `--padding-player-chrome-bottom`: `12px`
 - `--padding-player-progress-top`: `16px`
@@ -1594,6 +1594,23 @@
 - Disabled
   - Text Color：`--color-text-disabled`
 
+### Workbench Page Title
+
+#### Shared
+
+##### Anatomy
+
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-page-title`
+  - Font Weight：`--font-weight-page-title`
+  - Color：`--color-text-primary`
+- Trailing Count：None
+
+##### States
+
+- Default
+
 ### Keycap
 
 #### Shared
@@ -2416,26 +2433,53 @@
 
 1. Sidebar Segment
 2. Sidebar Toggle Slot
-3. Title Slot
+3. Function Region
+   1. Back Action
 4. Draggable Region
 
 #### Components
 
 - Sidebar Toggle
-- Section Title
+- Icon Button / Back
 
 #### Sizes
 
 - Height：`--height-app-topbar`
 - Sidebar Segment Width：`--width-app-sidebar`
-- Title Padding Inline：`--padding-app-topbar-title-x`
-- Collapsed Title Gap：`--gap-app-topbar-title-after-toggle`
 
 #### States
 
+- Primary Page：Back Disabled
+- Secondary Page：Back Enabled
 - Sidebar Expanded
 - Sidebar Collapsed
 - Hidden On Playback
+
+### Workbench Titled Page Layout
+
+#### Usage
+
+- Search
+- Recent
+- Library
+- Shiori
+- Recent Videos
+- Recent Shioris
+
+#### Structure
+
+1. Page Title
+2. Page Content
+
+#### Components
+
+- Workbench Page Title
+
+#### Spacing
+
+- Page Padding Inline：`--spacing-8`
+- Page Padding Top：`--spacing-1`
+- Page Padding Bottom：`--spacing-6`
 
 ## 3.2 Settings
 
@@ -2509,14 +2553,39 @@
 
 - Recent Videos Section Layout
 - Recent Shioris Section Layout
-- Section Title
-- Information Badge / Count
-- Icon Button
+
+#### Layout
+
+- Page Layout：Workbench Titled Page Layout
 
 #### Spacing
 
-- Page Padding：`--spacing-6`
 - Section Gap：`--spacing-6`
+
+### Recent Section Header Layout
+
+#### Structure
+
+1. Section Title
+2. Count
+3. Right Arrow
+
+#### Visual
+
+- Section Title：Section Title
+- Count：`14px / Regular / --color-text-secondary / Monospaced Digit`
+- Right Arrow Color：`--color-icon-muted`
+- Vertical Alignment：First Text Baseline
+
+#### Spacing
+
+- Section Title to Count：`--spacing-2`
+- Count to Right Arrow：`--spacing-1`
+
+#### Interaction
+
+- Hit Area：Visible Section Title, Count, and Right Arrow Group
+- Outside Blank Area：Not Interactive
 
 ### Recent Videos Section Layout
 
@@ -2527,9 +2596,7 @@
 
 #### Components
 
-- Section Title
-- Information Badge / Count
-- Icon Button
+- Recent Section Header Layout
 - Recent Watching Card Layout
 
 #### Sizes
@@ -2546,9 +2613,7 @@
 
 #### Components
 
-- Section Title
-- Information Badge / Count
-- Icon Button
+- Recent Section Header Layout
 - Recent Shiori Resume Row Layout
 
 #### Spacing
@@ -2630,9 +2695,12 @@
 - Button / Neutral
 - Library Folder Card Layout
 
+#### Layout
+
+- Page Layout：Workbench Titled Page Layout
+
 #### Sizes
 
-- Page Padding：`--spacing-6`
 - Summary to Grid Gap：`--spacing-4`
 - Summary Height：`--height-control`
 - Summary Item Gap：`--spacing-3`
@@ -2667,16 +2735,11 @@
 
 #### Structure
 
-1. Header
-   1. Back Action
-   2. Folder Title
-2. Cover Summary
-3. Episode Grid
+1. Cover Summary
+2. Episode Grid
 
 #### Components
 
-- Icon Button
-- Section Title
 - Cover Summary / Library Variant
 - Library Episode Grid Layout
 
@@ -2688,9 +2751,9 @@
 
 #### Spacing
 
-- Header Item Gap：`--spacing-2`
 - Content Page Padding Inline：`--spacing-8`
-- Content Page Padding Block：`--spacing-6`
+- Content Page Padding Top：`--spacing-1`
+- Content Page Padding Bottom：`--spacing-6`
 - Cover Summary to Episode Grid Gap：`--spacing-6`
 
 #### Scrolling
@@ -2730,9 +2793,12 @@
 - Button / Neutral
 - Shiori List Card Layout
 
+#### Layout
+
+- Page Layout：Workbench Titled Page Layout
+
 #### Sizes
 
-- Page Padding：`--spacing-6`
 - Summary to Grid Gap：`--spacing-4`
 - Summary Height：`--height-control`
 - Summary Item Gap：`--spacing-3`
@@ -2790,7 +2856,7 @@
 #### Spacing
 
 - Page Padding Inline：`--spacing-8`
-- Cover Padding Top：`--spacing-6`
+- Cover Padding Top：`--spacing-1`
 - Cover to Toolbar Gap：`--gap-cover-summary-to-toolbar`
 - Pinned Region Item Gap：`--spacing-3`
 
