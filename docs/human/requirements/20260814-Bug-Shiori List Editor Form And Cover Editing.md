@@ -20,7 +20,7 @@ main
    - `List name must be 30 characters or fewer.`
    - `Description must be 100 characters or fewer.`
    - `A list with this name already exists.`
-5. 减少共享 Text Area 高度，使左侧封面区域与右侧表单区域等高；错误态和裁剪态也不得破坏等高关系。
+5. 减少共享 Text Area 高度，使左侧封面实际边框与右侧表单区域等高；不得将焦点环或其他外部视觉效果计入封面高度，错误态和裁剪态也不得破坏等高关系。
 6. 删除独立的 `Choose Image` 按钮。
 7. 鼠标悬停封面时显示灰色遮罩、Edit 图标及 `Choose Image`：
    - 遮罩覆盖完整封面并沿用封面圆角。
@@ -39,13 +39,19 @@ main
 4. 点击封面后打开 Finder；选择有效图片后进入既有裁剪流程。
 5. 未选择新图片时不得保存；取消编辑不得改变当前封面。
 
+### 封面选择交互补充
+
+1. Edit List 和 Edit Cover 打开时，封面不得自动获得焦点或显示焦点环。
+2. 按下或点击封面不得产生缩放、透明度、着色或其他 Press 视觉反馈；封面的指针视觉反馈仅使用既定的 Hover 遮罩。
+
 ### Description / Text Area 检查
 
 检查共享 Text Area 的光标、文本与占位符对齐、焦点与错误状态、IME 输入、滚动及可访问性关联。不得改变既有滚动条显隐规则；发现超出本需求的问题应先反馈，不擅自扩大修改范围。
 
-### 单行输入框检查
+### 输入框检查
 
-单行输入框内容为空时，Placeholder 在获得或失去焦点前后不得发生位置移动；该规则同时适用于 List Name、Workbench Search 和 Command Panel Search。
+1. List Name、Description、Workbench Search 和 Command Panel Search 的 Placeholder 必须统一使用 `--color-text-placeholder`，不得使用系统默认颜色。
+2. 单行输入框内容为空时，Placeholder 在获得或失去焦点前后不得发生位置移动；该规则适用于 List Name、Workbench Search 和 Command Panel Search。
 
 ## UI 约束
 
