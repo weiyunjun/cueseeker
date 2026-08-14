@@ -518,15 +518,17 @@ Presentation virtualization rules:
   selection, or Primary Cue action targets.
 - Playback Current, Cue Playlist, Command Panel Search, and Editing Collage
   share one Reel-owned Cue timeline presentation. A fixed-width sequence lane
-  is measured from the complete focused `x / y` text, followed by one timeline
-  marker and the existing Cue renderer. Current and Collage use the physical
-  one-based Cue ordinal; Cue Result adapters use their existing list ordinal.
-  The focused row adds the total without changing the lane, Cue width,
-  placement, or scroll position. Connectors are derived from consecutive
-  visible-plus-overscan placements during drawing and do not create another
-  selection or layout state owner. Editing Collage substitutes its existing
-  checkbox for the dot while keeping the same checkbox state and interaction
-  path.
+  is measured from the current dataset's maximum one-based ordinal, followed
+  by one timeline marker and the existing Cue renderer. Current and Collage
+  use the physical Cue ordinal; Cue Result adapters use their existing list
+  ordinal. Focus changes only sequence and marker colors and never add total
+  text or change the lane, Cue width, placement, or scroll position. Markers
+  align to the center of the Primary Cue's first line box. Connectors are
+  derived from consecutive visible-plus-overscan placements during drawing,
+  leave 8 points between each marker edge and line endpoint, and do not create
+  another selection or layout state owner. Editing Collage substitutes its
+  existing checkbox for the dot while keeping the same checkbox state and
+  interaction path.
 - Playback Current and Cue Result adapters share Cue typography and one plain
   metadata model and renderer. Current retains its primary-only measurement
   cache and native text drawing hot path; Cue Playlist and Command Panel Search

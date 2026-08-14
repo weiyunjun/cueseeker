@@ -343,6 +343,8 @@ enum PlaybackCueTimelineMetrics {
     static let dotSize = WorkbenchControlMetrics.redesignSpacing3
     /// --width-playback-cue-timeline-connector
     static let connectorWidth: CGFloat = 1
+    /// --gap-playback-cue-timeline-connector-marker
+    static let connectorMarkerGap = WorkbenchControlMetrics.redesignSpacing2
 }
 
 enum PlaybackCollageSelectionMetrics {

@@ -30,24 +30,6 @@ func playbackPlaylistReelAdapterUsesResidentDatasetImmediately() throws {
 
 @MainActor
 @Test
-func playbackCueResultReelAdapterKeepsFullPositionCountForLimitedPreview() throws {
-    let source = playbackPlaylistReelSource(totalCount: 40)
-    let window = try #require(source.makeSessionWindowStore())
-    let adapter = PlaybackCueResultReelAdapter(
-        windowStore: window,
-        showsCueGroup: true,
-        positionTotalCount: 125
-    )
-
-    #expect(adapter.snapshot.totalCount == 40)
-    #expect(adapter.sequenceTotalCount == 125)
-    #expect(adapter.setPositionTotalCount(126))
-    #expect(adapter.sequenceTotalCount == 126)
-    #expect(!adapter.setPositionTotalCount(126))
-}
-
-@MainActor
-@Test
 func playbackCueResultReelRapidScrollbarDragUsesResidentDataset() async throws {
     _ = NSApplication.shared
     let totalCount = 50_000

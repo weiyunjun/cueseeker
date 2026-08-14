@@ -363,7 +363,6 @@ private struct PlaybackCommandPanelSearchResults: View {
                     PlaybackCommandPanelSearchReel(
                         windowStore: windowStore,
                         showsCueGroup: cueGroupPresentation.isEnabled,
-                        positionTotalCount: resultTotalCount,
                         viewportSize: geometry.size,
                         reducesMotion: reduceMotion,
                         onCommitSelection: onCommitSelection,
@@ -403,7 +402,6 @@ private struct PlaybackCommandPanelSearchResults: View {
 private struct PlaybackCommandPanelSearchReel: View {
     @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
     let showsCueGroup: Bool
-    let positionTotalCount: Int
     let viewportSize: CGSize
     let reducesMotion: Bool
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
@@ -420,7 +418,6 @@ private struct PlaybackCommandPanelSearchReel: View {
         PlaybackCueResultReelRepresentable(
             windowStore: windowStore,
             showsCueGroup: showsCueGroup,
-            positionTotalCount: positionTotalCount,
             selectedOrdinal: windowStore.selectedOrdinal,
             uiProbeScope: nil,
             keyboardNavigationRequest: nil,

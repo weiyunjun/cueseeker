@@ -21,6 +21,7 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(PlaybackCueTimelineMetrics.markerCueGap == 16)
     #expect(PlaybackCueTimelineMetrics.dotSize == 12)
     #expect(PlaybackCueTimelineMetrics.connectorWidth == 1)
+    #expect(PlaybackCueTimelineMetrics.connectorMarkerGap == 8)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
     #expect(PlaybackCollageSelectionMetrics.checkboxSize == 24)
     #expect(
@@ -37,18 +38,11 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
 
 @MainActor
 @Test
-func playbackCueTimelineUsesFixedSequenceLaneAndExactFocusedText() {
+func playbackCueTimelineUsesPlainSequenceAndAlignedMarkers() throws {
     _ = NSApplication.shared
     #expect(PlaybackCueTimelineLayout.sequenceText(
-        ordinal: 12,
-        totalCount: 28,
-        isFocused: false
+        ordinal: 12
     ) == "13")
-    #expect(PlaybackCueTimelineLayout.sequenceText(
-        ordinal: 12,
-        totalCount: 28,
-        isFocused: true
-    ) == "13 / 28")
 
     let rowRect = CGRect(x: 40, y: 100, width: 900, height: 72)
     let unfocused = PlaybackCueTimelineLayout.rowLayout(
@@ -61,14 +55,44 @@ func playbackCueTimelineUsesFixedSequenceLaneAndExactFocusedText() {
         totalCount: 28,
         usesCheckbox: false
     )
+    let expectedSequenceWidth = ceil(("28" as NSString).size(
+        withAttributes: [
+            .font: NSFont.systemFont(
+                ofSize: PlaybackCueTimelineMetrics.sequenceFontSize,
+                weight: PlaybackCueTimelineMetrics.sequenceFontWeight
+            ),
+        ]
+    ).width)
+    #expect(unfocused.sequenceRect.width == expectedSequenceWidth)
     #expect(unfocused.sequenceRect == focused.sequenceRect)
     #expect(unfocused.cueRect == focused.cueRect)
     #expect(
-        unfocused.markerRect.minY
-            == rowRect.minY + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+        unfocused.markerRect.midY
+            == rowRect.minY
+                + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
     )
     #expect(unfocused.sequenceRect.maxX < unfocused.markerRect.minX)
     #expect(unfocused.markerRect.maxX < unfocused.cueRect.minX)
+
+    let next = PlaybackCueTimelineLayout.rowLayout(
+        in: rowRect.offsetBy(dx: 0, dy: 100),
+        totalCount: 28,
+        usesCheckbox: false
+    )
+    let connector = try #require(
+        PlaybackCueTimelineLayout.connectorRect(from: unfocused, to: next)
+    )
+    #expect(
+        connector.minY
+            == unfocused.markerRect.maxY
+                + PlaybackCueTimelineMetrics.connectorMarkerGap
+    )
+    #expect(
+        connector.maxY
+            == next.markerRect.minY
+                - PlaybackCueTimelineMetrics.connectorMarkerGap
+    )
 }
 
 @MainActor
@@ -111,15 +135,25 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
         view.cueTimelineSequenceRectForTesting(at: 11)
     )
     let cueRect = try #require(view.cueContentRectForTesting(at: 11))
+    let nextCheckboxRect = try #require(
+        view.collageCheckboxRectForTesting(at: 12)
+    )
     #expect(sequenceRect.maxX < checkboxRect.minX)
     #expect(checkboxRect.maxX < cueRect.minX)
     #expect(cueRect.maxX == placement.rect.maxX)
     let connector = try #require(
         view.cueTimelineConnectorRectsForTesting.first { rect in
-            rect.minY == checkboxRect.maxY
+            rect.minY
+                == checkboxRect.maxY
+                    + PlaybackCueTimelineMetrics.connectorMarkerGap
         }
     )
     #expect(connector.midX == checkboxRect.midX)
+    #expect(
+        connector.maxY
+            == nextCheckboxRect.minY
+                - PlaybackCueTimelineMetrics.connectorMarkerGap
+    )
     #expect(!view.isCueHighlightedForTesting(at: 11))
     #expect(view.isCueHighlightedForTesting(at: 12))
 

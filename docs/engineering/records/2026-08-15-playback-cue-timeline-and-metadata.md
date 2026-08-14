@@ -17,9 +17,6 @@ Search, and Editing Collage.
 - Cue Result and Current adapters share one two-field metadata value and plain
   text renderer while retaining their existing specialized text measurement
   paths.
-- Cue Result adapters expose the full sequence denominator separately from the
-  resident item count. This preserves the complete Search count in Command
-  Panel Search without putting position text into metadata.
 - Editing Collage uses the existing checkbox renderer as its timeline marker;
   no checkbox state or interaction owner was added.
 
@@ -29,19 +26,23 @@ Search, and Editing Collage.
    sequence, timeline, and metadata presentation.
 2. Replaced the Badge-array presentation model with Display Title and Time
    Range metadata rendered after the complete visible Cue stack.
-3. Added a fixed-width 24-point Semibold sequence lane, exact focused `x / y`
-   text, one-based source ordinals, dots, and consecutive connector lines to
-   the shared Reel document.
+3. Added a fixed-width 24-point Semibold plain-ordinal lane, one-based source
+   ordinals, first-line-centered dots, and consecutive connector lines with an
+   8-point gap from marker edges to the shared Reel document.
 4. Reused the 24-point Collage checkbox in place of the dot and kept all new
-   accessories inside the existing right-side Reel region.
+   accessories inside the existing right-side Reel region, including the same
+   8-point connector gap around each checkbox.
 5. Updated layout, adapter, command-search, virtualization, and Collage tests
    for fixed geometry and the new presentation contract.
 
 # Verification
 
 - `swift test --filter 'playbackCueResult|playbackCurrent|playbackCueTimeline|editingCollage|playbackPlaylist|playbackCommandPanel'`
-  passes all 46 focused Cue Result, Current, timeline, Collage, Playlist, and
+  passes all 45 focused Cue Result, Current, timeline, Collage, Playlist, and
   Command Panel tests.
+- The revised timeline layout test failed before implementation because the
+  connector gap token and plain-sequence contract were absent, then passed
+  after the geometry and rendering changes.
 - `swift build -c release --product CueSeeker` passes.
 - Serial `swift test --no-parallel` ran 1,002 tests and reported three unrelated
   existing issues: one shared-default migration expectation polluted by the
@@ -56,9 +57,10 @@ Search, and Editing Collage.
 # Outcome
 
 All four Playback Cue surfaces now reuse one timeline structure. Sequence
-focus changes do not move Cue content, metadata contains only Display Title and
-Time Range without Badge decoration, and Collage keeps its existing checkbox
-behavior while gaining connector lines.
+focus changes only color and do not move Cue content, marker centers align to
+the Primary Cue's first line box, connector lines leave the specified gap,
+metadata contains only Display Title and Time Range without Badge decoration,
+and Collage keeps its existing checkbox behavior.
 
 # Follow-ups
 

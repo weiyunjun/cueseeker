@@ -3402,16 +3402,8 @@ struct PlaybackCueTimelineRowLayout: Equatable {
 
 @MainActor
 enum PlaybackCueTimelineLayout {
-    static func sequenceText(
-        ordinal: Int,
-        totalCount: Int,
-        isFocused: Bool
-    ) -> String {
-        let sequence = max(0, ordinal) + 1
-        guard isFocused else {
-            return "\(sequence)"
-        }
-        return "\(sequence) / \(max(0, totalCount))"
+    static func sequenceText(ordinal: Int) -> String {
+        "\(max(0, ordinal) + 1)"
     }
 
     static func leadingAccessoryWidth(
@@ -3436,9 +3428,7 @@ enum PlaybackCueTimelineLayout {
             + PlaybackCueTimelineMetrics.sequenceMarkerGap
         let markerY = rowRect.minY
             + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            + (usesCheckbox
-                ? (PlaybackCueTimelineMetrics.sequenceLineHeight - markerSize) / 2
-                : 0)
+            + (PlaybackSubtitleFocusMetrics.cueLineHeight - markerSize) / 2
         let cueX = markerX
             + markerSize
             + PlaybackCueTimelineMetrics.markerCueGap
@@ -3470,7 +3460,9 @@ enum PlaybackCueTimelineLayout {
         to next: PlaybackCueTimelineRowLayout
     ) -> CGRect? {
         let startY = current.markerRect.maxY
+            + PlaybackCueTimelineMetrics.connectorMarkerGap
         let endY = next.markerRect.minY
+            - PlaybackCueTimelineMetrics.connectorMarkerGap
         guard endY > startY else {
             return nil
         }
@@ -3490,7 +3482,6 @@ enum PlaybackCueTimelineLayout {
 
     static func drawSequence(
         ordinal: Int,
-        totalCount: Int,
         isFocused: Bool,
         isEnabled: Bool,
         rowLayout: PlaybackCueTimelineRowLayout
@@ -3508,11 +3499,7 @@ enum PlaybackCueTimelineLayout {
         paragraphStyle.maximumLineHeight =
             PlaybackCueTimelineMetrics.sequenceLineHeight
         NSAttributedString(
-            string: sequenceText(
-                ordinal: ordinal,
-                totalCount: totalCount,
-                isFocused: isFocused
-            ),
+            string: sequenceText(ordinal: ordinal),
             attributes: [
                 .font: sequenceFont,
                 .foregroundColor: color,
@@ -3540,7 +3527,7 @@ enum PlaybackCueTimelineLayout {
 
     private static func sequenceColumnWidth(totalCount: Int) -> CGFloat {
         let maximumSequence = max(1, totalCount)
-        let sample = "\(maximumSequence) / \(maximumSequence)"
+        let sample = "\(maximumSequence)"
         return ceil((sample as NSString).size(withAttributes: [
             .font: sequenceFont,
         ]).width)
@@ -3830,7 +3817,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             let timelineLayout = cueTimelineRowLayout(for: placement.rect)
             PlaybackCueTimelineLayout.drawSequence(
                 ordinal: placement.ordinal,
-                totalCount: sequenceTotalCount,
                 isFocused: placement.ordinal == selectedOrdinal,
                 isEnabled: canToggle,
                 rowLayout: timelineLayout

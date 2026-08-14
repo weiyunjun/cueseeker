@@ -124,20 +124,17 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
 
         init(
             windowStore: PlaybackCueResultSessionWindowStore,
-            showsCueGroup: Bool,
-            positionTotalCount: Int?
+            showsCueGroup: Bool
         ) {
             adapter = PlaybackCueResultReelAdapter(
                 windowStore: windowStore,
-                showsCueGroup: showsCueGroup,
-                positionTotalCount: positionTotalCount
+                showsCueGroup: showsCueGroup
             )
         }
     }
 
     let windowStore: PlaybackCueResultSessionWindowStore
     let showsCueGroup: Bool
-    var positionTotalCount: Int? = nil
     let selectedOrdinal: Int?
     let uiProbeScope: String?
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
@@ -156,8 +153,7 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             windowStore: windowStore,
-            showsCueGroup: showsCueGroup,
-            positionTotalCount: positionTotalCount
+            showsCueGroup: showsCueGroup
         )
     }
 
@@ -194,7 +190,6 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         adapter: PlaybackCueResultReelAdapter
     ) {
         _ = adapter.setShowsCueGroup(showsCueGroup)
-        _ = adapter.setPositionTotalCount(positionTotalCount)
         view.uiProbeScope = uiProbeScope
         view.onCommitVirtualReelSelection = onCommitSelection
         view.onCopySelectedText = onCopySelectedText
