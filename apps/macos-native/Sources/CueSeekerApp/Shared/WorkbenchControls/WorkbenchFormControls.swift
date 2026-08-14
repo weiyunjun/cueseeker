@@ -1,5 +1,38 @@
 import SwiftUI
 
+struct WorkbenchSingleLineTextInput: View {
+    let placeholder: String
+    @Binding var text: String
+    let placeholderColor: Color
+    let textColor: Color
+    let fontSize: CGFloat
+    let focus: FocusState<Bool>.Binding
+    let accessibilityLabel: String
+    var onSubmit: (() -> Void)?
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            if text.isEmpty {
+                Text(placeholder)
+                    .foregroundStyle(placeholderColor)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+            }
+
+            TextField("", text: $text)
+                .textFieldStyle(.plain)
+                .foregroundStyle(textColor)
+                .focused(focus)
+                .accessibilityLabel(accessibilityLabel)
+                .onSubmit {
+                    onSubmit?()
+                }
+        }
+        .font(.system(size: fontSize, weight: .regular))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct WorkbenchFormTextField: View {
     let label: String
     let placeholder: String
@@ -12,16 +45,17 @@ struct WorkbenchFormTextField: View {
             label: label,
             validationMessage: validationMessage
         ) {
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeControl,
-                    weight: .regular
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            WorkbenchSingleLineTextInput(
+                placeholder: placeholder,
+                text: $text,
+                placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                textColor: WorkbenchRedesignColors.textPrimary,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                focus: focus,
+                accessibilityLabel: label
+            )
                 .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
                 .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-                .focused(focus)
                 .workbenchFormFieldChrome(
                     hasError: validationMessage != nil,
                     isFocused: focus.wrappedValue

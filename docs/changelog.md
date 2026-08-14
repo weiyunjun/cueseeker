@@ -59,8 +59,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   stable validation line, use concise messages and a shorter Description area,
   and choose covers from a centered full-cover hover action. Library `Change
   Cover` now opens Edit Cover with the current cover or fallback before Finder;
-  both editors share the same image action, and their sheets suppress
-  underlying Workbench interaction.
+  both editors share the same image action without focus or press visuals, and
+  their sheets suppress underlying Workbench interaction. Empty List Name,
+  Workbench Search, and Command Panel Search placeholders now keep a stable
+  position and use the shared placeholder color.
 - Corrected the indexing publication lifecycle across Library identity, media
   observation, and Cue retirement. Subtitle and Video identity now follows the
   exact current or last-known path before platform identity, so atomic saves and

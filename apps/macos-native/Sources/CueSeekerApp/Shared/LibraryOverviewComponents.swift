@@ -181,7 +181,8 @@ struct LibraryCoverChooser<Content: View>: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
+        .focusable(false)
         .disabled(!isEnabled)
         .onHover { isHovered = $0 && isEnabled }
         .onChange(of: isEnabled) { enabled in

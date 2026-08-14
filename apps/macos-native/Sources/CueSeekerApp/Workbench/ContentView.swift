@@ -73,7 +73,6 @@ private struct ContentRootView: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .environment(\.isWorkbenchPopupLayerOpen, isEditorModalPresented)
-                .allowsHitTesting(!isEditorModalPresented)
                 .onAppear {
                     collapseSidebarForCompactWindowIfNeeded(width: geometry.size.width)
                 }

@@ -1,6 +1,26 @@
 import AppKit
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
+
+@MainActor
+@Test
+func shioriFormHeightMatchesTheCoverFrame() {
+    let formView = NSHostingView(
+        rootView: ShioriFormHeightProbe()
+            .frame(width: 340)
+    )
+    let coverView = NSHostingView(
+        rootView: LibraryCoverFrame {
+            Color.clear
+        }
+        .frame(width: 380)
+    )
+    formView.layoutSubtreeIfNeeded()
+    coverView.layoutSubtreeIfNeeded()
+
+    #expect(formView.fittingSize.height == coverView.fittingSize.height)
+}
 
 @MainActor
 @Test
@@ -16,7 +36,7 @@ func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
     view.configure(placeholder: "Description", isEnabled: true)
     view.layout()
 
-    #expect(WorkbenchControlMetrics.redesignFormTextAreaHeight == 80)
+    #expect(WorkbenchControlMetrics.redesignFormTextAreaHeight == 77.5)
     #expect(view.contentInsetForTesting == NSSize(width: 16, height: 10))
     #expect(view.lineFragmentPaddingForTesting == 0)
     #expect(view.textView.textContainerOrigin == NSPoint(x: 16, y: 10))
@@ -82,4 +102,34 @@ func textAreaScrollbarPersistsOnlyWhileContentOverflows() {
 
     #expect(!view.hasVerticalOverflowForTesting)
     #expect(!view.isScrollbarVisibleForTesting)
+}
+
+private struct ShioriFormHeightProbe: View {
+    @State private var name = ""
+    @State private var description = ""
+    @FocusState private var isNameFocused: Bool
+    @FocusState private var isDescriptionFocused: Bool
+
+    var body: some View {
+        VStack(
+            alignment: .leading,
+            spacing: WorkbenchControlMetrics.redesignSpacing4
+        ) {
+            WorkbenchFormTextField(
+                label: "List Name",
+                placeholder: "Enter a list name",
+                text: $name,
+                validationMessage: nil,
+                focus: $isNameFocused
+            )
+
+            WorkbenchFormTextArea(
+                label: "Description",
+                placeholder: "Add a description (optional)",
+                text: $description,
+                validationMessage: nil,
+                focus: $isDescriptionFocused
+            )
+        }
+    }
 }

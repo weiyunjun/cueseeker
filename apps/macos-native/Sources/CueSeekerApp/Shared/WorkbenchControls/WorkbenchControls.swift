@@ -17,8 +17,8 @@ enum WorkbenchControlMetrics {
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
-    /// Provisional --height-form-text-area: 80px
-    static let redesignFormTextAreaHeight: CGFloat = 80
+    /// Provisional --height-form-text-area: 77.5px
+    static let redesignFormTextAreaHeight: CGFloat = 77.5
     /// --height-filter-bar-control (Search box): 40px
     static let redesignSearchHeight: CGFloat = 40
     /// --radius-field: 8px
@@ -390,24 +390,29 @@ struct WorkbenchSearchField: View {
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 18, weight: .regular))
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.mutedText)
 
-            TextField(
-                "",
+            WorkbenchSingleLineTextInput(
+                placeholder: placeholder,
                 text: Binding(
                     get: { text },
                     set: {
                         text = SearchInputNormalizer.singleLine($0)
                     }
                 ),
-                prompt: Text(placeholder)
-                    .foregroundColor(isRedesign ? WorkbenchRedesignColors.textPlaceholder : WorkbenchControlColors.mutedText)
+                placeholderColor: isRedesign
+                    ? WorkbenchRedesignColors.textPlaceholder
+                    : WorkbenchControlColors.mutedText,
+                textColor: isRedesign
+                    ? (isEnabled
+                        ? WorkbenchRedesignColors.textPrimary
+                        : WorkbenchRedesignColors.textPlaceholder)
+                    : WorkbenchControlColors.primaryText,
+                fontSize: isRedesign
+                    ? WorkbenchControlMetrics.redesignFontSizeControl
+                    : 15,
+                focus: $isFocused,
+                accessibilityLabel: placeholder,
+                onSubmit: onSubmit
             )
-            .textFieldStyle(.plain)
-            .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: .regular))
-            .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
-            .focused($isFocused)
-            .onSubmit {
-                onSubmit?()
-            }
 
             if isRedesign,
                let trailingStatusText,
