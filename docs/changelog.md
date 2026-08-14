@@ -8,10 +8,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 - Reworked Playback Current, Cue Playlist, Command Panel Search, and Editing
   Collage around one shared Cue timeline. Every row now reserves a stable
-  sequence lane with 24-point Semibold text, uses a dot or the existing Collage
-  checkbox as its first-line-centered marker, separates adjacent connector
-  lines from marker edges by 8 points, and shows only a plain ordinal plus
-  Display Title and Time Range metadata below the complete Cue stack.
+  right-aligned sequence lane with proportional 24-point Semibold text and
+  digit-count-based width, uses a dot or the existing Collage checkbox aligned
+  to the Primary Cue's visible first-line glyph center, keeps 24 points on both
+  sides of the marker, separates connector lines from marker edges by 8 points,
+  and shows only a plain ordinal plus Display Title and Time Range metadata
+  below the complete Cue stack.
 - Reworked the Workbench app topbar into one shared Back-only function region.
   Back is disabled on Search, Recent, Library, and Shiori overviews and returns
   each supported detail to its owning overview. Page titles now sit below the

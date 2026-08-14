@@ -335,10 +335,10 @@ enum PlaybackCueTimelineMetrics {
     static let sequenceFontWeight = NSFont.Weight.semibold
     /// --line-height-playback-cue-sequence
     static let sequenceLineHeight = PlaybackSubtitleFocusMetrics.cueLineHeight
-    /// --gap-playback-cue-sequence-marker
-    static let sequenceMarkerGap = WorkbenchControlMetrics.redesignSpacing3
-    /// --gap-playback-cue-marker-cue
-    static let markerCueGap = WorkbenchControlMetrics.redesignSpacing4
+    /// --width-playback-cue-sequence-digit
+    static let sequenceDigitWidth = WorkbenchControlMetrics.redesignSpacing4
+    /// --gap-playback-cue-timeline-marker-inline
+    static let markerHorizontalGap = WorkbenchControlMetrics.redesignSpacing6
     /// --size-playback-cue-timeline-dot
     static let dotSize = WorkbenchControlMetrics.redesignSpacing3
     /// --width-playback-cue-timeline-connector

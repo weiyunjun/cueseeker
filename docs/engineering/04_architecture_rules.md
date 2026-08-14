@@ -518,17 +518,20 @@ Presentation virtualization rules:
   selection, or Primary Cue action targets.
 - Playback Current, Cue Playlist, Command Panel Search, and Editing Collage
   share one Reel-owned Cue timeline presentation. A fixed-width sequence lane
-  is measured from the current dataset's maximum one-based ordinal, followed
-  by one timeline marker and the existing Cue renderer. Current and Collage
-  use the physical Cue ordinal; Cue Result adapters use their existing list
+  keeps the proportional system font right-aligned and derives its width from
+  the current dataset's maximum one-based ordinal digit count using the shared
+  16-point digit-width token, without a fixed digit limit. The lane is followed
+  by one timeline marker and the existing Cue renderer, with the shared
+  24-point horizontal gap on both sides of the marker. Current and Collage use
+  the physical Cue ordinal; Cue Result adapters use their existing list
   ordinal. Focus changes only sequence and marker colors and never add total
-  text or change the lane, Cue width, placement, or scroll position. Markers
-  align to the center of the Primary Cue's first line box. Connectors are
-  derived from consecutive visible-plus-overscan placements during drawing,
-  leave 8 points between each marker edge and line endpoint, and do not create
-  another selection or layout state owner. Editing Collage substitutes its
-  existing checkbox for the dot while keeping the same checkbox state and
-  interaction path.
+  text or change the lane, Cue width, placement, or scroll position. Marker
+  centers use the Primary Cue first visual line's visible glyph center already
+  produced by text measurement. Connectors are derived from consecutive
+  visible-plus-overscan placements during drawing, leave 8 points between each
+  marker edge and line endpoint, and do not create another selection or layout
+  state owner. Editing Collage substitutes its existing checkbox for the dot
+  while keeping the same checkbox state and interaction path.
 - Playback Current and Cue Result adapters share Cue typography and one plain
   metadata model and renderer. Current retains its primary-only measurement
   cache and native text drawing hot path; Cue Playlist and Command Panel Search

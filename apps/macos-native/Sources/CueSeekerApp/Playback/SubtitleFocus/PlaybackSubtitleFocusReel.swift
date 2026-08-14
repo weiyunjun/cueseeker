@@ -30,6 +30,7 @@ struct PlaybackVirtualReelItemExtent: Equatable {
     let visualLineCount: Int
     let visualLineStackHeight: CGFloat
     let resolvedContentHeight: CGFloat
+    let firstVisualLineCenterOffset: CGFloat
     let naturalHeight: CGFloat
     let resolvedHeight: CGFloat
     let isOversized: Bool
@@ -202,6 +203,7 @@ struct PlaybackVisualLineStackLine: Equatable {
     let ascent: CGFloat
     let descent: CGFloat
     let typographicTop: CGFloat
+    let visibleCenterY: CGFloat
 
     var typographicHeight: CGFloat {
         ascent + descent
@@ -244,6 +246,7 @@ final class PlaybackVisualLineStackLayout {
         let originalBaseline: CGFloat
         let ascent: CGFloat
         let descent: CGFloat
+        let glyphBoundsMidY: CGFloat?
 
         var typographicHeight: CGFloat {
             ascent + descent
@@ -346,7 +349,8 @@ final class PlaybackVisualLineStackLayout {
                 usedRect: usedRect,
                 originalBaseline: originalBaseline,
                 ascent: metrics.ascent,
-                descent: metrics.descent
+                descent: metrics.descent,
+                glyphBoundsMidY: metrics.glyphBoundsMidY
             ))
         }
 
@@ -360,7 +364,8 @@ final class PlaybackVisualLineStackLayout {
                 usedRect: .zero,
                 originalBaseline: font.ascender,
                 ascent: font.ascender,
-                descent: -font.descender
+                descent: -font.descender,
+                glyphBoundsMidY: nil
             )]
         }
 
@@ -386,7 +391,11 @@ final class PlaybackVisualLineStackLayout {
                 originalBaseline: line.originalBaseline,
                 ascent: line.ascent,
                 descent: line.descent,
-                typographicTop: nextTop
+                typographicTop: nextTop,
+                visibleCenterY: nextTop
+                    + line.ascent
+                    - (line.glyphBoundsMidY
+                        ?? (line.ascent - line.descent) / 2)
             )
         }
 
@@ -646,18 +655,29 @@ final class PlaybackVisualLineStackLayout {
     private func typographicMetrics(
         for glyphRange: NSRange,
         fallbackFont: NSFont
-    ) -> (ascent: CGFloat, descent: CGFloat) {
+    ) -> (
+        ascent: CGFloat,
+        descent: CGFloat,
+        glyphBoundsMidY: CGFloat?
+    ) {
         let characterRange = layoutManager.characterRange(
             forGlyphRange: glyphRange,
             actualGlyphRange: nil
         )
         let metricRange = rangeWithoutLineTerminators(characterRange)
         guard metricRange.length > 0 else {
-            return (fallbackFont.ascender, -fallbackFont.descender)
+            return (fallbackFont.ascender, -fallbackFont.descender, nil)
         }
 
         let attributedLine = textStorage.attributedSubstring(from: metricRange)
         let coreTextLine = CTLineCreateWithAttributedString(attributedLine)
+        let glyphBounds = CTLineGetBoundsWithOptions(
+            coreTextLine,
+            [.useGlyphPathBounds]
+        )
+        let glyphBoundsMidY = glyphBounds.isNull || glyphBounds.isEmpty
+            ? nil
+            : glyphBounds.midY
         let runs = CTLineGetGlyphRuns(coreTextLine) as NSArray
         var resolvedAscent: CGFloat = 0
         var resolvedDescent: CGFloat = 0
@@ -677,9 +697,13 @@ final class PlaybackVisualLineStackLayout {
         }
 
         guard resolvedAscent > 0 || resolvedDescent > 0 else {
-            return (fallbackFont.ascender, -fallbackFont.descender)
+            return (
+                fallbackFont.ascender,
+                -fallbackFont.descender,
+                glyphBoundsMidY
+            )
         }
-        return (resolvedAscent, resolvedDescent)
+        return (resolvedAscent, resolvedDescent, glyphBoundsMidY)
     }
 
     private func resolvedSegmentIndex(
@@ -803,6 +827,10 @@ final class PlaybackSubtitleFocusCueTextMeasurer {
             visualLineCount: plan.visualLineCount,
             visualLineStackHeight: plan.stackHeight,
             resolvedContentHeight: plan.resolvedContentHeight,
+            firstVisualLineCenterOffset:
+                PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                    + (plan.lines.first?.visibleCenterY
+                        ?? PlaybackSubtitleFocusMetrics.cueLineHeight / 2),
             naturalHeight: naturalHeight,
             resolvedHeight: min(naturalHeight, safeViewportHeight),
             isOversized: naturalHeight > safeViewportHeight
@@ -1321,6 +1349,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
             visualLineStackHeight: base.visualLineStackHeight,
             resolvedContentHeight:
                 base.resolvedContentHeight + metadataHeight,
+            firstVisualLineCenterOffset: base.firstVisualLineCenterOffset,
             naturalHeight: naturalHeight,
             resolvedHeight: min(naturalHeight, safeViewportHeight),
             isOversized: naturalHeight > safeViewportHeight
@@ -3411,27 +3440,30 @@ enum PlaybackCueTimelineLayout {
         usesCheckbox: Bool
     ) -> CGFloat {
         sequenceColumnWidth(totalCount: totalCount)
-            + PlaybackCueTimelineMetrics.sequenceMarkerGap
+            + PlaybackCueTimelineMetrics.markerHorizontalGap
             + markerSize(usesCheckbox: usesCheckbox)
-            + PlaybackCueTimelineMetrics.markerCueGap
+            + PlaybackCueTimelineMetrics.markerHorizontalGap
     }
 
     static func rowLayout(
         in rowRect: CGRect,
         totalCount: Int,
-        usesCheckbox: Bool
+        usesCheckbox: Bool,
+        markerCenterY: CGFloat? = nil
     ) -> PlaybackCueTimelineRowLayout {
         let sequenceWidth = sequenceColumnWidth(totalCount: totalCount)
         let markerSize = markerSize(usesCheckbox: usesCheckbox)
         let markerX = rowRect.minX
             + sequenceWidth
-            + PlaybackCueTimelineMetrics.sequenceMarkerGap
-        let markerY = rowRect.minY
+            + PlaybackCueTimelineMetrics.markerHorizontalGap
+        let resolvedMarkerCenterY = markerCenterY
+            ?? rowRect.minY
             + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            + (PlaybackSubtitleFocusMetrics.cueLineHeight - markerSize) / 2
+            + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
+        let markerY = resolvedMarkerCenterY - markerSize / 2
         let cueX = markerX
             + markerSize
-            + PlaybackCueTimelineMetrics.markerCueGap
+            + PlaybackCueTimelineMetrics.markerHorizontalGap
         return PlaybackCueTimelineRowLayout(
             sequenceRect: CGRect(
                 x: rowRect.minX,
@@ -3526,11 +3558,9 @@ enum PlaybackCueTimelineLayout {
     }
 
     private static func sequenceColumnWidth(totalCount: Int) -> CGFloat {
-        let maximumSequence = max(1, totalCount)
-        let sample = "\(maximumSequence)"
-        return ceil((sample as NSString).size(withAttributes: [
-            .font: sequenceFont,
-        ]).width)
+        let digitCount = String(max(1, totalCount)).count
+        return CGFloat(digitCount)
+            * PlaybackCueTimelineMetrics.sequenceDigitWidth
     }
 
     private static func markerSize(usesCheckbox: Bool) -> CGFloat {
@@ -3814,7 +3844,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                     : nil,
                 in: cueContentRect(for: placement.rect)
             )
-            let timelineLayout = cueTimelineRowLayout(for: placement.rect)
+            let timelineLayout = cueTimelineRowLayout(for: placement)
             PlaybackCueTimelineLayout.drawSequence(
                 ordinal: placement.ordinal,
                 isFocused: placement.ordinal == selectedOrdinal,
@@ -4299,7 +4329,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         guard isEditingCollage else {
             return .null
         }
-        return cueTimelineRowLayout(for: placement.rect).markerRect
+        return cueTimelineRowLayout(for: placement).markerRect
     }
 
     private var sequenceTotalCount: Int {
@@ -4316,14 +4346,26 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         )
     }
 
+    private func cueTimelineRowLayout(
+        for placement: PlaybackSubtitleFocusCuePlacement
+    ) -> PlaybackCueTimelineRowLayout {
+        PlaybackCueTimelineLayout.rowLayout(
+            in: placement.rect,
+            totalCount: sequenceTotalCount,
+            usesCheckbox: isEditingCollage,
+            markerCenterY: placement.rect.minY
+                + placement.extent.firstVisualLineCenterOffset
+        )
+    }
+
     private var cueTimelineConnectorRects: [CGRect] {
         zip(placements, placements.dropFirst()).compactMap { current, next in
             guard next.ordinal == current.ordinal + 1 else {
                 return nil
             }
             return PlaybackCueTimelineLayout.connectorRect(
-                from: cueTimelineRowLayout(for: current.rect),
-                to: cueTimelineRowLayout(for: next.rect)
+                from: cueTimelineRowLayout(for: current),
+                to: cueTimelineRowLayout(for: next)
             )
         }
     }

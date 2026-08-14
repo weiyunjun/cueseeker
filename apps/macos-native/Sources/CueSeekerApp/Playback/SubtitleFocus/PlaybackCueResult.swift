@@ -379,6 +379,12 @@ final class PlaybackCueResultLayout {
             visualLineCount: visualLinePlan.visualLineCount,
             visualLineStackHeight: visualLinePlan.stackHeight,
             resolvedContentHeight: resolvedContentHeight,
+            firstVisualLineCenterOffset:
+                PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                    + (visualLines.first {
+                        $0.role == .primaryCue
+                    }?.line.visibleCenterY
+                        ?? PlaybackSubtitleFocusMetrics.cueLineHeight / 2),
             naturalHeight: naturalHeight,
             resolvedHeight: min(naturalHeight, safeViewportHeight),
             isOversized: naturalHeight > safeViewportHeight

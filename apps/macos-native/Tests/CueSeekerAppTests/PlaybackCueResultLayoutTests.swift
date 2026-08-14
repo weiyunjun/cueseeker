@@ -357,6 +357,16 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
     #expect(selectedGroup.style.font.pointSize == 20)
     #expect(playbackCueResultAlpha(selectedGroup.color) == 0.62)
     #expect(selectedPrimary.style == .primary)
+    #expect(
+        selected.extent.firstVisualLineCenterOffset
+            == PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                + selectedPrimary.line.visibleCenterY
+    )
+    #expect(
+        selected.extent.firstVisualLineCenterOffset
+            != PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
+    )
     #expect(selectedPrimary.style.font.pointSize == 24)
     #expect(playbackCueResultAlpha(selectedPrimary.color) == 0.94)
     #expect(selectedGroup.line.typographicHeight > 0)
