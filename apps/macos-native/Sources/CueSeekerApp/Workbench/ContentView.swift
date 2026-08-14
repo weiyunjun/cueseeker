@@ -144,48 +144,38 @@ private struct AppTopBar: View {
                 return true
             }
         ) {
-            titlebarContent
+            backButton
         } sidebarToggle: {
             sidebarToggle
         }
     }
 
-    @ViewBuilder
-    private var titlebarContent: some View {
-        switch routeState.panelMode {
-        case .testLibrary:
-            if let selectedFolder = routeState.selectedTestLibraryFolder {
-                LibraryFolderDetailHeader(
-                    folderTitle: selectedFolder.folderTitle,
-                    onBack: {
-                        appState.performUserInitiatedAppCommand {
-                            appState.workbenchLayout.clearTestLibraryFolder()
-                        }
-                    }
-                )
-            } else {
-                LibrarySectionTitle("Library")
-                    .allowsHitTesting(false)
+    private var backButton: some View {
+        WorkbenchIconButton(
+            systemImage: "chevron.left",
+            isRedesign: true,
+            action: navigateBack
+        )
+        .disabled(
+            !routeState.canNavigateBack
+                || layoutState.isVideoSizeTransitionInProgress
+        )
+        .help("Back")
+        .accessibilityLabel("Back")
+    }
+
+    private func navigateBack() {
+        appState.performUserInitiatedAppCommand {
+            switch routeState.panelMode {
+            case .recentWatching:
+                layoutState.clearRecentSection()
+            case .testLibrary:
+                layoutState.clearTestLibraryFolder()
+            case .shiori:
+                appState.showShioriListOverview()
+            case .library, .search:
+                break
             }
-        case .shiori:
-            if routeState.selectedShioriListID != nil {
-                ShioriListDetailHeader(
-                    onBack: {
-                        appState.performUserInitiatedAppCommand {
-                            appState.showShioriListOverview()
-                        }
-                    }
-                )
-            } else {
-                LibrarySectionTitle("Shiori")
-                    .allowsHitTesting(false)
-            }
-        case .recentWatching:
-            LibrarySectionTitle(recentTitle)
-            .allowsHitTesting(false)
-        default:
-            LibrarySectionTitle(routeState.panelMode.title)
-                .allowsHitTesting(false)
         }
     }
 
@@ -214,16 +204,6 @@ private struct AppTopBar: View {
         .accessibilityLabel(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
     }
 
-    private var recentTitle: String {
-        switch routeState.selectedRecentSection {
-        case .videos:
-            "Recent Videos"
-        case .shioris:
-            "Recent Shioris"
-        case nil:
-            "Recent"
-        }
-    }
 }
 
 private struct TitlebarCommandBridge: View {

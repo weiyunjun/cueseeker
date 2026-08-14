@@ -25,21 +25,6 @@ enum WorkbenchPanelMode: String, CaseIterable {
         }
     }
 
-    var title: String {
-        switch self {
-        case .library:
-            return "Library"
-        case .shiori:
-            return "Shiori"
-        case .recentWatching:
-            return "Recent"
-        case .testLibrary:
-            return "Library"
-        case .search:
-            return "Search"
-        }
-    }
-
     var systemImage: String {
         switch self {
         case .library:
@@ -71,6 +56,19 @@ final class WorkbenchRouteState: ObservableObject {
 
     init(panelMode: WorkbenchPanelMode) {
         self.panelMode = panelMode
+    }
+
+    var canNavigateBack: Bool {
+        switch panelMode {
+        case .recentWatching:
+            selectedRecentSection != nil
+        case .testLibrary:
+            selectedTestLibraryFolder != nil
+        case .shiori:
+            selectedShioriListID != nil
+        case .library, .search:
+            false
+        }
     }
 }
 

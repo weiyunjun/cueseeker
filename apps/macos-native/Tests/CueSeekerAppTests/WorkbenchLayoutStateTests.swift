@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import Testing
+@testable import CueSeekerCore
 @testable import CueSeekerApp
 
 @MainActor
@@ -153,6 +154,48 @@ func workbenchLayoutStateTracksRecentSectionWithoutPersistingIt() {
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
         #expect(reloadedLayoutState.selectedRecentSection == nil)
+    }
+}
+
+@MainActor
+@Test
+func workbenchRouteEnablesBackOnlyForSecondaryPages() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+
+        #expect(!layoutState.route.canNavigateBack)
+
+        layoutState.selectPanelMode(.recentWatching)
+        #expect(!layoutState.route.canNavigateBack)
+        layoutState.selectRecentSection(.videos)
+        #expect(layoutState.route.canNavigateBack)
+        layoutState.clearRecentSection()
+        #expect(!layoutState.route.canNavigateBack)
+
+        layoutState.selectPanelMode(.testLibrary)
+        #expect(!layoutState.route.canNavigateBack)
+        layoutState.selectTestLibraryFolder(
+            CompleteLibraryFolderSummaryPresentation(
+                folderPath: "/Media/Show",
+                folderTitle: "Show",
+                coverPath: nil,
+                coverRevision: nil,
+                episodeCount: 1
+            )
+        )
+        #expect(layoutState.route.canNavigateBack)
+        layoutState.clearTestLibraryFolder()
+        #expect(!layoutState.route.canNavigateBack)
+
+        layoutState.selectPanelMode(.shiori)
+        #expect(!layoutState.route.canNavigateBack)
+        layoutState.selectShioriList(id: 42)
+        #expect(layoutState.route.canNavigateBack)
+        layoutState.clearShioriList()
+        #expect(!layoutState.route.canNavigateBack)
+
+        layoutState.selectPanelMode(.search)
+        #expect(!layoutState.route.canNavigateBack)
     }
 }
 

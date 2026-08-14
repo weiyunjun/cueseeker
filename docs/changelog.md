@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Reworked the Workbench app topbar into one shared Back-only function region.
+  Back is disabled on Search, Recent, Library, and Shiori overviews and returns
+  each supported detail to its owning overview. Page titles now sit below the
+  topbar and share the Cover Summary's 28-point Bold hierarchy; Recent Videos
+  and Recent Shioris retain their smaller overview section headings, show their
+  counts beside detail titles, and Library and Shiori Cover Summary details
+  start 20 points higher.
 - Unified Recent Videos, Library Folder Detail, and Playback Video Playlist on
   one adaptive video-card Grid with the same folder title, Episode, watch-state,
   progress, time, and full-card selection treatment. Playback Playlist now

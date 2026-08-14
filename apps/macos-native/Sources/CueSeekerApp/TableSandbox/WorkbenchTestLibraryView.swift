@@ -12,6 +12,8 @@ struct WorkbenchRecentView: View {
     var body: some View {
         WorkbenchScrollView {
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
+                WorkbenchPageTitle(recentPageTitle, count: recentPageCount)
+
                 switch routeState.selectedRecentSection {
                 case .videos:
                     recentVideosContent(
@@ -38,6 +40,28 @@ struct WorkbenchRecentView: View {
             if !isVisible {
                 appState.reloadShioriListOverview()
             }
+        }
+    }
+
+    private var recentPageTitle: String {
+        switch routeState.selectedRecentSection {
+        case .videos:
+            "Recent Videos"
+        case .shioris:
+            "Recent Shioris"
+        case nil:
+            "Recent"
+        }
+    }
+
+    private var recentPageCount: Int? {
+        switch routeState.selectedRecentSection {
+        case .videos:
+            library.testRecentWatchingItems.count
+        case .shioris:
+            shiori.recentListSummaries.count
+        case nil:
+            nil
         }
     }
 
@@ -294,13 +318,18 @@ struct WorkbenchTestLibraryView: View {
                             WorkbenchControlMetrics.redesignSpacing8
                         )
                         .padding(
-                            .vertical,
+                            .top,
+                            WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
+                        )
+                        .padding(
+                            .bottom,
                             WorkbenchTestLibraryMetrics.pageVerticalPadding
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             } else {
                 LibraryOverviewLayout(
+                    title: "Library",
                     summaryText: completeLibrarySummaryText,
                     actionTitle: "Add Content",
                     actionSystemImage: "plus",
@@ -528,9 +557,9 @@ private extension WorkbenchTestLibraryView {
 }
 
 private enum WorkbenchTestLibraryMetrics {
-    static let pageHorizontalPadding: CGFloat = 24
-    static let pageVerticalPadding: CGFloat = 24
-    static let sectionSpacing: CGFloat = 16
+    static let pageHorizontalPadding = WorkbenchControlMetrics.redesignSpacing6
+    static let pageVerticalPadding = WorkbenchControlMetrics.redesignSpacing6
+    static let sectionSpacing = WorkbenchControlMetrics.redesignSpacing4
     static let sectionTitleSize = WorkbenchControlMetrics.redesignFontSizeSectionTitle
 
     static let recentGridGap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
@@ -540,7 +569,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let mediaCardHoverPadding = WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
     static let mediaCardHoverRadius = WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius
 
-    static let detailHeaderGap = WorkbenchControlMetrics.redesignSpacing2
     static let coverHoverScale = WorkbenchControlMetrics.redesignLibraryCoverHoverScale
     static let coverHoverDuration = WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
 
@@ -553,22 +581,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let titleSize = WorkbenchControlMetrics.redesignFontSizeLibraryTitle
     static let metaSize = WorkbenchControlMetrics.redesignFontSizeLibraryMeta
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
-}
-
-struct LibrarySectionTitle: View {
-    let title: String
-
-    init(_ title: String) {
-        self.title = title
-    }
-
-    var body: some View {
-        Text(title)
-            .font(.system(size: WorkbenchTestLibraryMetrics.sectionTitleSize, weight: .semibold))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .allowsHitTesting(false)
-    }
 }
 
 struct RecentWatchingGrid: View {
@@ -988,34 +1000,6 @@ private struct LibraryFolderCard: View {
 
     private var episodeCountText: String {
         folder.episodeCount == 1 ? "1 episode" : "\(folder.episodeCount) episodes"
-    }
-}
-
-struct LibraryFolderDetailHeader: View {
-    let folderTitle: String
-    var showsTitle = true
-    let onBack: () -> Void
-
-    var body: some View {
-        HStack(spacing: WorkbenchTestLibraryMetrics.detailHeaderGap) {
-            WorkbenchIconButton(
-                systemImage: "chevron.left",
-                isRedesign: true,
-                action: onBack
-            )
-
-            if showsTitle {
-                Text(folderTitle)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.sectionTitleSize, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .allowsHitTesting(false)
-            } else {
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

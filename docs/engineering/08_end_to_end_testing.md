@@ -1409,7 +1409,7 @@ History.
   in the other appearance during final visual acceptance.
 - Recent and Shiori Sidebar groups are expanded. Under this layout, the accepted
   complete-scene coordinates are Library `(80, 217)`, Shiori's first list
-  `(80, 289)`, the first Library folder card `(360, 160)`, the detail scroll
+  `(80, 289)`, the first Library folder card `(360, 210)`, the detail scroll
   region `(1300, 650)`, and Shiori restore `(80, 253)`.
 - Stop without clicking if `inspect` reports another size, scale, window count,
   or layout. Screenshots must not be used to recalculate coordinates.
@@ -1438,7 +1438,7 @@ action must return `status: ok`, and each following action must use the fresh
 4. Click Library at `(80, 217)`, wait for the existing bounded post-click delay,
    and capture `library-cover-summary-overview`. The overview must be loaded;
    stop if the first card is absent or still loading.
-5. Click the first folder card at `(360, 160)` and capture
+5. Click the first folder card at `(360, 210)` and capture
    `library-cover-summary-detail` after the response.
 6. Verify the detail capture shows, in order, one folder title, one
    `xx videos yy subtitles` line, the complete folder path, and one Resume or
@@ -1514,7 +1514,7 @@ Command Panel Recent Video targets.
 
 - Use the Debug in-app controller at `1433 x 821` logical points and `2x`.
 - Start on the Workbench Recent overview with Library at `(80, 217)`.
-- The first Library folder at `(360, 160)` has at least two available videos;
+- The first Library folder at `(360, 210)` has at least two available videos;
   its first Video Card is at `(380, 390)` after detail loading.
 - Stop if `inspect` reports a different complete scene or any documented card
   is unavailable.
@@ -1550,3 +1550,91 @@ controller input to hide Pointer and confirm Hover visuals disappear while
 keyboard Selected remains. Move the mouse across cards and confirm Hover
 returns and changes independently without changing or clearing Selected. No
 Pointer Move automation is added for this requirement.
+
+## 11. Workbench Topbar And Page Title Hierarchy
+
+### Feature
+
+Verify the shared Workbench function topbar, Back routing, page-title hierarchy,
+Recent detail counts, unchanged Recent overview section titles, and the reduced
+Cover Summary detail top spacing across the eight affected routes.
+
+### Automated Checks
+
+Run:
+
+```bash
+cd apps/macos-native
+swift test --filter 'WorkbenchLayoutState|workbenchPageTitle'
+```
+
+The checks must confirm that Back is enabled only for Recent Videos, Recent
+Shioris, Library Folder Detail, and Shiori List Detail; page titles reuse the
+28-point Cover Summary title size; and the shared detail top padding is exactly
+20 points smaller than the previous 24-point page padding.
+
+### In-App E2E Preconditions
+
+- Use the Debug in-app controller with one visible `1433 x 821` logical-point,
+  `2x` main window. Recent and Shiori are expanded and the Sidebar is visible.
+- Set Settings > Appearance to Light before the first run and repeat the gate
+  in Dark. Restore the starting appearance during cleanup.
+- The accepted expanded-Sidebar coordinates are Sidebar Toggle `(212, 23)`,
+  Back `(280, 23)`, Search `(80, 73)`, Recent `(80, 109)`, Recent Videos
+  `(80, 145)`, Recent Shioris `(80, 181)`, Library `(80, 217)`, Shiori
+  `(80, 253)`, Shiori's first list `(80, 289)`, and the first Library folder
+  card `(360, 210)`.
+- With the Sidebar collapsed, Sidebar Toggle is `(114, 23)` and Back is
+  `(158, 23)`.
+- Stop before clicking if `inspect` reports another size, scale, window count,
+  or layout, or if the documented Library folder and Shiori list are absent.
+  Screenshots must not be used to recalculate coordinates.
+
+### In-App E2E Actions
+
+1. Open Search and capture `workbench-search-primary-{appearance}`. Click Back
+   and capture again; Search must remain active because Back is Disabled.
+2. Open Recent and capture `workbench-recent-primary-{appearance}`. Confirm the
+   page title is visually larger than the unchanged Recent Videos and Recent
+   Shioris section titles.
+3. Open Recent Videos and capture `workbench-recent-videos-{appearance}`.
+   Confirm its count is beside the page title, then click Back and require the
+   Recent overview. Repeat for Recent Shioris with
+   `workbench-recent-shioris-{appearance}`.
+4. Open Library and capture `workbench-library-primary-{appearance}`. Open the
+   first folder and capture `workbench-library-detail-{appearance}`; require one
+   Cover Summary title and no duplicate page title. Click Back and require the
+   Library overview.
+5. Open Shiori and capture `workbench-shiori-primary-{appearance}`. Open its
+   first list and capture `workbench-shiori-detail-{appearance}`; require one
+   Cover Summary title and no duplicate page title. Click Back and require the
+   Shiori overview.
+6. Reopen the first Shiori list, collapse the Sidebar at `(212, 23)`, and capture
+   `workbench-shiori-detail-collapsed-{appearance}`. Click Back at `(158, 23)`
+   and capture `workbench-shiori-primary-collapsed-{appearance}`. Expand the
+   Sidebar at `(114, 23)` before repeating the gate in the other appearance.
+
+Every interaction must return `status: ok` and the next interaction must use
+its fresh `sceneID`.
+
+### Acceptance Criteria
+
+- Outside the unchanged Sidebar segment, the app topbar contains only Back and
+  no title. Back is Disabled on all four primary pages and Enabled on all four
+  secondary pages, where it returns to the owning primary page.
+- Search, Recent, Library, Shiori, Recent Videos, and Recent Shioris use the
+  same 28-point Bold page-title style with the semantic Primary text color.
+  Recent detail counts reuse the existing Recent count style.
+- Recent overview section titles remain 18-point Semibold and therefore stay
+  subordinate to the page title.
+- Library and Shiori details add no page title above Cover Summary. Their Cover
+  Summary titles remain 28-point Bold White, and both detail bodies use the
+  shared 4-point top padding instead of 24 points.
+- Light, Dark, expanded-Sidebar, and collapsed-Sidebar captures have no clipped,
+  duplicated, or overlapping title or navigation control.
+
+### Cleanup
+
+- Restore the starting appearance, expanded Sidebar, and Shiori overview.
+- Quit the Debug process with Control-C. The temporary capture directory may be
+  removed after evidence review; this gate does not change product data.

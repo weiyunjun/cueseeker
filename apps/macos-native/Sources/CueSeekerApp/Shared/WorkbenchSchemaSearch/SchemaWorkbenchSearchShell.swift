@@ -86,6 +86,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Binding var searchDraft: String
 
     let columns: [WorkbenchTableColumn]
+    let pageTitle: String?
     let searchPlaceholder: String
     let isRedesign: Bool
     let summaryContent: AnyView?
@@ -107,6 +108,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     init(
         searchDraft: Binding<String>,
         columns: [WorkbenchTableColumn],
+        pageTitle: String? = nil,
         searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
         isRedesign: Bool = false,
         summaryContent: AnyView? = nil,
@@ -125,6 +127,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     ) {
         _searchDraft = searchDraft
         self.columns = columns
+        self.pageTitle = pageTitle
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
         self.summaryContent = summaryContent
@@ -172,10 +175,22 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(spacing: 0) {
+                    if isRedesign, let pageTitle {
+                        WorkbenchPageTitle(pageTitle)
+                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                            .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                    }
+
                     if isRedesign {
                         searchToolbar
                             .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                            .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                            .padding(
+                                .top,
+                                pageTitle == nil
+                                    ? SchemaWorkbenchStyle.pageTopPadding
+                                    : 0
+                            )
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                     } else {
                         SchemaWorkbenchLegacySearchCommandBar(

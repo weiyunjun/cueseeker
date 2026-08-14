@@ -82,8 +82,8 @@ enum WorkbenchControlMetrics {
     static let redesignSpacing6: CGFloat = 24
     /// --spacing-8: 32px
     static let redesignSpacing8: CGFloat = 32
-    /// --gap-app-topbar-title-after-toggle: 12px
-    static let redesignAppTopbarTitleAfterToggleGap: CGFloat = 12
+    /// Provisional --gap-app-topbar-content-after-toggle: 12px
+    static let redesignAppTopbarContentAfterToggleGap: CGFloat = 12
     /// --padding-header-trigger-x: 12px
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
     /// --radius-table-cell-hover: 8px
@@ -126,8 +126,8 @@ enum WorkbenchControlMetrics {
     static let redesignAppSidebarVerticalPadding: CGFloat = 12
     /// --padding-app-sidebar-item-x: 10px
     static let redesignAppSidebarItemHorizontalPadding: CGFloat = 10
-    /// --padding-app-topbar-title-x: 24px
-    static let redesignAppTopbarTitleHorizontalPadding: CGFloat = 24
+    /// Provisional --padding-app-topbar-content-x: 24px
+    static let redesignAppTopbarContentHorizontalPadding: CGFloat = 24
     /// --font-size-app-sidebar-item: 13px
     static let redesignFontSizeAppSidebarItem: CGFloat = 13
 
@@ -188,6 +188,10 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryListCardHorizontalPadding: CGFloat = 16
     /// --font-size-section-title: 18px
     static let redesignFontSizeSectionTitle: CGFloat = 18
+    /// Provisional --font-size-page-title: 28px
+    static let redesignFontSizePageTitle: CGFloat = 28
+    /// Provisional --font-weight-page-title: 700
+    static let redesignFontWeightPageTitle: Font.Weight = .bold
     /// --font-size-library-title: 14px
     static let redesignFontSizeLibraryTitle: CGFloat = 14
     /// --font-size-library-meta: 12px
@@ -247,6 +251,44 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryToolbarGap: CGFloat = 24
     /// --height-cue-facet-filter-panel-pinned: 244px
     static let redesignCueFacetFilterPanelPinnedHeight: CGFloat = 244
+    /// Shared top padding for Workbench details led by Cover Summary.
+    static let redesignCoverSummaryDetailTopPadding = redesignSpacing1
+}
+
+struct WorkbenchPageTitle: View {
+    let title: String
+    let count: Int?
+
+    init(_ title: String, count: Int? = nil) {
+        self.title = title
+        self.count = count
+    }
+
+    var body: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            Text(title)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizePageTitle,
+                    weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .lineLimit(1)
+
+            if let count {
+                Text("\(count)")
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    .monospacedDigit()
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .allowsHitTesting(false)
+    }
 }
 
 enum WorkbenchControlColors {

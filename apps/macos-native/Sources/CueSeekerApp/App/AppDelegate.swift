@@ -390,7 +390,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if windowButtonsProxy == nil {
                 let proxy = WindowButtonsProxyView(
                     frame: NSRect(
-                        x: WorkbenchControlMetrics.redesignAppTopbarTitleHorizontalPadding,
+                        x: WorkbenchControlMetrics.redesignSpacing6,
                         y: 0,
                         width: 80,
                         height: WorkbenchControlMetrics.redesignAppTopbarHeight
@@ -407,7 +407,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             proxy.isHidden = false
         
             let proxyY = contentView.isFlipped ? 0 : contentView.frame.height - proxy.frame.height
-            proxy.frame.origin = CGPoint(x: 24, y: proxyY)
+            proxy.frame.origin = CGPoint(
+                x: WorkbenchControlMetrics.redesignSpacing6,
+                y: proxyY
+            )
         
             let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
             var xOffset: CGFloat = 0

@@ -1,11 +1,11 @@
 import AppKit
 import SwiftUI
 
-struct AppTopbarLayout<Title: View, SidebarToggle: View>: View {
+struct AppTopbarLayout<Content: View, SidebarToggle: View>: View {
     let isSidebarVisible: Bool
     let isAppFullscreen: Bool
     let onDoubleClickZoom: (NSWindow) -> Bool
-    @ViewBuilder let title: () -> Title
+    @ViewBuilder let content: () -> Content
     @ViewBuilder let sidebarToggle: () -> SidebarToggle
 
     var body: some View {
@@ -21,9 +21,9 @@ struct AppTopbarLayout<Title: View, SidebarToggle: View>: View {
             }
         }
         .overlay(alignment: .leading) {
-            title()
-                .padding(.leading, titleLeadingInset)
-                .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarTitleHorizontalPadding)
+            content()
+                .padding(.leading, contentLeadingInset)
+                .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding)
         }
         .overlay(alignment: .leading) {
             leadingControls
@@ -53,16 +53,16 @@ struct AppTopbarLayout<Title: View, SidebarToggle: View>: View {
         .clipped()
     }
 
-    private var titleLeadingInset: CGFloat {
+    private var contentLeadingInset: CGFloat {
         if isSidebarVisible {
-            return AppShellLayout.sidebarWidth + WorkbenchControlMetrics.redesignAppTopbarTitleHorizontalPadding
+            return AppShellLayout.sidebarWidth + WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding
         }
 
         return max(
-            WorkbenchControlMetrics.redesignAppTopbarTitleHorizontalPadding,
+            WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding,
             sidebarToggleHandleX
                 + AppShellLayout.sidebarToggleSize
-                + WorkbenchControlMetrics.redesignAppTopbarTitleAfterToggleGap
+                + WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap
         )
     }
 

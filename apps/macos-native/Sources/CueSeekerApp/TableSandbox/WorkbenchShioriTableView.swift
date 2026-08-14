@@ -277,7 +277,10 @@ private struct WorkbenchShioriTableContent: View {
         return SubtitleTablePageChrome(
             scrollableHeader: AnyView(
                 coverSummary
-                    .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
+                    .padding(
+                        .top,
+                        WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
+                    )
                     .padding(
                         .bottom,
                         WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
@@ -285,7 +288,7 @@ private struct WorkbenchShioriTableContent: View {
             ),
             pinnedHeader: pinnedContent,
             scrollableHeaderHeight:
-                WorkbenchControlMetrics.redesignSpacing6
+                WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
                 + WorkbenchControlMetrics.redesignCoverSummaryHeight
                 + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap,
             pinnedHeaderHeight:

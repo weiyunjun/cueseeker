@@ -9,6 +9,20 @@ func workbenchFocusRingMetricsMatchDesignTokens() {
     #expect(WorkbenchControlMetrics.redesignFocusRingPathExpansion == 3)
 }
 
+@Test
+func workbenchPageTitleAndDetailSpacingMatchTheAcceptedHierarchy() {
+    #expect(
+        WorkbenchControlMetrics.redesignFontSizePageTitle
+            == WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle
+    )
+    #expect(WorkbenchControlMetrics.redesignFontSizePageTitle == 28)
+    #expect(
+        WorkbenchControlMetrics.redesignSpacing6
+            - WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
+            == 20
+    )
+}
+
 @MainActor
 @Test
 func workbenchSearchFieldPlacesInsertionPointAfterCompleteText() {

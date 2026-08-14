@@ -9,6 +9,7 @@ struct ShioriListOverviewView: View {
     var body: some View {
         LibraryCardContextMenuHost { openContextMenu in
             LibraryOverviewLayout(
+                title: "Shiori",
                 summaryText: "\(shioriStore.listOverview.lists.count) Lists · "
                     + "\(shioriStore.listOverview.uniqueCueCount) Cues",
                 actionTitle: "New List",
@@ -68,29 +69,6 @@ struct ShioriListOverviewView: View {
                     openContextMenu: openContextMenu
                 )
             }
-        }
-    }
-}
-
-struct ShioriListDetailHeader: View {
-    let onBack: () -> Void
-
-    var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            WorkbenchIconButton(
-                systemImage: "chevron.left",
-                isRedesign: true,
-                action: onBack
-            )
-
-            Text("Shiori")
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .allowsHitTesting(false)
         }
     }
 }
