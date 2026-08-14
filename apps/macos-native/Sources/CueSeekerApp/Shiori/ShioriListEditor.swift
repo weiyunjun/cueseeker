@@ -65,10 +65,6 @@ final class ShioriListEditorSession: ObservableObject, Identifiable {
             || selectedCoverSource != nil
     }
 
-    var displaysCustomCover: Bool {
-        selectedCoverSource != nil || originalCoverPath != nil
-    }
-
     func selectCoverSource(_ source: LibraryUserCoverSource) {
         selectedCoverSource = source
         cropRect = LibraryCoverCropGeometry.initialCropRect(
@@ -87,13 +83,13 @@ final class ShioriListEditorSession: ObservableObject, Identifiable {
         case nil:
             nil
         case .emptyName:
-            "Enter a list name"
-        case .nameTooLong(_, let currentCharacters):
-            "List name must be 30 characters or fewer. You entered \(currentCharacters)."
-        case .descriptionTooLong(_, let currentCharacters):
-            "Description must be 100 characters or fewer. You entered \(currentCharacters)."
+            "Enter a list name."
+        case .nameTooLong:
+            "List name must be 30 characters or fewer."
+        case .descriptionTooLong:
+            "Description must be 100 characters or fewer."
         case .duplicateName:
-            "A list with this name already exists. Choose a different name."
+            "A list with this name already exists."
         }
     }
 }
@@ -184,23 +180,26 @@ struct ShioriListEditorDialog: View {
     private var coverRegion: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             if let source = session.selectedCoverSource {
-                LibraryCoverCropEditor(
-                    source: source,
-                    cropRect: $session.cropRect
-                )
-                .frame(height: 250)
-            } else {
                 LibraryCoverFrame {
+                    ZStack {
+                        WorkbenchRedesignColors.libraryCoverPlaceholderBg
+
+                        LibraryCoverCropEditor(
+                            source: source,
+                            cropRect: $session.cropRect
+                        )
+                    }
+                }
+            } else {
+                LibraryCoverChooser(
+                    title: LibraryCoverEditingCopy.chooseImageActionTitle,
+                    systemImage: LibraryCoverEditingCopy.editSystemImage,
+                    isEnabled: !session.isSaving,
+                    action: onChooseImage
+                ) {
                     ShioriListCoverView(coverPath: session.originalCoverPath)
                 }
             }
-
-            WorkbenchButton(
-                title: session.displaysCustomCover ? "Change Image" : "Choose Image",
-                isRedesign: true,
-                action: onChooseImage
-            )
-            .disabled(session.isSaving)
 
             Text(LibraryCoverEditingCopy.hint)
                 .font(.system(
@@ -223,7 +222,7 @@ struct ShioriListEditorDialog: View {
             )
 
             WorkbenchFormTextArea(
-                label: "Description (optional)",
+                label: "Description",
                 placeholder: "Add a description (optional)",
                 text: $session.listDescription,
                 validationMessage: session.descriptionValidationMessage,

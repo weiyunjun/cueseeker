@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 
 enum LibraryCoverEditingCopy {
     static let dialogTitle = "Edit Cover"
+    static let chooseImageActionTitle = "Choose Image"
+    static let editSystemImage = "pencil"
     static let hint = "Support: JPG, JPEG, PNG, and GIF no more than 20 MB."
     static let cancelButtonTitle = "Cancel"
     static let saveButtonTitle = "Save"
@@ -14,14 +16,29 @@ enum LibraryCoverEditingCopy {
 final class LibraryCoverEditingSession: ObservableObject, Identifiable {
     let id = UUID()
     let target: LibraryUserCoverTarget
-    let source: LibraryUserCoverSource
-    @Published var cropRect: CGRect
+    let currentCoverPath: String?
+    let currentCoverRevision: String?
+    @Published private(set) var selectedSource: LibraryUserCoverSource?
+    @Published var cropRect = CGRect.zero
     @Published var isSaving = false
 
-    init(target: LibraryUserCoverTarget, source: LibraryUserCoverSource) {
+    init(
+        target: LibraryUserCoverTarget,
+        currentCoverPath: String?,
+        currentCoverRevision: String?
+    ) {
         self.target = target
-        self.source = source
-        self.cropRect = LibraryCoverCropGeometry.initialCropRect(imageSize: source.pixelSize)
+        self.currentCoverPath = currentCoverPath
+        self.currentCoverRevision = currentCoverRevision
+    }
+
+    var canSave: Bool {
+        selectedSource != nil && !isSaving
+    }
+
+    func selectSource(_ source: LibraryUserCoverSource) {
+        selectedSource = source
+        cropRect = LibraryCoverCropGeometry.initialCropRect(imageSize: source.pixelSize)
     }
 }
 

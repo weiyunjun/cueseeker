@@ -6,13 +6,25 @@ import Testing
 @Test
 func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
     let view = WorkbenchTextAreaContainerView(
-        frame: CGRect(x: 0, y: 0, width: 340, height: 96)
+        frame: CGRect(
+            x: 0,
+            y: 0,
+            width: 340,
+            height: WorkbenchControlMetrics.redesignFormTextAreaHeight
+        )
     )
+    view.configure(placeholder: "Description", isEnabled: true)
     view.layout()
 
+    #expect(WorkbenchControlMetrics.redesignFormTextAreaHeight == 80)
     #expect(view.contentInsetForTesting == NSSize(width: 16, height: 10))
     #expect(view.lineFragmentPaddingForTesting == 0)
     #expect(view.textView.textContainerOrigin == NSPoint(x: 16, y: 10))
+    #expect(
+        view.textView.insertionPointColor.isEqual(
+            WorkbenchRedesignColors.NS.borderFocus
+        )
+    )
     #expect(!view.usesNativeScrollbarsForTesting)
 }
 
@@ -20,7 +32,12 @@ func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
 @Test
 func textAreaReportsFirstResponderChanges() {
     let view = WorkbenchTextAreaContainerView(
-        frame: CGRect(x: 0, y: 0, width: 340, height: 96)
+        frame: CGRect(
+            x: 0,
+            y: 0,
+            width: 340,
+            height: WorkbenchControlMetrics.redesignFormTextAreaHeight
+        )
     )
     let window = NSWindow(
         contentRect: view.frame,
@@ -42,7 +59,12 @@ func textAreaReportsFirstResponderChanges() {
 @Test
 func textAreaScrollbarPersistsOnlyWhileContentOverflows() {
     let view = WorkbenchTextAreaContainerView(
-        frame: CGRect(x: 0, y: 0, width: 340, height: 96)
+        frame: CGRect(
+            x: 0,
+            y: 0,
+            width: 340,
+            height: WorkbenchControlMetrics.redesignFormTextAreaHeight
+        )
     )
     view.layout()
 

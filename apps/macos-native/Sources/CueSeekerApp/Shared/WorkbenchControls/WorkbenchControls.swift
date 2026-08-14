@@ -17,8 +17,8 @@ enum WorkbenchControlMetrics {
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
-    /// --height-form-text-area: 96px
-    static let redesignFormTextAreaHeight: CGFloat = 96
+    /// Provisional --height-form-text-area: 80px
+    static let redesignFormTextAreaHeight: CGFloat = 80
     /// --height-filter-bar-control (Search box): 40px
     static let redesignSearchHeight: CGFloat = 40
     /// --radius-field: 8px
@@ -161,6 +161,8 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryFolderCardMinHeight: CGFloat = 96
     /// --radius-library-cover: 8px
     static let redesignLibraryCoverRadius: CGFloat = 8
+    /// Provisional --size-library-cover-edit-overlay-icon: 32px
+    static let redesignLibraryCoverEditOverlayIconSize: CGFloat = 32
     /// --radius-library-time-badge: 4px
     static let redesignLibraryTimeBadgeRadius: CGFloat = 4
     /// --radius-library-folder-card: 8px

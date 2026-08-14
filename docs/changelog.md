@@ -55,6 +55,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
   project custom overlay scrollbar without a native gutter; Auto Switch Gap is
   now a 40-point Number Field with trailing monospaced digits and `ms` inside
   the same control.
+- Refined Shiori list and Library cover editing. Shiori fields now reserve one
+  stable validation line, use concise messages and a shorter Description area,
+  and choose covers from a centered full-cover hover action. Library `Change
+  Cover` now opens Edit Cover with the current cover or fallback before Finder;
+  both editors share the same image action, and their sheets suppress
+  underlying Workbench interaction.
 - Corrected the indexing publication lifecycle across Library identity, media
   observation, and Cue retirement. Subtitle and Video identity now follows the
   exact current or last-known path before platform identity, so atomic saves and

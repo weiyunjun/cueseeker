@@ -687,7 +687,7 @@ private struct LibraryItemFramePreferenceKey: PreferenceKey {
 private struct LibraryCardActionHandlers {
     let revealFile: (String) -> Void
     let openFolder: (String) -> Void
-    let changeCover: (LibraryUserCoverTarget) -> Void
+    let changeCover: (LibraryUserCoverTarget, String?, String?) -> Void
     let markVideo: (LibraryVideo, LibraryWatchState) -> Void
     let markFolder: (String, LibraryWatchState) -> Void
 
@@ -695,7 +695,13 @@ private struct LibraryCardActionHandlers {
         LibraryCardActionHandlers(
             revealFile: { appState.revealFile(atPath: $0) },
             openFolder: { appState.openFolder(atPath: $0) },
-            changeCover: { appState.beginChangingLibraryCover(target: $0) },
+            changeCover: { target, coverPath, coverRevision in
+                appState.beginChangingLibraryCover(
+                    target: target,
+                    currentCoverPath: coverPath,
+                    currentCoverRevision: coverRevision
+                )
+            },
             markVideo: { appState.markLibraryVideo($0, as: $1) },
             markFolder: { appState.markCompleteLibraryFolder(folderPath: $0, as: $1) }
         )
@@ -742,6 +748,7 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
+    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
     let content: LibraryVideoCardContent
     let isSelected: Bool
     let actions: LibraryCardActionHandlers
@@ -755,7 +762,7 @@ private struct LibraryVideoCard: View {
     }
 
     private var isHoverActive: Bool {
-        allowsHover && isHovered
+        allowsHover && isHovered && !isWorkbenchPopupLayerOpen
     }
 
     var body: some View {
@@ -804,13 +811,20 @@ private struct LibraryVideoCard: View {
             onOpen()
         }
         .onHover { isHovered = $0 }
+        .onChange(of: isWorkbenchPopupLayerOpen) { isOpen in
+            if isOpen {
+                isHovered = false
+            }
+        }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
             isHovered: isHoverActive,
             items: contextMenuItems,
             openContextMenu: openContextMenu
         )
-        .libraryCardCursor(isEnabled: isAvailable && allowsHover)
+        .libraryCardCursor(
+            isEnabled: isAvailable && allowsHover && !isWorkbenchPopupLayerOpen
+        )
         .animation(
             .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
             value: isHoverActive
@@ -841,7 +855,11 @@ private struct LibraryVideoCard: View {
                 title: LibraryCoverContextMenuItem.title,
                 systemImage: LibraryCoverContextMenuItem.systemImage
             ) {
-                actions.changeCover(.video(path: content.videoPath))
+                actions.changeCover(
+                    .video(path: content.videoPath),
+                    content.coverPath,
+                    content.coverRevision
+                )
             },
             LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
                 actions.markVideo(content.libraryVideo, .finished)
@@ -911,6 +929,7 @@ struct CompleteLibraryFolderGrid: View {
 }
 
 private struct LibraryFolderCard: View {
+    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
     let folder: CompleteLibraryFolderSummaryPresentation
     let isSelected: Bool
     let actions: LibraryCardActionHandlers
@@ -922,6 +941,10 @@ private struct LibraryFolderCard: View {
 
     private var isAvailable: Bool {
         folder.episodeCount > 0
+    }
+
+    private var isHoverActive: Bool {
+        isHovered && !isWorkbenchPopupLayerOpen
     }
 
     var body: some View {
@@ -937,7 +960,7 @@ private struct LibraryFolderCard: View {
         }
         .buttonStyle(
             LibraryOverviewCardButtonStyle(
-                isHovered: isHovered,
+                isHovered: isHoverActive,
                 isSelected: isSelected,
                 isEnabled: isAvailable
             )
@@ -954,13 +977,18 @@ private struct LibraryFolderCard: View {
                 onHoverSelection()
             }
         }
+        .onChange(of: isWorkbenchPopupLayerOpen) { isOpen in
+            if isOpen {
+                isHovered = false
+            }
+        }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
-            isHovered: isHovered,
+            isHovered: isHoverActive,
             items: folderContextMenuItems,
             openContextMenu: openContextMenu
         )
-        .libraryCardCursor(isEnabled: isAvailable)
+        .libraryCardCursor(isEnabled: isAvailable && !isWorkbenchPopupLayerOpen)
         .accessibilityLabel(folder.folderTitle)
     }
 
@@ -971,7 +999,7 @@ private struct LibraryFolderCard: View {
             badgeText: episodeCountText
         )
         .libraryCoverHoverEffect(
-            isActive: (isHovered || isSelected) && isAvailable
+            isActive: (isHoverActive || isSelected) && isAvailable
         )
     }
 
@@ -984,7 +1012,11 @@ private struct LibraryFolderCard: View {
                 title: LibraryCoverContextMenuItem.title,
                 systemImage: LibraryCoverContextMenuItem.systemImage
             ) {
-                actions.changeCover(.folder(path: folder.folderPath))
+                actions.changeCover(
+                    .folder(path: folder.folderPath),
+                    folder.coverPath,
+                    folder.coverRevision
+                )
             },
             LibraryCardContextMenuItem(title: "Mark All as Finished", systemImage: "checkmark.circle") {
                 actions.markFolder(folder.folderPath, .finished)

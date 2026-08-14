@@ -7,22 +7,76 @@ import UniformTypeIdentifiers
 
 @Test
 @MainActor
-func libraryCoverEditingSessionStartsWithLargestCrop() throws {
-    let image = try libraryCoverEditingWorkflowImage(width: 1_000, height: 1_000)
-    let source = LibraryUserCoverSource(image: image)
+func libraryCoverEditingSessionStartsWithCurrentPreviewAndRequiresNewSource() throws {
     let session = LibraryCoverEditingSession(
         target: .folder(path: "/Media/Show"),
-        source: source
+        currentCoverPath: "/Covers/current.jpg",
+        currentCoverRevision: "current-revision"
     )
 
     #expect(session.target == .folder(path: "/Media/Show"))
-    #expect(session.cropRect == LibraryCoverCropGeometry.initialCropRect(imageSize: source.pixelSize))
+    #expect(session.currentCoverPath == "/Covers/current.jpg")
+    #expect(session.currentCoverRevision == "current-revision")
+    #expect(session.selectedSource == nil)
+    #expect(session.cropRect == .zero)
+    #expect(!session.canSave)
     #expect(!session.isSaving)
+
+    let image = try libraryCoverEditingWorkflowImage(width: 1_000, height: 1_000)
+    let source = LibraryUserCoverSource(image: image)
+    session.selectSource(source)
+
+    #expect(session.selectedSource != nil)
+    #expect(session.cropRect == LibraryCoverCropGeometry.initialCropRect(imageSize: source.pixelSize))
+    #expect(session.canSave)
+
+    session.isSaving = true
+    #expect(!session.canSave)
+}
+
+@Test
+@MainActor
+func libraryChangeCoverOpensEditorBeforeSourceSelection() throws {
+    let suiteName = "CueSeekerLibraryCoverEditorTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "CueSeekerLibraryCoverEditorTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: directory)
+    }
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: directory.appendingPathComponent("CueSeeker.sqlite")
+    )
+    app.beginChangingLibraryCover(
+        target: .video(path: "/Media/Show/Episode 1.mkv"),
+        currentCoverPath: nil,
+        currentCoverRevision: nil
+    )
+
+    let session = try #require(app.library.coverEditingSession)
+    #expect(session.target == .video(path: "/Media/Show/Episode 1.mkv"))
+    #expect(session.selectedSource == nil)
+    #expect(!session.canSave)
+
+    app.cancelLibraryCoverEditing()
+    #expect(app.library.coverEditingSession == nil)
 }
 
 @Test
 func libraryCoverEditingUsesAcceptedCopyAndContentTypes() {
     #expect(LibraryCoverEditingCopy.dialogTitle == "Edit Cover")
+    #expect(LibraryCoverEditingCopy.chooseImageActionTitle == "Choose Image")
+    #expect(LibraryCoverEditingCopy.editSystemImage == "pencil")
     #expect(
         LibraryCoverEditingCopy.hint
             == "Support: JPG, JPEG, PNG, and GIF no more than 20 MB."

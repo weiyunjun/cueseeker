@@ -240,7 +240,9 @@ final class WorkbenchTextAreaContainerView: NSView {
             ? WorkbenchRedesignColors.NS.textPrimary
             : WorkbenchRedesignColors.NS.textDisabled
         textView.textColor = textColor
-        textView.insertionPointColor = textColor
+        textView.insertionPointColor = isEnabled
+            ? WorkbenchRedesignColors.NS.borderFocus
+            : WorkbenchRedesignColors.NS.textDisabled
         textView.placeholderColor = isEnabled
             ? WorkbenchRedesignColors.NS.textPlaceholder
             : WorkbenchRedesignColors.NS.textDisabled

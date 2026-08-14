@@ -74,6 +74,7 @@ struct ShioriListOverviewView: View {
 }
 
 private struct ShioriListCard: View {
+    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
     let summary: ShioriListSummary
     let canDelete: Bool
     let onOpen: () -> Void
@@ -81,6 +82,10 @@ private struct ShioriListCard: View {
     let onDelete: () -> Void
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     @State private var isHovered = false
+
+    private var isHoverActive: Bool {
+        isHovered && !isWorkbenchPopupLayerOpen
+    }
 
     var body: some View {
         Button(action: onOpen) {
@@ -91,15 +96,20 @@ private struct ShioriListCard: View {
                 cover
             }
         }
-        .buttonStyle(LibraryOverviewCardButtonStyle(isHovered: isHovered))
+        .buttonStyle(LibraryOverviewCardButtonStyle(isHovered: isHoverActive))
         .onHover { isHovered = $0 }
+        .onChange(of: isWorkbenchPopupLayerOpen) { isOpen in
+            if isOpen {
+                isHovered = false
+            }
+        }
         .libraryCardContextMenuTrigger(
             isEnabled: true,
-            isHovered: isHovered,
+            isHovered: isHoverActive,
             items: contextMenuItems,
             openContextMenu: openContextMenu
         )
-        .pointerOnHover(isEnabled: true)
+        .pointerOnHover(isEnabled: !isWorkbenchPopupLayerOpen)
         .accessibilityLabel(summary.list.name)
     }
 
@@ -134,11 +144,11 @@ private struct ShioriListCard: View {
             }
         }
         .scaleEffect(
-            isHovered ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
+            isHoverActive ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
         )
         .animation(
             .easeOut(duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration),
-            value: isHovered
+            value: isHoverActive
         )
     }
 

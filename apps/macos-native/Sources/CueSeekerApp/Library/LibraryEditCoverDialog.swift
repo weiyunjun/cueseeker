@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryEditCoverDialog: View {
     @ObservedObject var session: LibraryCoverEditingSession
+    let onChooseImage: () -> Void
     let onCancel: () -> Void
     let onSave: () -> Void
 
@@ -11,11 +12,7 @@ struct LibraryEditCoverDialog: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(WorkbenchRedesignColors.textPrimary)
 
-            LibraryCoverCropEditor(
-                source: session.source,
-                cropRect: $session.cropRect
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            coverEditor
 
             Text(LibraryCoverEditingCopy.hint)
                 .font(.system(
@@ -40,7 +37,7 @@ struct LibraryEditCoverDialog: View {
                     title: LibraryCoverEditingCopy.saveButtonTitle,
                     action: onSave
                 )
-                .disabled(session.isSaving)
+                .disabled(!session.canSave)
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -48,5 +45,29 @@ struct LibraryEditCoverDialog: View {
         .frame(width: 760, height: 600, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
         .subtitleTableTextSelectionNonInteractiveRegion()
+    }
+
+    @ViewBuilder
+    private var coverEditor: some View {
+        if let source = session.selectedSource {
+            LibraryCoverCropEditor(
+                source: source,
+                cropRect: $session.cropRect
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            LibraryCoverChooser(
+                title: LibraryCoverEditingCopy.chooseImageActionTitle,
+                systemImage: LibraryCoverEditingCopy.editSystemImage,
+                isEnabled: !session.isSaving,
+                action: onChooseImage
+            ) {
+                LibraryCachedCoverImage(
+                    coverPath: session.currentCoverPath,
+                    coverRevision: session.currentCoverRevision
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 }

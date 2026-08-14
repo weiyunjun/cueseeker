@@ -130,6 +130,70 @@ struct LibraryCoverFrame<Content: View>: View {
     }
 }
 
+struct LibraryCoverChooser<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let isEnabled: Bool
+    let action: () -> Void
+    private let content: Content
+
+    @State private var isHovered = false
+
+    init(
+        title: String,
+        systemImage: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.isEnabled = isEnabled
+        self.action = action
+        self.content = content()
+    }
+
+    var body: some View {
+        Button(action: action) {
+            LibraryCoverFrame {
+                ZStack {
+                    content
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    if isHovered && isEnabled {
+                        WorkbenchRedesignColors.libraryCoverEditOverlay
+
+                        VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                            Image(systemName: systemImage)
+                                .font(.system(
+                                    size: WorkbenchControlMetrics.redesignLibraryCoverEditOverlayIconSize,
+                                    weight: .regular
+                                ))
+
+                            Text(title)
+                                .font(.system(
+                                    size: WorkbenchControlMetrics.redesignFontSizeControl,
+                                    weight: WorkbenchControlMetrics.redesignFontWeightControl
+                                ))
+                        }
+                        .foregroundStyle(WorkbenchRedesignColors.libraryCoverEditOverlayContent)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .onHover { isHovered = $0 && isEnabled }
+        .onChange(of: isEnabled) { enabled in
+            if !enabled {
+                isHovered = false
+            }
+        }
+        .pointerOnHover(isEnabled: isEnabled)
+        .accessibilityLabel(title)
+    }
+}
+
 struct LibraryCoverImageFillLayout: Equatable {
     enum VerticalAlignment {
         case top

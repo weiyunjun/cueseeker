@@ -131,6 +131,8 @@ enum WorkbenchRedesignColors {
         static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
         static let libraryCoverCropAccent = NSColor.controlAccentColor
         static let libraryCoverCropMask = NSColor.shadowColor.withAlphaComponent(0.55)
+        static let libraryCoverEditOverlay = libraryCoverCropMask
+        static let libraryCoverEditOverlayContent = iconOnDark
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
 
         // Cover Summary
@@ -233,6 +235,8 @@ enum WorkbenchRedesignColors {
     static let libraryCoverPlaceholderBg = Color(nsColor: NS.libraryCoverPlaceholderBg)
     static let libraryCoverCropAccent = Color(nsColor: NS.libraryCoverCropAccent)
     static let libraryCoverCropMask = Color(nsColor: NS.libraryCoverCropMask)
+    static let libraryCoverEditOverlay = Color(nsColor: NS.libraryCoverEditOverlay)
+    static let libraryCoverEditOverlayContent = Color(nsColor: NS.libraryCoverEditOverlayContent)
     static let libraryMediaCardHoverBg = Color(nsColor: NS.libraryMediaCardHoverBg)
 
     // Shadow Popover

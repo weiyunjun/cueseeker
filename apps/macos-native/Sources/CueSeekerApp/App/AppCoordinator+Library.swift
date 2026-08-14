@@ -103,8 +103,26 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 
 @MainActor
 extension AppCoordinator {
-    func beginChangingLibraryCover(target: LibraryUserCoverTarget) {
+    func beginChangingLibraryCover(
+        target: LibraryUserCoverTarget,
+        currentCoverPath: String?,
+        currentCoverRevision: String?
+    ) {
         guard library.coverEditingSession == nil else {
+            return
+        }
+
+        library.coverEditingSession = LibraryCoverEditingSession(
+            target: target,
+            currentCoverPath: currentCoverPath,
+            currentCoverRevision: currentCoverRevision
+        )
+    }
+
+    func beginChoosingLibraryCover(_ session: LibraryCoverEditingSession) {
+        guard library.coverEditingSession?.id == session.id,
+              !session.isSaving
+        else {
             return
         }
 
@@ -120,29 +138,32 @@ extension AppCoordinator {
         panel.allowedContentTypes = LibraryCoverOpenPanelPolicy.allowedContentTypes
         panel.allowsOtherFileTypes = false
 
-        let completion: (NSApplication.ModalResponse) -> Void = { [weak self, delegate] response in
+        let completion: (NSApplication.ModalResponse) -> Void = {
+            [weak self, weak session, delegate] response in
             _ = delegate
             guard let self,
+                  let session,
                   response == .OK,
-                  let sourceURL = panel.url
+                  let sourceURL = panel.url,
+                  self.library.coverEditingSession?.id == session.id
             else {
                 return
             }
 
             self.libraryCoverImportTask?.cancel()
-            self.libraryCoverImportTask = Task { [weak self] in
+            self.libraryCoverImportTask = Task { [weak self, weak session] in
                 do {
                     let source = try await Task.detached(priority: .userInitiated) {
                         try LibraryUserCoverProcessor.loadSource(at: sourceURL)
                     }.value
                     try Task.checkCancellation()
-                    guard let self else {
+                    guard let self,
+                          let session,
+                          self.library.coverEditingSession?.id == session.id
+                    else {
                         return
                     }
-                    self.library.coverEditingSession = LibraryCoverEditingSession(
-                        target: target,
-                        source: source
-                    )
+                    session.selectSource(source)
                 } catch is CancellationError {
                     return
                 } catch {
@@ -162,12 +183,15 @@ extension AppCoordinator {
         guard library.coverEditingSession?.isSaving != true else {
             return
         }
+        libraryCoverImportTask?.cancel()
+        libraryCoverImportTask = nil
         library.coverEditingSession = nil
     }
 
     func saveLibraryCoverEditing(_ session: LibraryCoverEditingSession) {
         guard library.coverEditingSession?.id == session.id,
               !session.isSaving,
+              let source = session.selectedSource,
               let libraryUserCoverService
         else {
             return
@@ -180,7 +204,7 @@ extension AppCoordinator {
             }
             do {
                 let result = try await libraryUserCoverService.save(
-                    source: session.source,
+                    source: source,
                     cropRect: session.cropRect,
                     target: session.target
                 )

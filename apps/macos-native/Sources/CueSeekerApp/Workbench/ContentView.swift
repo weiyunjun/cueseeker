@@ -72,6 +72,8 @@ private struct ContentRootView: View {
                         .frame(width: 0, height: 0)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                .environment(\.isWorkbenchPopupLayerOpen, isEditorModalPresented)
+                .allowsHitTesting(!isEditorModalPresented)
                 .onAppear {
                     collapseSidebarForCompactWindowIfNeeded(width: geometry.size.width)
                 }
@@ -84,6 +86,9 @@ private struct ContentRootView: View {
             .sheet(item: $libraryStore.coverEditingSession) { session in
                 LibraryEditCoverDialog(
                     session: session,
+                    onChooseImage: {
+                        appState.beginChoosingLibraryCover(session)
+                    },
                     onCancel: appState.cancelLibraryCoverEditing,
                     onSave: {
                         appState.saveLibraryCoverEditing(session)
@@ -115,6 +120,11 @@ private struct ContentRootView: View {
     @ViewBuilder
     private var mainWorkspace: some View {
         SearchView()
+    }
+
+    private var isEditorModalPresented: Bool {
+        libraryStore.coverEditingSession != nil
+            || shioriStore.listEditorSession != nil
     }
 
     private func collapseSidebarForCompactWindowIfNeeded(width: CGFloat) {

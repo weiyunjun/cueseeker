@@ -10,6 +10,7 @@ struct SearchView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isWorkbenchPopupLayerOpen) private var isParentWorkbenchPopupLayerOpen
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
@@ -21,13 +22,15 @@ struct SearchView: View {
 
             return GeometryReader { geometry in
                 let showsPlaybackRoute = appState.isPlaybackPageVisible
+                let isWorkbenchPopupLayerOpen =
+                    isParentWorkbenchPopupLayerOpen || showsPlaybackRoute
 
                 ZStack {
                     mainContent
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .clipped()
-                        .environment(\.isWorkbenchPopupLayerOpen, showsPlaybackRoute)
+                        .environment(\.isWorkbenchPopupLayerOpen, isWorkbenchPopupLayerOpen)
                         .allowsHitTesting(!showsPlaybackRoute)
 
                     if showsPlaybackRoute {

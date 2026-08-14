@@ -23,11 +23,11 @@ func shioriListEditorTracksDirtyStateAndExactValidationMessages() {
     ))
     #expect(
         session.nameValidationMessage
-            == "List name must be 30 characters or fewer. You entered 31."
+            == "List name must be 30 characters or fewer."
     )
     #expect(
         session.descriptionValidationMessage
-            == "Description must be 100 characters or fewer. You entered 101."
+            == "Description must be 100 characters or fewer."
     )
 
     session.apply(validation: ShioriListValidation(
@@ -36,7 +36,7 @@ func shioriListEditorTracksDirtyStateAndExactValidationMessages() {
     ))
     #expect(
         session.nameValidationMessage
-            == "A list with this name already exists. Choose a different name."
+            == "A list with this name already exists."
     )
     #expect(session.descriptionValidationMessage == nil)
 
@@ -44,7 +44,7 @@ func shioriListEditorTracksDirtyStateAndExactValidationMessages() {
         nameError: .emptyName,
         descriptionError: nil
     ))
-    #expect(session.nameValidationMessage == "Enter a list name")
+    #expect(session.nameValidationMessage == "Enter a list name.")
 }
 
 @MainActor

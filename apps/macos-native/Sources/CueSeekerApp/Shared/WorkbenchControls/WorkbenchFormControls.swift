@@ -147,15 +147,15 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
                 ))
                 .foregroundStyle(WorkbenchRedesignColors.textPrimary)
 
-            if let validationMessage {
-                Text(validationMessage)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(validationMessage ?? "\u{00A0}")
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                    weight: .regular
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.dangerText)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(validationMessage == nil)
 
             content
         }
