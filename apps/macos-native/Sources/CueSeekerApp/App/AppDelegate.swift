@@ -479,7 +479,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
+        // Window Menu
+        let windowMenuItem = NSMenuItem(
+            title: "Window",
+            action: nil,
+            keyEquivalent: ""
+        )
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(
+            NSMenuItem(
+                title: "Minimize",
+                action: #selector(NSWindow.performMiniaturize(_:)),
+                keyEquivalent: "m"
+            )
+        )
+        windowMenu.addItem(
+            NSMenuItem(
+                title: "Zoom",
+                action: #selector(NSWindow.performZoom(_:)),
+                keyEquivalent: ""
+            )
+        )
+        windowMenu.addItem(NSMenuItem.separator())
+        windowMenu.addItem(
+            NSMenuItem(
+                title: "Bring All to Front",
+                action: #selector(NSApplication.arrangeInFront(_:)),
+                keyEquivalent: ""
+            )
+        )
+        windowMenuItem.submenu = windowMenu
+        mainMenu.addItem(windowMenuItem)
+
         NSApp.mainMenu = mainMenu
+        NSApp.windowsMenu = windowMenu
     }
 }
 

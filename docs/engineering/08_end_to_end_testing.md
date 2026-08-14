@@ -1655,3 +1655,51 @@ its fresh `sceneID`.
 - Restore the starting appearance, expanded Sidebar, and Shiori overview.
 - Quit the Debug process with Control-C. The temporary capture directory may be
   removed after evidence review; this gate does not change product data.
+
+## 12. Dock Window List
+
+### Feature
+
+Verify that the native Dock menu lists CueSeeker-owned windows with stable
+labels and lets AppKit own focus indication and window activation.
+
+### Preconditions And Launch
+
+Run the current build without diagnostic environment variables:
+
+```bash
+cd apps/macos-native
+swift run CueSeeker
+```
+
+No diagnostic log output is expected. Keep the main window open and close the
+Settings window before starting.
+
+### Manual Actions
+
+1. Right-click the running CueSeeker Dock icon. Require one `CueSeeker` window
+   item, no `Settings` item, and a checkmark beside `CueSeeker`.
+2. Open Settings with Command-comma, then right-click the Dock icon. Require
+   both `CueSeeker` and `Settings`, with only `Settings` checked.
+3. Choose `CueSeeker` from the Dock menu. Require the main window to become key;
+   reopen the Dock menu and require only `CueSeeker` to be checked.
+4. Choose `Settings` from the Dock menu. Require Settings to become key; reopen
+   the Dock menu and require only `Settings` to be checked.
+5. Close Settings. Require `Settings` to disappear from the Dock menu while
+   `CueSeeker` remains.
+6. Navigate through Workbench and start video playback. Require the main-window
+   Dock item to remain `CueSeeker` in both states.
+
+### Failure Examples
+
+- Only `Options`, `Show All Windows`, `Hide`, and `Quit` are present.
+- A page, category, or video title replaces `CueSeeker` or `Settings`.
+- Closing Settings leaves a stale item, or choosing an item does not activate
+  its window.
+- The checkmark does not follow the key window.
+
+### Evidence And Cleanup
+
+Provide Dock-menu screenshots for steps 1 through 5 and report whether step 6
+kept the `CueSeeker` label. Quit CueSeeker after the check; no files or product
+data are created by this procedure.
