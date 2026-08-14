@@ -56,9 +56,16 @@ struct LibraryOverviewLayout<Content: View>: View {
             }
             .padding(
                 .horizontal,
-                WorkbenchControlMetrics.redesignSpacing6
+                WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
             )
-            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing6)
+            .padding(
+                .top,
+                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+            )
+            .padding(
+                .bottom,
+                WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+            )
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .background(WorkbenchRedesignColors.bgSurface)

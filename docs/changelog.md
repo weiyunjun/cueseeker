@@ -10,9 +10,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   Back is disabled on Search, Recent, Library, and Shiori overviews and returns
   each supported detail to its owning overview. Page titles now sit below the
   topbar and share the Cover Summary's 28-point Bold hierarchy; Recent Videos
-  and Recent Shioris retain their smaller overview section headings, show their
-  counts beside detail titles, and Library and Shiori Cover Summary details
-  start 20 points higher.
+  and Recent Shioris use 18-point detail counts while retaining 14-point counts
+  in their smaller overview sections. All six titled pages now share 32-point
+  horizontal, 4-point top, and 24-point bottom page bounds, while Library and
+  Shiori Cover Summary details start 20 points higher.
 - Unified Recent Videos, Library Folder Detail, and Playback Video Playlist on
   one adaptive video-card Grid with the same folder title, Episode, watch-state,
   progress, time, and full-card selection treatment. Playback Playlist now

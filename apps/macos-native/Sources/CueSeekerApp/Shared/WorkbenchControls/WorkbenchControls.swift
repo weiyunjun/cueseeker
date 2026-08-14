@@ -192,6 +192,8 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizePageTitle: CGFloat = 28
     /// Provisional --font-weight-page-title: 700
     static let redesignFontWeightPageTitle: Font.Weight = .bold
+    /// Provisional --font-size-page-title-count: 18px
+    static let redesignFontSizePageTitleCount = redesignFontSizeSectionTitle
     /// --font-size-library-title: 14px
     static let redesignFontSizeLibraryTitle: CGFloat = 14
     /// --font-size-library-meta: 12px
@@ -253,6 +255,12 @@ enum WorkbenchControlMetrics {
     static let redesignCueFacetFilterPanelPinnedHeight: CGFloat = 244
     /// Shared top padding for Workbench details led by Cover Summary.
     static let redesignCoverSummaryDetailTopPadding = redesignSpacing1
+    /// Shared inline padding for Workbench pages with an explicit page title.
+    static let redesignWorkbenchPageHorizontalPadding = redesignSpacing8
+    /// Shared top padding for Workbench pages with an explicit page title.
+    static let redesignWorkbenchPageTopPadding = redesignSpacing1
+    /// Shared bottom padding for Workbench pages with an explicit page title.
+    static let redesignWorkbenchPageBottomPadding = redesignSpacing6
 }
 
 struct WorkbenchPageTitle: View {
@@ -277,7 +285,7 @@ struct WorkbenchPageTitle: View {
             if let count {
                 Text("\(count)")
                     .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        size: WorkbenchControlMetrics.redesignFontSizePageTitleCount,
                         weight: .regular
                     ))
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)

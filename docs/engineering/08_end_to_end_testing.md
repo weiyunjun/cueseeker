@@ -1570,12 +1570,14 @@ swift test --filter 'WorkbenchLayoutState|workbenchPageTitle'
 
 The checks must confirm that Back is enabled only for Recent Videos, Recent
 Shioris, Library Folder Detail, and Shiori List Detail; page titles reuse the
-28-point Cover Summary title size; and the shared detail top padding is exactly
-20 points smaller than the previous 24-point page padding.
+28-point Cover Summary title size; Recent detail counts use 18 points; the six
+titled pages share 32-point horizontal, 4-point top, and 24-point bottom
+padding; and the shared detail top padding is exactly 20 points smaller than
+the previous 24-point page padding.
 
 ### In-App E2E Preconditions
 
-- Use the Debug in-app controller with one visible `1433 x 821` logical-point,
+- Use the Debug in-app controller with one visible `1443 x 821` logical-point,
   `2x` main window. Recent and Shiori are expanded and the Sidebar is visible.
 - Set Settings > Appearance to Light before the first run and repeat the gate
   in Dark. Restore the starting appearance during cleanup.
@@ -1596,10 +1598,10 @@ Shioris, Library Folder Detail, and Shiori List Detail; page titles reuse the
    and capture again; Search must remain active because Back is Disabled.
 2. Open Recent and capture `workbench-recent-primary-{appearance}`. Confirm the
    page title is visually larger than the unchanged Recent Videos and Recent
-   Shioris section titles.
+   Shioris section titles and their 14-point counts.
 3. Open Recent Videos and capture `workbench-recent-videos-{appearance}`.
-   Confirm its count is beside the page title, then click Back and require the
-   Recent overview. Repeat for Recent Shioris with
+   Confirm its 18-point count is beside the page title, then click Back and
+   require the Recent overview. Repeat for Recent Shioris with
    `workbench-recent-shioris-{appearance}`.
 4. Open Library and capture `workbench-library-primary-{appearance}`. Open the
    first folder and capture `workbench-library-detail-{appearance}`; require one
@@ -1624,7 +1626,10 @@ its fresh `sceneID`.
   secondary pages, where it returns to the owning primary page.
 - Search, Recent, Library, Shiori, Recent Videos, and Recent Shioris use the
   same 28-point Bold page-title style with the semantic Primary text color.
-  Recent detail counts reuse the existing Recent count style.
+  Their title, Summary, action, and Grid or List content share 32-point
+  horizontal bounds, 4-point top padding, and 24-point bottom padding.
+- Recent Videos and Recent Shioris detail counts use 18-point Regular Secondary
+  text with monospaced digits. Their Recent overview counts remain 14 points.
 - Recent overview section titles remain 18-point Semibold and therefore stay
   subordinate to the page title.
 - Library and Shiori details add no page title above Cover Summary. Their Cover

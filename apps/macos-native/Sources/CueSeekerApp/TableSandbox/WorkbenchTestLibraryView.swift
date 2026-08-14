@@ -27,7 +27,8 @@ struct WorkbenchRecentView: View {
                 }
             }
             .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
-            .padding(.vertical, WorkbenchTestLibraryMetrics.pageVerticalPadding)
+            .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
+            .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .background(WorkbenchRedesignColors.bgSurface)
@@ -323,7 +324,7 @@ struct WorkbenchTestLibraryView: View {
                         )
                         .padding(
                             .bottom,
-                            WorkbenchTestLibraryMetrics.pageVerticalPadding
+                            WorkbenchTestLibraryMetrics.pageBottomPadding
                         )
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
@@ -557,8 +558,12 @@ private extension WorkbenchTestLibraryView {
 }
 
 private enum WorkbenchTestLibraryMetrics {
-    static let pageHorizontalPadding = WorkbenchControlMetrics.redesignSpacing6
-    static let pageVerticalPadding = WorkbenchControlMetrics.redesignSpacing6
+    static let pageHorizontalPadding =
+        WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+    static let pageTopPadding =
+        WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+    static let pageBottomPadding =
+        WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
     static let sectionSpacing = WorkbenchControlMetrics.redesignSpacing4
     static let sectionTitleSize = WorkbenchControlMetrics.redesignFontSizeSectionTitle
 

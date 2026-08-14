@@ -178,7 +178,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     if isRedesign, let pageTitle {
                         WorkbenchPageTitle(pageTitle)
                             .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                            .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
+                            .padding(
+                                .top,
+                                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                            )
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                     }
 
@@ -232,7 +235,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         }
                     }
                     .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                    .padding(.bottom, SchemaWorkbenchStyle.pageBottomPadding)
+                    .padding(
+                        .bottom,
+                        pageTitle == nil
+                            ? SchemaWorkbenchStyle.pageBottomPadding
+                            : WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                    )
                     .frame(maxHeight: .infinity)
                 }
             }
@@ -276,7 +284,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 }
 
 enum SchemaWorkbenchStyle {
-    static let pageHorizontalPadding = WorkbenchControlMetrics.redesignSpacing8
+    static let pageHorizontalPadding =
+        WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
     static let pageTopPadding: CGFloat = 10
     static let pageBottomPadding: CGFloat = 14
     static let tableCornerRadius: CGFloat = 8
