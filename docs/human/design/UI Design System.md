@@ -27,7 +27,8 @@
 - `--color-bg-disabled`: Light `#F3F4F6`; Dark `#202024`
 - `--color-bg-popover`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-app-sidebar-bg`: Light `#F6F7F9`; Dark `#202024`
-- `--color-app-sidebar-item-selected-bg`: Light `#FFFFFF`; Dark `#303036`
+- `--color-app-sidebar-item-selected-bg`: macOS accent color
+- `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-keycap-bg`: Light `#F3F4F6`; Dark `#27272A`
 
@@ -1090,9 +1091,10 @@
 
 - Container
   - Radius：`--radius-app-sidebar-item`
-- Leading Icon
+- Leading Icon Slot
   - Presence：Optional
   - Size：`--size-app-sidebar-item-icon`
+  - Glyph Alignment：Center
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-app-sidebar-item`
@@ -1111,6 +1113,10 @@
 - Hover
 - Selected
   - Background：`--color-app-sidebar-item-selected-bg`
+  - Label Color：`--color-app-sidebar-item-selected-content`
+  - Icon Color：`--color-app-sidebar-item-selected-content`
+  - Trailing Indicator Color：`--color-app-sidebar-item-selected-content`
+  - Selection Scope：Current Item Only
 - Expanded
 - Collapsed
 - Disabled
@@ -2487,13 +2493,22 @@
 
 #### Structure
 
-1. Sidebar Region
+1. Full-height Sidebar Region
+   1. Platform Native Window Controls
+   2. Settings Sidebar Layout
 2. Category Content Region
 
 #### Components
 
+- Platform Native Window Controls
 - Settings Sidebar Layout
 - Settings Category Layout
+
+#### Visual Rules
+
+- Sidebar Extends To Window Top
+- Category Content Starts Below Titlebar Region
+- Visible Window Title：None
 
 #### States
 
