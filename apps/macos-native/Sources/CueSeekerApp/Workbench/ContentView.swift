@@ -249,7 +249,8 @@ private struct AppSidebar: View {
 
             AppSidebarNavigationItem(
                 mode: .recentWatching,
-                isSelected: routeState.panelMode == .recentWatching,
+                isSelected: routeState.panelMode == .recentWatching
+                    && routeState.selectedRecentSection == nil,
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress,
                 isExpanded: isRecentExpanded,
                 onToggleExpansion: {
@@ -299,7 +300,8 @@ private struct AppSidebar: View {
 
             AppSidebarNavigationItem(
                 mode: .shiori,
-                isSelected: routeState.panelMode == .shiori,
+                isSelected: routeState.panelMode == .shiori
+                    && routeState.selectedShioriListID == nil,
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress,
                 isExpanded: isShioriExpanded,
                 onToggleExpansion: {
@@ -379,7 +381,11 @@ private struct AppSidebarNavigationItem: View {
                 Button(action: onToggleExpansion) {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                        .foregroundStyle(
+                            isSelected
+                                ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+                                : WorkbenchRedesignColors.iconMuted
+                        )
                         .frame(
                             width: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
                             height: WorkbenchControlMetrics.redesignAppSidebarItemHeight
@@ -425,9 +431,11 @@ private struct AppSidebarChildItem: View {
                     weight: .regular
                 ))
                 .foregroundStyle(
-                    isEnabled
-                        ? WorkbenchRedesignColors.textPrimary
-                        : WorkbenchRedesignColors.textDisabled
+                    isSelected
+                        ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+                        : (isEnabled
+                            ? WorkbenchRedesignColors.textPrimary
+                            : WorkbenchRedesignColors.textDisabled)
                 )
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -513,6 +521,9 @@ private struct AppSidebarItemLabel: View {
     }
 
     private var iconColor: Color {
+        if isSelected {
+            return WorkbenchRedesignColors.appSidebarItemSelectedContent
+        }
         guard isEnabled else {
             return WorkbenchRedesignColors.iconDisabled
         }
@@ -520,6 +531,9 @@ private struct AppSidebarItemLabel: View {
     }
 
     private var textColor: Color {
+        if isSelected {
+            return WorkbenchRedesignColors.appSidebarItemSelectedContent
+        }
         guard isEnabled else {
             return WorkbenchRedesignColors.textDisabled
         }

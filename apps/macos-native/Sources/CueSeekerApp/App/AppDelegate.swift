@@ -262,13 +262,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
         let settingsWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 520),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: WorkbenchControlMetrics.redesignSettingsWindowDefaultWidth,
+                height: WorkbenchControlMetrics.redesignSettingsWindowDefaultHeight
+            ),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         settingsWindow.title = "Settings"
-        settingsWindow.minSize = NSSize(width: 680, height: 420)
+        settingsWindow.titleVisibility = .hidden
+        settingsWindow.titlebarAppearsTransparent = true
+        settingsWindow.minSize = NSSize(
+            width: WorkbenchControlMetrics.redesignSettingsWindowMinimumWidth,
+            height: WorkbenchControlMetrics.redesignSettingsWindowMinimumHeight
+        )
         settingsWindow.isReleasedWhenClosed = false
         settingsWindow.contentView = NSHostingView(rootView: contentView)
         settingsWindow.center()
@@ -282,7 +292,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window?.titleVisibility = .visible
         windowButtonsProxy?.isHidden = true
         appState.workbenchLayout.isAppFullscreen = true
-        syncPlaybackWindowTitle()
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -294,16 +303,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appState.workbenchLayout.clearSearchFocus()
         appState.stopPlayback()
         return false
-    }
-
-    private func syncPlaybackWindowTitle() {
-        guard let window else { return }
-        let desiredTitle = appState.isPlaybackPageVisible
-            ? appState.currentPlaybackDisplayTitle
-            : "CueSeeker"
-        if window.title != desiredTitle {
-            window.title = desiredTitle
-        }
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) {
@@ -352,7 +351,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowDidUpdate(_ notification: Notification) {
         AppPerformanceProbe.measure("AppDelegate.windowDidUpdate", thresholdMilliseconds: 8) {
             adjustTrafficLights()
-            syncPlaybackWindowTitle()
         }
     }
     

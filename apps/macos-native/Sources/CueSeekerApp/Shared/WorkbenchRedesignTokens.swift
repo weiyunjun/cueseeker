@@ -63,7 +63,8 @@ enum WorkbenchRedesignColors {
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#202024")
         static let bgPopover = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
         static let appSidebarBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#202024")
-        static let appSidebarItemSelectedBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#303036")
+        static let appSidebarItemSelectedBg = NSColor.controlAccentColor
+        static let appSidebarItemSelectedContent = iconOnDark
         static let appTopbarBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
 
         // Border
@@ -161,6 +162,7 @@ enum WorkbenchRedesignColors {
     static let bgPopover = Color(nsColor: NS.bgPopover)
     static let appSidebarBg = Color(nsColor: NS.appSidebarBg)
     static let appSidebarItemSelectedBg = Color(nsColor: NS.appSidebarItemSelectedBg)
+    static let appSidebarItemSelectedContent = Color(nsColor: NS.appSidebarItemSelectedContent)
     static let appTopbarBg = Color(nsColor: NS.appTopbarBg)
 
     // Cover Summary

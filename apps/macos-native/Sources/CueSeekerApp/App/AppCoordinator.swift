@@ -141,10 +141,6 @@ final class AppCoordinator: ObservableObject {
             ?? "No video selected"
     }
 
-    var currentPlaybackDisplayTitle: String {
-        playback.chromeSnapshot.displayTitle
-    }
-
     func playbackDisplayTitle(
         providedDisplayTitle: String?,
         fallback: @autoclosure () -> String

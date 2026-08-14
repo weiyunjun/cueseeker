@@ -56,60 +56,90 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var settingsStore: SettingsStore
     @State private var selectedCategory: SettingsCategory = .library
-    private let categoryColumnWidth: CGFloat = 184
-
-    private var sidebarBackground: Color {
-        colorScheme == .dark
-            ? WorkbenchRedesignColors.appSidebarBg
-            : Color(red: 0.942, green: 0.942, blue: 0.936)
-    }
-
-    private var dividerColor: Color {
-        colorScheme == .dark
-            ? WorkbenchRedesignColors.borderDivider
-            : Color.black.opacity(0.08)
-    }
 
     var body: some View {
         HStack(spacing: 0) {
             categoryList
-                .frame(width: categoryColumnWidth)
+                .frame(width: WorkbenchControlMetrics.redesignSettingsSidebarWidth)
 
             Rectangle()
-                .fill(dividerColor)
-                .frame(width: 1)
+                .fill(WorkbenchRedesignColors.borderDivider)
+                .frame(width: WorkbenchControlMetrics.hairlineWidth)
 
             selectedContent
+                .padding(.top, WorkbenchControlMetrics.redesignAppTopbarHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 680, minHeight: 420)
+        .ignoresSafeArea(.container, edges: .top)
+        .frame(
+            minWidth: WorkbenchControlMetrics.redesignSettingsWindowMinimumWidth,
+            minHeight: WorkbenchControlMetrics.redesignSettingsWindowMinimumHeight
+        )
         .background(WorkbenchRedesignColors.bgSurface)
         .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
     }
 
     private var categoryList: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
             ForEach(SettingsCategory.allCases) { category in
+                let isSelected = selectedCategory == category
+
                 Button {
                     selectedCategory = category
                 } label: {
-                    Label(category.title, systemImage: category.systemImage)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(
-                            selectedCategory == category
-                                ? Color.accentColor
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        Image(systemName: category.systemImage)
+                            .font(.system(
+                                size: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
+                                weight: .medium
+                            ))
+                            .frame(
+                                width: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
+                                height: WorkbenchControlMetrics.redesignAppSidebarItemIconSize
+                            )
+                            .foregroundStyle(
+                                isSelected
+                                    ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+                                    : WorkbenchRedesignColors.iconDefault
+                            )
+
+                        Text(category.title)
+                            .font(.system(
+                                size: WorkbenchControlMetrics.redesignFontSizeAppSidebarItem,
+                                weight: .regular
+                            ))
+                            .foregroundStyle(
+                                isSelected
+                                    ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+                                    : WorkbenchRedesignColors.textPrimary
+                            )
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(
+                        .horizontal,
+                        WorkbenchControlMetrics.redesignAppSidebarItemHorizontalPadding
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
+                        maxHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
+                        alignment: .leading
+                    )
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignAppSidebarItemRadius,
+                            style: .continuous
+                        )
+                        .fill(
+                            isSelected
+                                ? WorkbenchRedesignColors.appSidebarItemSelectedBg
                                 : Color.clear
                         )
-                        .foregroundStyle(
-                            selectedCategory == category ? .white : .primary
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                        .contentShape(Rectangle())
+                    )
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(StaticButtonStyle())
                 .focusable(false)
@@ -117,9 +147,14 @@ struct SettingsView: View {
 
             Spacer()
         }
-        .padding(.top, 20)
-        .padding(.horizontal, 12)
-        .background(sidebarBackground)
+        .padding(
+            .top,
+            WorkbenchControlMetrics.redesignAppTopbarHeight
+                + WorkbenchControlMetrics.redesignAppSidebarVerticalPadding
+        )
+        .padding(.horizontal, WorkbenchControlMetrics.redesignAppSidebarHorizontalPadding)
+        .padding(.bottom, WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
+        .background(WorkbenchRedesignColors.appSidebarBg)
     }
 
     @ViewBuilder

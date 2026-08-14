@@ -112,6 +112,16 @@ enum WorkbenchControlMetrics {
     static let redesignAppTopbarHeight: CGFloat = 45
     /// --width-app-sidebar: 240px
     static let redesignAppSidebarWidth: CGFloat = 240
+    /// Provisional --width-settings-sidebar: 184px
+    static let redesignSettingsSidebarWidth: CGFloat = 184
+    /// Provisional --width-settings-window-default: 760px
+    static let redesignSettingsWindowDefaultWidth: CGFloat = 760
+    /// Provisional --height-settings-window-default: 520px
+    static let redesignSettingsWindowDefaultHeight: CGFloat = 520
+    /// Provisional --width-settings-window-min: 680px
+    static let redesignSettingsWindowMinimumWidth: CGFloat = 680
+    /// Provisional --height-settings-window-min: 420px
+    static let redesignSettingsWindowMinimumHeight: CGFloat = 420
     /// --size-app-sidebar-item-icon: 18px
     static let redesignAppSidebarItemIconSize: CGFloat = 18
     /// --width-interactive-text-underline: 1px
