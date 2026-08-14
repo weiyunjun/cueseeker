@@ -102,6 +102,8 @@
 - `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#303036`
 - `--color-library-cover-crop-accent`: macOS accent color
 - `--color-library-cover-crop-mask`: macOS shadow color with Alpha `0.55`
+- `--color-library-cover-edit-overlay`: Same as `--color-library-cover-crop-mask`
+- `--color-library-cover-edit-overlay-content`: Same as `--color-icon-on-dark`
 - `--color-library-media-card-hover-bg`:
   - Light: macOS accent color with Alpha `0.08`
   - Dark: macOS accent color with Alpha `0.12`
@@ -197,7 +199,7 @@
 - `--height-filter-bar-control`: `40px`
 - `--height-control`: `40px`
 - `--height-field`: `40px`
-- `--height-form-text-area`: `96px`
+- `--height-form-text-area`: `77.5px`
 - `--height-table-header`: `40px`
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `40px`
@@ -233,6 +235,7 @@
 - `--size-menu-item-symbol-font-size-macos`: `14pt`
 - `--size-select-indicator`: `12pt`
 - `--size-button-icon`: `14px`
+- `--size-library-cover-edit-overlay-icon`: `32px`
 - `--size-control-icon`: `16px`
 - `--size-icon-button`: `32px`
 - `--size-row-action-button`: `36px`
@@ -407,6 +410,7 @@
 - Indicator：Border Color Only
 - Focus Ring：None
 - Focused Geometry：Same size, radius, padding, and layout as unfocused state
+- Single-line Placeholder Position：Same in Empty and Focused Empty states
 - Error Priority：Danger Border overrides Focus Border
 
 ### Text Field
@@ -417,7 +421,9 @@
 
 - Label
 - Validation Message
-  - Presence：Optional
+  - Content：Optional
+  - Reserved Lines：`1`
+  - Maximum Lines：`1`
 - Container
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
@@ -457,7 +463,9 @@
 
 - Label
 - Validation Message
-  - Presence：Optional
+  - Content：Optional
+  - Reserved Lines：`1`
+  - Maximum Lines：`1`
 - Container
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
@@ -466,6 +474,8 @@
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-control`
   - Color：`--color-text-primary`
+- Insertion Point
+  - Color：`--color-border-focus`
 - Placeholder
   - Color：`--color-text-placeholder`
 - Text Content Origin
@@ -1877,6 +1887,28 @@
 
 - Aspect Ratio：`--aspect-library-cover`
 
+##### Editor Action
+
+- Default Content：Loaded Cover or Default Cover
+- Hover
+  - Overlay：Full Cover
+  - Overlay Color：`--color-library-cover-edit-overlay`
+  - Radius：`--radius-library-cover`
+  - Icon：Edit
+  - Icon Size：`--size-library-cover-edit-overlay-icon`
+  - Label：`Choose Image`
+  - Content Color：`--color-library-cover-edit-overlay-content`
+  - Content Layout：Icon above Label
+  - Content Gap：`--spacing-2`
+  - Content Alignment：Center
+- Focused
+  - Additional Visual：None
+- Pressed
+  - Additional Visual：None
+- Crop Editing
+  - Component：Cover Crop Editor
+  - Hover Overlay：None
+
 ##### States
 
 - No Cover
@@ -3064,18 +3096,20 @@
 #### Structure
 
 1. Header
-   1. Title
-   2. Close Action
-2. Cover Crop Editor
-3. Footer
+   1. Title：`Edit Cover`
+2. Cover Region
+   - Default：Cover / Editor Action
+   - Image Selected：Cover Crop Editor
+3. Support Text
+4. Footer
    1. Cancel
-   2. Apply
+   2. Save
 
 #### Components
 
 - Dialog
+- Cover
 - Cover Crop Editor
-- Icon Button
 - Button / Neutral
 - Button / Primary
 
@@ -3086,10 +3120,11 @@
 
 #### States
 
-- No Image
-- Image Loaded
-- Crop Modified
-- Applying
+- Preview
+  - Content：Current Cover or Default Cover
+- Hovering Cover Action
+- Crop Editing
+- Saving
 
 ### Shiori List Editor Dialog Layout
 
@@ -3097,14 +3132,15 @@
 
 1. Header
    1. Title
-   2. Close Action
-2. Cover Region
-   1. Cover
-   2. Edit Cover Action
-3. Form Region
-   1. Name Field
-   2. Description Field
-4. Footer
+2. Main Region
+   1. Cover Region
+      1. Cover / Editor Action
+      2. Cover Crop Editor
+      3. Support Text
+   2. Form Region
+      1. Name Field
+      2. Description Field
+3. Footer
    1. Cancel
    2. Save
 
@@ -3112,17 +3148,23 @@
 
 - Dialog
 - Cover
-- Icon Button
+- Cover Crop Editor
 - Text Field
 - Text Area
 - Button / Neutral
 - Button / Primary
-- Edit Cover Dialog Layout
+
+#### Layout
+
+- Main Region：Two Columns, Top Aligned
+- Cover Height：Form Region Height
 
 #### Spacing
 
 - Region Gap：`--spacing-4`
-- Field Gap：`--spacing-3`
+- Column Gap：`--spacing-6`
+- Cover to Support Text Gap：`--spacing-3`
+- Field Gap：`--spacing-4`
 - Footer Action Gap：`--spacing-3`
 
 #### States
