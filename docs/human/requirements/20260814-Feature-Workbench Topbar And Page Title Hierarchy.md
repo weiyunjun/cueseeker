@@ -44,10 +44,12 @@ main
    - Recent Videos
    - Recent Shioris
 2. 页面标题统一使用 `28px / Bold / Text Primary`。
-3. Recent Videos 和 Recent Shioris 的页面标题右侧显示数量，数量使用 `18px / Regular / Text Secondary / Monospaced Digit`。
+3. Recent Videos 和 Recent Shioris 的页面标题右侧不显示数量。
 4. Library Folder Detail 和 Shiori List Detail 不增加页面标题，由 Cover Summary Card 显示当前内容标题。
 5. Cover Summary Card 标题维持 `28px / Bold / White`。
-6. Recent 一级界面内部的 Recent Videos、Recent Shioris 区块标题和计数维持当前样式和交互；计数保持 `14px / Regular / Text Secondary`。
+6. Recent 一级界面内部的 Recent Videos、Recent Shioris 区块标题维持 `18px / Semibold / Text Primary`，计数维持 `14px / Regular / Text Secondary / Monospaced Digit`。
+7. 区块标题、计数和右箭头统一按首行文字基线对齐，不使用垂直居中。标题与计数保持 `--spacing-2 = 8px`，右箭头紧跟计数，间距使用 `--spacing-1 = 4px`。
+8. 区块标题、计数和右箭头组成一个整体点击区域，点击其中任意可见部分均进入对应二级界面；标题组之外的页面空白不响应点击。
 
 # 页面间距
 
@@ -68,6 +70,7 @@ main
 3. 六个页面标题的字号、字重和颜色一致。
 4. 六个页面的水平 Padding 均为 `32px`，标题与 Back 图标视觉左对齐，页面内容左右边界一致。
 5. 六个页面的顶部 Padding 均为 `4px`，不存在过大的顶栏下方留白。
-6. Recent Videos 和 Recent Shioris 的页面计数为 `18px`；Recent 一级界面内部区块标题和 `14px` 计数维持原样。
-7. Library 和 Shiori 二级界面不存在重复标题，顶部留白减少 `20px`。
-8. Light Mode、Dark Mode 及 Sidebar 展开、收起状态下布局正确。
+6. Recent Videos 和 Recent Shioris 二级界面的页面标题右侧不显示数量。
+7. Recent 一级界面的区块标题保持 `18px`，计数保持 `14px`；标题、计数和右箭头位于同一文字基线，右箭头紧跟计数，三者组成一个整体点击区域。
+8. Library 和 Shiori 二级界面不存在重复标题，顶部留白减少 `20px`。
+9. Light Mode、Dark Mode 及 Sidebar 展开、收起状态下布局正确。
