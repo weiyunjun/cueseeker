@@ -91,31 +91,23 @@ public enum PlaybackTheme {
         )
     )
 
-    /// --color-playback-information-badge-bg
-    static let informationBadgeBackgroundNative = subtitleFocusDynamicColor(
-        light: NSColor.hex("#D1D5DB"),
-        dark: NSColor.hex("#18181B")
+    /// --color-playback-cue-timeline-focused
+    static let cueTimelineFocusedNative = subtitleFocusDynamicColor(
+        light: NSColor.hex("#667085"),
+        dark: NSColor.hex("#71717A")
     )
 
-    /// --color-playback-information-badge-text
-    static let informationBadgeTextNative = subtitleFocusDynamicColor(
-        light: NSColor.hex("#1F2937"),
-        dark: NSColor.hex("#F4F4F5")
+    /// --color-playback-cue-timeline-muted
+    static let cueTimelineMutedNative = subtitleFocusDynamicColor(
+        light: NSColor.hex("#D0D5DD"),
+        dark: NSColor.hex("#52525B")
     )
 
-    /// --color-playback-information-badge-unselected-bg
-    static let informationBadgeUnselectedBackgroundNative =
-        subtitleFocusDynamicColor(
-            light: NSColor.hex("#E5E7EB"),
-            dark: NSColor.hex("#303036")
-        )
-
-    /// --color-playback-information-badge-unselected-text
-    static let informationBadgeUnselectedTextNative =
-        subtitleFocusDynamicColor(
-            light: NSColor.hex("#475467"),
-            dark: NSColor.hex("#A1A1AA")
-        )
+    /// --color-playback-cue-metadata
+    static let cueMetadataNative = subtitleFocusDynamicColor(
+        light: NSColor.hex("#667085"),
+        dark: NSColor.hex("#A1A1AA")
+    )
 
     /// --color-playback-module-sidebar-selected
     public static var playbackModuleSidebarSelected: Color {
@@ -314,24 +306,18 @@ enum PlaybackSubtitleFocusMetrics {
     static let cueGroupLineHeight: CGFloat = 28
     /// --font-weight-subtitle-focus-cue-group
     static let cueGroupFontWeight = NSFont.Weight.medium
-    /// --spacing-2
-    static let informationBadgeGap = WorkbenchControlMetrics.redesignSpacing2
-    /// --spacing-2
-    static let informationCueGap = WorkbenchControlMetrics.redesignSpacing2
+    /// --gap-playback-cue-metadata
+    static let metadataCueGap = WorkbenchControlMetrics.redesignSpacing2
+    /// --gap-playback-cue-metadata-item
+    static let metadataItemGap = WorkbenchControlMetrics.redesignSpacing3
     /// --font-size-caption
-    static let informationBadgeFontSize = WorkbenchControlMetrics.redesignFontSizeCaption
-    /// --radius-chip
-    static let informationBadgeRadius = WorkbenchControlMetrics.redesignChipRadius
-    /// --padding-chip-x
-    static let informationBadgeHorizontalPadding =
-        WorkbenchControlMetrics.redesignChipHorizontalPadding
-    /// --padding-chip-y
-    static let informationBadgeVerticalPadding =
-        WorkbenchControlMetrics.redesignChipVerticalPadding
-    /// --height-playback-cue-information-badge
-    static let informationBadgeRowHeight: CGFloat = 23
-    static var informationHeight: CGFloat {
-        informationBadgeRowHeight + informationCueGap
+    static let metadataFontSize = WorkbenchControlMetrics.redesignFontSizeCaption
+    /// --font-weight-playback-cue-metadata
+    static let metadataFontWeight = NSFont.Weight.regular
+    /// --line-height-playback-cue-metadata
+    static let metadataLineHeight: CGFloat = 16
+    static var metadataHeight: CGFloat {
+        metadataCueGap + metadataLineHeight
     }
     /// --duration-subtitle-focus-scroll
     static let reelTransitionDuration = 0.22
@@ -342,14 +328,26 @@ enum PlaybackSubtitleFocusMetrics {
     }
 }
 
+enum PlaybackCueTimelineMetrics {
+    /// --font-size-playback-cue-sequence
+    static let sequenceFontSize = PlaybackSubtitleFocusMetrics.cueFontSize
+    /// --font-weight-playback-cue-sequence
+    static let sequenceFontWeight = NSFont.Weight.semibold
+    /// --line-height-playback-cue-sequence
+    static let sequenceLineHeight = PlaybackSubtitleFocusMetrics.cueLineHeight
+    /// --gap-playback-cue-sequence-marker
+    static let sequenceMarkerGap = WorkbenchControlMetrics.redesignSpacing3
+    /// --gap-playback-cue-marker-cue
+    static let markerCueGap = WorkbenchControlMetrics.redesignSpacing4
+    /// --size-playback-cue-timeline-dot
+    static let dotSize = WorkbenchControlMetrics.redesignSpacing3
+    /// --width-playback-cue-timeline-connector
+    static let connectorWidth: CGFloat = 1
+}
+
 enum PlaybackCollageSelectionMetrics {
     /// --size-playback-collage-checkbox
     static let checkboxSize: CGFloat = 24
-    /// --spacing-4
-    static let checkboxCueGap = WorkbenchControlMetrics.redesignSpacing4
-    static var leadingAccessoryWidth: CGFloat {
-        checkboxSize + checkboxCueGap
-    }
 }
 
 enum PlaybackOverlayMetrics {

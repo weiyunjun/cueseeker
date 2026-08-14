@@ -190,13 +190,16 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         }
     }
 
-    func cueResult(positionText: String) -> PlaybackCueResult {
+    func cueResult() -> PlaybackCueResult {
         PlaybackCueResult(
             itemID: AnyHashable(identity),
             primaryCueIdentity: AnyHashable(primaryCueIdentity),
             primaryCueText: primaryCueText,
             additionalCueTexts: additionalCueTexts,
-            informationBadges: [positionText, displayTitle, timeRange]
+            metadata: PlaybackCueMetadata(
+                displayTitle: displayTitle,
+                timeRange: timeRange
+            )
         )
     }
 

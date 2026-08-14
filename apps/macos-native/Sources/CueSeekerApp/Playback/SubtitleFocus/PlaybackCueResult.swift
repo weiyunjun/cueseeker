@@ -9,21 +9,31 @@ struct PlaybackCueResult: Equatable {
     let primaryCueIdentity: AnyHashable
     let primaryCueText: String
     let additionalCueTexts: [String]
-    /// Context rendered as independent Badges above the Cue.
-    let informationBadges: [String]
+    /// Plain context rendered below the complete Cue stack.
+    let metadata: PlaybackCueMetadata?
 
     init(
         itemID: AnyHashable,
         primaryCueIdentity: AnyHashable,
         primaryCueText: String,
         additionalCueTexts: [String] = [],
-        informationBadges: [String] = []
+        metadata: PlaybackCueMetadata? = nil
     ) {
         self.itemID = itemID
         self.primaryCueIdentity = primaryCueIdentity
         self.primaryCueText = primaryCueText
         self.additionalCueTexts = additionalCueTexts
-        self.informationBadges = informationBadges
+        self.metadata = metadata
+    }
+}
+
+struct PlaybackCueMetadata: Equatable {
+    let displayTitle: String
+    let timeRange: String
+
+    var isEmpty: Bool {
+        displayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && timeRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -113,195 +123,124 @@ struct PlaybackCueResultVisualLine {
     }
 }
 
-struct PlaybackCueInformationBadgePlan: Equatable {
-    let text: String
-    /// Relative to the Result content width and top padding.
-    let frame: CGRect
+struct PlaybackCueMetadataPlan: Equatable {
+    let displayTitle: String
+    let timeRange: String
+    /// Frames are relative to the metadata row origin.
+    let displayTitleFrame: CGRect
+    let timeRangeFrame: CGRect
 }
 
 @MainActor
-enum PlaybackCueInformationBadgeLayout {
-    static func makePlans(
-        texts: [String],
+enum PlaybackCueMetadataLayout {
+    static func makePlan(
+        metadata: PlaybackCueMetadata?,
         width: CGFloat
-    ) -> [PlaybackCueInformationBadgePlan] {
-        let resolvedTexts = texts.filter {
-            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    ) -> PlaybackCueMetadataPlan? {
+        guard let metadata, !metadata.isEmpty, width > 0 else {
+            return nil
         }
-        guard !resolvedTexts.isEmpty, width > 0 else {
-            return []
-        }
-        let horizontalPadding = PlaybackSubtitleFocusMetrics
-            .informationBadgeHorizontalPadding
-        let gap = PlaybackSubtitleFocusMetrics.informationBadgeGap
-        let rowHeight = PlaybackSubtitleFocusMetrics.informationBadgeRowHeight
-        let availableBadgeWidth = max(
-            0,
-            width - CGFloat(resolvedTexts.count - 1) * gap
-        )
-        let desiredWidths = resolvedTexts.map { text in
-            ceil((text as NSString).size(withAttributes: [
+        let hasDisplayTitle = !metadata.displayTitle
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasTimeRange = !metadata.timeRange
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let desiredDisplayTitleWidth = hasDisplayTitle
+            ? ceil((metadata.displayTitle as NSString).size(withAttributes: [
                 .font: font,
-            ]).width) + horizontalPadding * 2
-        }
-        let minimumWidth = min(
-            horizontalPadding * 2 + 1,
-            availableBadgeWidth / CGFloat(resolvedTexts.count)
-        )
-        let flexibleTotal = desiredWidths.reduce(0) {
-            $0 + max(0, $1 - minimumWidth)
-        }
-        let availableFlexibleWidth = max(
-            0,
-            availableBadgeWidth
-                - minimumWidth * CGFloat(resolvedTexts.count)
-        )
-        let scale = flexibleTotal > 0
-            ? min(1, availableFlexibleWidth / flexibleTotal)
+            ]).width)
             : 0
-        var nextX: CGFloat = 0
-        return zip(resolvedTexts, desiredWidths).map { text, desiredWidth in
-            let badgeWidth = minimumWidth
-                + max(0, desiredWidth - minimumWidth) * scale
-            defer { nextX += badgeWidth + gap }
-            return PlaybackCueInformationBadgePlan(
-                text: text,
-                frame: CGRect(
-                    x: nextX,
-                    y: 0,
-                    width: badgeWidth,
-                    height: rowHeight
-                )
+        let desiredTimeWidth = hasTimeRange
+            ? ceil((metadata.timeRange as NSString).size(withAttributes: [
+                .font: font,
+            ]).width)
+            : 0
+        let timeWidth = min(width, desiredTimeWidth)
+        let gap = hasDisplayTitle && hasTimeRange && width > timeWidth
+            ? min(
+                PlaybackSubtitleFocusMetrics.metadataItemGap,
+                width - timeWidth
             )
-        }
+            : 0
+        let displayTitleWidth = min(
+            desiredDisplayTitleWidth,
+            max(0, width - timeWidth - gap)
+        )
+        let timeX = hasDisplayTitle ? displayTitleWidth + gap : 0
+        return PlaybackCueMetadataPlan(
+            displayTitle: hasDisplayTitle ? metadata.displayTitle : "",
+            timeRange: hasTimeRange ? metadata.timeRange : "",
+            displayTitleFrame: CGRect(
+                x: 0,
+                y: 0,
+                width: displayTitleWidth,
+                height: PlaybackSubtitleFocusMetrics.metadataLineHeight
+            ),
+            timeRangeFrame: CGRect(
+                x: timeX,
+                y: 0,
+                width: timeWidth,
+                height: PlaybackSubtitleFocusMetrics.metadataLineHeight
+            )
+        )
     }
 
     static func draw(
-        _ plans: [PlaybackCueInformationBadgePlan],
-        in resultRect: CGRect,
-        isSelected: Bool,
+        _ plan: PlaybackCueMetadataPlan?,
+        in metadataRect: CGRect,
         isEnabled: Bool = true
     ) {
-        guard !plans.isEmpty else {
+        guard let plan, metadataRect.width > 0, metadataRect.height > 0 else {
             return
         }
-        let horizontalPadding = PlaybackSubtitleFocusMetrics
-            .informationBadgeHorizontalPadding
-        let verticalPadding = PlaybackSubtitleFocusMetrics
-            .informationBadgeVerticalPadding
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineBreakMode = .byTruncatingTail
-        let backgroundColor = isSelected
-            ? PlaybackTheme.informationBadgeBackgroundNative
-            : PlaybackTheme.informationBadgeUnselectedBackgroundNative
-        let textColor = isSelected
-            ? PlaybackTheme.informationBadgeTextNative
-            : isEnabled
-                ? PlaybackTheme.informationBadgeUnselectedTextNative
-                : WorkbenchRedesignColors.NS.textDisabled
-
-        for plan in plans {
-            let frame = plan.frame.offsetBy(
-                dx: resultRect.minX,
-                dy: resultRect.minY
-                    + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            )
-            guard frame.width > 0, frame.height > 0 else {
-                continue
-            }
-            backgroundColor.setFill()
-            NSBezierPath(
-                roundedRect: frame,
-                xRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius,
-                yRadius: PlaybackSubtitleFocusMetrics.informationBadgeRadius
-            ).fill()
-            NSAttributedString(
-                string: plan.text,
-                attributes: [
-                    .font: font,
-                    .foregroundColor: textColor,
-                    .paragraphStyle: paragraphStyle,
-                ]
-            ).draw(
-                with: frame.insetBy(
-                    dx: horizontalPadding,
-                    dy: verticalPadding
-                ),
-                options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
-            )
-        }
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: isEnabled
+                ? PlaybackTheme.cueMetadataNative
+                : WorkbenchRedesignColors.NS.textDisabled,
+            .paragraphStyle: paragraphStyle,
+        ]
+        draw(
+            plan.displayTitle,
+            frame: plan.displayTitleFrame,
+            metadataRect: metadataRect,
+            attributes: attributes
+        )
+        draw(
+            plan.timeRange,
+            frame: plan.timeRangeFrame,
+            metadataRect: metadataRect,
+            attributes: attributes
+        )
     }
 
     private static var font: NSFont {
         NSFont.systemFont(
-            ofSize: PlaybackSubtitleFocusMetrics.informationBadgeFontSize,
-            weight: .semibold
+            ofSize: PlaybackSubtitleFocusMetrics.metadataFontSize,
+            weight: PlaybackSubtitleFocusMetrics.metadataFontWeight
         )
     }
-}
 
-@MainActor
-final class PlaybackCueInformationBadgePlanCache {
-    private struct Key: Hashable {
-        let texts: [String]
-        let width: CGFloat
-    }
-
-    private struct Entry {
-        let plans: [PlaybackCueInformationBadgePlan]
-        var lastAccess: UInt64
-    }
-
-    private let capacity: Int
-    private var entries: [Key: Entry] = [:]
-    private var accessSequence: UInt64 = 0
-    private(set) var preparationCount = 0
-
-    init(capacity: Int = 64) {
-        self.capacity = max(1, capacity)
-    }
-
-    var count: Int {
-        entries.count
-    }
-
-    func plans(
-        texts: [String],
-        width: CGFloat
-    ) -> [PlaybackCueInformationBadgePlan] {
-        accessSequence &+= 1
-        let key = Key(texts: texts, width: width)
-        if var entry = entries[key] {
-            entry.lastAccess = accessSequence
-            entries[key] = entry
-            return entry.plans
+    private static func draw(
+        _ text: String,
+        frame: CGRect,
+        metadataRect: CGRect,
+        attributes: [NSAttributedString.Key: Any]
+    ) {
+        guard !text.isEmpty, frame.width > 0, frame.height > 0 else {
+            return
         }
-        let plans = PlaybackCueInformationBadgeLayout.makePlans(
-            texts: texts,
-            width: width
+        NSAttributedString(
+            string: text,
+            attributes: attributes
+        ).draw(
+            with: frame.offsetBy(
+                dx: metadataRect.minX,
+                dy: metadataRect.minY
+            ),
+            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
         )
-        preparationCount += 1
-        entries[key] = Entry(
-            plans: plans,
-            lastAccess: accessSequence
-        )
-        evictIfNeeded()
-        return plans
-    }
-
-    func removeAll() {
-        entries.removeAll(keepingCapacity: true)
-        accessSequence = 0
-        preparationCount = 0
-    }
-
-    private func evictIfNeeded() {
-        while entries.count > capacity,
-              let oldest = entries.min(by: {
-                  $0.value.lastAccess < $1.value.lastAccess
-              })?.key {
-            entries.removeValue(forKey: oldest)
-        }
     }
 }
 
@@ -312,8 +251,7 @@ struct PlaybackCueResultLayoutPlan {
     let isSelected: Bool
     let visualLinePlan: PlaybackVisualLineStackPlan
     let visualLines: [PlaybackCueResultVisualLine]
-    let informationBadges: [PlaybackCueInformationBadgePlan]
-    let informationRowHeight: CGFloat
+    let metadata: PlaybackCueMetadataPlan?
     let resultWidth: CGFloat
     let cueTextWidth: CGFloat
     let extent: PlaybackVirtualReelItemExtent
@@ -335,9 +273,8 @@ struct PlaybackCueResultLayoutPlan {
     }
 
     func visibleTypographicRects(in resultRect: CGRect) -> [CGRect] {
-        let contentRect = cueTextRect(in: resultRect)
         return typographicRects(in: resultRect).compactMap { lineRect in
-            let visibleRect = lineRect.intersection(contentRect)
+            let visibleRect = lineRect.intersection(resultRect)
             guard !visibleRect.isNull,
                   visibleRect.width > 0,
                   visibleRect.height > 0
@@ -349,54 +286,34 @@ struct PlaybackCueResultLayoutPlan {
     }
 
     func cueTextRect(in resultRect: CGRect) -> CGRect {
-        let informationOffset = informationBadges.isEmpty
-            ? 0
-            : informationRowHeight + PlaybackSubtitleFocusMetrics.informationCueGap
+        return CGRect(
+            x: resultRect.minX,
+            y: resultRect.minY + PlaybackSubtitleFocusMetrics.cueVerticalPadding,
+            width: resultRect.width,
+            height: visualLinePlan.resolvedContentHeight
+        )
+    }
+
+    func metadataRect(in resultRect: CGRect) -> CGRect? {
+        guard metadata != nil else {
+            return nil
+        }
         return CGRect(
             x: resultRect.minX,
             y: resultRect.minY
                 + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-                + informationOffset,
+                + visualLinePlan.resolvedContentHeight
+                + PlaybackSubtitleFocusMetrics.metadataCueGap,
             width: resultRect.width,
-            height: max(
-                0,
-                resultRect.height
-                    - PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
-                    - informationOffset
-            )
+            height: PlaybackSubtitleFocusMetrics.metadataLineHeight
         )
-    }
-
-    func informationBadgeRects(in resultRect: CGRect) -> [CGRect] {
-        informationBadges.map { badge in
-            badge.frame.offsetBy(
-                dx: resultRect.minX,
-                dy: resultRect.minY
-                    + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            )
-        }
     }
 }
 
 @MainActor
 final class PlaybackCueResultLayout {
     private let visualLineLayout = PlaybackVisualLineStackLayout()
-    private let informationBadgePlanCache: PlaybackCueInformationBadgePlanCache
     private(set) var plan: PlaybackCueResultLayoutPlan?
-
-    init(informationBadgeCacheCapacity: Int = 64) {
-        informationBadgePlanCache = PlaybackCueInformationBadgePlanCache(
-            capacity: informationBadgeCacheCapacity
-        )
-    }
-
-    var informationBadgePlanCacheCountForTesting: Int {
-        informationBadgePlanCache.count
-    }
-
-    var informationBadgePlanPreparationCountForTesting: Int {
-        informationBadgePlanCache.preparationCount
-    }
 
     @discardableResult
     func prepare(
@@ -446,19 +363,15 @@ final class PlaybackCueResultLayout {
                 line: line
             )
         }
-        let informationBadges = informationBadgePlanCache.plans(
-            texts: result.informationBadges,
+        let metadata = PlaybackCueMetadataLayout.makePlan(
+            metadata: result.metadata,
             width: safeWidth
         )
-        let informationRowHeight = informationBadges.isEmpty
+        let metadataHeight = metadata == nil
             ? 0
-            : PlaybackSubtitleFocusMetrics.informationBadgeRowHeight
-        let informationOffset = informationBadges.isEmpty
-            ? 0
-            : informationRowHeight
-                + PlaybackSubtitleFocusMetrics.informationCueGap
-        let resolvedContentHeight = informationOffset
-            + visualLinePlan.resolvedContentHeight
+            : PlaybackSubtitleFocusMetrics.metadataHeight
+        let resolvedContentHeight = visualLinePlan.resolvedContentHeight
+            + metadataHeight
         let naturalHeight = resolvedContentHeight
             + PlaybackSubtitleFocusMetrics.cueVerticalPadding * 2
         let safeViewportHeight = max(0, viewportHeight)
@@ -477,8 +390,7 @@ final class PlaybackCueResultLayout {
             isSelected: isSelected,
             visualLinePlan: visualLinePlan,
             visualLines: visualLines,
-            informationBadges: informationBadges,
-            informationRowHeight: informationRowHeight,
+            metadata: metadata,
             resultWidth: safeWidth,
             cueTextWidth: cueTextWidth,
             extent: extent
@@ -489,16 +401,15 @@ final class PlaybackCueResultLayout {
 
     func drawPreparedPlan(
         in resultRect: CGRect,
-        selectedTextRange: NSRange? = nil
+        selectedTextRange: NSRange? = nil,
+        isEnabled: Bool = true
     ) {
         guard let plan else {
             return
         }
-        PlaybackCueInformationBadgeLayout.draw(
-            plan.informationBadges,
-            in: resultRect,
-            isSelected: plan.isSelected
-        )
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: resultRect).addClip()
+        defer { NSGraphicsContext.restoreGraphicsState() }
         let cueTextRect = plan.cueTextRect(in: resultRect)
         if let selectedTextRange {
             visualLineLayout.drawSelection(
@@ -507,6 +418,13 @@ final class PlaybackCueResultLayout {
             )
         }
         visualLineLayout.drawPreparedPlan(in: cueTextRect)
+        if let metadataRect = plan.metadataRect(in: resultRect) {
+            PlaybackCueMetadataLayout.draw(
+                plan.metadata,
+                in: metadataRect,
+                isEnabled: isEnabled
+            )
+        }
     }
 
     func textSelectionHit(
@@ -517,9 +435,14 @@ final class PlaybackCueResultLayout {
         guard let plan else {
             return nil
         }
+        let visibleCueRect = plan.cueTextRect(in: resultRect)
+            .intersection(resultRect)
+        guard visibleCueRect.contains(point) else {
+            return nil
+        }
         return visualLineLayout.textSelectionHit(
             at: point,
-            in: plan.cueTextRect(in: resultRect),
+            in: visibleCueRect,
             constrainedToLine: lineUTF16Range
         )
     }
@@ -537,7 +460,7 @@ final class PlaybackCueResultMeasurementCache {
         let primaryCueText: String
         let additionalCueTexts: [String]
         let showsCueGroup: Bool
-        let hasInformationBadges: Bool
+        let hasMetadata: Bool
         let width: CGFloat
         let viewportHeight: CGFloat
         let styleRevision: Int
@@ -556,9 +479,7 @@ final class PlaybackCueResultMeasurementCache {
 
     init(capacity: Int = 64) {
         self.capacity = max(1, capacity)
-        layout = PlaybackCueResultLayout(
-            informationBadgeCacheCapacity: capacity
-        )
+        layout = PlaybackCueResultLayout()
     }
 
     var count: Int {
@@ -580,12 +501,10 @@ final class PlaybackCueResultMeasurementCache {
             primaryCueText: result.primaryCueText,
             additionalCueTexts: result.additionalCueTexts,
             showsCueGroup: showsCueGroup,
-            hasInformationBadges: result.informationBadges.contains {
-                !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            },
+            hasMetadata: result.metadata?.isEmpty == false,
             width: width,
             viewportHeight: viewportHeight,
-            styleRevision: 1
+            styleRevision: 2
         )
         let baseExtent: PlaybackVirtualReelItemExtent
         if var entry = entries[key] {

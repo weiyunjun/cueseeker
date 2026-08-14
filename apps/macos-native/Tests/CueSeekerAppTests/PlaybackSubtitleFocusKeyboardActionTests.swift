@@ -791,11 +791,11 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
             positionTotalCount: results.count
         )
         let firstResult = try #require(previewAdapter.cueResult(at: 0))
-        #expect(firstResult.informationBadges == [
-            "[1/60]",
-            "Command Episode 0",
-            results[0].timeRange,
-        ])
+        #expect(previewAdapter.sequenceTotalCount == 60)
+        #expect(firstResult.metadata == PlaybackCueMetadata(
+            displayTitle: "Command Episode 0",
+            timeRange: results[0].timeRange
+        ))
         #expect(firstResult.additionalCueTexts == ["command context"])
         let firstPlan = PlaybackCueResultLayout().prepare(
             result: firstResult,
@@ -816,11 +816,8 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
             width: 800,
             viewportHeight: 800
         )
-        #expect(secondPlan.informationBadges.map(\.text) == [
-            "[2/60]",
-            "Command Episode 1",
-            results[1].timeRange,
-        ])
+        #expect(secondPlan.metadata?.displayTitle == "Command Episode 1")
+        #expect(secondPlan.metadata?.timeRange == results[1].timeRange)
         #expect(!secondPlan.isSelected)
 
         let previewSnapshot = previewAdapter.snapshot

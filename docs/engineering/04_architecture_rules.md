@@ -502,46 +502,55 @@ Presentation virtualization rules:
 - Current uses a native virtual Cue document over the complete Cue collection
   owned by the active playback source. Opening selects the physically
   bottommost Cue in the active Cue Group; when no Cue is active it falls back to
-  the nearest preceding Cue, then the first Cue. For visual-line count `L`,
-  nominal content height is `52L`; natural height is
-  `max(nominal content height, visual-line stack height) + 24` and resolved
-  height is clamped to the Reel viewport. Visual lines use measured font-run
-  typographic bounds with the shared internal-line-gap token instead of fixed
-  Line Slots. A fitting Cue centers its complete bounds on the fixed Focus
-  Anchor; an oversized Cue uses accepted head-first placement at the viewport
-  top. Width reflow preserves stable Cue identity and restores that placement.
+  the nearest preceding Cue, then the first Cue. Natural height is the greater
+  of the minimum Cue height and the measured visual-line stack plus vertical
+  Cue padding, followed by the fixed metadata height when metadata is present;
+  resolved height is clamped to the Reel viewport. Visual lines use measured
+  font-run typographic bounds with the shared internal-line-gap token instead
+  of fixed Line Slots. A fitting Cue centers its complete bounds on the fixed
+  Focus Anchor; an oversized Cue uses accepted head-first placement at the
+  viewport top. Width reflow preserves stable Cue identity and restores that
+  placement.
 - Playlist, Search, and Shiori reuse Current's measurement, accepted placement,
   scrolling, scrollbar, and recycling behavior while substituting Cue Result
   identity, rendering, and height calculation. `Show Cue Group` remains a
   presentation-only input and must not change count, order, identity,
   selection, or Primary Cue action targets.
-- Playback Current and Cue Playlist share Cue typography, information Badge
-  layout and drawing, and the same visible presentation structure. Current
-  retains its primary-only measurement cache and native text drawing hot path;
-  Cue Playlist retains the general Cue Result layout required for optional Cue
-  Group content. Current provides Display Title and Time Range and never
-  provides Cue Group text; Cue Playlist additionally provides `[x/y]` and may
-  show Cue Group text below every Primary Cue. Every Cue displays its module's
-  information Badges using Playback-specific neutral colors. The settled
-  selection uses the stronger gray background and text pair while other Cues
-  use the quieter gray pair. The existing Reel and Session owners remain the
-  only selection and scrolling state sources.
+- Playback Current, Cue Playlist, Command Panel Search, and Editing Collage
+  share one Reel-owned Cue timeline presentation. A fixed-width sequence lane
+  is measured from the complete focused `x / y` text, followed by one timeline
+  marker and the existing Cue renderer. Current and Collage use the physical
+  one-based Cue ordinal; Cue Result adapters use their existing list ordinal.
+  The focused row adds the total without changing the lane, Cue width,
+  placement, or scroll position. Connectors are derived from consecutive
+  visible-plus-overscan placements during drawing and do not create another
+  selection or layout state owner. Editing Collage substitutes its existing
+  checkbox for the dot while keeping the same checkbox state and interaction
+  path.
+- Playback Current and Cue Result adapters share Cue typography and one plain
+  metadata model and renderer. Current retains its primary-only measurement
+  cache and native text drawing hot path; Cue Playlist and Command Panel Search
+  retain the general Cue Result layout required for optional Cue Group content.
+  Metadata contains only Display Title and Time Range, uses fixed geometry, and
+  follows the complete visible Cue stack. It has no Badge background, border,
+  radius, or padding. The existing Reel and Session owners remain the only
+  selection and scrolling state sources.
 - Playback Command Panel Search uses the Cue Playlist's general Cue Result
   Adapter and Reel over a host-owned resident preview Window capped at 50
   results. That Window is the only Command Panel Search selection source for
-  keyboard, wheel, and scrollbar input. Badge position text uses the complete
-  Search result count, and activating a preview result continues to install the
-  complete Search Playlist. Command Panel Search must not reintroduce its
-  dedicated result Row or a duplicate selection store.
+  keyboard, wheel, and scrollbar input. Activating a preview result continues
+  to install the complete Search Playlist. Command Panel Search must not
+  reintroduce its dedicated result Row or a duplicate selection store. Its
+  sequence denominator uses the complete Search result count while the resident
+  preview remains capped at 50 results.
 - Cue Result base extent depends only on Primary Cue, optional resident Cue
-  Group content, fixed information Badge presence, presentation width, and
-  style. Every Cue extent includes the same fixed-height Badge row; selection
-  only chooses the Badge palette and must not enter the measurement key,
-  advance the dataset revision, clear the measurement cache, or change Reel
-  placement. Current applies the same fixed height to every cached base Cue
-  measurement without creating a general Cue Result or remeasuring text.
-  Current and Cue Result drawing retain bounded Badge text-width plan caches so
-  scrolling does not rebuild plans on every frame.
+  Group content, fixed metadata presence, presentation width, and style. Every
+  metadata-bearing Cue extent includes the same fixed metadata height;
+  selection must not enter the measurement key, advance the dataset revision,
+  clear the measurement cache, or change Reel placement. Current applies the
+  same fixed height to every cached base Cue measurement without creating a
+  general Cue Result. Current and Cue Result retain bounded text-measurement
+  caches; the two-string metadata layout remains stateless presentation work.
 
 Playback-specific differences are limited to:
 
@@ -553,7 +562,7 @@ Playback-specific differences are limited to:
 - the documented capability mask, including removal of batch, export, folder,
   Filter-control, and table-copy entry points;
 - Playback Cue Reel layout, Focus Anchor, accepted placement, settled selection,
-  selection-dependent information Badge palette, Cue Group visibility policy,
+  shared sequence/timeline/metadata presentation, Cue Group visibility policy,
   and the Playback-only Current and Playlist modules;
 - Playback Search's formal Workbench Filter projection, text-field focus
   routing, Up/Down Reel routing, and Enter-only Cue action;

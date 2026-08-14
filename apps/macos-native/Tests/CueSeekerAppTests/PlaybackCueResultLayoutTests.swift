@@ -13,14 +13,12 @@ func playbackCueResultMetricsMatchCompactIteration() {
     #expect(PlaybackSubtitleFocusMetrics.cueGroupFontSize == 20)
     #expect(PlaybackSubtitleFocusMetrics.cueGroupLineHeight == 28)
     #expect(PlaybackSubtitleFocusMetrics.cueGroupFontWeight == .medium)
-    #expect(PlaybackSubtitleFocusMetrics.informationBadgeGap == 8)
-    #expect(PlaybackSubtitleFocusMetrics.informationCueGap == 8)
-    #expect(PlaybackSubtitleFocusMetrics.informationBadgeFontSize == 12)
-    #expect(PlaybackSubtitleFocusMetrics.informationBadgeRadius == 6)
-    #expect(PlaybackSubtitleFocusMetrics.informationBadgeHorizontalPadding == 10)
-    #expect(PlaybackSubtitleFocusMetrics.informationBadgeVerticalPadding == 4)
-    #expect(PlaybackSubtitleFocusMetrics.informationBadgeRowHeight == 23)
-    #expect(PlaybackSubtitleFocusMetrics.informationHeight == 31)
+    #expect(PlaybackSubtitleFocusMetrics.metadataCueGap == 8)
+    #expect(PlaybackSubtitleFocusMetrics.metadataItemGap == 12)
+    #expect(PlaybackSubtitleFocusMetrics.metadataFontSize == 12)
+    #expect(PlaybackSubtitleFocusMetrics.metadataFontWeight == .regular)
+    #expect(PlaybackSubtitleFocusMetrics.metadataLineHeight == 16)
+    #expect(PlaybackSubtitleFocusMetrics.metadataHeight == 24)
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueSelectedNative
@@ -72,27 +70,21 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
     )
     #expect(
         playbackCueResultHex(
-            PlaybackTheme.informationBadgeBackgroundNative,
+            PlaybackTheme.cueTimelineFocusedNative,
             appearanceName: .aqua
-        ) == "#D1D5DB"
+        ) == "#667085"
     )
     #expect(
         playbackCueResultHex(
-            PlaybackTheme.informationBadgeTextNative,
+            PlaybackTheme.cueTimelineMutedNative,
             appearanceName: .aqua
-        ) == "#1F2937"
+        ) == "#D0D5DD"
     )
     #expect(
         playbackCueResultHex(
-            PlaybackTheme.informationBadgeUnselectedBackgroundNative,
+            PlaybackTheme.cueMetadataNative,
             appearanceName: .aqua
-        ) == "#E5E7EB"
-    )
-    #expect(
-        playbackCueResultHex(
-            PlaybackTheme.informationBadgeUnselectedTextNative,
-            appearanceName: .aqua
-        ) == "#475467"
+        ) == "#667085"
     )
     #expect(
         playbackCueResultHex(
@@ -126,25 +118,19 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
     )
     #expect(
         playbackCueResultHex(
-            PlaybackTheme.informationBadgeBackgroundNative,
+            PlaybackTheme.cueTimelineFocusedNative,
             appearanceName: .darkAqua
-        ) == "#18181B"
+        ) == "#71717A"
     )
     #expect(
         playbackCueResultHex(
-            PlaybackTheme.informationBadgeTextNative,
+            PlaybackTheme.cueTimelineMutedNative,
             appearanceName: .darkAqua
-        ) == "#F4F4F5"
+        ) == "#52525B"
     )
     #expect(
         playbackCueResultHex(
-            PlaybackTheme.informationBadgeUnselectedBackgroundNative,
-            appearanceName: .darkAqua
-        ) == "#303036"
-    )
-    #expect(
-        playbackCueResultHex(
-            PlaybackTheme.informationBadgeUnselectedTextNative,
+            PlaybackTheme.cueMetadataNative,
             appearanceName: .darkAqua
         ) == "#A1A1AA"
     )
@@ -453,16 +439,15 @@ func playbackCueResultShowCueGroupDoesNotChangeEitherStableIdentity() {
 
 @MainActor
 @Test
-func playbackCueResultShowsInformationBadgesAboveEveryPrimaryCue() throws {
+func playbackCueResultShowsPlainMetadataBelowEntireCueGroup() throws {
     let layout = PlaybackCueResultLayout()
     let result = playbackCueResult(
         primaryText: Array(repeating: "wide", count: 12).joined(separator: " "),
         additionalTexts: ["context"],
-        informationBadges: [
-            "[7/1000]",
-            "A Very Long Display Title",
-            "21:33 - 21:40",
-        ]
+        metadata: PlaybackCueMetadata(
+            displayTitle: "A Very Long Display Title",
+            timeRange: "21:33 - 21:40"
+        )
     )
     let plan = layout.prepare(
         result: result,
@@ -471,24 +456,23 @@ func playbackCueResultShowsInformationBadgesAboveEveryPrimaryCue() throws {
         width: 240,
         viewportHeight: 2_000
     )
-    let badgeRects = plan.informationBadgeRects(
-        in: CGRect(x: 0, y: 0, width: 240, height: plan.extent.naturalHeight)
+    let resultRect = CGRect(
+        x: 0,
+        y: 0,
+        width: 240,
+        height: plan.extent.naturalHeight
     )
+    let metadataRect = try #require(plan.metadataRect(in: resultRect))
+    let lastCueRect = try #require(plan.typographicRects(in: resultRect).last)
 
     #expect(plan.cueTextWidth == 240)
-    #expect(plan.informationBadges.map(\.text) == [
-        "[7/1000]",
-        "A Very Long Display Title",
-        "21:33 - 21:40",
-    ])
-    #expect(badgeRects.count == 3)
-    #expect(badgeRects.first?.minY == PlaybackSubtitleFocusMetrics.cueVerticalPadding)
-    #expect(badgeRects.last?.maxX ?? .infinity <= 240)
+    #expect(plan.metadata?.displayTitle == "A Very Long Display Title")
+    #expect(plan.metadata?.timeRange == "21:33 - 21:40")
+    #expect(metadataRect.minY >= lastCueRect.maxY)
+    #expect(metadataRect.maxX <= 240)
     #expect(plan.cueTextRect(
-        in: CGRect(x: 0, y: 0, width: 240, height: plan.extent.naturalHeight)
-    ).minY == PlaybackSubtitleFocusMetrics.cueVerticalPadding
-        + plan.informationRowHeight
-        + PlaybackSubtitleFocusMetrics.informationCueGap)
+        in: resultRect
+    ).minY == PlaybackSubtitleFocusMetrics.cueVerticalPadding)
     #expect(plan.visualLines.first?.role == .primaryCue)
 
     let unselected = layout.prepare(
@@ -498,37 +482,21 @@ func playbackCueResultShowsInformationBadgesAboveEveryPrimaryCue() throws {
         width: 240,
         viewportHeight: 2_000
     )
-    #expect(unselected.informationBadges == plan.informationBadges)
+    #expect(unselected.metadata == plan.metadata)
     #expect(unselected.extent == plan.extent)
     #expect(plan.isSelected)
     #expect(!unselected.isSelected)
-}
 
-@MainActor
-@Test
-func playbackCueResultBadgePlansStayBoundedAcrossUnselectedResults() {
-    let layout = PlaybackCueResultLayout(informationBadgeCacheCapacity: 2)
-
-    for ordinal in 0..<100 {
-        _ = layout.prepare(
-            result: playbackCueResult(
-                itemID: "result-\(ordinal)",
-                primaryIdentity: "cue-\(ordinal)",
-                informationBadges: [
-                    "[\(ordinal + 1)/100]",
-                    "Display Title \(ordinal)",
-                    "00:00 - 00:01",
-                ]
-            ),
-            showsCueGroup: true,
-            isSelected: false,
-            width: 800,
-            viewportHeight: 600
-        )
-    }
-
-    #expect(layout.informationBadgePlanCacheCountForTesting == 2)
-    #expect(layout.informationBadgePlanPreparationCountForTesting == 100)
+    let wideMetadata = try #require(PlaybackCueMetadataLayout.makePlan(
+        metadata: result.metadata,
+        width: 800
+    ))
+    #expect(
+        wideMetadata.timeRangeFrame.minX
+            == wideMetadata.displayTitleFrame.maxX
+                + PlaybackSubtitleFocusMetrics.metadataItemGap
+    )
+    #expect(wideMetadata.timeRangeFrame.maxX < 800)
 }
 
 @MainActor
@@ -539,7 +507,10 @@ func playbackCueResultOversizedExtentStartsAtFirstLineAndClipsOnlyBottom() throw
         result: playbackCueResult(
             primaryText: "primary",
             additionalTexts: [(1...12).map { "line \($0)" }.joined(separator: "\n")],
-            informationBadges: ["Display Title", "21:33 - 21:40"]
+            metadata: PlaybackCueMetadata(
+                displayTitle: "Display Title",
+                timeRange: "21:33 - 21:40"
+            )
         ),
         showsCueGroup: true,
         isSelected: true,
@@ -557,13 +528,12 @@ func playbackCueResultOversizedExtentStartsAtFirstLineAndClipsOnlyBottom() throw
     #expect(plan.extent.isOversized)
     #expect(
         firstFull.minY >= PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            + plan.informationRowHeight
-            + PlaybackSubtitleFocusMetrics.informationCueGap
     )
     #expect(firstVisible.minY == firstFull.minY)
     #expect(visibleRects.count < fullRects.count)
     #expect(visibleRects.allSatisfy { resultRect.contains($0) })
-    #expect(plan.informationBadges.count == 2)
+    #expect(plan.metadata != nil)
+    #expect(plan.metadataRect(in: resultRect)?.minY ?? 0 > resultRect.maxY)
 }
 
 @MainActor
@@ -571,7 +541,10 @@ func playbackCueResultOversizedExtentStartsAtFirstLineAndClipsOnlyBottom() throw
 func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
     let cache = PlaybackCueResultMeasurementCache(capacity: 2)
     let base = playbackCueResult(
-        informationBadges: ["Display Title", "21:33 - 21:40"]
+        metadata: PlaybackCueMetadata(
+            displayTitle: "Display Title",
+            timeRange: "21:33 - 21:40"
+        )
     )
 
     let unselectedExtent = cache.extent(
@@ -594,7 +567,10 @@ func playbackCueResultMeasurementCacheKeysGeometryAndStaysBounded() {
 
     _ = cache.extent(
         for: playbackCueResult(
-            informationBadges: ["Changed Title", "00:00 - 00:01"]
+            metadata: PlaybackCueMetadata(
+                displayTitle: "Changed Title",
+                timeRange: "00:00 - 00:01"
+            )
         ),
         showsCueGroup: true,
         isSelected: true,
@@ -698,14 +674,14 @@ private func playbackCueResult(
     primaryIdentity: AnyHashable = "cue-1",
     primaryText: String = "primary",
     additionalTexts: [String] = ["context"],
-    informationBadges: [String] = []
+    metadata: PlaybackCueMetadata? = nil
 ) -> PlaybackCueResult {
     PlaybackCueResult(
         itemID: itemID,
         primaryCueIdentity: primaryIdentity,
         primaryCueText: primaryText,
         additionalCueTexts: additionalTexts,
-        informationBadges: informationBadges
+        metadata: metadata
     )
 }
 
@@ -855,11 +831,10 @@ private final class PlaybackCueResultTestAdapter:
             additionalCueTexts: ordinal.isMultiple(of: 3)
                 ? ["context \(ordinal)"]
                 : [],
-            informationBadges: [
-                "[\(ordinal + 1)/\(snapshot.totalCount)]",
-                "Display Title \(ordinal)",
-                "00:00 - 00:01",
-            ]
+            metadata: PlaybackCueMetadata(
+                displayTitle: "Display Title \(ordinal)",
+                timeRange: "00:00 - 00:01"
+            )
         )
     }
 }

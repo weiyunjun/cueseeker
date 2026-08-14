@@ -46,6 +46,10 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         )
     }
 
+    var sequenceTotalCount: Int {
+        max(snapshot.totalCount, positionTotalCount ?? 0)
+    }
+
     var measurementCacheCountForTesting: Int {
         measurementCache.count
     }
@@ -87,13 +91,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         guard let item = item(at: ordinal), item.ordinal == ordinal else {
             return nil
         }
-        let totalCount = max(
-            snapshot.totalCount,
-            positionTotalCount ?? 0
-        )
-        return item.cueResult(
-            positionText: "[\(ordinal + 1)/\(totalCount)]"
-        )
+        return item.cueResult()
     }
 
     func itemID(at ordinal: Int) -> AnyHashable? {
@@ -124,7 +122,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     func drawItem(
         at ordinal: Int,
         isSelected: Bool,
-        isEnabled _: Bool,
+        isEnabled: Bool,
         selectedTextRange: NSRange?,
         in rect: CGRect
     ) {
@@ -140,7 +138,8 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         )
         layout.drawPreparedPlan(
             in: rect,
-            selectedTextRange: selectedTextRange
+            selectedTextRange: selectedTextRange,
+            isEnabled: isEnabled
         )
     }
 

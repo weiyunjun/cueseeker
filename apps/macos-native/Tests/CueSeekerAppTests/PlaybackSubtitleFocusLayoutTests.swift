@@ -14,13 +14,15 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(PlaybackSubtitleFocusMetrics.contentInset == 32)
     #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 24)
     #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 32)
+    #expect(PlaybackCueTimelineMetrics.sequenceFontSize == 24)
+    #expect(PlaybackCueTimelineMetrics.sequenceFontWeight == .semibold)
+    #expect(PlaybackCueTimelineMetrics.sequenceLineHeight == 32)
+    #expect(PlaybackCueTimelineMetrics.sequenceMarkerGap == 12)
+    #expect(PlaybackCueTimelineMetrics.markerCueGap == 16)
+    #expect(PlaybackCueTimelineMetrics.dotSize == 12)
+    #expect(PlaybackCueTimelineMetrics.connectorWidth == 1)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
     #expect(PlaybackCollageSelectionMetrics.checkboxSize == 24)
-    #expect(
-        PlaybackCollageSelectionMetrics.leadingAccessoryWidth
-            == PlaybackCollageSelectionMetrics.checkboxSize
-                + WorkbenchControlMetrics.redesignSpacing4
-    )
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
             reducesMotion: false
@@ -31,6 +33,42 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
             reducesMotion: true
         ) == 0
     )
+}
+
+@MainActor
+@Test
+func playbackCueTimelineUsesFixedSequenceLaneAndExactFocusedText() {
+    _ = NSApplication.shared
+    #expect(PlaybackCueTimelineLayout.sequenceText(
+        ordinal: 12,
+        totalCount: 28,
+        isFocused: false
+    ) == "13")
+    #expect(PlaybackCueTimelineLayout.sequenceText(
+        ordinal: 12,
+        totalCount: 28,
+        isFocused: true
+    ) == "13 / 28")
+
+    let rowRect = CGRect(x: 40, y: 100, width: 900, height: 72)
+    let unfocused = PlaybackCueTimelineLayout.rowLayout(
+        in: rowRect,
+        totalCount: 28,
+        usesCheckbox: false
+    )
+    let focused = PlaybackCueTimelineLayout.rowLayout(
+        in: rowRect,
+        totalCount: 28,
+        usesCheckbox: false
+    )
+    #expect(unfocused.sequenceRect == focused.sequenceRect)
+    #expect(unfocused.cueRect == focused.cueRect)
+    #expect(
+        unfocused.markerRect.minY
+            == rowRect.minY + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+    )
+    #expect(unfocused.sequenceRect.maxX < unfocused.markerRect.minX)
+    #expect(unfocused.markerRect.maxX < unfocused.cueRect.minX)
 }
 
 @MainActor
@@ -66,10 +104,22 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
     #expect(
         checkboxRect.midY
             == placement.rect.minY
-                + PlaybackSubtitleFocusMetrics.informationHeight
                 + PlaybackSubtitleFocusMetrics.cueVerticalPadding
                 + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
     )
+    let sequenceRect = try #require(
+        view.cueTimelineSequenceRectForTesting(at: 11)
+    )
+    let cueRect = try #require(view.cueContentRectForTesting(at: 11))
+    #expect(sequenceRect.maxX < checkboxRect.minX)
+    #expect(checkboxRect.maxX < cueRect.minX)
+    #expect(cueRect.maxX == placement.rect.maxX)
+    let connector = try #require(
+        view.cueTimelineConnectorRectsForTesting.first { rect in
+            rect.minY == checkboxRect.maxY
+        }
+    )
+    #expect(connector.midX == checkboxRect.midX)
     #expect(!view.isCueHighlightedForTesting(at: 11))
     #expect(view.isCueHighlightedForTesting(at: 12))
 
@@ -80,22 +130,17 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
 
     var toggledOrdinals: [Int] = []
     view.onToggleCollageCueSelection = { toggledOrdinals.append($0) }
-    let badgePoint = CGPoint(
-        x: placement.rect.minX
-            + PlaybackCollageSelectionMetrics.leadingAccessoryWidth
-            + 1,
-        y: placement.rect.minY
-            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            + 1
+    let metadataPoint = CGPoint(
+        x: cueRect.minX + 1,
+        y: cueRect.maxY - PlaybackSubtitleFocusMetrics.cueVerticalPadding - 1
     )
     let primaryCuePoint = CGPoint(
-        x: badgePoint.x,
+        x: cueRect.minX + 1,
         y: placement.rect.minY
-            + PlaybackSubtitleFocusMetrics.informationHeight
             + PlaybackSubtitleFocusMetrics.cueVerticalPadding
             + 1
     )
-    #expect(view.toggleCollageCueForTesting(at: badgePoint))
+    #expect(view.toggleCollageCueForTesting(at: metadataPoint))
     #expect(view.toggleCollageCueForTesting(at: primaryCuePoint))
     #expect(toggledOrdinals == [11, 11])
     #expect(view.displayedSelectedOrdinalForTesting == 12)
@@ -239,7 +284,7 @@ func playbackOverlayCurrentAndPlaylistShareFullWidthCueGeometry() {
 
 @MainActor
 @Test
-func playbackCurrentUsesDedicatedCuePathWithTwoSharedInformationBadges() throws {
+func playbackCurrentUsesDedicatedCuePathWithSharedPlainMetadata() throws {
     let cue = SubtitleFocusCue(
         id: 42,
         cueGroupID: 142,
@@ -258,15 +303,15 @@ func playbackCurrentUsesDedicatedCuePathWithTwoSharedInformationBadges() throws 
         generation: 1
     )
 
-    #expect(adapter.informationBadges(at: 0) == [
-        "Ave Mujica - 01",
-        "21:33 - 21:40",
-    ])
+    #expect(adapter.metadata(at: 0) == PlaybackCueMetadata(
+        displayTitle: "Ave Mujica - 01",
+        timeRange: "21:33 - 21:40"
+    ))
 }
 
 @MainActor
 @Test
-func playbackCurrentEveryCueUsesFixedInformationHeightAndCachedBadgePlan() throws {
+func playbackCurrentEveryCueUsesFixedMetadataHeight() throws {
     let cue = SubtitleFocusCue(
         id: 42,
         cueGroupID: 142,
@@ -302,48 +347,11 @@ func playbackCurrentEveryCueUsesFixedInformationHeightAndCachedBadgePlan() throw
         ))
         #expect(selected == base)
     }
-    for _ in 0..<1_000 {
-        _ = adapter.informationBadgePlans(at: 0, width: 960)
-    }
-
     #expect(adapter.measurementCountForTesting == 1)
-    #expect(adapter.informationBadgePlanPreparationCountForTesting == 1)
     #expect(
         base.naturalHeight
-            == 48 + PlaybackSubtitleFocusMetrics.informationHeight
+            == 48 + PlaybackSubtitleFocusMetrics.metadataHeight
     )
-}
-
-@MainActor
-@Test
-func playbackCurrentUnselectedBadgePlansStayBounded() {
-    var cues: [SubtitleFocusCue] = []
-    for ordinal in 0..<100 {
-        cues.append(SubtitleFocusCue(
-            id: Int64(ordinal + 1),
-            cueGroupID: Int64(ordinal + 1_001),
-            ordinal: ordinal,
-            eventIndex: ordinal,
-            displayOrder: 0,
-            startMilliseconds: ordinal * 1_000,
-            endMilliseconds: ordinal * 1_000 + 900,
-            content: "Cue \(ordinal)"
-        ))
-    }
-    let adapter = PlaybackSubtitleFocusCueReelAdapter()
-    adapter.update(
-        cues: cues,
-        totalCount: cues.count,
-        displayTitle: "Ave Mujica - 01",
-        generation: 1
-    )
-
-    for ordinal in cues.indices {
-        _ = adapter.informationBadgePlans(at: ordinal, width: 960)
-    }
-
-    #expect(adapter.informationBadgePlanCacheCountForTesting == 64)
-    #expect(adapter.informationBadgePlanPreparationCountForTesting == 100)
 }
 
 @MainActor

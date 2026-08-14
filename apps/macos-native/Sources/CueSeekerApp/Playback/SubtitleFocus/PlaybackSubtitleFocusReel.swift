@@ -116,6 +116,7 @@ typealias PlaybackTextSelectionHit = (
 @MainActor
 protocol PlaybackVirtualReelContentAdapter: AnyObject {
     var snapshot: PlaybackVirtualReelSnapshot { get }
+    var sequenceTotalCount: Int { get }
     var supportsWindowRequests: Bool { get }
     var measurementCacheCountForTesting: Int { get }
     var measuredOrdinalsForTesting: Set<Int> { get }
@@ -149,6 +150,10 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
 }
 
 extension PlaybackVirtualReelContentAdapter {
+    var sequenceTotalCount: Int {
+        snapshot.totalCount
+    }
+
     var supportsWindowRequests: Bool {
         false
     }
@@ -1059,18 +1064,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         }
     }
 
-    private struct InformationBadgeKey: Hashable {
-        let cueID: Int64
-        let displayTitle: String
-        let startMilliseconds: Int
-        let endMilliseconds: Int
-    }
-
-    private struct InformationBadgeTextEntry {
-        let texts: [String]
-        var lastAccess: UInt64
-    }
-
     private let datasetID = AnyHashable("current")
     private let measurementCache = PlaybackSubtitleFocusCueMeasurementCache()
     private let textLayout = PlaybackSubtitleFocusNativeTextLayout()
@@ -1079,12 +1072,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
     private var signature: SnapshotSignature?
     private var revision: UInt64 = 0
     private var displayTitle = ""
-    private let informationBadgeCacheCapacity = 64
-    private let informationBadgePlanCache =
-        PlaybackCueInformationBadgePlanCache(capacity: 64)
-    private var informationBadgeTextEntries:
-        [InformationBadgeKey: InformationBadgeTextEntry] = [:]
-    private var informationBadgeTextAccessSequence: UInt64 = 0
     private(set) var snapshot = PlaybackVirtualReelSnapshot(
         datasetID: AnyHashable("current"),
         generation: 0,
@@ -1107,14 +1094,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         measurementCache.measurementCount
     }
 
-    var informationBadgePlanCacheCountForTesting: Int {
-        informationBadgePlanCache.count
-    }
-
-    var informationBadgePlanPreparationCountForTesting: Int {
-        informationBadgePlanCache.preparationCount
-    }
-
     func update(
         cues: [SubtitleFocusCue],
         totalCount: Int,
@@ -1129,7 +1108,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         if snapshot.generation != generation {
             revision = 0
             invalidateMeasurements()
-            invalidateInformationBadges()
         } else if signature != nextSignature || self.displayTitle != displayTitle {
             revision &+= 1
         }
@@ -1176,10 +1154,10 @@ final class PlaybackSubtitleFocusCueReelAdapter:
             viewportHeight: viewportHeight,
             uiProbeScope: uiProbeScope
         )
-        guard !displayTitle.isEmpty else {
+        guard metadata(for: cue) != nil else {
             return baseMeasurement
         }
-        return addingInformationHeight(
+        return addingMetadataHeight(
             to: baseMeasurement,
             viewportHeight: viewportHeight
         )
@@ -1195,13 +1173,10 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         guard let cue = cue(at: ordinal) else {
             return
         }
-        let badgePlans = informationBadgePlans(for: cue, width: rect.width)
-        PlaybackCueInformationBadgeLayout.draw(
-            badgePlans,
-            in: rect,
-            isSelected: isSelected,
-            isEnabled: isEnabled
-        )
+        let cueRect = cueTextRect(in: rect, for: cue)
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: rect).addClip()
+        defer { NSGraphicsContext.restoreGraphicsState() }
         textLayout.draw(
             text: cue.text,
             color: isSelected
@@ -1210,7 +1185,16 @@ final class PlaybackSubtitleFocusCueReelAdapter:
                     ? PlaybackTheme.subtitleFocusCueUnselectedNative
                     : WorkbenchRedesignColors.NS.textDisabled,
             selectedTextRange: selectedTextRange,
-            in: cueTextRect(in: rect, hasInformation: !badgePlans.isEmpty)
+            in: cueRect
+        )
+        let metadata = metadata(for: cue)
+        PlaybackCueMetadataLayout.draw(
+            PlaybackCueMetadataLayout.makePlan(
+                metadata: metadata,
+                width: rect.width
+            ),
+            in: metadataRect(in: rect, for: cue),
+            isEnabled: isEnabled
         )
     }
 
@@ -1226,10 +1210,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         return textLayout.textSelectionHit(
             text: cue.text,
             point: point,
-            in: cueTextRect(
-                in: rect,
-                hasInformation: !informationBadges(for: cue).isEmpty
-            ),
+            in: cueTextRect(in: rect, for: cue),
             constrainedToLine: lineUTF16Range
         )
     }
@@ -1247,10 +1228,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         }
         return textLayout.visibleLineRects(
             text: cue.text,
-            in: cueTextRect(
-                in: rect,
-                hasInformation: !informationBadges(for: cue).isEmpty
-            )
+            in: cueTextRect(in: rect, for: cue)
         )
     }
 
@@ -1259,7 +1237,6 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         firstLoadedOrdinal = 0
         signature = nil
         displayTitle = ""
-        invalidateInformationBadges()
         invalidateMeasurements()
     }
 
@@ -1269,33 +1246,19 @@ final class PlaybackSubtitleFocusCueReelAdapter:
 
     private func cueTextRect(
         in rect: CGRect,
-        hasInformation: Bool
+        for cue: SubtitleFocusCue
     ) -> CGRect {
-        guard hasInformation else {
-            return rect
-        }
+        let baseMeasurement = naturalMeasurement(for: cue, width: rect.width)
         return CGRect(
             x: rect.minX,
-            y: rect.minY + PlaybackSubtitleFocusMetrics.informationHeight,
+            y: rect.minY,
             width: rect.width,
-            height: max(
-                0,
-                rect.height - PlaybackSubtitleFocusMetrics.informationHeight
-            )
+            height: min(rect.height, baseMeasurement.naturalHeight)
         )
     }
 
-    func informationBadges(at ordinal: Int) -> [String]? {
-        cue(at: ordinal).map(informationBadges(for:))
-    }
-
-    func informationBadgePlans(
-        at ordinal: Int,
-        width: CGFloat
-    ) -> [PlaybackCueInformationBadgePlan]? {
-        cue(at: ordinal).map {
-            informationBadgePlans(for: $0, width: width)
-        }
+    func metadata(at ordinal: Int) -> PlaybackCueMetadata? {
+        cue(at: ordinal).flatMap(metadata(for:))
     }
 
     private func cue(at ordinal: Int) -> SubtitleFocusCue? {
@@ -1306,86 +1269,64 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         return cues[index]
     }
 
-    private func informationBadges(for cue: SubtitleFocusCue) -> [String] {
+    private func metadata(for cue: SubtitleFocusCue) -> PlaybackCueMetadata? {
         guard !displayTitle.isEmpty else {
-            return []
+            return nil
         }
-        let key = informationBadgeKey(for: cue)
-        informationBadgeTextAccessSequence &+= 1
-        if var entry = informationBadgeTextEntries[key] {
-            entry.lastAccess = informationBadgeTextAccessSequence
-            informationBadgeTextEntries[key] = entry
-            return entry.texts
-        }
-        let texts = [
-            displayTitle,
-            PlaybackCueInformationText.timeRange(
+        return PlaybackCueMetadata(
+            displayTitle: displayTitle,
+            timeRange: PlaybackCueInformationText.timeRange(
                 startMilliseconds: cue.startMilliseconds,
                 endMilliseconds: cue.endMilliseconds
-            ),
-        ]
-        informationBadgeTextEntries[key] = InformationBadgeTextEntry(
-            texts: texts,
-            lastAccess: informationBadgeTextAccessSequence
+            )
         )
-        evictOldestInformationBadgeTextIfNeeded()
-        return texts
     }
 
-    private func informationBadgePlans(
+    private func naturalMeasurement(
         for cue: SubtitleFocusCue,
         width: CGFloat
-    ) -> [PlaybackCueInformationBadgePlan] {
-        informationBadgePlanCache.plans(
-            texts: informationBadges(for: cue),
-            width: width
+    ) -> PlaybackSubtitleFocusCueMeasurement {
+        measurementCache.measurement(
+            for: cue,
+            width: width,
+            viewportHeight: .greatestFiniteMagnitude
         )
     }
 
-    private func informationBadgeKey(
+    private func metadataRect(
+        in rect: CGRect,
         for cue: SubtitleFocusCue
-    ) -> InformationBadgeKey {
-        InformationBadgeKey(
-            cueID: cue.id,
-            displayTitle: displayTitle,
-            startMilliseconds: cue.startMilliseconds,
-            endMilliseconds: cue.endMilliseconds
+    ) -> CGRect {
+        let baseMeasurement = naturalMeasurement(for: cue, width: rect.width)
+        return CGRect(
+            x: rect.minX,
+            y: rect.minY
+                + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+                + baseMeasurement.resolvedContentHeight
+                + PlaybackSubtitleFocusMetrics.metadataCueGap,
+            width: rect.width,
+            height: PlaybackSubtitleFocusMetrics.metadataLineHeight
         )
     }
 
-    private func addingInformationHeight(
+    private func addingMetadataHeight(
         to base: PlaybackSubtitleFocusCueMeasurement,
         viewportHeight: CGFloat
     ) -> PlaybackSubtitleFocusCueMeasurement {
-        let informationHeight = PlaybackSubtitleFocusMetrics
-            .informationHeight
-        let naturalHeight = base.naturalHeight + informationHeight
+        let metadataHeight = PlaybackSubtitleFocusMetrics.metadataHeight
+        let naturalHeight = base.naturalHeight + metadataHeight
         let safeViewportHeight = max(0, viewportHeight)
         return PlaybackSubtitleFocusCueMeasurement(
             visualLineCount: base.visualLineCount,
             visualLineStackHeight: base.visualLineStackHeight,
             resolvedContentHeight:
-                base.resolvedContentHeight + informationHeight,
+                base.resolvedContentHeight + metadataHeight,
             naturalHeight: naturalHeight,
             resolvedHeight: min(naturalHeight, safeViewportHeight),
             isOversized: naturalHeight > safeViewportHeight
         )
     }
 
-    private func invalidateInformationBadges() {
-        informationBadgeTextEntries.removeAll(keepingCapacity: true)
-        informationBadgeTextAccessSequence = 0
-        informationBadgePlanCache.removeAll()
-    }
-
-    private func evictOldestInformationBadgeTextIfNeeded() {
-        while informationBadgeTextEntries.count > informationBadgeCacheCapacity,
-              let oldestKey = informationBadgeTextEntries.min(by: {
-                  $0.value.lastAccess < $1.value.lastAccess
-              })?.key {
-            informationBadgeTextEntries.removeValue(forKey: oldestKey)
-        }
-    }
 }
 
 struct PlaybackSubtitleFocusNativeScrollbarMetrics: Equatable {
@@ -2445,6 +2386,18 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.collageCheckboxRectForTesting(at: ordinal)
     }
 
+    func cueTimelineSequenceRectForTesting(at ordinal: Int) -> CGRect? {
+        documentView.cueTimelineSequenceRectForTesting(at: ordinal)
+    }
+
+    func cueContentRectForTesting(at ordinal: Int) -> CGRect? {
+        documentView.cueContentRectForTesting(at: ordinal)
+    }
+
+    var cueTimelineConnectorRectsForTesting: [CGRect] {
+        documentView.cueTimelineConnectorRectsForTesting
+    }
+
     func isCueHighlightedForTesting(at ordinal: Int) -> Bool {
         documentView.isCueHighlightedForTesting(at: ordinal)
     }
@@ -3441,6 +3394,172 @@ private final class PlaybackSubtitleFocusNativeScrollbarView:
     }
 }
 
+struct PlaybackCueTimelineRowLayout: Equatable {
+    let sequenceRect: CGRect
+    let markerRect: CGRect
+    let cueRect: CGRect
+}
+
+@MainActor
+enum PlaybackCueTimelineLayout {
+    static func sequenceText(
+        ordinal: Int,
+        totalCount: Int,
+        isFocused: Bool
+    ) -> String {
+        let sequence = max(0, ordinal) + 1
+        guard isFocused else {
+            return "\(sequence)"
+        }
+        return "\(sequence) / \(max(0, totalCount))"
+    }
+
+    static func leadingAccessoryWidth(
+        totalCount: Int,
+        usesCheckbox: Bool
+    ) -> CGFloat {
+        sequenceColumnWidth(totalCount: totalCount)
+            + PlaybackCueTimelineMetrics.sequenceMarkerGap
+            + markerSize(usesCheckbox: usesCheckbox)
+            + PlaybackCueTimelineMetrics.markerCueGap
+    }
+
+    static func rowLayout(
+        in rowRect: CGRect,
+        totalCount: Int,
+        usesCheckbox: Bool
+    ) -> PlaybackCueTimelineRowLayout {
+        let sequenceWidth = sequenceColumnWidth(totalCount: totalCount)
+        let markerSize = markerSize(usesCheckbox: usesCheckbox)
+        let markerX = rowRect.minX
+            + sequenceWidth
+            + PlaybackCueTimelineMetrics.sequenceMarkerGap
+        let markerY = rowRect.minY
+            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
+            + (usesCheckbox
+                ? (PlaybackCueTimelineMetrics.sequenceLineHeight - markerSize) / 2
+                : 0)
+        let cueX = markerX
+            + markerSize
+            + PlaybackCueTimelineMetrics.markerCueGap
+        return PlaybackCueTimelineRowLayout(
+            sequenceRect: CGRect(
+                x: rowRect.minX,
+                y: rowRect.minY
+                    + PlaybackSubtitleFocusMetrics.cueVerticalPadding,
+                width: sequenceWidth,
+                height: PlaybackCueTimelineMetrics.sequenceLineHeight
+            ),
+            markerRect: CGRect(
+                x: markerX,
+                y: markerY,
+                width: markerSize,
+                height: markerSize
+            ),
+            cueRect: CGRect(
+                x: cueX,
+                y: rowRect.minY,
+                width: max(0, rowRect.maxX - cueX),
+                height: rowRect.height
+            )
+        )
+    }
+
+    static func connectorRect(
+        from current: PlaybackCueTimelineRowLayout,
+        to next: PlaybackCueTimelineRowLayout
+    ) -> CGRect? {
+        let startY = current.markerRect.maxY
+        let endY = next.markerRect.minY
+        guard endY > startY else {
+            return nil
+        }
+        return CGRect(
+            x: current.markerRect.midX
+                - PlaybackCueTimelineMetrics.connectorWidth / 2,
+            y: startY,
+            width: PlaybackCueTimelineMetrics.connectorWidth,
+            height: endY - startY
+        )
+    }
+
+    static func drawConnector(in rect: CGRect) {
+        PlaybackTheme.cueTimelineMutedNative.setFill()
+        NSBezierPath(rect: rect).fill()
+    }
+
+    static func drawSequence(
+        ordinal: Int,
+        totalCount: Int,
+        isFocused: Bool,
+        isEnabled: Bool,
+        rowLayout: PlaybackCueTimelineRowLayout
+    ) {
+        let color = isEnabled
+            ? isFocused
+                ? PlaybackTheme.cueTimelineFocusedNative
+                : PlaybackTheme.cueTimelineMutedNative
+            : WorkbenchRedesignColors.NS.textDisabled
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .right
+        paragraphStyle.lineBreakMode = .byClipping
+        paragraphStyle.minimumLineHeight =
+            PlaybackCueTimelineMetrics.sequenceLineHeight
+        paragraphStyle.maximumLineHeight =
+            PlaybackCueTimelineMetrics.sequenceLineHeight
+        NSAttributedString(
+            string: sequenceText(
+                ordinal: ordinal,
+                totalCount: totalCount,
+                isFocused: isFocused
+            ),
+            attributes: [
+                .font: sequenceFont,
+                .foregroundColor: color,
+                .paragraphStyle: paragraphStyle,
+            ]
+        ).draw(
+            with: rowLayout.sequenceRect,
+            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
+        )
+    }
+
+    static func drawDot(
+        isFocused: Bool,
+        isEnabled: Bool,
+        in rect: CGRect
+    ) {
+        let color = isEnabled
+            ? isFocused
+                ? PlaybackTheme.cueTimelineFocusedNative
+                : PlaybackTheme.cueTimelineMutedNative
+            : WorkbenchRedesignColors.NS.textDisabled
+        color.setFill()
+        NSBezierPath(ovalIn: rect).fill()
+    }
+
+    private static func sequenceColumnWidth(totalCount: Int) -> CGFloat {
+        let maximumSequence = max(1, totalCount)
+        let sample = "\(maximumSequence) / \(maximumSequence)"
+        return ceil((sample as NSString).size(withAttributes: [
+            .font: sequenceFont,
+        ]).width)
+    }
+
+    private static func markerSize(usesCheckbox: Bool) -> CGFloat {
+        usesCheckbox
+            ? PlaybackCollageSelectionMetrics.checkboxSize
+            : PlaybackCueTimelineMetrics.dotSize
+    }
+
+    private static var sequenceFont: NSFont {
+        NSFont.systemFont(
+            ofSize: PlaybackCueTimelineMetrics.sequenceFontSize,
+            weight: PlaybackCueTimelineMetrics.sequenceFontWeight
+        )
+    }
+}
+
 @MainActor
 enum PlaybackCollageCheckboxDrawing {
     static func draw(
@@ -3685,6 +3804,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         guard !visibleDirtyRect.isNull, !visibleDirtyRect.isEmpty else {
             return
         }
+        for connectorRect in cueTimelineConnectorRects
+        where connectorRect.intersects(visibleDirtyRect) {
+            PlaybackCueTimelineLayout.drawConnector(in: connectorRect)
+        }
         for placement in placements where placement.rect.intersects(visibleDirtyRect) {
             UIInvalidationProbe.count(
                 "playback.subtitle_focus.cue_draw",
@@ -3704,11 +3827,25 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                     : nil,
                 in: cueContentRect(for: placement.rect)
             )
+            let timelineLayout = cueTimelineRowLayout(for: placement.rect)
+            PlaybackCueTimelineLayout.drawSequence(
+                ordinal: placement.ordinal,
+                totalCount: sequenceTotalCount,
+                isFocused: placement.ordinal == selectedOrdinal,
+                isEnabled: canToggle,
+                rowLayout: timelineLayout
+            )
             if isEditingCollage {
                 PlaybackCollageCheckboxDrawing.draw(
                     isSelected: isChecked,
                     isEnabled: canToggle,
-                    in: collageCheckboxRect(for: placement)
+                    in: timelineLayout.markerRect
+                )
+            } else {
+                PlaybackCueTimelineLayout.drawDot(
+                    isFocused: placement.ordinal == selectedOrdinal,
+                    isEnabled: canToggle,
+                    in: timelineLayout.markerRect
                 )
             }
         }
@@ -3897,6 +4034,22 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     func collageCheckboxRectForTesting(at ordinal: Int) -> CGRect? {
         placements.first { $0.ordinal == ordinal }.map(collageCheckboxRect)
+    }
+
+    func cueTimelineSequenceRectForTesting(at ordinal: Int) -> CGRect? {
+        placements.first { $0.ordinal == ordinal }.map {
+            cueTimelineRowLayout(for: $0.rect).sequenceRect
+        }
+    }
+
+    func cueContentRectForTesting(at ordinal: Int) -> CGRect? {
+        placements.first { $0.ordinal == ordinal }.map {
+            cueContentRect(for: $0.rect)
+        }
+    }
+
+    var cueTimelineConnectorRectsForTesting: [CGRect] {
+        cueTimelineConnectorRects
     }
 
     func isCueHighlightedForTesting(at ordinal: Int) -> Bool {
@@ -4141,25 +4294,17 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     }
 
     private func cueContentWidth(for width: CGFloat) -> CGFloat {
-        guard isEditingCollage else {
-            return width
-        }
         return max(
             0,
-            width - PlaybackCollageSelectionMetrics.leadingAccessoryWidth
+            width - PlaybackCueTimelineLayout.leadingAccessoryWidth(
+                totalCount: sequenceTotalCount,
+                usesCheckbox: isEditingCollage
+            )
         )
     }
 
     private func cueContentRect(for rect: CGRect) -> CGRect {
-        guard isEditingCollage else {
-            return rect
-        }
-        return CGRect(
-            x: rect.minX + PlaybackCollageSelectionMetrics.leadingAccessoryWidth,
-            y: rect.minY,
-            width: cueContentWidth(for: rect.width),
-            height: rect.height
-        )
+        cueTimelineRowLayout(for: rect).cueRect
     }
 
     private func collageCheckboxRect(
@@ -4168,24 +4313,33 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         guard isEditingCollage else {
             return .null
         }
-        let informationOffset: CGFloat
-        if let currentAdapter = contentAdapter as? PlaybackSubtitleFocusCueReelAdapter,
-           currentAdapter.informationBadges(at: placement.ordinal)?.isEmpty == false {
-            informationOffset = PlaybackSubtitleFocusMetrics.informationHeight
-        } else {
-            informationOffset = 0
-        }
-        let size = PlaybackCollageSelectionMetrics.checkboxSize
-        let primaryCueCenterY = placement.rect.minY
-            + informationOffset
-            + PlaybackSubtitleFocusMetrics.cueVerticalPadding
-            + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
-        return CGRect(
-            x: placement.rect.minX,
-            y: primaryCueCenterY - size / 2,
-            width: size,
-            height: size
+        return cueTimelineRowLayout(for: placement.rect).markerRect
+    }
+
+    private var sequenceTotalCount: Int {
+        contentAdapter?.sequenceTotalCount ?? layout.totalCount
+    }
+
+    private func cueTimelineRowLayout(
+        for rect: CGRect
+    ) -> PlaybackCueTimelineRowLayout {
+        PlaybackCueTimelineLayout.rowLayout(
+            in: rect,
+            totalCount: sequenceTotalCount,
+            usesCheckbox: isEditingCollage
         )
+    }
+
+    private var cueTimelineConnectorRects: [CGRect] {
+        zip(placements, placements.dropFirst()).compactMap { current, next in
+            guard next.ordinal == current.ordinal + 1 else {
+                return nil
+            }
+            return PlaybackCueTimelineLayout.connectorRect(
+                from: cueTimelineRowLayout(for: current.rect),
+                to: cueTimelineRowLayout(for: next.rect)
+            )
+        }
     }
 
     private func collagePlacement(

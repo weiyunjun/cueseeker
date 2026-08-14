@@ -16,7 +16,7 @@ func playbackPlaylistSearchItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
 
     let item = PlaybackPlaylistItem(searchResult: searchResult, ordinal: 7)
     let actionContext = try #require(item.actionContext)
-    let cueResult = item.cueResult(positionText: "[8/20]")
+    let cueResult = item.cueResult()
 
     #expect(item.identity == .search(42))
     #expect(item.primaryCueIdentity == .cue(42))
@@ -30,11 +30,10 @@ func playbackPlaylistSearchItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
     #expect(actionContext.cue.cueGroupID == 142)
     #expect(actionContext.cue.ordinal == 7)
     #expect(cueResult.itemID == AnyHashable(PlaybackPlaylistItemIdentity.search(42)))
-    #expect(cueResult.informationBadges == [
-        "[8/20]",
-        searchResult.displayTitle,
-        searchResult.timeRange,
-    ])
+    #expect(cueResult.metadata == PlaybackCueMetadata(
+        displayTitle: searchResult.displayTitle,
+        timeRange: searchResult.timeRange
+    ))
 }
 
 @MainActor
