@@ -136,6 +136,62 @@ func playbackCueTimelineUsesPlainSequenceAndAlignedMarkers() throws {
 
 @MainActor
 @Test
+func playbackCueTimelineRasterAlignsSequenceInkWithMarkerCenter() throws {
+    _ = NSApplication.shared
+    let rowRect = CGRect(x: 0, y: 0, width: 320, height: 72)
+    let rowLayout = PlaybackCueTimelineLayout.rowLayout(
+        in: rowRect,
+        totalCount: 500,
+        usesCheckbox: false,
+        markerCenterY: 20
+    )
+    let image = NSImage(size: rowRect.size, flipped: true) { imageRect in
+        NSAppearance(named: .aqua)!.performAsCurrentDrawingAppearance {
+            NSColor.white.setFill()
+            NSBezierPath(rect: imageRect).fill()
+            PlaybackCueTimelineLayout.drawSequence(
+                ordinal: 474,
+                isFocused: true,
+                isEnabled: true,
+                rowLayout: rowLayout
+            )
+            PlaybackCueTimelineLayout.drawDot(
+                isFocused: true,
+                isEnabled: true,
+                in: rowLayout.markerRect
+            )
+        }
+        return true
+    }
+    let imageData = try #require(image.tiffRepresentation)
+    let bitmap = try #require(
+        NSBitmapImageRep(data: imageData)
+    )
+    let sequenceCenterY = try #require(
+        playbackCueTimelineInkCenterY(
+            in: bitmap,
+            pointXRange: (
+                rowLayout.sequenceRect.minX
+                    ..< rowLayout.sequenceRect.maxX
+            ),
+            canvasWidth: rowRect.width
+        )
+    )
+    let markerCenterY = try #require(
+        playbackCueTimelineInkCenterY(
+            in: bitmap,
+            pointXRange: (
+                rowLayout.markerRect.minX
+                    ..< rowLayout.markerRect.maxX
+            ),
+            canvasWidth: rowRect.width
+        )
+    )
+    #expect(abs(sequenceCenterY - markerCenterY) <= 1)
+}
+
+@MainActor
+@Test
 func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
     _ = NSApplication.shared
     let cues = focusLayoutCues(0..<20)
@@ -3400,6 +3456,47 @@ private final class PlaybackSubtitleFocusPointerSentinelView: NSView {
     override func mouseDown(with event: NSEvent) {
         mouseDownCount += 1
     }
+}
+
+private func playbackCueTimelineInkCenterY(
+    in bitmap: NSBitmapImageRep,
+    pointXRange: Range<CGFloat>,
+    canvasWidth: CGFloat
+) -> CGFloat? {
+    let scaleX = CGFloat(bitmap.pixelsWide) / canvasWidth
+    let lowerX = max(0, Int(floor(pointXRange.lowerBound * scaleX)))
+    let upperX = min(
+        bitmap.pixelsWide - 1,
+        Int(ceil(pointXRange.upperBound * scaleX)) - 1
+    )
+    guard lowerX <= upperX else {
+        return nil
+    }
+
+    var lowerY: Int?
+    var upperY: Int?
+    for y in 0..<bitmap.pixelsHigh {
+        for x in lowerX...upperX {
+            guard let color = bitmap.colorAt(x: x, y: y)?
+                .usingColorSpace(.deviceRGB)
+            else {
+                continue
+            }
+            let minimumComponent = min(
+                color.redComponent,
+                min(color.greenComponent, color.blueComponent)
+            )
+            guard minimumComponent < 0.9 else {
+                continue
+            }
+            lowerY = min(lowerY ?? y, y)
+            upperY = max(upperY ?? y, y)
+        }
+    }
+    guard let lowerY, let upperY else {
+        return nil
+    }
+    return CGFloat(lowerY + upperY) / 2
 }
 
 @MainActor

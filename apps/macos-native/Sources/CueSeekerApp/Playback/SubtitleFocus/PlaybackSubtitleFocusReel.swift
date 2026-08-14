@@ -3431,6 +3431,8 @@ struct PlaybackCueTimelineRowLayout: Equatable {
 
 @MainActor
 enum PlaybackCueTimelineLayout {
+    private static let sequenceTextLayout = PlaybackVisualLineStackLayout()
+
     static func sequenceText(ordinal: Int) -> String {
         "\(max(0, ordinal) + 1)"
     }
@@ -3523,24 +3525,24 @@ enum PlaybackCueTimelineLayout {
                 ? PlaybackTheme.cueTimelineFocusedNative
                 : PlaybackTheme.cueTimelineMutedNative
             : WorkbenchRedesignColors.NS.textDisabled
-        let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = .right
-        paragraphStyle.lineBreakMode = .byClipping
-        paragraphStyle.minimumLineHeight =
-            PlaybackCueTimelineMetrics.sequenceLineHeight
-        paragraphStyle.maximumLineHeight =
-            PlaybackCueTimelineMetrics.sequenceLineHeight
-        NSAttributedString(
-            string: sequenceText(ordinal: ordinal),
-            attributes: [
-                .font: sequenceFont,
-                .foregroundColor: color,
-                .paragraphStyle: paragraphStyle,
-            ]
-        ).draw(
-            with: rowLayout.sequenceRect,
-            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
+        let plan = sequenceTextLayout.prepare(
+            segments: [PlaybackVisualLineStackSegment(
+                text: sequenceText(ordinal: ordinal),
+                font: sequenceFont,
+                color: color,
+                nominalLineHeight: PlaybackCueTimelineMetrics.sequenceLineHeight
+            )],
+            width: rowLayout.sequenceRect.width
         )
+        guard let line = plan.lines.first else {
+            return
+        }
+        sequenceTextLayout.drawPreparedPlan(in: CGRect(
+            x: rowLayout.sequenceRect.maxX - line.usedRect.maxX,
+            y: rowLayout.markerRect.midY - line.visibleCenterY,
+            width: max(1, line.usedRect.maxX),
+            height: plan.resolvedContentHeight
+        ))
     }
 
     static func drawDot(

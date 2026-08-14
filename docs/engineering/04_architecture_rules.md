@@ -525,9 +525,10 @@ Presentation virtualization rules:
   24-point horizontal gap on both sides of the marker. Current and Collage use
   the physical Cue ordinal; Cue Result adapters use their existing list
   ordinal. Focus changes only sequence and marker colors and never add total
-  text or change the lane, Cue width, placement, or scroll position. Marker
-  centers use the Primary Cue first visual line's visible glyph center already
-  produced by text measurement. Connectors are derived from consecutive
+  text or change the lane, Cue width, placement, or scroll position. Marker and
+  sequence visible-glyph centers use the Primary Cue first visual line's visible
+  glyph center already produced by text measurement; nominal line-box centers
+  are not alignment inputs. Connectors are derived from consecutive
   visible-plus-overscan placements during drawing, leave 8 points between each
   marker edge and line endpoint, and do not create another selection or layout
   state owner. Editing Collage substitutes its existing checkbox for the dot
