@@ -12,7 +12,7 @@ main
 
 ### Shiori List Editor
 
-1. `Description (optional)` 攐为 `Description`，字段仍为可选。
+1. `Description (optional)` 改为`Description`，字段仍为可选。
 2. Description 光标颜色必须与其他输入框一致，使用统一设计 token。
 3. 每个表单字段必须始终保留一行校验信息空间；有无错误时，标题、输入框及整体布局均不得位移。
 4. 校验信息保持单行且简洁：
@@ -58,5 +58,5 @@ main
 本需求覆盖既有需求中以下冲突内容：
 
 - Shiori List 校验文案及 Description 标题。
-- Text Area 高度保持不变的限制。
+- 既有需求中“保持当前 Text Area 高度数值不变”的约束；本次允许调整共享高度 token 以适配左右等高布局。调整后仍保持固定高度，不改变现有滚动条规则。
 - `Change Cover` 先打开 Finder 的流程。
