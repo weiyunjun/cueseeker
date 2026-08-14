@@ -192,8 +192,6 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizePageTitle: CGFloat = 28
     /// Provisional --font-weight-page-title: 700
     static let redesignFontWeightPageTitle: Font.Weight = .bold
-    /// Provisional --font-size-page-title-count: 18px
-    static let redesignFontSizePageTitleCount = redesignFontSizeSectionTitle
     /// --font-size-library-title: 14px
     static let redesignFontSizeLibraryTitle: CGFloat = 14
     /// --font-size-library-meta: 12px
@@ -265,37 +263,21 @@ enum WorkbenchControlMetrics {
 
 struct WorkbenchPageTitle: View {
     let title: String
-    let count: Int?
 
-    init(_ title: String, count: Int? = nil) {
+    init(_ title: String) {
         self.title = title
-        self.count = count
     }
 
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Text(title)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizePageTitle,
-                    weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-
-            if let count {
-                Text("\(count)")
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizePageTitleCount,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                    .monospacedDigit()
-            }
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .allowsHitTesting(false)
+        Text(title)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizePageTitle,
+                weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
+            ))
+            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .allowsHitTesting(false)
     }
 }
 

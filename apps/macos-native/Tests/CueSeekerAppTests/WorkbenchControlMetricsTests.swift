@@ -16,11 +16,10 @@ func workbenchPageTitleAndDetailSpacingMatchTheAcceptedHierarchy() {
             == WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle
     )
     #expect(WorkbenchControlMetrics.redesignFontSizePageTitle == 28)
-    #expect(
-        WorkbenchControlMetrics.redesignFontSizePageTitleCount
-            == WorkbenchControlMetrics.redesignFontSizeSectionTitle
-    )
-    #expect(WorkbenchControlMetrics.redesignFontSizePageTitleCount == 18)
+    #expect(WorkbenchControlMetrics.redesignFontSizeSectionTitle == 18)
+    #expect(WorkbenchControlMetrics.redesignFontSizeBody == 14)
+    #expect(WorkbenchControlMetrics.redesignSpacing2 == 8)
+    #expect(WorkbenchControlMetrics.redesignSpacing1 == 4)
     #expect(
         WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
             == WorkbenchControlMetrics.redesignSpacing8

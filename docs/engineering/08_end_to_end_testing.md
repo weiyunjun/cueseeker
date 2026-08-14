@@ -1556,8 +1556,9 @@ Pointer Move automation is added for this requirement.
 ### Feature
 
 Verify the shared Workbench function topbar, Back routing, page-title hierarchy,
-Recent detail counts, unchanged Recent overview section titles, and the reduced
-Cover Summary detail top spacing across the eight affected routes.
+count-free Recent detail titles, compact baseline-aligned Recent overview
+navigation, and the reduced Cover Summary detail top spacing across the eight
+affected routes.
 
 ### Automated Checks
 
@@ -1570,10 +1571,11 @@ swift test --filter 'WorkbenchLayoutState|workbenchPageTitle'
 
 The checks must confirm that Back is enabled only for Recent Videos, Recent
 Shioris, Library Folder Detail, and Shiori List Detail; page titles reuse the
-28-point Cover Summary title size; Recent detail counts use 18 points; the six
-titled pages share 32-point horizontal, 4-point top, and 24-point bottom
-padding; and the shared detail top padding is exactly 20 points smaller than
-the previous 24-point page padding.
+28-point Cover Summary title size without a count path; Recent overview section
+titles and counts remain 18 and 14 points with 8-point title-to-count and
+4-point count-to-arrow spacing; the six titled pages share 32-point horizontal,
+4-point top, and 24-point bottom padding; and the shared detail top padding is
+exactly 20 points smaller than the previous 24-point page padding.
 
 ### In-App E2E Preconditions
 
@@ -1586,6 +1588,9 @@ the previous 24-point page padding.
   `(80, 145)`, Recent Shioris `(80, 181)`, Library `(80, 217)`, Shiori
   `(80, 253)`, Shiori's first list `(80, 289)`, and the first Library folder
   card `(360, 210)`.
+- On the expanded-Sidebar Recent overview, the Recent Videos header title,
+  count, arrow, and same-row blank checks are `(300, 109)`, `(407, 109)`,
+  `(429, 109)`, and `(1000, 109)`.
 - With the Sidebar collapsed, Sidebar Toggle is `(114, 23)` and Back is
   `(158, 23)`.
 - Stop before clicking if `inspect` reports another size, scale, window count,
@@ -1598,11 +1603,14 @@ the previous 24-point page padding.
    and capture again; Search must remain active because Back is Disabled.
 2. Open Recent and capture `workbench-recent-primary-{appearance}`. Confirm the
    page title is visually larger than the unchanged Recent Videos and Recent
-   Shioris section titles and their 14-point counts.
-3. Open Recent Videos and capture `workbench-recent-videos-{appearance}`.
-   Confirm its 18-point count is beside the page title, then click Back and
-   require the Recent overview. Repeat for Recent Shioris with
-   `workbench-recent-shioris-{appearance}`.
+   Shioris section titles. Require each 14-point count and compact arrow to use
+   the title's first text baseline.
+3. Click the blank check and require the Recent overview to remain active. Click
+   the Recent Videos title and capture `workbench-recent-videos-{appearance}`;
+   require no page-title count, then click Back. Repeat with the count and arrow
+   checks, requiring the same detail route each time. Open Recent Shioris from
+   the Sidebar and capture `workbench-recent-shioris-{appearance}` with no
+   page-title count.
 4. Open Library and capture `workbench-library-primary-{appearance}`. Open the
    first folder and capture `workbench-library-detail-{appearance}`; require one
    Cover Summary title and no duplicate page title. Click Back and require the
@@ -1611,10 +1619,13 @@ the previous 24-point page padding.
    first list and capture `workbench-shiori-detail-{appearance}`; require one
    Cover Summary title and no duplicate page title. Click Back and require the
    Shiori overview.
-6. Reopen the first Shiori list, collapse the Sidebar at `(212, 23)`, and capture
+6. Return to Recent, collapse the Sidebar at `(212, 23)`, and capture
+   `workbench-recent-primary-collapsed-{appearance}` with the compact navigation
+   groups intact. Expand the Sidebar at `(114, 23)`, reopen the first Shiori
+   list, collapse again, and capture
    `workbench-shiori-detail-collapsed-{appearance}`. Click Back at `(158, 23)`
    and capture `workbench-shiori-primary-collapsed-{appearance}`. Expand the
-   Sidebar at `(114, 23)` before repeating the gate in the other appearance.
+   Sidebar before repeating the gate in the other appearance.
 
 Every interaction must return `status: ok` and the next interaction must use
 its fresh `sceneID`.
@@ -1628,10 +1639,11 @@ its fresh `sceneID`.
   same 28-point Bold page-title style with the semantic Primary text color.
   Their title, Summary, action, and Grid or List content share 32-point
   horizontal bounds, 4-point top padding, and 24-point bottom padding.
-- Recent Videos and Recent Shioris detail counts use 18-point Regular Secondary
-  text with monospaced digits. Their Recent overview counts remain 14 points.
-- Recent overview section titles remain 18-point Semibold and therefore stay
-  subordinate to the page title.
+- Recent Videos and Recent Shioris detail titles append no count.
+- Recent overview section titles remain 18-point Semibold and their counts
+  remain 14-point Regular Secondary with monospaced digits. Title, count, and
+  arrow share the first text baseline; the arrow follows the count by 4 points.
+  The visible group is one click target, while same-row blank space is inert.
 - Library and Shiori details add no page title above Cover Summary. Their Cover
   Summary titles remain 28-point Bold White, and both detail bodies use the
   shared 4-point top padding instead of 24 points.

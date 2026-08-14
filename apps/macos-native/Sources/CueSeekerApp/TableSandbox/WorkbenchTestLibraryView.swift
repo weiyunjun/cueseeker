@@ -12,7 +12,7 @@ struct WorkbenchRecentView: View {
     var body: some View {
         WorkbenchScrollView {
             VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                WorkbenchPageTitle(recentPageTitle, count: recentPageCount)
+                WorkbenchPageTitle(recentPageTitle)
 
                 switch routeState.selectedRecentSection {
                 case .videos:
@@ -52,17 +52,6 @@ struct WorkbenchRecentView: View {
             "Recent Shioris"
         case nil:
             "Recent"
-        }
-    }
-
-    private var recentPageCount: Int? {
-        switch routeState.selectedRecentSection {
-        case .videos:
-            library.testRecentWatchingItems.count
-        case .shioris:
-            shiori.recentListSummaries.count
-        case nil:
-            nil
         }
     }
 
@@ -183,7 +172,10 @@ private struct RecentSectionHeader: View {
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            HStack(
+                alignment: .firstTextBaseline,
+                spacing: WorkbenchControlMetrics.redesignSpacing2
+            ) {
                 Text(title)
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
@@ -191,19 +183,22 @@ private struct RecentSectionHeader: View {
                     ))
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
 
-                Text("\(count)")
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                    .monospacedDigit()
+                HStack(
+                    alignment: .firstTextBaseline,
+                    spacing: WorkbenchControlMetrics.redesignSpacing1
+                ) {
+                    Text("\(count)")
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                        .monospacedDigit()
 
-                Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                    Text(Image(systemName: "chevron.right"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                }
             }
             .contentShape(Rectangle())
         }
