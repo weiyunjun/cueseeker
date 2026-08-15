@@ -6,11 +6,7 @@ public struct IndexedContentRoot: Identifiable, Equatable, Sendable {
     public let folders: [IndexedContentFolder]
 
     public var displayPath: String {
-        var value = String(path.drop(while: { $0 == "/" }))
-        if !value.isEmpty, !value.hasSuffix("/") {
-            value.append("/")
-        }
-        return value
+        path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 }
 

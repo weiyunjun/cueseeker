@@ -3,7 +3,7 @@ import Testing
 @testable import CueSeekerCore
 
 @Test
-func indexedContentDatabaseBuildsOrderedTreeFromAvailableConfiguredRows() throws {
+func indexedContentDatabaseReusesLibraryFolderSetAndOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -27,6 +27,7 @@ func indexedContentDatabaseBuildsOrderedTreeFromAvailableConfiguredRows() throws
             (10, 1, 'Show/Season 2', '/Volumes/Alpha/Show/Season 2', 'available'),
             (11, 1, '/Movie', '/Volumes/Alpha/Movie', 'available'),
             (12, 1, 'Empty', '/Volumes/Alpha/Empty', 'available'),
+            (14, 1, 'Video Only', '/Volumes/Alpha/Video Only', 'available'),
             (13, 1, 'Unavailable Folder', '/Volumes/Alpha/Unavailable Folder', 'unavailable'),
             (30, 3, 'Hidden Folder', '/Volumes/Hidden/Hidden Folder', 'available'),
             (40, 4, 'Unavailable Root Folder', '/Volumes/Unavailable/Folder', 'available');
@@ -42,7 +43,9 @@ func indexedContentDatabaseBuildsOrderedTreeFromAvailableConfiguredRows() throws
             (102, 1, 10, 'Show/Season 2/Episode.mkv', '/Volumes/Alpha/Show/Season 2/Episode.mkv',
                 '/Volumes/Alpha/Show/Season 2/Episode.mkv', 'available', 'Episode.mkv'),
             (103, 1, 11, 'Movie/Gone.mkv', '/Volumes/Alpha/Movie/Gone.mkv',
-                '/Volumes/Alpha/Movie/Gone.mkv', 'unavailable', 'Gone.mkv');
+                '/Volumes/Alpha/Movie/Gone.mkv', 'unavailable', 'Gone.mkv'),
+            (104, 1, 14, 'Video Only/Unmatched.mkv', '/Volumes/Alpha/Video Only/Unmatched.mkv',
+                '/Volumes/Alpha/Video Only/Unmatched.mkv', 'available', 'Unmatched.mkv');
 
         INSERT INTO subtitle_files(
             id, library_id, folder_id, relative_path, subtitle_path,
@@ -81,35 +84,45 @@ func indexedContentDatabaseBuildsOrderedTreeFromAvailableConfiguredRows() throws
         ) VALUES
             ('/Volumes/Alpha/Movie/B.mkv', 100, 200, 'B.mkv', NULL,
                 '/Volumes/Alpha/Movie/B.z.ass', 'ass', '/Volumes/Alpha/Movie', 'Movie',
-                'Movie B', 'mkv', 0, 0, 'updated'),
+                'Movie B', 'mkv', 50, 0, 'updated'),
             ('/Volumes/Alpha/Movie/A.mkv', 101, 202, 'A.mkv', NULL,
                 '/Volumes/Alpha/Movie/A.ass', 'ass', '/Volumes/Alpha/Movie', 'Movie',
-                '', 'mkv', 0, 1, 'updated'),
+                'Movie A', 'mkv', 50, 1, 'updated'),
             ('/Volumes/Alpha/Show/Season 2/Episode.mkv', 102, 203, 'Episode.mkv', NULL,
                 '/Volumes/Alpha/Show/Season 2/Episode.ass', 'ass',
                 '/Volumes/Alpha/Show/Season 2', 'Season 2',
-                'Episode', 'mkv', 1, 0, 'updated');
+                'Episode', 'mkv', 0, 0, 'updated');
         """
     )
 
     let roots = try IndexedContentDatabase(path: databaseURL).contentTree()
+    let libraryFolders = try LibraryDatabase(
+        path: databaseURL,
+        access: .readOnly
+    ).libraryPresentation(under: [URL(fileURLWithPath: "/Volumes/Alpha")])
 
     #expect(roots.map(\.id) == [1, 2])
-    #expect(roots.map(\.displayPath) == ["Volumes/Alpha/", "Volumes/Zeta/"])
-    #expect(roots[0].folders.map(\.id) == [11, 10, 12])
+    #expect(roots.map(\.displayPath) == ["Volumes/Alpha", "Volumes/Zeta"])
+    #expect(roots[0].folders.map(\.id) == [11, 10])
     #expect(roots[0].folders.map(\.displayPath) == [
         "Movie",
-        "Show/Season 2",
-        "Empty"
+        "Show/Season 2"
     ])
+    #expect(
+        roots[0].folders.map { "/Volumes/Alpha/\($0.displayPath)" }
+            == libraryFolders.map(\.folderPath)
+    )
+    #expect(
+        roots[0].folders.map { $0.objects.map(\.id) }
+            == libraryFolders.map { $0.videos.map(\.videoFileID) }
+    )
 
     let movieObjects = roots[0].folders[0].objects
     #expect(movieObjects.map(\.id) == [100, 101])
-    #expect(movieObjects.map(\.displayTitle) == ["Movie B", "A.mkv"])
+    #expect(movieObjects.map(\.displayTitle) == ["Movie B", "Movie A"])
     #expect(movieObjects[0].videoName == "B.mkv")
     #expect(movieObjects[0].subtitles.map(\.id) == [201, 200])
     #expect(movieObjects[0].subtitles.map(\.name) == ["B.a.ass", "B.z.ass"])
     #expect(roots[0].folders[1].objects.map(\.id) == [102])
-    #expect(roots[0].folders[2].objects.isEmpty)
     #expect(roots[1].folders.isEmpty)
 }
