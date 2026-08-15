@@ -141,10 +141,9 @@
 - `--color-subtitle-focus-cue-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
 - `--color-subtitle-focus-cue-group-selected`: Light `#475467`; Dark `rgba(255,255,255,0.62)`
 - `--color-subtitle-focus-cue-unselected`: Light `#858B95`; Dark `rgba(255,255,255,0.34)`
-- `--color-playback-information-badge-bg`: Light `#D1D5DB`; Dark `#18181B`
-- `--color-playback-information-badge-text`: Light `#1F2937`; Dark `#F4F4F5`
-- `--color-playback-information-badge-unselected-bg`: Light `#E5E7EB`; Dark `#303036`
-- `--color-playback-information-badge-unselected-text`: Light `#475467`; Dark `#A1A1AA`
+- `--color-playback-cue-timeline-focused`: Light `#667085`; Dark `#71717A`
+- `--color-playback-cue-timeline-muted`: Light `#D0D5DD`; Dark `#52525B`
+- `--color-playback-cue-metadata`: Light `#667085`; Dark `#A1A1AA`
 - `--color-playback-module-sidebar-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
 - `--color-playback-module-sidebar-unselected`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
 
@@ -175,6 +174,8 @@
 - `--font-size-subtitle-focus-cue-group`: `20px`
 - `--line-height-subtitle-focus-cue-group`: `28px`
 - `--font-weight-subtitle-focus-cue-group`: `500`
+- `--font-weight-playback-cue-metadata`: `400`
+- `--line-height-playback-cue-metadata`: `16px`
 - `--font-size-section-title`: `18px`
 - `--font-size-page-title`: `28px`
 - `--font-weight-page-title`: `700`
@@ -216,7 +217,6 @@
 - `--height-player-progress-track`: `3px`
 - `--height-player-progress-track-hover`: `6px`
 - `--height-player-progress-time-capsule`: `22px`
-- `--height-playback-cue-information-badge`: `23px`
 - `--height-library-progress-bar`: `4px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary`: `252px`
@@ -227,6 +227,7 @@
 
 - `--size-checkbox`: `16px`
 - `--size-playback-collage-checkbox`: `24px`
+- `--size-playback-cue-timeline-dot`: `12px`
 - `--min-width-filter-data-card`: `200px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
@@ -251,6 +252,8 @@
 - `--size-player-window-control-button`: `13px`
 - `--size-player-window-control-glyph`: `7px`
 - `--width-player-topbar-title-max`: `520px`
+- `--width-playback-cue-timeline-connector`: `1px`
+- `--width-playback-cue-sequence-digit`: `16px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
 - `--min-width-cover-summary-content`: `448px`
@@ -1490,22 +1493,6 @@
   - Count
   - Hidden
 
-##### Playback Information Badge
-
-- Height：`--height-playback-cue-information-badge`
-- Radius：`--radius-chip`
-- Padding Inline：`--padding-chip-x`
-- Padding Block：`--padding-chip-y`
-- Font Family：`--font-family-base`
-- Font Size：`--font-size-caption`
-- States
-  - Selected
-    - Background：`--color-playback-information-badge-bg`
-    - Text Color：`--color-playback-information-badge-text`
-  - Unselected
-    - Background：`--color-playback-information-badge-unselected-bg`
-    - Text Color：`--color-playback-information-badge-unselected-text`
-
 ### Tag
 
 #### Shared
@@ -2329,6 +2316,33 @@
 
 ## 2.13 Playback Content
 
+### Playback Cue Metadata
+
+#### Shared
+
+##### Anatomy
+
+1. Display Title
+2. Time Range
+
+##### Sizes
+
+- Cue Gap：`--spacing-2`
+- Item Gap：`--spacing-3`
+- Font Family：`--font-family-base`
+- Font Size：`--font-size-caption`
+- Line Height：`--line-height-playback-cue-metadata`
+- Font Weight：`--font-weight-playback-cue-metadata`
+
+##### Appearance
+
+- Text Color：`--color-playback-cue-metadata`
+- Background / Border / Radius / Padding：None
+
+##### Layout
+
+- Placement：Below the complete Visual Line Stack
+
 ### Subtitle Focus Cue
 
 #### Shared
@@ -2337,7 +2351,10 @@
 
 - Cue Container
 - Visual Line Stack
-- Primary Cue Text
+  - Primary Cue Text
+- Cue Metadata
+  - Presence：Optional
+  - Component：Playback Cue Metadata
 
 ##### Sizes
 
@@ -2361,12 +2378,13 @@
 
 ##### Anatomy
 
-- Information Badge Row
+- Visual Line Stack
+  - Primary Cue
+  - Cue Group
+    - Presence：Optional
+- Cue Metadata
   - Presence：Optional
-  - Component：Information Badge / Playback Information Badge
-- Primary Cue
-- Cue Group
-  - Presence：Optional
+  - Component：Playback Cue Metadata
 
 ##### Sizes
 
@@ -2378,7 +2396,6 @@
 - Cue Group Line Height：`--line-height-subtitle-focus-cue-group`
 - Cue Group Font Weight：`--font-weight-subtitle-focus-cue-group`
 - Internal Visual Line Gap：`--gap-subtitle-focus-internal-line`
-- Badge Gap：`--spacing-2`
 
 ##### States
 
@@ -2397,6 +2414,10 @@
 
 - Viewport
 - Cue Stack
+  - Sequence
+  - Timeline Marker
+  - Cue Content
+  - Connector
 - Focus Anchor
 - Selected Placement
 - Vertical Scrollbar：Scrollbar / Vertical
@@ -2405,6 +2426,15 @@
 
 - Maximum Content Width：`--width-subtitle-focus-content-max`
 - Cue Gap：`--gap-subtitle-focus-cue`
+- Sequence Font Family：`--font-family-base`
+- Sequence Font Size：`--font-size-subtitle-focus-cue`
+- Sequence Line Height：`--line-height-subtitle-focus-cue`
+- Sequence Font Weight：`--font-weight-subtitle-focus-cue`
+- Sequence Column Width：Maximum Ordinal Digit Count × `--width-playback-cue-sequence-digit`
+- Sequence to Marker Gap：`--spacing-6`
+- Marker to Cue Gap：`--spacing-6`
+- Connector Width：`--width-playback-cue-timeline-connector`
+- Connector to Marker Gap：`--spacing-2`
 
 ##### States
 
@@ -2415,6 +2445,36 @@
 - Dragging Scrollbar
 - Settling
 
+#### Cue Timeline Layout
+
+- Sequence Content：Ordinal Only
+- Sequence Alignment：Trailing
+- Vertical Alignment：Sequence、Timeline Marker 与 Primary Cue 第一视觉行的可见字形中心位于同一水平线
+- Connector：Connect Adjacent Timeline Markers
+
+#### Cue Timeline States
+
+- Unselected
+  - Sequence Color：`--color-playback-cue-timeline-muted`
+  - Dot Color：`--color-playback-cue-timeline-muted`
+- Selected
+  - Sequence Color：`--color-playback-cue-timeline-focused`
+  - Dot Color：`--color-playback-cue-timeline-focused`
+- Connector Color：`--color-playback-cue-timeline-muted`
+- Timeline Visual Priority：Lower than the corresponding Cue Content
+
+#### Timeline Marker Variants
+
+##### Dot
+
+- Size：`--size-playback-cue-timeline-dot`
+
+##### Collage Selection
+
+- Component：Checkbox / Playback Selection Checkbox
+- Size：`--size-playback-collage-checkbox`
+- Checkbox Appearance and States：Unchanged
+
 #### Scrollbar Mapping
 
 - Position Domain：Fractional Cue Ordinal
@@ -2424,11 +2484,11 @@
 
 ##### Focus Cue Reel
 
-- Item：Subtitle Focus Cue
+- Cue Content：Subtitle Focus Cue
 
 ##### Cue Result Reel
 
-- Item：Playback Cue Result
+- Cue Content：Playback Cue Result
 
 # 3. Layouts
 
@@ -3411,19 +3471,18 @@
 
 - Playback Cue Reel / Focus Cue Reel
 - Subtitle Focus Cue
-- Information Badge / Playback Information Badge
+- Playback Cue Metadata
 - Scrollbar / Vertical
 
 #### Sizes
 
 - Maximum Content Width：`--width-subtitle-focus-content-max`
 - Cue Gap：`--gap-subtitle-focus-cue`
-- Information Badge Gap：`--spacing-2`
 
-#### Information Badge Order
+#### Cue Timeline
 
-1. Display Title
-2. Time Range
+- Sequence：Current Subtitle File 1-based Cue Display Order
+- Marker：Dot
 
 #### States
 
@@ -3449,16 +3508,15 @@
 
 - Playback Cue Reel / Cue Result Reel
 - Playback Cue Result
-- Information Badge / Playback Information Badge
+- Playback Cue Metadata
 - Scrollbar / Vertical
 - Library Episode Grid Layout
 - Recent Watching Card Layout
 
-#### Information Badge Order / Subtitle Playlist
+#### Cue Timeline / Subtitle Playlist
 
-1. Position
-2. Display Title
-3. Time Range
+- Sequence：Cue Playlist 1-based Position
+- Marker：Dot
 
 #### States
 
@@ -3484,16 +3542,16 @@
 #### Subtitle Selection Region
 
 1. Playback Cue Reel / Focus Cue Reel
-2. Leading Checkbox Slot
-3. Vertical Scrollbar
+2. Vertical Scrollbar
 
 #### Components
 
 - Section Title
 - Button / Neutral
 - Playback Cue Reel / Focus Cue Reel
+- Subtitle Focus Cue
 - Checkbox / Playback Selection Checkbox
-- Information Badge / Playback Information Badge
+- Playback Cue Metadata
 - Scrollbar / Vertical
 
 #### Sizes
@@ -3502,7 +3560,11 @@
 - Region Padding：`--spacing-8`
 - Section Gap：`--spacing-4`
 - Action Gap：`--spacing-3`
-- Checkbox to Cue Gap：`--spacing-4`
+
+#### Cue Timeline
+
+- Sequence：Current Subtitle File 1-based Cue Display Order
+- Marker：Checkbox / Playback Selection Checkbox
 
 #### States
 
@@ -3586,14 +3648,13 @@
 
 - Playback Cue Reel / Cue Result Reel
 - Playback Cue Result
-- Information Badge / Playback Information Badge
+- Playback Cue Metadata
 - Scrollbar / Vertical
 
-#### Information Badge Order
+#### Cue Timeline
 
-1. Position
-2. Display Title
-3. Time Range
+- Sequence：Search Result 1-based Position
+- Marker：Dot
 
 #### States
 
