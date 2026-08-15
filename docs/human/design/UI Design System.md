@@ -2560,6 +2560,7 @@
 - Search
 - Recent
 - Library
+- Data
 - Shiori
 - Recent Videos
 - Recent Shioris
@@ -3663,3 +3664,60 @@
 - Empty
 - Scrolling
 - Settling
+
+## 3.10 Data
+
+### Data Tree Layout
+
+#### Entry
+
+- Sidebar Position：Between Library and Shiori
+- Sidebar Icon：`cylinder.split.1x2`
+- Page Layout：Workbench Titled Page Layout
+- Page Title：Data
+
+#### Structure
+
+1. Root Path
+   1. Object Folder
+      1. Display Title Object
+         1. Video File
+         2. Subtitle Files
+
+#### Labels
+
+- Root Path：Complete Path Without Leading or Trailing `/`
+- Object Folder：Path Relative to Root Without Leading `/`
+- All Labels：Complete Display / Character Wrapping / No Truncation
+
+#### Rows
+
+- Minimum Height：`--height-control`
+- Padding Block：`--spacing-2`
+- Hierarchy Indent：`--spacing-6`
+- Anatomy：Disclosure Slot + `--spacing-2` + Icon + `--spacing-2` + Label
+- Disclosure Slot / Icon Size：`--size-control-icon`
+- Disclosure Slot：Reserved For Every Row
+- Root Path / Object Folder / Display Title：`--font-size-body` / `--font-weight-control` / `--color-text-primary`
+- Video / Subtitle：`--font-size-body` / Regular / `--color-text-secondary`
+- Multiline Alignment：Disclosure and Icon align with Label first line
+
+#### Icons
+
+- Root Path / Object Folder：Folder
+- Display Title：`rectangle.stack`
+- Video：Video
+- Subtitle：Subtitle
+
+#### States
+
+- Default：Root Paths Expanded / Object Folders Collapsed
+- Display Title / Video / Subtitle：Independent Row Hover using `--color-row-hover`
+- Root Path / Object Folder Hover：None
+- Object Divider：Between Display Title Objects / Starts At File Icon Column / `--color-border-divider`
+- Inside Object Divider：None
+
+#### Scrolling
+
+- Direction：Vertical Only
+- Vertical Scrollbar：Page Viewport Trailing Edge
