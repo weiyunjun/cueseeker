@@ -22,6 +22,10 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(PlaybackCueTimelineMetrics.dotSize == 12)
     #expect(PlaybackCueTimelineMetrics.connectorWidth == 1)
     #expect(PlaybackCueTimelineMetrics.connectorMarkerGap == 8)
+    #expect(PlaybackCueFooterMetrics.height == 48)
+    #expect(WorkbenchControlMetrics.redesignKeycapHeight == 22)
+    #expect(WorkbenchControlMetrics.redesignKeycapRadius == 4)
+    #expect(WorkbenchControlMetrics.redesignKeycapHorizontalPadding == 4)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
     #expect(PlaybackCollageSelectionMetrics.checkboxSize == 24)
     #expect(
@@ -34,6 +38,27 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
             reducesMotion: true
         ) == 0
     )
+}
+
+@Test
+func playbackCueFooterFormatsCompleteAndPreviewLimitedCounts() {
+    #expect(PlaybackCueFooterStatus.cues(totalCount: 6) == "6 cues")
+    #expect(PlaybackCueFooterStatus.cues(totalCount: -1) == "0 cues")
+    #expect(PlaybackCueFooterStatus.searchResults(
+        totalCount: 6,
+        previewLimit: 50,
+        hasMoreResults: false
+    ) == "6 results")
+    #expect(PlaybackCueFooterStatus.searchResults(
+        totalCount: 51,
+        previewLimit: 50,
+        hasMoreResults: false
+    ) == "51 results (Showing first 50 results)")
+    #expect(PlaybackCueFooterStatus.searchResults(
+        totalCount: 12,
+        previewLimit: 50,
+        hasMoreResults: true
+    ) == "12 results (Showing first 50 results)")
 }
 
 @MainActor

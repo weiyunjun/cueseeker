@@ -153,7 +153,7 @@ private enum PlaybackCommandPanelMetrics {
     static let rowHeight: CGFloat = 48
     static let rowRadius: CGFloat = 10
     static let headerHeight: CGFloat = 58
-    static let footerHeight: CGFloat = 48
+    static let footerHeight = PlaybackCueFooterMetrics.height
 }
 
 private struct PlaybackCommandPanelRoot: View {
@@ -372,7 +372,14 @@ private struct PlaybackCommandPanelSearchResults: View {
                 }
             }
 
-            PlaybackCommandPanelFooter(status: resultStatus)
+            PlaybackCueFooter(
+                status: resultStatus,
+                actionTitle: "Play"
+            )
+            .padding(
+                .horizontal,
+                PlaybackCommandPanelMetrics.contentInset
+            )
         }
         .onAppear(perform: onSynchronize)
         .onChange(of: searchStore.resultRevision) { _ in
@@ -384,11 +391,11 @@ private struct PlaybackCommandPanelSearchResults: View {
     }
 
     private var resultStatus: String {
-        if resultTotalCount > PlaybackCommandPanelPresentation.previewLimit
-            || searchStore.hasMoreSearchResults {
-            return "Showing first \(PlaybackCommandPanelPresentation.previewLimit) results"
-        }
-        return "\(resultTotalCount) results"
+        PlaybackCueFooterStatus.searchResults(
+            totalCount: resultTotalCount,
+            previewLimit: PlaybackCommandPanelPresentation.previewLimit,
+            hasMoreResults: searchStore.hasMoreSearchResults
+        )
     }
 
     private var resultTotalCount: Int {

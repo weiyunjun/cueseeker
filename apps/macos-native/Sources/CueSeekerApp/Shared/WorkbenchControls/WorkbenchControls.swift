@@ -82,6 +82,12 @@ enum WorkbenchControlMetrics {
     static let redesignSpacing6: CGFloat = 24
     /// --spacing-8: 32px
     static let redesignSpacing8: CGFloat = 32
+    /// --height-keycap: 22px
+    static let redesignKeycapHeight: CGFloat = 22
+    /// --radius-keycap: 4px
+    static let redesignKeycapRadius = redesignSpacing1
+    /// Keycap Padding Inline: --spacing-1
+    static let redesignKeycapHorizontalPadding = redesignSpacing1
     /// Provisional --gap-app-topbar-content-after-toggle: 12px
     static let redesignAppTopbarContentAfterToggleGap: CGFloat = 12
     /// --padding-header-trigger-x: 12px

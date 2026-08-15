@@ -329,16 +329,31 @@ private struct PlaybackSubtitlePlaylist: View {
     let onSearchSelectedText: (String) -> Void
 
     var body: some View {
-        PlaybackCueResultOverlay(
-            session: session,
-            windowStore: windowStore,
-            module: .playlist,
-            uiProbeScope: uiProbeScope,
-            onCopySelectedText: onCopySelectedText,
-            onSearchSelectedText: onSearchSelectedText,
-            onExecuteAction: onExecuteAction
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+            PlaybackCueResultOverlay(
+                session: session,
+                windowStore: windowStore,
+                module: .playlist,
+                uiProbeScope: uiProbeScope,
+                onCopySelectedText: onCopySelectedText,
+                onSearchSelectedText: onSearchSelectedText,
+                onExecuteAction: onExecuteAction
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            PlaybackCueFooter(
+                status: PlaybackCueFooterStatus.cues(
+                    totalCount: windowStore.snapshot.totalCount
+                ),
+                actionTitle: "Play"
+            )
+            .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
+            .padding(
+                .horizontal,
+                PlaybackSubtitleFocusMetrics.contentInset
+            )
+            .frame(maxWidth: .infinity)
+        }
     }
 }
 
@@ -417,9 +432,14 @@ struct PlaybackSubtitleFocusOverlay: View {
         )
         GeometryReader { geometry in
             let viewportSize = geometry.size
+            let reelViewportHeight = max(
+                0,
+                viewportSize.height - PlaybackCueFooterMetrics.height
+            )
             let cueViewportHeight = max(
                 0,
-                viewportSize.height - PlaybackSubtitleFocusMetrics.contentInset * 2
+                reelViewportHeight
+                    - PlaybackSubtitleFocusMetrics.contentInset * 2
             )
             let blocksInteraction = blocksNewNavigation
                 || keyboardNavigationRequest != nil
@@ -475,10 +495,30 @@ struct PlaybackSubtitleFocusOverlay: View {
                 )
                 .offset(y: PlaybackSubtitleFocusMetrics.contentInset)
             }
-            .frame(width: viewportSize.width, height: viewportSize.height)
+            .frame(
+                width: viewportSize.width,
+                height: viewportSize.height,
+                alignment: .top
+            )
+            .overlay(alignment: .bottom) {
+                PlaybackCueFooter(
+                    status: PlaybackCueFooterStatus.cues(
+                        totalCount: snapshot.totalCount
+                    ),
+                    actionTitle: collageSelectionPlan == nil
+                        ? "Play"
+                        : "Select"
+                )
+                .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
+                .padding(
+                    .horizontal,
+                    PlaybackSubtitleFocusMetrics.contentInset
+                )
+            }
             .clipped()
             .contentShape(Rectangle())
         }
+        .background(PlaybackTheme.subtitleFocusOverlayBackground)
         .onDisappear {
             onCueReelMotionChanged(false)
             onScrollbarDraggingChanged(false)

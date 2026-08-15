@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added one shared Cue Footer to Playback Current, Cue Playlist, Command Panel
+  Search, and the Collage subtitle pane. It reports the live complete Cue or
+  search-result count without disturbing selection, playback, or scrolling;
+  Search still limits its visible preview to 50 while its count continues to
+  completion. The shared navigation hints now use the native Return symbol and
+  show Play or Select according to the active surface.
 - Reworked Playback Current, Cue Playlist, Command Panel Search, and Editing
   Collage around one shared Cue timeline. Every row now reserves a stable
   right-aligned sequence lane with proportional 24-point Semibold text and

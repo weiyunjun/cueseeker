@@ -154,6 +154,11 @@ func playbackPlaylistBoundaryRefreshUpdatesResidentSnapshotAndSelection() throws
     let window = try #require(source.makeSessionWindowStore())
     let initial = source.boundary
     let datasetID = try #require(window.reelDatasetID)
+    #expect(
+        PlaybackCueFooterStatus.cues(
+            totalCount: window.snapshot.totalCount
+        ) == "2 cues"
+    )
     #expect(window.commitSelection(PlaybackVirtualReelSelectionCommit(
         datasetID: AnyHashable(datasetID),
         generation: initial.generation,
@@ -171,6 +176,11 @@ func playbackPlaylistBoundaryRefreshUpdatesResidentSnapshotAndSelection() throws
     #expect(window.snapshot.isComplete)
     #expect(window.selectedOrdinal == 1)
     #expect(window.selectedItemIdentity == .search(1_001))
+    #expect(
+        PlaybackCueFooterStatus.cues(
+            totalCount: window.snapshot.totalCount
+        ) == "3 cues"
+    )
 
     items[1] = PlaybackPlaylistItem(
         searchResult: makePlaybackPlaylistSearchResult(id: 9_001),
