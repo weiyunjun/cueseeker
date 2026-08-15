@@ -8,6 +8,7 @@ enum WorkbenchPanelMode: String, CaseIterable {
     case shiori
     case recentWatching
     case testLibrary
+    case data
     case search
 
     var sidebarLabel: String {
@@ -20,6 +21,8 @@ enum WorkbenchPanelMode: String, CaseIterable {
             return "Recent"
         case .testLibrary:
             return "Library"
+        case .data:
+            return "Data"
         case .search:
             return "Search"
         }
@@ -35,6 +38,8 @@ enum WorkbenchPanelMode: String, CaseIterable {
             return "clock"
         case .testLibrary:
             return "folder"
+        case .data:
+            return "cylinder.split.1x2"
         case .search:
             return "magnifyingglass"
         }
@@ -66,7 +71,7 @@ final class WorkbenchRouteState: ObservableObject {
             selectedTestLibraryFolder != nil
         case .shiori:
             selectedShioriListID != nil
-        case .library, .search:
+        case .library, .data, .search:
             false
         }
     }

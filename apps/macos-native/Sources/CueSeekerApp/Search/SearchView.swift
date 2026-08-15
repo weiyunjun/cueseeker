@@ -78,6 +78,8 @@ struct SearchView: View {
                     WorkbenchRecentView()
                 case .testLibrary:
                     WorkbenchTestLibraryView()
+                case .data:
+                    DataView()
                 case .search:
                     workbenchSearchSurface
                 }

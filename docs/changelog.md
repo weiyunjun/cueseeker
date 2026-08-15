@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added the Data Workbench page between Library and Shiori. It reads the real
+  indexed database hierarchy into stable root, folder, Display Title, video,
+  and subtitle rows; roots open by default, folder and object expansion remains
+  Session-local, full names wrap without truncation, and the page reuses the
+  shared Workbench scrollbar and visual tokens. Editing and context menus remain
+  outside this first presentation-only stage.
 - Added one shared Cue Footer to Playback Current, Cue Playlist, Command Panel
   Search, and the Collage subtitle pane. It reports the live complete Cue or
   search-result count without disturbing selection, playback, or scrolling;

@@ -41,6 +41,7 @@ final class AppCoordinator: ObservableObject {
     var indexingDatabase: IndexingDatabase?
     let playbackSubtitleDatabase: PlaybackSubtitleDatabase?
     let libraryDatabase: LibraryDatabase?
+    let indexedContentDatabase: IndexedContentDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
     let shioriDatabase: ShioriDatabase?
     let libraryUserCoverService: LibraryUserCoverService?
@@ -476,6 +477,7 @@ final class AppCoordinator: ObservableObject {
         var openedSearchDatabase: SearchDatabase?
         var openedPlaybackSubtitleDatabase: PlaybackSubtitleDatabase?
         var openedLibraryDatabase: LibraryDatabase?
+        var openedIndexedContentDatabase: IndexedContentDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
         var openedShioriDatabase: ShioriDatabase?
         var initialError: Error?
@@ -487,6 +489,7 @@ final class AppCoordinator: ObservableObject {
             openedSearchDatabase = try SearchDatabase(path: self.databaseURL)
             openedPlaybackSubtitleDatabase = try PlaybackSubtitleDatabase(path: self.databaseURL)
             openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
+            openedIndexedContentDatabase = try IndexedContentDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
             openedShioriDatabase = try ShioriDatabase(path: self.databaseURL)
             initialError = nil
@@ -495,6 +498,7 @@ final class AppCoordinator: ObservableObject {
             openedSearchDatabase = nil
             openedPlaybackSubtitleDatabase = nil
             openedLibraryDatabase = nil
+            openedIndexedContentDatabase = nil
             openedLibraryCoverDatabase = nil
             openedShioriDatabase = nil
             initialError = error
@@ -511,6 +515,7 @@ final class AppCoordinator: ObservableObject {
         _ = search.updateFolderScope(indexing.selectedFolders)
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         self.libraryDatabase = openedLibraryDatabase
+        self.indexedContentDatabase = openedIndexedContentDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
         self.shioriDatabase = openedShioriDatabase
         self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in

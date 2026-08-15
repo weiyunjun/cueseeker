@@ -222,6 +222,8 @@ extension AppCoordinator {
             .shiori
         case .recentWatching:
             .recent
+        case .data:
+            nil
         case .library, .testLibrary:
             workbenchLayout.selectedTestLibraryFolder.map {
                 .libraryFolderDetail(folderPath: $0.folderPath)

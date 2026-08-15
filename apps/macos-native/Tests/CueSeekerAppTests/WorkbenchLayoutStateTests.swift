@@ -33,10 +33,29 @@ func workbenchLayoutStatePersistsSelectedPanelMode() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
-        layoutState.selectPanelMode(.search)
+        layoutState.selectPanelMode(.data)
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        #expect(reloadedLayoutState.panelMode == .search)
+        #expect(reloadedLayoutState.panelMode == .data)
+    }
+}
+
+@MainActor
+@Test
+func workbenchLayoutStateDoesNotInvalidateAnAlreadySelectedDataPanel() {
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+        layoutState.selectPanelMode(.data)
+        var routeInvalidations = 0
+        let cancellable = layoutState.route.objectWillChange.sink {
+            routeInvalidations += 1
+        }
+
+        layoutState.selectPanelMode(.data)
+
+        #expect(routeInvalidations == 0)
+        #expect(layoutState.panelMode == .data)
+        withExtendedLifetime(cancellable) {}
     }
 }
 
@@ -195,6 +214,9 @@ func workbenchRouteEnablesBackOnlyForSecondaryPages() {
         #expect(!layoutState.route.canNavigateBack)
 
         layoutState.selectPanelMode(.search)
+        #expect(!layoutState.route.canNavigateBack)
+
+        layoutState.selectPanelMode(.data)
         #expect(!layoutState.route.canNavigateBack)
     }
 }
