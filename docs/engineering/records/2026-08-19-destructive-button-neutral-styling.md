@@ -19,9 +19,9 @@
 ## Steps
 
 - Added the same pointer Hover state used by the Neutral Button.
-- Reused the Neutral Button's surface, Hover background, icon, focus ring, and
-  disabled colors.
-- Kept the enabled label and border on the existing Danger text token.
+- Reused the Neutral Button's surface, icon, focus ring, and disabled colors.
+- Kept the enabled label and border on the existing Danger text token, and used
+  the existing Danger Hover background token for the enabled Hover state.
 - Added no new token, abstraction, state source, or dependency.
 
 ## Verification
@@ -34,21 +34,20 @@
   ran 1,004 tests: 1,002 passed and 2 failed in unrelated Shiori table
   scrolling and anchor waits. An isolated rerun reproduced both failures;
   neither test exercises the Destructive Button.
-- The Debug E2E App launched successfully, but its `1433 x 821` scene did not
-  match the reusable Shiori procedure's required `1443 x 821` precondition.
-  Testing stopped before coordinate input or capture, as required by the E2E
-  rules.
+- The Debug in-app E2E controller launched successfully with one main window.
+  Its current actions cannot generate Pointer Hover, so no Hover capture was
+  produced and no additional automation capability was added.
 - `git diff --check`: passed before documentation updates and is repeated
   before commit.
 
 ## Outcome
 
-- Enabled Destructive Buttons now differ from Neutral Buttons only through the
-  Danger-colored label and border.
+- Enabled Destructive Buttons use the Neutral surface by default, Danger-colored
+  label and border, and the Danger Hover background while hovered.
 - Disabled appearance remains identical to Neutral, and Light/Dark behavior
   continues to come from the existing dynamic design tokens.
 
 ## Follow-ups
 
-- A valid documented E2E scene is still required for final Light/Dark visual
-  acceptance of Default, Hover, and Focused states.
+- Final Light/Dark Pointer Hover acceptance remains manual unless a separate
+  requirement authorizes adding Pointer Move to the Debug E2E controller.

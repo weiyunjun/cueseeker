@@ -741,7 +741,7 @@ struct WorkbenchDestructiveButton: View {
             .frame(height: WorkbenchControlMetrics.redesignHeight)
             .background(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
+                    .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.dangerBgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)

@@ -10,8 +10,8 @@ This changelog does not replace Git history. Git records concrete file changes. 
   E2E procedures. Tests still require the current scene identifier, expected
   window layout, and pre-agreed coordinates, and stop when the layout differs.
 - Aligned the shared Destructive Button with the Neutral Button's surface,
-  icon, hover, focus, and disabled treatments. Enabled destructive actions now
-  differ only through their Danger-colored label and border.
+  icon, focus, and disabled treatments. Enabled destructive actions use a
+  Danger-colored label and border plus the pale Danger Hover background.
 - Added the Data Workbench page between Library and Shiori. It reads the real
   indexed database hierarchy into stable root, folder, Display Title, video,
   and subtitle rows. Folder membership, object membership, and ordering reuse
