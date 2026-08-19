@@ -103,64 +103,26 @@ struct ShioriListEditorDialog: View {
 
     @FocusState private var isNameFocused: Bool
     @FocusState private var isDescriptionFocused: Bool
-    @State private var showsSaveChangesConfirmation = false
 
     var body: some View {
-        ZStack {
-            VStack(alignment: .leading, spacing: 20) {
-                Text(session.mode.title)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+        VStack(alignment: .leading, spacing: 20) {
+            Text(session.mode.title)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
 
-                HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                    coverRegion
-                        .frame(width: 380)
+            HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                coverRegion
+                    .frame(width: 380)
 
-                    formRegion
-                        .frame(width: 340)
-                }
-
-                actions
+                formRegion
+                    .frame(width: 340)
             }
-            .padding(24)
-            .frame(width: 792, alignment: .topLeading)
-            .background(WorkbenchRedesignColors.bgSurface)
 
-            if showsSaveChangesConfirmation {
-                WorkbenchConfirmationDialog(
-                    title: "Save Changes?",
-                    message: "You have unsaved changes. Do you want to save them before closing?",
-                    actions: [
-                        WorkbenchConfirmationAction(
-                            id: "discard",
-                            title: "Don’t Save",
-                            style: .neutral,
-                            action: onClose
-                        ),
-                        WorkbenchConfirmationAction(
-                            id: "cancel",
-                            title: "Cancel",
-                            style: .neutral,
-                            isCancel: true,
-                            action: {
-                                showsSaveChangesConfirmation = false
-                            }
-                        ),
-                        WorkbenchConfirmationAction(
-                            id: "save",
-                            title: "Save",
-                            style: .primary,
-                            isDefault: true,
-                            action: {
-                                showsSaveChangesConfirmation = false
-                                save()
-                            }
-                        ),
-                    ]
-                )
-                .zIndex(20)
-            }
+            actions
         }
+        .padding(24)
+        .frame(width: 792, alignment: .topLeading)
+        .background(WorkbenchRedesignColors.bgSurface)
         .onChange(of: session.name) { _ in
             revalidateIfNeeded()
         }
@@ -238,7 +200,7 @@ struct ShioriListEditorDialog: View {
             WorkbenchButton(
                 title: "Cancel",
                 isRedesign: true,
-                action: cancel
+                action: onClose
             )
             .disabled(session.isSaving)
             .keyboardShortcut(.cancelAction)
@@ -249,14 +211,6 @@ struct ShioriListEditorDialog: View {
             )
             .disabled(session.isSaving)
             .keyboardShortcut(.defaultAction)
-        }
-    }
-
-    private func cancel() {
-        if session.hasUnsavedChanges {
-            showsSaveChangesConfirmation = true
-        } else {
-            onClose()
         }
     }
 
