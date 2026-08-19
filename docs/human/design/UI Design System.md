@@ -2803,7 +2803,7 @@
 #### Components
 
 - Section Title
-- Button / Neutral
+- Button / Primary
 - Library Folder Card Layout
 
 #### Layout
@@ -2901,7 +2901,7 @@
 #### Components
 
 - Section Title
-- Button / Neutral
+- Button / Primary
 - Shiori List Card Layout
 
 #### Layout
