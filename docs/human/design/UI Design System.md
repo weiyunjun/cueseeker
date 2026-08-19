@@ -772,12 +772,15 @@
 ##### Destructive
 
 - Default
-  - Background：Transparent
-  - Border：None
+  - Background：`--color-bg-surface`
+  - Border Color：`--color-danger-text`
   - Label Color：`--color-danger-text`
-  - Icon Color：`--color-danger-text`
+  - Icon Color：`--color-icon-default`
 - Hover
-  - Background：`--color-danger-bg-hover`
+  - Background：`--color-bg-hover`
+  - Border Color：`--color-danger-text`
+- Focused
+  - Border Color：`--color-danger-text`
 - Disabled
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
