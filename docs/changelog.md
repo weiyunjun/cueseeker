@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Promoted the Library Overview `Add Content` action and Shiori List Overview
+  `New List` action to the shared Primary Button treatment without changing
+  their labels, plus icons, positions, states, or behavior.
 - Simplified Shiori List Editor cancellation in both New List and Edit List.
   `Cancel` now immediately discards the current unsaved session and closes the
   editor; the separate Save Changes interface and `Don't Save` action are gone,

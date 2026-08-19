@@ -43,10 +43,9 @@ struct LibraryOverviewLayout<Content: View>: View {
 
                     Spacer(minLength: 0)
 
-                    WorkbenchPlainActionButton(
+                    WorkbenchPrimaryButton(
                         title: actionTitle,
                         systemImage: actionSystemImage,
-                        isRedesign: true,
                         action: action
                     )
                 }
