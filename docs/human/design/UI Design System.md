@@ -773,14 +773,14 @@
 
 - Default
   - Background：`--color-bg-surface`
-  - Border Color：`--color-danger-text`
+  - Border Color：`--color-border-control`
   - Label Color：`--color-danger-text`
   - Icon Color：`--color-icon-default`
 - Hover
   - Background：`--color-danger-bg-hover`
-  - Border Color：`--color-danger-text`
+  - Border Color：`--color-border-control-hover`
 - Focused
-  - Border Color：`--color-danger-text`
+  - Border Color：`--color-border-focus`
 - Disabled
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
