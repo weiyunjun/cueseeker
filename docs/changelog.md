@@ -6,6 +6,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Aligned the shared Destructive Button with the Neutral Button's surface,
+  icon, hover, focus, and disabled treatments. Enabled destructive actions now
+  differ only through their Danger-colored label and border.
 - Added the Data Workbench page between Library and Shiori. It reads the real
   indexed database hierarchy into stable root, folder, Display Title, video,
   and subtitle rows. Folder membership, object membership, and ordering reuse

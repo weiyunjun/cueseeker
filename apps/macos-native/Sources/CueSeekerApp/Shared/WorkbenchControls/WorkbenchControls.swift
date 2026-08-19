@@ -718,6 +718,7 @@ struct WorkbenchDestructiveButton: View {
     var action: () -> Void
 
     @FocusState private var isFocused: Bool
+    @State private var isHovered = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -727,7 +728,7 @@ struct WorkbenchDestructiveButton: View {
                     Image(systemName: systemImage)
                         .font(.system(size: WorkbenchControlMetrics.redesignButtonIconSize, weight: WorkbenchControlMetrics.redesignButtonIconWeight))
                         .frame(width: WorkbenchControlMetrics.redesignButtonIconSize, height: WorkbenchControlMetrics.redesignButtonIconSize)
-                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.dangerText : WorkbenchRedesignColors.iconDisabled)
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled)
                 }
 
                 Text(title)
@@ -740,11 +741,11 @@ struct WorkbenchDestructiveButton: View {
             .frame(height: WorkbenchControlMetrics.redesignHeight)
             .background(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .fill(isEnabled ? WorkbenchRedesignColors.dangerBgHover : WorkbenchRedesignColors.bgDisabled)
+                    .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .strokeBorder(isEnabled ? Color.clear : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
+                    .strokeBorder(isEnabled ? WorkbenchRedesignColors.dangerText : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
             )
             .overlay(
                 Group {
@@ -762,6 +763,7 @@ struct WorkbenchDestructiveButton: View {
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
+        .onHover { isHovered = $0 }
     }
 }
 
